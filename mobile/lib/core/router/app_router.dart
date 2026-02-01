@@ -19,6 +19,8 @@ import '../../features/bulletin/presentation/screens/bulletin_board_mobile_scree
 import '../../features/surveys/presentation/screens/surveys_mobile_screen.dart';
 import '../../features/packages/presentation/screens/package_tracking_mobile_screen.dart';
 import '../../features/energy/presentation/screens/energy_consumption_mobile_screen.dart';
+import '../../features/documents/presentation/screens/documents_screen.dart';
+import '../../features/assets/presentation/screens/assets_screen.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
@@ -121,6 +123,20 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/energy',
         name: 'energy',
         builder: (context, state) => const EnergyConsumptionMobileScreen(),
+      ),
+      
+      // Belgeler
+      GoRoute(
+        path: '/documents',
+        name: 'documents',
+        builder: (context, state) => const DocumentsScreen(),
+      ),
+      
+      // Demirbaşlar
+      GoRoute(
+        path: '/assets',
+        name: 'assets',
+        builder: (context, state) => const AssetsScreen(),
       ),
     ],
     redirect: (context, state) {
