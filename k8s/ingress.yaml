@@ -1,0 +1,77 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: siteeksen-ingress
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/rate-limit: "100"
+    nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+spec:
+  tls:
+    - hosts:
+        - api.siteeksen.com
+        - admin.siteeksen.com
+      secretName: siteeksen-tls
+  rules:
+    # API Gateway
+    - host: api.siteeksen.com
+      http:
+        paths:
+          - path: /v1/auth
+            pathType: Prefix
+            backend:
+              service:
+                name: identity-service
+                port:
+                  number: 80
+          - path: /v1/users
+            pathType: Prefix
+            backend:
+              service:
+                name: identity-service
+                port:
+                  number: 80
+          - path: /v1/finance
+            pathType: Prefix
+            backend:
+              service:
+                name: finance-service
+                port:
+                  number: 80
+          - path: /v1/payments
+            pathType: Prefix
+            backend:
+              service:
+                name: finance-service
+                port:
+                  number: 80
+
+    # Admin Panel
+    - host: admin.siteeksen.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: admin-panel
+                port:
+                  number: 80
+---
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: ssl@siteeksen.com
+    privateKeySecretRef:
+      name: letsencrypt-prod
+    solvers:
+      - http01:
+          ingress:
+            class: nginx

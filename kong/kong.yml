@@ -1,0 +1,60 @@
+_format_version: "3.0"
+
+services:
+  - name: identity-service
+    url: http://identity-service:8081
+    routes:
+      - name: auth-routes
+        paths:
+          - /api/v1/auth
+        strip_path: false
+      - name: user-routes
+        paths:
+          - /api/v1/users
+        strip_path: false
+    plugins:
+      - name: rate-limiting
+        config:
+          minute: 100
+          policy: local
+      - name: cors
+        config:
+          origins:
+            - "*"
+          methods:
+            - GET
+            - POST
+            - PUT
+            - DELETE
+            - OPTIONS
+          headers:
+            - Authorization
+            - Content-Type
+          max_age: 3600
+
+  - name: finance-service
+    url: http://finance-service:8082
+    routes:
+      - name: finance-routes
+        paths:
+          - /api/v1/finance
+        strip_path: false
+    plugins:
+      - name: rate-limiting
+        config:
+          minute: 200
+          policy: local
+      - name: cors
+        config:
+          origins:
+            - "*"
+          methods:
+            - GET
+            - POST
+            - PUT
+            - DELETE
+            - OPTIONS
+          headers:
+            - Authorization
+            - Content-Type
+          max_age: 3600

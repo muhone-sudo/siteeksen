@@ -1,0 +1,91 @@
+-- SiteEksen Seed Data
+-- Migration: 002_seed_data.sql
+
+-- =====================================================
+-- Demo Site ve Veriler
+-- =====================================================
+
+-- Demo Site
+INSERT INTO properties (id, name, address, city, district, total_share_ratio, total_units) VALUES
+('11111111-1111-1111-1111-111111111111', 'Güneş Sitesi', 'Atatürk Cad. No:123', 'İstanbul', 'Kadıköy', 10000, 24);
+
+-- Bloklar
+INSERT INTO blocks (id, property_id, name, floor_count) VALUES
+('22222222-2222-2222-2222-222222222221', '11111111-1111-1111-1111-111111111111', 'A Blok', 8),
+('22222222-2222-2222-2222-222222222222', '11111111-1111-1111-1111-111111111111', 'B Blok', 8);
+
+-- Bağımsız Bölümler (A Blok)
+INSERT INTO units (id, property_id, block_id, block, floor, door_number, share_ratio, gross_area_m2, unit_type, is_ground_floor) VALUES
+('33333333-3333-3333-3333-333333333301', '11111111-1111-1111-1111-111111111111', '22222222-2222-2222-2222-222222222221', 'A', 0, '1', 400, 85, 'APARTMENT', true),
+('33333333-3333-3333-3333-333333333302', '11111111-1111-1111-1111-111111111111', '22222222-2222-2222-2222-222222222221', 'A', 0, '2', 400, 85, 'APARTMENT', true),
+('33333333-3333-3333-3333-333333333303', '11111111-1111-1111-1111-111111111111', '22222222-2222-2222-2222-222222222221', 'A', 1, '3', 420, 95, 'APARTMENT', false),
+('33333333-3333-3333-3333-333333333304', '11111111-1111-1111-1111-111111111111', '22222222-2222-2222-2222-222222222221', 'A', 1, '4', 420, 95, 'APARTMENT', false),
+('33333333-3333-3333-3333-333333333305', '11111111-1111-1111-1111-111111111111', '22222222-2222-2222-2222-222222222221', 'A', 2, '5', 420, 95, 'APARTMENT', false),
+('33333333-3333-3333-3333-333333333306', '11111111-1111-1111-1111-111111111111', '22222222-2222-2222-2222-222222222221', 'A', 2, '6', 420, 95, 'APARTMENT', false);
+
+-- Demo Kullanıcı (Şifre: Demo123!)
+INSERT INTO users (id, first_name, last_name, phone, email, password_hash, active_property_id, roles) VALUES
+('44444444-4444-4444-4444-444444444401', 'Ahmet', 'Yılmaz', '+905551234567', 'ahmet@example.com', 
+ '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/X4.VTtYV.Uoqy7mPy', -- Demo123!
+ '11111111-1111-1111-1111-111111111111', ARRAY['RESIDENT', 'OWNER']),
+('44444444-4444-4444-4444-444444444402', 'Mehmet', 'Demir', '+905559876543', 'mehmet@example.com',
+ '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/X4.VTtYV.Uoqy7mPy',
+ '11111111-1111-1111-1111-111111111111', ARRAY['RESIDENT', 'TENANT']);
+
+-- Sakin-Daire İlişkileri
+INSERT INTO resident_units (resident_id, unit_id, role, start_date) VALUES
+('44444444-4444-4444-4444-444444444401', '33333333-3333-3333-3333-333333333303', 'OWNER', '2020-01-01'),
+('44444444-4444-4444-4444-444444444402', '33333333-3333-3333-3333-333333333304', 'TENANT', '2024-06-01');
+
+-- Gider Kalemleri
+INSERT INTO expense_categories (id, property_id, name, distribution_type, applies_to_ground_floor, sort_order) VALUES
+('55555555-5555-5555-5555-555555555501', '11111111-1111-1111-1111-111111111111', 'Genel Yönetim', 'SHARE_RATIO', true, 1),
+('55555555-5555-5555-5555-555555555502', '11111111-1111-1111-1111-111111111111', 'Asansör Bakım', 'EQUAL', false, 2),
+('55555555-5555-5555-5555-555555555503', '11111111-1111-1111-1111-111111111111', 'Temizlik Personeli', 'EQUAL', true, 3),
+('55555555-5555-5555-5555-555555555504', '11111111-1111-1111-1111-111111111111', 'Bahçe Bakım', 'AREA_M2', true, 4),
+('55555555-5555-5555-5555-555555555505', '11111111-1111-1111-1111-111111111111', 'Ortak Elektrik', 'EQUAL', true, 5),
+('55555555-5555-5555-5555-555555555506', '11111111-1111-1111-1111-111111111111', 'Isınma', 'METER_READING', true, 6);
+
+-- Demo Aidatlar (Son 3 ay)
+INSERT INTO monthly_assessments (id, property_id, unit_id, period_year, period_month, base_amount, late_fee, total_amount, due_date, status, paid_amount) VALUES
+-- Ahmet Yılmaz - A-3
+('66666666-6666-6666-6666-666666666601', '11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333303', 2026, 1, 1200.00, 0, 1200.00, '2026-01-10', 'PENDING', 0),
+('66666666-6666-6666-6666-666666666602', '11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333303', 2025, 12, 1150.00, 0, 1150.00, '2025-12-10', 'PAID', 1150.00),
+('66666666-6666-6666-6666-666666666603', '11111111-1111-1111-1111-111111111111', '33333333-3333-3333-3333-333333333303', 2025, 11, 1150.00, 0, 1150.00, '2025-11-10', 'PAID', 1150.00);
+
+-- Sayaçlar
+INSERT INTO meters (id, unit_id, meter_type, serial_number, brand) VALUES
+('77777777-7777-7777-7777-777777777701', '33333333-3333-3333-3333-333333333303', 'HEAT', 'ISI-A3-001', 'Siemens'),
+('77777777-7777-7777-7777-777777777702', '33333333-3333-3333-3333-333333333303', 'WATER_COLD', 'SU-A3-001', 'Danfoss');
+
+-- Sayaç Okumaları (Son 6 ay ısı)
+INSERT INTO meter_readings (meter_id, reading_date, previous_value, current_value, reading_type) VALUES
+('77777777-7777-7777-7777-777777777701', '2025-08-01', 0, 850, 'AUTOMATIC'),
+('77777777-7777-7777-7777-777777777701', '2025-09-01', 850, 1120, 'AUTOMATIC'),
+('77777777-7777-7777-7777-777777777701', '2025-10-01', 1120, 1580, 'AUTOMATIC'),
+('77777777-7777-7777-7777-777777777701', '2025-11-01', 1580, 2150, 'AUTOMATIC'),
+('77777777-7777-7777-7777-777777777701', '2025-12-01', 2150, 2890, 'AUTOMATIC'),
+('77777777-7777-7777-7777-777777777701', '2026-01-01', 2890, 3750, 'AUTOMATIC');
+
+-- Tüketim Tarifeleri
+INSERT INTO consumption_tariffs (property_id, meter_type, effective_from, unit_price, fixed_fee, tax_rate) VALUES
+('11111111-1111-1111-1111-111111111111', 'HEAT', '2025-01-01', 0.85, 25.00, 18.00),
+('11111111-1111-1111-1111-111111111111', 'WATER_COLD', '2025-01-01', 32.50, 15.00, 8.00);
+
+-- Talep Kategorileri
+INSERT INTO request_categories (id, property_id, name, icon, sla_hours) VALUES
+('88888888-8888-8888-8888-888888888801', '11111111-1111-1111-1111-111111111111', 'Asansör', 'elevator', 4),
+('88888888-8888-8888-8888-888888888802', '11111111-1111-1111-1111-111111111111', 'Temizlik', 'cleaning', 24),
+('88888888-8888-8888-8888-888888888803', '11111111-1111-1111-1111-111111111111', 'Güvenlik', 'security', 2),
+('88888888-8888-8888-8888-888888888804', '11111111-1111-1111-1111-111111111111', 'Bahçe', 'garden', 48),
+('88888888-8888-8888-8888-888888888805', '11111111-1111-1111-1111-111111111111', 'Diğer', 'other', 72);
+
+-- Demo Duyuru
+INSERT INTO announcements (property_id, title, content, category, priority, created_by) VALUES
+('11111111-1111-1111-1111-111111111111', 'Asansör Bakımı', 
+ 'Sayın Sakinlerimiz, 5 Şubat 2026 Perşembe günü saat 10:00-14:00 arasında asansör periyodik bakımı yapılacaktır. Bu süre zarfında asansörler kullanılamayacaktır. Anlayışınız için teşekkür ederiz.',
+ 'MAINTENANCE', 'HIGH', '44444444-4444-4444-4444-444444444401');
+
+-- Yönetim Kadrosu
+INSERT INTO management_staff (property_id, user_id, title, phone, start_date) VALUES
+('11111111-1111-1111-1111-111111111111', '44444444-4444-4444-4444-444444444401', 'Yönetim Kurulu Başkanı', '+905551234567', '2024-01-01');

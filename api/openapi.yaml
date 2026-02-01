@@ -1,0 +1,705 @@
+openapi: 3.1.0
+info:
+  title: SiteEksen API
+  description: |
+    Türkiye'deki Kat Mülkiyeti Kanunu'na uyumlu site yönetim platformu API'si.
+    
+    ## Kimlik Doğrulama
+    API, JWT Bearer token tabanlı kimlik doğrulama kullanır. Token'ı `Authorization: Bearer <token>` header'ı ile gönderin.
+    
+    ## Rate Limiting
+    - Genel endpoint'ler: 100 istek/dakika
+    - Finans endpoint'leri: 200 istek/dakika
+  version: 1.0.0
+  contact:
+    name: SiteEksen Destek
+    email: api@siteeksen.com
+
+servers:
+  - url: http://localhost:8000/api/v1
+    description: Geliştirme ortamı
+  - url: https://api.siteeksen.com/v1
+    description: Üretim ortamı
+
+tags:
+  - name: Auth
+    description: Kimlik doğrulama işlemleri
+  - name: Users
+    description: Kullanıcı yönetimi
+  - name: Finance
+    description: Finansal işlemler (aidatlar, ödemeler)
+  - name: Requests
+    description: Talep ve şikayet yönetimi
+  - name: Consumption
+    description: Sayaç ve tüketim verileri
+
+paths:
+  # ==================== AUTH ====================
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Kullanıcı girişi
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [phone, password]
+              properties:
+                phone:
+                  type: string
+                  pattern: '^\+90[0-9]{10}$'
+                  example: "+905551234567"
+                password:
+                  type: string
+                  minLength: 6
+                  example: "Demo123!"
+      responses:
+        '200':
+          description: Başarılı giriş
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Token yenileme
+      operationId: refreshToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token:
+                  type: string
+      responses:
+        '200':
+          description: Token yenilendi
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenPair'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Çıkış
+      operationId: logout
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Başarılı çıkış
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Çıkış başarılı"
+
+  # ==================== USERS ====================
+  /users/me:
+    get:
+      tags: [Users]
+      summary: Mevcut kullanıcı bilgisi
+      operationId: getCurrentUser
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Kullanıcı bilgisi
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /users/me/properties:
+    get:
+      tags: [Users]
+      summary: Kullanıcının kayıtlı siteleri
+      operationId: getUserProperties
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Site listesi
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UserProperty'
+
+  /users/me/active-property:
+    post:
+      tags: [Users]
+      summary: Aktif site seçimi
+      operationId: setActiveProperty
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [property_id]
+              properties:
+                property_id:
+                  type: string
+                  format: uuid
+      responses:
+        '200':
+          description: Aktif site güncellendi
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+
+  # ==================== FINANCE ====================
+  /finance/debt-status:
+    get:
+      tags: [Finance]
+      summary: Anlık borç durumu
+      description: Dashboard'da gösterilen borç durumu kartı için veri
+      operationId: getDebtStatus
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Borç durumu
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DebtStatus'
+
+  /finance/assessments:
+    get:
+      tags: [Finance]
+      summary: Aidat listesi
+      operationId: getAssessments
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: year
+          in: query
+          schema:
+            type: integer
+            example: 2026
+      responses:
+        '200':
+          description: Aidat listesi
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AssessmentSummary'
+
+  /finance/assessments/{id}:
+    get:
+      tags: [Finance]
+      summary: Aidat detayı
+      operationId: getAssessmentDetails
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Aidat detayı
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssessmentDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /finance/payments:
+    get:
+      tags: [Finance]
+      summary: Ödeme geçmişi
+      operationId: getPaymentHistory
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Ödeme listesi
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Payment'
+
+    post:
+      tags: [Finance]
+      summary: Ödeme başlat
+      operationId: createPayment
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePaymentRequest'
+      responses:
+        '200':
+          description: Ödeme başlatıldı
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  # ==================== CONSUMPTION ====================
+  /finance/consumption/summary:
+    get:
+      tags: [Consumption]
+      summary: Tüketim özeti (grafik verisi)
+      operationId: getConsumptionSummary
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: meter_type
+          in: query
+          schema:
+            type: string
+            enum: [HEAT, WATER_COLD, WATER_HOT, GAS, ELECTRIC]
+            default: HEAT
+      responses:
+        '200':
+          description: Tüketim özeti
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConsumptionSummary'
+
+  # ==================== REQUESTS ====================
+  /requests:
+    get:
+      tags: [Requests]
+      summary: Talep listesi
+      operationId: getRequests
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [ACTIVE, COMPLETED]
+      responses:
+        '200':
+          description: Talep listesi
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Request'
+
+    post:
+      tags: [Requests]
+      summary: Yeni talep oluştur
+      operationId: createRequest
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRequestInput'
+      responses:
+        '201':
+          description: Talep oluşturuldu
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Request'
+
+  /requests/{id}:
+    get:
+      tags: [Requests]
+      summary: Talep detayı
+      operationId: getRequestDetails
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Talep detayı
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RequestDetail'
+
+  /requests/{id}/comments:
+    post:
+      tags: [Requests]
+      summary: Talebe yorum ekle
+      operationId: addRequestComment
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [content]
+              properties:
+                content:
+                  type: string
+                  maxLength: 1000
+      responses:
+        '201':
+          description: Yorum eklendi
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  responses:
+    Unauthorized:
+      description: Kimlik doğrulama başarısız
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    BadRequest:
+      description: Geçersiz istek
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: Kaynak bulunamadı
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          example: "Geçersiz istek formatı"
+
+    TokenPair:
+      type: object
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+        expires_in:
+          type: integer
+          description: Token geçerlilik süresi (saniye)
+
+    LoginResponse:
+      allOf:
+        - $ref: '#/components/schemas/TokenPair'
+        - type: object
+          properties:
+            user:
+              $ref: '#/components/schemas/User'
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        first_name:
+          type: string
+        last_name:
+          type: string
+        phone:
+          type: string
+        email:
+          type: string
+        properties:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserProperty'
+
+    UserProperty:
+      type: object
+      properties:
+        property_id:
+          type: string
+          format: uuid
+        property_name:
+          type: string
+          example: "Güneş Sitesi"
+        unit_id:
+          type: string
+          format: uuid
+        unit_name:
+          type: string
+          example: "A-3"
+        role:
+          type: string
+          enum: [OWNER, TENANT, PROXY]
+
+    DebtStatus:
+      type: object
+      properties:
+        has_debt:
+          type: boolean
+        current_balance:
+          type: number
+          example: 1250.00
+        overdue_amount:
+          type: number
+          example: 0
+        overdue_months:
+          type: integer
+          example: 0
+        next_due_date:
+          type: string
+          format: date
+        next_due_amount:
+          type: number
+
+    AssessmentSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        period:
+          type: string
+          example: "2026-01"
+        base_amount:
+          type: number
+        late_fee:
+          type: number
+        total_amount:
+          type: number
+        paid_amount:
+          type: number
+        status:
+          type: string
+          enum: [PENDING, PARTIAL, PAID, OVERDUE]
+
+    AssessmentDetail:
+      allOf:
+        - $ref: '#/components/schemas/AssessmentSummary'
+        - type: object
+          properties:
+            details:
+              type: array
+              items:
+                type: object
+                properties:
+                  category:
+                    type: string
+                    example: "Genel Yönetim"
+                  amount:
+                    type: number
+                  calculation_basis:
+                    type: string
+
+    CreatePaymentRequest:
+      type: object
+      required: [assessment_ids, payment_method]
+      properties:
+        assessment_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+        payment_method:
+          type: string
+          enum: [CREDIT_CARD, BANK_TRANSFER, SAVED_CARD]
+        card_token:
+          type: string
+        save_card:
+          type: boolean
+
+    PaymentResult:
+      type: object
+      properties:
+        payment_id:
+          type: string
+          format: uuid
+        checkout_url:
+          type: string
+          format: uri
+        status:
+          type: string
+          enum: [PENDING, COMPLETED]
+
+    Payment:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        amount:
+          type: number
+        payment_method:
+          type: string
+        status:
+          type: string
+          enum: [PENDING, COMPLETED, FAILED, REFUNDED]
+        transaction_id:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+
+    ConsumptionSummary:
+      type: object
+      properties:
+        meter_type:
+          type: string
+          enum: [HEAT, WATER_COLD, WATER_HOT]
+        unit:
+          type: string
+          example: "kWh"
+        data:
+          type: array
+          items:
+            type: object
+            properties:
+              period:
+                type: string
+                example: "2026-01"
+              consumption:
+                type: number
+              amount:
+                type: number
+              status:
+                type: string
+                enum: [BILLED, PENDING]
+
+    Request:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        ticket_number:
+          type: string
+          example: "TLP-2026-0142"
+        category:
+          type: string
+        title:
+          type: string
+        status:
+          type: string
+          enum: [OPEN, IN_PROGRESS, RESOLVED, CLOSED]
+        priority:
+          type: string
+          enum: [LOW, NORMAL, HIGH, URGENT]
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CreateRequestInput:
+      type: object
+      required: [category_id, title, description]
+      properties:
+        category_id:
+          type: string
+          format: uuid
+        title:
+          type: string
+          maxLength: 100
+        description:
+          type: string
+          maxLength: 1000
+        location:
+          type: string
+        photos:
+          type: array
+          items:
+            type: string
+            format: uri
+        priority:
+          type: string
+          enum: [LOW, NORMAL, HIGH, URGENT]
+          default: NORMAL
+
+    RequestDetail:
+      allOf:
+        - $ref: '#/components/schemas/Request'
+        - type: object
+          properties:
+            description:
+              type: string
+            location:
+              type: string
+            photos:
+              type: array
+              items:
+                type: string
+            assigned_to:
+              type: string
+            comments:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  user_name:
+                    type: string
+                  content:
+                    type: string
+                  created_at:
+                    type: string
+                    format: date-time
