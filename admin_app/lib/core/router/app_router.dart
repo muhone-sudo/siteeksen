@@ -21,6 +21,13 @@ import '../../features/expenses/presentation/screens/expenses_screen.dart';
 import '../../features/expenses/presentation/screens/add_expense_screen.dart';
 import '../../features/expenses/presentation/screens/expense_detail_screen.dart';
 import '../../features/main/presentation/screens/main_screen.dart';
+// Yeni Modül Ekranları
+import '../../features/visitors/presentation/screens/visitor_management_screen.dart';
+import '../../features/parking/presentation/screens/parking_management_screen.dart';
+import '../../features/reservations/presentation/screens/reservation_management_screen.dart';
+import '../../features/energy/presentation/screens/energy_dashboard_screen.dart';
+import '../../features/personnel/presentation/screens/personnel_management_screen.dart';
+import '../../features/inventory/presentation/screens/inventory_management_screen.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
@@ -154,6 +161,48 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 ),
               ),
             ],
+          ),
+          
+          // Ziyaretçi Yönetimi
+          GoRoute(
+            path: '/visitors',
+            name: 'visitors',
+            builder: (context, state) => const VisitorManagementScreen(),
+          ),
+          
+          // Otopark Yönetimi
+          GoRoute(
+            path: '/parking',
+            name: 'parking',
+            builder: (context, state) => const ParkingManagementScreen(),
+          ),
+          
+          // Rezervasyon Yönetimi
+          GoRoute(
+            path: '/reservations',
+            name: 'reservations',
+            builder: (context, state) => const ReservationManagementScreen(),
+          ),
+          
+          // AI Enerji Dashboard
+          GoRoute(
+            path: '/energy',
+            name: 'energy',
+            builder: (context, state) => const EnergyDashboardScreen(),
+          ),
+          
+          // Personel Yönetimi
+          GoRoute(
+            path: '/personnel',
+            name: 'personnel',
+            builder: (context, state) => const PersonnelManagementScreen(),
+          ),
+          
+          // Stok/Envanter Yönetimi
+          GoRoute(
+            path: '/inventory',
+            name: 'inventory',
+            builder: (context, state) => const InventoryManagementScreen(),
           ),
         ],
       ),
