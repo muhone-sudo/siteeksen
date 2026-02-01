@@ -17,6 +17,9 @@ import '../../features/announcements/presentation/screens/create_announcement_sc
 import '../../features/requests/presentation/screens/requests_screen.dart';
 import '../../features/requests/presentation/screens/request_detail_screen.dart';
 import '../../features/reports/presentation/screens/reports_screen.dart';
+import '../../features/expenses/presentation/screens/expenses_screen.dart';
+import '../../features/expenses/presentation/screens/add_expense_screen.dart';
+import '../../features/expenses/presentation/screens/expense_detail_screen.dart';
 import '../../features/main/presentation/screens/main_screen.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
@@ -130,6 +133,27 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path: '/reports',
             name: 'reports',
             builder: (context, state) => const ReportsScreen(),
+          ),
+          
+          // Expenses (Gider Yönetimi)
+          GoRoute(
+            path: '/expenses',
+            name: 'expenses',
+            builder: (context, state) => const ExpensesScreen(),
+            routes: [
+              GoRoute(
+                path: 'add',
+                name: 'add-expense',
+                builder: (context, state) => const AddExpenseScreen(),
+              ),
+              GoRoute(
+                path: ':id',
+                name: 'expense-detail',
+                builder: (context, state) => ExpenseDetailScreen(
+                  expenseId: state.pathParameters['id']!,
+                ),
+              ),
+            ],
           ),
         ],
       ),
