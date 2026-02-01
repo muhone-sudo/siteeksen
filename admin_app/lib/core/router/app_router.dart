@@ -28,6 +28,16 @@ import '../../features/reservations/presentation/screens/reservation_management_
 import '../../features/energy/presentation/screens/energy_dashboard_screen.dart';
 import '../../features/personnel/presentation/screens/personnel_management_screen.dart';
 import '../../features/inventory/presentation/screens/inventory_management_screen.dart';
+import '../../features/surveys/presentation/screens/survey_management_screen.dart';
+import '../../features/packages/presentation/screens/package_tracking_screen.dart';
+import '../../features/assets/presentation/screens/asset_management_screen.dart';
+import '../../features/contracts/presentation/screens/contract_management_screen.dart';
+import '../../features/patrol/presentation/screens/patrol_control_screen.dart';
+import '../../features/meetings/presentation/screens/meeting_wizard_screen.dart';
+import '../../features/collection/presentation/screens/smart_collection_screen.dart';
+import '../../features/bulletin/presentation/screens/bulletin_board_screen.dart';
+import '../../features/banking/presentation/screens/bank_integration_screen.dart';
+import '../../features/settings/presentation/screens/api_settings_screen.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
@@ -203,6 +213,76 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path: '/inventory',
             name: 'inventory',
             builder: (context, state) => const InventoryManagementScreen(),
+          ),
+          
+          // Anket/Oylama
+          GoRoute(
+            path: '/surveys',
+            name: 'surveys',
+            builder: (context, state) => const SurveyManagementScreen(),
+          ),
+          
+          // Kargo Takibi
+          GoRoute(
+            path: '/packages',
+            name: 'packages',
+            builder: (context, state) => const PackageTrackingScreen(),
+          ),
+          
+          // Demirbaş Yönetimi
+          GoRoute(
+            path: '/assets',
+            name: 'assets',
+            builder: (context, state) => const AssetManagementScreen(),
+          ),
+          
+          // Sözleşme Yönetimi
+          GoRoute(
+            path: '/contracts',
+            name: 'contracts',
+            builder: (context, state) => const ContractManagementScreen(),
+          ),
+          
+          // Tur Kontrol
+          GoRoute(
+            path: '/patrol',
+            name: 'patrol',
+            builder: (context, state) => const PatrolControlScreen(),
+          ),
+          
+          // AI Toplantı Sihirbazı
+          GoRoute(
+            path: '/meetings',
+            name: 'meetings',
+            builder: (context, state) => const MeetingWizardScreen(),
+          ),
+          
+          // AI Akıllı Tahsilat
+          GoRoute(
+            path: '/collection',
+            name: 'collection',
+            builder: (context, state) => const SmartCollectionScreen(),
+          ),
+          
+          // Site İlan Panosu
+          GoRoute(
+            path: '/bulletin',
+            name: 'bulletin',
+            builder: (context, state) => const BulletinBoardScreen(),
+          ),
+          
+          // Banka Entegrasyonu
+          GoRoute(
+            path: '/banking',
+            name: 'banking',
+            builder: (context, state) => const BankIntegrationScreen(),
+          ),
+          
+          // API Ayarları
+          GoRoute(
+            path: '/api-settings',
+            name: 'apiSettings',
+            builder: (context, state) => const APISettingsScreen(),
           ),
         ],
       ),
