@@ -1,8 +1,6 @@
 package main
 
 import (
-	"context"
-	"encoding/json"
 	"log"
 	"net/http"
 	"os"
@@ -24,14 +22,14 @@ type NotificationRequest struct {
 
 // NotificationLog - Bildirim kaydı
 type NotificationLog struct {
-	ID          string    `json:"id"`
-	Type        string    `json:"type"`
-	Recipient   string    `json:"recipient"`
-	Title       string    `json:"title"`
-	Body        string    `json:"body"`
-	Status      string    `json:"status"` // PENDING, SENT, FAILED
-	SentAt      time.Time `json:"sent_at"`
-	Error       string    `json:"error,omitempty"`
+	ID        string    `json:"id"`
+	Type      string    `json:"type"`
+	Recipient string    `json:"recipient"`
+	Title     string    `json:"title"`
+	Body      string    `json:"body"`
+	Status    string    `json:"status"` // PENDING, SENT, FAILED
+	SentAt    time.Time `json:"sent_at"`
+	Error     string    `json:"error,omitempty"`
 }
 
 func main() {
@@ -93,9 +91,9 @@ func sendNotification(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"message":       "Bildirim gönderildi",
+		"message":         "Bildirim gönderildi",
 		"notification_id": "notif-" + time.Now().Format("20060102150405"),
-		"recipients":    len(req.Recipients),
+		"recipients":      len(req.Recipients),
 	})
 }
 
@@ -113,8 +111,8 @@ func sendBulkNotification(c *gin.Context) {
 
 	// Property'deki tüm kullanıcılara gönder
 	c.JSON(http.StatusOK, gin.H{
-		"message":    "Toplu bildirim kuyruğa alındı",
-		"property_id": req.PropertyID,
+		"message":              "Toplu bildirim kuyruğa alındı",
+		"property_id":          req.PropertyID,
 		"estimated_recipients": 124,
 	})
 }
@@ -158,19 +156,19 @@ func listTemplates(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"data": []gin.H{
 			{
-				"id":      "tpl-001",
-				"name":    "payment_reminder",
-				"type":    "PUSH",
-				"title":   "Ödeme Hatırlatması",
-				"body":    "{{month}} ayı aidatınızın son ödeme tarihi {{due_date}}",
+				"id":        "tpl-001",
+				"name":      "payment_reminder",
+				"type":      "PUSH",
+				"title":     "Ödeme Hatırlatması",
+				"body":      "{{month}} ayı aidatınızın son ödeme tarihi {{due_date}}",
 				"is_active": true,
 			},
 			{
-				"id":      "tpl-002",
-				"name":    "payment_received",
-				"type":    "PUSH",
-				"title":   "Ödeme Alındı ✓",
-				"body":    "{{amount}} TL ödemeniz başarıyla alındı",
+				"id":        "tpl-002",
+				"name":      "payment_received",
+				"type":      "PUSH",
+				"title":     "Ödeme Alındı ✓",
+				"body":      "{{amount}} TL ödemeniz başarıyla alındı",
 				"is_active": true,
 			},
 		},
@@ -191,13 +189,13 @@ func getPreferences(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"user_id": c.Param("id"),
 		"preferences": gin.H{
-			"push_enabled":          true,
-			"sms_enabled":           true,
-			"email_enabled":         true,
-			"payment_reminders":     true,
-			"announcement_alerts":   true,
-			"request_updates":       true,
-			"marketing_messages":    false,
+			"push_enabled":        true,
+			"sms_enabled":         true,
+			"email_enabled":       true,
+			"payment_reminders":   true,
+			"announcement_alerts": true,
+			"request_updates":     true,
+			"marketing_messages":  false,
 			"quiet_hours": gin.H{
 				"enabled": true,
 				"start":   "22:00",

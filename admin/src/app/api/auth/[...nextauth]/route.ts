@@ -3,6 +3,7 @@ import type { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+const SERVER_API_URL = process.env.API_URL || API_URL;
 
 const authOptions: NextAuthOptions = {
     providers: [
@@ -13,12 +14,17 @@ const authOptions: NextAuthOptions = {
                 password: { label: "Şifre", type: "password" },
             },
             async authorize(credentials) {
+                console.log("Authorize called with credentials:", credentials);
+                console.log("Using SERVER_API_URL:", SERVER_API_URL);
+
                 if (!credentials?.phone || !credentials?.password) {
+                    console.log("Missing credentials");
                     return null;
                 }
 
                 try {
-                    const response = await fetch(`${API_URL}/auth/login`, {
+                    console.log(`Fetching from ${SERVER_API_URL}/auth/login...`);
+                    const response = await fetch(`${SERVER_API_URL}/auth/login`, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
@@ -26,6 +32,8 @@ const authOptions: NextAuthOptions = {
                             password: credentials.password,
                         }),
                     });
+
+                    console.log("Response status:", response.status);
 
                     if (!response.ok) {
                         return null;

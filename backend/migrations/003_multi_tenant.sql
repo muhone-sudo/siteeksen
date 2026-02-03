@@ -60,6 +60,7 @@ CREATE TABLE IF NOT EXISTS usage_metrics (
 CREATE INDEX idx_usage_metrics_tenant ON usage_metrics(tenant_id, recorded_at);
 
 -- Audit log (tenant bazlı)
+DROP TABLE IF EXISTS audit_logs;
 CREATE TABLE IF NOT EXISTS audit_logs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id UUID NOT NULL REFERENCES tenants(id),

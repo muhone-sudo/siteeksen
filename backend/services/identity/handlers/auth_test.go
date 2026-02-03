@@ -1,4 +1,4 @@
-package auth_test
+package handlers
 
 import (
 	"bytes"
@@ -180,7 +180,7 @@ func TestPhoneValidation(t *testing.T) {
 		{"+905551234567", true},
 		{"05551234567", true},
 		{"5551234567", true},
-		{"+90555123456", false},  // Çok kısa
+		{"+90555123456", false},   // Çok kısa
 		{"+9055512345678", false}, // Çok uzun
 		{"invalid", false},
 	}

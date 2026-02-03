@@ -55,29 +55,75 @@ export default function DashboardPage() {
 
             {/* Charts Row */}
             <div className="grid gap-6 lg:grid-cols-2">
-                {/* Collection Chart */}
+                {/* Collection Chart - Bar Chart */}
                 <div className="rounded-xl bg-white p-6 shadow-sm dark:bg-gray-800">
                     <h3 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">
                         Aylık Tahsilat
                     </h3>
-                    <div className="h-64 flex items-center justify-center text-gray-400">
-                        {/* Placeholder for chart */}
-                        <div className="text-center">
-                            <TrendingUp className="mx-auto h-12 w-12 mb-2" />
-                            <p>Grafik bileşeni yüklenecek</p>
-                        </div>
+                    <div className="h-64 flex items-end gap-2 pt-4">
+                        {[
+                            { month: 'Oca', value: 35, amount: '₺35K' },
+                            { month: 'Şub', value: 42, amount: '₺42K' },
+                            { month: 'Mar', value: 38, amount: '₺38K' },
+                            { month: 'Nis', value: 45, amount: '₺45K' },
+                            { month: 'May', value: 52, amount: '₺52K' },
+                            { month: 'Haz', value: 48, amount: '₺48K' },
+                            { month: 'Tem', value: 55, amount: '₺55K' },
+                            { month: 'Ağu', value: 46, amount: '₺46K' },
+                            { month: 'Eyl', value: 50, amount: '₺50K' },
+                            { month: 'Eki', value: 58, amount: '₺58K' },
+                            { month: 'Kas', value: 62, amount: '₺62K' },
+                            { month: 'Ara', value: 70, amount: '₺70K' },
+                        ].map((item, idx) => (
+                            <div key={idx} className="flex-1 flex flex-col items-center gap-1">
+                                <div className="text-xs text-gray-500">{item.amount}</div>
+                                <div
+                                    className="w-full bg-gradient-to-t from-blue-500 to-blue-400 rounded-t-md transition-all hover:from-blue-600 hover:to-blue-500"
+                                    style={{ height: `${item.value * 2.5}px` }}
+                                />
+                                <div className="text-xs text-gray-500">{item.month}</div>
+                            </div>
+                        ))}
                     </div>
                 </div>
 
-                {/* Consumption Chart */}
+                {/* Consumption Chart - Pie Chart */}
                 <div className="rounded-xl bg-white p-6 shadow-sm dark:bg-gray-800">
                     <h3 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">
                         Tüketim Dağılımı
                     </h3>
-                    <div className="h-64 flex items-center justify-center text-gray-400">
-                        <div className="text-center">
-                            <TrendingUp className="mx-auto h-12 w-12 mb-2" />
-                            <p>Grafik bileşeni yüklenecek</p>
+                    <div className="h-64 flex items-center justify-center gap-8">
+                        {/* Pie Chart */}
+                        <div className="relative w-40 h-40">
+                            <div
+                                className="absolute inset-0 rounded-full"
+                                style={{
+                                    background: `conic-gradient(
+                                        #3b82f6 0deg 126deg,
+                                        #10b981 126deg 216deg,
+                                        #f59e0b 216deg 288deg,
+                                        #ef4444 288deg 360deg
+                                    )`
+                                }}
+                            />
+                            <div className="absolute inset-6 bg-white dark:bg-gray-800 rounded-full flex items-center justify-center">
+                                <span className="text-sm font-semibold text-gray-700">100%</span>
+                            </div>
+                        </div>
+                        {/* Legend */}
+                        <div className="space-y-3">
+                            {[
+                                { label: 'Elektrik', value: '35%', color: 'bg-blue-500' },
+                                { label: 'Su', value: '25%', color: 'bg-green-500' },
+                                { label: 'Doğalgaz', value: '20%', color: 'bg-yellow-500' },
+                                { label: 'Ortak Gider', value: '20%', color: 'bg-red-500' },
+                            ].map((item, idx) => (
+                                <div key={idx} className="flex items-center gap-2">
+                                    <div className={`w-3 h-3 rounded-full ${item.color}`} />
+                                    <span className="text-sm text-gray-600">{item.label}</span>
+                                    <span className="text-sm font-semibold text-gray-900">{item.value}</span>
+                                </div>
+                            ))}
                         </div>
                     </div>
                 </div>
@@ -91,7 +137,7 @@ export default function DashboardPage() {
                         <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                             Son Ödemeler
                         </h3>
-                        <a href="#" className="text-sm text-primary hover:underline">
+                        <a href="/dashboard/assessments" className="text-sm text-primary hover:underline">
                             Tümünü Gör
                         </a>
                     </div>
@@ -123,7 +169,7 @@ export default function DashboardPage() {
                         <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                             Son Talepler
                         </h3>
-                        <a href="#" className="text-sm text-primary hover:underline">
+                        <a href="/dashboard/requests" className="text-sm text-primary hover:underline">
                             Tümünü Gör
                         </a>
                     </div>

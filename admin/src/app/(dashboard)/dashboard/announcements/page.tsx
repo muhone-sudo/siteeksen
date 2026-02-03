@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Send, Pin, Clock, Users } from "lucide-react";
+import { Plus, Send, Pin, Clock, Users, X, FileText } from "lucide-react";
 
 const mockAnnouncements = [
     {
@@ -51,6 +51,34 @@ const categoryConfig: Record<string, { label: string; color: string }> = {
 
 export default function AnnouncementsPage() {
     const [showNewForm, setShowNewForm] = useState(false);
+    const [announcements, setAnnouncements] = useState(mockAnnouncements);
+    const [formData, setFormData] = useState({
+        title: "",
+        content: "",
+        category: "INFO",
+        priority: "NORMAL",
+        isPinned: false,
+    });
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        const newAnnouncement = {
+            id: announcements.length + 1,
+            ...formData,
+            createdAt: new Date().toISOString().split("T")[0],
+            readCount: 0,
+            totalResidents: 124,
+        };
+        setAnnouncements([newAnnouncement, ...announcements]);
+        setFormData({
+            title: "",
+            content: "",
+            category: "INFO",
+            priority: "NORMAL",
+            isPinned: false,
+        });
+        setShowNewForm(false);
+    };
 
     return (
         <div className="space-y-6">
@@ -82,7 +110,7 @@ export default function AnnouncementsPage() {
                         </div>
                         <div>
                             <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                                {mockAnnouncements.length}
+                                {announcements.length}
                             </p>
                             <p className="text-sm text-gray-500">Aktif Duyuru</p>
                         </div>
@@ -108,7 +136,7 @@ export default function AnnouncementsPage() {
                         </div>
                         <div>
                             <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                                1
+                                {announcements.filter((a) => a.isPinned).length}
                             </p>
                             <p className="text-sm text-gray-500">Sabitlenmiş</p>
                         </div>
@@ -118,7 +146,7 @@ export default function AnnouncementsPage() {
 
             {/* Announcements List */}
             <div className="space-y-4">
-                {mockAnnouncements.map((announcement) => (
+                {announcements.map((announcement) => (
                     <div
                         key={announcement.id}
                         className={`rounded-xl bg-white p-6 shadow-sm dark:bg-gray-800 ${announcement.isPinned ? "border-2 border-primary" : ""
@@ -168,6 +196,114 @@ export default function AnnouncementsPage() {
                     </div>
                 ))}
             </div>
+
+            {/* Modal */}
+            {showNewForm && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+                    <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-2xl dark:bg-gray-800">
+                        <div className="flex items-center justify-between mb-4">
+                            <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                                Yeni Duyuru Oluştur
+                            </h2>
+                            <button
+                                onClick={() => setShowNewForm(false)}
+                                className="rounded-lg p-1 hover:bg-gray-100 dark:hover:bg-gray-700"
+                            >
+                                <X className="h-5 w-5 text-gray-500" />
+                            </button>
+                        </div>
+                        <form onSubmit={handleSubmit} className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    Başlık
+                                </label>
+                                <div className="relative">
+                                    <FileText className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                                    <input
+                                        type="text"
+                                        required
+                                        value={formData.title}
+                                        onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                                        className="w-full rounded-lg border border-gray-300 bg-white py-2 pl-10 pr-4 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:border-gray-600 dark:bg-gray-700"
+                                        placeholder="Duyuru başlığı"
+                                    />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                    İçerik
+                                </label>
+                                <textarea
+                                    required
+                                    rows={4}
+                                    value={formData.content}
+                                    onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+                                    className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:border-gray-600 dark:bg-gray-700"
+                                    placeholder="Duyuru içeriği..."
+                                />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                        Kategori
+                                    </label>
+                                    <select
+                                        value={formData.category}
+                                        onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                                        className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:border-gray-600 dark:bg-gray-700"
+                                    >
+                                        <option value="INFO">Duyuru</option>
+                                        <option value="MAINTENANCE">Bakım</option>
+                                        <option value="PAYMENT">Ödeme</option>
+                                        <option value="EMERGENCY">Acil</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                        Öncelik
+                                    </label>
+                                    <select
+                                        value={formData.priority}
+                                        onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
+                                        className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:border-gray-600 dark:bg-gray-700"
+                                    >
+                                        <option value="LOW">Düşük</option>
+                                        <option value="NORMAL">Normal</option>
+                                        <option value="HIGH">Yüksek</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <input
+                                    type="checkbox"
+                                    id="isPinned"
+                                    checked={formData.isPinned}
+                                    onChange={(e) => setFormData({ ...formData, isPinned: e.target.checked })}
+                                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                                />
+                                <label htmlFor="isPinned" className="text-sm text-gray-700 dark:text-gray-300">
+                                    Sabit duyuru olarak yayınla
+                                </label>
+                            </div>
+                            <div className="flex gap-3 pt-4">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowNewForm(false)}
+                                    className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+                                >
+                                    İptal
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="flex-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
+                                >
+                                    Yayınla
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

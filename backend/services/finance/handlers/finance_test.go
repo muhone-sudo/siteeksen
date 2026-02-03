@@ -1,4 +1,4 @@
-package finance_test
+package handlers
 
 import (
 	"bytes"
@@ -150,10 +150,10 @@ func TestListExpenseCategories(t *testing.T) {
 // Test Late Fee Calculation
 func TestLateFeeCalculation(t *testing.T) {
 	testCases := []struct {
-		name           string
-		amount         float64
-		daysOverdue    int
-		feePercentage  float64
+		name            string
+		amount          float64
+		daysOverdue     int
+		feePercentage   float64
 		expectedLateFee float64
 	}{
 		{"No late fee", 1000.00, 0, 0.05, 0.00},
@@ -173,8 +173,8 @@ func TestLateFeeCalculation(t *testing.T) {
 // Test Distribution Calculation
 func TestDistributionCalculation(t *testing.T) {
 	units := []struct {
-		id   string
-		sqm  float64
+		id    string
+		sqm   float64
 		share float64
 	}{
 		{"unit-1", 100.0, 10.0},
@@ -194,7 +194,7 @@ func TestDistributionCalculation(t *testing.T) {
 		for _, u := range units {
 			totalSqm += u.sqm
 		}
-		
+
 		for _, u := range units {
 			share := (u.sqm / totalSqm) * totalAmount
 			if u.id == "unit-1" {

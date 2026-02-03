@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Calendar, Download, Filter } from "lucide-react";
+import { Plus, Calendar, Download, X, DollarSign, CalendarDays } from "lucide-react";
 
 const mockAssessments = [
     {
@@ -44,6 +44,62 @@ const expenseCategories = [
 
 export default function AssessmentsPage() {
     const [selectedYear, setSelectedYear] = useState(2026);
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [assessments, setAssessments] = useState(mockAssessments);
+    const [formData, setFormData] = useState({
+        period: "",
+        dueDate: "",
+        expenses: [
+            { name: "Genel Yönetim", amount: 8500, distribution: "Arsa Payı" },
+            { name: "Asansör Bakım", amount: 3200, distribution: "Eşit" },
+            { name: "Temizlik Personeli", amount: 6800, distribution: "Eşit" },
+        ],
+    });
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        const totalAmount = formData.expenses.reduce((sum, exp) => sum + exp.amount, 0);
+        const newAssessment = {
+            id: assessments.length + 1,
+            period: formData.period,
+            totalAmount,
+            collectedAmount: 0,
+            rate: 0,
+            dueDate: formData.dueDate,
+            status: "active",
+        };
+        setAssessments([newAssessment, ...assessments]);
+        setFormData({
+            period: "",
+            dueDate: "",
+            expenses: [
+                { name: "Genel Yönetim", amount: 8500, distribution: "Arsa Payı" },
+                { name: "Asansör Bakım", amount: 3200, distribution: "Eşit" },
+                { name: "Temizlik Personeli", amount: 6800, distribution: "Eşit" },
+            ],
+        });
+        setIsModalOpen(false);
+    };
+
+    const updateExpense = (idx: number, field: string, value: string | number) => {
+        const updated = [...formData.expenses];
+        updated[idx] = { ...updated[idx], [field]: field === "amount" ? Number(value) : value };
+        setFormData({ ...formData, expenses: updated });
+    };
+
+    const addExpense = () => {
+        setFormData({
+            ...formData,
+            expenses: [...formData.expenses, { name: "", amount: 0, distribution: "Eşit" }],
+        });
+    };
+
+    const removeExpense = (idx: number) => {
+        setFormData({
+            ...formData,
+            expenses: formData.expenses.filter((_, i) => i !== idx),
+        });
+    };
 
     return (
         <div className="space-y-6">
@@ -62,7 +118,10 @@ export default function AssessmentsPage() {
                         <Download className="h-4 w-4" />
                         Rapor İndir
                     </button>
-                    <button className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90">
+                    <button
+                        onClick={() => setIsModalOpen(true)}
+                        className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
+                    >
                         <Plus className="h-4 w-4" />
                         Yeni Tahakkuk
                     </button>
@@ -183,7 +242,7 @@ export default function AssessmentsPage() {
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                        {mockAssessments.map((a) => (
+                        {assessments.map((a) => (
                             <tr key={a.id}>
                                 <td className="py-3 font-medium text-gray-900 dark:text-white">
                                     {a.period}
@@ -213,8 +272,8 @@ export default function AssessmentsPage() {
                                 <td className="py-3 text-center">
                                     <span
                                         className={`rounded-full px-3 py-1 text-xs font-medium ${a.status === "completed"
-                                                ? "bg-green-100 text-green-700"
-                                                : "bg-yellow-100 text-yellow-700"
+                                            ? "bg-green-100 text-green-700"
+                                            : "bg-yellow-100 text-yellow-700"
                                             }`}
                                     >
                                         {a.status === "completed" ? "Tamamlandı" : "Aktif"}
@@ -225,6 +284,132 @@ export default function AssessmentsPage() {
                     </tbody>
                 </table>
             </div>
+
+            {/* Modal */}
+            {isModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+                    <div className="w-full max-w-2xl rounded-xl bg-white p-6 shadow-2xl dark:bg-gray-800 max-h-[90vh] overflow-y-auto">
+                        <div className="flex items-center justify-between mb-4">
+                            <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                                Yeni Tahakkuk Oluştur
+                            </h2>
+                            <button
+                                onClick={() => setIsModalOpen(false)}
+                                className="rounded-lg p-1 hover:bg-gray-100 dark:hover:bg-gray-700"
+                            >
+                                <X className="h-5 w-5 text-gray-500" />
+                            </button>
+                        </div>
+                        <form onSubmit={handleSubmit} className="space-y-4">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                        Dönem
+                                    </label>
+                                    <div className="relative">
+                                        <CalendarDays className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                                        <input
+                                            type="text"
+                                            required
+                                            value={formData.period}
+                                            onChange={(e) => setFormData({ ...formData, period: e.target.value })}
+                                            className="w-full rounded-lg border border-gray-300 bg-white py-2 pl-10 pr-4 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:border-gray-600 dark:bg-gray-700"
+                                            placeholder="Şubat 2026"
+                                        />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                        Son Ödeme Tarihi
+                                    </label>
+                                    <input
+                                        type="date"
+                                        required
+                                        value={formData.dueDate}
+                                        onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
+                                        className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:border-gray-600 dark:bg-gray-700"
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <div className="flex items-center justify-between mb-2">
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                        Gider Kalemleri
+                                    </label>
+                                    <button
+                                        type="button"
+                                        onClick={addExpense}
+                                        className="text-sm text-primary hover:underline"
+                                    >
+                                        + Kalem Ekle
+                                    </button>
+                                </div>
+                                <div className="space-y-2">
+                                    {formData.expenses.map((exp, idx) => (
+                                        <div key={idx} className="flex items-center gap-2">
+                                            <input
+                                                type="text"
+                                                value={exp.name}
+                                                onChange={(e) => updateExpense(idx, "name", e.target.value)}
+                                                className="flex-1 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none dark:border-gray-600 dark:bg-gray-700"
+                                                placeholder="Kalem adı"
+                                            />
+                                            <input
+                                                type="number"
+                                                value={exp.amount}
+                                                onChange={(e) => updateExpense(idx, "amount", e.target.value)}
+                                                className="w-28 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none dark:border-gray-600 dark:bg-gray-700"
+                                                placeholder="Tutar"
+                                            />
+                                            <select
+                                                value={exp.distribution}
+                                                onChange={(e) => updateExpense(idx, "distribution", e.target.value)}
+                                                className="rounded-lg border border-gray-300 bg-white px-2 py-2 text-sm dark:border-gray-600 dark:bg-gray-700"
+                                            >
+                                                <option>Eşit</option>
+                                                <option>Arsa Payı</option>
+                                                <option>Metrekare</option>
+                                            </select>
+                                            {formData.expenses.length > 1 && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => removeExpense(idx)}
+                                                    className="p-1 text-red-500 hover:bg-red-50 rounded"
+                                                >
+                                                    <X className="h-4 w-4" />
+                                                </button>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                                <div className="mt-2 text-right">
+                                    <span className="text-sm text-gray-500">Toplam: </span>
+                                    <span className="font-bold text-gray-900 dark:text-white">
+                                        ₺{formData.expenses.reduce((sum, exp) => sum + exp.amount, 0).toLocaleString()}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div className="flex gap-3 pt-4">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsModalOpen(false)}
+                                    className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+                                >
+                                    İptal
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="flex-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
+                                >
+                                    Tahakkuk Oluştur
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
