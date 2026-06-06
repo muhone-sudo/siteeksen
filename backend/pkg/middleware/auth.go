@@ -51,7 +51,12 @@ func AuthMiddleware() gin.HandlerFunc {
 		}
 
 		// Context'e kullanıcı bilgilerini ekle
-		c.Set("user_id", claims.UserID)
+		// JWT'de user_id "sub" claim'inde taşınıyor
+		userID := claims.UserID
+		if userID == "" {
+			userID = claims.RegisteredClaims.Subject
+		}
+		c.Set("user_id", userID)
 		c.Set("property_id", claims.PropertyID)
 		c.Set("roles", claims.Roles)
 

@@ -2,10 +2,25 @@ package handlers
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/siteeksen/backend/services/identity/service"
 )
+
+func normalizePhone(phone string) string {
+	phone = strings.TrimSpace(phone)
+	if strings.HasPrefix(phone, "+90") {
+		return phone
+	}
+	if strings.HasPrefix(phone, "0") {
+		return "+90" + phone[1:]
+	}
+	if len(phone) == 10 {
+		return "+90" + phone
+	}
+	return phone
+}
 
 // LoginRequest giriş isteği
 type LoginRequest struct {
@@ -22,7 +37,7 @@ func Login(svc *service.AuthService) gin.HandlerFunc {
 			return
 		}
 
-		tokens, user, err := svc.Login(c.Request.Context(), req.Phone, req.Password)
+		tokens, user, err := svc.Login(c.Request.Context(), normalizePhone(req.Phone), req.Password)
 		if err != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Geçersiz telefon veya şifre"})
 			return

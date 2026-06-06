@@ -1,0 +1,180 @@
+# ROADMAP
+
+Proje ilerleme durumu ve planlaması.
+
+---
+
+## Durum Göstergesi
+- ✅ Tamamlandı
+- 🔄 Devam ediyor
+- 📋 Planlandı
+- ❌ Yapılmadı
+
+---
+
+## Backend Mikroservisler
+
+| Servis | Durum | Port | Notlar |
+|--------|-------|------|--------|
+| identity | ✅ | 8081 | Docker'da aktif |
+| finance | ✅ | 8082 | Docker'da aktif, iyzico entegre |
+| community | ✅ | 8083 | Docker'da aktif |
+| iot | ✅ | 8084 | Docker'da aktif, MongoDB bağlı |
+| notification | ✅ | 8085 | Docker'da aktif, Firebase + Kafka |
+| expense | ✅ | 8086 | Servis yazıldı, docker-compose'a eklenmedi |
+| asset | ✅ | — | Servis yazıldı, docker-compose'a eklenmedi |
+| banking | ✅ | — | Servis yazıldı, docker-compose'a eklenmedi |
+| bulletin | ✅ | — | Servis yazıldı, docker-compose'a eklenmedi |
+| contract | ✅ | — | Servis yazıldı, docker-compose'a eklenmedi |
+| document | ✅ | — | Servis yazıldı, docker-compose'a eklenmedi |
+| energy_analytics | ✅ | — | Servis yazıldı, docker-compose'a eklenmedi |
+| esg | ✅ | — | Servis yazıldı, docker-compose'a eklenmedi |
+| inventory | ✅ | — | Servis yazıldı, docker-compose'a eklenmedi |
+| meeting_wizard | ✅ | — | Servis yazıldı, docker-compose'a eklenmedi |
+| nps | ✅ | — | Servis yazıldı, docker-compose'a eklenmedi |
+| package | ✅ | — | Servis yazıldı, docker-compose'a eklenmedi |
+| parking | ✅ | — | Servis yazıldı, docker-compose'a eklenmedi |
+| patrol | ✅ | — | Servis yazıldı, docker-compose'a eklenmedi |
+| personnel | ✅ | — | Servis yazıldı, docker-compose'a eklenmedi |
+| reservation | ✅ | — | Servis yazıldı, docker-compose'a eklenmedi |
+| settings | ✅ | — | Servis yazıldı, docker-compose'a eklenmedi |
+| smart_collection | ✅ | — | Servis yazıldı, docker-compose'a eklenmedi |
+| survey | ✅ | — | Servis yazıldı, docker-compose'a eklenmedi |
+| visitor | ✅ | — | Servis yazıldı, docker-compose'a eklenmedi |
+| gateway (dev) | ✅ | 8888 | Docker'da aktif |
+
+### Backend Yapılacaklar
+- ✅ **Demo gateway gerçek reverse proxy'ye dönüştürüldü** — identity, finance, community servislerine proxy; henüz olmayan servisler için mock
+- 📋 Tüm yeni servisleri `docker-compose.yml`'e ekle ve port ata
+- 📋 Kong `kong.yml`'i yeni servislerle güncelle
+- 📋 Her servis için birim testleri yaz (şu an sadece `tests/integration_test.go` var)
+- 📋 `pkg/integrations/ai/` — OpenAI Vision gerçek API key ile test edilmeli
+- 📋 `pkg/integrations/bank/` — banka entegrasyonu gerçek ortamda test edilmeli
+- 📋 Kafka consumer'ları genişlet (şu an sadece notification servisi tüketiyor)
+
+---
+
+## Admin Paneli (Next.js)
+
+| Sayfa | Durum | Notlar |
+|-------|-------|--------|
+| Login | ✅ | NextAuth ile |
+| Dashboard (genel bakış) | ✅ | |
+| Sakinler | ✅ | |
+| Aidatlar | ✅ | |
+| Sayaçlar | ✅ | |
+| Talepler | ✅ | |
+| Duyurular | ✅ | |
+| Raporlar | ✅ | |
+| Ayarlar | ✅ | |
+| Muhasebe | 🔄 | Sayfa var, backend bağlantısı eksik |
+| Bildirimler | 🔄 | Sayfa var, backend bağlantısı eksik |
+| API Kimlik Bilgileri | 🔄 | Sayfa var, backend bağlantısı eksik |
+
+### Admin Panel Yapılacaklar
+- ✅ `api-client.ts` gateway üzerinden gerçek servislere bağlandı
+- ✅ Token refresh mantığı implement edildi
+- 📋 Muhasebe sayfasını backend'e bağla
+- 📋 Bildirimler sayfasını notification servisiyle entegre et
+- 📋 API Credentials sayfasını settings servisine bağla
+- 📋 Gider yönetimi sayfası ekle
+- 📋 Otopark, personel, rezervasyon, ziyaretçi sayfaları ekle
+
+---
+
+## Mobil Uygulama — Sakin (Flutter `mobile/`)
+
+| Ekran | Durum | Notlar |
+|-------|-------|--------|
+| Ana Sayfa | ✅ | |
+| Aidat/Ödeme | ✅ | |
+| Talepler | ✅ | |
+| Duyurular | ✅ | |
+| İlan Panosu | ✅ | |
+| Enerji Tüketimi | ✅ | |
+| Koli Takibi | ✅ | |
+| Rezervasyon | ✅ | |
+| Ziyaretçi Ön Kayıt | ✅ | |
+| Anketler | ✅ | |
+| Belgeler | ✅ | |
+| Varlıklar | ✅ | |
+| Profil/Ayarlar | ✅ | |
+| NPS değerlendirme | 📋 | nps servisi hazır, mobil ekran yok |
+| ESG/Sürdürülebilirlik | 📋 | esg servisi hazır, mobil ekran yok |
+
+### Mobil Yapılacaklar
+- 📋 Gerçek API entegrasyonu (çoğu ekranda mock data var)
+- 📋 Retrofit/Dio ile API client'ları tamamla
+- 📋 Push notification alma ve gösterme akışını test et
+- 📋 Biyometrik giriş (`local_auth`) tam entegrasyonu
+- 📋 App Store / Google Play yayınlama (`docs/store-publishing-guide.md` hazır)
+
+---
+
+## Admin Mobil Uygulaması (Flutter `admin_app/`)
+
+| Ekran | Durum | Notlar |
+|-------|-------|--------|
+| Login | ✅ | |
+| Dashboard | ✅ | |
+| Sakinler | ✅ | |
+| Finans | ✅ | |
+| Sayaçlar | ✅ | |
+| Duyurular | ✅ | |
+| Talepler | ✅ | |
+| Raporlar | ✅ | |
+| Personel Yönetimi | ✅ | |
+| Rezervasyon Yönetimi | ✅ | |
+| Ziyaretçi Yönetimi | ✅ | |
+| Enerji Panosu | ✅ | |
+| Otopark Yönetimi | ✅ | |
+| Envanter Yönetimi | ✅ | |
+| Gider Yönetimi | ✅ | AI fatura tarama dahil |
+| Sözleşme Yönetimi | ✅ | |
+| Varlık Yönetimi | ✅ | |
+| İlan Panosu | ✅ | |
+| Banka Entegrasyonu | ✅ | |
+| Akıllı Tahsilat | ✅ | |
+| Toplantı Sihirbazı | ✅ | |
+| Koli Takibi | ✅ | |
+| Güvenlik Turu | ✅ | |
+| Anket Yönetimi | ✅ | |
+| API Ayarları | ✅ | |
+| Belge Yönetimi | 📋 | Servis hazır, admin app ekranı yok |
+| NPS Analiz | 📋 | Servis hazır, ekran yok |
+| ESG Raporu | 📋 | Servis hazır, ekran yok |
+
+---
+
+## Altyapı & DevOps
+
+| Konu | Durum | Notlar |
+|------|-------|--------|
+| Docker Compose (geliştirme) | ✅ | |
+| Kong API Gateway | ✅ | Temel 5 servis yönlendirmesi var |
+| Kubernetes manifests | ✅ | `k8s/` dizininde |
+| CI/CD (GitHub Actions) | ✅ | `.github/workflows/ci-cd.yaml` |
+| PostgreSQL + migrations | ✅ | 5 migration tamamlandı |
+| Redis | ✅ | |
+| MongoDB (IoT) | ✅ | |
+| Kafka | ✅ | Zookeeper ile |
+| Kong güncelleme (yeni servisler) | 📋 | 20+ servis kong.yml'e eklenmeli |
+| Üretim ortamı env değişkenleri | 📋 | `.env.example` mevcut |
+| SSL/TLS yapılandırması | 📋 | |
+| Monitoring / Alerting | 📋 | Grafana, Prometheus |
+| Log aggregation | 📋 | ELK veya Loki |
+
+---
+
+## Entegrasyonlar
+
+| Entegrasyon | Durum | Notlar |
+|-------------|-------|--------|
+| iyzico (ödeme) | ✅ | Sandbox bağlantısı kurulu |
+| Firebase (push) | ✅ | `firebase-credentials.json` gerekli |
+| SMS servisi | ✅ | `pkg/integrations/sms/` hazır |
+| WhatsApp | ✅ | `pkg/integrations/whatsapp/` hazır |
+| AI fatura tarama | ✅ | OpenAI Vision / Google Document AI |
+| Banka entegrasyonu | ✅ | `services/banking/turkish_banks.go` |
+| E-Devlet / Belediye | 📋 | Planlandı |
+| e-Fatura | 📋 | Planlandı |

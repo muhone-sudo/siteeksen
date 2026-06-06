@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
+	"os"
+	"strings"
 	"time"
 )
-
-// Basit API Gateway - Demo amaçlı
 
 type Response struct {
 	Success bool        `json:"success"`
@@ -17,188 +19,189 @@ type Response struct {
 	Error   string      `json:"error,omitempty"`
 }
 
-type LoginRequest struct {
-	Phone    string `json:"phone"`
-	Password string `json:"password"`
+func getEnv(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
 }
 
-type User struct {
-	ID       string `json:"id"`
-	Name     string `json:"name"`
-	Email    string `json:"email"`
-	Phone    string `json:"phone"`
-	Role     string `json:"role"`
-	SiteID   string `json:"site_id"`
-	SiteName string `json:"site_name"`
+func newProxy(target string) *httputil.ReverseProxy {
+	u, err := url.Parse(target)
+	if err != nil {
+		log.Fatalf("Geçersiz hedef URL %s: %v", target, err)
+	}
+	proxy := httputil.NewSingleHostReverseProxy(u)
+	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
+		log.Printf("Proxy hatası [%s %s]: %v", r.Method, r.URL.Path, err)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadGateway)
+		json.NewEncoder(w).Encode(Response{Success: false, Error: "Servis şu an erişilemiyor"})
+	}
+	return proxy
 }
 
-// Demo kullanıcılar
-var demoUsers = map[string]User{
-	"5551234567": {
-		ID:       "usr_001",
-		Name:     "Ahmet Yönetici",
-		Email:    "ahmet@siteeksen.com",
-		Phone:    "5551234567",
-		Role:     "super_admin",
-		SiteID:   "site_001",
-		SiteName: "Örnek Sitesi",
-	},
-	"5559876543": {
-		ID:       "usr_002",
-		Name:     "Mehmet Sakin",
-		Email:    "mehmet@email.com",
-		Phone:    "5559876543",
-		Role:     "resident",
-		SiteID:   "site_001",
-		SiteName: "Örnek Sitesi",
-	},
+func corsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Tenant-ID")
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func logMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("%s %s", r.Method, r.URL.Path)
+		next.ServeHTTP(w, r)
+	})
+}
+
+func jsonHandler(fn http.HandlerFunc) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		fn(w, r)
+	})
 }
 
 func main() {
-	// CORS middleware
-	corsMiddleware := func(next http.HandlerFunc) http.HandlerFunc {
-		return func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Access-Control-Allow-Origin", "*")
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+	identityURL := getEnv("IDENTITY_SERVICE_URL", "http://localhost:8081")
+	financeURL := getEnv("FINANCE_SERVICE_URL", "http://localhost:8082")
+	communityURL := getEnv("COMMUNITY_SERVICE_URL", "http://localhost:8083")
+	port := getEnv("PORT", "8888")
 
-			if r.Method == "OPTIONS" {
-				w.WriteHeader(http.StatusOK)
-				return
-			}
-			next(w, r)
-		}
-	}
+	identityProxy := newProxy(identityURL)
+	financeProxy := newProxy(financeURL)
+	communityProxy := newProxy(communityURL)
 
-	// Routes
-	http.HandleFunc("/api/health", corsMiddleware(healthHandler))
-	http.HandleFunc("/api/auth/login", corsMiddleware(loginHandler))
-	http.HandleFunc("/api/auth/me", corsMiddleware(meHandler))
-	http.HandleFunc("/api/dashboard/stats", corsMiddleware(dashboardHandler))
-	http.HandleFunc("/api/residents", corsMiddleware(residentsHandler))
-	http.HandleFunc("/api/announcements", corsMiddleware(announcementsHandler))
+	mux := http.NewServeMux()
 
-	port := ":8888"
-	fmt.Printf("🚀 SiteEksen API Gateway başlatıldı: http://localhost%s\n", port)
-	fmt.Println("📋 Demo kullanıcılar:")
-	fmt.Println("   - Tel: 5551234567 / Şifre: demo123 (Süper Admin)")
-	fmt.Println("   - Tel: 5559876543 / Şifre: demo123 (Sakin)")
-
-	log.Fatal(http.ListenAndServe(port, nil))
-}
-
-func healthHandler(w http.ResponseWriter, r *http.Request) {
-	json.NewEncoder(w).Encode(Response{
-		Success: true,
-		Message: "SiteEksen API Gateway çalışıyor",
-		Data: map[string]interface{}{
-			"version": "1.0.0",
-			"time":    time.Now().Format(time.RFC3339),
-		},
-	})
-}
-
-func loginHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-
-	if r.Method != "POST" {
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		json.NewEncoder(w).Encode(Response{Success: false, Error: "Method not allowed"})
-		return
-	}
-
-	var req LoginRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(Response{Success: false, Error: "Geçersiz istek"})
-		return
-	}
-
-	// Telefon numarasını normalize et
-	phone := req.Phone
-	// +90 prefix'ini kaldır
-	if len(phone) > 2 && phone[:3] == "+90" {
-		phone = phone[3:]
-	}
-	// 0 prefix'ini kaldır
-	if len(phone) > 0 && phone[0] == '0' {
-		phone = phone[1:]
-	}
-	fmt.Printf("Login attempt: original=%s, normalized=%s\n", req.Phone, phone)
-
-	// Demo doğrulama
-	user, exists := demoUsers[phone]
-	if !exists || req.Password != "demo123" {
-		w.WriteHeader(http.StatusUnauthorized)
+	// Health
+	mux.Handle("/health", jsonHandler(func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(Response{
-			Success: false,
-			Error:   "Telefon numarası veya şifre hatalı",
+			Success: true,
+			Message: "SiteEksen API Gateway çalışıyor",
+			Data:    map[string]interface{}{"version": "1.1.0", "time": time.Now().Format(time.RFC3339)},
 		})
-		return
-	}
+	}))
 
-	// Başarılı giriş
-	// NextAuth için düz yanıt yapısı
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"access_token":  "demo_token_" + user.ID,
-		"refresh_token": "demo_refresh_" + user.ID,
-		"user": map[string]interface{}{
-			"id":                 user.ID,
-			"first_name":         "Ahmet", // Demo için sabit
-			"last_name":          "Yönetici",
-			"email":              user.Email,
-			"phone":              user.Phone,
-			"roles":              []string{user.Role},
-			"active_property_id": user.SiteID,
-		},
-	})
-}
+	// --- IDENTITY SERVICE ---
+	// /api/v1/auth/* ve /api/v1/users/*
+	mux.Handle("/api/v1/auth/", identityProxy)
+	mux.Handle("/api/v1/users/", identityProxy)
 
-func meHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	// Demo: İlk kullanıcıyı döndür
-	json.NewEncoder(w).Encode(Response{
-		Success: true,
-		Data:    demoUsers["5551234567"],
-	})
-}
+	// --- FINANCE SERVICE ---
+	// /api/v1/finance/*
+	mux.Handle("/api/v1/finance/", financeProxy)
 
-func dashboardHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(Response{
-		Success: true,
-		Data: map[string]interface{}{
-			"totalResidents":   156,
-			"totalUnits":       180,
-			"monthlyIncome":    245000,
-			"pendingRequests":  12,
-			"occupancyRate":    87,
-			"collectionRate":   94,
-			"activeVisitors":   3,
-			"upcomingMeetings": 2,
-		},
-	})
-}
+	// --- COMMUNITY SERVICE ---
+	// /api/v1/announcements/*, /api/v1/surveys/*, /api/v1/bulletins/*, /api/v1/reservations/*
+	mux.Handle("/api/v1/announcements/", communityProxy)
+	mux.Handle("/api/v1/announcements", communityProxy)
+	mux.Handle("/api/v1/surveys/", communityProxy)
+	mux.Handle("/api/v1/surveys", communityProxy)
+	mux.Handle("/api/v1/bulletins/", communityProxy)
+	mux.Handle("/api/v1/bulletins", communityProxy)
+	mux.Handle("/api/v1/reservations/", communityProxy)
+	mux.Handle("/api/v1/reservations", communityProxy)
 
-func residentsHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(Response{
-		Success: true,
-		Data: []map[string]interface{}{
-			{"id": "1", "name": "Ahmet Yılmaz", "unit": "A-12", "phone": "5551234567", "status": "active"},
-			{"id": "2", "name": "Mehmet Demir", "unit": "B-05", "phone": "5559876543", "status": "active"},
-			{"id": "3", "name": "Ayşe Kaya", "unit": "C-08", "phone": "5553334455", "status": "active"},
-		},
-	})
-}
+	// --- MOCK: Henüz gerçek servisi olmayan endpointler ---
 
-func announcementsHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(Response{
-		Success: true,
-		Data: []map[string]interface{}{
-			{"id": "1", "title": "Su Kesintisi", "content": "Yarın 10:00-14:00 arası bakım çalışması", "date": "2024-02-01", "priority": "high"},
-			{"id": "2", "title": "Genel Kurul", "content": "15 Şubat'ta genel kurul toplantısı", "date": "2024-02-01", "priority": "normal"},
-		},
-	})
+	// Dashboard istatistikleri (aggregate — gerçek servisler hazır olunca buradan toplanacak)
+	mux.Handle("/api/v1/dashboard/stats", jsonHandler(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(Response{
+			Success: true,
+			Data: map[string]interface{}{
+				"totalResidents":   156,
+				"totalUnits":       180,
+				"monthlyIncome":    245000,
+				"pendingRequests":  12,
+				"occupancyRate":    87,
+				"collectionRate":   94,
+				"activeVisitors":   3,
+				"upcomingMeetings": 2,
+			},
+		})
+	}))
+	mux.Handle("/api/v1/dashboard/", jsonHandler(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(Response{Success: true, Data: map[string]interface{}{}})
+	}))
+
+	// Sakinler (residents servisi henüz yok)
+	mux.Handle("/api/v1/residents", jsonHandler(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			w.WriteHeader(http.StatusCreated)
+			json.NewEncoder(w).Encode(Response{Success: true, Message: "Sakin eklendi"})
+			return
+		}
+		json.NewEncoder(w).Encode(Response{
+			Success: true,
+			Data: []map[string]interface{}{
+				{"id": "1", "first_name": "Ahmet", "last_name": "Yılmaz", "unit": "A-12", "phone": "5551234567", "status": "active", "role": "OWNER"},
+				{"id": "2", "first_name": "Mehmet", "last_name": "Demir", "unit": "B-05", "phone": "5559876543", "status": "active", "role": "TENANT"},
+				{"id": "3", "first_name": "Ayşe", "last_name": "Kaya", "unit": "C-08", "phone": "5553334455", "status": "active", "role": "OWNER"},
+			},
+		})
+	}))
+	mux.Handle("/api/v1/residents/", jsonHandler(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(Response{Success: true, Message: "İşlem tamamlandı"})
+	}))
+
+	// Sayaçlar (iot servisi bu endpoint'i sunmuyor henüz)
+	mux.Handle("/api/v1/meters", jsonHandler(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(Response{
+			Success: true,
+			Data: []map[string]interface{}{
+				{"id": "m-001", "name": "A Blok Su Sayacı", "type": "WATER", "unit": "m³", "last_reading": 1245.5},
+				{"id": "m-002", "name": "B Blok Elektrik", "type": "ELECTRIC", "unit": "kWh", "last_reading": 8820.0},
+				{"id": "m-003", "name": "Ana Doğalgaz", "type": "GAS", "unit": "m³", "last_reading": 3310.2},
+			},
+		})
+	}))
+	mux.Handle("/api/v1/meters/", jsonHandler(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(Response{Success: true, Message: "Sayaç işlemi tamamlandı"})
+	}))
+
+	// Talepler/İş emirleri (ayrı bir servis olacak)
+	mux.Handle("/api/v1/requests", jsonHandler(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodPost {
+			w.WriteHeader(http.StatusCreated)
+			json.NewEncoder(w).Encode(Response{Success: true, Message: "Talep oluşturuldu"})
+			return
+		}
+		json.NewEncoder(w).Encode(Response{
+			Success: true,
+			Data: []map[string]interface{}{
+				{"id": "req-001", "title": "Asansör Arızası", "status": "OPEN", "priority": "HIGH", "unit": "A-05", "created_at": "2026-06-05T10:00:00Z"},
+				{"id": "req-002", "title": "Ortak Alan Temizliği", "status": "IN_PROGRESS", "priority": "NORMAL", "unit": "B-12", "created_at": "2026-06-04T14:00:00Z"},
+				{"id": "req-003", "title": "Bahçe Sulama Sistemi", "status": "CLOSED", "priority": "LOW", "unit": "C-01", "created_at": "2026-06-03T09:00:00Z"},
+			},
+		})
+	}))
+	mux.Handle("/api/v1/requests/", jsonHandler(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(Response{Success: true, Message: "Talep güncellendi"})
+	}))
+
+	// Raporlar
+	mux.Handle("/api/v1/reports/", jsonHandler(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/download") {
+			w.Header().Set("Content-Type", "application/pdf")
+			w.Write([]byte("%PDF-1.4 mock"))
+			return
+		}
+		json.NewEncoder(w).Encode(Response{Success: true, Data: map[string]interface{}{"report_id": "rpt-001", "status": "generated"}})
+	}))
+
+	handler := logMiddleware(corsMiddleware(mux))
+
+	addr := fmt.Sprintf(":%s", port)
+	log.Printf("SiteEksen API Gateway başlatıldı: http://localhost%s", addr)
+	log.Printf("  → Identity:  %s", identityURL)
+	log.Printf("  → Finance:   %s", financeURL)
+	log.Printf("  → Community: %s", communityURL)
+	log.Fatal(http.ListenAndServe(addr, handler))
 }

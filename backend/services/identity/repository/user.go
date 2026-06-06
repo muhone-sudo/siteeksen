@@ -20,9 +20,9 @@ func NewUserRepository(pool *pgxpool.Pool) *UserRepository {
 // GetByPhone telefon numarasına göre kullanıcı getirir
 func (r *UserRepository) GetByPhone(ctx context.Context, phone string) (*models.User, error) {
 	query := `
-		SELECT id, tc_encrypted, tc_hash, first_name, last_name, 
-			   phone, email, password_hash, active_property_id, roles, created_at, updated_at
-		FROM users 
+		SELECT id, COALESCE(tc_encrypted, ''), COALESCE(tc_hash, ''), first_name, last_name,
+			   phone, COALESCE(email, ''), password_hash, COALESCE(active_property_id::text, ''), roles, created_at, updated_at
+		FROM users
 		WHERE phone = $1
 	`
 	user := &models.User{}
@@ -40,9 +40,9 @@ func (r *UserRepository) GetByPhone(ctx context.Context, phone string) (*models.
 // GetByID ID'ye göre kullanıcı getirir
 func (r *UserRepository) GetByID(ctx context.Context, id string) (*models.User, error) {
 	query := `
-		SELECT id, tc_encrypted, tc_hash, first_name, last_name, 
-			   phone, email, password_hash, active_property_id, roles, created_at, updated_at
-		FROM users 
+		SELECT id, COALESCE(tc_encrypted, ''), COALESCE(tc_hash, ''), first_name, last_name,
+			   phone, COALESCE(email, ''), password_hash, COALESCE(active_property_id::text, ''), roles, created_at, updated_at
+		FROM users
 		WHERE id = $1
 	`
 	user := &models.User{}

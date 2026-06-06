@@ -2,10 +2,10 @@ FROM golang:1.24-alpine AS builder
 
 WORKDIR /app
 
-# Sadece main dosya olduğu için direkt kopyalayıp build ediyoruz
-COPY cmd/gateway/main.go .
+COPY go.mod go.sum ./
+COPY cmd/gateway/main.go ./cmd/gateway/main.go
 
-RUN go build -o /gateway main.go
+RUN go build -o /gateway ./cmd/gateway/main.go
 
 FROM alpine:3.19
 

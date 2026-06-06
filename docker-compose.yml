@@ -190,8 +190,8 @@ services:
       dockerfile: Dockerfile
     container_name: siteeksen-admin
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8888/api
-      API_URL: http://gateway:8888/api
+      NEXT_PUBLIC_API_URL: http://localhost:8888/api/v1
+      API_URL: http://gateway:8888/api/v1
       NEXTAUTH_URL: http://localhost:3001
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-your-nextauth-secret-change-in-production}
     ports:
@@ -205,8 +205,17 @@ services:
       context: ./backend
       dockerfile: cmd/gateway/Dockerfile
     container_name: siteeksen-gateway
+    environment:
+      IDENTITY_SERVICE_URL: http://identity-service:8081
+      FINANCE_SERVICE_URL: http://finance-service:8082
+      COMMUNITY_SERVICE_URL: http://community-service:8083
+      PORT: 8888
     ports:
       - "8888:8888"
+    depends_on:
+      - identity-service
+      - finance-service
+      - community-service
 
   # Kong API Gateway
   kong:

@@ -24,19 +24,42 @@ class ApiClient {
         this.client.interceptors.response.use(
             (response) => response,
             async (error: AxiosError) => {
-                if (error.response?.status === 401) {
-                    // Token expired, try refresh
-                    // TODO: Implement refresh logic
+                const originalRequest = error.config as any;
+                if (error.response?.status === 401 && !originalRequest._retry) {
+                    originalRequest._retry = true;
+                    try {
+                        const refreshToken = typeof window !== "undefined"
+                            ? localStorage.getItem("refresh_token")
+                            : null;
+                        if (!refreshToken) throw new Error("No refresh token");
+
+                        const res = await this.client.post("/auth/refresh", { refresh_token: refreshToken });
+                        const { access_token, refresh_token } = res.data;
+
+                        this.setToken(access_token);
+                        if (typeof window !== "undefined") {
+                            localStorage.setItem("refresh_token", refresh_token);
+                        }
+                        originalRequest.headers["Authorization"] = `Bearer ${access_token}`;
+                        return this.client(originalRequest);
+                    } catch {
+                        this.clearToken();
+                        if (typeof window !== "undefined") {
+                            localStorage.removeItem("refresh_token");
+                            window.location.href = "/login";
+                        }
+                    }
                 }
                 return Promise.reject(error);
             }
         );
     }
 
-    setToken(token: string) {
+    setToken(token: string, refreshToken?: string) {
         this.accessToken = token;
         if (typeof window !== "undefined") {
             localStorage.setItem("access_token", token);
+            if (refreshToken) localStorage.setItem("refresh_token", refreshToken);
         }
     }
 
@@ -44,6 +67,7 @@ class ApiClient {
         this.accessToken = null;
         if (typeof window !== "undefined") {
             localStorage.removeItem("access_token");
+            localStorage.removeItem("refresh_token");
         }
     }
 
@@ -57,7 +81,7 @@ class ApiClient {
     async login(phone: string, password: string) {
         const response = await this.client.post("/auth/login", { phone, password });
         if (response.data.access_token) {
-            this.setToken(response.data.access_token);
+            this.setToken(response.data.access_token, response.data.refresh_token);
         }
         return response.data;
     }
