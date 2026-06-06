@@ -7,7 +7,7 @@ RUN go mod download
 
 COPY . .
 
-RUN CGO_ENABLED=0 GOOS=linux go build -o /expense-service ./services/expense
+RUN CGO_ENABLED=0 GOOS=linux go build -o /settings-service ./services/settings
 
 FROM alpine:3.19
 
@@ -15,8 +15,7 @@ RUN apk --no-cache add ca-certificates tzdata
 
 WORKDIR /app
 
-COPY --from=builder /expense-service .
+COPY --from=builder /settings-service .
+RUN chmod +x ./settings-service
 
-EXPOSE 8086
-
-CMD ["./expense-service"]
+CMD ["./settings-service"]

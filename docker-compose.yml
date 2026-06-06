@@ -199,6 +199,224 @@ services:
     depends_on:
       - gateway
 
+  # Expense Service
+  expense-service:
+    build:
+      context: ./backend
+      dockerfile: services/expense/Dockerfile
+    container_name: siteeksen-expense
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: siteeksen
+      DB_PASSWORD: ${DB_PASSWORD:-siteeksen_dev_123}
+      DB_NAME: siteeksen
+      JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key-change-in-production}
+      PORT: 8086
+    ports:
+      - "8086:8086"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # Asset Service
+  asset-service:
+    build:
+      context: ./backend
+      dockerfile: services/asset/Dockerfile
+    container_name: siteeksen-asset
+    environment:
+      PORT: 8087
+    ports:
+      - "8087:8087"
+
+  # Bulletin Service
+  bulletin-service:
+    build:
+      context: ./backend
+      dockerfile: services/bulletin/Dockerfile
+    container_name: siteeksen-bulletin
+    environment:
+      PORT: 8089
+    ports:
+      - "8089:8089"
+
+  # Contract Service
+  contract-service:
+    build:
+      context: ./backend
+      dockerfile: services/contract/Dockerfile
+    container_name: siteeksen-contract
+    environment:
+      PORT: 8090
+    ports:
+      - "8090:8090"
+
+  # Document Service
+  document-service:
+    build:
+      context: ./backend
+      dockerfile: services/document/Dockerfile
+    container_name: siteeksen-document
+    environment:
+      PORT: 8091
+    ports:
+      - "8091:8091"
+
+  # Energy Analytics Service
+  energy-service:
+    build:
+      context: ./backend
+      dockerfile: services/energy_analytics/Dockerfile
+    container_name: siteeksen-energy
+    environment:
+      PORT: 8092
+    ports:
+      - "8092:8092"
+
+  # ESG Service
+  esg-service:
+    build:
+      context: ./backend
+      dockerfile: services/esg/Dockerfile
+    container_name: siteeksen-esg
+    environment:
+      PORT: 8093
+    ports:
+      - "8093:8093"
+
+  # Inventory Service
+  inventory-service:
+    build:
+      context: ./backend
+      dockerfile: services/inventory/Dockerfile
+    container_name: siteeksen-inventory
+    environment:
+      PORT: 8094
+    ports:
+      - "8094:8094"
+
+  # Meeting Wizard Service
+  meeting-service:
+    build:
+      context: ./backend
+      dockerfile: services/meeting_wizard/Dockerfile
+    container_name: siteeksen-meeting
+    environment:
+      PORT: 8095
+    ports:
+      - "8095:8095"
+
+  # NPS Service
+  nps-service:
+    build:
+      context: ./backend
+      dockerfile: services/nps/Dockerfile
+    container_name: siteeksen-nps
+    environment:
+      PORT: 8096
+    ports:
+      - "8096:8096"
+
+  # Package Tracking Service
+  package-service:
+    build:
+      context: ./backend
+      dockerfile: services/package/Dockerfile
+    container_name: siteeksen-package
+    environment:
+      PORT: 8097
+    ports:
+      - "8097:8097"
+
+  # Parking Service
+  parking-service:
+    build:
+      context: ./backend
+      dockerfile: services/parking/Dockerfile
+    container_name: siteeksen-parking
+    environment:
+      PORT: 8098
+    ports:
+      - "8098:8098"
+
+  # Patrol Service
+  patrol-service:
+    build:
+      context: ./backend
+      dockerfile: services/patrol/Dockerfile
+    container_name: siteeksen-patrol
+    environment:
+      PORT: 8099
+    ports:
+      - "8099:8099"
+
+  # Personnel Service
+  personnel-service:
+    build:
+      context: ./backend
+      dockerfile: services/personnel/Dockerfile
+    container_name: siteeksen-personnel
+    environment:
+      PORT: 8100
+    ports:
+      - "8100:8100"
+
+  # Reservation Service
+  reservation-service:
+    build:
+      context: ./backend
+      dockerfile: services/reservation/Dockerfile
+    container_name: siteeksen-reservation
+    environment:
+      PORT: 8101
+    ports:
+      - "8101:8101"
+
+  # Settings Service
+  settings-service:
+    build:
+      context: ./backend
+      dockerfile: services/settings/Dockerfile
+    container_name: siteeksen-settings
+    environment:
+      PORT: 8102
+    ports:
+      - "8102:8102"
+
+  # Smart Collection Service
+  smart-collection-service:
+    build:
+      context: ./backend
+      dockerfile: services/smart_collection/Dockerfile
+    container_name: siteeksen-smart-collection
+    environment:
+      PORT: 8103
+    ports:
+      - "8103:8103"
+
+  # Survey Service
+  survey-service:
+    build:
+      context: ./backend
+      dockerfile: services/survey/Dockerfile
+    container_name: siteeksen-survey
+    environment:
+      PORT: 8104
+    ports:
+      - "8104:8104"
+
+  # Visitor Service
+  visitor-service:
+    build:
+      context: ./backend
+      dockerfile: services/visitor/Dockerfile
+    container_name: siteeksen-visitor
+    environment:
+      PORT: 8105
+    ports:
+      - "8105:8105"
+
   # Demo Gateway
   gateway:
     build:
@@ -209,6 +427,27 @@ services:
       IDENTITY_SERVICE_URL: http://identity-service:8081
       FINANCE_SERVICE_URL: http://finance-service:8082
       COMMUNITY_SERVICE_URL: http://community-service:8083
+      IOT_SERVICE_URL: http://iot-service:8084
+      NOTIFICATION_SERVICE_URL: http://notification-service:8085
+      EXPENSE_SERVICE_URL: http://expense-service:8086
+      ASSET_SERVICE_URL: http://asset-service:8087
+      BULLETIN_SERVICE_URL: http://bulletin-service:8089
+      CONTRACT_SERVICE_URL: http://contract-service:8090
+      DOCUMENT_SERVICE_URL: http://document-service:8091
+      ENERGY_SERVICE_URL: http://energy-service:8092
+      ESG_SERVICE_URL: http://esg-service:8093
+      INVENTORY_SERVICE_URL: http://inventory-service:8094
+      MEETING_SERVICE_URL: http://meeting-service:8095
+      NPS_SERVICE_URL: http://nps-service:8096
+      PACKAGE_SERVICE_URL: http://package-service:8097
+      PARKING_SERVICE_URL: http://parking-service:8098
+      PATROL_SERVICE_URL: http://patrol-service:8099
+      PERSONNEL_SERVICE_URL: http://personnel-service:8100
+      RESERVATION_SERVICE_URL: http://reservation-service:8101
+      SETTINGS_SERVICE_URL: http://settings-service:8102
+      SMART_COLLECTION_SERVICE_URL: http://smart-collection-service:8103
+      SURVEY_SERVICE_URL: http://survey-service:8104
+      VISITOR_SERVICE_URL: http://visitor-service:8105
       PORT: 8888
     ports:
       - "8888:8888"

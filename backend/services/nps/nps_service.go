@@ -1,9 +1,14 @@
-package nps
+package main
 
 import (
 	"context"
 	"fmt"
+	"log"
+	"net/http"
+	"os"
 	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
 // ScoreCategory NPS skoru kategorisi
@@ -236,4 +241,68 @@ type ReportSummary struct {
 type MonthlyNPS struct {
 	Month string  `json:"month"`
 	Score float64 `json:"score"`
+}
+
+func main() {
+	svc := NewService()
+	r := gin.Default()
+
+	r.GET("/health", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"status": "healthy", "service": "nps"})
+	})
+
+	v1 := r.Group("/api/v1/nps")
+	{
+		v1.GET("/surveys", func(c *gin.Context) {
+			c.JSON(http.StatusOK, gin.H{"data": []Survey{}})
+		})
+		v1.POST("/surveys", func(c *gin.Context) {
+			var survey Survey
+			if err := c.ShouldBindJSON(&survey); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				return
+			}
+			svc.CreateSurvey(context.Background(), &survey)
+			c.JSON(http.StatusCreated, survey)
+		})
+		v1.POST("/surveys/:id/responses", func(c *gin.Context) {
+			var resp Response
+			if err := c.ShouldBindJSON(&resp); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				return
+			}
+			resp.SurveyID = c.Param("id")
+			if err := svc.SubmitResponse(context.Background(), &resp); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				return
+			}
+			c.JSON(http.StatusCreated, resp)
+		})
+		v1.GET("/surveys/:id/results", func(c *gin.Context) {
+			result, err := svc.CalculateNPS(context.Background(), c.Param("id"))
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+			recommendations := svc.GetRecommendations(context.Background(), result)
+			c.JSON(http.StatusOK, gin.H{"result": result, "recommendations": recommendations})
+		})
+		v1.GET("/report", func(c *gin.Context) {
+			report, err := svc.GenerateReport(context.Background(), c.Query("site_id"), time.Now().AddDate(0, -1, 0), time.Now())
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+			c.JSON(http.StatusOK, report)
+		})
+	}
+
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8096"
+	}
+	log.Printf("NPS Service starting on port %s", port)
+	if err := r.Run(":" + port); err != nil {
+		log.Fatal(err)
+	}
 }

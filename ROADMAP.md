@@ -45,8 +45,9 @@ Proje ilerleme durumu ve planlaması.
 
 ### Backend Yapılacaklar
 - ✅ **Demo gateway gerçek reverse proxy'ye dönüştürüldü** — identity, finance, community servislerine proxy; henüz olmayan servisler için mock
-- 📋 Tüm yeni servisleri `docker-compose.yml`'e ekle ve port ata
-- 📋 Kong `kong.yml`'i yeni servislerle güncelle
+- ✅ **Tüm 19 yeni servis docker-compose.yml'e eklendi** — port atandı, Dockerfile yazıldı, hepsi çalışıyor
+- ✅ **Kong `kong.yml` güncellendi** — 24 servis (tüm mikroservisler) Kong üzerinden yönlendiriliyor
+- ✅ **Gateway v1.2.0** — 24 servise proxy routing; tüm yeni servisler docker-compose env'de tanımlı
 - 📋 Her servis için birim testleri yaz (şu an sadece `tests/integration_test.go` var)
 - 📋 `pkg/integrations/ai/` — OpenAI Vision gerçek API key ile test edilmeli
 - 📋 `pkg/integrations/bank/` — banka entegrasyonu gerçek ortamda test edilmeli

@@ -37,6 +37,8 @@ services:
     routes:
       - name: finance-routes
         paths:
+          - /api/v1/assessments
+          - /api/v1/payments
           - /api/v1/finance
         strip_path: false
     plugins:
@@ -44,6 +46,532 @@ services:
         config:
           minute: 200
           policy: local
+      - name: cors
+        config:
+          origins:
+            - "*"
+          methods:
+            - GET
+            - POST
+            - PUT
+            - DELETE
+            - OPTIONS
+          headers:
+            - Authorization
+            - Content-Type
+          max_age: 3600
+
+  - name: community-service
+    url: http://community-service:8083
+    routes:
+      - name: community-routes
+        paths:
+          - /api/v1/announcements
+          - /api/v1/requests
+        strip_path: false
+    plugins:
+      - name: rate-limiting
+        config:
+          minute: 200
+          policy: local
+      - name: cors
+        config:
+          origins:
+            - "*"
+          methods:
+            - GET
+            - POST
+            - PUT
+            - DELETE
+            - OPTIONS
+          headers:
+            - Authorization
+            - Content-Type
+          max_age: 3600
+
+  - name: iot-service
+    url: http://iot-service:8084
+    routes:
+      - name: iot-routes
+        paths:
+          - /api/v1/sensors
+          - /api/v1/meters
+          - /api/v1/iot
+        strip_path: false
+    plugins:
+      - name: rate-limiting
+        config:
+          minute: 500
+          policy: local
+      - name: cors
+        config:
+          origins:
+            - "*"
+          methods:
+            - GET
+            - POST
+            - PUT
+            - DELETE
+            - OPTIONS
+          headers:
+            - Authorization
+            - Content-Type
+          max_age: 3600
+
+  - name: notification-service
+    url: http://notification-service:8085
+    routes:
+      - name: notification-routes
+        paths:
+          - /api/v1/notifications
+        strip_path: false
+    plugins:
+      - name: rate-limiting
+        config:
+          minute: 300
+          policy: local
+      - name: cors
+        config:
+          origins:
+            - "*"
+          methods:
+            - GET
+            - POST
+            - PUT
+            - DELETE
+            - OPTIONS
+          headers:
+            - Authorization
+            - Content-Type
+          max_age: 3600
+
+  - name: expense-service
+    url: http://expense-service:8086
+    routes:
+      - name: expense-routes
+        paths:
+          - /api/v1/expenses
+          - /api/v1/expense-categories
+        strip_path: false
+    plugins:
+      - name: rate-limiting
+        config:
+          minute: 200
+          policy: local
+      - name: cors
+        config:
+          origins:
+            - "*"
+          methods:
+            - GET
+            - POST
+            - PUT
+            - DELETE
+            - OPTIONS
+          headers:
+            - Authorization
+            - Content-Type
+          max_age: 3600
+
+  - name: asset-service
+    url: http://asset-service:8087
+    routes:
+      - name: asset-routes
+        paths:
+          - /api/v1/assets
+        strip_path: false
+    plugins:
+      - name: cors
+        config:
+          origins:
+            - "*"
+          methods:
+            - GET
+            - POST
+            - PUT
+            - DELETE
+            - OPTIONS
+          headers:
+            - Authorization
+            - Content-Type
+          max_age: 3600
+
+  - name: bulletin-service
+    url: http://bulletin-service:8089
+    routes:
+      - name: bulletin-routes
+        paths:
+          - /api/v1/bulletin
+        strip_path: false
+    plugins:
+      - name: cors
+        config:
+          origins:
+            - "*"
+          methods:
+            - GET
+            - POST
+            - PUT
+            - DELETE
+            - OPTIONS
+          headers:
+            - Authorization
+            - Content-Type
+          max_age: 3600
+
+  - name: contract-service
+    url: http://contract-service:8090
+    routes:
+      - name: contract-routes
+        paths:
+          - /api/v1/contracts
+        strip_path: false
+    plugins:
+      - name: cors
+        config:
+          origins:
+            - "*"
+          methods:
+            - GET
+            - POST
+            - PUT
+            - DELETE
+            - OPTIONS
+          headers:
+            - Authorization
+            - Content-Type
+          max_age: 3600
+
+  - name: document-service
+    url: http://document-service:8091
+    routes:
+      - name: document-routes
+        paths:
+          - /api/v1/documents
+        strip_path: false
+    plugins:
+      - name: cors
+        config:
+          origins:
+            - "*"
+          methods:
+            - GET
+            - POST
+            - PUT
+            - DELETE
+            - OPTIONS
+          headers:
+            - Authorization
+            - Content-Type
+          max_age: 3600
+
+  - name: energy-service
+    url: http://energy-service:8092
+    routes:
+      - name: energy-routes
+        paths:
+          - /api/v1/energy
+        strip_path: false
+    plugins:
+      - name: cors
+        config:
+          origins:
+            - "*"
+          methods:
+            - GET
+            - POST
+            - PUT
+            - DELETE
+            - OPTIONS
+          headers:
+            - Authorization
+            - Content-Type
+          max_age: 3600
+
+  - name: esg-service
+    url: http://esg-service:8093
+    routes:
+      - name: esg-routes
+        paths:
+          - /api/v1/esg
+        strip_path: false
+    plugins:
+      - name: cors
+        config:
+          origins:
+            - "*"
+          methods:
+            - GET
+            - POST
+            - PUT
+            - DELETE
+            - OPTIONS
+          headers:
+            - Authorization
+            - Content-Type
+          max_age: 3600
+
+  - name: inventory-service
+    url: http://inventory-service:8094
+    routes:
+      - name: inventory-routes
+        paths:
+          - /api/v1/inventory
+        strip_path: false
+    plugins:
+      - name: cors
+        config:
+          origins:
+            - "*"
+          methods:
+            - GET
+            - POST
+            - PUT
+            - DELETE
+            - OPTIONS
+          headers:
+            - Authorization
+            - Content-Type
+          max_age: 3600
+
+  - name: meeting-service
+    url: http://meeting-service:8095
+    routes:
+      - name: meeting-routes
+        paths:
+          - /api/v1/meetings
+        strip_path: false
+    plugins:
+      - name: cors
+        config:
+          origins:
+            - "*"
+          methods:
+            - GET
+            - POST
+            - PUT
+            - DELETE
+            - OPTIONS
+          headers:
+            - Authorization
+            - Content-Type
+          max_age: 3600
+
+  - name: nps-service
+    url: http://nps-service:8096
+    routes:
+      - name: nps-routes
+        paths:
+          - /api/v1/nps
+        strip_path: false
+    plugins:
+      - name: cors
+        config:
+          origins:
+            - "*"
+          methods:
+            - GET
+            - POST
+            - PUT
+            - DELETE
+            - OPTIONS
+          headers:
+            - Authorization
+            - Content-Type
+          max_age: 3600
+
+  - name: package-service
+    url: http://package-service:8097
+    routes:
+      - name: package-routes
+        paths:
+          - /api/v1/packages
+        strip_path: false
+    plugins:
+      - name: cors
+        config:
+          origins:
+            - "*"
+          methods:
+            - GET
+            - POST
+            - PUT
+            - DELETE
+            - OPTIONS
+          headers:
+            - Authorization
+            - Content-Type
+          max_age: 3600
+
+  - name: parking-service
+    url: http://parking-service:8098
+    routes:
+      - name: parking-routes
+        paths:
+          - /api/v1/parking
+        strip_path: false
+    plugins:
+      - name: cors
+        config:
+          origins:
+            - "*"
+          methods:
+            - GET
+            - POST
+            - PUT
+            - DELETE
+            - OPTIONS
+          headers:
+            - Authorization
+            - Content-Type
+          max_age: 3600
+
+  - name: patrol-service
+    url: http://patrol-service:8099
+    routes:
+      - name: patrol-routes
+        paths:
+          - /api/v1/patrol
+        strip_path: false
+    plugins:
+      - name: cors
+        config:
+          origins:
+            - "*"
+          methods:
+            - GET
+            - POST
+            - PUT
+            - DELETE
+            - OPTIONS
+          headers:
+            - Authorization
+            - Content-Type
+          max_age: 3600
+
+  - name: personnel-service
+    url: http://personnel-service:8100
+    routes:
+      - name: personnel-routes
+        paths:
+          - /api/v1/personnel
+        strip_path: false
+    plugins:
+      - name: cors
+        config:
+          origins:
+            - "*"
+          methods:
+            - GET
+            - POST
+            - PUT
+            - DELETE
+            - OPTIONS
+          headers:
+            - Authorization
+            - Content-Type
+          max_age: 3600
+
+  - name: reservation-service
+    url: http://reservation-service:8101
+    routes:
+      - name: reservation-routes
+        paths:
+          - /api/v1/reservations
+        strip_path: false
+    plugins:
+      - name: cors
+        config:
+          origins:
+            - "*"
+          methods:
+            - GET
+            - POST
+            - PUT
+            - DELETE
+            - OPTIONS
+          headers:
+            - Authorization
+            - Content-Type
+          max_age: 3600
+
+  - name: settings-service
+    url: http://settings-service:8102
+    routes:
+      - name: settings-routes
+        paths:
+          - /api/v1/credentials
+        strip_path: false
+    plugins:
+      - name: cors
+        config:
+          origins:
+            - "*"
+          methods:
+            - GET
+            - POST
+            - PUT
+            - DELETE
+            - OPTIONS
+          headers:
+            - Authorization
+            - Content-Type
+          max_age: 3600
+
+  - name: smart-collection-service
+    url: http://smart-collection-service:8103
+    routes:
+      - name: smart-collection-routes
+        paths:
+          - /api/v1/smart-collection
+        strip_path: false
+    plugins:
+      - name: cors
+        config:
+          origins:
+            - "*"
+          methods:
+            - GET
+            - POST
+            - PUT
+            - DELETE
+            - OPTIONS
+          headers:
+            - Authorization
+            - Content-Type
+          max_age: 3600
+
+  - name: survey-service
+    url: http://survey-service:8104
+    routes:
+      - name: survey-routes
+        paths:
+          - /api/v1/surveys
+        strip_path: false
+    plugins:
+      - name: cors
+        config:
+          origins:
+            - "*"
+          methods:
+            - GET
+            - POST
+            - PUT
+            - DELETE
+            - OPTIONS
+          headers:
+            - Authorization
+            - Content-Type
+          max_age: 3600
+
+  - name: visitor-service
+    url: http://visitor-service:8105
+    routes:
+      - name: visitor-routes
+        paths:
+          - /api/v1/visitors
+        strip_path: false
+    plugins:
       - name: cors
         config:
           origins:

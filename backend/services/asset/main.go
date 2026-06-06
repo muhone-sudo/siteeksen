@@ -168,7 +168,7 @@ func main() {
 		}
 
 		// Maintenance
-		maintenance := v1.Group("/assets/:asset_id/maintenance")
+		maintenance := v1.Group("/assets/:id/maintenance")
 		{
 			maintenance.GET("", getAssetMaintenance)
 			maintenance.POST("", createMaintenance)
@@ -434,7 +434,7 @@ func generateQR(c *gin.Context) {
 
 // Maintenance Handlers
 func getAssetMaintenance(c *gin.Context) {
-	assetID := c.Param("asset_id")
+	assetID := c.Param("id")
 	now := time.Now()
 
 	records := []AssetMaintenance{
@@ -457,7 +457,7 @@ func getAssetMaintenance(c *gin.Context) {
 }
 
 func createMaintenance(c *gin.Context) {
-	assetID := c.Param("asset_id")
+	assetID := c.Param("id")
 	var req MaintenanceRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})

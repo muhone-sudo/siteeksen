@@ -12,18 +12,25 @@ import {
     FileText,
     Settings,
     Building2,
+    Calculator,
+    BellRing,
+    KeyRound,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navigation = [
     { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
     { name: "Sakinler", href: "/dashboard/residents", icon: Users },
+    { name: "Muhasebe", href: "/dashboard/accounting", icon: Calculator },
     { name: "Aidatlar", href: "/dashboard/assessments", icon: Receipt },
     { name: "Sayaç Okuma", href: "/dashboard/meters", icon: Gauge },
     { name: "Duyurular", href: "/dashboard/announcements", icon: Bell },
+    { name: "Bildirimler", href: "/dashboard/notifications", icon: BellRing },
     { name: "Talepler", href: "/dashboard/requests", icon: MessageSquare },
     { name: "Raporlar", href: "/dashboard/reports", icon: FileText },
+    { name: "Sistem Şifreleri", href: "/dashboard/credentials", icon: KeyRound },
 ];
+
 
 export function Sidebar() {
     const pathname = usePathname();

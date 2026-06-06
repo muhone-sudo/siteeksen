@@ -136,7 +136,7 @@ func main() {
 		}
 
 		// Comments
-		comments := v1.Group("/bulletin/posts/:post_id/comments")
+		comments := v1.Group("/bulletin/posts/:id/comments")
 		{
 			comments.GET("", getComments)
 			comments.POST("", createComment)
@@ -375,7 +375,7 @@ func recordView(c *gin.Context) {
 
 // Comment Handlers
 func getComments(c *gin.Context) {
-	postID := c.Param("post_id")
+	postID := c.Param("id")
 	now := time.Now()
 
 	comments := []BulletinComment{
@@ -400,7 +400,7 @@ func getComments(c *gin.Context) {
 }
 
 func createComment(c *gin.Context) {
-	postID := c.Param("post_id")
+	postID := c.Param("id")
 	var req CommentRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -442,12 +442,12 @@ func getMyMessages(c *gin.Context) {
 }
 
 func getPostMessages(c *gin.Context) {
-	postID := c.Param("post_id")
+	postID := c.Param("id")
 	c.JSON(http.StatusOK, gin.H{"post_id": postID, "messages": []BulletinMessage{}})
 }
 
 func sendMessage(c *gin.Context) {
-	postID := c.Param("post_id")
+	postID := c.Param("id")
 	var req MessageRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})

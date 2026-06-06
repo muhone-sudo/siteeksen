@@ -1,9 +1,14 @@
-package esg
+package main
 
 import (
 	"context"
 	"fmt"
+	"log"
+	"net/http"
+	"os"
 	"time"
+
+	"github.com/gin-gonic/gin"
 )
 
 // MetricCategory ESG metrik kategorisi
@@ -270,6 +275,76 @@ func (s *Service) RecordMetric(ctx context.Context, metric *Metric) error {
 
 // GetMetrics metrikleri getirir
 func (s *Service) GetMetrics(ctx context.Context, siteID string, category MetricCategory, startDate, endDate time.Time) ([]Metric, error) {
-	// Fetch from database
 	return []Metric{}, nil
+}
+
+func main() {
+	svc := NewService()
+	r := gin.Default()
+
+	r.GET("/health", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{"status": "healthy", "service": "esg"})
+	})
+
+	v1 := r.Group("/api/v1/esg")
+	{
+		v1.GET("/carbon-footprint", func(c *gin.Context) {
+			siteID := c.Query("site_id")
+			if siteID == "" {
+				siteID = "default"
+			}
+			result, err := svc.CalculateCarbonFootprint(context.Background(), siteID, time.Now().Year())
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+			c.JSON(http.StatusOK, result)
+		})
+		v1.GET("/sustainability-score", func(c *gin.Context) {
+			siteID := c.Query("site_id")
+			if siteID == "" {
+				siteID = "default"
+			}
+			result, err := svc.CalculateSustainabilityScore(context.Background(), siteID)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+			c.JSON(http.StatusOK, result)
+		})
+		v1.GET("/annual-report", func(c *gin.Context) {
+			siteID := c.Query("site_id")
+			siteName := c.Query("site_name")
+			if siteID == "" {
+				siteID = "default"
+			}
+			if siteName == "" {
+				siteName = "Site"
+			}
+			report, err := svc.GenerateAnnualReport(context.Background(), siteID, siteName, time.Now().Year())
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+			c.JSON(http.StatusOK, report)
+		})
+		v1.POST("/metrics", func(c *gin.Context) {
+			var metric Metric
+			if err := c.ShouldBindJSON(&metric); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				return
+			}
+			svc.RecordMetric(context.Background(), &metric)
+			c.JSON(http.StatusCreated, metric)
+		})
+	}
+
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8093"
+	}
+	log.Printf("ESG Service starting on port %s", port)
+	if err := r.Run(":" + port); err != nil {
+		log.Fatal(err)
+	}
 }
