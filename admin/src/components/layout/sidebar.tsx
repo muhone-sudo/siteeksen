@@ -15,6 +15,11 @@ import {
     Calculator,
     BellRing,
     KeyRound,
+    TrendingDown,
+    Car,
+    UserCog,
+    CalendarCheck,
+    UserCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -22,11 +27,16 @@ const navigation = [
     { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
     { name: "Sakinler", href: "/dashboard/residents", icon: Users },
     { name: "Muhasebe", href: "/dashboard/accounting", icon: Calculator },
+    { name: "Gider Yönetimi", href: "/dashboard/expenses", icon: TrendingDown },
     { name: "Aidatlar", href: "/dashboard/assessments", icon: Receipt },
     { name: "Sayaç Okuma", href: "/dashboard/meters", icon: Gauge },
     { name: "Duyurular", href: "/dashboard/announcements", icon: Bell },
     { name: "Bildirimler", href: "/dashboard/notifications", icon: BellRing },
     { name: "Talepler", href: "/dashboard/requests", icon: MessageSquare },
+    { name: "Otopark", href: "/dashboard/parking", icon: Car },
+    { name: "Personel", href: "/dashboard/personnel", icon: UserCog },
+    { name: "Rezervasyon", href: "/dashboard/reservations", icon: CalendarCheck },
+    { name: "Ziyaretçi", href: "/dashboard/visitors", icon: UserCheck },
     { name: "Raporlar", href: "/dashboard/reports", icon: FileText },
     { name: "Sistem Şifreleri", href: "/dashboard/credentials", icon: KeyRound },
 ];

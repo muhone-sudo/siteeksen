@@ -78,8 +78,12 @@ Proje ilerleme durumu ve planlaması.
 - ✅ **Muhasebe sayfası backend'e bağlandı** — expense servisi `/api/v1/expenses`
 - ✅ **Bildirimler sayfası backend'e bağlandı** — notification servisi `/api/v1/notifications`
 - ✅ **API Credentials sayfası backend'e bağlandı** — settings servisi `/api/v1/credentials`
-- 📋 Gider yönetimi sayfası ekle
-- 📋 Otopark, personel, rezervasyon, ziyaretçi sayfaları ekle
+- ✅ **Gider yönetimi sayfası eklendi** — `/dashboard/expenses`; fatura takibi, kategori filtreleme, mock fallback
+- ✅ **Otopark sayfası eklendi** — `/dashboard/parking`; araç listesi, şu an içeridekiler, giriş/çıkış işlemleri
+- ✅ **Personel sayfası eklendi** — `/dashboard/personnel`; çalışan listesi, izin talepleri, onaylama
+- ✅ **Rezervasyon sayfası eklendi** — `/dashboard/reservations`; tesis ve rezervasyon yönetimi, iptal
+- ✅ **Ziyaretçi sayfası eklendi** — `/dashboard/visitors`; giriş/çıkış takibi, QR kayıt, bugün/içeride filtreleme
+- ✅ **Sidebar güncellendi** — 5 yeni nav öğesi eklendi (Gider Yönetimi, Otopark, Personel, Rezervasyon, Ziyaretçi)
 
 ---
 

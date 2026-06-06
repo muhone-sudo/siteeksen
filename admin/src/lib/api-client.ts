@@ -306,6 +306,141 @@ class ApiClient {
         await this.client.delete(`/credentials/${id}`);
     }
 
+    // ============ PARKING ============
+    async getVehicles(params?: { unit_id?: string }) {
+        const response = await this.client.get("/vehicles", { params });
+        return response.data;
+    }
+
+    async createVehicle(data: { plate: string; type: string; unit_id?: string; owner_name?: string }) {
+        const response = await this.client.post("/vehicles", data);
+        return response.data;
+    }
+
+    async deleteVehicle(id: string) {
+        await this.client.delete(`/vehicles/${id}`);
+    }
+
+    async getParkingZones() {
+        const response = await this.client.get("/parking-zones");
+        return response.data;
+    }
+
+    async getCurrentVehicles() {
+        const response = await this.client.get("/parking-logs/current");
+        return response.data;
+    }
+
+    async getParkingStats() {
+        const response = await this.client.get("/parking-logs/stats");
+        return response.data;
+    }
+
+    async recordEntry(data: { plate?: string; vehicle_id?: string; zone_id?: string }) {
+        const response = await this.client.post("/parking-logs/entry", data);
+        return response.data;
+    }
+
+    // ============ PERSONNEL ============
+    async getEmployees() {
+        const response = await this.client.get("/employees");
+        return response.data;
+    }
+
+    async getEmployeeStats() {
+        const response = await this.client.get("/employees/stats");
+        return response.data;
+    }
+
+    async createEmployee(data: {
+        first_name: string; last_name: string; role: string;
+        salary: number; phone?: string; start_date?: string;
+    }) {
+        const response = await this.client.post("/employees", data);
+        return response.data;
+    }
+
+    async deleteEmployee(id: string) {
+        await this.client.delete(`/employees/${id}`);
+    }
+
+    async getLeaves(params?: { status?: string }) {
+        const response = await this.client.get("/leaves", { params });
+        return response.data;
+    }
+
+    async approveLeave(id: string) {
+        const response = await this.client.post(`/leaves/${id}/approve`);
+        return response.data;
+    }
+
+    // ============ RESERVATIONS ============
+    async getFacilities() {
+        const response = await this.client.get("/facilities");
+        return response.data;
+    }
+
+    async getReservations(params?: { status?: string }) {
+        const response = await this.client.get("/reservations", { params });
+        return response.data;
+    }
+
+    async getTodayReservations() {
+        const response = await this.client.get("/reservations/today");
+        return response.data;
+    }
+
+    async createReservation(data: {
+        facility_id: string; resident_id?: string; unit_number?: string;
+        start_time: string; end_time: string; notes?: string;
+    }) {
+        const response = await this.client.post("/reservations", data);
+        return response.data;
+    }
+
+    async cancelReservation(id: string) {
+        await this.client.delete(`/reservations/${id}`);
+    }
+
+    // ============ VISITORS ============
+    async getVisitors(params?: { status?: string }) {
+        const response = await this.client.get("/visitors", { params });
+        return response.data;
+    }
+
+    async getTodayVisitors() {
+        const response = await this.client.get("/visitors/today");
+        return response.data;
+    }
+
+    async getCurrentVisitors() {
+        const response = await this.client.get("/visitors/inside");
+        return response.data;
+    }
+
+    async getVisitorStats() {
+        const response = await this.client.get("/visitors/stats");
+        return response.data;
+    }
+
+    async createVisitor(data: {
+        name: string; phone?: string; unit_number: string;
+        visit_purpose?: string; expected_at?: string;
+    }) {
+        const response = await this.client.post("/visitors", data);
+        return response.data;
+    }
+
+    async checkInVisitor(id: string) {
+        const response = await this.client.post(`/visitors/${id}/checkin`);
+        return response.data;
+    }
+
+    async checkOutVisitor(id: string) {
+        const response = await this.client.post(`/visitors/${id}/checkout`);
+        return response.data;
+    }
+
     // ============ REPORTS ============
     async generateReport(type: string, params: Record<string, unknown>) {
         const response = await this.client.post("/reports/generate", {
