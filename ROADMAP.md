@@ -75,9 +75,9 @@ Proje ilerleme durumu ve planlaması.
 ### Admin Panel Yapılacaklar
 - ✅ `api-client.ts` gateway üzerinden gerçek servislere bağlandı
 - ✅ Token refresh mantığı implement edildi
-- 📋 Muhasebe sayfasını backend'e bağla
-- 📋 Bildirimler sayfasını notification servisiyle entegre et
-- 📋 API Credentials sayfasını settings servisine bağla
+- ✅ **Muhasebe sayfası backend'e bağlandı** — expense servisi `/api/v1/expenses`
+- ✅ **Bildirimler sayfası backend'e bağlandı** — notification servisi `/api/v1/notifications`
+- ✅ **API Credentials sayfası backend'e bağlandı** — settings servisi `/api/v1/credentials`
 - 📋 Gider yönetimi sayfası ekle
 - 📋 Otopark, personel, rezervasyon, ziyaretçi sayfaları ekle
 

@@ -236,6 +236,76 @@ class ApiClient {
         return response.data;
     }
 
+    // ============ EXPENSES ============
+    async getExpenses(params?: { month?: string; category?: string; status?: string }) {
+        const response = await this.client.get("/expenses", { params });
+        return response.data;
+    }
+
+    async createExpense(data: {
+        category: string;
+        description: string;
+        amount: number;
+        expense_date: string;
+        is_recurring?: boolean;
+        vendor_name?: string;
+    }) {
+        const response = await this.client.post("/expenses", data);
+        return response.data;
+    }
+
+    async getExpenseSummary() {
+        const response = await this.client.get("/expenses/summary");
+        return response.data;
+    }
+
+    // ============ NOTIFICATIONS ============
+    async getNotifications(params?: { limit?: number; status?: string }) {
+        const response = await this.client.get("/notifications", { params });
+        return response.data;
+    }
+
+    async sendNotification(data: {
+        title: string;
+        message: string;
+        channel: string;
+        audience_type: string;
+    }) {
+        const response = await this.client.post("/notifications/send", data);
+        return response.data;
+    }
+
+    async getNotificationHistory(params?: { limit?: number }) {
+        const response = await this.client.get("/notifications/history", { params });
+        return response.data;
+    }
+
+    // ============ CREDENTIALS (Settings Service) ============
+    async getApiCredentials() {
+        const response = await this.client.get("/credentials");
+        return response.data;
+    }
+
+    async createApiCredential(data: {
+        service_name: string;
+        api_key: string;
+        api_secret?: string;
+        extra_config?: Record<string, string>;
+        is_active?: boolean;
+    }) {
+        const response = await this.client.post("/credentials", data);
+        return response.data;
+    }
+
+    async testApiCredential(id: string) {
+        const response = await this.client.post(`/credentials/${id}/test`);
+        return response.data;
+    }
+
+    async deleteApiCredential(id: string) {
+        await this.client.delete(`/credentials/${id}`);
+    }
+
     // ============ REPORTS ============
     async generateReport(type: string, params: Record<string, unknown>) {
         const response = await this.client.post("/reports/generate", {
