@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 class MainScreen extends StatefulWidget {
@@ -13,9 +14,43 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
 
+  Future<void> _confirmExit() async {
+    final shouldExit = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Uygulamadan çık'),
+        content: const Text('Uygulamadan çıkmak istediğinize emin misiniz?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Vazgeç'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Çık'),
+          ),
+        ],
+      ),
+    );
+    if (shouldExit == true) {
+      SystemNavigator.pop();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        if (_currentIndex != 0) {
+          setState(() => _currentIndex = 0);
+          context.go('/');
+        } else {
+          _confirmExit();
+        }
+      },
+      child: Scaffold(
       body: widget.child,
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
@@ -58,6 +93,7 @@ class _MainScreenState extends State<MainScreen> {
             label: 'Daha Fazla',
           ),
         ],
+      ),
       ),
     );
   }

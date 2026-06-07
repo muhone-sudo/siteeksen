@@ -121,6 +121,7 @@ Proje ilerleme durumu ve planlaması.
 - 📋 Push notification alma ve gösterme akışını test et
 - 📋 Biyometrik giriş (`local_auth`) tam entegrasyonu
 - 📋 App Store / Google Play yayınlama (`docs/store-publishing-guide.md` hazır)
+- ✅ **Android geri tuşu navigasyon düzeltmesi** — `main_screen.dart`'a `PopScope` eklendi (Apsiyon karşılaştırması, Paket 2)
 
 ---
 

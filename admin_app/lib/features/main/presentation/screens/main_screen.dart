@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 class MainScreen extends StatefulWidget {
@@ -26,19 +27,53 @@ class _MainScreenState extends State<MainScreen> {
     context.go(_navItems[index].path);
   }
 
+  Future<void> _confirmExit() async {
+    final shouldExit = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Uygulamadan çık'),
+        content: const Text('Uygulamadan çıkmak istediğinize emin misiniz?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Vazgeç'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Çık'),
+          ),
+        ],
+      ),
+    );
+    if (shouldExit == true) {
+      SystemNavigator.pop();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: widget.child,
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _selectedIndex,
-        onDestinationSelected: _onItemTapped,
-        destinations: _navItems.map((item) => NavigationDestination(
-          icon: Icon(item.icon),
-          label: item.label,
-        )).toList(),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        if (_selectedIndex != 0) {
+          _onItemTapped(0);
+        } else {
+          _confirmExit();
+        }
+      },
+      child: Scaffold(
+        body: widget.child,
+        bottomNavigationBar: NavigationBar(
+          selectedIndex: _selectedIndex,
+          onDestinationSelected: _onItemTapped,
+          destinations: _navItems.map((item) => NavigationDestination(
+            icon: Icon(item.icon),
+            label: item.label,
+          )).toList(),
+        ),
+        drawer: _buildDrawer(),
       ),
-      drawer: _buildDrawer(),
     );
   }
 
