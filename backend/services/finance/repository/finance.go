@@ -2,11 +2,22 @@ package repository
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/siteeksen/backend/services/finance/models"
+)
+
+// Sentinel hatalar
+var (
+	ErrExpenseCategoryNotFound = errors.New("gider kalemi bulunamadı")
+	ErrAssessmentPeriodExists  = errors.New("bu dönem için tahakkuk zaten oluşturulmuş")
+	ErrNoUnitsInProperty       = errors.New("sitede tanımlı birim bulunamadı")
 )
 
 // FinanceRepository finans veritabanı işlemleri
@@ -244,4 +255,174 @@ func (r *FinanceRepository) GetConsumptionData(ctx context.Context, userID, mete
 	}
 
 	return data, nil
+}
+
+// unitShare tahakkuk dağıtım hesabı için birim bilgisi
+type unitShare struct {
+	id             string
+	shareRatio     float64
+	grossAreaM2    float64
+	isCommercial   bool
+	isGroundFloor  bool
+}
+
+// assessmentDetailRow birime düşen gider kalemi payı
+type assessmentDetailRow struct {
+	unitID           string
+	categoryID       string
+	amount           float64
+	calculationBasis string
+	shareValue       float64
+}
+
+// CreateAssessment dönem için site genelinde aidat tahakkuku oluşturur.
+// Her gider kalemini, kategorinin dağıtım yöntemine (SHARE_RATIO/EQUAL/AREA_M2)
+// göre uygun birimlere paylaştırır ve her birim için tek bir monthly_assessments
+// kaydı + ilgili assessment_details satırlarını tek transaction'da yazar.
+func (r *FinanceRepository) CreateAssessment(ctx context.Context, propertyID string, input models.CreateAssessmentInput) ([]models.AssessmentSummary, error) {
+	dueDate, err := time.Parse("2006-01-02", input.DueDate)
+	if err != nil {
+		return nil, errors.New("geçersiz vade tarihi formatı (YYYY-MM-DD bekleniyor)")
+	}
+
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+
+	rows, err := tx.Query(ctx, `
+		SELECT id, share_ratio, COALESCE(gross_area_m2, 0), is_commercial, is_ground_floor
+		FROM units WHERE property_id = $1 AND deleted = 0
+	`, propertyID)
+	if err != nil {
+		return nil, err
+	}
+	var units []unitShare
+	for rows.Next() {
+		var u unitShare
+		if err := rows.Scan(&u.id, &u.shareRatio, &u.grossAreaM2, &u.isCommercial, &u.isGroundFloor); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		units = append(units, u)
+	}
+	rows.Close()
+	if len(units) == 0 {
+		return nil, ErrNoUnitsInProperty
+	}
+
+	unitTotals := make(map[string]float64, len(units))
+	var details []assessmentDetailRow
+
+	for _, item := range input.ExpenseItems {
+		var distType string
+		var appliesCommercial, appliesGround bool
+		err := tx.QueryRow(ctx, `
+			SELECT distribution_type, applies_to_commercial, applies_to_ground_floor
+			FROM expense_categories WHERE id = $1 AND property_id = $2 AND is_active = true
+		`, item.CategoryID, propertyID).Scan(&distType, &appliesCommercial, &appliesGround)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrExpenseCategoryNotFound
+		}
+		if err != nil {
+			return nil, err
+		}
+
+		eligible := make([]unitShare, 0, len(units))
+		for _, u := range units {
+			if u.isCommercial && !appliesCommercial {
+				continue
+			}
+			if u.isGroundFloor && !appliesGround {
+				continue
+			}
+			eligible = append(eligible, u)
+		}
+		if len(eligible) == 0 {
+			continue
+		}
+
+		switch distType {
+		case "EQUAL":
+			share := item.Amount / float64(len(eligible))
+			basisValue := 1.0 / float64(len(eligible))
+			for _, u := range eligible {
+				unitTotals[u.id] += share
+				details = append(details, assessmentDetailRow{u.id, item.CategoryID, share, "EQUAL", basisValue})
+			}
+		case "AREA_M2":
+			var totalArea float64
+			for _, u := range eligible {
+				totalArea += u.grossAreaM2
+			}
+			if totalArea == 0 {
+				return nil, fmt.Errorf("'%s' kalemi metrekareye göre dağıtılamıyor: birimlerde alan bilgisi yok", item.CategoryID)
+			}
+			for _, u := range eligible {
+				ratio := u.grossAreaM2 / totalArea
+				share := item.Amount * ratio
+				unitTotals[u.id] += share
+				details = append(details, assessmentDetailRow{u.id, item.CategoryID, share, "AREA_M2", ratio})
+			}
+		default: // SHARE_RATIO ve henüz desteklenmeyen yöntemler (METER_READING/CUSTOM) arsa payına göre paylaştırılır
+			var totalRatio float64
+			for _, u := range eligible {
+				totalRatio += u.shareRatio
+			}
+			if totalRatio == 0 {
+				return nil, fmt.Errorf("'%s' kalemi arsa payına göre dağıtılamıyor: birimlerde arsa payı bilgisi yok", item.CategoryID)
+			}
+			for _, u := range eligible {
+				ratio := u.shareRatio / totalRatio
+				share := item.Amount * ratio
+				unitTotals[u.id] += share
+				details = append(details, assessmentDetailRow{u.id, item.CategoryID, share, "SHARE_RATIO", ratio})
+			}
+		}
+	}
+
+	period := fmt.Sprintf("%04d-%02d", input.PeriodYear, input.PeriodMonth)
+	assessmentIDs := make(map[string]string, len(unitTotals))
+	for unitID, total := range unitTotals {
+		id := uuid.New().String()
+		_, err := tx.Exec(ctx, `
+			INSERT INTO monthly_assessments (id, property_id, unit_id, period_year, period_month, base_amount, total_amount, due_date, status)
+			VALUES ($1, $2, $3, $4, $5, $6, $6, $7, 'PENDING')
+		`, id, propertyID, unitID, input.PeriodYear, input.PeriodMonth, total, dueDate)
+		if err != nil {
+			var pgErr *pgconn.PgError
+			if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+				return nil, ErrAssessmentPeriodExists
+			}
+			return nil, err
+		}
+		assessmentIDs[unitID] = id
+	}
+
+	for _, d := range details {
+		_, err := tx.Exec(ctx, `
+			INSERT INTO assessment_details (id, assessment_id, expense_category_id, amount, calculation_basis, share_value)
+			VALUES ($1, $2, $3, $4, $5, $6)
+		`, uuid.New().String(), assessmentIDs[d.unitID], d.categoryID, d.amount, d.calculationBasis, d.shareValue)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+
+	summaries := make([]models.AssessmentSummary, 0, len(assessmentIDs))
+	for unitID, id := range assessmentIDs {
+		summaries = append(summaries, models.AssessmentSummary{
+			ID:          id,
+			Period:      period,
+			BaseAmount:  unitTotals[unitID],
+			TotalAmount: unitTotals[unitID],
+			Status:      "PENDING",
+		})
+	}
+	return summaries, nil
 }

@@ -54,6 +54,20 @@ type ExpenseCategory struct {
 	IsActive             bool    `json:"is_active"`
 }
 
+// AssessmentExpenseItem tahakkuk oluşturma isteğindeki tek gider kalemi
+type AssessmentExpenseItem struct {
+	CategoryID string  `json:"category_id" binding:"required"`
+	Amount     float64 `json:"amount" binding:"required,gt=0"`
+}
+
+// CreateAssessmentInput aidat tahakkuku oluşturma isteği
+type CreateAssessmentInput struct {
+	PeriodYear   int                     `json:"period_year" binding:"required"`
+	PeriodMonth  int                     `json:"period_month" binding:"required,min=1,max=12"`
+	DueDate      string                  `json:"due_date" binding:"required"`
+	ExpenseItems []AssessmentExpenseItem `json:"expense_items" binding:"required,min=1,dive"`
+}
+
 // Payment ödeme kaydı
 type Payment struct {
 	ID            string    `json:"id"`

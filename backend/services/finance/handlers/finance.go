@@ -1,12 +1,39 @@
 package handlers
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/siteeksen/backend/services/finance/models"
+	"github.com/siteeksen/backend/services/finance/repository"
 	"github.com/siteeksen/backend/services/finance/service"
 )
+
+func getRoles(c *gin.Context) []string {
+	value, exists := c.Get("roles")
+	if !exists {
+		return nil
+	}
+	roles, _ := value.([]string)
+	return roles
+}
+
+func mapAssessmentError(c *gin.Context, err error) {
+	switch {
+	case errors.Is(err, service.ErrAssessmentForbidden):
+		c.JSON(http.StatusForbidden, gin.H{"error": "Bu işlem için yetkiniz yok"})
+	case errors.Is(err, repository.ErrExpenseCategoryNotFound):
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Belirtilen gider kalemi bulunamadı"})
+	case errors.Is(err, repository.ErrAssessmentPeriodExists):
+		c.JSON(http.StatusConflict, gin.H{"error": "Bu dönem için tahakkuk zaten oluşturulmuş"})
+	case errors.Is(err, repository.ErrNoUnitsInProperty):
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Sitede tanımlı birim bulunamadı"})
+	default:
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	}
+}
 
 // GetDebtStatus anlık borç durumu (Dashboard kartı)
 func GetDebtStatus(svc *service.FinanceService) gin.HandlerFunc {
@@ -49,6 +76,25 @@ func GetAssessmentDetails(svc *service.FinanceService) gin.HandlerFunc {
 			return
 		}
 		c.JSON(http.StatusOK, details)
+	}
+}
+
+// CreateAssessment yönetimin gider kalemlerine göre dönemlik aidat tahakkuku oluşturur
+func CreateAssessment(svc *service.FinanceService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var input models.CreateAssessmentInput
+		if err := c.ShouldBindJSON(&input); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Geçersiz istek formatı"})
+			return
+		}
+
+		propertyID := c.GetString("property_id")
+		summaries, err := svc.CreateAssessment(c.Request.Context(), propertyID, getRoles(c), input)
+		if err != nil {
+			mapAssessmentError(c, err)
+			return
+		}
+		c.JSON(http.StatusCreated, gin.H{"data": summaries})
 	}
 }
 

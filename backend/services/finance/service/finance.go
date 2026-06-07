@@ -2,11 +2,27 @@ package service
 
 import (
 	"context"
+	"errors"
 	"time"
 
+	"github.com/siteeksen/backend/pkg/middleware"
 	"github.com/siteeksen/backend/services/finance/models"
 	"github.com/siteeksen/backend/services/finance/repository"
 )
+
+// ErrAssessmentForbidden yönetim dışı kullanıcı tahakkuk oluşturmaya çalışırsa döner
+var ErrAssessmentForbidden = errors.New("bu işlem için yetkiniz yok")
+
+// isFinanceManagement kullanıcının yönetim rolüne sahip olup olmadığını kontrol eder
+func isFinanceManagement(roles []string) bool {
+	for _, role := range roles {
+		switch role {
+		case middleware.RoleManager, middleware.RoleAuditor, middleware.RoleStaff:
+			return true
+		}
+	}
+	return false
+}
 
 // FinanceService finans servisi
 type FinanceService struct {
@@ -67,6 +83,15 @@ func (s *FinanceService) GetAssessments(ctx context.Context, userID string, year
 // GetAssessmentDetails aidat detayı getirir
 func (s *FinanceService) GetAssessmentDetails(ctx context.Context, assessmentID string) (*models.AssessmentDetail, error) {
 	return s.repo.GetAssessmentDetails(ctx, assessmentID)
+}
+
+// CreateAssessment yönetimin belirlediği gider kalemlerine göre site genelinde
+// dönemlik aidat tahakkuku oluşturur (yalnızca yönetim rolleri).
+func (s *FinanceService) CreateAssessment(ctx context.Context, propertyID string, roles []string, input models.CreateAssessmentInput) ([]models.AssessmentSummary, error) {
+	if !isFinanceManagement(roles) {
+		return nil, ErrAssessmentForbidden
+	}
+	return s.repo.CreateAssessment(ctx, propertyID, input)
 }
 
 // PaymentResult ödeme sonucu
