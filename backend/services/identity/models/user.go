@@ -49,6 +49,14 @@ type Property struct {
 	CreatedAt       time.Time `json:"created_at"`
 }
 
+// CreatePropertyRequest yeni site oluşturma isteği
+type CreatePropertyRequest struct {
+	Name     string `json:"name" binding:"required"`
+	Address  string `json:"address" binding:"required"`
+	City     string `json:"city" binding:"required"`
+	District string `json:"district"`
+}
+
 // Unit bağımsız bölüm modeli
 type Unit struct {
 	ID           string  `json:"id"`

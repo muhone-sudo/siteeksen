@@ -22,6 +22,8 @@ import {
     UserCog,
     CalendarCheck,
     UserCheck,
+    MapPin,
+    X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { apiClient } from "@/lib/api-client";
@@ -56,6 +58,9 @@ export function Sidebar() {
     const [sites, setSites] = useState<SiteOption[]>([]);
     const [activeSiteId, setActiveSiteId] = useState<string | null>(null);
     const [switching, setSwitching] = useState(false);
+    const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+    const [creating, setCreating] = useState(false);
+    const [newSite, setNewSite] = useState({ name: "", address: "", city: "", district: "" });
 
     useEffect(() => {
         if (status !== "authenticated" || !session?.accessToken) return;
@@ -87,6 +92,22 @@ export function Sidebar() {
         }
     };
 
+    const handleCreateSite = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (creating) return;
+
+        setCreating(true);
+        try {
+            const property = await apiClient.createProperty(newSite);
+            await apiClient.setActiveProperty(property.id);
+            await apiClient.refreshAccessToken();
+            window.location.reload();
+        } catch {
+            alert("Site oluşturulamadı. Lütfen tekrar deneyin.");
+            setCreating(false);
+        }
+    };
+
     return (
         <div className="hidden lg:flex lg:w-64 lg:flex-col">
             <div className="flex flex-1 flex-col bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700">
@@ -111,7 +132,10 @@ export function Sidebar() {
                     </select>
                     <button
                         type="button"
-                        onClick={() => alert("Yeni site ekleme özelliği yakında eklenecek.")}
+                        onClick={() => {
+                            setNewSite({ name: "", address: "", city: "", district: "" });
+                            setIsAddModalOpen(true);
+                        }}
                         className="text-xs text-primary hover:underline"
                     >
                         + Yeni Site Ekle
@@ -151,6 +175,62 @@ export function Sidebar() {
                     </Link>
                 </div>
             </div>
+
+            {/* Yeni Site Ekle Modal */}
+            {isAddModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+                    <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl dark:bg-gray-800">
+                        <div className="flex items-center justify-between mb-4">
+                            <h2 className="text-xl font-bold text-gray-900 dark:text-white">Yeni Site Ekle</h2>
+                            <button onClick={() => setIsAddModalOpen(false)} className="rounded-lg p-1 hover:bg-gray-100 dark:hover:bg-gray-700">
+                                <X className="h-5 w-5 text-gray-500" />
+                            </button>
+                        </div>
+                        <form onSubmit={handleCreateSite} className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Site Adı</label>
+                                <div className="relative">
+                                    <Building2 className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                                    <input type="text" required value={newSite.name} onChange={(e) => setNewSite({ ...newSite, name: e.target.value })}
+                                        className="w-full rounded-lg border border-gray-300 bg-white py-2 pl-10 pr-4 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:border-gray-600 dark:bg-gray-700"
+                                        placeholder="Güneş Sitesi" />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Adres</label>
+                                <div className="relative">
+                                    <MapPin className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                                    <input type="text" required value={newSite.address} onChange={(e) => setNewSite({ ...newSite, address: e.target.value })}
+                                        className="w-full rounded-lg border border-gray-300 bg-white py-2 pl-10 pr-4 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:border-gray-600 dark:bg-gray-700"
+                                        placeholder="Atatürk Cad. No:1" />
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Şehir</label>
+                                    <input type="text" required value={newSite.city} onChange={(e) => setNewSite({ ...newSite, city: e.target.value })}
+                                        className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:border-gray-600 dark:bg-gray-700"
+                                        placeholder="İstanbul" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">İlçe</label>
+                                    <input type="text" value={newSite.district} onChange={(e) => setNewSite({ ...newSite, district: e.target.value })}
+                                        className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:border-gray-600 dark:bg-gray-700"
+                                        placeholder="Kadıköy" />
+                                </div>
+                            </div>
+                            <div className="flex gap-3 pt-4">
+                                <button type="button" onClick={() => setIsAddModalOpen(false)} className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700">
+                                    İptal
+                                </button>
+                                <button type="submit" disabled={creating} className="flex-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-60">
+                                    {creating ? "Oluşturuluyor..." : "Oluştur ve Geç"}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

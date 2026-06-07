@@ -90,6 +90,51 @@ func (r *UserRepository) SetActiveProperty(ctx context.Context, userID, property
 	return err
 }
 
+// CreateProperty yeni site oluşturur ve oluşturan kullanıcıyı OWNER olarak bağlar
+func (r *UserRepository) CreateProperty(ctx context.Context, userID string, req models.CreatePropertyRequest) (*models.Property, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+
+	property := &models.Property{}
+	err = tx.QueryRow(ctx, `
+		INSERT INTO properties (name, address, city, district)
+		VALUES ($1, $2, $3, $4)
+		RETURNING id, name, address, city, created_at
+	`, req.Name, req.Address, req.City, req.District).Scan(
+		&property.ID, &property.Name, &property.Address, &property.City, &property.CreatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	var unitID string
+	err = tx.QueryRow(ctx, `
+		INSERT INTO units (property_id, block, floor, door_number, share_ratio, unit_type)
+		VALUES ($1, 'A', 0, 'YÖNETİM', 0, 'OFFICE')
+		RETURNING id
+	`, property.ID).Scan(&unitID)
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = tx.Exec(ctx, `
+		INSERT INTO resident_units (resident_id, unit_id, role)
+		VALUES ($1, $2, 'OWNER')
+	`, userID, unitID)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+
+	return property, nil
+}
+
 // Create yeni kullanıcı oluşturur
 func (r *UserRepository) Create(ctx context.Context, user *models.User) error {
 	query := `

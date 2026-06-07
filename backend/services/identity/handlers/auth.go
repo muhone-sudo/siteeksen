@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/siteeksen/backend/services/identity/models"
 	"github.com/siteeksen/backend/services/identity/service"
 )
 
@@ -126,5 +127,25 @@ func SetActiveProperty(svc *service.AuthService) gin.HandlerFunc {
 		}
 
 		c.JSON(http.StatusOK, gin.H{"message": "Aktif site güncellendi"})
+	}
+}
+
+// CreateProperty yeni site oluşturur
+func CreateProperty(svc *service.AuthService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var req models.CreatePropertyRequest
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Geçersiz istek formatı"})
+			return
+		}
+
+		userID := c.GetString("user_id")
+		property, err := svc.CreateProperty(c.Request.Context(), userID, req)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Site oluşturulamadı"})
+			return
+		}
+
+		c.JSON(http.StatusCreated, property)
 	}
 }

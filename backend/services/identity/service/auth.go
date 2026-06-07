@@ -112,6 +112,11 @@ func (s *AuthService) SetActiveProperty(ctx context.Context, userID, propertyID 
 	return s.userRepo.SetActiveProperty(ctx, userID, propertyID)
 }
 
+// CreateProperty yeni site oluşturur ve kullanıcıyı bu siteye OWNER olarak bağlar
+func (s *AuthService) CreateProperty(ctx context.Context, userID string, req models.CreatePropertyRequest) (*models.Property, error) {
+	return s.userRepo.CreateProperty(ctx, userID, req)
+}
+
 func (s *AuthService) generateTokens(user *models.User) (*TokenPair, error) {
 	now := time.Now()
 	accessExpiry := now.Add(15 * time.Minute)

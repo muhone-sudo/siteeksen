@@ -50,6 +50,7 @@ func main() {
 	{
 		protected.GET("/me", handlers.GetCurrentUser(authService))
 		protected.GET("/me/properties", handlers.GetUserProperties(authService))
+		protected.POST("/me/properties", handlers.CreateProperty(authService))
 		protected.POST("/me/active-property", handlers.SetActiveProperty(authService))
 	}
 

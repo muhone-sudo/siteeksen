@@ -90,6 +90,7 @@ Proje ilerleme durumu ve planlaması.
 - ✅ **Muhasebe/Bildirimler/Sayaçlar** — Accounting edit/delete, notifications history delete, meters gerçek save readings
 - ✅ **Backend soft-delete altyapısı** — Migration 006 (23 tablo + index), identity ve finance repository sorgularına `AND deleted = 0` filtresi
 - ✅ **Sidebar site/apartman seçici gerçek backend'e bağlandı** — `GET /users/me/properties` → seçimde `setActiveProperty` → `refreshAccessToken` → reload zinciri; NextAuth session ↔ apiClient token köprüsü kuruldu; canlı ortamda uçtan uca doğrulandı
+- ✅ **Yeni site ekleme özelliği** — `POST /users/me/properties` (identity) ile site + varsayılan unit + `resident_units(OWNER)` tek transaction'da oluşturuluyor; sidebar modalı ile oluştur → otomatik geçiş zinciri canlı ortamda doğrulandı
 
 ---
 
