@@ -44,7 +44,8 @@ Proje ilerleme durumu ve planlaması.
 | gateway (dev) | ✅ | 8888 | Docker'da aktif |
 
 ### Backend Yapılacaklar
-- ✅ **identity-service: Gerçek `residents`/`units` modülü** — `GET/POST /api/v1/residents`, `GET/PATCH /api/v1/residents/:id`, `GET /api/v1/units`; `resident_units`/`users`/`units` JOIN sorgularıyla DB'ye bağlandı, gateway'in mock `/residents*` handler'larının yerini alacak (Mock verilerin DB'ye bağlanması — Faz 1/6, Adım 1/4)
+- ✅ **identity-service: Gerçek `residents`/`units` modülü** — `GET/POST /api/v1/residents`, `GET/PATCH /api/v1/residents/:id`, `GET /api/v1/units`; `resident_units`/`users`/`units` JOIN sorgularıyla DB'ye bağlandı (Mock verilerin DB'ye bağlanması — Faz 1/6, Adım 1/4)
+- ✅ **Gateway: `/api/v1/residents`+`/api/v1/units` mock handler'ları kaldırılıp identity-service'e proxy edildi** (Mock verilerin DB'ye bağlanması — Faz 1/6, Adım 2/4)
 - ✅ **Demo gateway gerçek reverse proxy'ye dönüştürüldü** — identity, finance, community servislerine proxy; henüz olmayan servisler için mock
 - ✅ **Tüm 19 yeni servis docker-compose.yml'e eklendi** — port atandı, Dockerfile yazıldı, hepsi çalışıyor
 - ✅ **Kong `kong.yml` güncellendi** — 24 servis (tüm mikroservisler) Kong üzerinden yönlendiriliyor

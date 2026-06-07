@@ -116,7 +116,7 @@ func main() {
 	}))
 
 	// --- IDENTITY SERVICE (8081) ---
-	proxyPaths(mux, newProxy(identityURL), "/api/v1/auth", "/api/v1/users")
+	proxyPaths(mux, newProxy(identityURL), "/api/v1/auth", "/api/v1/users", "/api/v1/residents", "/api/v1/units")
 
 	// --- FINANCE SERVICE (8082) ---
 	proxyPaths(mux, newProxy(financeURL), "/api/v1/finance", "/api/v1/assessments", "/api/v1/payments")
@@ -206,25 +206,6 @@ func main() {
 	}))
 	mux.Handle("/api/v1/dashboard/", jsonHandler(func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(Response{Success: true, Data: map[string]interface{}{}})
-	}))
-
-	mux.Handle("/api/v1/residents", jsonHandler(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodPost {
-			w.WriteHeader(http.StatusCreated)
-			json.NewEncoder(w).Encode(Response{Success: true, Message: "Sakin eklendi"})
-			return
-		}
-		json.NewEncoder(w).Encode(Response{
-			Success: true,
-			Data: []map[string]interface{}{
-				{"id": "1", "first_name": "Ahmet", "last_name": "Yılmaz", "unit": "A-12", "phone": "5551234567", "status": "active", "role": "OWNER"},
-				{"id": "2", "first_name": "Mehmet", "last_name": "Demir", "unit": "B-05", "phone": "5559876543", "status": "active", "role": "TENANT"},
-				{"id": "3", "first_name": "Ayşe", "last_name": "Kaya", "unit": "C-08", "phone": "5553334455", "status": "active", "role": "OWNER"},
-			},
-		})
-	}))
-	mux.Handle("/api/v1/residents/", jsonHandler(func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(Response{Success: true, Message: "İşlem tamamlandı"})
 	}))
 
 	mux.Handle("/api/v1/meters", jsonHandler(func(w http.ResponseWriter, r *http.Request) {
