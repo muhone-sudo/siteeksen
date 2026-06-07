@@ -84,6 +84,10 @@ Proje ilerleme durumu ve planlaması.
 - ✅ **Rezervasyon sayfası eklendi** — `/dashboard/reservations`; tesis ve rezervasyon yönetimi, iptal
 - ✅ **Ziyaretçi sayfası eklendi** — `/dashboard/visitors`; giriş/çıkış takibi, QR kayıt, bugün/içeride filtreleme
 - ✅ **Sidebar güncellendi** — 5 yeni nav öğesi eklendi (Gider Yönetimi, Otopark, Personel, Rezervasyon, Ziyaretçi)
+- ✅ **Tüm sayfalara edit/delete eklendi** — Soft-delete pattern (deleted=1), onay modalı, shared add/edit form
+- ✅ **CSV upload/download** — expenses, parking, personnel, visitors, meters sayfalarında gerçek CSV işleme
+- ✅ **Credentials sayfası güvenlik** — Şifreler sayfa açılışında yüklenmiyor, "Göster" butonuyla çekiliyor + audit log
+- ✅ **Muhasebe/Bildirimler/Sayaçlar** — Accounting edit/delete, notifications history delete, meters gerçek save readings
 
 ---
 
