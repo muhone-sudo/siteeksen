@@ -71,6 +71,30 @@ temp/
 # Go
 *.test
 *.out
+# go build ile backend/ kökünde oluşan servis binary'leri (örn: backend/gateway, backend/expense)
+/backend/asset
+/backend/bulletin
+/backend/contract
+/backend/document
+/backend/energy_analytics
+/backend/esg
+/backend/expense
+/backend/gateway
+/backend/inventory
+/backend/meeting_wizard
+/backend/nps
+/backend/package
+/backend/parking
+/backend/patrol
+/backend/personnel
+/backend/reservation
+/backend/settings
+/backend/smart_collection
+/backend/survey
+/backend/visitor
+
+# TypeScript build info
+*.tsbuildinfo
 
 # Python (if any)
 __pycache__/
