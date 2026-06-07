@@ -136,36 +136,35 @@ class ApiClient {
   
   // ============ RESIDENTS ============
   
-  Future<List<dynamic>> getResidents({String? search, int page = 1}) async {
-    final response = await _dio.get('/users', queryParameters: {
-      'role': 'RESIDENT',
-      'search': search,
-      'page': page,
-      'limit': 20,
+  Future<List<dynamic>> getResidents({String? search, String? block, String? role}) async {
+    final response = await _dio.get('/residents', queryParameters: {
+      if (search != null && search.isNotEmpty) 'search': search,
+      if (block != null && block.isNotEmpty) 'block': block,
+      if (role != null && role.isNotEmpty) 'role': role,
     });
     return response.data['data'];
   }
-  
+
   Future<Map<String, dynamic>> getResident(String id) async {
-    final response = await _dio.get('/users/$id');
+    final response = await _dio.get('/residents/$id');
     return response.data;
   }
-  
+
   Future<void> createResident(Map<String, dynamic> data) async {
-    await _dio.post('/users', data: data);
+    await _dio.post('/residents', data: data);
   }
-  
+
   Future<void> updateResident(String id, Map<String, dynamic> data) async {
-    await _dio.put('/users/$id', data: data);
+    await _dio.patch('/residents/$id', data: data);
   }
-  
+
   // ============ UNITS ============
-  
+
   Future<List<dynamic>> getUnits() async {
     final response = await _dio.get('/units');
     return response.data['data'];
   }
-  
+
   // ============ FINANCE ============
   
   Future<Map<String, dynamic>> getFinanceOverview() async {

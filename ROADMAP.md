@@ -46,6 +46,7 @@ Proje ilerleme durumu ve planlaması.
 ### Backend Yapılacaklar
 - ✅ **identity-service: Gerçek `residents`/`units` modülü** — `GET/POST /api/v1/residents`, `GET/PATCH /api/v1/residents/:id`, `GET /api/v1/units`; `resident_units`/`users`/`units` JOIN sorgularıyla DB'ye bağlandı (Mock verilerin DB'ye bağlanması — Faz 1/6, Adım 1/4)
 - ✅ **Gateway: `/api/v1/residents`+`/api/v1/units` mock handler'ları kaldırılıp identity-service'e proxy edildi** (Mock verilerin DB'ye bağlanması — Faz 1/6, Adım 2/4)
+- ✅ **Mock→DB Faz 1 (Sakinler/Birimler) tamamlandı** — identity-service modülü → gateway proxy → admin panel → admin_app (4/4 adım); admin_app `/users?role=RESIDENT` konvansiyonu admin panelin `/residents` kontratıyla birleştirildi. Sıradaki faz: Faz 2 — Finans (Aidat/Ödemeler)
 - ✅ **Demo gateway gerçek reverse proxy'ye dönüştürüldü** — identity, finance, community servislerine proxy; henüz olmayan servisler için mock
 - ✅ **Tüm 19 yeni servis docker-compose.yml'e eklendi** — port atandı, Dockerfile yazıldı, hepsi çalışıyor
 - ✅ **Kong `kong.yml` güncellendi** — 24 servis (tüm mikroservisler) Kong üzerinden yönlendiriliyor
@@ -137,7 +138,7 @@ Proje ilerleme durumu ve planlaması.
 |-------|-------|--------|
 | Login | ✅ | |
 | Dashboard | ✅ | |
-| Sakinler | ✅ | |
+| Sakinler | ✅ | Gerçek API'ye bağlandı, `/users`→`/residents` konvansiyon birleştirmesi yapıldı (Mock→DB Faz 1, Adım 4/4 — Faz 1 tamamlandı) |
 | Finans | ✅ | |
 | Sayaçlar | ✅ | |
 | Duyurular | ✅ | |

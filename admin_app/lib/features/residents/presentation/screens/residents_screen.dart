@@ -1,6 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../../../../core/network/api_client.dart';
 import '../../../../core/theme/app_theme.dart';
+
+const Map<String, String> _roleLabels = {
+  'OWNER': 'Ev Sahibi',
+  'TENANT': 'Kiracı',
+  'PROXY': 'Vekil',
+};
 
 class ResidentsScreen extends StatefulWidget {
   const ResidentsScreen({super.key});
@@ -11,19 +18,41 @@ class ResidentsScreen extends StatefulWidget {
 
 class _ResidentsScreenState extends State<ResidentsScreen> {
   final _searchController = TextEditingController();
-  String _filterStatus = 'all';
+  String _filterRole = 'all';
+  bool _isLoading = true;
+  List<dynamic> _residents = [];
 
-  // Mock data
-  final List<_Resident> _residents = [
-    _Resident(id: '1', name: 'Ahmet Yılmaz', unit: 'A Blok D.12', phone: '0532 123 4567', balance: 850, status: 'ACTIVE'),
-    _Resident(id: '2', name: 'Ayşe Kaya', unit: 'B Blok D.5', phone: '0533 234 5678', balance: -1200, status: 'ACTIVE'),
-    _Resident(id: '3', name: 'Mehmet Demir', unit: 'A Blok D.8', phone: '0534 345 6789', balance: 0, status: 'ACTIVE'),
-    _Resident(id: '4', name: 'Fatma Çelik', unit: 'C Blok D.3', phone: '0535 456 7890', balance: -2500, status: 'ACTIVE'),
-    _Resident(id: '5', name: 'Ali Şahin', unit: 'B Blok D.15', phone: '0536 567 8901', balance: 920, status: 'INACTIVE'),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() => _isLoading = true);
+    try {
+      final data = await apiClient.getResidents(
+        search: _searchController.text.trim(),
+        role: _filterRole == 'all' ? null : _filterRole,
+      );
+      if (!mounted) return;
+      setState(() {
+        _residents = data;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Sakinler yüklenemedi, lütfen tekrar deneyin')),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final activeCount = _residents.where((r) => r['is_active'] == true).length;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Sakinler'),
@@ -34,63 +63,76 @@ class _ResidentsScreenState extends State<ResidentsScreen> {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          // Search bar
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                hintText: 'Sakin ara...',
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: _searchController.text.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: () {
-                          _searchController.clear();
-                          setState(() {});
-                        },
-                      )
-                    : null,
+      body: RefreshIndicator(
+        onRefresh: _load,
+        child: Column(
+          children: [
+            // Search bar
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: TextField(
+                controller: _searchController,
+                decoration: InputDecoration(
+                  hintText: 'Sakin ara...',
+                  prefixIcon: const Icon(Icons.search),
+                  suffixIcon: _searchController.text.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear),
+                          onPressed: () {
+                            _searchController.clear();
+                            _load();
+                          },
+                        )
+                      : null,
+                ),
+                onSubmitted: (_) => _load(),
               ),
-              onChanged: (_) => setState(() {}),
             ),
-          ),
-          
-          // Stats
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
-              children: [
-                _StatChip(label: 'Toplam', value: '124', color: AppTheme.primaryColor),
-                const SizedBox(width: 8),
-                _StatChip(label: 'Aktif', value: '118', color: AppTheme.successColor),
-                const SizedBox(width: 8),
-                _StatChip(label: 'Borçlu', value: '23', color: AppTheme.errorColor),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          
-          // List
-          Expanded(
-            child: ListView.builder(
+
+            // Stats
+            Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: _residents.length,
-              itemBuilder: (context, index) {
-                final resident = _residents[index];
-                return _ResidentCard(
-                  resident: resident,
-                  onTap: () => context.go('/residents/${resident.id}'),
-                );
-              },
+              child: Row(
+                children: [
+                  _StatChip(label: 'Toplam', value: '${_residents.length}', color: AppTheme.primaryColor),
+                  const SizedBox(width: 8),
+                  _StatChip(label: 'Aktif', value: '$activeCount', color: AppTheme.successColor),
+                ],
+              ),
             ),
-          ),
-        ],
+            const SizedBox(height: 16),
+
+            // List
+            Expanded(
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _residents.isEmpty
+                      ? ListView(
+                          children: const [
+                            SizedBox(height: 80),
+                            Center(child: Text('Sakin bulunamadı', style: TextStyle(color: AppTheme.textSecondary))),
+                          ],
+                        )
+                      : ListView.builder(
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          itemCount: _residents.length,
+                          itemBuilder: (context, index) {
+                            final resident = _residents[index] as Map<String, dynamic>;
+                            return _ResidentCard(
+                              resident: resident,
+                              onTap: () => context.push('/residents/${resident['id']}'),
+                            );
+                          },
+                        ),
+            ),
+          ],
+        ),
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.go('/residents/add'),
+        onPressed: () async {
+          final created = await context.push('/residents/add');
+          if (created == true) _load();
+        },
         icon: const Icon(Icons.add),
         label: const Text('Sakin Ekle'),
       ),
@@ -100,31 +142,39 @@ class _ResidentsScreenState extends State<ResidentsScreen> {
   void _showFilterSheet() {
     showModalBottomSheet(
       context: context,
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Filtrele', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 16),
-            Wrap(
-              spacing: 8,
-              children: [
-                ChoiceChip(label: const Text('Tümü'), selected: _filterStatus == 'all', onSelected: (_) => setState(() => _filterStatus = 'all')),
-                ChoiceChip(label: const Text('Aktif'), selected: _filterStatus == 'active', onSelected: (_) => setState(() => _filterStatus = 'active')),
-                ChoiceChip(label: const Text('Borçlu'), selected: _filterStatus == 'debt', onSelected: (_) => setState(() => _filterStatus = 'debt')),
-              ],
-            ),
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Uygula'),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setSheetState) => Container(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Role Göre Filtrele', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 16),
+              Wrap(
+                spacing: 8,
+                children: [
+                  ChoiceChip(label: const Text('Tümü'), selected: _filterRole == 'all', onSelected: (_) => setSheetState(() => _filterRole = 'all')),
+                  ..._roleLabels.entries.map((e) => ChoiceChip(
+                        label: Text(e.value),
+                        selected: _filterRole == e.key,
+                        onSelected: (_) => setSheetState(() => _filterRole = e.key),
+                      )),
+                ],
               ),
-            ),
-          ],
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _load();
+                  },
+                  child: const Text('Uygula'),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -159,15 +209,17 @@ class _StatChip extends StatelessWidget {
 }
 
 class _ResidentCard extends StatelessWidget {
-  final _Resident resident;
+  final Map<String, dynamic> resident;
   final VoidCallback onTap;
 
   const _ResidentCard({required this.resident, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    final hasDebt = resident.balance < 0;
-    
+    final name = '${resident['first_name'] ?? ''} ${resident['last_name'] ?? ''}'.trim();
+    final isActive = resident['is_active'] == true;
+    final role = _roleLabels[resident['role']] ?? resident['role']?.toString() ?? '';
+
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       child: InkWell(
@@ -178,10 +230,10 @@ class _ResidentCard extends StatelessWidget {
           child: Row(
             children: [
               CircleAvatar(
-                backgroundColor: hasDebt ? AppTheme.errorColor.withOpacity(0.1) : AppTheme.primaryColor.withOpacity(0.1),
+                backgroundColor: AppTheme.primaryColor.withOpacity(0.1),
                 child: Text(
-                  resident.name.substring(0, 1),
-                  style: TextStyle(color: hasDebt ? AppTheme.errorColor : AppTheme.primaryColor),
+                  name.isNotEmpty ? name.substring(0, 1) : '?',
+                  style: const TextStyle(color: AppTheme.primaryColor),
                 ),
               ),
               const SizedBox(width: 12),
@@ -189,29 +241,21 @@ class _ResidentCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(resident.name, style: const TextStyle(fontWeight: FontWeight.w600)),
-                    Text(resident.unit, style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
+                    Text(name, style: const TextStyle(fontWeight: FontWeight.w600)),
+                    Text('${resident['unit'] ?? ''} • $role', style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
                   ],
                 ),
               ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    resident.balance >= 0 ? '₺${resident.balance}' : '-₺${resident.balance.abs()}',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: hasDebt ? AppTheme.errorColor : AppTheme.successColor,
-                    ),
-                  ),
-                  Text(
-                    hasDebt ? 'Borçlu' : 'Güncel',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: hasDebt ? AppTheme.errorColor : AppTheme.successColor,
-                    ),
-                  ),
-                ],
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: (isActive ? AppTheme.successColor : AppTheme.textSecondary).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  isActive ? 'Aktif' : 'Pasif',
+                  style: TextStyle(fontSize: 11, color: isActive ? AppTheme.successColor : AppTheme.textSecondary),
+                ),
               ),
               const SizedBox(width: 8),
               const Icon(Icons.chevron_right, color: AppTheme.textSecondary),
@@ -221,22 +265,4 @@ class _ResidentCard extends StatelessWidget {
       ),
     );
   }
-}
-
-class _Resident {
-  final String id;
-  final String name;
-  final String unit;
-  final String phone;
-  final double balance;
-  final String status;
-
-  _Resident({
-    required this.id,
-    required this.name,
-    required this.unit,
-    required this.phone,
-    required this.balance,
-    required this.status,
-  });
 }
