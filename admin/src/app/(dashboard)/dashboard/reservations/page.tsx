@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, X, Calendar, Clock, Users, CheckCircle, XCircle, Loader2, MapPin } from "lucide-react";
+import { Plus, X, Calendar, Clock, Users, XCircle, Loader2, Edit, Trash2 } from "lucide-react";
 import apiClient from "@/lib/api-client";
 
 interface Facility {
@@ -22,6 +22,7 @@ interface Reservation {
     end_time: string;
     status: string;
     notes?: string;
+    deleted: number;
 }
 
 const facilityTypes: Record<string, { label: string; color: string }> = {
@@ -40,13 +41,17 @@ const statusConfig: Record<string, { label: string; color: string }> = {
     completed: { label: "Tamamlandı", color: "bg-gray-100 text-gray-600" },
 };
 
+const emptyForm = { facility_id: "", unit_number: "", resident_name: "", start_time: "", end_time: "", notes: "" };
+
 export default function ReservationsPage() {
     const [activeTab, setActiveTab] = useState<"reservations" | "facilities">("reservations");
     const [reservations, setReservations] = useState<Reservation[]>([]);
     const [facilities, setFacilities] = useState<Facility[]>([]);
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [form, setForm] = useState({ facility_id: "", unit_number: "", resident_name: "", start_time: "", end_time: "", notes: "" });
+    const [editingId, setEditingId] = useState<string | null>(null);
+    const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+    const [form, setForm] = useState(emptyForm);
 
     useEffect(() => {
         apiClient.loadToken();
@@ -57,7 +62,7 @@ export default function ReservationsPage() {
         setLoading(true);
         try {
             const [rRes, fRes] = await Promise.all([apiClient.getReservations(), apiClient.getFacilities()]);
-            setReservations(rRes?.data ?? rRes ?? []);
+            setReservations((rRes?.data ?? rRes ?? []).map((r: any) => ({ ...r, deleted: r.deleted ?? 0 })));
             setFacilities(fRes?.data ?? fRes ?? []);
         } catch {
             setFacilities([
@@ -67,30 +72,36 @@ export default function ReservationsPage() {
                 { id: "f4", name: "Yüzme Havuzu", type: "pool", capacity: 50, is_available: true },
             ]);
             setReservations([
-                { id: "r1", facility_id: "f1", facility_name: "Toplantı Salonu A", resident_name: "Ahmet Yılmaz", unit_number: "A-12", start_time: "2026-06-08T14:00:00", end_time: "2026-06-08T16:00:00", status: "confirmed" },
-                { id: "r2", facility_id: "f2", facility_name: "Barbekü Alanı", resident_name: "Mehmet Demir", unit_number: "B-05", start_time: "2026-06-09T12:00:00", end_time: "2026-06-09T18:00:00", status: "pending", notes: "Doğum günü partisi" },
-                { id: "r3", facility_id: "f4", facility_name: "Yüzme Havuzu", resident_name: "Ayşe Kaya", unit_number: "C-08", start_time: "2026-06-07T10:00:00", end_time: "2026-06-07T12:00:00", status: "confirmed" },
+                { id: "r1", facility_id: "f1", facility_name: "Toplantı Salonu A", resident_name: "Ahmet Yılmaz", unit_number: "A-12", start_time: "2026-06-08T14:00:00", end_time: "2026-06-08T16:00:00", status: "confirmed", deleted: 0 },
+                { id: "r2", facility_id: "f2", facility_name: "Barbekü Alanı", resident_name: "Mehmet Demir", unit_number: "B-05", start_time: "2026-06-09T12:00:00", end_time: "2026-06-09T18:00:00", status: "pending", notes: "Doğum günü partisi", deleted: 0 },
+                { id: "r3", facility_id: "f4", facility_name: "Yüzme Havuzu", resident_name: "Ayşe Kaya", unit_number: "C-08", start_time: "2026-06-07T10:00:00", end_time: "2026-06-07T12:00:00", status: "confirmed", deleted: 0 },
             ]);
         } finally {
             setLoading(false);
         }
     }
 
+    const openAdd = () => { setEditingId(null); setForm(emptyForm); setIsModalOpen(true); };
+    const openEdit = (r: Reservation) => {
+        setEditingId(r.id);
+        setForm({ facility_id: r.facility_id, unit_number: r.unit_number ?? "", resident_name: r.resident_name ?? "", start_time: r.start_time.slice(0, 16), end_time: r.end_time.slice(0, 16), notes: r.notes ?? "" });
+        setIsModalOpen(true);
+    };
+
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
         const fac = facilities.find(f => f.id === form.facility_id);
-        try {
-            const res = await apiClient.createReservation(form);
-            setReservations(prev => [res, ...prev]);
-        } catch {
-            setReservations(prev => [{
-                id: String(Date.now()), facility_id: form.facility_id, facility_name: fac?.name ?? "—",
-                resident_name: form.resident_name, unit_number: form.unit_number,
-                start_time: form.start_time, end_time: form.end_time, status: "pending", notes: form.notes,
-            }, ...prev]);
+        if (editingId) {
+            setReservations(prev => prev.map(r => r.id === editingId ? { ...r, ...form, facility_name: fac?.name ?? r.facility_name } : r));
+        } else {
+            try {
+                const res = await apiClient.createReservation(form);
+                setReservations(prev => [{ ...res, deleted: 0 }, ...prev]);
+            } catch {
+                setReservations(prev => [{ id: String(Date.now()), facility_id: form.facility_id, facility_name: fac?.name ?? "—", resident_name: form.resident_name, unit_number: form.unit_number, start_time: form.start_time, end_time: form.end_time, status: "pending", notes: form.notes, deleted: 0 }, ...prev]);
+            }
         }
-        setIsModalOpen(false);
-        setForm({ facility_id: "", unit_number: "", resident_name: "", start_time: "", end_time: "", notes: "" });
+        setIsModalOpen(false); setEditingId(null);
     }
 
     async function handleCancel(id: string) {
@@ -98,10 +109,17 @@ export default function ReservationsPage() {
         setReservations(prev => prev.map(r => r.id === id ? { ...r, status: "cancelled" } : r));
     }
 
+    const handleDelete = () => {
+        if (!deleteConfirmId) return;
+        setReservations(prev => prev.map(r => r.id === deleteConfirmId ? { ...r, deleted: 1 } : r));
+        setDeleteConfirmId(null);
+    };
+
+    const active = reservations.filter(r => r.deleted === 0);
     const stats = {
-        total: reservations.length,
-        confirmed: reservations.filter(r => r.status === "confirmed").length,
-        pending: reservations.filter(r => r.status === "pending").length,
+        total: active.length,
+        confirmed: active.filter(r => r.status === "confirmed").length,
+        pending: active.filter(r => r.status === "pending").length,
         availableFacilities: facilities.filter(f => f.is_available).length,
     };
 
@@ -112,12 +130,11 @@ export default function ReservationsPage() {
                     <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Rezervasyon Yönetimi</h1>
                     <p className="text-sm text-gray-500">Ortak alan rezervasyonları</p>
                 </div>
-                <button onClick={() => setIsModalOpen(true)} className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90">
+                <button onClick={openAdd} className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90">
                     <Plus className="h-4 w-4" /> Rezervasyon Ekle
                 </button>
             </div>
 
-            {/* Stats */}
             <div className="grid gap-4 md:grid-cols-4">
                 {[
                     { label: "Toplam", value: String(stats.total), color: "text-blue-600" },
@@ -132,7 +149,6 @@ export default function ReservationsPage() {
                 ))}
             </div>
 
-            {/* Tabs */}
             <div className="flex gap-2 border-b border-gray-200 dark:border-gray-700">
                 {[{ id: "reservations", label: "Rezervasyonlar" }, { id: "facilities", label: "Tesisler" }].map(t => (
                     <button key={t.id} onClick={() => setActiveTab(t.id as typeof activeTab)}
@@ -158,7 +174,7 @@ export default function ReservationsPage() {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                            {reservations.map(r => (
+                            {active.map(r => (
                                 <tr key={r.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                                     <td className="px-6 py-4 font-medium text-sm text-gray-900 dark:text-white">{r.facility_name}</td>
                                     <td className="px-6 py-4 text-sm">
@@ -176,14 +192,19 @@ export default function ReservationsPage() {
                                         </span>
                                     </td>
                                     <td className="px-6 py-4 text-right">
-                                        {r.status !== "cancelled" && r.status !== "completed" && (
-                                            <button onClick={() => handleCancel(r.id)} className="flex items-center gap-1 rounded-lg bg-red-100 px-3 py-1 text-xs font-medium text-red-700 hover:bg-red-200 ml-auto">
-                                                <XCircle className="h-3 w-3" /> İptal
-                                            </button>
-                                        )}
+                                        <div className="flex justify-end gap-1">
+                                            <button onClick={() => openEdit(r)} className="p-1.5 rounded hover:bg-blue-100 text-blue-500"><Edit className="h-4 w-4" /></button>
+                                            {r.status !== "cancelled" && r.status !== "completed" && (
+                                                <button onClick={() => handleCancel(r.id)} className="p-1.5 rounded hover:bg-orange-100 text-orange-500"><XCircle className="h-4 w-4" /></button>
+                                            )}
+                                            <button onClick={() => setDeleteConfirmId(r.id)} className="p-1.5 rounded hover:bg-red-100 text-red-500"><Trash2 className="h-4 w-4" /></button>
+                                        </div>
                                     </td>
                                 </tr>
                             ))}
+                            {active.length === 0 && (
+                                <tr><td colSpan={6} className="px-6 py-12 text-center text-gray-400">Rezervasyon bulunamadı</td></tr>
+                            )}
                         </tbody>
                     </table>
                 ) : (
@@ -211,13 +232,13 @@ export default function ReservationsPage() {
                 )}
             </div>
 
-            {/* Modal */}
+            {/* Add/Edit Modal */}
             {isModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
                     <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl dark:bg-gray-800">
                         <div className="flex items-center justify-between mb-4">
-                            <h2 className="text-xl font-bold text-gray-900 dark:text-white">Rezervasyon Ekle</h2>
-                            <button onClick={() => setIsModalOpen(false)}><X className="h-5 w-5 text-gray-500" /></button>
+                            <h2 className="text-xl font-bold text-gray-900 dark:text-white">{editingId ? "Rezervasyonu Düzenle" : "Rezervasyon Ekle"}</h2>
+                            <button onClick={() => { setIsModalOpen(false); setEditingId(null); }}><X className="h-5 w-5 text-gray-500" /></button>
                         </div>
                         <form onSubmit={handleSubmit} className="space-y-4">
                             <div>
@@ -225,7 +246,7 @@ export default function ReservationsPage() {
                                 <select required value={form.facility_id} onChange={e => setForm({ ...form, facility_id: e.target.value })}
                                     className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm dark:border-gray-600 dark:bg-gray-700">
                                     <option value="">Seçin</option>
-                                    {facilities.filter(f => f.is_available).map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
+                                    {facilities.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
                                 </select>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
@@ -258,10 +279,25 @@ export default function ReservationsPage() {
                                     className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm dark:border-gray-600 dark:bg-gray-700" />
                             </div>
                             <div className="flex gap-3 pt-2">
-                                <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300">İptal</button>
-                                <button type="submit" className="flex-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90">Ekle</button>
+                                <button type="button" onClick={() => { setIsModalOpen(false); setEditingId(null); }} className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300">İptal</button>
+                                <button type="submit" className="flex-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90">{editingId ? "Güncelle" : "Ekle"}</button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Delete Confirm */}
+            {deleteConfirmId && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+                    <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-2xl dark:bg-gray-800 text-center">
+                        <div className="flex justify-center mb-4"><div className="rounded-full bg-red-100 p-3"><Trash2 className="h-6 w-6 text-red-600" /></div></div>
+                        <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-2">Rezervasyonu Sil</h2>
+                        <p className="text-gray-500 text-sm mb-6">Bu rezervasyon silinecek. Emin misiniz?</p>
+                        <div className="flex gap-3">
+                            <button onClick={() => setDeleteConfirmId(null)} className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300">İptal</button>
+                            <button onClick={handleDelete} className="flex-1 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700">Sil</button>
+                        </div>
                     </div>
                 </div>
             )}

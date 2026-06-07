@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Plus, X, UserCheck, UserX, Clock, LogIn, LogOut, Loader2, Search, QrCode, Phone } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Plus, X, UserCheck, UserX, Clock, LogIn, LogOut, Loader2, Search, Phone, Edit, Trash2, Download, Upload } from "lucide-react";
 import apiClient from "@/lib/api-client";
 
 interface Visitor {
@@ -15,7 +15,7 @@ interface Visitor {
     checked_in_at?: string;
     checked_out_at?: string;
     status: string;
-    qr_code?: string;
+    deleted: number;
 }
 
 interface VisitorStats {
@@ -40,14 +40,24 @@ const statusConfig: Record<string, { label: string; color: string; dot: string }
     cancelled: { label: "İptal", color: "bg-red-100 text-red-700", dot: "bg-red-500" },
 };
 
+const SAMPLE_CSV = `name,phone,unit_number,visit_purpose,expected_at
+Zeynep Çelik,5551234567,A-12,Ziyaret,2026-06-08T14:00
+Kargo Firması,,B-05,Teslimat,2026-06-08T10:00
+Tesisatçı Ali,5559876543,C-08,Teknik Servis,`;
+
+const emptyForm = { name: "", phone: "", unit_number: "", visit_purpose: "Ziyaret", expected_at: "" };
+
 export default function VisitorsPage() {
     const [activeTab, setActiveTab] = useState<"today" | "inside" | "all">("today");
     const [visitors, setVisitors] = useState<Visitor[]>([]);
     const [stats, setStats] = useState<VisitorStats | null>(null);
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [editingId, setEditingId] = useState<string | null>(null);
+    const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
     const [search, setSearch] = useState("");
-    const [form, setForm] = useState({ name: "", phone: "", unit_number: "", visit_purpose: "Ziyaret", expected_at: "" });
+    const [form, setForm] = useState(emptyForm);
+    const csvRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
         apiClient.loadToken();
@@ -58,19 +68,41 @@ export default function VisitorsPage() {
         setLoading(true);
         try {
             const [vRes, sRes] = await Promise.all([apiClient.getTodayVisitors(), apiClient.getVisitorStats()]);
-            setVisitors(vRes?.data ?? vRes ?? []);
+            setVisitors((vRes?.data ?? vRes ?? []).map((v: any) => ({ ...v, deleted: v.deleted ?? 0 })));
             setStats(sRes);
         } catch {
             const now = new Date();
             setVisitors([
-                { id: "v1", name: "Zeynep Çelik", phone: "5551234567", unit_number: "A-12", resident_name: "Ahmet Yılmaz", visit_purpose: "Ziyaret", expected_at: new Date(now.getTime() + 3600000).toISOString(), status: "expected" },
-                { id: "v2", name: "Kargo Firması", unit_number: "B-05", resident_name: "Mehmet Demir", visit_purpose: "Teslimat", checked_in_at: new Date(now.getTime() - 1800000).toISOString(), status: "inside" },
-                { id: "v3", name: "Tesisatçı Ali", phone: "5559876543", unit_number: "C-08", resident_name: "Ayşe Kaya", visit_purpose: "Teknik Servis", checked_in_at: new Date(now.getTime() - 7200000).toISOString(), checked_out_at: new Date(now.getTime() - 3600000).toISOString(), status: "completed" },
+                { id: "v1", name: "Zeynep Çelik", phone: "5551234567", unit_number: "A-12", resident_name: "Ahmet Yılmaz", visit_purpose: "Ziyaret", expected_at: new Date(now.getTime() + 3600000).toISOString(), status: "expected", deleted: 0 },
+                { id: "v2", name: "Kargo Firması", unit_number: "B-05", resident_name: "Mehmet Demir", visit_purpose: "Teslimat", checked_in_at: new Date(now.getTime() - 1800000).toISOString(), status: "inside", deleted: 0 },
+                { id: "v3", name: "Tesisatçı Ali", phone: "5559876543", unit_number: "C-08", resident_name: "Ayşe Kaya", visit_purpose: "Teknik Servis", checked_in_at: new Date(now.getTime() - 7200000).toISOString(), checked_out_at: new Date(now.getTime() - 3600000).toISOString(), status: "completed", deleted: 0 },
             ]);
             setStats({ total_today: 8, currently_inside: 2, expected: 3, total_this_month: 124 });
         } finally {
             setLoading(false);
         }
+    }
+
+    const openAdd = () => { setEditingId(null); setForm(emptyForm); setIsModalOpen(true); };
+    const openEdit = (v: Visitor) => {
+        setEditingId(v.id);
+        setForm({ name: v.name, phone: v.phone ?? "", unit_number: v.unit_number, visit_purpose: v.visit_purpose ?? "Ziyaret", expected_at: v.expected_at ? v.expected_at.slice(0, 16) : "" });
+        setIsModalOpen(true);
+    };
+
+    async function handleSubmit(e: React.FormEvent) {
+        e.preventDefault();
+        if (editingId) {
+            setVisitors(prev => prev.map(v => v.id === editingId ? { ...v, ...form } : v));
+        } else {
+            try {
+                const res = await apiClient.createVisitor(form);
+                setVisitors(prev => [{ ...res, deleted: 0 }, ...prev]);
+            } catch {
+                setVisitors(prev => [{ id: String(Date.now()), ...form, status: "expected", deleted: 0 }, ...prev]);
+            }
+        }
+        setIsModalOpen(false); setEditingId(null);
     }
 
     async function handleCheckIn(id: string) {
@@ -83,19 +115,37 @@ export default function VisitorsPage() {
         setVisitors(prev => prev.map(v => v.id === id ? { ...v, status: "completed", checked_out_at: new Date().toISOString() } : v));
     }
 
-    async function handleAddVisitor(e: React.FormEvent) {
-        e.preventDefault();
-        try {
-            const res = await apiClient.createVisitor(form);
-            setVisitors(prev => [res, ...prev]);
-        } catch {
-            setVisitors(prev => [{ id: String(Date.now()), ...form, status: "expected" }, ...prev]);
-        }
-        setIsModalOpen(false);
-        setForm({ name: "", phone: "", unit_number: "", visit_purpose: "Ziyaret", expected_at: "" });
-    }
+    const handleDelete = () => {
+        if (!deleteConfirmId) return;
+        setVisitors(prev => prev.map(v => v.id === deleteConfirmId ? { ...v, deleted: 1 } : v));
+        setDeleteConfirmId(null);
+    };
 
-    const filtered = visitors.filter(v => {
+    const downloadSampleCSV = () => {
+        const blob = new Blob([SAMPLE_CSV], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a"); a.href = url; a.download = "ziyaretci_ornek.csv"; a.click();
+        URL.revokeObjectURL(url);
+    };
+
+    const handleCSVUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]; if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            const text = ev.target?.result as string;
+            const lines = text.trim().split("\n").slice(1);
+            const newItems: Visitor[] = lines.map((line, i) => {
+                const [name, phone, unit_number, visit_purpose, expected_at] = line.split(",");
+                return { id: `csv_${Date.now()}_${i}`, name: (name ?? "").trim(), phone: (phone ?? "").trim() || undefined, unit_number: (unit_number ?? "").trim(), visit_purpose: (visit_purpose ?? "Ziyaret").trim(), expected_at: (expected_at ?? "").trim() || undefined, status: "expected", deleted: 0 };
+            });
+            setVisitors(prev => [...newItems, ...prev]);
+        };
+        reader.readAsText(file);
+        if (csvRef.current) csvRef.current.value = "";
+    };
+
+    const activeVisitors = visitors.filter(v => v.deleted === 0);
+    const filtered = activeVisitors.filter(v => {
         const matchesTab = activeTab === "all" ? true : activeTab === "inside" ? v.status === "inside" : true;
         const matchesSearch = v.name.toLowerCase().includes(search.toLowerCase()) || v.unit_number.toLowerCase().includes(search.toLowerCase());
         return matchesTab && matchesSearch;
@@ -113,17 +163,25 @@ export default function VisitorsPage() {
                     <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Ziyaretçi Yönetimi</h1>
                     <p className="text-sm text-gray-500">Ziyaretçi giriş-çıkış takibi</p>
                 </div>
-                <button onClick={() => setIsModalOpen(true)} className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90">
-                    <Plus className="h-4 w-4" /> Ziyaretçi Kaydı
-                </button>
+                <div className="flex items-center gap-2">
+                    <button onClick={downloadSampleCSV} className="flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300">
+                        <Download className="h-4 w-4" /> Örnek CSV
+                    </button>
+                    <label className="flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 cursor-pointer">
+                        <Upload className="h-4 w-4" /> CSV Yükle
+                        <input ref={csvRef} type="file" accept=".csv" className="hidden" onChange={handleCSVUpload} />
+                    </label>
+                    <button onClick={openAdd} className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90">
+                        <Plus className="h-4 w-4" /> Ziyaretçi Kaydı
+                    </button>
+                </div>
             </div>
 
-            {/* Stats */}
             <div className="grid gap-4 md:grid-cols-4">
                 {[
-                    { label: "Bugün Gelen", value: String(stats?.total_today ?? 0), color: "text-blue-600" },
-                    { label: "İçeride", value: String(stats?.currently_inside ?? visitors.filter(v => v.status === "inside").length), color: "text-green-600" },
-                    { label: "Bekleniyor", value: String(stats?.expected ?? visitors.filter(v => v.status === "expected").length), color: "text-yellow-600" },
+                    { label: "Bugün Gelen", value: String(stats?.total_today ?? activeVisitors.length), color: "text-blue-600" },
+                    { label: "İçeride", value: String(stats?.currently_inside ?? activeVisitors.filter(v => v.status === "inside").length), color: "text-green-600" },
+                    { label: "Bekleniyor", value: String(stats?.expected ?? activeVisitors.filter(v => v.status === "expected").length), color: "text-yellow-600" },
                     { label: "Bu Ay", value: String(stats?.total_this_month ?? 0), color: "text-purple-600" },
                 ].map(s => (
                     <div key={s.label} className="rounded-xl bg-white p-4 shadow-sm dark:bg-gray-800">
@@ -133,7 +191,6 @@ export default function VisitorsPage() {
                 ))}
             </div>
 
-            {/* Tabs + Search */}
             <div className="flex items-center justify-between">
                 <div className="flex gap-2 border-b border-gray-200 dark:border-gray-700">
                     {[{ id: "today", label: "Bugün" }, { id: "inside", label: "İçeride" }, { id: "all", label: "Tümü" }].map(t => (
@@ -201,17 +258,15 @@ export default function VisitorsPage() {
                                             </span>
                                         </td>
                                         <td className="px-6 py-4 text-right">
-                                            <div className="flex justify-end gap-2">
+                                            <div className="flex justify-end gap-1">
                                                 {v.status === "expected" && (
-                                                    <button onClick={() => handleCheckIn(v.id)} className="flex items-center gap-1 rounded-lg bg-green-100 px-3 py-1 text-xs font-medium text-green-700 hover:bg-green-200">
-                                                        <UserCheck className="h-3 w-3" /> Giriş
-                                                    </button>
+                                                    <button onClick={() => handleCheckIn(v.id)} className="p-1.5 rounded hover:bg-green-100 text-green-600"><UserCheck className="h-4 w-4" /></button>
                                                 )}
                                                 {v.status === "inside" && (
-                                                    <button onClick={() => handleCheckOut(v.id)} className="flex items-center gap-1 rounded-lg bg-orange-100 px-3 py-1 text-xs font-medium text-orange-700 hover:bg-orange-200">
-                                                        <UserX className="h-3 w-3" /> Çıkış
-                                                    </button>
+                                                    <button onClick={() => handleCheckOut(v.id)} className="p-1.5 rounded hover:bg-orange-100 text-orange-600"><UserX className="h-4 w-4" /></button>
                                                 )}
+                                                <button onClick={() => openEdit(v)} className="p-1.5 rounded hover:bg-blue-100 text-blue-500"><Edit className="h-4 w-4" /></button>
+                                                <button onClick={() => setDeleteConfirmId(v.id)} className="p-1.5 rounded hover:bg-red-100 text-red-500"><Trash2 className="h-4 w-4" /></button>
                                             </div>
                                         </td>
                                     </tr>
@@ -225,15 +280,15 @@ export default function VisitorsPage() {
                 )}
             </div>
 
-            {/* Modal */}
+            {/* Add/Edit Modal */}
             {isModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
                     <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl dark:bg-gray-800">
                         <div className="flex items-center justify-between mb-4">
-                            <h2 className="text-xl font-bold text-gray-900 dark:text-white">Ziyaretçi Kaydı</h2>
-                            <button onClick={() => setIsModalOpen(false)}><X className="h-5 w-5 text-gray-500" /></button>
+                            <h2 className="text-xl font-bold text-gray-900 dark:text-white">{editingId ? "Ziyaretçiyi Düzenle" : "Ziyaretçi Kaydı"}</h2>
+                            <button onClick={() => { setIsModalOpen(false); setEditingId(null); }}><X className="h-5 w-5 text-gray-500" /></button>
                         </div>
-                        <form onSubmit={handleAddVisitor} className="space-y-4">
+                        <form onSubmit={handleSubmit} className="space-y-4">
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Ad Soyad</label>
@@ -266,10 +321,25 @@ export default function VisitorsPage() {
                                     className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm dark:border-gray-600 dark:bg-gray-700" />
                             </div>
                             <div className="flex gap-3 pt-2">
-                                <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300">İptal</button>
-                                <button type="submit" className="flex-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90">Kaydet</button>
+                                <button type="button" onClick={() => { setIsModalOpen(false); setEditingId(null); }} className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300">İptal</button>
+                                <button type="submit" className="flex-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90">{editingId ? "Güncelle" : "Kaydet"}</button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Delete Confirm */}
+            {deleteConfirmId && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+                    <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-2xl dark:bg-gray-800 text-center">
+                        <div className="flex justify-center mb-4"><div className="rounded-full bg-red-100 p-3"><Trash2 className="h-6 w-6 text-red-600" /></div></div>
+                        <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-2">Ziyaretçiyi Sil</h2>
+                        <p className="text-gray-500 text-sm mb-6">Bu ziyaretçi kaydı silinecek. Emin misiniz?</p>
+                        <div className="flex gap-3">
+                            <button onClick={() => setDeleteConfirmId(null)} className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300">İptal</button>
+                            <button onClick={handleDelete} className="flex-1 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700">Sil</button>
+                        </div>
                     </div>
                 </div>
             )}
