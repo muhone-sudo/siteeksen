@@ -128,9 +128,9 @@ class ApiClient {
         return response.data;
     }
 
-    async createProperty(data: { name: string; address: string; city: string; district?: string }) {
+    async createProperty(data: { name: string; type: string; address: string; city: string; district?: string }) {
         const response = await this.client.post("/users/me/properties", data);
-        return response.data as { id: string; name: string; address: string; city: string };
+        return response.data as { id: string; name: string; type: string; address: string; city: string };
     }
 
     async getResidents(params?: { search?: string; block?: string; role?: string }) {

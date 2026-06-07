@@ -42,6 +42,7 @@ type UserResponse struct {
 type Property struct {
 	ID              string    `json:"id"`
 	Name            string    `json:"name"`
+	Type            string    `json:"type"` // SITE, APARTMENT, BUILDING
 	Address         string    `json:"address"`
 	City            string    `json:"city"`
 	TotalShareRatio float64   `json:"total_share_ratio"`
@@ -52,6 +53,7 @@ type Property struct {
 // CreatePropertyRequest yeni site oluşturma isteği
 type CreatePropertyRequest struct {
 	Name     string `json:"name" binding:"required"`
+	Type     string `json:"type"` // SITE, APARTMENT, BUILDING — boşsa SITE varsayılır
 	Address  string `json:"address" binding:"required"`
 	City     string `json:"city" binding:"required"`
 	District string `json:"district"`

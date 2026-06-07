@@ -60,7 +60,7 @@ export function Sidebar() {
     const [switching, setSwitching] = useState(false);
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [creating, setCreating] = useState(false);
-    const [newSite, setNewSite] = useState({ name: "", address: "", city: "", district: "" });
+    const [newSite, setNewSite] = useState({ name: "", type: "SITE", address: "", city: "", district: "" });
 
     useEffect(() => {
         if (status !== "authenticated" || !session?.accessToken) return;
@@ -133,12 +133,12 @@ export function Sidebar() {
                     <button
                         type="button"
                         onClick={() => {
-                            setNewSite({ name: "", address: "", city: "", district: "" });
+                            setNewSite({ name: "", type: "SITE", address: "", city: "", district: "" });
                             setIsAddModalOpen(true);
                         }}
                         className="text-xs text-primary hover:underline"
                     >
-                        + Yeni Site Ekle
+                        + Yeni Taşınmaz Ekle
                     </button>
                 </div>
 
@@ -181,20 +181,29 @@ export function Sidebar() {
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
                     <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl dark:bg-gray-800">
                         <div className="flex items-center justify-between mb-4">
-                            <h2 className="text-xl font-bold text-gray-900 dark:text-white">Yeni Site Ekle</h2>
+                            <h2 className="text-xl font-bold text-gray-900 dark:text-white">Yeni Taşınmaz Ekle</h2>
                             <button onClick={() => setIsAddModalOpen(false)} className="rounded-lg p-1 hover:bg-gray-100 dark:hover:bg-gray-700">
                                 <X className="h-5 w-5 text-gray-500" />
                             </button>
                         </div>
                         <form onSubmit={handleCreateSite} className="space-y-4">
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Site Adı</label>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Ad</label>
                                 <div className="relative">
                                     <Building2 className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
                                     <input type="text" required value={newSite.name} onChange={(e) => setNewSite({ ...newSite, name: e.target.value })}
                                         className="w-full rounded-lg border border-gray-300 bg-white py-2 pl-10 pr-4 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:border-gray-600 dark:bg-gray-700"
                                         placeholder="Güneş Sitesi" />
                                 </div>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tür</label>
+                                <select value={newSite.type} onChange={(e) => setNewSite({ ...newSite, type: e.target.value })}
+                                    className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:border-gray-600 dark:bg-gray-700">
+                                    <option value="SITE">Site</option>
+                                    <option value="APARTMENT">Apartman</option>
+                                    <option value="BUILDING">Bina</option>
+                                </select>
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Adres</label>

@@ -112,8 +112,18 @@ func (s *AuthService) SetActiveProperty(ctx context.Context, userID, propertyID 
 	return s.userRepo.SetActiveProperty(ctx, userID, propertyID)
 }
 
+// validPropertyTypes geçerli site/taşınmaz türleri
+var validPropertyTypes = map[string]bool{
+	"SITE":      true,
+	"APARTMENT": true,
+	"BUILDING":  true,
+}
+
 // CreateProperty yeni site oluşturur ve kullanıcıyı bu siteye OWNER olarak bağlar
 func (s *AuthService) CreateProperty(ctx context.Context, userID string, req models.CreatePropertyRequest) (*models.Property, error) {
+	if !validPropertyTypes[req.Type] {
+		req.Type = "SITE"
+	}
 	return s.userRepo.CreateProperty(ctx, userID, req)
 }
 

@@ -91,6 +91,7 @@ Proje ilerleme durumu ve planlaması.
 - ✅ **Backend soft-delete altyapısı** — Migration 006 (23 tablo + index), identity ve finance repository sorgularına `AND deleted = 0` filtresi
 - ✅ **Sidebar site/apartman seçici gerçek backend'e bağlandı** — `GET /users/me/properties` → seçimde `setActiveProperty` → `refreshAccessToken` → reload zinciri; NextAuth session ↔ apiClient token köprüsü kuruldu; canlı ortamda uçtan uca doğrulandı
 - ✅ **Yeni site ekleme özelliği** — `POST /users/me/properties` (identity) ile site + varsayılan unit + `resident_units(OWNER)` tek transaction'da oluşturuluyor; sidebar modalı ile oluştur → otomatik geçiş zinciri canlı ortamda doğrulandı
+- ✅ **Property türü (`type`)** — migration `007_property_type.sql`; `properties.type` (SITE/APARTMENT/BUILDING, default SITE); sidebar "Yeni Taşınmaz Ekle" modalına Tür seçici eklendi
 
 ---
 

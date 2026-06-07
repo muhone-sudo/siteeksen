@@ -100,11 +100,11 @@ func (r *UserRepository) CreateProperty(ctx context.Context, userID string, req 
 
 	property := &models.Property{}
 	err = tx.QueryRow(ctx, `
-		INSERT INTO properties (name, address, city, district)
-		VALUES ($1, $2, $3, $4)
-		RETURNING id, name, address, city, created_at
-	`, req.Name, req.Address, req.City, req.District).Scan(
-		&property.ID, &property.Name, &property.Address, &property.City, &property.CreatedAt,
+		INSERT INTO properties (name, type, address, city, district)
+		VALUES ($1, $2, $3, $4, $5)
+		RETURNING id, name, type, address, city, created_at
+	`, req.Name, req.Type, req.Address, req.City, req.District).Scan(
+		&property.ID, &property.Name, &property.Type, &property.Address, &property.City, &property.CreatedAt,
 	)
 	if err != nil {
 		return nil, err
