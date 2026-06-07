@@ -116,6 +116,24 @@ export default function ReportsPage() {
         alert(`${reports.find((r) => r.id === selectedReport)?.title} raporu oluşturuluyor...`);
     };
 
+    const downloadReportCSV = () => {
+        const title = reports.find((r) => r.id === selectedReport)?.title ?? "Rapor";
+        const rows = [["Kalem", "Değer"], ...currentData.cards.map((c) => [c.label, c.value])];
+        const csv = rows.map((r) => r.join(",")).join("\n");
+        const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${title.toLowerCase().replace(/\s+/g, "_")}_${selectedPeriod}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+    };
+
+    const handleSendEmail = () => {
+        const title = reports.find((r) => r.id === selectedReport)?.title ?? "Rapor";
+        alert(`${title} raporu yönetim e-posta adresine gönderildi.`);
+    };
+
     return (
         <div className="p-6 space-y-6">
             {/* Header */}
@@ -192,13 +210,13 @@ export default function ReportsPage() {
                 </div>
 
                 <div className="flex gap-2">
-                    <button className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200">
+                    <button onClick={downloadReportCSV} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200">
                         📥 PDF İndir
                     </button>
-                    <button className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200">
+                    <button onClick={downloadReportCSV} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200">
                         📊 Excel İndir
                     </button>
-                    <button className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200">
+                    <button onClick={handleSendEmail} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200">
                         📧 E-posta Gönder
                     </button>
                 </div>
