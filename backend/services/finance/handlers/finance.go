@@ -65,6 +65,21 @@ func GetAssessments(svc *service.FinanceService) gin.HandlerFunc {
 	}
 }
 
+// GetAssessmentOverview site genelinde dönem bazlı tahakkuk/tahsilat özetini getirir (yönetim görünümü)
+func GetAssessmentOverview(svc *service.FinanceService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		propertyID := c.GetString("property_id")
+		year, _ := strconv.Atoi(c.DefaultQuery("year", "0"))
+
+		periods, err := svc.ListAssessmentOverview(c.Request.Context(), propertyID, getRoles(c), year)
+		if err != nil {
+			mapAssessmentError(c, err)
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"data": periods})
+	}
+}
+
 // GetAssessmentDetails aidat detayı
 func GetAssessmentDetails(svc *service.FinanceService) gin.HandlerFunc {
 	return func(c *gin.Context) {

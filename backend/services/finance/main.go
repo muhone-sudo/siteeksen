@@ -43,6 +43,7 @@ func main() {
 
 		// Aidatlar
 		api.GET("/assessments", handlers.GetAssessments(financeService))
+		api.GET("/assessments/overview", handlers.GetAssessmentOverview(financeService))
 		api.POST("/assessments", handlers.CreateAssessment(financeService))
 		api.GET("/assessments/:id", handlers.GetAssessmentDetails(financeService))
 		api.GET("/expense-categories", handlers.GetExpenseCategories(financeService))

@@ -114,6 +114,41 @@ func (r *FinanceRepository) GetAssessments(ctx context.Context, userID string, y
 	return assessments, nil
 }
 
+// ListAssessmentPeriods site genelinde dönem bazlı tahakkuk/tahsilat özetini listeler (yönetim görünümü)
+func (r *FinanceRepository) ListAssessmentPeriods(ctx context.Context, propertyID string, year int) ([]models.AssessmentPeriodSummary, error) {
+	query := `
+		SELECT TO_CHAR(MAKE_DATE(ma.period_year, ma.period_month, 1), 'YYYY-MM'),
+		       MIN(ma.due_date), SUM(ma.total_amount), SUM(ma.paid_amount)
+		FROM monthly_assessments ma
+		WHERE ma.property_id = $1 AND ma.period_year = $2 AND ma.deleted = 0
+		GROUP BY ma.period_year, ma.period_month
+		ORDER BY ma.period_month DESC
+	`
+	rows, err := r.pool.Query(ctx, query, propertyID, year)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	periods := []models.AssessmentPeriodSummary{}
+	for rows.Next() {
+		var p models.AssessmentPeriodSummary
+		if err := rows.Scan(&p.Period, &p.DueDate, &p.TotalAmount, &p.CollectedAmount); err != nil {
+			return nil, err
+		}
+		if p.TotalAmount > 0 {
+			p.Rate = int(p.CollectedAmount / p.TotalAmount * 100)
+		}
+		if p.Rate >= 100 {
+			p.Status = "completed"
+		} else {
+			p.Status = "active"
+		}
+		periods = append(periods, p)
+	}
+	return periods, nil
+}
+
 // GetAssessmentDetails aidat detayı
 func (r *FinanceRepository) GetAssessmentDetails(ctx context.Context, assessmentID string) (*models.AssessmentDetail, error) {
 	// Ana aidat bilgisi

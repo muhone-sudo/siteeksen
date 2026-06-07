@@ -80,6 +80,17 @@ func (s *FinanceService) GetAssessments(ctx context.Context, userID string, year
 	return s.repo.GetAssessments(ctx, userID, year)
 }
 
+// ListAssessmentOverview site genelinde dönem bazlı tahakkuk/tahsilat özetini getirir (yalnızca yönetim rolleri)
+func (s *FinanceService) ListAssessmentOverview(ctx context.Context, propertyID string, roles []string, year int) ([]models.AssessmentPeriodSummary, error) {
+	if !isFinanceManagement(roles) {
+		return nil, ErrAssessmentForbidden
+	}
+	if year == 0 {
+		year = time.Now().Year()
+	}
+	return s.repo.ListAssessmentPeriods(ctx, propertyID, year)
+}
+
 // GetAssessmentDetails aidat detayı getirir
 func (s *FinanceService) GetAssessmentDetails(ctx context.Context, assessmentID string) (*models.AssessmentDetail, error) {
 	return s.repo.GetAssessmentDetails(ctx, assessmentID)

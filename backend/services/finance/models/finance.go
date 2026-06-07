@@ -29,6 +29,16 @@ type AssessmentSummary struct {
 	Status      string    `json:"status"`
 }
 
+// AssessmentPeriodSummary site genelinde bir tahakkuk döneminin özeti (yönetim görünümü)
+type AssessmentPeriodSummary struct {
+	Period          string    `json:"period"` // "2026-01"
+	DueDate         time.Time `json:"due_date"`
+	TotalAmount     float64   `json:"total_amount"`
+	CollectedAmount float64   `json:"collected_amount"`
+	Rate            int       `json:"rate"`
+	Status          string    `json:"status"` // active, completed
+}
+
 // AssessmentDetail aidat detayı
 type AssessmentDetail struct {
 	Assessment
