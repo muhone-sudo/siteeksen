@@ -32,6 +32,7 @@ const unitLabel = { HEAT: "kWh", WATER: "m³" };
 
 export default function MetersPage() {
     const [meterType, setMeterType] = useState<"HEAT" | "WATER">("HEAT");
+    const [selectedPeriod, setSelectedPeriod] = useState("Ocak 2026");
     const [meters, setMeters] = useState<Meter[]>(initialMeters);
     const [readings, setReadings] = useState<Record<number, number>>({});
     const [editingMeter, setEditingMeter] = useState<Meter | null>(null);
@@ -155,7 +156,7 @@ export default function MetersPage() {
 
             <div className="flex items-center gap-4 rounded-xl bg-white p-4 shadow-sm dark:bg-gray-800">
                 <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Okuma Dönemi:</label>
-                <select className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm dark:border-gray-600 dark:bg-gray-700">
+                <select value={selectedPeriod} onChange={(e) => setSelectedPeriod(e.target.value)} className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm dark:border-gray-600 dark:bg-gray-700">
                     <option>Ocak 2026</option>
                     <option>Aralık 2025</option>
                     <option>Kasım 2025</option>
