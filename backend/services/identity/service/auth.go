@@ -53,12 +53,13 @@ func (s *AuthService) Login(ctx context.Context, phone, password string) (*Token
 	properties, _ := s.userRepo.GetUserProperties(ctx, user.ID)
 
 	response := &models.UserResponse{
-		ID:         user.ID,
-		FirstName:  user.FirstName,
-		LastName:   user.LastName,
-		Phone:      user.Phone,
-		Email:      user.Email,
-		Properties: properties,
+		ID:                  user.ID,
+		FirstName:           user.FirstName,
+		LastName:            user.LastName,
+		Phone:               user.Phone,
+		Email:               user.Email,
+		Properties:          properties,
+		KVKKConsentRequired: user.KVKKConsentAt == nil,
 	}
 
 	return tokens, response, nil
@@ -93,13 +94,19 @@ func (s *AuthService) GetUserByID(ctx context.Context, userID string) (*models.U
 	properties, _ := s.userRepo.GetUserProperties(ctx, user.ID)
 
 	return &models.UserResponse{
-		ID:         user.ID,
-		FirstName:  user.FirstName,
-		LastName:   user.LastName,
-		Phone:      user.Phone,
-		Email:      user.Email,
-		Properties: properties,
+		ID:                  user.ID,
+		FirstName:           user.FirstName,
+		LastName:            user.LastName,
+		Phone:               user.Phone,
+		Email:               user.Email,
+		Properties:          properties,
+		KVKKConsentRequired: user.KVKKConsentAt == nil,
 	}, nil
+}
+
+// SetKVKKConsent kullanıcının KVKK açık rıza onayını kaydeder
+func (s *AuthService) SetKVKKConsent(ctx context.Context, userID string) error {
+	return s.userRepo.SetKVKKConsent(ctx, userID)
 }
 
 // GetUserProperties kullanıcının sitelerini getirir

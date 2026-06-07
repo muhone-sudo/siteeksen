@@ -101,6 +101,11 @@ class ApiClient {
     }
   }
 
+  /// KVKK açık rıza onayını kaydeder (zorunlu onay ekranı sonrası çağrılır).
+  Future<void> acceptKvkkConsent() async {
+    await _dio.post('/users/me/kvkk-consent');
+  }
+
   /// Cihazda kayıtlı bir oturum (refresh token) var mı? — biyometrik giriş
   /// butonunun gösterilip gösterilmeyeceğini belirlemek için kullanılır.
   Future<bool> hasStoredSession() async {

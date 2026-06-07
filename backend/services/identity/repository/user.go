@@ -21,14 +21,14 @@ func NewUserRepository(pool *pgxpool.Pool) *UserRepository {
 func (r *UserRepository) GetByPhone(ctx context.Context, phone string) (*models.User, error) {
 	query := `
 		SELECT id, COALESCE(tc_encrypted, ''), COALESCE(tc_hash, ''), first_name, last_name,
-			   phone, COALESCE(email, ''), password_hash, COALESCE(active_property_id::text, ''), roles, created_at, updated_at
+			   phone, COALESCE(email, ''), password_hash, COALESCE(active_property_id::text, ''), roles, kvkk_consent_at, created_at, updated_at
 		FROM users
 		WHERE phone = $1 AND deleted = 0
 	`
 	user := &models.User{}
 	err := r.pool.QueryRow(ctx, query, phone).Scan(
 		&user.ID, &user.TCEncrypted, &user.TCHash, &user.FirstName, &user.LastName,
-		&user.Phone, &user.Email, &user.PasswordHash, &user.ActivePropertyID, &user.Roles,
+		&user.Phone, &user.Email, &user.PasswordHash, &user.ActivePropertyID, &user.Roles, &user.KVKKConsentAt,
 		&user.CreatedAt, &user.UpdatedAt,
 	)
 	if err != nil {
@@ -41,14 +41,14 @@ func (r *UserRepository) GetByPhone(ctx context.Context, phone string) (*models.
 func (r *UserRepository) GetByID(ctx context.Context, id string) (*models.User, error) {
 	query := `
 		SELECT id, COALESCE(tc_encrypted, ''), COALESCE(tc_hash, ''), first_name, last_name,
-			   phone, COALESCE(email, ''), password_hash, COALESCE(active_property_id::text, ''), roles, created_at, updated_at
+			   phone, COALESCE(email, ''), password_hash, COALESCE(active_property_id::text, ''), roles, kvkk_consent_at, created_at, updated_at
 		FROM users
 		WHERE id = $1 AND deleted = 0
 	`
 	user := &models.User{}
 	err := r.pool.QueryRow(ctx, query, id).Scan(
 		&user.ID, &user.TCEncrypted, &user.TCHash, &user.FirstName, &user.LastName,
-		&user.Phone, &user.Email, &user.PasswordHash, &user.ActivePropertyID, &user.Roles,
+		&user.Phone, &user.Email, &user.PasswordHash, &user.ActivePropertyID, &user.Roles, &user.KVKKConsentAt,
 		&user.CreatedAt, &user.UpdatedAt,
 	)
 	if err != nil {
@@ -87,6 +87,13 @@ func (r *UserRepository) GetUserProperties(ctx context.Context, userID string) (
 func (r *UserRepository) SetActiveProperty(ctx context.Context, userID, propertyID string) error {
 	query := `UPDATE users SET active_property_id = $1, updated_at = NOW() WHERE id = $2`
 	_, err := r.pool.Exec(ctx, query, propertyID, userID)
+	return err
+}
+
+// SetKVKKConsent kullanıcının KVKK açık rıza onay zamanını işaretler
+func (r *UserRepository) SetKVKKConsent(ctx context.Context, userID string) error {
+	query := `UPDATE users SET kvkk_consent_at = NOW(), updated_at = NOW() WHERE id = $1 AND kvkk_consent_at IS NULL`
+	_, err := r.pool.Exec(ctx, query, userID)
 	return err
 }
 

@@ -48,6 +48,7 @@ Proje ilerleme durumu ve planlaması.
 - ✅ **Tüm 19 yeni servis docker-compose.yml'e eklendi** — port atandı, Dockerfile yazıldı, hepsi çalışıyor
 - ✅ **Kong `kong.yml` güncellendi** — 24 servis (tüm mikroservisler) Kong üzerinden yönlendiriliyor
 - ✅ **Gateway v1.2.0** — 24 servise proxy routing; tüm yeni servisler docker-compose env'de tanımlı
+- ✅ **KVKK açık rıza akışı + audit log aktif edildi** — migration `009_kvkk_consent.sql` (`users.kvkk_consent_at`), identity-service `POST /users/me/kvkk-consent` + login yanıtında `kvkk_consent_required`; `pkg/audit/` paketi ve gerçek `INSERT INTO audit_logs` ile tamamlanan `AuditLog()` middleware'i `identity`/`finance` route gruplarına bağlandı (Apsiyon karşılaştırması, Paket 5)
 - ✅ **RBAC: Rol bazlı yetkilendirme aktif edildi** — `RequireRole()` middleware'i `MANAGER`/`AUDITOR`/`STAFF` rol sabitleriyle birlikte `POST /users/me/properties` endpoint'ine bağlandı; migration `008_manager_roles.sql` ile demo yöneticiye `MANAGER` rolü eklendi (Apsiyon karşılaştırması, Paket 3)
 - 📋 Her servis için birim testleri yaz (şu an sadece `tests/integration_test.go` var)
 - 📋 `pkg/integrations/ai/` — OpenAI Vision gerçek API key ile test edilmeli
@@ -123,6 +124,7 @@ Proje ilerleme durumu ve planlaması.
 - ✅ **Biyometrik giriş (`local_auth`) tam entegrasyonu** — `mobile` ve `admin_app`'te `flutter_secure_storage` tabanlı kalıcı oturum + gerçek `apiClient.login()` akışı + parmak izi/yüz tanıma ile oturum yenileme (Apsiyon karşılaştırması, Paket 4)
 - 📋 App Store / Google Play yayınlama (`docs/store-publishing-guide.md` hazır)
 - ✅ **Android geri tuşu navigasyon düzeltmesi** — `main_screen.dart`'a `PopScope` eklendi (Apsiyon karşılaştırması, Paket 2)
+- ✅ **KVKK açık rıza ekranı** — ilk girişte zorunlu, geçilemez (`PopScope(canPop: false)`) onay ekranı eklendi; `admin_app`'e de aynı akış uygulandı (Paket 5)
 
 ---
 

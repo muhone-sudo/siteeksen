@@ -56,8 +56,16 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      await apiClient.login(_phoneController.text, _passwordController.text);
+      final result = await apiClient.login(_phoneController.text, _passwordController.text);
       if (!mounted) return;
+
+      final user = result['user'];
+      final consentRequired = user is Map && user['kvkk_consent_required'] == true;
+      if (consentRequired) {
+        context.go('/kvkk-consent');
+        return;
+      }
+
       await _maybeOfferBiometricEnable();
       if (!mounted) return;
       context.go('/');

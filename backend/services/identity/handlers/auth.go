@@ -130,6 +130,18 @@ func SetActiveProperty(svc *service.AuthService) gin.HandlerFunc {
 	}
 }
 
+// SetKVKKConsent kullanıcının KVKK açık rıza onayını kaydeder
+func SetKVKKConsent(svc *service.AuthService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userID := c.GetString("user_id")
+		if err := svc.SetKVKKConsent(c.Request.Context(), userID); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Onay kaydedilemedi"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"message": "KVKK onayı kaydedildi"})
+	}
+}
+
 // CreateProperty yeni site oluşturur
 func CreateProperty(svc *service.AuthService) gin.HandlerFunc {
 	return func(c *gin.Context) {

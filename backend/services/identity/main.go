@@ -46,12 +46,13 @@ func main() {
 
 	// Protected routes
 	protected := api.Group("/users")
-	protected.Use(middleware.AuthMiddleware())
+	protected.Use(middleware.AuthMiddleware(), middleware.AuditLog(pool, "user"))
 	{
 		protected.GET("/me", handlers.GetCurrentUser(authService))
 		protected.GET("/me/properties", handlers.GetUserProperties(authService))
 		protected.POST("/me/properties", middleware.RequireRole(middleware.RoleManager, middleware.RoleOwner), handlers.CreateProperty(authService))
 		protected.POST("/me/active-property", handlers.SetActiveProperty(authService))
+		protected.POST("/me/kvkk-consent", handlers.SetKVKKConsent(authService))
 	}
 
 	// Sunucuyu başlat

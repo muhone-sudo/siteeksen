@@ -7,6 +7,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/siteeksen/backend/pkg/audit"
 )
 
 // Rol değerleri (users.roles TEXT[] içinde taşınır)
@@ -101,15 +103,41 @@ func RequireRole(requiredRoles ...string) gin.HandlerFunc {
 	}
 }
 
-// AuditLog erişim loglarını kaydeder
-func AuditLog() gin.HandlerFunc {
+// AuditLog hassas kaynaklara erişimi audit_logs tablosuna kaydeder.
+// resourceType bu route grubunun neyi temsil ettiğini belirtir (örn. "user", "finance", "credentials").
+func AuditLog(pool *pgxpool.Pool, resourceType string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Request öncesi
 		c.Next()
 
-		// Request sonrası - audit log kaydet
-		userID, _ := c.Get("user_id")
-		// TODO: Audit log veritabanına kaydet
-		_ = userID
+		userIDValue, _ := c.Get("user_id")
+		userID, _ := userIDValue.(string)
+
+		_ = audit.LogAction(
+			c.Request.Context(),
+			pool,
+			userID,
+			c.ClientIP(),
+			c.Request.UserAgent(),
+			auditActionFromMethod(c.Request.Method),
+			resourceType,
+			c.Param("id"),
+			nil,
+			nil,
+		)
+	}
+}
+
+func auditActionFromMethod(method string) string {
+	switch method {
+	case http.MethodGet:
+		return "VIEW"
+	case http.MethodPost:
+		return "CREATE"
+	case http.MethodPut, http.MethodPatch:
+		return "UPDATE"
+	case http.MethodDelete:
+		return "DELETE"
+	default:
+		return method
 	}
 }

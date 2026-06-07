@@ -4,19 +4,20 @@ import "time"
 
 // User veritabanı modeli
 type User struct {
-	ID               string    `json:"id"`
-	TCEncrypted      string    `json:"-"`
-	TCHash           string    `json:"-"`
-	FirstName        string    `json:"first_name"`
-	LastName         string    `json:"last_name"`
-	Phone            string    `json:"phone"`
-	PhoneEncrypted   string    `json:"-"`
-	Email            string    `json:"email"`
-	PasswordHash     string    `json:"-"`
-	ActivePropertyID string    `json:"active_property_id"`
-	Roles            []string  `json:"roles"`
-	CreatedAt        time.Time `json:"created_at"`
-	UpdatedAt        time.Time `json:"updated_at"`
+	ID               string     `json:"id"`
+	TCEncrypted      string     `json:"-"`
+	TCHash           string     `json:"-"`
+	FirstName        string     `json:"first_name"`
+	LastName         string     `json:"last_name"`
+	Phone            string     `json:"phone"`
+	PhoneEncrypted   string     `json:"-"`
+	Email            string     `json:"email"`
+	PasswordHash     string     `json:"-"`
+	ActivePropertyID string     `json:"active_property_id"`
+	Roles            []string   `json:"roles"`
+	KVKKConsentAt    *time.Time `json:"kvkk_consent_at"`
+	CreatedAt        time.Time  `json:"created_at"`
+	UpdatedAt        time.Time  `json:"updated_at"`
 }
 
 // UserProperty kullanıcının bağlı olduğu site
@@ -30,12 +31,13 @@ type UserProperty struct {
 
 // UserResponse API yanıtı için kullanıcı
 type UserResponse struct {
-	ID         string         `json:"id"`
-	FirstName  string         `json:"first_name"`
-	LastName   string         `json:"last_name"`
-	Phone      string         `json:"phone"`
-	Email      string         `json:"email"`
-	Properties []UserProperty `json:"properties"`
+	ID                  string         `json:"id"`
+	FirstName           string         `json:"first_name"`
+	LastName            string         `json:"last_name"`
+	Phone               string         `json:"phone"`
+	Email               string         `json:"email"`
+	Properties          []UserProperty `json:"properties"`
+	KVKKConsentRequired bool           `json:"kvkk_consent_required"`
 }
 
 // Property site/apartman modeli

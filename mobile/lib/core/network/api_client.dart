@@ -133,6 +133,11 @@ class ApiClient {
     return response.data;
   }
 
+  /// KVKK açık rıza onayını kaydeder (zorunlu onay ekranı sonrası çağrılır).
+  Future<void> acceptKvkkConsent() async {
+    await _dio.post('/users/me/kvkk-consent');
+  }
+
   Future<List<dynamic>> getUserProperties() async {
     final response = await _dio.get('/users/me/properties');
     return response.data;

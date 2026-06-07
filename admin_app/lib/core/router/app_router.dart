@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/auth/presentation/screens/login_screen.dart';
+import '../../features/auth/presentation/screens/kvkk_consent_screen.dart';
 import '../../features/dashboard/presentation/screens/dashboard_screen.dart';
 import '../../features/residents/presentation/screens/residents_screen.dart';
 import '../../features/residents/presentation/screens/resident_detail_screen.dart';
@@ -49,7 +50,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         name: 'login',
         builder: (context, state) => const LoginScreen(),
       ),
-      
+      GoRoute(
+        path: '/kvkk-consent',
+        name: 'kvkkConsent',
+        builder: (context, state) => const KvkkConsentScreen(),
+      ),
+
       // Main Shell
       ShellRoute(
         builder: (context, state, child) => MainScreen(child: child),

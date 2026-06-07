@@ -35,7 +35,7 @@ func main() {
 
 	// Protected routes
 	api := r.Group("/api/v1/finance")
-	api.Use(middleware.AuthMiddleware())
+	api.Use(middleware.AuthMiddleware(), middleware.AuditLog(pool, "finance"))
 	{
 		// Borç durumu
 		api.GET("/debt-status", handlers.GetDebtStatus(financeService))
