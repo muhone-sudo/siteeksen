@@ -65,7 +65,7 @@ Proje ilerleme durumu ve planlaması.
 |-------|-------|--------|
 | Login | ✅ | NextAuth ile |
 | Dashboard (genel bakış) | ✅ | |
-| Sakinler | ✅ | |
+| Sakinler | ✅ | Gerçek API'ye bağlandı — `apiClient.getResidents/getUnits/createResident/updateResident` (Mock→DB Faz 1, Adım 3/4); bakiye sütunu finance entegrasyonu bekleniyor |
 | Aidatlar | ✅ | |
 | Sayaçlar | ✅ | |
 | Talepler | ✅ | |

@@ -151,12 +151,15 @@ class ApiClient {
     }
 
     async updateResident(id: string, data: Partial<{
-        first_name: string;
-        last_name: string;
-        phone: string;
-        email: string;
+        role: string;
+        is_active: boolean;
     }>) {
         const response = await this.client.patch(`/residents/${id}`, data);
+        return response.data;
+    }
+
+    async getUnits() {
+        const response = await this.client.get("/units");
         return response.data;
     }
 
