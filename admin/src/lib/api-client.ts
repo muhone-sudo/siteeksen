@@ -1,4 +1,5 @@
 import axios, { AxiosInstance, AxiosError } from "axios";
+import { ACTIVE_SITE_STORAGE_KEY } from "./active-site";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 
@@ -17,6 +18,12 @@ class ApiClient {
         this.client.interceptors.request.use((config) => {
             if (this.accessToken) {
                 config.headers.Authorization = `Bearer ${this.accessToken}`;
+            }
+            if (typeof window !== "undefined") {
+                const tenantId = localStorage.getItem(ACTIVE_SITE_STORAGE_KEY);
+                if (tenantId) {
+                    config.headers["X-Tenant-ID"] = tenantId;
+                }
             }
             return config;
         });

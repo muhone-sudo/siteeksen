@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -22,6 +23,7 @@ import {
     UserCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { SITES, getActiveSiteId, setActiveSiteId } from "@/lib/active-site";
 
 const navigation = [
     { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -44,6 +46,23 @@ const navigation = [
 
 export function Sidebar() {
     const pathname = usePathname();
+    const [activeSiteId, setActiveSiteIdState] = useState(SITES[0].id);
+
+    useEffect(() => {
+        setActiveSiteIdState(getActiveSiteId());
+    }, []);
+
+    const handleSiteChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        const id = e.target.value;
+        if (id === "new") {
+            e.target.value = activeSiteId;
+            alert("Yeni site ekleme özelliği yakında eklenecek.");
+            return;
+        }
+        setActiveSiteId(id);
+        setActiveSiteIdState(id);
+        window.location.reload();
+    };
 
     return (
         <div className="hidden lg:flex lg:w-64 lg:flex-col">
@@ -56,10 +75,15 @@ export function Sidebar() {
 
                 {/* Site Seçici */}
                 <div className="px-4 py-4 border-b border-gray-200 dark:border-gray-700">
-                    <select className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:bg-gray-700 dark:border-gray-600">
-                        <option>Güneş Sitesi</option>
-                        <option>Yıldız Apartmanı</option>
-                        <option>+ Yeni Site Ekle</option>
+                    <select
+                        value={activeSiteId}
+                        onChange={handleSiteChange}
+                        className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:bg-gray-700 dark:border-gray-600"
+                    >
+                        {SITES.map((site) => (
+                            <option key={site.id} value={site.id}>{site.name}</option>
+                        ))}
+                        <option value="new">+ Yeni Site Ekle</option>
                     </select>
                 </div>
 
