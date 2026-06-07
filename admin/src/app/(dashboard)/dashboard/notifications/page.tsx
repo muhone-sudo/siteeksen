@@ -141,6 +141,7 @@ export default function NotificationsPage() {
                     sentCount: n.sent_count ?? 0,
                     sentAt: n.sent_at ?? n.created_at,
                     status: n.status ?? "sent",
+                    deleted: 0,
                 })));
             }
         }).catch(() => {});

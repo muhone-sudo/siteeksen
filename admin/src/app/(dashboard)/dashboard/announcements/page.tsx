@@ -1,7 +1,11 @@
 "use client";
 
-import { useState } from "react";
-import { Plus, Send, Pin, Clock, Users, X, FileText, Edit, Trash2 } from "lucide-react";
+import { useState, useRef } from "react";
+import { Plus, Send, Pin, Clock, Users, X, FileText, Edit, Trash2, Download, Upload } from "lucide-react";
+
+const SAMPLE_CSV = `baslik,icerik,kategori,oncelik,sabitlensin
+Asansör Bakımı,Asansör periyodik bakımı yapılacak,MAINTENANCE,HIGH,false
+Aidat Hatırlatması,Son ödeme tarihi yaklaşıyor,PAYMENT,NORMAL,false`;
 
 interface Announcement {
     id: number;
@@ -37,6 +41,31 @@ export default function AnnouncementsPage() {
     const [editingId, setEditingId] = useState<number | null>(null);
     const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
     const [formData, setFormData] = useState(emptyForm);
+    const csvRef = useRef<HTMLInputElement>(null);
+
+    const downloadSampleCSV = () => {
+        const blob = new Blob([SAMPLE_CSV], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a"); a.href = url; a.download = "duyuru_ornek.csv"; a.click();
+        URL.revokeObjectURL(url);
+    };
+
+    const handleCSVUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            const text = ev.target?.result as string;
+            const rows = text.split("\n").slice(1).filter(r => r.trim());
+            const imported: Announcement[] = rows.map((row, i) => {
+                const [baslik, icerik, kategori, oncelik, sabit] = row.split(",").map(s => s.trim());
+                return { id: Date.now() + i, title: baslik ?? "", content: icerik ?? "", category: kategori || "INFO", priority: oncelik || "NORMAL", isPinned: sabit === "true", createdAt: new Date().toISOString().split("T")[0], readCount: 0, totalResidents: 124, deleted: 0 };
+            });
+            setAnnouncements(prev => [...imported, ...prev]);
+        };
+        reader.readAsText(file);
+        e.target.value = "";
+    };
 
     const active = announcements.filter(a => a.deleted === 0);
 
@@ -71,9 +100,18 @@ export default function AnnouncementsPage() {
                     <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Duyurular</h1>
                     <p className="text-sm text-gray-500 dark:text-gray-400">Site sakinlerine duyuru yayınlayın</p>
                 </div>
-                <button onClick={openAdd} className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90">
-                    <Plus className="h-4 w-4" /> Yeni Duyuru
-                </button>
+                <div className="flex gap-3">
+                    <button onClick={downloadSampleCSV} className="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:hover:bg-gray-700">
+                        <Download className="h-4 w-4" /> Örnek CSV
+                    </button>
+                    <button onClick={() => csvRef.current?.click()} className="flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:hover:bg-gray-700">
+                        <Upload className="h-4 w-4" /> CSV Yükle
+                    </button>
+                    <input ref={csvRef} type="file" accept=".csv" className="hidden" onChange={handleCSVUpload} />
+                    <button onClick={openAdd} className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90">
+                        <Plus className="h-4 w-4" /> Yeni Duyuru
+                    </button>
+                </div>
             </div>
 
             <div className="grid gap-4 md:grid-cols-3">
