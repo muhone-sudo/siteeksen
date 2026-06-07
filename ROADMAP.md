@@ -46,13 +46,14 @@ Proje ilerleme durumu ve planlaması.
 ### Backend Yapılacaklar
 - ✅ **identity-service: Gerçek `residents`/`units` modülü** — `GET/POST /api/v1/residents`, `GET/PATCH /api/v1/residents/:id`, `GET /api/v1/units`; `resident_units`/`users`/`units` JOIN sorgularıyla DB'ye bağlandı (Mock verilerin DB'ye bağlanması — Faz 1/6, Adım 1/4)
 - ✅ **Gateway: `/api/v1/residents`+`/api/v1/units` mock handler'ları kaldırılıp identity-service'e proxy edildi** (Mock verilerin DB'ye bağlanması — Faz 1/6, Adım 2/4)
-- ✅ **Mock→DB Faz 1 (Sakinler/Birimler) tamamlandı** — identity-service modülü → gateway proxy → admin panel → admin_app (4/4 adım); admin_app `/users?role=RESIDENT` konvansiyonu admin panelin `/residents` kontratıyla birleştirildi. Sıradaki faz: Faz 2 — Finans (Aidat/Ödemeler)
+- ✅ **Mock→DB Faz 1 (Sakinler/Birimler) tamamlandı + canlı doğrulandı** — identity-service modülü → gateway proxy → admin panel → admin_app (4/4 adım); admin_app `/users?role=RESIDENT` konvansiyonu admin panelin `/residents` kontratıyla birleştirildi. Canlı ortamda demo yönetici hesabıyla `GET/POST/PATCH /api/v1/residents` ve `GET /api/v1/units` uçtan uca test edildi (gerçek DB kaydı oluşturuldu, pasifleştirildi, rolü değiştirildi, DB satırından doğrulandı, sonra temizlendi) — gerçek `resident_units`/`users`/`units` verisi dönüyor, mock'a düşmüyor. Sıradaki faz: Faz 2 — Finans (Aidat/Ödemeler)
 - ✅ **Demo gateway gerçek reverse proxy'ye dönüştürüldü** — identity, finance, community servislerine proxy; henüz olmayan servisler için mock
 - ✅ **Tüm 19 yeni servis docker-compose.yml'e eklendi** — port atandı, Dockerfile yazıldı, hepsi çalışıyor
 - ✅ **Kong `kong.yml` güncellendi** — 24 servis (tüm mikroservisler) Kong üzerinden yönlendiriliyor
 - ✅ **Gateway v1.2.0** — 24 servise proxy routing; tüm yeni servisler docker-compose env'de tanımlı
 - ✅ **KVKK açık rıza akışı + audit log aktif edildi** — migration `009_kvkk_consent.sql` (`users.kvkk_consent_at`), identity-service `POST /users/me/kvkk-consent` + login yanıtında `kvkk_consent_required`; `pkg/audit/` paketi ve gerçek `INSERT INTO audit_logs` ile tamamlanan `AuditLog()` middleware'i `identity`/`finance` route gruplarına bağlandı (Apsiyon karşılaştırması, Paket 5)
 - ✅ **RBAC: Rol bazlı yetkilendirme aktif edildi** — `RequireRole()` middleware'i `MANAGER`/`AUDITOR`/`STAFF` rol sabitleriyle birlikte `POST /users/me/properties` endpoint'ine bağlandı; migration `008_manager_roles.sql` ile demo yöneticiye `MANAGER` rolü eklendi (Apsiyon karşılaştırması, Paket 3)
+- 📋 **Migration-runner eklenmeli** — `docker-entrypoint-initdb.d` yalnızca volume ilk oluşturulduğunda çalışıyor; 006/008/009/010 migration'ları bu yüzden üç ayrı seferde elle uygulanmak zorunda kaldı (`golang-migrate` ya da servis başlangıcında "uygulanmamış migration" kontrolü gerekli)
 - 📋 Her servis için birim testleri yaz (şu an sadece `tests/integration_test.go` var)
 - 📋 `pkg/integrations/ai/` — OpenAI Vision gerçek API key ile test edilmeli
 - 📋 `pkg/integrations/bank/` — banka entegrasyonu gerçek ortamda test edilmeli
