@@ -54,6 +54,7 @@ interface NotificationHistory {
     sentCount: number;
     sentAt: string;
     status: "sent" | "scheduled" | "failed";
+    deleted: number;
 }
 
 // Mock data
@@ -97,9 +98,9 @@ const mockAutomations: AutomationRule[] = [
 ];
 
 const mockHistory: NotificationHistory[] = [
-    { id: 1, title: "Aidat Hatırlatma", message: "Aidat borcunuz bulunmaktadır...", channel: "sms", audienceType: "overdue", sentCount: 18, sentAt: "2026-01-27T10:00:00", status: "sent" },
-    { id: 2, title: "Şubat Tahakkuk", message: "Şubat ayı aidatınız tahakkuk etmiştir...", channel: "push", audienceType: "all", sentCount: 124, sentAt: "2026-02-01T09:00:00", status: "sent" },
-    { id: 3, title: "Asansör Bakım Duyurusu", message: "Yarın asansör bakımı yapılacaktır...", channel: "inapp", audienceType: "all", sentCount: 124, sentAt: "2026-01-30T14:00:00", status: "sent" },
+    { id: 1, title: "Aidat Hatırlatma", message: "Aidat borcunuz bulunmaktadır...", channel: "sms", audienceType: "overdue", sentCount: 18, sentAt: "2026-01-27T10:00:00", status: "sent", deleted: 0 },
+    { id: 2, title: "Şubat Tahakkuk", message: "Şubat ayı aidatınız tahakkuk etmiştir...", channel: "push", audienceType: "all", sentCount: 124, sentAt: "2026-02-01T09:00:00", status: "sent", deleted: 0 },
+    { id: 3, title: "Asansör Bakım Duyurusu", message: "Yarın asansör bakımı yapılacaktır...", channel: "inapp", audienceType: "all", sentCount: 124, sentAt: "2026-01-30T14:00:00", status: "sent", deleted: 0 },
 ];
 
 const channelConfig: Record<string, { label: string; icon: React.ElementType; color: string }> = {
@@ -124,6 +125,7 @@ export default function NotificationsPage() {
 
     const [automations, setAutomations] = useState(mockAutomations);
     const [history, setHistory] = useState(mockHistory);
+    const [deleteHistoryId, setDeleteHistoryId] = useState<number | null>(null);
 
     useEffect(() => {
         apiClient.loadToken();
@@ -211,6 +213,12 @@ export default function NotificationsPage() {
 
     const deleteAutomation = (id: number) => {
         setAutomations(automations.filter((a) => a.id !== id));
+    };
+
+    const deleteHistoryItem = () => {
+        if (deleteHistoryId === null) return;
+        setHistory(prev => prev.map(h => h.id === deleteHistoryId ? { ...h, deleted: 1 } : h));
+        setDeleteHistoryId(null);
     };
 
     const insertVariable = (variable: string) => {
@@ -520,10 +528,11 @@ export default function NotificationsPage() {
                                     <th className="py-3 text-left text-sm font-medium text-gray-500">Hedef</th>
                                     <th className="py-3 text-right text-sm font-medium text-gray-500">Gönderim</th>
                                     <th className="py-3 text-center text-sm font-medium text-gray-500">Durum</th>
+                                    <th className="py-3 text-right text-sm font-medium text-gray-500">İşlem</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                                {history.map((item) => {
+                                {history.filter(h => h.deleted === 0).map((item) => {
                                     const ChannelIcon = channelConfig[item.channel].icon;
                                     return (
                                         <tr key={item.id}>
@@ -551,6 +560,11 @@ export default function NotificationsPage() {
                                                     }`}>
                                                     {item.status === "sent" ? "Gönderildi" : item.status === "scheduled" ? "Zamanlanmış" : "Başarısız"}
                                                 </span>
+                                            </td>
+                                            <td className="py-3 text-right">
+                                                <button onClick={() => setDeleteHistoryId(item.id)} className="p-1.5 rounded hover:bg-red-100 text-red-500">
+                                                    <Trash2 className="h-4 w-4" />
+                                                </button>
                                             </td>
                                         </tr>
                                     );
@@ -591,6 +605,21 @@ export default function NotificationsPage() {
                                     Gönder
                                 </button>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Delete History Confirm */}
+            {deleteHistoryId !== null && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+                    <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-2xl dark:bg-gray-800 text-center">
+                        <div className="flex justify-center mb-4"><div className="rounded-full bg-red-100 p-3"><Trash2 className="h-6 w-6 text-red-600" /></div></div>
+                        <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-2">Kaydı Sil</h2>
+                        <p className="text-gray-500 text-sm mb-6">Bu bildirim geçmiş kaydı silinecek. Emin misiniz?</p>
+                        <div className="flex gap-3">
+                            <button onClick={() => setDeleteHistoryId(null)} className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300">İptal</button>
+                            <button onClick={deleteHistoryItem} className="flex-1 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700">Sil</button>
                         </div>
                     </div>
                 </div>

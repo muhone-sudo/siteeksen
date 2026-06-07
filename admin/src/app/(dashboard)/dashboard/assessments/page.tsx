@@ -1,36 +1,23 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Calendar, Download, X, DollarSign, CalendarDays } from "lucide-react";
+import { Plus, Calendar, Download, X, CalendarDays, Edit, Trash2 } from "lucide-react";
 
-const mockAssessments = [
-    {
-        id: 1,
-        period: "Ocak 2026",
-        totalAmount: 28800,
-        collectedAmount: 25056,
-        rate: 87,
-        dueDate: "2026-01-10",
-        status: "active",
-    },
-    {
-        id: 2,
-        period: "Aralık 2025",
-        totalAmount: 27600,
-        collectedAmount: 27600,
-        rate: 100,
-        dueDate: "2025-12-10",
-        status: "completed",
-    },
-    {
-        id: 3,
-        period: "Kasım 2025",
-        totalAmount: 27600,
-        collectedAmount: 27600,
-        rate: 100,
-        dueDate: "2025-11-10",
-        status: "completed",
-    },
+interface Assessment {
+    id: number;
+    period: string;
+    totalAmount: number;
+    collectedAmount: number;
+    rate: number;
+    dueDate: string;
+    status: string;
+    deleted: number;
+}
+
+const mockAssessments: Assessment[] = [
+    { id: 1, period: "Ocak 2026", totalAmount: 28800, collectedAmount: 25056, rate: 87, dueDate: "2026-01-10", status: "active", deleted: 0 },
+    { id: 2, period: "Aralık 2025", totalAmount: 27600, collectedAmount: 27600, rate: 100, dueDate: "2025-12-10", status: "completed", deleted: 0 },
+    { id: 3, period: "Kasım 2025", totalAmount: 27600, collectedAmount: 27600, rate: 100, dueDate: "2025-11-10", status: "completed", deleted: 0 },
 ];
 
 const expenseCategories = [
@@ -45,7 +32,9 @@ const expenseCategories = [
 export default function AssessmentsPage() {
     const [selectedYear, setSelectedYear] = useState(2026);
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [assessments, setAssessments] = useState(mockAssessments);
+    const [assessments, setAssessments] = useState<Assessment[]>(mockAssessments);
+    const [editingAssessment, setEditingAssessment] = useState<Assessment | null>(null);
+    const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
     const [formData, setFormData] = useState({
         period: "",
         dueDate: "",
@@ -59,14 +48,15 @@ export default function AssessmentsPage() {
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         const totalAmount = formData.expenses.reduce((sum, exp) => sum + exp.amount, 0);
-        const newAssessment = {
-            id: assessments.length + 1,
+        const newAssessment: Assessment = {
+            id: Date.now(),
             period: formData.period,
             totalAmount,
             collectedAmount: 0,
             rate: 0,
             dueDate: formData.dueDate,
             status: "active",
+            deleted: 0,
         };
         setAssessments([newAssessment, ...assessments]);
         setFormData({
@@ -100,6 +90,21 @@ export default function AssessmentsPage() {
             expenses: formData.expenses.filter((_, i) => i !== idx),
         });
     };
+
+    const handleDeleteAssessment = () => {
+        if (deleteConfirmId === null) return;
+        setAssessments(prev => prev.map(a => a.id === deleteConfirmId ? { ...a, deleted: 1 } : a));
+        setDeleteConfirmId(null);
+    };
+
+    const handleEditSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!editingAssessment) return;
+        setAssessments(prev => prev.map(a => a.id === editingAssessment.id ? editingAssessment : a));
+        setEditingAssessment(null);
+    };
+
+    const activeAssessments = assessments.filter(a => a.deleted === 0);
 
     return (
         <div className="space-y-6">
@@ -221,69 +226,105 @@ export default function AssessmentsPage() {
                 <table className="w-full">
                     <thead>
                         <tr className="border-b border-gray-200 dark:border-gray-700">
-                            <th className="py-3 text-left text-sm font-medium text-gray-500">
-                                Dönem
-                            </th>
-                            <th className="py-3 text-left text-sm font-medium text-gray-500">
-                                Vade Tarihi
-                            </th>
-                            <th className="py-3 text-right text-sm font-medium text-gray-500">
-                                Tahakkuk
-                            </th>
-                            <th className="py-3 text-right text-sm font-medium text-gray-500">
-                                Tahsilat
-                            </th>
-                            <th className="py-3 text-right text-sm font-medium text-gray-500">
-                                Oran
-                            </th>
-                            <th className="py-3 text-center text-sm font-medium text-gray-500">
-                                Durum
-                            </th>
+                            <th className="py-3 text-left text-sm font-medium text-gray-500">Dönem</th>
+                            <th className="py-3 text-left text-sm font-medium text-gray-500">Vade Tarihi</th>
+                            <th className="py-3 text-right text-sm font-medium text-gray-500">Tahakkuk</th>
+                            <th className="py-3 text-right text-sm font-medium text-gray-500">Tahsilat</th>
+                            <th className="py-3 text-right text-sm font-medium text-gray-500">Oran</th>
+                            <th className="py-3 text-center text-sm font-medium text-gray-500">Durum</th>
+                            <th className="py-3 text-right text-sm font-medium text-gray-500">İşlem</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                        {assessments.map((a) => (
+                        {activeAssessments.map((a) => (
                             <tr key={a.id}>
-                                <td className="py-3 font-medium text-gray-900 dark:text-white">
-                                    {a.period}
-                                </td>
-                                <td className="py-3 text-gray-600 dark:text-gray-400">
-                                    {new Date(a.dueDate).toLocaleDateString("tr-TR")}
-                                </td>
-                                <td className="py-3 text-right text-gray-900 dark:text-white">
-                                    ₺{a.totalAmount.toLocaleString()}
-                                </td>
-                                <td className="py-3 text-right text-gray-900 dark:text-white">
-                                    ₺{a.collectedAmount.toLocaleString()}
-                                </td>
+                                <td className="py-3 font-medium text-gray-900 dark:text-white">{a.period}</td>
+                                <td className="py-3 text-gray-600 dark:text-gray-400">{new Date(a.dueDate).toLocaleDateString("tr-TR")}</td>
+                                <td className="py-3 text-right text-gray-900 dark:text-white">₺{a.totalAmount.toLocaleString()}</td>
+                                <td className="py-3 text-right text-gray-900 dark:text-white">₺{a.collectedAmount.toLocaleString()}</td>
                                 <td className="py-3 text-right">
-                                    <span
-                                        className={
-                                            a.rate === 100
-                                                ? "text-green-500"
-                                                : a.rate >= 80
-                                                    ? "text-yellow-500"
-                                                    : "text-red-500"
-                                        }
-                                    >
+                                    <span className={a.rate === 100 ? "text-green-500" : a.rate >= 80 ? "text-yellow-500" : "text-red-500"}>
                                         %{a.rate}
                                     </span>
                                 </td>
                                 <td className="py-3 text-center">
-                                    <span
-                                        className={`rounded-full px-3 py-1 text-xs font-medium ${a.status === "completed"
-                                            ? "bg-green-100 text-green-700"
-                                            : "bg-yellow-100 text-yellow-700"
-                                            }`}
-                                    >
+                                    <span className={`rounded-full px-3 py-1 text-xs font-medium ${a.status === "completed" ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"}`}>
                                         {a.status === "completed" ? "Tamamlandı" : "Aktif"}
                                     </span>
+                                </td>
+                                <td className="py-3 text-right">
+                                    <div className="flex justify-end gap-1">
+                                        <button onClick={() => setEditingAssessment({ ...a })} className="p-1.5 rounded hover:bg-blue-100 text-blue-500"><Edit className="h-4 w-4" /></button>
+                                        <button onClick={() => setDeleteConfirmId(a.id)} className="p-1.5 rounded hover:bg-red-100 text-red-500"><Trash2 className="h-4 w-4" /></button>
+                                    </div>
                                 </td>
                             </tr>
                         ))}
                     </tbody>
                 </table>
             </div>
+
+            {/* Edit Assessment Modal */}
+            {editingAssessment && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+                    <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl dark:bg-gray-800">
+                        <div className="flex items-center justify-between mb-4">
+                            <h2 className="text-xl font-bold text-gray-900 dark:text-white">Tahakkuku Düzenle</h2>
+                            <button onClick={() => setEditingAssessment(null)}><X className="h-5 w-5 text-gray-500" /></button>
+                        </div>
+                        <form onSubmit={handleEditSubmit} className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Dönem</label>
+                                <input required value={editingAssessment.period} onChange={e => setEditingAssessment({ ...editingAssessment, period: e.target.value })} className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm dark:border-gray-600 dark:bg-gray-700" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Vade Tarihi</label>
+                                <input type="date" value={editingAssessment.dueDate} onChange={e => setEditingAssessment({ ...editingAssessment, dueDate: e.target.value })} className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm dark:border-gray-600 dark:bg-gray-700" />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tahakkuk (₺)</label>
+                                    <input type="number" value={editingAssessment.totalAmount} onChange={e => setEditingAssessment({ ...editingAssessment, totalAmount: Number(e.target.value) })} className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm dark:border-gray-600 dark:bg-gray-700" />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tahsilat (₺)</label>
+                                    <input type="number" value={editingAssessment.collectedAmount} onChange={e => {
+                                        const col = Number(e.target.value);
+                                        const rate = editingAssessment.totalAmount > 0 ? Math.round((col / editingAssessment.totalAmount) * 100) : 0;
+                                        setEditingAssessment({ ...editingAssessment, collectedAmount: col, rate });
+                                    }} className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm dark:border-gray-600 dark:bg-gray-700" />
+                                </div>
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Durum</label>
+                                <select value={editingAssessment.status} onChange={e => setEditingAssessment({ ...editingAssessment, status: e.target.value })} className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm dark:border-gray-600 dark:bg-gray-700">
+                                    <option value="active">Aktif</option>
+                                    <option value="completed">Tamamlandı</option>
+                                </select>
+                            </div>
+                            <div className="flex gap-3 pt-2">
+                                <button type="button" onClick={() => setEditingAssessment(null)} className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300">İptal</button>
+                                <button type="submit" className="flex-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90">Güncelle</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Delete Confirm */}
+            {deleteConfirmId !== null && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+                    <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-2xl dark:bg-gray-800 text-center">
+                        <div className="flex justify-center mb-4"><div className="rounded-full bg-red-100 p-3"><Trash2 className="h-6 w-6 text-red-600" /></div></div>
+                        <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-2">Tahakkuku Sil</h2>
+                        <p className="text-gray-500 text-sm mb-6">Bu tahakkuk kaydı silinecek. Emin misiniz?</p>
+                        <div className="flex gap-3">
+                            <button onClick={() => setDeleteConfirmId(null)} className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300">İptal</button>
+                            <button onClick={handleDeleteAssessment} className="flex-1 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700">Sil</button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Modal */}
             {isModalOpen && (
