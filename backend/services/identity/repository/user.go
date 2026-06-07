@@ -23,7 +23,7 @@ func (r *UserRepository) GetByPhone(ctx context.Context, phone string) (*models.
 		SELECT id, COALESCE(tc_encrypted, ''), COALESCE(tc_hash, ''), first_name, last_name,
 			   phone, COALESCE(email, ''), password_hash, COALESCE(active_property_id::text, ''), roles, created_at, updated_at
 		FROM users
-		WHERE phone = $1
+		WHERE phone = $1 AND deleted = 0
 	`
 	user := &models.User{}
 	err := r.pool.QueryRow(ctx, query, phone).Scan(
@@ -43,7 +43,7 @@ func (r *UserRepository) GetByID(ctx context.Context, id string) (*models.User, 
 		SELECT id, COALESCE(tc_encrypted, ''), COALESCE(tc_hash, ''), first_name, last_name,
 			   phone, COALESCE(email, ''), password_hash, COALESCE(active_property_id::text, ''), roles, created_at, updated_at
 		FROM users
-		WHERE id = $1
+		WHERE id = $1 AND deleted = 0
 	`
 	user := &models.User{}
 	err := r.pool.QueryRow(ctx, query, id).Scan(

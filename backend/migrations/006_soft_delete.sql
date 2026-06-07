@@ -1,0 +1,38 @@
+-- Migration: 006_soft_delete.sql
+-- Tüm kullanıcı verisi tablolarına soft-delete desteği ekler.
+-- deleted = 0: aktif, deleted = 1: silinmiş
+
+-- Core tables
+ALTER TABLE users ADD COLUMN IF NOT EXISTS deleted INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE units ADD COLUMN IF NOT EXISTS deleted INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE announcements ADD COLUMN IF NOT EXISTS deleted INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE requests ADD COLUMN IF NOT EXISTS deleted INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS deleted INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE meters ADD COLUMN IF NOT EXISTS deleted INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE meter_readings ADD COLUMN IF NOT EXISTS deleted INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE monthly_assessments ADD COLUMN IF NOT EXISTS deleted INTEGER NOT NULL DEFAULT 0;
+
+-- 005 module tables
+ALTER TABLE visitors ADD COLUMN IF NOT EXISTS deleted INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS deleted INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE reservations ADD COLUMN IF NOT EXISTS deleted INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE employees ADD COLUMN IF NOT EXISTS deleted INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE employee_leaves ADD COLUMN IF NOT EXISTS deleted INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE facilities ADD COLUMN IF NOT EXISTS deleted INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE bulletin_posts ADD COLUMN IF NOT EXISTS deleted INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE contracts ADD COLUMN IF NOT EXISTS deleted INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE packages ADD COLUMN IF NOT EXISTS deleted INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE assets ADD COLUMN IF NOT EXISTS deleted INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE surveys ADD COLUMN IF NOT EXISTS deleted INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE inventory_items ADD COLUMN IF NOT EXISTS deleted INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE meetings ADD COLUMN IF NOT EXISTS deleted INTEGER NOT NULL DEFAULT 0;
+
+-- Index'ler: deleted = 0 sorguları için
+CREATE INDEX IF NOT EXISTS idx_users_deleted ON users(deleted);
+CREATE INDEX IF NOT EXISTS idx_announcements_deleted ON announcements(deleted);
+CREATE INDEX IF NOT EXISTS idx_requests_deleted ON requests(deleted);
+CREATE INDEX IF NOT EXISTS idx_visitors_deleted ON visitors(deleted);
+CREATE INDEX IF NOT EXISTS idx_vehicles_deleted ON vehicles(deleted);
+CREATE INDEX IF NOT EXISTS idx_reservations_deleted ON reservations(deleted);
+CREATE INDEX IF NOT EXISTS idx_employees_deleted ON employees(deleted);
+CREATE INDEX IF NOT EXISTS idx_monthly_assessments_deleted ON monthly_assessments(deleted);

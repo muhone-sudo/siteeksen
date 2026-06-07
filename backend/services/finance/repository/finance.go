@@ -45,6 +45,7 @@ func (r *FinanceRepository) GetOverdueInfo(ctx context.Context, userID string) (
 		  AND ru.is_active = true
 		  AND ma.due_date < CURRENT_DATE
 		  AND ma.status != 'PAID'
+		  AND ma.deleted = 0
 	`
 	info := &models.OverdueInfo{}
 	err := r.pool.QueryRow(ctx, query, userID).Scan(&info.Amount, &info.Months)
@@ -61,6 +62,7 @@ func (r *FinanceRepository) GetNextDueAssessment(ctx context.Context, userID str
 		  AND ru.is_active = true
 		  AND ma.due_date >= CURRENT_DATE
 		  AND ma.status != 'PAID'
+		  AND ma.deleted = 0
 		ORDER BY ma.due_date ASC
 		LIMIT 1
 	`
@@ -81,6 +83,7 @@ func (r *FinanceRepository) GetAssessments(ctx context.Context, userID string, y
 		WHERE ru.resident_id = $1 
 		  AND ru.is_active = true
 		  AND ma.period_year = $2
+		  AND ma.deleted = 0
 		ORDER BY ma.period_month DESC
 	`
 	rows, err := r.pool.Query(ctx, query, userID, year)
@@ -106,7 +109,7 @@ func (r *FinanceRepository) GetAssessmentDetails(ctx context.Context, assessment
 	query := `
 		SELECT id, property_id, unit_id, period_year, period_month, 
 			   base_amount, late_fee, total_amount, due_date, status, created_at
-		FROM monthly_assessments WHERE id = $1
+		FROM monthly_assessments WHERE id = $1 AND deleted = 0
 	`
 	detail := &models.AssessmentDetail{}
 	err := r.pool.QueryRow(ctx, query, assessmentID).Scan(
