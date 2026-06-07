@@ -139,17 +139,32 @@ func CreatePayment(svc *service.FinanceService) gin.HandlerFunc {
 	}
 }
 
-// GetPaymentHistory ödeme geçmişi
+// GetPaymentHistory ödeme geçmişi — yönetim rolleri site genelini, sakinler kendi geçmişini görür
 func GetPaymentHistory(svc *service.FinanceService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		userID := c.GetString("user_id")
-		
-		payments, err := svc.GetPaymentHistory(c.Request.Context(), userID)
+		propertyID := c.GetString("property_id")
+
+		payments, err := svc.GetPaymentHistory(c.Request.Context(), userID, propertyID, getRoles(c))
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Ödeme geçmişi alınamadı"})
 			return
 		}
 		c.JSON(http.StatusOK, payments)
+	}
+}
+
+// GetDebtors sitede borcu olan sakinlerin özetini getirir (yönetim görünümü)
+func GetDebtors(svc *service.FinanceService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		propertyID := c.GetString("property_id")
+
+		debtors, err := svc.ListDebtors(c.Request.Context(), propertyID, getRoles(c))
+		if err != nil {
+			mapAssessmentError(c, err)
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"data": debtors})
 	}
 }
 

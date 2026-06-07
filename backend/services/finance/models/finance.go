@@ -86,6 +86,21 @@ type OverdueInfo struct {
 	Months int
 }
 
+// Debtor borçlu sakin özeti (yönetim görünümü)
+type Debtor struct {
+	ResidentID string  `json:"resident_id"`
+	Name       string  `json:"name"`
+	Unit       string  `json:"unit"`
+	Amount     float64 `json:"amount"`
+}
+
+// PropertyPayment site genelindeki bir ödeme kaydı (yönetim görünümü)
+type PropertyPayment struct {
+	Payment
+	Name string `json:"name"`
+	Unit string `json:"unit"`
+}
+
 // ConsumptionData tüketim verisi (grafik için)
 type ConsumptionData struct {
 	Period      string  `json:"period"` // "2026-01"

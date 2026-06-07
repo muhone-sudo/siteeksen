@@ -138,9 +138,21 @@ func (s *FinanceService) CreatePayment(ctx context.Context, userID string, asses
 	}, nil
 }
 
-// GetPaymentHistory ödeme geçmişi getirir
-func (s *FinanceService) GetPaymentHistory(ctx context.Context, userID string) ([]models.Payment, error) {
+// GetPaymentHistory ödeme geçmişi getirir — yönetim rolleri site genelindeki tüm ödemeleri,
+// sakinler yalnızca kendi ödemelerini görür
+func (s *FinanceService) GetPaymentHistory(ctx context.Context, userID, propertyID string, roles []string) (interface{}, error) {
+	if isFinanceManagement(roles) {
+		return s.repo.ListPropertyPayments(ctx, propertyID)
+	}
 	return s.repo.GetPaymentHistory(ctx, userID)
+}
+
+// ListDebtors sitede borcu olan sakinlerin özetini getirir (yalnızca yönetim rolleri)
+func (s *FinanceService) ListDebtors(ctx context.Context, propertyID string, roles []string) ([]models.Debtor, error) {
+	if !isFinanceManagement(roles) {
+		return nil, ErrAssessmentForbidden
+	}
+	return s.repo.ListDebtors(ctx, propertyID)
 }
 
 // ConsumptionSummary tüketim özeti

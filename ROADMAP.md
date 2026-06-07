@@ -17,7 +17,7 @@ Proje ilerleme durumu ve planlaması.
 | Servis | Durum | Port | Notlar |
 |--------|-------|------|--------|
 | identity | ✅ | 8081 | Docker'da aktif; gerçek `residents`/`units` modülü eklendi (Mock→DB Faz 1) |
-| finance | ✅ | 8082 | Docker'da aktif, iyzico entegre; gerçek `POST /assessments` (aidat tahakkuku, dağıtım motoru) eklendi (Mock→DB Faz 2) |
+| finance | ✅ | 8082 | Docker'da aktif, iyzico entegre; gerçek `POST /assessments`, `GET /expense-categories`, `GET /debtors`, rol-duyarlı `GET /payments` eklendi (Mock→DB Faz 2, Adım 1-3 tamamlandı) |
 | community | ✅ | 8083 | Docker'da aktif |
 | iot | ✅ | 8084 | Docker'da aktif, MongoDB bağlı |
 | notification | ✅ | 8085 | Docker'da aktif, Firebase + Kafka |

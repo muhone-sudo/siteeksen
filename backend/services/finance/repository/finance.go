@@ -221,6 +221,88 @@ func (r *FinanceRepository) GetPaymentHistory(ctx context.Context, userID string
 	return payments, nil
 }
 
+// ListDebtors sitede borcu olan birimlerin sahiplerini borç tutarına göre listeler (yönetim görünümü)
+func (r *FinanceRepository) ListDebtors(ctx context.Context, propertyID string) ([]models.Debtor, error) {
+	query := `
+		SELECT u.id, u.first_name, u.last_name,
+		       COALESCE(un.block, '') || ' Blok D.' || un.door_number AS unit,
+		       SUM(ma.total_amount - ma.paid_amount) AS amount
+		FROM monthly_assessments ma
+		JOIN units un ON un.id = ma.unit_id
+		JOIN resident_units ru ON ru.unit_id = un.id AND ru.is_active = true AND ru.role = 'OWNER'
+		JOIN users u ON u.id = ru.resident_id
+		WHERE ma.property_id = $1 AND ma.deleted = 0 AND ma.total_amount > ma.paid_amount
+		GROUP BY u.id, u.first_name, u.last_name, un.block, un.door_number
+		ORDER BY amount DESC
+	`
+	rows, err := r.pool.Query(ctx, query, propertyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	debtors := []models.Debtor{}
+	for rows.Next() {
+		var d models.Debtor
+		var firstName, lastName string
+		if err := rows.Scan(&d.ResidentID, &firstName, &lastName, &d.Unit, &d.Amount); err != nil {
+			return nil, err
+		}
+		d.Name = firstName + " " + lastName
+		debtors = append(debtors, d)
+	}
+	return debtors, nil
+}
+
+// ListPropertyPayments sitedeki tüm sakinlerin ödeme kayıtlarını listeler (yönetim görünümü)
+func (r *FinanceRepository) ListPropertyPayments(ctx context.Context, propertyID string) ([]models.PropertyPayment, error) {
+	query := `
+		SELECT p.id, p.user_id, p.amount, p.payment_method, p.status, COALESCE(p.transaction_id, ''),
+		       p.created_at, p.completed_at,
+		       u.first_name, u.last_name,
+		       COALESCE(COALESCE(un.block, '') || ' Blok D.' || un.door_number, '')
+		FROM payments p
+		JOIN users u ON u.id = p.user_id
+		LEFT JOIN units un ON un.id = (
+			SELECT ru.unit_id FROM resident_units ru
+			WHERE ru.resident_id = u.id AND ru.is_active = true
+			LIMIT 1
+		)
+		WHERE p.deleted = 0 AND EXISTS (
+			SELECT 1 FROM resident_units ru2
+			JOIN units un2 ON un2.id = ru2.unit_id
+			WHERE ru2.resident_id = u.id AND ru2.is_active = true AND un2.property_id = $1
+		)
+		ORDER BY p.created_at DESC
+		LIMIT 50
+	`
+	rows, err := r.pool.Query(ctx, query, propertyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	payments := []models.PropertyPayment{}
+	for rows.Next() {
+		var pp models.PropertyPayment
+		var firstName, lastName string
+		var txID, completedAt interface{}
+		if err := rows.Scan(&pp.ID, &pp.UserID, &pp.Amount, &pp.PaymentMethod, &pp.Status, &txID,
+			&pp.CreatedAt, &completedAt, &firstName, &lastName, &pp.Unit); err != nil {
+			return nil, err
+		}
+		if txID != nil {
+			pp.TransactionID = txID.(string)
+		}
+		if completedAt != nil {
+			pp.CompletedAt = completedAt.(time.Time)
+		}
+		pp.Name = firstName + " " + lastName
+		payments = append(payments, pp)
+	}
+	return payments, nil
+}
+
 // GetConsumptionData tüketim verisi (grafik için)
 func (r *FinanceRepository) GetConsumptionData(ctx context.Context, userID, meterType string, months int) ([]models.ConsumptionData, error) {
 	query := `

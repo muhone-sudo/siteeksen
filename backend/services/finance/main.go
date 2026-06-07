@@ -39,7 +39,8 @@ func main() {
 	{
 		// Borç durumu
 		api.GET("/debt-status", handlers.GetDebtStatus(financeService))
-		
+		api.GET("/debtors", handlers.GetDebtors(financeService))
+
 		// Aidatlar
 		api.GET("/assessments", handlers.GetAssessments(financeService))
 		api.POST("/assessments", handlers.CreateAssessment(financeService))
