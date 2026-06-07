@@ -22,6 +22,30 @@ export default function SettingsPage() {
     const [newUser, setNewUser] = useState({ name: '', email: '', role: 'Site Görevlisi' });
     const [editingUserId, setEditingUserId] = useState<number | null>(null);
     const [deleteUserId, setDeleteUserId] = useState<number | null>(null);
+    const [generalSettings, setGeneralSettings] = useState({
+        siteName: 'Güneş Sitesi',
+        address: 'Atatürk Mah. Cumhuriyet Cad. No:123',
+        email: 'yonetim@gunessitesi.com',
+        phone: '+90 212 555 0123',
+        timezone: 'Europe/Istanbul (UTC+3)',
+    });
+    const [generalSaved, setGeneralSaved] = useState(false);
+    const [notificationSettings, setNotificationSettings] = useState([
+        { label: 'Yeni talep bildirimi', checked: true },
+        { label: 'Ödeme hatırlatıcıları', checked: true },
+        { label: 'Duyuru bildirimleri', checked: true },
+        { label: 'Ziyaretçi bildirimleri', checked: false },
+        { label: 'Sistem güncellemeleri', checked: true },
+    ]);
+
+    const handleSaveGeneral = () => {
+        setGeneralSaved(true);
+        setTimeout(() => setGeneralSaved(false), 2000);
+    };
+
+    const toggleNotification = (idx: number) => {
+        setNotificationSettings(prev => prev.map((n, i) => i === idx ? { ...n, checked: !n.checked } : n));
+    };
 
     const tabs = [
         { id: 'general', label: 'Genel', icon: '⚙️' },
@@ -93,7 +117,8 @@ export default function SettingsPage() {
                                     </label>
                                     <input
                                         type="text"
-                                        defaultValue="Güneş Sitesi"
+                                        value={generalSettings.siteName}
+                                        onChange={(e) => setGeneralSettings({ ...generalSettings, siteName: e.target.value })}
                                         className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                     />
                                 </div>
@@ -104,7 +129,8 @@ export default function SettingsPage() {
                                     </label>
                                     <input
                                         type="text"
-                                        defaultValue="Atatürk Mah. Cumhuriyet Cad. No:123"
+                                        value={generalSettings.address}
+                                        onChange={(e) => setGeneralSettings({ ...generalSettings, address: e.target.value })}
                                         className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                     />
                                 </div>
@@ -115,7 +141,8 @@ export default function SettingsPage() {
                                     </label>
                                     <input
                                         type="email"
-                                        defaultValue="yonetim@gunessitesi.com"
+                                        value={generalSettings.email}
+                                        onChange={(e) => setGeneralSettings({ ...generalSettings, email: e.target.value })}
                                         className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                     />
                                 </div>
@@ -126,7 +153,8 @@ export default function SettingsPage() {
                                     </label>
                                     <input
                                         type="tel"
-                                        defaultValue="+90 212 555 0123"
+                                        value={generalSettings.phone}
+                                        onChange={(e) => setGeneralSettings({ ...generalSettings, phone: e.target.value })}
                                         className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                     />
                                 </div>
@@ -135,15 +163,22 @@ export default function SettingsPage() {
                                     <label className="block text-sm font-medium text-gray-700 mb-1">
                                         Zaman Dilimi
                                     </label>
-                                    <select className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                    <select
+                                        value={generalSettings.timezone}
+                                        onChange={(e) => setGeneralSettings({ ...generalSettings, timezone: e.target.value })}
+                                        className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                    >
                                         <option>Europe/Istanbul (UTC+3)</option>
                                     </select>
                                 </div>
                             </div>
 
-                            <button className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
-                                Değişiklikleri Kaydet
-                            </button>
+                            <div className="flex items-center gap-3">
+                                <button onClick={handleSaveGeneral} className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                                    Değişiklikleri Kaydet
+                                </button>
+                                {generalSaved && <span className="text-sm text-green-600">Kaydedildi</span>}
+                            </div>
                         </div>
                     )}
 
@@ -152,18 +187,13 @@ export default function SettingsPage() {
                             <h2 className="text-lg font-semibold">Bildirim Ayarları</h2>
 
                             <div className="space-y-4">
-                                {[
-                                    { label: 'Yeni talep bildirimi', checked: true },
-                                    { label: 'Ödeme hatırlatıcıları', checked: true },
-                                    { label: 'Duyuru bildirimleri', checked: true },
-                                    { label: 'Ziyaretçi bildirimleri', checked: false },
-                                    { label: 'Sistem güncellemeleri', checked: true },
-                                ].map((item, idx) => (
+                                {notificationSettings.map((item, idx) => (
                                     <label key={idx} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                                         <span>{item.label}</span>
                                         <input
                                             type="checkbox"
-                                            defaultChecked={item.checked}
+                                            checked={item.checked}
+                                            onChange={() => toggleNotification(idx)}
                                             className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
                                         />
                                     </label>
