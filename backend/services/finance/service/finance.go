@@ -85,6 +85,15 @@ func (s *FinanceService) GetAssessmentDetails(ctx context.Context, assessmentID 
 	return s.repo.GetAssessmentDetails(ctx, assessmentID)
 }
 
+// ListExpenseCategories sitenin gider kalemlerini getirir (yalnızca yönetim rolleri —
+// aidat tahakkuku formu bu listeden kalem seçtirir)
+func (s *FinanceService) ListExpenseCategories(ctx context.Context, propertyID string, roles []string) ([]models.ExpenseCategory, error) {
+	if !isFinanceManagement(roles) {
+		return nil, ErrAssessmentForbidden
+	}
+	return s.repo.ListExpenseCategories(ctx, propertyID)
+}
+
 // CreateAssessment yönetimin belirlediği gider kalemlerine göre site genelinde
 // dönemlik aidat tahakkuku oluşturur (yalnızca yönetim rolleri).
 func (s *FinanceService) CreateAssessment(ctx context.Context, propertyID string, roles []string, input models.CreateAssessmentInput) ([]models.AssessmentSummary, error) {

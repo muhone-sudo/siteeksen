@@ -426,3 +426,29 @@ func (r *FinanceRepository) CreateAssessment(ctx context.Context, propertyID str
 	}
 	return summaries, nil
 }
+
+// ListExpenseCategories sitenin gider kalemlerini sıralı şekilde listeler
+func (r *FinanceRepository) ListExpenseCategories(ctx context.Context, propertyID string) ([]models.ExpenseCategory, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT id, property_id, name, distribution_type, applies_to_commercial, applies_to_ground_floor,
+		       COALESCE(custom_formula::text, ''), is_active
+		FROM expense_categories
+		WHERE property_id = $1 AND is_active = true
+		ORDER BY sort_order, name
+	`, propertyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var categories []models.ExpenseCategory
+	for rows.Next() {
+		var ec models.ExpenseCategory
+		if err := rows.Scan(&ec.ID, &ec.PropertyID, &ec.Name, &ec.DistributionType,
+			&ec.AppliesToCommercial, &ec.AppliesToGroundFloor, &ec.CustomFormula, &ec.IsActive); err != nil {
+			return nil, err
+		}
+		categories = append(categories, ec)
+	}
+	return categories, nil
+}

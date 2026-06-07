@@ -79,6 +79,19 @@ func GetAssessmentDetails(svc *service.FinanceService) gin.HandlerFunc {
 	}
 }
 
+// GetExpenseCategories sitenin gider kalemlerini listeler (aidat tahakkuku formu için)
+func GetExpenseCategories(svc *service.FinanceService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		propertyID := c.GetString("property_id")
+		categories, err := svc.ListExpenseCategories(c.Request.Context(), propertyID, getRoles(c))
+		if err != nil {
+			mapAssessmentError(c, err)
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"data": categories})
+	}
+}
+
 // CreateAssessment yönetimin gider kalemlerine göre dönemlik aidat tahakkuku oluşturur
 func CreateAssessment(svc *service.FinanceService) gin.HandlerFunc {
 	return func(c *gin.Context) {

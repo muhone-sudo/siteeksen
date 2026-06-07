@@ -44,6 +44,7 @@ func main() {
 		api.GET("/assessments", handlers.GetAssessments(financeService))
 		api.POST("/assessments", handlers.CreateAssessment(financeService))
 		api.GET("/assessments/:id", handlers.GetAssessmentDetails(financeService))
+		api.GET("/expense-categories", handlers.GetExpenseCategories(financeService))
 		
 		// Ödemeler
 		api.POST("/payments", handlers.CreatePayment(financeService))
