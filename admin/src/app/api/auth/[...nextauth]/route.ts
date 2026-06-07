@@ -71,6 +71,7 @@ const authOptions: NextAuthOptions = {
         },
         async session({ session, token }) {
             session.accessToken = token.accessToken as string;
+            session.refreshToken = token.refreshToken as string;
             session.user.id = token.sub as string;
             session.user.roles = token.roles as string[];
             session.user.propertyId = token.propertyId as string;

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -23,7 +24,7 @@ import {
     UserCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { SITES, getActiveSiteId, setActiveSiteId } from "@/lib/active-site";
+import { apiClient } from "@/lib/api-client";
 
 const navigation = [
     { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -44,24 +45,46 @@ const navigation = [
 ];
 
 
+interface SiteOption {
+    id: string;
+    name: string;
+}
+
 export function Sidebar() {
     const pathname = usePathname();
-    const [activeSiteId, setActiveSiteIdState] = useState(SITES[0].id);
+    const { data: session, status } = useSession();
+    const [sites, setSites] = useState<SiteOption[]>([]);
+    const [activeSiteId, setActiveSiteId] = useState<string | null>(null);
+    const [switching, setSwitching] = useState(false);
 
     useEffect(() => {
-        setActiveSiteIdState(getActiveSiteId());
-    }, []);
+        if (status !== "authenticated" || !session?.accessToken) return;
 
-    const handleSiteChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        apiClient.setToken(session.accessToken, session.refreshToken);
+        setActiveSiteId(apiClient.getActivePropertyId());
+
+        apiClient.getUserProperties()
+            .then((properties) => {
+                const unique = new Map<string, string>();
+                properties.forEach((p) => unique.set(p.property_id, p.property_name));
+                setSites(Array.from(unique, ([id, name]) => ({ id, name })));
+            })
+            .catch(() => setSites([]));
+    }, [status, session]);
+
+    const handleSiteChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
         const id = e.target.value;
-        if (id === "new") {
-            e.target.value = activeSiteId;
-            alert("Yeni site ekleme özelliği yakında eklenecek.");
-            return;
+        if (id === activeSiteId || switching) return;
+
+        setSwitching(true);
+        try {
+            await apiClient.setActiveProperty(id);
+            await apiClient.refreshAccessToken();
+            window.location.reload();
+        } catch {
+            alert("Site değiştirilemedi. Lütfen tekrar deneyin.");
+            setSwitching(false);
         }
-        setActiveSiteId(id);
-        setActiveSiteIdState(id);
-        window.location.reload();
     };
 
     return (
@@ -74,17 +97,25 @@ export function Sidebar() {
                 </div>
 
                 {/* Site Seçici */}
-                <div className="px-4 py-4 border-b border-gray-200 dark:border-gray-700">
+                <div className="px-4 py-4 border-b border-gray-200 dark:border-gray-700 space-y-2">
                     <select
-                        value={activeSiteId}
+                        value={activeSiteId ?? ""}
                         onChange={handleSiteChange}
-                        className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:bg-gray-700 dark:border-gray-600"
+                        disabled={switching || sites.length === 0}
+                        className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:bg-gray-700 dark:border-gray-600 disabled:opacity-60"
                     >
-                        {SITES.map((site) => (
+                        {sites.length === 0 && <option value="">Yükleniyor...</option>}
+                        {sites.map((site) => (
                             <option key={site.id} value={site.id}>{site.name}</option>
                         ))}
-                        <option value="new">+ Yeni Site Ekle</option>
                     </select>
+                    <button
+                        type="button"
+                        onClick={() => alert("Yeni site ekleme özelliği yakında eklenecek.")}
+                        className="text-xs text-primary hover:underline"
+                    >
+                        + Yeni Site Ekle
+                    </button>
                 </div>
 
                 {/* Navigation */}

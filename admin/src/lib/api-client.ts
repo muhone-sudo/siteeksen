@@ -1,5 +1,4 @@
 import axios, { AxiosInstance, AxiosError } from "axios";
-import { ACTIVE_SITE_STORAGE_KEY } from "./active-site";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 
@@ -18,12 +17,6 @@ class ApiClient {
         this.client.interceptors.request.use((config) => {
             if (this.accessToken) {
                 config.headers.Authorization = `Bearer ${this.accessToken}`;
-            }
-            if (typeof window !== "undefined") {
-                const tenantId = localStorage.getItem(ACTIVE_SITE_STORAGE_KEY);
-                if (tenantId) {
-                    config.headers["X-Tenant-ID"] = tenantId;
-                }
             }
             return config;
         });
@@ -84,6 +77,16 @@ class ApiClient {
         }
     }
 
+    getActivePropertyId(): string | null {
+        if (!this.accessToken) return null;
+        try {
+            const payload = JSON.parse(atob(this.accessToken.split(".")[1]));
+            return payload.property_id ?? null;
+        } catch {
+            return null;
+        }
+    }
+
     // ============ AUTH ============
     async login(phone: string, password: string) {
         const response = await this.client.post("/auth/login", { phone, password });
@@ -98,9 +101,30 @@ class ApiClient {
         this.clearToken();
     }
 
+    async refreshAccessToken() {
+        const refreshToken = typeof window !== "undefined"
+            ? localStorage.getItem("refresh_token")
+            : null;
+        if (!refreshToken) throw new Error("No refresh token");
+
+        const response = await this.client.post("/auth/refresh", { refresh_token: refreshToken });
+        this.setToken(response.data.access_token, response.data.refresh_token);
+        return response.data;
+    }
+
     // ============ USERS ============
     async getCurrentUser() {
         const response = await this.client.get("/users/me");
+        return response.data;
+    }
+
+    async getUserProperties() {
+        const response = await this.client.get("/users/me/properties");
+        return response.data as { property_id: string; property_name: string; unit_id: string; unit_name: string; role: string }[];
+    }
+
+    async setActiveProperty(propertyId: string) {
+        const response = await this.client.post("/users/me/active-property", { property_id: propertyId });
         return response.data;
     }
 
