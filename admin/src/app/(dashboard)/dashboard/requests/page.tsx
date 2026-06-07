@@ -20,6 +20,7 @@ interface Request {
     description?: string;
     assignedTo?: string;
     resolvedAt?: string;
+    userConfirmedAt?: string;
     deleted: number;
 }
 
@@ -27,6 +28,7 @@ const mockRequests: Request[] = [
     { id: 1, ticketNo: "TLP-2026-0142", title: "Asansör arızası - A Blok", category: "Asansör", unit: "Ortak Alan", resident: "Ahmet Yılmaz", status: "OPEN", priority: "HIGH", createdAt: "2026-01-31T10:30:00", description: "A Blok asansörü 2. katta duruyor, hareket etmiyor.", deleted: 0 },
     { id: 2, ticketNo: "TLP-2026-0141", title: "Merdiven aydınlatma arızası", category: "Elektrik", unit: "A Blok", resident: "Ayşe Kaya", status: "IN_PROGRESS", priority: "NORMAL", createdAt: "2026-01-30T14:15:00", assignedTo: "Elektrikçi - Mehmet Usta", deleted: 0 },
     { id: 3, ticketNo: "TLP-2026-0140", title: "Bahçe sulama sistemi", category: "Bahçe", unit: "Ortak Alan", resident: "Ali Demir", status: "RESOLVED", priority: "LOW", createdAt: "2026-01-28T09:00:00", resolvedAt: "2026-01-29T16:00:00", deleted: 0 },
+    { id: 4, ticketNo: "TLP-2026-0139", title: "Kapıcı dairesi musluk arızası", category: "Tesisat", unit: "B Blok", resident: "Zeynep Şahin", status: "CLOSED", priority: "NORMAL", createdAt: "2026-01-25T11:00:00", resolvedAt: "2026-01-26T13:00:00", userConfirmedAt: "2026-01-27T09:30:00", deleted: 0 },
 ];
 
 const statusConfig: Record<string, { label: string; color: string }> = {
@@ -174,6 +176,16 @@ export default function RequestsPage() {
                                     <span className={`rounded-full px-3 py-1 text-xs font-medium ${statusConfig[request.status]?.color ?? "bg-gray-100 text-gray-700"}`}>
                                         {statusConfig[request.status]?.label ?? request.status}
                                     </span>
+                                    {request.status === "RESOLVED" && (
+                                        <span className="flex items-center gap-1 rounded-full bg-orange-100 px-3 py-1 text-xs font-medium text-orange-700">
+                                            <Clock className="h-3 w-3" /> Onay bekliyor
+                                        </span>
+                                    )}
+                                    {request.status === "CLOSED" && request.userConfirmedAt && (
+                                        <span className="flex items-center gap-1 rounded-full bg-green-100 px-3 py-1 text-xs font-medium text-green-700">
+                                            <CheckCircle className="h-3 w-3" /> Sakin onayladı: {new Date(request.userConfirmedAt).toLocaleDateString("tr-TR")}
+                                        </span>
+                                    )}
                                     <span className={`text-sm font-medium ${priorityConfig[request.priority]?.color ?? "text-gray-500"}`}>
                                         {priorityConfig[request.priority]?.label ?? request.priority}
                                     </span>
@@ -194,7 +206,7 @@ export default function RequestsPage() {
                                     </button>
                                     {statusChangeId === request.id && (
                                         <div className="absolute right-0 top-8 z-10 w-36 rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800">
-                                            {Object.entries(statusConfig).map(([key, cfg]) => (
+                                            {Object.entries(statusConfig).filter(([key]) => key !== "CLOSED").map(([key, cfg]) => (
                                                 <button key={key} onClick={() => handleStatusChange(request.id, key)}
                                                     className={`flex w-full items-center px-4 py-2 text-xs hover:bg-gray-100 dark:hover:bg-gray-700 ${request.status === key ? "font-bold text-primary" : "text-gray-700 dark:text-gray-300"}`}>
                                                     {cfg.label}
@@ -291,6 +303,10 @@ export default function RequestsPage() {
                             </div>
                             <div><label className="text-xs text-gray-500">Oluşturulma</label><p>{new Date(detailRequest.createdAt).toLocaleString("tr-TR")}</p></div>
                             {detailRequest.resolvedAt && <div><label className="text-xs text-gray-500">Çözüm Tarihi</label><p>{new Date(detailRequest.resolvedAt).toLocaleString("tr-TR")}</p></div>}
+                            {detailRequest.status === "RESOLVED" && (
+                                <div className="rounded-lg bg-orange-50 px-3 py-2 text-orange-700 dark:bg-orange-900/20 dark:text-orange-400">Sakin onayı bekleniyor — talep, sakin onayladıktan sonra otomatik kapatılacak.</div>
+                            )}
+                            {detailRequest.userConfirmedAt && <div><label className="text-xs text-gray-500">Sakin Onay Tarihi</label><p>{new Date(detailRequest.userConfirmedAt).toLocaleString("tr-TR")}</p></div>}
                         </div>
                         <button onClick={() => setDetailId(null)} className="w-full mt-4 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300">Kapat</button>
                     </div>

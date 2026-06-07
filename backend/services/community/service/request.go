@@ -1,0 +1,96 @@
+package service
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"strings"
+
+	"github.com/google/uuid"
+	"github.com/siteeksen/backend/pkg/middleware"
+	"github.com/siteeksen/backend/services/community/models"
+	"github.com/siteeksen/backend/services/community/repository"
+)
+
+// Servis seviyesi hatalar
+var (
+	ErrForbidden         = errors.New("bu işlem için yetkiniz yok")
+	ErrInvalidTransition = errors.New("geçersiz durum geçişi")
+)
+
+// RequestService talep iş kuralları
+type RequestService struct {
+	repo *repository.RequestRepository
+}
+
+// NewRequestService yeni servis oluşturur
+func NewRequestService(repo *repository.RequestRepository) *RequestService {
+	return &RequestService{repo: repo}
+}
+
+func isManagement(roles []string) bool {
+	for _, role := range roles {
+		switch role {
+		case middleware.RoleManager, middleware.RoleAuditor, middleware.RoleStaff:
+			return true
+		}
+	}
+	return false
+}
+
+// List rol bazlı talep listesi döner: yönetim site genelini, sakin yalnızca kendi taleplerini görür
+func (s *RequestService) List(ctx context.Context, userID, propertyID string, roles []string, status string) ([]*models.Request, error) {
+	if isManagement(roles) {
+		return s.repo.ListByProperty(ctx, propertyID, status)
+	}
+	return s.repo.ListByResident(ctx, userID, status)
+}
+
+// Create sakin adına yeni talep oluşturur
+func (s *RequestService) Create(ctx context.Context, userID, propertyID string, input models.CreateRequestInput) (*models.Request, error) {
+	ticketNumber := fmt.Sprintf("TLP-%s", strings.ToUpper(uuid.New().String()[:8]))
+	return s.repo.Create(ctx, propertyID, userID, ticketNumber, input)
+}
+
+// allowedStatusTransitions yöneticinin tetikleyebileceği geçişler.
+// CLOSED'a doğrudan geçiş yok — yalnızca sakin onayı (ConfirmResolution) ile mümkündür.
+var allowedStatusTransitions = map[string]string{
+	models.StatusOpen:       models.StatusInProgress,
+	models.StatusInProgress: models.StatusResolved,
+}
+
+// UpdateStatus yönetici talebi OPEN -> IN_PROGRESS -> RESOLVED akışında ilerletir
+func (s *RequestService) UpdateStatus(ctx context.Context, requestID string, roles []string, newStatus string) (*models.Request, error) {
+	if !isManagement(roles) {
+		return nil, ErrForbidden
+	}
+
+	req, err := s.repo.GetByID(ctx, requestID)
+	if err != nil {
+		return nil, err
+	}
+
+	if allowedStatusTransitions[req.Status] != newStatus {
+		return nil, ErrInvalidTransition
+	}
+
+	return s.repo.UpdateStatus(ctx, requestID, newStatus)
+}
+
+// ConfirmResolution sakinin "sorunum çözüldü" onayını ya da reddini kaydeder.
+// Onay: CLOSED + user_confirmed_at. Red: IN_PROGRESS'e geri döner, resolved_at temizlenir.
+func (s *RequestService) ConfirmResolution(ctx context.Context, requestID, residentID string, approved bool) (*models.Request, error) {
+	req, err := s.repo.GetByID(ctx, requestID)
+	if err != nil {
+		return nil, err
+	}
+
+	if req.ResidentID != residentID {
+		return nil, ErrForbidden
+	}
+	if req.Status != models.StatusResolved {
+		return nil, ErrInvalidTransition
+	}
+
+	return s.repo.ConfirmResolution(ctx, requestID, approved)
+}

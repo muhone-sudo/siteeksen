@@ -205,6 +205,15 @@ class ApiClient {
     });
     return response.data;
   }
+
+  /// Sakin, yöneticinin RESOLVED işaretlediği talebi onaylar (CLOSED) ya da
+  /// reddeder (talep IN_PROGRESS'e geri döner).
+  Future<Map<String, dynamic>> confirmRequestResolution(String requestId, bool approved) async {
+    final response = await _dio.post('/requests/$requestId/confirm-resolution', data: {
+      'approved': approved,
+    });
+    return response.data;
+  }
 }
 
 final apiClient = ApiClient();

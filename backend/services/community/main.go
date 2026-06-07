@@ -6,15 +6,41 @@ import (
 	"os"
 
 	"github.com/gin-gonic/gin"
+	"github.com/siteeksen/backend/pkg/database"
+	"github.com/siteeksen/backend/pkg/middleware"
+	"github.com/siteeksen/backend/services/community/handlers"
+	"github.com/siteeksen/backend/services/community/repository"
+	"github.com/siteeksen/backend/services/community/service"
 )
 
 func main() {
+	// Veritabanı bağlantısı (talepler modülü gerçek DB'ye bağlı; diğer modüller henüz mock)
+	dbConfig := database.NewConfigFromEnv()
+	pool, err := database.Connect(dbConfig)
+	if err != nil {
+		log.Fatalf("Veritabanı bağlantısı başarısız: %v", err)
+	}
+	defer database.Close()
+
+	requestRepo := repository.NewRequestRepository(pool)
+	requestService := service.NewRequestService(requestRepo)
+
 	r := gin.Default()
 
 	// Health check
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "healthy", "service": "community"})
 	})
+
+	// Requests (gerçek DB'ye bağlı)
+	requests := r.Group("/api/v1/requests")
+	requests.Use(middleware.AuthMiddleware(), middleware.AuditLog(pool, "request"))
+	{
+		requests.GET("", handlers.ListRequests(requestService))
+		requests.POST("", handlers.CreateRequest(requestService))
+		requests.PATCH("/:id/status", handlers.UpdateRequestStatus(requestService))
+		requests.POST("/:id/confirm-resolution", handlers.ConfirmRequestResolution(requestService))
+	}
 
 	// Announcements
 	announcements := r.Group("/api/v1/announcements")

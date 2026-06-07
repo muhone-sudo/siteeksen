@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/network/api_client.dart';
+
 class RequestsScreen extends StatelessWidget {
   const RequestsScreen({super.key});
 
@@ -135,6 +137,7 @@ class _RequestList extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         children: const [
           _RequestItem(
+            id: 'mock-request-0089',
             ticketNo: 'TLP-2025-0089',
             title: 'Merdiven temizlik sorunu',
             category: 'Temizlik',
@@ -177,7 +180,8 @@ class _RequestList extends StatelessWidget {
   }
 }
 
-class _RequestItem extends StatelessWidget {
+class _RequestItem extends StatefulWidget {
+  final String id;
   final String ticketNo;
   final String title;
   final String category;
@@ -185,6 +189,7 @@ class _RequestItem extends StatelessWidget {
   final String date;
 
   const _RequestItem({
+    required this.id,
     required this.ticketNo,
     required this.title,
     required this.category,
@@ -193,13 +198,90 @@ class _RequestItem extends StatelessWidget {
   });
 
   @override
+  State<_RequestItem> createState() => _RequestItemState();
+}
+
+class _RequestItemState extends State<_RequestItem> {
+  late String _status;
+  bool _isSubmitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _status = widget.status;
+  }
+
+  Future<void> _confirmResolution(bool approved) async {
+    setState(() => _isSubmitting = true);
+    try {
+      await apiClient.confirmRequestResolution(widget.id, approved);
+      if (!mounted) return;
+      setState(() => _status = approved ? 'CLOSED' : 'IN_PROGRESS');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(approved
+              ? 'Talebi onayladınız, kapatıldı olarak işaretlendi'
+              : 'Talep yeniden yöneticiye iletildi'),
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('İşlem gerçekleştirilemedi, lütfen tekrar deneyin')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Card(
-      child: ListTile(
-        title: Text(title),
-        subtitle: Text('$category • $date'),
-        trailing: const Icon(Icons.check_circle, color: Colors.green),
-        onTap: () {},
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            ListTile(
+              title: Text(widget.title),
+              subtitle: Text('${widget.category} • ${widget.date}'),
+              trailing: const Icon(Icons.check_circle, color: Colors.green),
+              onTap: () {},
+            ),
+            if (_status == 'RESOLVED') ...[
+              const Padding(
+                padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: Text(
+                  'Yöneticiniz bu talebi çözüldü olarak işaretledi. Sorununuz gerçekten çözüldü mü?',
+                  style: TextStyle(color: Colors.grey),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: _isSubmitting ? null : () => _confirmResolution(false),
+                        icon: const Icon(Icons.replay),
+                        label: const Text('Devam ediyor'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: _isSubmitting ? null : () => _confirmResolution(true),
+                        icon: const Icon(Icons.check),
+                        label: const Text('Sorunum çözüldü'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }

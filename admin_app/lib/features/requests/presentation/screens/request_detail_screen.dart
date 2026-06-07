@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../../../../core/network/api_client.dart';
 import '../../../../core/theme/app_theme.dart';
 
 class RequestDetailScreen extends StatefulWidget {
@@ -12,7 +13,28 @@ class RequestDetailScreen extends StatefulWidget {
 
 class _RequestDetailScreenState extends State<RequestDetailScreen> {
   String _status = 'OPEN';
+  bool _isSubmitting = false;
   final _commentController = TextEditingController();
+
+  Future<void> _updateStatus() async {
+    setState(() => _isSubmitting = true);
+    try {
+      await apiClient.updateRequestStatus(widget.requestId, _status);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Talep güncellendi'), backgroundColor: Colors.green),
+      );
+      context.pop();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Talep güncellenemedi, lütfen tekrar deneyin')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -95,6 +117,28 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
             selected: {_status},
             onSelectionChanged: (v) => setState(() => _status = v.first),
           ),
+          if (_status == 'RESOLVED') ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppTheme.warningColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.hourglass_top, color: AppTheme.warningColor),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Text(
+                      'Talep "Çözüldü" olarak işaretlendi. Talep, sakin onayladıktan sonra otomatik olarak kapatılacaktır.',
+                      style: TextStyle(color: AppTheme.warningColor),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 16),
 
           // Comments
@@ -137,13 +181,14 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: ElevatedButton(
-            onPressed: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Talep güncellendi'), backgroundColor: Colors.green),
-              );
-              context.pop();
-            },
-            child: const Text('Güncelle'),
+            onPressed: _isSubmitting ? null : _updateStatus,
+            child: _isSubmitting
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  )
+                : const Text('Güncelle'),
           ),
         ),
       ),
