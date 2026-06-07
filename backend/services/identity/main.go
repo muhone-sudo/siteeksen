@@ -24,6 +24,8 @@ func main() {
 	// Repository ve Service
 	userRepo := repository.NewUserRepository(pool)
 	authService := service.NewAuthService(userRepo, os.Getenv("JWT_SECRET"))
+	residentRepo := repository.NewResidentRepository(pool)
+	residentService := service.NewResidentService(residentRepo)
 
 	// Gin router
 	r := gin.Default()
@@ -53,6 +55,22 @@ func main() {
 		protected.POST("/me/properties", middleware.RequireRole(middleware.RoleManager, middleware.RoleOwner), handlers.CreateProperty(authService))
 		protected.POST("/me/active-property", handlers.SetActiveProperty(authService))
 		protected.POST("/me/kvkk-consent", handlers.SetKVKKConsent(authService))
+	}
+
+	// Sakinler ve birimler
+	residents := api.Group("/residents")
+	residents.Use(middleware.AuthMiddleware(), middleware.AuditLog(pool, "resident"))
+	{
+		residents.GET("", handlers.ListResidents(residentService))
+		residents.POST("", handlers.CreateResident(residentService))
+		residents.GET("/:id", handlers.GetResident(residentService))
+		residents.PATCH("/:id", handlers.UpdateResident(residentService))
+	}
+
+	units := api.Group("/units")
+	units.Use(middleware.AuthMiddleware())
+	{
+		units.GET("", handlers.ListUnits(residentService))
 	}
 
 	// Sunucuyu başlat
