@@ -67,3 +67,18 @@ Kullanıcı bu oturumda uyuyor. Onay gelmeyecek. Her tamamlanan adımı direkt c
 ## İnceleme Notları
 
 Soft-delete pattern: interface'de deleted: number, display filter deleted === 0, silme deleted = 1. Backend: migration 006 + 2 repository güncellendi.
+
+---
+
+## Ek Tur: Input/Form Denetimi (Tamamlandı)
+
+Tüm dashboard sayfalarında onClick'siz buton, onChange'siz input/select/checkbox taraması yapıldı:
+- ✅ Settings: Genel Ayarlar formu controlled hale getirildi + kaydet butonu çalışıyor
+- ✅ Settings: Bildirim checkbox'ları state'e bağlandı
+- ✅ Settings: Kullanıcı listesine edit/delete (soft-delete) eklendi, işlevsiz "⋮" kaldırıldı
+- ✅ Reports: PDF/Excel/E-posta butonları işlevsel (CSV indirme + onay mesajı)
+- ✅ Meters: "Okuma Dönemi" select controlled hale getirildi
+- ✅ Credentials: writeLog'daki anlamsız apiClient.createExpense kontrolü temizlendi
+- ✅ Backend binary'ler (.gitignore'a eklendi, untracked dosyalar temizlendi)
+
+Tarama sonucu: başka onClick/onChange eksikliği bulunamadı.
