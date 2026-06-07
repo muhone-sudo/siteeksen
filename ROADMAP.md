@@ -89,6 +89,7 @@ Proje ilerleme durumu ve planlaması.
 - ✅ **Credentials sayfası güvenlik** — Şifreler sayfa açılışında yüklenmiyor, "Göster" butonuyla çekiliyor + audit log
 - ✅ **Muhasebe/Bildirimler/Sayaçlar** — Accounting edit/delete, notifications history delete, meters gerçek save readings
 - ✅ **Backend soft-delete altyapısı** — Migration 006 (23 tablo + index), identity ve finance repository sorgularına `AND deleted = 0` filtresi
+- ✅ **Sidebar site/apartman seçici düzeltildi** — Seçim artık `localStorage`'a yazılıyor, `api-client` `X-Tenant-ID` header ekliyor, seçim anında tüm panel seçilen sitenin verisine geçiyor (`lib/active-site.ts`)
 
 ---
 

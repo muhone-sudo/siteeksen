@@ -6,6 +6,9 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### Düzeltildi
+- **Sidebar: Site/apartman seçici işlevsel hale getirildi** — `<select>` hiçbir state'e bağlı değildi, seçim panele yansımıyordu. Artık seçim `localStorage`'a (`active_property_id`) yazılıyor, `api-client` tüm isteklere `X-Tenant-ID` header'ı ekliyor ve seçim anında sayfa yenilenerek tüm panel seçilen sitenin verisine geçiyor (`lib/active-site.ts`)
+
 ### Düzeltildi (Input/Form Denetimi)
 - **Settings: Genel Ayarlar formu** — inputlar `defaultValue`'dan controlled state'e çevrildi, "Değişiklikleri Kaydet" butonu artık çalışıyor ve onay gösteriyor
 - **Settings: Bildirim Ayarları** — checkbox'lar `defaultChecked`'tan state'e bağlandı, anında kaydediliyor
