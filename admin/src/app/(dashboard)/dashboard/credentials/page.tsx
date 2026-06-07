@@ -92,7 +92,6 @@ export default function CredentialsPage() {
     const writeLog = useCallback((credentialId: number, credentialName: string, action: AccessLog["action"]) => {
         const log: AccessLog = { id: Date.now(), credentialId, credentialName, action, user: CURRENT_USER, timestamp: new Date().toISOString() };
         setAccessLogs(prev => [log, ...prev]);
-        try { if (typeof apiClient.createExpense === "function") console.debug(`[AUDIT] ${action} on cred ${credentialId} by ${CURRENT_USER}`); } catch {}
     }, []);
 
     const handleRevealPassword = async (credential: SystemCredential) => {
