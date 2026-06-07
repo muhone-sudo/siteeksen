@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:local_auth/local_auth.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/theme/app_theme.dart';
 
@@ -14,9 +15,30 @@ class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _localAuth = LocalAuthentication();
   bool _isLoading = false;
   bool _obscurePassword = true;
+  bool _biometricLoginAvailable = false;
   String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkBiometricAvailability();
+  }
+
+  Future<void> _checkBiometricAvailability() async {
+    try {
+      final canCheck = await _localAuth.canCheckBiometrics;
+      final hasSession = await apiClient.hasStoredSession();
+      final enabled = await apiClient.isBiometricEnabled();
+      if (mounted) {
+        setState(() => _biometricLoginAvailable = canCheck && hasSession && enabled);
+      }
+    } catch (_) {
+      // Biyometrik donanım/izin yoksa buton gizli kalır
+    }
+  }
 
   @override
   void dispose() {
@@ -35,13 +57,75 @@ class _LoginScreenState extends State<LoginScreen> {
 
     try {
       await apiClient.login(_phoneController.text, _passwordController.text);
-      if (mounted) {
-        context.go('/');
-      }
+      if (!mounted) return;
+      await _maybeOfferBiometricEnable();
+      if (!mounted) return;
+      context.go('/');
     } catch (e) {
       setState(() {
         _errorMessage = 'Giriş başarısız. Bilgilerinizi kontrol edin.';
       });
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _maybeOfferBiometricEnable() async {
+    final alreadyEnabled = await apiClient.isBiometricEnabled();
+    if (alreadyEnabled) return;
+    final canCheck = await _localAuth.canCheckBiometrics;
+    if (!canCheck || !mounted) return;
+
+    final shouldEnable = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Biyometrik Giriş'),
+        content: const Text(
+          'Bir sonraki girişte parmak izi veya yüz tanıma ile hızlıca giriş yapmak ister misiniz?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Hayır'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Etkinleştir'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldEnable == true) {
+      await apiClient.setBiometricEnabled(true);
+    }
+  }
+
+  Future<void> _handleBiometricLogin() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+    try {
+      final authenticated = await _localAuth.authenticate(
+        localizedReason: 'Giriş yapmak için kimliğinizi doğrulayın',
+        options: const AuthenticationOptions(biometricOnly: true),
+      );
+      if (!authenticated) return;
+
+      final restored = await apiClient.loginWithStoredSession();
+      if (!mounted) return;
+      if (restored) {
+        context.go('/');
+      } else {
+        setState(() => _errorMessage = 'Oturum yenilenemedi, lütfen şifrenizle giriş yapın');
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _errorMessage = 'Biyometrik doğrulama başarısız');
+      }
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -176,7 +260,20 @@ class _LoginScreenState extends State<LoginScreen> {
                         : const Text('Giriş Yap'),
                   ),
                   const SizedBox(height: 16),
-                  
+
+                  // Biometric login
+                  if (_biometricLoginAvailable) ...[
+                    OutlinedButton.icon(
+                      onPressed: _isLoading ? null : _handleBiometricLogin,
+                      icon: const Icon(Icons.fingerprint),
+                      label: const Text('Biyometrik Giriş'),
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size(double.infinity, 48),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+
                   // Forgot password
                   TextButton(
                     onPressed: () {

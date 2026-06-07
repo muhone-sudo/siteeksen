@@ -120,7 +120,7 @@ Proje ilerleme durumu ve planlaması.
 - 📋 Gerçek API entegrasyonu (çoğu ekranda mock data var)
 - 📋 Retrofit/Dio ile API client'ları tamamla
 - 📋 Push notification alma ve gösterme akışını test et
-- 📋 Biyometrik giriş (`local_auth`) tam entegrasyonu
+- ✅ **Biyometrik giriş (`local_auth`) tam entegrasyonu** — `mobile` ve `admin_app`'te `flutter_secure_storage` tabanlı kalıcı oturum + gerçek `apiClient.login()` akışı + parmak izi/yüz tanıma ile oturum yenileme (Apsiyon karşılaştırması, Paket 4)
 - 📋 App Store / Google Play yayınlama (`docs/store-publishing-guide.md` hazır)
 - ✅ **Android geri tuşu navigasyon düzeltmesi** — `main_screen.dart`'a `PopScope` eklendi (Apsiyon karşılaştırması, Paket 2)
 

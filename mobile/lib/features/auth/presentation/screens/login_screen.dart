@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:local_auth/local_auth.dart';
+
+import '../../../../core/network/api_client.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -11,8 +15,29 @@ class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _localAuth = LocalAuthentication();
   bool _isLoading = false;
   bool _obscurePassword = true;
+  bool _biometricLoginAvailable = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkBiometricAvailability();
+  }
+
+  Future<void> _checkBiometricAvailability() async {
+    try {
+      final canCheck = await _localAuth.canCheckBiometrics;
+      final hasSession = await apiClient.hasStoredSession();
+      final enabled = await apiClient.isBiometricEnabled();
+      if (mounted) {
+        setState(() => _biometricLoginAvailable = canCheck && hasSession && enabled);
+      }
+    } catch (_) {
+      // Biyometrik donanım/izin yoksa buton gizli kalır
+    }
+  }
 
   @override
   void dispose() {
@@ -151,16 +176,19 @@ class _LoginScreenState extends State<LoginScreen> {
                 const SizedBox(height: 16),
                 
                 // Biyometrik Giriş
-                OutlinedButton.icon(
-                  onPressed: () {},
-                  icon: const Icon(Icons.fingerprint),
-                  label: const Text('Biyometrik Giriş'),
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(double.infinity, 52),
+                if (_biometricLoginAvailable) ...[
+                  OutlinedButton.icon(
+                    onPressed: _isLoading ? null : _handleBiometricLogin,
+                    icon: const Icon(Icons.fingerprint),
+                    label: const Text('Biyometrik Giriş'),
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size(double.infinity, 52),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 32),
-                
+                  const SizedBox(height: 16),
+                ],
+                const SizedBox(height: 16),
+
                 // Yardım
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -189,16 +217,77 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // TODO: Auth service çağrısı
-      await Future.delayed(const Duration(seconds: 2));
-      
+      await apiClient.login(_phoneController.text.trim(), _passwordController.text);
+      if (!mounted) return;
+      await _maybeOfferBiometricEnable();
+      if (!mounted) return;
+      context.go('/');
+    } catch (e) {
       if (mounted) {
-        // Navigator.of(context).pushReplacementNamed('/');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Giriş başarısız: telefon veya şifre hatalı')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _maybeOfferBiometricEnable() async {
+    final alreadyEnabled = await apiClient.isBiometricEnabled();
+    if (alreadyEnabled) return;
+    final canCheck = await _localAuth.canCheckBiometrics;
+    if (!canCheck || !mounted) return;
+
+    final shouldEnable = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Biyometrik Giriş'),
+        content: const Text(
+          'Bir sonraki girişte parmak izi veya yüz tanıma ile hızlıca giriş yapmak ister misiniz?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Hayır'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Etkinleştir'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldEnable == true) {
+      await apiClient.setBiometricEnabled(true);
+    }
+  }
+
+  Future<void> _handleBiometricLogin() async {
+    setState(() => _isLoading = true);
+    try {
+      final authenticated = await _localAuth.authenticate(
+        localizedReason: 'Giriş yapmak için kimliğinizi doğrulayın',
+        options: const AuthenticationOptions(biometricOnly: true),
+      );
+      if (!authenticated) return;
+
+      final restored = await apiClient.loginWithStoredSession();
+      if (!mounted) return;
+      if (restored) {
+        context.go('/');
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Oturum yenilenemedi, lütfen şifrenizle giriş yapın')),
+        );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Giriş başarısız')),
+          const SnackBar(content: Text('Biyometrik doğrulama başarısız')),
         );
       }
     } finally {

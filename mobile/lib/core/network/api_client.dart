@@ -1,11 +1,16 @@
 import 'package:dio/dio.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class ApiClient {
   static const String baseUrl = 'http://localhost:8000/api/v1';
-  
+
+  static const _accessTokenKey = 'access_token';
+  static const _refreshTokenKey = 'refresh_token';
+  static const _biometricEnabledKey = 'biometric_enabled';
+
   late final Dio _dio;
-  String? _accessToken;
-  
+  final FlutterSecureStorage _storage = const FlutterSecureStorage();
+
   ApiClient() {
     _dio = Dio(BaseOptions(
       baseUrl: baseUrl,
@@ -16,31 +21,90 @@ class ApiClient {
         'Accept': 'application/json',
       },
     ));
-    
+
     _dio.interceptors.add(InterceptorsWrapper(
-      onRequest: (options, handler) {
-        if (_accessToken != null) {
-          options.headers['Authorization'] = 'Bearer $_accessToken';
+      onRequest: (options, handler) async {
+        final token = await _storage.read(key: _accessTokenKey);
+        if (token != null) {
+          options.headers['Authorization'] = 'Bearer $token';
         }
         return handler.next(options);
       },
       onError: (error, handler) async {
-        if (error.response?.statusCode == 401) {
-          // Token yenileme mantığı
-          // TODO: Refresh token ile yeni token al
+        final original = error.requestOptions;
+        if (error.response?.statusCode == 401 && original.extra['_retried'] != true) {
+          original.extra['_retried'] = true;
+          final refreshed = await _tryRefreshToken();
+          if (refreshed) {
+            final token = await _storage.read(key: _accessTokenKey);
+            original.headers['Authorization'] = 'Bearer $token';
+            try {
+              final response = await _dio.fetch(original);
+              return handler.resolve(response);
+            } catch (_) {
+              // düşüp normal hata akışına devam eder
+            }
+          }
         }
         return handler.next(error);
       },
     ));
   }
-  
+
+  Future<bool> _tryRefreshToken() async {
+    try {
+      final refresh = await _storage.read(key: _refreshTokenKey);
+      if (refresh == null) return false;
+      final response = await Dio(BaseOptions(baseUrl: baseUrl)).post(
+        '/auth/refresh',
+        data: {'refresh_token': refresh},
+      );
+      final accessToken = response.data['access_token'] as String?;
+      final refreshToken = response.data['refresh_token'] as String?;
+      if (accessToken == null) return false;
+      await _persistTokens(accessToken, refreshToken);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> _persistTokens(String accessToken, String? refreshToken) async {
+    await _storage.write(key: _accessTokenKey, value: accessToken);
+    if (refreshToken != null) {
+      await _storage.write(key: _refreshTokenKey, value: refreshToken);
+    }
+  }
+
   void setToken(String token) {
-    _accessToken = token;
+    _storage.write(key: _accessTokenKey, value: token);
   }
-  
-  void clearToken() {
-    _accessToken = null;
+
+  Future<void> clearToken() async {
+    await _storage.delete(key: _accessTokenKey);
+    await _storage.delete(key: _refreshTokenKey);
   }
+
+  /// Cihazda kayıtlı bir oturum (refresh token) var mı? — uygulama açılışı ve
+  /// biyometrik giriş kontrolünde kullanılır.
+  Future<bool> hasStoredSession() async {
+    return await _storage.read(key: _refreshTokenKey) != null;
+  }
+
+  Future<bool> isBiometricEnabled() async {
+    return await _storage.read(key: _biometricEnabledKey) == 'true';
+  }
+
+  Future<void> setBiometricEnabled(bool enabled) async {
+    if (enabled) {
+      await _storage.write(key: _biometricEnabledKey, value: 'true');
+    } else {
+      await _storage.delete(key: _biometricEnabledKey);
+    }
+  }
+
+  /// Biyometrik onay sonrası kayıtlı refresh token ile oturumu yeniler.
+  Future<bool> loginWithStoredSession() => _tryRefreshToken();
 
   // Auth
   Future<Map<String, dynamic>> login(String phone, String password) async {
@@ -48,6 +112,11 @@ class ApiClient {
       'phone': phone,
       'password': password,
     });
+    final accessToken = response.data['access_token'] as String?;
+    final refreshToken = response.data['refresh_token'] as String?;
+    if (accessToken != null) {
+      await _persistTokens(accessToken, refreshToken);
+    }
     return response.data;
   }
 
@@ -132,3 +201,5 @@ class ApiClient {
     return response.data;
   }
 }
+
+final apiClient = ApiClient();

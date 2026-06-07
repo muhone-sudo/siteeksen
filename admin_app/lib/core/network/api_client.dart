@@ -101,6 +101,27 @@ class ApiClient {
     }
   }
 
+  /// Cihazda kayıtlı bir oturum (refresh token) var mı? — biyometrik giriş
+  /// butonunun gösterilip gösterilmeyeceğini belirlemek için kullanılır.
+  Future<bool> hasStoredSession() async {
+    return await _storage.read(key: 'refresh_token') != null;
+  }
+
+  Future<bool> isBiometricEnabled() async {
+    return await _storage.read(key: 'biometric_enabled') == 'true';
+  }
+
+  Future<void> setBiometricEnabled(bool enabled) async {
+    if (enabled) {
+      await _storage.write(key: 'biometric_enabled', value: 'true');
+    } else {
+      await _storage.delete(key: 'biometric_enabled');
+    }
+  }
+
+  /// Biyometrik onay sonrası kayıtlı refresh token ile oturumu yeniler.
+  Future<bool> loginWithStoredSession() => _refreshToken();
+
   // ============ DASHBOARD ============
   
   Future<Map<String, dynamic>> getDashboard() async {
