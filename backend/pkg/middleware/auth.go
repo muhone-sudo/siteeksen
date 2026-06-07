@@ -9,6 +9,16 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
+// Rol değerleri (users.roles TEXT[] içinde taşınır)
+const (
+	RoleResident = "RESIDENT"
+	RoleOwner    = "OWNER"
+	RoleTenant   = "TENANT"
+	RoleManager  = "MANAGER"
+	RoleAuditor  = "AUDITOR"
+	RoleStaff    = "STAFF"
+)
+
 // Claims JWT token payload
 type Claims struct {
 	UserID     string   `json:"user_id"`

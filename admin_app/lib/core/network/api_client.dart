@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
@@ -81,7 +83,24 @@ class ApiClient {
     await _storage.delete(key: 'access_token');
     await _storage.delete(key: 'refresh_token');
   }
-  
+
+  /// JWT access token'ın "roles" claim'ini döner (RBAC menü filtreleme için).
+  Future<List<String>> getCurrentUserRoles() async {
+    final token = await _storage.read(key: 'access_token');
+    if (token == null) return [];
+    try {
+      final parts = token.split('.');
+      if (parts.length != 3) return [];
+      final normalized = base64Url.normalize(parts[1]);
+      final payload = jsonDecode(utf8.decode(base64Url.decode(normalized))) as Map<String, dynamic>;
+      final roles = payload['roles'];
+      if (roles is List) return roles.map((r) => r.toString()).toList();
+      return [];
+    } catch (_) {
+      return [];
+    }
+  }
+
   // ============ DASHBOARD ============
   
   Future<Map<String, dynamic>> getDashboard() async {

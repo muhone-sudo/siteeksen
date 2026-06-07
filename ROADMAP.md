@@ -48,6 +48,7 @@ Proje ilerleme durumu ve planlaması.
 - ✅ **Tüm 19 yeni servis docker-compose.yml'e eklendi** — port atandı, Dockerfile yazıldı, hepsi çalışıyor
 - ✅ **Kong `kong.yml` güncellendi** — 24 servis (tüm mikroservisler) Kong üzerinden yönlendiriliyor
 - ✅ **Gateway v1.2.0** — 24 servise proxy routing; tüm yeni servisler docker-compose env'de tanımlı
+- ✅ **RBAC: Rol bazlı yetkilendirme aktif edildi** — `RequireRole()` middleware'i `MANAGER`/`AUDITOR`/`STAFF` rol sabitleriyle birlikte `POST /users/me/properties` endpoint'ine bağlandı; migration `008_manager_roles.sql` ile demo yöneticiye `MANAGER` rolü eklendi (Apsiyon karşılaştırması, Paket 3)
 - 📋 Her servis için birim testleri yaz (şu an sadece `tests/integration_test.go` var)
 - 📋 `pkg/integrations/ai/` — OpenAI Vision gerçek API key ile test edilmeli
 - 📋 `pkg/integrations/bank/` — banka entegrasyonu gerçek ortamda test edilmeli
