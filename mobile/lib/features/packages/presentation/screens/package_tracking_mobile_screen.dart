@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../core/theme/apple_theme.dart';
 import '../../../../core/widgets/apple_widgets.dart';
+import '../../../../core/network/api_client.dart';
 
 /// Kargo Takip Mobil Ekranı - Apple Tarzı
 class PackageTrackingMobileScreen extends StatefulWidget {
@@ -11,55 +12,58 @@ class PackageTrackingMobileScreen extends StatefulWidget {
 }
 
 class _PackageTrackingMobileScreenState extends State<PackageTrackingMobileScreen> {
-  final List<Map<String, dynamic>> _packages = [
-    {
-      'id': '1',
-      'carrier': 'Aras Kargo',
-      'trackingNo': 'ARS789456123',
-      'status': 'arrived',
-      'arrivedAt': '14:30',
-      'arrivedDate': 'Bugün',
-      'description': 'Orta boy kutu',
-      'senderName': 'Trendyol',
-      'isPickedUp': false,
-    },
-    {
-      'id': '2',
-      'carrier': 'Yurtiçi Kargo',
-      'trackingNo': 'YK456789012',
-      'status': 'arrived',
-      'arrivedAt': '11:15',
-      'arrivedDate': 'Bugün',
-      'description': 'Küçük paket',
-      'senderName': 'Amazon',
-      'isPickedUp': false,
-    },
-    {
-      'id': '3',
-      'carrier': 'MNG Kargo',
-      'trackingNo': 'MNG123456789',
-      'status': 'in_transit',
-      'estimatedDate': 'Yarın',
-      'description': 'Büyük kutu',
-      'senderName': 'Hepsiburada',
-      'isPickedUp': false,
-    },
-    {
-      'id': '4',
-      'carrier': 'PTT Kargo',
-      'trackingNo': 'PTT987654321',
-      'status': 'picked_up',
-      'arrivedAt': '09:30',
-      'arrivedDate': '30 Ocak',
-      'pickedUpAt': '16:45',
-      'description': 'Mektup/Zarf',
-      'senderName': 'Devlet Kurumu',
-      'isPickedUp': true,
-    },
-  ];
+  List<Map<String, dynamic>> _packages = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPackages();
+  }
+
+  void _loadPackages() async {
+    try {
+      final list = await apiClient.getPackages();
+      setState(() {
+        _packages = List<Map<String, dynamic>>.from(list.map((p) {
+          return {
+            'id': p['id'] ?? '',
+            'carrier': p['carrier'] ?? 'Kargo Firması',
+            'trackingNo': p['tracking_number'] ?? p['trackingNo'] ?? '',
+            'status': p['status'] ?? 'arrived',
+            'arrivedAt': p['arrived_at'] ?? '12:00',
+            'arrivedDate': p['arrived_date'] ?? 'Bugün',
+            'estimatedDate': p['estimated_date'] ?? 'Yakında',
+            'pickedUpAt': p['picked_up_at'] ?? '',
+            'description': p['description'] ?? '',
+            'senderName': p['sender_name'] ?? p['senderName'] ?? '',
+            'isPickedUp': p['is_picked_up'] ?? (p['status'] == 'picked_up'),
+          };
+        }));
+        _isLoading = false;
+      });
+    } catch (_) {
+      setState(() => _isLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Scaffold(
+        backgroundColor: AppleTheme.background,
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (_packages.isEmpty) {
+      return Scaffold(
+        backgroundColor: AppleTheme.background,
+        appBar: AppBar(title: const Text('Kargolarım'), backgroundColor: Colors.white),
+        body: const Center(child: Text('Kayıtlı kargo paketiniz bulunmamaktadır.')),
+      );
+    }
+
     final waitingPackages = _packages.where((p) => p['status'] == 'arrived' && p['isPickedUp'] == false).toList();
     final inTransitPackages = _packages.where((p) => p['status'] == 'in_transit').toList();
     final pickedUpPackages = _packages.where((p) => p['isPickedUp'] == true).toList();

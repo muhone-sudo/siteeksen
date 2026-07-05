@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'apple_theme.dart';
+import '../theme/apple_theme.dart';
 
 /// Apple Tarzı Yeniden Kullanılabilir Widget'lar - Mobile
 class AppleWidgets {

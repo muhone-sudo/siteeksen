@@ -285,6 +285,17 @@ services:
     ports:
       - "8093:8093"
 
+  # Banking Service
+  banking-service:
+    build:
+      context: ./backend
+      dockerfile: services/banking/Dockerfile
+    container_name: siteeksen-banking
+    environment:
+      PORT: 8106
+    ports:
+      - "8106:8106"
+
   # Inventory Service
   inventory-service:
     build:
@@ -448,6 +459,7 @@ services:
       SMART_COLLECTION_SERVICE_URL: http://smart-collection-service:8103
       SURVEY_SERVICE_URL: http://survey-service:8104
       VISITOR_SERVICE_URL: http://visitor-service:8105
+      BANKING_SERVICE_URL: http://banking-service:8106
       PORT: 8888
     ports:
       - "8888:8888"

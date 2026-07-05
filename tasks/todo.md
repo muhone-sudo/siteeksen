@@ -55,12 +55,68 @@ Kullanıcı bu oturumda uyuyor. Onay gelmeyecek. Her tamamlanan adımı direkt c
 ---
 
 ## Bekleyen (Backend / Diğer)
-- 📋 Backend birim testleri (şu an sadece integration_test.go var)
+
+### Faz 1: Gateway Rota Düzeltmeleri (Tamamlandı)
+- ✅ `parking-service` proxy rotalarını ekle: `/api/v1/vehicles`, `/api/v1/parking-zones`, `/api/v1/parking-logs`, `/api/v1/plate-recognition`
+- ✅ `personnel-service` proxy rotalarını ekle: `/api/v1/employees`, `/api/v1/payroll`, `/api/v1/leaves`
+- ✅ `reservation-service` proxy rotasını ekle: `/api/v1/facilities`
+- ✅ `inventory-service` proxy rotasını ekle: `/api/v1/stock-movements`
+- ✅ `package-service` proxy rotalarını ekle: `/api/v1/carriers`, `/api/v1/units/:unit_id/packages`
+- ✅ `patrol-service` proxy rotalarını ekle: `/api/v1/patrol-routes`, `/api/v1/patrol-sessions`
+- ✅ `smart-collection-service` proxy rotalarını ekle: `/api/v1/collection` (tüm alt yollar)
+- ✅ `survey-service` proxy rotasını ekle: `/api/v1/my-surveys`
+- ✅ `asset-service` proxy rotasını ekle: `/api/v1/asset-categories`
+
+### Faz 2: Banka Entegrasyon Servisi (Tamamlandı)
+- ✅ `banking` servisini `docker-compose.yml`'e ekle
+- ✅ Gateway `/api/v1/banking` rotasını proxy et
+- ✅ Next.js ve Flutter (`admin_app`) tarafında banka entegrasyon ekranlarını bağla
+
+### Faz 3: Dashboard Genel İstatistikleri (Aggregator) (Tamamlandı)
+- ✅ Gateway mock dashboard stats handler'larını kaldır
+- ✅ Backend stats aggregator uç noktasını geliştir
+- ✅ Front-end istatistik bileşenlerini bu gerçek uç noktalara bağla
+
+### Faz 4: Sayaç Yönetimi Servis Katmanı (Tamamlandı)
+- ✅ Gateway mock `/api/v1/meters` handler'larını kaldır
+- ✅ Sayaç listeleme, okuma ekleme ve bulk okuma işlemlerini `iot-service` üzerinden DB şemasına bağla
+- ✅ Front-end sayaç sayfalarını bu gerçek servise proxy et
+
+### Faz 5: Raporlama Servis Katmanı (Tamamlandı)
+- ✅ Gateway mock `/api/v1/reports/` handler'larını kaldır
+- ✅ Gerçek PDF/Excel rapor üretecek entegrasyonu `pkg/reports` ile gateway'e bağla
+- ✅ Front-end rapor indirme/üretme butonlarını bu gerçek servise yönlendir
+
+### Ustalık Mobil Entegrasyon Planı
+#### Faz 1: Sakin Uygulaması Entegrasyonu (`mobile/`) (Tamamlandı)
+- ✅ `mobile/lib/core/network/api_client.dart` içerisine eksik metotları eklemek
+- ✅ Rezervasyon ekranını gerçek API'ye bağlamak
+- ✅ Duyuru ve Anket ekranlarını gerçek API'ye bağlamak
+- ✅ Kargo/Paket ekranını gerçek API'ye bağlamak
+- ✅ İlan Panosu (Bulletin) ekranını gerçek API'ye bağlamak
+
+#### Faz 2: Yönetici Uygulaması Temel Servisleri (`admin_app/`) (Tamamlandı)
+- ✅ `admin_app/lib/core/network/api_client.dart` içerisine otopark, personel, ziyaretçi ve kargo metotlarını eklemek
+- ✅ Otopark ekranını gerçek `parking-service`'e bağlamak
+- ✅ Personel ekranını gerçek `personnel-service`'e bağlamak
+- ✅ Ziyaretçi ekranını gerçek `visitor-service`'e bağlamak
+- ✅ Kargo ekranını gerçek `package-service`'e bağlamak
+
+#### Faz 3: Yönetici Finansal ve İleri Düzey Servisler (`admin_app/`) (Tamamlandı)
+- ✅ `admin_app/lib/core/network/api_client.dart` içerisine banka ve rezervasyon metotlarını eklemek
+- ✅ Banka entegrasyon ekranını gerçek `banking-service`'e bağlamak
+- ✅ Tesis Rezervasyon ekranını gerçek `reservation-service`'e bağlamak
+
+### Diğer Bekleyenler
+- ✅ Backend birim testleri (pkg/reports için PDF/Excel testleri yazıldı ve doğrulandı)
 - 📋 OpenAI Vision entegrasyonu gerçek API key ile test
 - 📋 Banka entegrasyonu gerçek ortamda test
 - 📋 Kafka consumer genişletme
 - 📋 Admin app: Belge Yönetimi ekranı
 - 📋 Mobil: NPS + ESG ekranları
+- 📌 Iyzico Entegrasyonu (Sonradan yazılacak - Ertelendi)
+- 📌 WhatsApp Entegrasyonu (Sonradan yapılacak - Ertelendi)
+
 
 ---
 

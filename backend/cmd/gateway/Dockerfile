@@ -3,11 +3,15 @@ FROM golang:1.24-alpine AS builder
 WORKDIR /app
 
 COPY go.mod go.sum ./
-COPY cmd/gateway/main.go ./cmd/gateway/main.go
+RUN go mod download
 
-RUN go build -o /gateway ./cmd/gateway/main.go
+COPY . .
+
+RUN CGO_ENABLED=0 GOOS=linux go build -o /gateway ./cmd/gateway/main.go
 
 FROM alpine:3.19
+
+RUN apk --no-cache add ca-certificates tzdata
 
 WORKDIR /app
 

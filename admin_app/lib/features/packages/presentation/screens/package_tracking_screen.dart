@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../core/theme/apple_theme.dart';
 import '../../../../core/widgets/apple_widgets.dart';
+import '../../../../core/network/api_client.dart';
 
 /// Kargo Takip Ekranı - Apple Tarzı
 class PackageTrackingScreen extends StatefulWidget {
@@ -16,38 +17,47 @@ class _PackageTrackingScreenState extends State<PackageTrackingScreen> {
 
   final List<String> _filters = ['Tümü', 'Bekleyen', 'Teslim Edildi'];
 
-  final List<Map<String, dynamic>> _packages = [
-    {
-      'id': 'KRG-2024-001',
-      'carrier': 'Aras Kargo',
-      'recipient': 'Ali Veli',
-      'unit': 'D.101',
-      'status': 'waiting',
-      'arrivedAt': '2026-02-01 10:30',
-      'deliveredAt': null,
-    },
-    {
-      'id': 'KRG-2024-002',
-      'carrier': 'Yurtiçi Kargo',
-      'recipient': 'Ayşe Kaya',
-      'unit': 'D.205',
-      'status': 'waiting',
-      'arrivedAt': '2026-02-01 14:15',
-      'deliveredAt': null,
-    },
-    {
-      'id': 'KRG-2024-003',
-      'carrier': 'MNG Kargo',
-      'recipient': 'Mehmet Demir',
-      'unit': 'D.301',
-      'status': 'delivered',
-      'arrivedAt': '2026-01-31 09:00',
-      'deliveredAt': '2026-01-31 18:30',
-    },
-  ];
+  List<Map<String, dynamic>> _packages = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPackages();
+  }
+
+  void _loadPackages() async {
+    try {
+      final list = await apiClient.getPackages();
+      setState(() {
+        _packages = List<Map<String, dynamic>>.from(list.map((p) {
+          return {
+            'id': p['id'] ?? '',
+            'carrier': p['carrier'] ?? 'Kargo Firması',
+            'recipient': p['recipient_name'] ?? p['recipient'] ?? '',
+            'unit': p['unit_id'] ?? p['unit'] ?? '',
+            'status': p['status'] ?? 'waiting',
+            'arrivedAt': p['arrived_at'] ?? '',
+            'deliveredAt': p['delivered_at'],
+          };
+        }));
+        _isLoading = false;
+      });
+    } catch (_) {
+      setState(() => _isLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Scaffold(
+        backgroundColor: AppleTheme.background,
+        appBar: AppBar(title: const Text('Kargo Takibi'), backgroundColor: Colors.white),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return Scaffold(
       backgroundColor: AppleTheme.background,
       body: CustomScrollView(

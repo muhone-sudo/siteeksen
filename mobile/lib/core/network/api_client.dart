@@ -214,6 +214,81 @@ class ApiClient {
     });
     return response.data;
   }
+
+  // Reservations
+  Future<List<dynamic>> getReservations() async {
+    final response = await _dio.get('/reservations');
+    return response.data;
+  }
+
+  Future<List<dynamic>> getFacilities() async {
+    final response = await _dio.get('/facilities');
+    return response.data;
+  }
+
+  Future<Map<String, dynamic>> createReservation({
+    required String facilityId,
+    required String date,
+    required String startTime,
+    required String endTime,
+  }) async {
+    final response = await _dio.post('/reservations', data: {
+      'facility_id': facilityId,
+      'date': date,
+      'start_time': startTime,
+      'end_time': endTime,
+    });
+    return response.data;
+  }
+
+  Future<void> cancelReservation(String reservationId) async {
+    await _dio.delete('/reservations/$reservationId');
+  }
+
+  // Announcements
+  Future<List<dynamic>> getAnnouncements() async {
+    final response = await _dio.get('/announcements');
+    return response.data;
+  }
+
+  // Surveys
+  Future<List<dynamic>> getSurveys() async {
+    final response = await _dio.get('/surveys');
+    return response.data;
+  }
+
+  Future<Map<String, dynamic>> submitSurveyResponse(String surveyId, Map<String, dynamic> data) async {
+    final response = await _dio.post('/surveys/$surveyId/responses', data: data);
+    return response.data;
+  }
+
+  // Packages
+  Future<List<dynamic>> getPackages() async {
+    final response = await _dio.get('/packages');
+    return response.data;
+  }
+
+  // Visitors
+  Future<List<dynamic>> getVisitors() async {
+    final response = await _dio.get('/visitors');
+    return response.data;
+  }
+
+  Future<Map<String, dynamic>> createVisitorPreRegistration(Map<String, dynamic> data) async {
+    final response = await _dio.post('/visitors', data: data);
+    return response.data;
+  }
+
+  // Bulletins (İlan Panosu)
+  Future<List<dynamic>> getBulletins() async {
+    final response = await _dio.get('/bulletins');
+    return response.data;
+  }
+
+  Future<Map<String, dynamic>> createBulletin(Map<String, dynamic> data) async {
+    final response = await _dio.post('/bulletins', data: data);
+    return response.data;
+  }
 }
 
 final apiClient = ApiClient();

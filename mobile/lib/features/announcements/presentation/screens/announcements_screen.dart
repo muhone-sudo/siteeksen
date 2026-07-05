@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../core/theme/apple_theme.dart';
 import '../../../../core/widgets/apple_widgets.dart';
+import '../../../../core/network/api_client.dart';
 
 /// Duyurular Ekranı - Apple Tarzı
 class AnnouncementsScreen extends StatefulWidget {
@@ -11,48 +12,37 @@ class AnnouncementsScreen extends StatefulWidget {
 }
 
 class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
-  final List<Map<String, dynamic>> _announcements = [
-    {
-      'id': '1',
-      'title': 'Su Kesintisi Duyurusu',
-      'content': 'Yarın saat 10:00-14:00 arasında ana boru hattı bakımı nedeniyle su kesintisi yapılacaktır. Lütfen gerekli tedbirleri alınız.',
-      'date': '1 Şubat 2026',
-      'time': '10:30',
-      'type': 'alert',
-      'isRead': false,
-      'isPinned': true,
-    },
-    {
-      'id': '2',
-      'title': 'Genel Kurul Toplantısı',
-      'content': 'Yıllık olağan genel kurul toplantısı 15 Şubat 2026 tarihinde saat 14:00\'te site toplantı salonunda gerçekleştirilecektir.',
-      'date': '28 Ocak 2026',
-      'time': '15:00',
-      'type': 'event',
-      'isRead': true,
-      'isPinned': true,
-    },
-    {
-      'id': '3',
-      'title': 'Otopark Düzenlemesi',
-      'content': 'Site otopark alanlarının yeniden düzenlenmesi çalışmaları başlamıştır. Detaylı bilgi için yönetimimize başvurabilirsiniz.',
-      'date': '25 Ocak 2026',
-      'time': '09:00',
-      'type': 'info',
-      'isRead': true,
-      'isPinned': false,
-    },
-    {
-      'id': '4',
-      'title': 'Aidat Hatırlatması',
-      'content': 'Şubat ayı aidat son ödeme tarihi 15 Şubat 2026\'dır. Geç ödemelerde %2 gecikme faizi uygulanacaktır.',
-      'date': '20 Ocak 2026',
-      'time': '11:00',
-      'type': 'payment',
-      'isRead': true,
-      'isPinned': false,
-    },
-  ];
+  List<Map<String, dynamic>> _announcements = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAnnouncements();
+  }
+
+  void _loadAnnouncements() async {
+    try {
+      final list = await apiClient.getAnnouncements();
+      setState(() {
+        _announcements = List<Map<String, dynamic>>.from(list.map((a) {
+          return {
+            'id': a['id'] ?? '',
+            'title': a['title'] ?? '',
+            'content': a['content'] ?? '',
+            'date': a['date'] ?? 'Belirtilmemiş',
+            'time': a['time'] ?? '',
+            'type': a['type'] ?? 'info',
+            'isRead': a['is_read'] ?? true,
+            'isPinned': a['is_pinned'] ?? false,
+          };
+        }));
+        _isLoading = false;
+      });
+    } catch (_) {
+      setState(() => _isLoading = false);
+    }
+  }
 
   IconData _getTypeIcon(String type) {
     switch (type) {
@@ -74,6 +64,22 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Scaffold(
+        backgroundColor: AppleTheme.background,
+        appBar: AppBar(title: const Text('Duyurular'), backgroundColor: Colors.white),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (_announcements.isEmpty) {
+      return Scaffold(
+        backgroundColor: AppleTheme.background,
+        appBar: AppBar(title: const Text('Duyurular'), backgroundColor: Colors.white),
+        body: const Center(child: Text('Henüz yayınlanmış bir duyuru bulunmamaktadır.')),
+      );
+    }
+
     final pinnedAnnouncements = _announcements.where((a) => a['isPinned'] == true).toList();
     final regularAnnouncements = _announcements.where((a) => a['isPinned'] != true).toList();
 

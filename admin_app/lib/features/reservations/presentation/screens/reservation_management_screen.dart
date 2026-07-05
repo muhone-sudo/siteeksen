@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../core/theme/apple_theme.dart';
 import '../../../../core/widgets/apple_widgets.dart';
+import '../../../../core/network/api_client.dart';
 
 /// Rezervasyon Yönetim Ekranı - Apple Tarzı
 class ReservationManagementScreen extends StatefulWidget {
@@ -14,46 +15,77 @@ class _ReservationManagementScreenState extends State<ReservationManagementScree
   int _selectedFacility = 0;
   DateTime _selectedDate = DateTime.now();
 
-  final List<Map<String, dynamic>> _facilities = [
-    {'id': '1', 'name': 'Yüzme Havuzu', 'icon': Icons.pool_rounded, 'color': Color(0xFF007AFF)},
-    {'id': '2', 'name': 'Spor Salonu', 'icon': Icons.fitness_center_rounded, 'color': Color(0xFFFF9500)},
-    {'id': '3', 'name': 'Toplantı Odası', 'icon': Icons.meeting_room_rounded, 'color': Color(0xFF34C759)},
-    {'id': '4', 'name': 'Tenis Kortu', 'icon': Icons.sports_tennis_rounded, 'color': Color(0xFFFF3B30)},
-    {'id': '5', 'name': 'Barbekü Alanı', 'icon': Icons.outdoor_grill_rounded, 'color': Color(0xFFAF52DE)},
-  ];
+  List<Map<String, dynamic>> _facilities = [];
+  List<Map<String, dynamic>> _reservations = [];
+  bool _isLoading = true;
 
-  final List<Map<String, dynamic>> _reservations = [
-    {
-      'id': '1',
-      'facility': 'Yüzme Havuzu',
-      'resident': 'Ali Veli',
-      'unit': 'D.101',
-      'date': '2026-02-01',
-      'time': '10:00 - 11:00',
-      'status': 'confirmed',
-    },
-    {
-      'id': '2',
-      'facility': 'Spor Salonu',
-      'resident': 'Ayşe Kaya',
-      'unit': 'D.205',
-      'date': '2026-02-01',
-      'time': '14:00 - 15:00',
-      'status': 'pending',
-    },
-    {
-      'id': '3',
-      'facility': 'Toplantı Odası',
-      'resident': 'Mehmet Demir',
-      'unit': 'D.301',
-      'date': '2026-02-01',
-      'time': '16:00 - 18:00',
-      'status': 'confirmed',
-    },
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _loadReservationsAndFacilities();
+  }
+
+  void _loadReservationsAndFacilities() async {
+    try {
+      final facilities = await apiClient.getFacilities();
+      final reservations = await apiClient.getReservations();
+      setState(() {
+        _facilities = List<Map<String, dynamic>>.from(facilities.map((f) {
+          return {
+            'id': f['id'] ?? '',
+            'name': f['name'] ?? '',
+            'icon': _getIconForCategory(f['category']),
+            'color': _getColorForCategory(f['category']),
+          };
+        }));
+        _reservations = List<Map<String, dynamic>>.from(reservations.map((r) {
+          return {
+            'id': r['id'] ?? '',
+            'facility': r['facility_name'] ?? r['facility'] ?? '',
+            'resident': r['resident_name'] ?? r['resident'] ?? '',
+            'unit': r['unit_id'] ?? r['unit'] ?? '',
+            'date': r['date'] ?? '',
+            'time': r['time_slot'] ?? r['time'] ?? '',
+            'status': r['status']?.toString().toLowerCase() ?? 'confirmed',
+          };
+        }));
+        _isLoading = false;
+      });
+    } catch (_) {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  IconData _getIconForCategory(String? category) {
+    switch (category?.toLowerCase()) {
+      case 'pool': return Icons.pool_rounded;
+      case 'gym': return Icons.fitness_center_rounded;
+      case 'meeting': return Icons.meeting_room_rounded;
+      case 'tennis': return Icons.sports_tennis_rounded;
+      default: return Icons.outdoor_grill_rounded;
+    }
+  }
+
+  Color _getColorForCategory(String? category) {
+    switch (category?.toLowerCase()) {
+      case 'pool': return const Color(0xFF007AFF);
+      case 'gym': return const Color(0xFFFF9500);
+      case 'meeting': return const Color(0xFF34C759);
+      case 'tennis': return const Color(0xFFFF3B30);
+      default: return const Color(0xFFAF52DE);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Scaffold(
+        backgroundColor: AppleTheme.background,
+        appBar: AppBar(title: const Text('Rezervasyonlar'), backgroundColor: Colors.white),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return Scaffold(
       backgroundColor: AppleTheme.background,
       body: CustomScrollView(

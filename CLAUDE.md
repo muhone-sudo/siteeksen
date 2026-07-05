@@ -4,84 +4,78 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Çalışma Disiplini (Token ve Bağlam Yönetimi)
 
-### Başlamadan önce
-- Her görev için önce adımları madde madde yaz ve onayla, sonra başla.
-- Adımlar atomik olmalı: tek dosya, tek fonksiyon, tek işlem. "Servisi yaz" değil, "servisin repository katmanını yaz."
-- Tahmini adım sayısı 5'ten fazlaysa kullanıcıya bölüp bölmemesini sor.
-
-### Çalışırken
-- Her adım tamamlandığında o adımı tamamlandı olarak işaretle ve kullanıcıya bildir.
-- Her anlamlı adımdan sonra commit at (commit için onay iste). Böylece bağlam sıfırlansa bile `git log` ile kaldığı yer görülür.
-- Dosyayı okumadan düzenleme, her seferinde yeniden okuma — sadece gerekli bölümü oku.
-- Aynı dosyayı birden fazla kez okuma, gereksiz araç çağrısı yapma.
-
-### Her adımdan sonra (zorunlu rutin)
-Her adım tamamlandığında, bir sonrakine geçmeden şunları yap:
-1. `CHANGELOG.md` `[Unreleased]` bölümüne tamamlanan adımı ekle.
-2. `ROADMAP.md`'de ilgili satırı güncelle (✅ işaretle).
-3. Commit at (onay iste).
-
-Bu rutin atlanmaz. Limit aniden geldiğinde son commit'e kadar olan her şey kayıtlıdır ve yeni oturum kaldığı yerden devam edebilir.
-
-### Yeni oturumda
-- `git log --oneline`, `CHANGELOG.md` ve `ROADMAP.md` okunmadan hiçbir şeye başlama.
+- **Token Tasarrufu:** Bu projeyi token tasarrufu yaparak yürüt. Uzun açıklamalar yapma. Özellikle istenmedikçe yaptıklarını detaylıca yazma. Sadece çok kısa ve net ne yaptığını ya da ne yapılacağını yaz.
+- **Her Oturumda ve Her Promttan Sonra Oku:** Oluşturulan `.md`, `walkthrough.md` (geçmişte yapılan değişiklikleri, testleri ve doğrulamaları anlamak için) ve aşağıdaki dosyaların içlerindeki en son tamamlanan konuyu ya da maddeyi oku:
+  - `tasks/roadmap.md`
+  - `tasks/lessons.md`
+  - `tasks/todo.md`
+  - `tasks/changelog.md`
+- **Tamamlanmamış ve Yapılacak Konuları Oku:** Aşağıdaki dosyalar için hem tamamlanmamış konuyu/maddeyi hem de yapılacak konuyu/maddeyi oku:
+  - `tasks/todo.md`
+  - `tasks/roadmap.md`
+- **Dosya Oluşturma:** Bu `.md` dosyaları en başta oluşturulmamışsa ya da boşsa, oluştur ve içerisini doldur.
+- **Varsayım Yok:** Kesinlikle varsayım yapma. Doğrulanabilir ya da doğrulanmış gerçek metotları dene. Gerçekçi davran. Bilmediğin, anlamadığın ya da bulamadığın şeyler için kullanıcıya sor, ne yapılacağına beraber karar verin.
+- **Ustalık Yol Haritası:** Çalıştığın tüm konularda, projelerde ya da çalışmalarda dünya çapında uzman olmak için bir ustalık yol haritası oluştur. Bu yol haritasını `tasks/roadmap.md` dosyasına yaz. İlgili maddeler ya da konular tamamlandıkça tamamlandı olarak işaretle. En iyi %1'in kullandığı ama pek paylaşmadığı teknikleri, gizli kaynakları ve alışılmadık yaklaşımları dahil et.
+- **Infinite Loop Prevention:** Eğer bir sorunu çözerken birkaç denemede başarılı olamazsan (sonsuz döngü), dur ve durumu kullanıcıya bildir. Birlikte karar verilecektir.
+- **Eksiksiz İş Yapma:** İşi savsaklama, üşenme, verilen görevi eksik yapma, tam yap. Sadece örnekleri çalışır şekilde oluşturup kalanını çalışmayacak şekilde bırakma.
 
 ---
 
 ## Workflow Orchestration
-
 ### 1. Plan Mode Default
-- 3+ adım veya mimari karar içeren her görev için plan moduna gir.
-- Bir şeyler ters giderse dur ve planı yeniden yaz, devam etme.
-- Plan modu sadece inşa için değil, doğrulama adımları için de kullanılır.
-- Belirsizliği azaltmak için başta detaylı spec yaz.
+- Enter plan mode for ANY non-trivial task (3+ steps or architectural decisions)
+- If something goes sideways, STOP and re-plan immediately
+- Use plan mode for verification steps, not just building
+- Write detailed specs upfront to reduce ambiguity
 
-### 2. Subagent Stratejisi
-- Ana bağlam penceresini temiz tutmak için subagent'leri aktif kullan.
-- Araştırma, keşif ve paralel analizleri subagent'lere devret.
-- Karmaşık problemlerde subagent ile daha fazla hesaplama kullan.
-- Her subagent tek bir göreve odaklanmalı.
+### 2. Subagent Strategy
+- Use subagents liberally to keep main context window clean
+- Offload research, exploration, and parallel analysis to subagents
+- For complex problems, throw more compute at it via subagents
+- One task per subagent for focused execution
 
-### 3. Kendini İyileştirme Döngüsü
-- Aynı hatayı tekrar yapmamak için `tasks/lessons.md` dosyasına kural yaz.
-- Hata oranı düşene kadar bu dersleri acımasızca güncelle.
-- Her oturum başında `tasks/lessons.md`'yi oku.
+### 3. Self-Improvement Loop
+- After ANY correction from the user: update tasks/lessons.md with the pattern
+- Write rules for yourself that prevent the same mistake
+- Ruthlessly iterate on these lessons until mistake rate drops
+- Review lessons at session start for relevant project
 
-### 4. Tamamlamadan Önce Doğrulama
-- Çalıştığını kanıtlamadan hiçbir görevi tamamlandı olarak işaretleme.
-- Değişiklikler için main ile farkı kontrol et.
-- Testleri çalıştır, logları kontrol et, doğruluğu göster.
+### 4. Verification Before Done
+- Never mark a task complete without proving it works
+- Diff behavior between main and your changes when relevant
+- Ask yourself: "Would a staff engineer approve this?"
+- Run tests, check logs, demonstrate correctness
 
-### 5. Zarafet Talebi (Dengeli)
-- Basit olmayan değişiklikler için: "Daha zarif bir yol var mı?" diye sor.
-- Bir fix hackish hissettiriyorsa: bildiğin her şeyle zarif çözümü uygula.
-- Basit ve açık düzeltmelerde bunu atlat — aşırı mühendislik yapma.
-- Sunmadan önce kendi çalışmana meydan oku.
+### 5. Demand Elegance (Balanced)
+- For non-trivial changes: pause and ask "is there a more elegant way?"
+- If a fix feels hacky: "Knowing everything I know now, implement the elegant solution"
+- Skip this for simple, obvious fixes -- don't over-engineer
+- Challenge your own work before presenting it
 
-### 6. Otonom Hata Düzeltme
-- Bug raporu verildiğinde: direkt düzelt. Rehberlik isteme.
-- Logları, hataları, başarısız testleri işaret et — sonra çöz.
-- Kullanıcıdan sıfır bağlam geçişi gerektirir.
-- Söylenmeden başarısız CI testlerini düzelt.
-
----
-
-## Görev Yönetimi
-
-1. **Önce Planla:** Planı `tasks/todo.md`'ye işaretlenebilir maddeler olarak yaz.
-2. **Planı Doğrula:** Uygulamaya başlamadan önce kontrol et.
-3. **İlerlemeyi Takip Et:** Tamamlanan maddeleri giderken işaretle.
-4. **Değişiklikleri Açıkla:** Her adımda üst düzey özet ver.
-5. **Sonuçları Belgele:** `tasks/todo.md`'ye inceleme bölümü ekle.
-6. **Dersleri Kaydet:** Düzeltmelerden sonra `tasks/lessons.md`'yi güncelle.
+### 6. Autonomous Bug Fixing
+- When given a bug report: just fix it. Don't ask for hand-holding
+- Point at logs, errors, failing tests -- then resolve them
+- Zero context switching required from the user
+- Go fix failing CI tests without being told how
 
 ---
 
-## Temel Prensipler
+## Task Management
 
-- **Önce Basitlik:** Her değişikliği mümkün olduğunca basit yap. Minimal kodu etkile.
-- **Tembellik Yok:** Kök nedenleri bul. Geçici düzeltme yok. Kıdemli geliştirici standartları.
-- **Minimal Etki:** Sadece gerekli olanı değiştir. Yeni bug'larla yan etki yok.
+1. Plan First: Write plan to tasks/todo.md with checkable items
+2. Verify Plan: Check in before starting implementation
+3. Track Progress: Mark items complete as you go
+4. Explain Changes: High-level summary at each step
+5. Document Results: Add review section to tasks/todo.md
+6. Capture Lessons: Update tasks/lessons.md after corrections
+
+---
+
+## Core Principles
+
+- Simplicity First: Make every change as simple as possible. Impact minimal code.
+- No Laziness: Find root causes. No temporary fixes. Senior developer standards.
+- Minimal Impact: Only touch what's necessary. No side effects with new bugs.
 
 ---
 
@@ -89,8 +83,8 @@ Bu rutin atlanmaz. Limit aniden geldiğinde son commit'e kadar olan her şey kay
 
 Herhangi bir göreve başlamadan önce sırasıyla şu dosyalara bak:
 
-1. **`ROADMAP.md`** — Hangi modüllerin tamamlandığını, hangilerinin eksik veya planlandığını gösterir. Yeni bir özellik eklendiğinde veya bir modül tamamlandığında bu dosyayı güncelle.
-2. **`CHANGELOG.md`** — Geçmişte ne yapıldığını gösterir. Bir şeyin daha önce yazılıp yazılmadığını anlamak için ilk buraya bak. Her anlamlı değişiklikten sonra `[Unreleased]` bölümüne ekle.
+1. **`tasks/roadmap.md`** — Hangi modüllerin tamamlandığını, hangilerinin eksik veya planlandığını ve ustalık yol haritasını gösterir.
+2. **`tasks/changelog.md`** — Geçmişte ne yapıldığını gösterir. Bir şeyin daha önce yazılıp yazılmadığını anlamak için ilk buraya bak. Her anlamlı değişiklikten sonra `[Unreleased]` bölümüne ekle.
 
 Bu iki dosya okunduktan sonra ilgili kaynak dosyalara geç.
 

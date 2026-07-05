@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../core/theme/apple_theme.dart';
 import '../../../../core/widgets/apple_widgets.dart';
+import '../../../../core/network/api_client.dart';
 
 /// Site İlan Panosu Mobil Ekranı - Apple Tarzı
 class BulletinBoardMobileScreen extends StatefulWidget {
@@ -12,6 +13,8 @@ class BulletinBoardMobileScreen extends StatefulWidget {
 
 class _BulletinBoardMobileScreenState extends State<BulletinBoardMobileScreen> {
   String _selectedCategory = 'all';
+  List<Map<String, dynamic>> _listings = [];
+  bool _isLoading = true;
 
   final List<Map<String, String>> _categories = [
     {'id': 'all', 'name': 'Tümü'},
@@ -22,56 +25,46 @@ class _BulletinBoardMobileScreenState extends State<BulletinBoardMobileScreen> {
     {'id': 'lost', 'name': 'Kayıp'},
   ];
 
-  final List<Map<String, dynamic>> _listings = [
-    {
-      'id': '1',
-      'category': 'sale',
-      'title': 'Çocuk Bisikleti - 16 Jant',
-      'description': 'Az kullanılmış, kırmızı renk çocuk bisikleti. 5-7 yaş arası için uygundur.',
-      'price': '1500',
-      'author': 'Mehmet Y.',
-      'unit': 'A-105',
-      'date': '2s önce',
-      'views': 24,
-    },
-    {
-      'id': '2',
-      'category': 'help',
-      'title': 'Hafta sonu köpek bakımı',
-      'description': 'Bu hafta sonu şehir dışına çıkıyoruz. Küçük köpeğimizle ilgilenecek komşu arıyoruz.',
-      'price': null,
-      'author': 'Ayşe D.',
-      'unit': 'B-203',
-      'date': '5s önce',
-      'views': 18,
-    },
-    {
-      'id': '3',
-      'category': 'service',
-      'title': 'Özel Matematik Dersi',
-      'description': 'İlkokul ve ortaokul öğrencileri için özel matematik dersi verilir.',
-      'price': '250/saat',
-      'author': 'Deniz Ö.',
-      'unit': 'C-401',
-      'date': '1g önce',
-      'views': 45,
-    },
-    {
-      'id': '4',
-      'category': 'lost',
-      'title': 'Siyah Kedi Kayıp',
-      'description': 'Yeşil gözlü siyah kedimiz 3 gündür kayıp. Gören olursa lütfen haber versin.',
-      'price': null,
-      'author': 'Zeynep K.',
-      'unit': 'D-101',
-      'date': '3g önce',
-      'views': 89,
-      'urgent': true,
-    },
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _loadListings();
+  }
+
+  void _loadListings() async {
+    try {
+      final list = await apiClient.getBulletins();
+      setState(() {
+        _listings = List<Map<String, dynamic>>.from(list.map((b) {
+          return {
+            'id': b['id'] ?? '',
+            'category': b['category'] ?? 'sale',
+            'title': b['title'] ?? '',
+            'description': b['description'] ?? '',
+            'price': b['price'],
+            'author': b['author'] ?? 'Komşu',
+            'unit': b['unit'] ?? 'Blok',
+            'date': b['date'] ?? 'Yeni',
+            'views': b['views'] ?? 0,
+            'urgent': b['urgent'] ?? false,
+          };
+        }));
+        _isLoading = false;
+      });
+    } catch (_) {
+      setState(() => _isLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Scaffold(
+        backgroundColor: AppleTheme.background,
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return Scaffold(
       backgroundColor: AppleTheme.background,
       body: SafeArea(
@@ -307,106 +300,152 @@ class _BulletinBoardMobileScreenState extends State<BulletinBoardMobileScreen> {
   }
 
   void _showCreateListingSheet(BuildContext context) {
+    final titleController = TextEditingController();
+    final descriptionController = TextEditingController();
+    final priceController = TextEditingController();
+    String activeCat = 'sale';
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        height: MediaQuery.of(context).size.height * 0.9,
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: Column(
-          children: [
-            Container(
-              width: 36, height: 5,
-              margin: const EdgeInsets.only(top: 12),
-              decoration: BoxDecoration(color: AppleTheme.systemGray4, borderRadius: BorderRadius.circular(2.5)),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setSheetState) {
+          return Container(
+            height: MediaQuery.of(context).size.height * 0.9,
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
             ),
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  TextButton(onPressed: () => Navigator.pop(context), child: const Text('İptal')),
-                  const Text('İlan Oluştur', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
-                  TextButton(onPressed: () {}, child: const Text('Paylaş')),
-                ],
-              ),
-            ),
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                children: [
-                  // Category
-                  const Text('Kategori', style: TextStyle(fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 8, runSpacing: 8,
-                    children: _categories.skip(1).map((cat) {
-                      final info = _getCategoryInfo(cat['id']!);
-                      return ChoiceChip(label: Text(cat['name']!), selected: false, avatar: Icon(info['icon'], size: 16));
-                    }).toList(),
-                  ),
-                  const SizedBox(height: 20),
+            child: Column(
+              children: [
+                Container(
+                  width: 36, height: 5,
+                  margin: const EdgeInsets.only(top: 12),
+                  decoration: BoxDecoration(color: AppleTheme.systemGray4, borderRadius: BorderRadius.circular(2.5)),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      TextButton(onPressed: () => Navigator.pop(context), child: const Text('İptal')),
+                      const Text('İlan Oluştur', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
+                      TextButton(
+                        onPressed: () async {
+                          if (titleController.text.isEmpty || descriptionController.text.isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Lütfen başlık ve açıklama giriniz.')),
+                            );
+                            return;
+                          }
 
-                  // Title
-                  TextField(
-                    decoration: InputDecoration(
-                      labelText: 'Başlık',
-                      hintText: 'Ne paylaşmak istiyorsunuz?',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
+                          showDialog(
+                            context: context,
+                            barrierDismissible: false,
+                            builder: (context) => const Center(child: CircularProgressIndicator()),
+                          );
 
-                  // Description
-                  TextField(
-                    maxLines: 4,
-                    decoration: InputDecoration(
-                      labelText: 'Açıklama',
-                      hintText: 'Detayları yazın...',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
+                          try {
+                            await apiClient.createBulletin({
+                              'category': activeCat,
+                              'title': titleController.text,
+                              'description': descriptionController.text,
+                              'price': priceController.text.isNotEmpty ? priceController.text : null,
+                            });
+                            Navigator.pop(context); // close loader
+                            Navigator.pop(context); // close sheet
+                            _loadListings(); // refresh listings
 
-                  // Price
-                  TextField(
-                    keyboardType: TextInputType.number,
-                    decoration: InputDecoration(
-                      labelText: 'Fiyat (Opsiyonel)',
-                      prefixText: '₺ ',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Photo
-                  GestureDetector(
-                    onTap: () {},
-                    child: Container(
-                      height: 100,
-                      decoration: BoxDecoration(
-                        border: Border.all(color: AppleTheme.systemGray4),
-                        borderRadius: BorderRadius.circular(12),
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: const Text('İlanınız yayınlandı!'),
+                                backgroundColor: AppleTheme.systemGreen,
+                              ),
+                            );
+                          } catch (e) {
+                            Navigator.pop(context); // close loader
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Hata: $e'), backgroundColor: AppleTheme.systemRed),
+                            );
+                          }
+                        },
+                        child: const Text('Paylaş'),
                       ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.camera_alt_rounded, size: 32, color: AppleTheme.systemGray2),
-                          const SizedBox(height: 8),
-                          Text('Fotoğraf Ekle', style: TextStyle(color: AppleTheme.systemGray2)),
-                        ],
-                      ),
-                    ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    children: [
+                      // Category
+                      const Text('Kategori', style: TextStyle(fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 8, runSpacing: 8,
+                        children: _categories.skip(1).map((cat) {
+                          final info = _getCategoryInfo(cat['id']!);
+                          final isSelected = activeCat == cat['id'];
+                          return ChoiceChip(
+                            label: Text(cat['name']!),
+                            selected: isSelected,
+                            onSelected: (selected) {
+                              if (selected) {
+                                setSheetState(() => activeCat = cat['id']!);
+                              }
+                            },
+                            avatar: Icon(
+                              info['icon'] as IconData,
+                              size: 16,
+                              color: isSelected ? Colors.white : AppleTheme.secondaryLabel,
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                      const SizedBox(height: 20),
+
+                      // Title
+                      TextField(
+                        controller: titleController,
+                        decoration: InputDecoration(
+                          labelText: 'Başlık',
+                          hintText: 'Ne paylaşmak istiyorsunuz?',
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Description
+                      TextField(
+                        controller: descriptionController,
+                        maxLines: 4,
+                        decoration: InputDecoration(
+                          labelText: 'Açıklama',
+                          hintText: 'Detayları yazın...',
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Price
+                      TextField(
+                        controller: priceController,
+                        keyboardType: TextInputType.number,
+                        decoration: InputDecoration(
+                          labelText: 'Fiyat (Opsiyonel)',
+                          prefixText: '₺ ',
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                    ],
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }

@@ -66,6 +66,20 @@ export function useExpenseCategories() {
     });
 }
 
+export function useAssessmentOverview(params?: { year?: number }) {
+    return useQuery({
+        queryKey: ["assessment-overview", params],
+        queryFn: () => apiClient.getAssessmentOverview(params),
+    });
+}
+
+export function useDebtors() {
+    return useQuery({
+        queryKey: ["debtors"],
+        queryFn: () => apiClient.getDebtors(),
+    });
+}
+
 // ============ METERS ============
 export function useMeters(params?: { type?: string }) {
     return useQuery({

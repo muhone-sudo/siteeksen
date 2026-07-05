@@ -12,6 +12,8 @@ class AppleTheme {
   static const Color systemPurple = Color(0xFFAF52DE);
   static const Color systemIndigo = Color(0xFF5856D6);
   static const Color systemTeal = Color(0xFF5AC8FA);
+  static const Color systemPink = Color(0xFFFF2D55);
+  static const Color systemYellow = Color(0xFFFFCC00);
 
   // Grays
   static const Color systemGray = Color(0xFF8E8E93);
@@ -143,7 +145,7 @@ class AppleTheme {
       type: BottomNavigationBarType.fixed,
       elevation: 0,
     ),
-    cardTheme: CardTheme(
+    cardTheme: CardThemeData(
       color: Colors.white,
       elevation: 0,
       shape: RoundedRectangleBorder(

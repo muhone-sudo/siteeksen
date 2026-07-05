@@ -174,9 +174,15 @@ class ApiClient {
         return response.data;
     }
 
+    async getAssessmentOverview(params?: { year?: number }) {
+        const response = await this.client.get("/finance/assessments/overview", { params });
+        return response.data;
+    }
+
     async createAssessment(data: {
         period_year: number;
         period_month: number;
+        due_date: string;
         expense_items: { category_id: string; amount: number }[];
     }) {
         const response = await this.client.post("/finance/assessments", data);
@@ -190,6 +196,11 @@ class ApiClient {
 
     async getExpenseCategories() {
         const response = await this.client.get("/finance/expense-categories");
+        return response.data;
+    }
+
+    async getDebtors() {
+        const response = await this.client.get("/finance/debtors");
         return response.data;
     }
 

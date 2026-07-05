@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../core/theme/apple_theme.dart';
 import '../../../../core/widgets/apple_widgets.dart';
+import '../../../../core/network/api_client.dart';
 
 /// Araç/Otopark Yönetim Ekranı - Apple Tarzı
 class ParkingManagementScreen extends StatefulWidget {
@@ -15,38 +16,8 @@ class _ParkingManagementScreenState extends State<ParkingManagementScreen>
   late TabController _tabController;
   final TextEditingController _searchController = TextEditingController();
 
-  final List<Map<String, dynamic>> _vehicles = [
-    {
-      'plate': '34 ABC 123',
-      'owner': 'Ali Veli',
-      'unit': 'D.101',
-      'brand': 'Toyota Corolla',
-      'color': 'Beyaz',
-      'spot': 'A-15',
-      'type': 'resident',
-      'isInside': true,
-    },
-    {
-      'plate': '06 DEF 456',
-      'owner': 'Ayşe Kaya',
-      'unit': 'D.205',
-      'brand': 'Honda Civic',
-      'color': 'Siyah',
-      'spot': 'B-03',
-      'type': 'resident',
-      'isInside': false,
-    },
-    {
-      'plate': '35 XYZ 789',
-      'owner': 'Misafir',
-      'unit': 'D.301',
-      'brand': '-',
-      'color': 'Gri',
-      'spot': 'M-01',
-      'type': 'visitor',
-      'isInside': true,
-    },
-  ];
+  List<Map<String, dynamic>> _vehicles = [];
+  bool _isLoading = true;
 
   final List<Map<String, dynamic>> _parkingZones = [
     {'name': 'A Blok', 'capacity': 50, 'occupied': 35, 'available': 15},
@@ -58,6 +29,30 @@ class _ParkingManagementScreenState extends State<ParkingManagementScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _loadVehicles();
+  }
+
+  void _loadVehicles() async {
+    try {
+      final list = await apiClient.getVehicles();
+      setState(() {
+        _vehicles = List<Map<String, dynamic>>.from(list.map((v) {
+          return {
+            'plate': v['plate'] ?? '',
+            'owner': v['owner_name'] ?? v['owner'] ?? '',
+            'unit': v['unit_id'] ?? v['unit'] ?? '',
+            'brand': v['brand'] ?? '',
+            'color': v['color'] ?? '',
+            'spot': v['parking_spot'] ?? v['spot'] ?? '',
+            'type': v['owner_type']?.toString().toLowerCase() ?? 'resident',
+            'isInside': v['is_inside'] ?? false,
+          };
+        }));
+        _isLoading = false;
+      });
+    } catch (_) {
+      setState(() => _isLoading = false);
+    }
   }
 
   @override
@@ -69,6 +64,14 @@ class _ParkingManagementScreenState extends State<ParkingManagementScreen>
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Scaffold(
+        backgroundColor: AppleTheme.background,
+        appBar: AppBar(title: const Text('Otopark'), backgroundColor: Colors.white),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return Scaffold(
       backgroundColor: AppleTheme.background,
       body: NestedScrollView(

@@ -242,10 +242,11 @@ export default function SettingsPage() {
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 {[
-                                    { name: 'SMS (Netgsm)', status: 'connected', icon: '📱' },
+                                    { name: 'SMS (Netgsm) - Yakında', status: 'coming_soon', icon: '📱' },
                                     { name: 'Ödeme (Iyzico)', status: 'connected', icon: '💳' },
                                     { name: 'Push (Firebase)', status: 'connected', icon: '🔔' },
-                                    { name: 'E-posta (SMTP)', status: 'pending', icon: '📧' },
+                                    { name: 'E-posta (SMTP)', status: 'connected', icon: '📧' },
+                                    { name: 'AI Vision (OpenAI) - Coming Soon', status: 'coming_soon', icon: '🧠' },
                                 ].map((integration, idx) => (
                                     <div key={idx} className="p-4 border rounded-lg">
                                         <div className="flex items-center justify-between">
@@ -255,9 +256,11 @@ export default function SettingsPage() {
                                             </div>
                                             <span className={`px-2 py-1 rounded-full text-xs ${integration.status === 'connected'
                                                 ? 'bg-green-100 text-green-700'
+                                                : integration.status === 'coming_soon'
+                                                ? 'bg-gray-100 text-gray-700'
                                                 : 'bg-yellow-100 text-yellow-700'
                                                 }`}>
-                                                {integration.status === 'connected' ? 'Bağlı' : 'Bekliyor'}
+                                                {integration.status === 'connected' ? 'Bağlı' : integration.status === 'coming_soon' ? 'Yakında' : 'Bekliyor'}
                                             </span>
                                         </div>
                                     </div>

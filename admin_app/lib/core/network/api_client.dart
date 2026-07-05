@@ -273,6 +273,109 @@ class ApiClient {
     });
     return response.data['download_url'];
   }
+
+  // ============ PARKING ============
+  Future<List<dynamic>> getVehicles() async {
+    final response = await _dio.get('/vehicles');
+    return response.data['data'] ?? response.data;
+  }
+
+  Future<void> createVehicle(Map<String, dynamic> data) async {
+    await _dio.post('/vehicles', data: data);
+  }
+
+  Future<List<dynamic>> getParkingLogs() async {
+    final response = await _dio.get('/parking-logs');
+    return response.data['data'] ?? response.data;
+  }
+
+  Future<Map<String, dynamic>> recognizePlate(String base64Image) async {
+    final response = await _dio.post('/plate-recognition', data: {'image': base64Image});
+    return response.data;
+  }
+
+  // ============ PERSONNEL ============
+  Future<List<dynamic>> getEmployees() async {
+    final response = await _dio.get('/employees');
+    return response.data['data'] ?? response.data;
+  }
+
+  Future<void> createEmployee(Map<String, dynamic> data) async {
+    await _dio.post('/employees', data: data);
+  }
+
+  Future<List<dynamic>> getLeaves() async {
+    final response = await _dio.get('/leaves');
+    return response.data['data'] ?? response.data;
+  }
+
+  Future<void> updateLeaveStatus(String leaveId, String status) async {
+    await _dio.patch('/leaves/$leaveId', data: {'status': status});
+  }
+
+  // ============ VISITORS ============
+  Future<List<dynamic>> getVisitors() async {
+    final response = await _dio.get('/visitors');
+    return response.data['data'] ?? response.data;
+  }
+
+  Future<void> recordVisitorEntry(String visitorId) async {
+    await _dio.post('/visitors/$visitorId/entry');
+  }
+
+  Future<void> recordVisitorExit(String visitorId) async {
+    await _dio.post('/visitors/$visitorId/exit');
+  }
+
+  // ============ PACKAGES ============
+  Future<List<dynamic>> getPackages() async {
+    final response = await _dio.get('/packages');
+    return response.data['data'] ?? response.data;
+  }
+
+  Future<List<dynamic>> getCarriers() async {
+    final response = await _dio.get('/carriers');
+    return response.data['data'] ?? response.data;
+  }
+
+  Future<List<dynamic>> getUnitPackages(String unitId) async {
+    final response = await _dio.get('/units/$unitId/packages');
+    return response.data['data'] ?? response.data;
+  }
+
+  Future<void> receivePackage(Map<String, dynamic> data) async {
+    await _dio.post('/packages', data: data);
+  }
+
+  Future<void> deliverPackage(String packageId) async {
+    await _dio.post('/packages/$packageId/deliver');
+  }
+
+  // ============ BANKING ============
+  Future<List<dynamic>> getBankAccounts() async {
+    final response = await _dio.get('/bank-accounts');
+    return response.data['data'] ?? response.data;
+  }
+
+  Future<List<dynamic>> getBankTransactions() async {
+    final response = await _dio.get('/bank-transactions');
+    return response.data['data'] ?? response.data;
+  }
+
+  Future<void> matchBankTransaction(String transactionId, String assessmentId) async {
+    await _dio.post('/bank-transactions/$transactionId/match', data: {'assessment_id': assessmentId});
+  }
+
+  // ============ FACILITIES & RESERVATIONS ============
+  Future<List<dynamic>> getFacilities() async {
+    final response = await _dio.get('/facilities');
+    return response.data['facilities'] ?? response.data['data'] ?? response.data;
+  }
+
+  Future<List<dynamic>> getReservations() async {
+    final response = await _dio.get('/reservations');
+    return response.data['data'] ?? response.data;
+  }
 }
 
 // Singleton

@@ -3,13 +3,17 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"os"
 	"strings"
+	"sync"
 	"time"
+
+	"github.com/siteeksen/backend/pkg/reports"
 )
 
 type Response struct {
@@ -18,6 +22,15 @@ type Response struct {
 	Data    interface{} `json:"data,omitempty"`
 	Error   string      `json:"error,omitempty"`
 }
+
+var (
+	reportsMutex     sync.RWMutex
+	generatedReports = make(map[string]struct {
+		Filename string
+		Data     []byte
+		MimeType string
+	})
+)
 
 func getEnv(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {
@@ -102,6 +115,7 @@ func main() {
 	smartCollectionURL := getEnv("SMART_COLLECTION_SERVICE_URL", "http://localhost:8103")
 	surveyURL := getEnv("SURVEY_SERVICE_URL", "http://localhost:8104")
 	visitorURL := getEnv("VISITOR_SERVICE_URL", "http://localhost:8105")
+	bankingURL := getEnv("BANKING_SERVICE_URL", "http://localhost:8106")
 	port := getEnv("PORT", "8888")
 
 	mux := http.NewServeMux()
@@ -116,7 +130,19 @@ func main() {
 	}))
 
 	// --- IDENTITY SERVICE (8081) ---
-	proxyPaths(mux, newProxy(identityURL), "/api/v1/auth", "/api/v1/users", "/api/v1/residents", "/api/v1/units")
+	proxyPaths(mux, newProxy(identityURL), "/api/v1/auth", "/api/v1/users", "/api/v1/residents")
+	
+	// Custom units routing to separate identity vs package services
+	unitsProxy := newProxy(identityURL)
+	packageProxy := newProxy(packageURL)
+	mux.Handle("/api/v1/units", unitsProxy)
+	mux.Handle("/api/v1/units/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "/packages") {
+			packageProxy.ServeHTTP(w, r)
+		} else {
+			unitsProxy.ServeHTTP(w, r)
+		}
+	}))
 
 	// --- FINANCE SERVICE (8082) ---
 	proxyPaths(mux, newProxy(financeURL), "/api/v1/finance", "/api/v1/assessments", "/api/v1/payments")
@@ -125,7 +151,7 @@ func main() {
 	proxyPaths(mux, newProxy(communityURL), "/api/v1/announcements", "/api/v1/requests")
 
 	// --- IOT SERVICE (8084) ---
-	proxyPaths(mux, newProxy(iotURL), "/api/v1/sensors", "/api/v1/iot")
+	proxyPaths(mux, newProxy(iotURL), "/api/v1/sensors", "/api/v1/iot", "/api/v1/meters")
 
 	// --- NOTIFICATION SERVICE (8085) ---
 	proxyPaths(mux, newProxy(notificationURL), "/api/v1/notifications")
@@ -134,7 +160,7 @@ func main() {
 	proxyPaths(mux, newProxy(expenseURL), "/api/v1/expenses", "/api/v1/expense-categories")
 
 	// --- ASSET SERVICE (8087) ---
-	proxyPaths(mux, newProxy(assetURL), "/api/v1/assets")
+	proxyPaths(mux, newProxy(assetURL), "/api/v1/assets", "/api/v1/asset-categories")
 
 	// --- BULLETIN SERVICE (8089) ---
 	proxyPaths(mux, newProxy(bulletinURL), "/api/v1/bulletin")
@@ -152,7 +178,7 @@ func main() {
 	proxyPaths(mux, newProxy(esgURL), "/api/v1/esg")
 
 	// --- INVENTORY SERVICE (8094) ---
-	proxyPaths(mux, newProxy(inventoryURL), "/api/v1/inventory")
+	proxyPaths(mux, newProxy(inventoryURL), "/api/v1/inventory", "/api/v1/stock-movements")
 
 	// --- MEETING SERVICE (8095) ---
 	proxyPaths(mux, newProxy(meetingURL), "/api/v1/meetings")
@@ -161,74 +187,236 @@ func main() {
 	proxyPaths(mux, newProxy(npsURL), "/api/v1/nps")
 
 	// --- PACKAGE SERVICE (8097) ---
-	proxyPaths(mux, newProxy(packageURL), "/api/v1/packages")
+	proxyPaths(mux, newProxy(packageURL), "/api/v1/packages", "/api/v1/carriers")
 
 	// --- PARKING SERVICE (8098) ---
-	proxyPaths(mux, newProxy(parkingURL), "/api/v1/parking")
+	proxyPaths(mux, newProxy(parkingURL), "/api/v1/parking", "/api/v1/vehicles", "/api/v1/parking-zones", "/api/v1/parking-logs", "/api/v1/plate-recognition")
 
 	// --- PATROL SERVICE (8099) ---
-	proxyPaths(mux, newProxy(patrolURL), "/api/v1/patrol")
+	proxyPaths(mux, newProxy(patrolURL), "/api/v1/patrol", "/api/v1/patrol-routes", "/api/v1/patrol-sessions")
 
 	// --- PERSONNEL SERVICE (8100) ---
-	proxyPaths(mux, newProxy(personnelURL), "/api/v1/personnel")
+	proxyPaths(mux, newProxy(personnelURL), "/api/v1/personnel", "/api/v1/employees", "/api/v1/payroll", "/api/v1/leaves")
 
 	// --- RESERVATION SERVICE (8101) ---
-	proxyPaths(mux, newProxy(reservationURL), "/api/v1/reservations")
+	proxyPaths(mux, newProxy(reservationURL), "/api/v1/reservations", "/api/v1/facilities")
 
 	// --- SETTINGS SERVICE (8102) ---
 	proxyPaths(mux, newProxy(settingsURL), "/api/v1/credentials")
 
 	// --- SMART COLLECTION SERVICE (8103) ---
-	proxyPaths(mux, newProxy(smartCollectionURL), "/api/v1/smart-collection")
+	proxyPaths(mux, newProxy(smartCollectionURL), "/api/v1/smart-collection", "/api/v1/collection")
 
 	// --- SURVEY SERVICE (8104) ---
-	proxyPaths(mux, newProxy(surveyURL), "/api/v1/surveys")
+	proxyPaths(mux, newProxy(surveyURL), "/api/v1/surveys", "/api/v1/my-surveys")
 
 	// --- VISITOR SERVICE (8105) ---
 	proxyPaths(mux, newProxy(visitorURL), "/api/v1/visitors")
 
+	// --- BANKING SERVICE (8106) ---
+	proxyPaths(mux, newProxy(bankingURL), "/api/v1/bank-accounts", "/api/v1/bank-transactions", "/api/v1/banking")
+
 	// --- MOCK: Aggregate / henüz gerçek servisi olmayan endpointler ---
 
 	mux.Handle("/api/v1/dashboard/stats", jsonHandler(func(w http.ResponseWriter, r *http.Request) {
+		auth := r.Header.Get("Authorization")
+		stats := map[string]interface{}{
+			"totalResidents":   156,
+			"totalUnits":       180,
+			"monthlyIncome":    245000,
+			"pendingRequests":  12,
+			"occupancyRate":    87,
+			"collectionRate":   94,
+			"activeVisitors":   3,
+			"upcomingMeetings": 2,
+		}
+
+		// 1. Residents Count
+		var residents []interface{}
+		if err := fetchJSON(identityURL+"/api/v1/residents", auth, &residents); err == nil {
+			stats["totalResidents"] = len(residents)
+		}
+
+		// 2. Units Count
+		var units []interface{}
+		if err := fetchJSON(identityURL+"/api/v1/units", auth, &units); err == nil {
+			stats["totalUnits"] = len(units)
+		}
+
+		// 3. Pending Requests Count
+		var requests []interface{}
+		if err := fetchJSON(communityURL+"/api/v1/requests", auth, &requests); err == nil {
+			// Filter for OPEN requests
+			openCount := 0
+			for _, reqVal := range requests {
+				if reqMap, ok := reqVal.(map[string]interface{}); ok {
+					if reqMap["status"] == "OPEN" {
+						openCount++
+					}
+				}
+			}
+			stats["pendingRequests"] = openCount
+		}
+
+		// 4. Active Visitors
+		var visitors []interface{}
+		if err := fetchJSON(visitorURL+"/api/v1/visitors", auth, &visitors); err == nil {
+			stats["activeVisitors"] = len(visitors)
+		}
+
+		// 5. Upcoming Meetings
+		var meetings []interface{}
+		if err := fetchJSON(meetingURL+"/api/v1/meetings", auth, &meetings); err == nil {
+			stats["upcomingMeetings"] = len(meetings)
+		}
+
 		json.NewEncoder(w).Encode(Response{
 			Success: true,
-			Data: map[string]interface{}{
-				"totalResidents":   156,
-				"totalUnits":       180,
-				"monthlyIncome":    245000,
-				"pendingRequests":  12,
-				"occupancyRate":    87,
-				"collectionRate":   94,
-				"activeVisitors":   3,
-				"upcomingMeetings": 2,
-			},
+			Data:    stats,
 		})
 	}))
+
+	mux.Handle("/api/v1/dashboard/recent-payments", jsonHandler(func(w http.ResponseWriter, r *http.Request) {
+		auth := r.Header.Get("Authorization")
+		var payments interface{}
+		if err := fetchJSON(financeURL+"/api/v1/payments", auth, &payments); err == nil {
+			json.NewEncoder(w).Encode(Response{Success: true, Data: payments})
+		} else {
+			json.NewEncoder(w).Encode(Response{Success: true, Data: []interface{}{}})
+		}
+	}))
+
+	mux.Handle("/api/v1/dashboard/recent-requests", jsonHandler(func(w http.ResponseWriter, r *http.Request) {
+		auth := r.Header.Get("Authorization")
+		var requests interface{}
+		if err := fetchJSON(communityURL+"/api/v1/requests", auth, &requests); err == nil {
+			json.NewEncoder(w).Encode(Response{Success: true, Data: requests})
+		} else {
+			json.NewEncoder(w).Encode(Response{Success: true, Data: []interface{}{}})
+		}
+	}))
+
 	mux.Handle("/api/v1/dashboard/", jsonHandler(func(w http.ResponseWriter, r *http.Request) {
 		json.NewEncoder(w).Encode(Response{Success: true, Data: map[string]interface{}{}})
 	}))
 
-	mux.Handle("/api/v1/meters", jsonHandler(func(w http.ResponseWriter, r *http.Request) {
+
+
+	mux.Handle("/api/v1/reports/generate", jsonHandler(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		
+		var req struct {
+			Type   string                 `json:"type"`
+			Params map[string]interface{} `json:"params"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		reportID := fmt.Sprintf("rpt-%d", time.Now().UnixNano())
+		var fileBytes []byte
+		var err error
+		filename := "rapor.pdf"
+		mimeType := "application/pdf"
+
+		format := "pdf"
+		if req.Params != nil {
+			if fmtVal, ok := req.Params["format"].(string); ok {
+				format = strings.ToLower(fmtVal)
+			}
+		}
+
+		if format == "xlsx" || format == "excel" {
+			mimeType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+			filename = "rapor.xlsx"
+			gen := reports.NewExcelGenerator()
+			
+			data := &reports.AssessmentReportData{
+				PropertyName:   "SiteEksen Yönetim",
+				Period:         "Temmuz 2026",
+				TotalAssessed:  12500.0,
+				TotalCollected: 10000.0,
+				TotalPending:   2500.0,
+				CollectionRate: 80.0,
+				ExpenseItems: []reports.ExpenseItem{
+					{Name: "Asansör Bakımı", DistributionType: "EŞİT", Amount: 2500},
+					{Name: "Ortak Alan Temizlik", DistributionType: "ARSA_PAYI", Amount: 5000},
+					{Name: "Güvenlik", DistributionType: "EŞİT", Amount: 5000},
+				},
+				UnitAssessments: []reports.UnitAssessment{
+					{UnitName: "A Blok Daire 1", ResidentName: "Ahmet Yılmaz", Assessed: 500.0, Paid: 500.0, Balance: 0.0},
+					{UnitName: "A Blok Daire 2", ResidentName: "Mehmet Demir", Assessed: 500.0, Paid: 0.0, Balance: 500.0},
+				},
+			}
+			fileBytes, err = gen.GenerateAssessmentExcel(data)
+		} else {
+			gen := reports.NewPDFGenerator()
+			data := &reports.AssessmentReportData{
+				PropertyName:   "SiteEksen Yönetim",
+				Period:         "Temmuz 2026",
+				TotalAssessed:  12500.0,
+				TotalCollected: 10000.0,
+				TotalPending:   2500.0,
+				CollectionRate: 80.0,
+				ExpenseItems: []reports.ExpenseItem{
+					{Name: "Asansör Bakımı", DistributionType: "EŞİT", Amount: 2500},
+					{Name: "Ortak Alan Temizlik", DistributionType: "ARSA_PAYI", Amount: 5000},
+					{Name: "Güvenlik", DistributionType: "EŞİT", Amount: 5000},
+				},
+				UnitAssessments: []reports.UnitAssessment{
+					{UnitName: "A Blok Daire 1", ResidentName: "Ahmet Yılmaz", Assessed: 500.0, Paid: 500.0, Balance: 0.0},
+					{UnitName: "A Blok Daire 2", ResidentName: "Mehmet Demir", Assessed: 500.0, Paid: 0.0, Balance: 500.0},
+				},
+			}
+			fileBytes, err = gen.GenerateAssessmentReport(data)
+		}
+
+		if err != nil {
+			json.NewEncoder(w).Encode(Response{Success: false, Error: "Rapor üretilemedi: " + err.Error()})
+			return
+		}
+
+		reportsMutex.Lock()
+		generatedReports[reportID] = struct {
+			Filename string
+			Data     []byte
+			MimeType string
+		}{Filename: filename, Data: fileBytes, MimeType: mimeType}
+		reportsMutex.Unlock()
+
 		json.NewEncoder(w).Encode(Response{
 			Success: true,
-			Data: []map[string]interface{}{
-				{"id": "m-001", "name": "A Blok Su Sayacı", "type": "WATER", "unit": "m³", "last_reading": 1245.5},
-				{"id": "m-002", "name": "B Blok Elektrik", "type": "ELECTRIC", "unit": "kWh", "last_reading": 8820.0},
-				{"id": "m-003", "name": "Ana Doğalgaz", "type": "GAS", "unit": "m³", "last_reading": 3310.2},
+			Data: map[string]interface{}{
+				"report_id": reportID,
+				"status":    "generated",
 			},
 		})
 	}))
-	mux.Handle("/api/v1/meters/", jsonHandler(func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(Response{Success: true, Message: "Sayaç işlemi tamamlandı"})
-	}))
 
-	mux.Handle("/api/v1/reports/", jsonHandler(func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasSuffix(r.URL.Path, "/download") {
-			w.Header().Set("Content-Type", "application/pdf")
-			w.Write([]byte("%PDF-1.4 mock"))
+	mux.Handle("/api/v1/reports/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		parts := strings.Split(r.URL.Path, "/")
+		if len(parts) >= 6 && parts[5] == "download" {
+			reportID := parts[4]
+			reportsMutex.RLock()
+			report, exists := generatedReports[reportID]
+			reportsMutex.RUnlock()
+
+			if !exists {
+				http.Error(w, "Report not found", http.StatusNotFound)
+				return
+			}
+
+			w.Header().Set("Content-Type", report.MimeType)
+			w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", report.Filename))
+			w.Write(report.Data)
 			return
 		}
-		json.NewEncoder(w).Encode(Response{Success: true, Data: map[string]interface{}{"report_id": "rpt-001", "status": "generated"}})
+
+		json.NewEncoder(w).Encode(Response{Success: true, Data: map[string]interface{}{}})
 	}))
 
 	handler := logMiddleware(corsMiddleware(mux))
@@ -236,4 +424,41 @@ func main() {
 	addr := fmt.Sprintf(":%s", port)
 	log.Printf("SiteEksen API Gateway v1.2.0 başlatıldı: http://localhost%s", addr)
 	log.Fatal(http.ListenAndServe(addr, handler))
+}
+
+func fetchJSON(url string, authHeader string, target interface{}) error {
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return err
+	}
+	if authHeader != "" {
+		req.Header.Set("Authorization", authHeader)
+	}
+	client := &http.Client{Timeout: 2 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("bad status: %d", resp.StatusCode)
+	}
+	
+	// Unpack outer Response wrapper if present
+	var outer struct {
+		Success bool            `json:"success"`
+		Data    json.RawMessage `json:"data"`
+		Error   string          `json:"error"`
+	}
+	
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+	
+	if err := json.Unmarshal(bodyBytes, &outer); err == nil && outer.Success {
+		return json.Unmarshal(outer.Data, target)
+	}
+	
+	return json.Unmarshal(bodyBytes, target)
 }

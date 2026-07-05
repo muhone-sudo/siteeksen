@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import '../../core/theme/apple_theme.dart';
-import '../../core/widgets/apple_widgets.dart';
+import '../../../../core/theme/apple_theme.dart';
+import '../../../../core/widgets/apple_widgets.dart';
+import '../../../../core/network/api_client.dart';
 
 /// Banka Entegrasyonu Yönetim Ekranı - Apple Tarzı
 class BankIntegrationScreen extends StatefulWidget {
@@ -15,83 +16,58 @@ class _BankIntegrationScreenState extends State<BankIntegrationScreen> with Sing
   int _selectedAccount = 0;
   bool _isSyncing = false;
 
-  final List<Map<String, dynamic>> _bankAccounts = [
-    {
-      'id': '1',
-      'bank': 'Ziraat Bankası',
-      'bankCode': 'ziraat',
-      'accountNo': '1234567890',
-      'iban': 'TR12 0001 0012 3456 7890 1234 56',
-      'balance': 125750.00,
-      'lastSync': '10 dakika önce',
-      'logo': 'assets/banks/ziraat.png',
-      'color': Color(0xFF00843D),
-    },
-    {
-      'id': '2',
-      'bank': 'Garanti BBVA',
-      'bankCode': 'garanti',
-      'accountNo': '9876543210',
-      'iban': 'TR34 0006 2012 3456 7890 1234 56',
-      'balance': 45320.50,
-      'lastSync': '1 saat önce',
-      'logo': 'assets/banks/garanti.png',
-      'color': Color(0xFF00A94F),
-    },
-  ];
+  List<Map<String, dynamic>> _bankAccounts = [];
+  List<Map<String, dynamic>> _transactions = [];
+  bool _isLoading = true;
 
-  final List<Map<String, dynamic>> _transactions = [
-    {
-      'id': '1',
-      'date': '01.02.2026',
-      'time': '14:30',
-      'type': 'incoming',
-      'amount': 1150.00,
-      'description': 'MEHMET YILMAZ D.105 AIDAT',
-      'senderName': 'MEHMET YILMAZ',
-      'senderIban': 'TR12 0001 0098 7654 3210 1234 56',
-      'matchStatus': 'matched',
-      'matchedResident': 'Mehmet Yılmaz - D.105',
-      'confidence': 0.99,
-    },
-    {
-      'id': '2',
-      'date': '01.02.2026',
-      'time': '11:45',
-      'type': 'incoming',
-      'amount': 1100.00,
-      'description': 'HAVALE - AHMET',
-      'senderName': 'AHMET KAYA',
-      'senderIban': 'TR34 0006 2098 7654 3210 9876 54',
-      'matchStatus': 'pending',
-      'suggestedMatches': [
-        {'name': 'Ahmet Kaya - A.201', 'amount': 1100.00, 'confidence': 0.85},
-        {'name': 'Ahmet Özkan - B.305', 'amount': 1100.00, 'confidence': 0.60},
-      ],
-    },
-    {
-      'id': '3',
-      'date': '31.01.2026',
-      'time': '16:20',
-      'type': 'outgoing',
-      'amount': -5500.00,
-      'description': 'ELEKTRİK FATURASI ÖDEMESİ',
-      'receiverName': 'AYEDAŞ',
-      'matchStatus': 'expense',
-    },
-    {
-      'id': '4',
-      'date': '31.01.2026',
-      'time': '09:15',
-      'type': 'incoming',
-      'amount': 2300.00,
-      'description': 'TOPLANTI SALONU REZERVASYON',
-      'senderName': 'ALİ VURAL',
-      'senderIban': 'TR56 0012 3098 7654 3210 5678 90',
-      'matchStatus': 'manual',
-      'matchedResident': 'Ali Vural - C.402',
-    },
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+    _loadBankData();
+  }
+
+  void _loadBankData() async {
+    try {
+      final accounts = await apiClient.getBankAccounts();
+      final txs = await apiClient.getBankTransactions();
+      setState(() {
+        _bankAccounts = List<Map<String, dynamic>>.from(accounts.map((a) {
+          return {
+            'id': a['id'] ?? '',
+            'bank': a['bank_name'] ?? a['bank'] ?? 'Banka',
+            'bankCode': a['bank_code'] ?? 'bank',
+            'accountNo': a['account_number'] ?? '',
+            'iban': a['iban'] ?? '',
+            'balance': (a['balance'] ?? 0.0).toDouble(),
+            'lastSync': a['last_sync'] ?? 'Az önce',
+            'logo': a['logo'] ?? 'assets/banks/ziraat.png',
+            'color': a['color'] != null ? Color(int.parse(a['color'].replaceAll('#', '0xFF'))) : const Color(0xFF00843D),
+          };
+        }));
+        _transactions = List<Map<String, dynamic>>.from(txs.map((t) {
+          return {
+            'id': t['id'] ?? '',
+            'date': t['date'] ?? '',
+            'time': t['time'] ?? '',
+            'type': t['type'] ?? 'incoming',
+            'amount': (t['amount'] ?? 0.0).toDouble(),
+            'description': t['description'] ?? '',
+            'senderName': t['sender_name'] ?? '',
+            'senderIban': t['sender_iban'] ?? '',
+            'receiverName': t['receiver_name'] ?? '',
+            'matchStatus': t['match_status'] ?? 'pending',
+            'matchedResident': t['matched_resident'],
+            'confidence': (t['confidence'] ?? 0.0).toDouble(),
+            'suggestedMatches': t['suggested_matches'] ?? [],
+          };
+        }));
+        _isLoading = false;
+      });
+    } catch (_) {
+      setState(() => _isLoading = false);
+    }
+  }
 
   final Map<String, dynamic> _stats = {
     'todayIncoming': 12450.00,
@@ -101,12 +77,6 @@ class _BankIntegrationScreenState extends State<BankIntegrationScreen> with Sing
   };
 
   @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: 3, vsync: this);
-  }
-
-  @override
   void dispose() {
     _tabController.dispose();
     super.dispose();
@@ -114,6 +84,14 @@ class _BankIntegrationScreenState extends State<BankIntegrationScreen> with Sing
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Scaffold(
+        backgroundColor: AppleTheme.background,
+        appBar: AppBar(title: const Text('Banka Entegrasyonu'), backgroundColor: Colors.white),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return Scaffold(
       backgroundColor: AppleTheme.background,
       body: SafeArea(
@@ -156,14 +134,17 @@ class _BankIntegrationScreenState extends State<BankIntegrationScreen> with Sing
                     _buildStatCard('Bugün Gelen', '₺${_formatMoney(_stats['todayIncoming'])}', Icons.arrow_downward_rounded, AppleTheme.systemGreen),
                     _buildStatCard('İşlem Sayısı', '${_stats['todayTransactions']}', Icons.receipt_long_rounded, AppleTheme.systemBlue),
                     _buildStatCard('Eşleşme Bekleyen', '${_stats['pendingMatch']}', Icons.link_off_rounded, AppleTheme.systemOrange),
-                    _buildStatCard('Aylık Toplam', '₺${_formatMoney(_stats['monthlyTotal'])}', Icons.calendar_month_rounded, AppleTheme.systemPurple),
+                    _buildStatCard('Aylık Toplam', '₺${_formatMoney(_stats['monthlyTotal'])}', Icons.calendar_month_rounded, const Color(0xFFAF52DE)),
                   ],
                 ),
               ),
             ),
 
             // Bank Accounts
-            const SliverToBoxAdapter(child: AppleSectionTitle(title: 'Banka Hesapları')),
+            SliverToBoxAdapter(child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
+              child: Text('Banka Hesapları', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppleTheme.systemGray, letterSpacing: 0.5)),
+            )),
 
             SliverToBoxAdapter(
               child: SizedBox(

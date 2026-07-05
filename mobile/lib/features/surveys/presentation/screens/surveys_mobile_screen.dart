@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../core/theme/apple_theme.dart';
 import '../../../../core/widgets/apple_widgets.dart';
+import '../../../../core/network/api_client.dart';
 
 /// Anket Listesi ve Oylama Ekranı - Apple Tarzı
 class SurveysMobileScreen extends StatefulWidget {
@@ -11,76 +12,60 @@ class SurveysMobileScreen extends StatefulWidget {
 }
 
 class _SurveysMobileScreenState extends State<SurveysMobileScreen> {
-  final List<Map<String, dynamic>> _surveys = [
-    {
-      'id': '1',
-      'title': 'Bahçe Yenileme Projesi',
-      'description': 'Site bahçesinin yenilenmesi için hangi seçeneği tercih ediyorsunuz?',
-      'endDate': '15 Şubat 2026',
-      'daysLeft': 14,
-      'totalVotes': 128,
-      'totalResidents': 200,
-      'hasVoted': false,
-      'isActive': true,
-      'options': [
-        {'id': 'a', 'text': 'Çim + Çiçek Bahçesi', 'votes': 52, 'percentage': 40.6},
-        {'id': 'b', 'text': 'Çocuk Oyun Alanı', 'votes': 45, 'percentage': 35.2},
-        {'id': 'c', 'text': 'Yürüyüş Parkuru', 'votes': 31, 'percentage': 24.2},
-      ],
-    },
-    {
-      'id': '2',
-      'title': 'Güvenlik Kamerası Yenileme',
-      'description': 'Mevcut güvenlik kameralarının yenilenmesi için bütçe ayrılsın mı?',
-      'endDate': '10 Şubat 2026',
-      'daysLeft': 9,
-      'totalVotes': 156,
-      'totalResidents': 200,
-      'hasVoted': true,
-      'votedOption': 'a',
-      'isActive': true,
-      'options': [
-        {'id': 'a', 'text': 'Evet, yenilensin', 'votes': 112, 'percentage': 71.8},
-        {'id': 'b', 'text': 'Hayır, gerek yok', 'votes': 44, 'percentage': 28.2},
-      ],
-    },
-    {
-      'id': '3',
-      'title': 'Genel Kurul Tarihi',
-      'description': '2026 Genel Kurulu için hangi tarih sizin için uygundur?',
-      'endDate': '5 Şubat 2026',
-      'daysLeft': 4,
-      'totalVotes': 89,
-      'totalResidents': 200,
-      'hasVoted': false,
-      'isActive': true,
-      'isUrgent': true,
-      'options': [
-        {'id': 'a', 'text': '15 Mart Cumartesi', 'votes': 34, 'percentage': 38.2},
-        {'id': 'b', 'text': '22 Mart Cumartesi', 'votes': 28, 'percentage': 31.5},
-        {'id': 'c', 'text': '29 Mart Cumartesi', 'votes': 27, 'percentage': 30.3},
-      ],
-    },
-    {
-      'id': '4',
-      'title': 'Havuz Çalışma Saatleri',
-      'description': 'Yaz sezonu havuz çalışma saatleri için tercihiniz?',
-      'endDate': '25 Ocak 2026',
-      'totalVotes': 167,
-      'totalResidents': 200,
-      'hasVoted': true,
-      'votedOption': 'b',
-      'isActive': false,
-      'options': [
-        {'id': 'a', 'text': '08:00 - 20:00', 'votes': 56, 'percentage': 33.5},
-        {'id': 'b', 'text': '09:00 - 21:00', 'votes': 78, 'percentage': 46.7, 'winner': true},
-        {'id': 'c', 'text': '10:00 - 22:00', 'votes': 33, 'percentage': 19.8},
-      ],
-    },
-  ];
+  List<Map<String, dynamic>> _surveys = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSurveys();
+  }
+
+  void _loadSurveys() async {
+    try {
+      final list = await apiClient.getSurveys();
+      setState(() {
+        _surveys = List<Map<String, dynamic>>.from(list.map((s) {
+          // Format active/passive options
+          final optionsList = (s['options'] as List? ?? []).map((o) {
+            return {
+              'id': o['id'] ?? '',
+              'text': o['text'] ?? '',
+              'votes': o['votes'] ?? 0,
+              'percentage': (o['percentage'] as num? ?? 0).toDouble(),
+            };
+          }).toList();
+
+          return {
+            'id': s['id'] ?? '',
+            'title': s['title'] ?? '',
+            'description': s['description'] ?? '',
+            'endDate': s['end_date'] ?? 'Belirtilmemiş',
+            'daysLeft': s['days_left'] ?? 0,
+            'totalVotes': s['total_votes'] ?? 0,
+            'hasVoted': s['has_voted'] ?? false,
+            'votedOption': s['voted_option'],
+            'isActive': s['is_active'] ?? true,
+            'isUrgent': s['is_urgent'] ?? false,
+            'options': optionsList,
+          };
+        }));
+        _isLoading = false;
+      });
+    } catch (_) {
+      setState(() => _isLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Scaffold(
+        backgroundColor: AppleTheme.background,
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
     final activeSurveys = _surveys.where((s) => s['isActive'] == true).toList();
     final completedSurveys = _surveys.where((s) => s['isActive'] == false).toList();
 
@@ -124,7 +109,7 @@ class _SurveysMobileScreenState extends State<SurveysMobileScreen> {
 
             // Active Surveys
             if (activeSurveys.isNotEmpty) ...[
-              const SliverToBoxAdapter(child: AppleSectionTitle(title: 'Aktif Anketler')),
+              const SliverToBoxAdapter(child: SectionTitle(title: 'Aktif Anketler')),
               SliverList(
                 delegate: SliverChildBuilderDelegate(
                   (context, index) => Padding(
@@ -138,7 +123,7 @@ class _SurveysMobileScreenState extends State<SurveysMobileScreen> {
 
             // Completed Surveys
             if (completedSurveys.isNotEmpty) ...[
-              const SliverToBoxAdapter(child: AppleSectionTitle(title: 'Tamamlanan')),
+              const SliverToBoxAdapter(child: SectionTitle(title: 'Tamamlanan')),
               SliverList(
                 delegate: SliverChildBuilderDelegate(
                   (context, index) => Padding(
@@ -306,6 +291,7 @@ class _SurveysMobileScreenState extends State<SurveysMobileScreen> {
     final hasVoted = survey['hasVoted'] == true;
     final isActive = survey['isActive'] == true;
     final options = survey['options'] as List;
+    String? selectedOption;
 
     showModalBottomSheet(
       context: context,
@@ -313,8 +299,6 @@ class _SurveysMobileScreenState extends State<SurveysMobileScreen> {
       backgroundColor: Colors.transparent,
       builder: (context) => StatefulBuilder(
         builder: (context, setSheetState) {
-          String? selectedOption;
-          
           return Container(
             height: MediaQuery.of(context).size.height * 0.85,
             decoration: const BoxDecoration(
@@ -426,15 +410,34 @@ class _SurveysMobileScreenState extends State<SurveysMobileScreen> {
                       // Vote Button
                       if (isActive && !hasVoted)
                         ElevatedButton(
-                          onPressed: selectedOption != null ? () {
-                            Navigator.pop(context);
-                            // Submit vote
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: const Text('Oyunuz kaydedildi!'),
-                                backgroundColor: AppleTheme.systemGreen,
-                              ),
+                          onPressed: selectedOption != null ? () async {
+                            showDialog(
+                              context: context,
+                              barrierDismissible: false,
+                              builder: (context) => const Center(child: CircularProgressIndicator()),
                             );
+
+                            try {
+                              await apiClient.submitSurveyResponse(survey['id'], {'option_id': selectedOption});
+                              Navigator.pop(context); // close loader
+                              Navigator.pop(context); // close sheet
+                              _loadSurveys(); // refresh surveys
+
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: const Text('Oyunuz kaydedildi!'),
+                                  backgroundColor: AppleTheme.systemGreen,
+                                ),
+                              );
+                            } catch (e) {
+                              Navigator.pop(context); // close loader
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Hata: $e'),
+                                  backgroundColor: AppleTheme.systemRed,
+                                ),
+                              );
+                            }
                           } : null,
                           style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
                           child: const Text('Oyu Gönder'),

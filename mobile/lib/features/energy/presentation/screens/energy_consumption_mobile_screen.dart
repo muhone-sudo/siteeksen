@@ -177,7 +177,10 @@ class _EnergyConsumptionMobileScreenState extends State<EnergyConsumptionMobileS
             ),
 
             // Tips
-            const SliverToBoxAdapter(child: AppleSectionTitle(title: 'Tasarruf İpuçları')),
+            SliverToBoxAdapter(child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
+              child: Text('Tasarruf İpuçları', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppleTheme.systemGray, letterSpacing: 0.5)),
+            )),
             SliverList(
               delegate: SliverChildBuilderDelegate(
                 (context, index) => Padding(

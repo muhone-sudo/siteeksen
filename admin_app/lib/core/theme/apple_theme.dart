@@ -8,6 +8,11 @@ class AppleTheme {
   static const Color systemGreen = Color(0xFF34C759);
   static const Color systemOrange = Color(0xFFFF9500);
   static const Color systemRed = Color(0xFFFF3B30);
+  static const Color systemPurple = Color(0xFFAF52DE);
+  static const Color systemPink = Color(0xFFFF2D55);
+  static const Color systemIndigo = Color(0xFF5856D6);
+  static const Color systemTeal = Color(0xFF5AC8FA);
+  static const Color systemYellow = Color(0xFFFFCC00);
   static const Color systemGray = Color(0xFF8E8E93);
   static const Color systemGray2 = Color(0xFFAEAEB2);
   static const Color systemGray3 = Color(0xFFC7C7CC);
@@ -55,6 +60,19 @@ class AppleTheme {
   static const double radiusMedium = 12.0;
   static const double radiusLarge = 16.0;
   static const double radiusXLarge = 20.0;
+
+  // Card Decoration
+  static BoxDecoration get cardDecoration => BoxDecoration(
+    color: Colors.white,
+    borderRadius: BorderRadius.circular(radiusMedium),
+    boxShadow: [
+      BoxShadow(
+        color: Colors.black.withOpacity(0.04),
+        blurRadius: 10,
+        offset: const Offset(0, 2),
+      ),
+    ],
+  );
   
   static ThemeData get lightTheme {
     return ThemeData(
@@ -98,7 +116,7 @@ class AppleTheme {
       ),
       
       // Card - Soft shadows, rounded corners
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(radiusMedium),
@@ -252,7 +270,7 @@ class AppleTheme {
       ),
       
       // Tab Bar
-      tabBarTheme: const TabBarTheme(
+      tabBarTheme: const TabBarThemeData(
         labelColor: systemBlue,
         unselectedLabelColor: systemGray,
         indicatorColor: systemBlue,
@@ -271,7 +289,7 @@ class AppleTheme {
       ),
       
       // Dialog
-      dialogTheme: DialogTheme(
+      dialogTheme: DialogThemeData(
         backgroundColor: Colors.white,
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(

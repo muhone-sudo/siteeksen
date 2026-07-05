@@ -1,0 +1,79 @@
+com.apsiyon.android Yorum Analizi
+
+1. Kimlik Doğrulama ve Oturum Yönetimi (Authentication) ModülüMevcut Hatalar ve Tasarım Yanlışları:Oturumun Sürekli Düşmesi: Uygulama kullanıcıları sürekli sistemden atıyor ve her girişte tekrar şifre talep ediyor.  Doğrulama Kodlarının Ulaşmaması: Üyelik aktivasyonu veya şifre sıfırlama sırasında gönderildiği söylenen SMS ve E-posta kodları kullanıcılara ulaşmıyor.  Şifre Sıfırlama Hataları: Kullanıcılar şifrelerini unutup yenilemek istediklerinde uygulama direkt olarak çöküyor.  Yeni Uygulamada Nasıl Kurgulanmalı?Sürekli giriş istemek mobil dünyada kabul edilemez bir deneyimdir. Oturum yönetimi için JWT (JSON Web Token) tabanlı, access_token ve refresh_token döngüsüyle çalışan güvenli bir yapı kurgulamalısın.Kullanıcı bir kez giriş yaptıktan sonra biyometrik (FaceID/TouchID) doğrulama ile token'ı tetikleyebilmeli.SMS ve e-posta doğrulama (OTP) süreçlerinde API darboğazları oluşmaması için güçlü bir kuyruk (queue) mimarisi kullanılmalı.2. Finans, Muhasebe ve Ödeme ModülüMevcut Hatalar ve Tasarım Yanlışları:Ödeme Ekranı Çökmeleri: Ödeme yapmak için ekrana tıklandığında sayfa beyaz zemine geçiyor ve uygulama donuyor.  Fatura Detaylarının Gizlenmesi: Merkezi sistem doğalgaz, su gibi tüketimlerde faturanın detayı (kullanım miktarı, gün sayısı) gösterilmiyor, sadece toplam ödenecek bedel ekrana yansıtılıyor.  Kısmi veya Çoklu Ödeme Sorunları: Kullanıcılar sadece istedikleri faturayı seçip ödeyemiyor veya yatırılan para ısınma yerine yanlışlıkla aidattan düşüyor. Ayrıca aidat ve diğer işlemler için tek bir hesaba para yatırılabiliyor, bu da yönetim tarafında hesapların karışmasına yol açıyor.  Yüksek Komisyon oranları: Kullanıcılardan alınan hizmet bedelleri çok yüksek bulunuyor.  Yeni Uygulamada Nasıl Kurgulanmalı?Ödeme arayüzleri kesinlikle web sayfası gömmesi (WebView) olmamalı; stabilite için doğrudan "Native" kodlanmalı.Veritabanında her bir borç türü benzersiz bir ID ile tutulmalı. Kullanıcı sepet mantığıyla "Sadece Isınma ve Su faturasını öde" diyebilmeli ve yatan bakiye doğrudan o kalemlerle eşleşmeli.Tüketim faturalarında mutlaka PDF görüntüleme veya detay ekranı sunulmalı.Banka API entegrasyonlarında (Webhook) asenkron yapılar kurularak, hesaba düşen para anında kullanıcının borcundan düşülmeli ve faiz işlemesinin önüne geçilmeli.  3. Kullanıcı Arayüzü (UI) ve Deneyim (UX) ModülüMevcut Hatalar ve Tasarım Yanlışları:Geri Tuşu Hatası: Android cihazlarda donanımsal "Geri" tuşuna basıldığında bir önceki sayfaya gitmek yerine uygulama tamamen kapanıyor.  Web Mantığı: Uygulamanın aslında bir mobil uygulama olmadığı, sadece web sayfasının bir çerçeve içine oturtulduğu hissediliyor.  Aşırı Yavaşlık: Her menü geçişinde 2-3 saniye bekletiyor, uygulama çok ağır ve hantal çalışıyor.  Yeni Uygulamada Nasıl Kurgulanmalı?Mobil uygulama geliştirirken arayüzde utility-first bir yaklaşım (Tailwind mantığı gibi) benimseyerek ekranları hafif, tutarlı ve modüler tasarlayabilirsin.Gezinme (Routing) yapısı çok sağlam kurgulanmalı. Kullanıcı donanımsal geri tuşuna bastığında navigasyon stack'inde her zaman bir önceki "Native" ekrana dönmeli.4. İletişim, Bildirim ve Talep (Helpdesk) ModülüMevcut Hatalar ve Tasarım Yanlışları:Eksik Finansal Bildirimler: Yeni bir borç veya duyuru eklendiğinde telefona anlık bildirim (Push Notification) gelmiyor; kullanıcının bunu görmek için illa uygulamayı açması gerekiyor.  Kapatılamayan Reklamlar: Kullanıcılar bildirim ayarlarını kapatsa bile uygulama reklam göndermeye devam ediyor.  Talep Takipsizliği: Yönetime açılan talepler cevapsız kalıyor veya sorunu açan kişinin onayı alınmadan yönetim tarafından tek taraflı olarak "Tamamlandı" statüsüne çekiliyor.  Yeni Uygulamada Nasıl Kurgulanmalı?Bildirimler işletim sisteminin özelliklerine uygun olarak kategorize edilmeli (Notification Channels). "Finansal Bildirimler" zorunlu tutulurken, "Kampanya Bildirimleri" kullanıcının inisiyatifiyle gerçekten kapatılabilmeli.Talepler için bir Ticket sistemi kurulmalı. Kullanıcının talebi, kullanıcı "Sorunum çözüldü" butonuna basmadan veya belli bir süre tepkisiz kalmadan otomatik kapatılamamalı.5. Veri Güvenliği ve İzolasyon ModülüMevcut Hatalar ve Tasarım Yanlışları:İzinsiz Veri Paylaşımı: Kullanıcıların açık rızası alınmadan adres ve kişisel verilerinin üçüncü parti hizmetlerle paylaşıldığı hissiyatı var.  Yeni Uygulamada Nasıl Kurgulanmalı?Uygulamanın arka planında verilerin izole edilmesi şart. Her sitenin/apartmanın verisinin diğerine karışmayacağı sağlam bir multi-tenant veritabanı mimarisi kurulmalı.Sistem güvenliğini sağlamak için API uçları Cloudflare gibi bir WAF arkasına alınmalı. Ayrıca kimlik doğrulama süreçlerinde eski protokollerden kaçınıp güncel şifreleme ve network hardening metotları uygulanmalı.
+
+com.apsiyon.manager Yorum Analizi
+
+1. Kapsam ve Fonksiyonellik (Web vs. Mobil Senkronizasyonu)
+Mevcut Hatalar ve Eksiklikler:
+
+Zayıf Menü Yapısı: Yöneticiler, masaüstünde (Web'de) yapabildikleri işlemlerin %90'ını mobil uygulamada yapamamaktan şikayetçi. Uygulama sadece "tahsilat görme" işine yarıyor, harcamaları/giderleri girmek veya raporları çekmek gibi kritik özellikler mobilde yok.
+
+Eksik Finansal Veriler: Son güncellemelerden sonra hesap ekstreleri, banka IBAN bilgileri ve tüm bankalardaki kasa durumları mobil uygulamada görüntülenemez hale gelmiş.
+
+Kayıt Yapılamaması: Mobil uygulama üzerinden yeni bir kayıt girmek, veri eklemek veya daire sakini ile ödemesini "eşleştirmek" mümkün değil.
+
+Yeni Uygulamada Nasıl Kurgulanmalı?
+
+Mobil Öncelikli Yaklaşım (Mobile-First): Yönetici genellikle sahada, bina içinde veya hareket halindedir. Web panelindeki en çok kullanılan menüler (Gelir-gider işleme, tahsilat girme, IBAN listesi, banka hesabı görüntüleme) kesinlikle mobilde eksiksiz çalışmalı.
+
+Özelleştirilebilir Dashboard: Yöneticilerin ve denetçilerin ihtiyaçları farklıdır. Uygulama açıldığında, yöneticinin en çok kullandığı modülleri (örn: Kasa Durumu, Açık Talepler, Vadesi Geçmiş Alacaklar) ana ekranda widget olarak özelleştirebilmesi sağlanmalı.
+
+2. Performans, Stabilite ve Giriş Modülü
+Mevcut Hatalar ve Eksiklikler:
+
+Sürekli Çökme (Crash) ve Donma: Uygulama logoda veya beyaz ekranda takılı kalıyor. Cihazı (örneğin Samsung A51 modelini) kilitleyecek derecede bellek hataları (bug) yaratıyor.
+
+Kimlik Doğrulama Sorunları: Geçerli bir hesabı olan yönetici mobilden girmeye çalıştığında "Eşleşen profil bulunamadı" veya "Kullanıcı bulunamadı" hataları alıyor.
+
+Modern Giriş Eksikliği: Her girişte kullanıcı adı ve şifre sorması, FaceID veya Parmak İzi ile giriş seçeneğinin (Biometric Authentication) olmaması yöneticileri yoruyor.
+
+Yeni Uygulamada Nasıl Kurgulanmalı?
+
+Biyometrik giriş (Touch ID / Face ID) yönetici uygulamasında mutlak bir standart olmalı. Sahada şifre girmek yöneticiler için pratik değildir.
+
+WebView ve hantal kodlamadan kaçınılmalı. Uygulama logoda kalıyorsa bu muhtemelen backend'den gelen ağır ve senkron çalışan (asenkron olmayan) API isteklerinin uygulamayı tıkamasından kaynaklanıyordur. API'lerin çok hızlı (GraphQL veya optimize edilmiş REST) tepki vermesi sağlanmalı.
+
+3. Rol Yönetimi (Role-Based Access Control) ve Entegrasyon
+Mevcut Hatalar ve Eksiklikler:
+
+Rol Yönetimi (User Role Management) Eksikliği: Bir site için yönetici, denetçi veya asistan gibi farklı roller var ancak uygulamada bu rollerin menüleri düzgün yönetilemiyor. Herkes aynı ekranları görüyor ya da denetçiler yetkisiz kalıyor.
+
+Farklı Ürünlere (Apsis vb.) Kapalı Olma: Şirketin diğer bir ürünü olan "Apsis" kullanıcıları, yönetici uygulamasına giriş yapamıyor, entegrasyon kopukluğu var.
+
+Banka Entegrasyon Hataları: Tüm bankalardaki hesapları çekme (Açık Bankacılık) entegrasyonu sık sık bozuluyor.
+
+Yeni Uygulamada Nasıl Kurgulanmalı?
+
+Çok katmanlı RBAC (Role-Based Access Control) yapısı kurulmalı. Uygulamayı indiren kişi "Denetçi" rolüyle girdiğinde harcama girememeli ancak finansal tabloları detaylı görebilmeli.
+
+Ürünler veya alt ürünler arası veri tabanı tekil bir merkezde (Single Source of Truth) toplanmalı.
+
+Banka hareketlerini mobilden canlı çekebilecek güçlü bir açık bankacılık (Open Banking) servis sağlayıcısı ile stabil bir entegrasyon kurulmalı.
+
+4. İletişim, Bildirim ve Müşteri Destek Modülü
+Mevcut Hatalar ve Eksiklikler:
+
+Bildirim (Push Notification) Çalışmıyor: Bildirimler gelmiyor ve uygulamanın üzerinde bildirim işareti (badge) çıkmıyor. Yönetici, sakinlerden gelen önemli talepleri veya ödemeleri anlık olarak göremiyor.
+
+Destek Alamama ve Baştan Savma: Yöneticiler sorun yaşadıklarında "şuraya mail atın" tarzı kopyala-yapıştır cevaplar almaktan ve çözüm üretilmemesinden şikayetçi. Kurumsal bir muhatap bulamıyorlar.
+
+Yüksek Fiyatlama: Yöneticiler uygulamanın sağladığı sınırlı fonksiyonelliğe kıyasla alınan ücretlerin (örneğin 105 daire için istenen paraların) yüksek olduğunu düşünüyor.
+
+Yeni Uygulamada Nasıl Kurgulanmalı?
+
+"Push Notification" sistemi, yöneticiler için bir opsiyon değil can damarıdır. Bir arıza talebi veya ödeme düştüğünde anında bildirim gelmeli.
+
+Mobil uygulamanın içerisine doğrudan bir "Canlı Destek" veya "Öncelikli Bilet (Ticket)" ekranı konmalı. Yönetici bir hatayla karşılaştığında uygulamadan çıkmadan, log kayıtlarıyla birlikte tek tuşla hata bildirimi yapabilmeli.
+
+Özetle Senin İçin Stratejik Çıkarımlar:
+Apsiyon'un en büyük sorunu, ürünü satana kadar agresif pazarlama yapıp, sattıktan sonra mobil deneyimi web'in çok gerisinde bırakması olarak görünüyor.
+
+Senin yeni uygulaman eğer;
+
+Mobilden masraf/tahsilat işleme imkanı sunarsa,
+
+Yöneticinin parmak iziyle anında girip, site kasasında ne kadar para olduğunu görebildiği şık bir dashboard'a sahip olursa,
+
+Denetçilere ve yönetici asistanlarına özel yetkilendirme verebilirse,
+pazardaki bu memnuniyetsiz kitleyi çok kolay bir şekilde kendi sistemine çekebilirsin.

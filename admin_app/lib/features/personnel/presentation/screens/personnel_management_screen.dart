@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../core/theme/apple_theme.dart';
 import '../../../../core/widgets/apple_widgets.dart';
+import '../../../../core/network/api_client.dart';
 
 /// Personel Yönetim Ekranı - Apple Tarzı
 class PersonnelManagementScreen extends StatefulWidget {
@@ -14,51 +15,48 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
-  final List<Map<String, dynamic>> _employees = [
-    {
-      'name': 'Hasan Güvenlik',
-      'position': 'Güvenlik Görevlisi',
-      'department': 'Güvenlik',
-      'status': 'active',
-      'phone': '0532 111 2233',
-      'hireDate': '2022-03-15',
-      'salary': 18000,
-    },
-    {
-      'name': 'Fatma Temizlik',
-      'position': 'Temizlik Personeli',
-      'department': 'Temizlik',
-      'status': 'on_leave',
-      'phone': '0533 222 3344',
-      'hireDate': '2023-06-01',
-      'salary': 14000,
-    },
-    {
-      'name': 'Mehmet Bakım',
-      'position': 'Teknik Personel',
-      'department': 'Teknik',
-      'status': 'active',
-      'phone': '0534 333 4455',
-      'hireDate': '2021-01-10',
-      'salary': 20000,
-    },
-  ];
-
-  final List<Map<String, dynamic>> _leaveRequests = [
-    {
-      'name': 'Fatma Temizlik',
-      'type': 'Yıllık İzin',
-      'startDate': '2026-02-15',
-      'endDate': '2026-02-20',
-      'days': 5,
-      'status': 'pending',
-    },
-  ];
+  List<Map<String, dynamic>> _employees = [];
+  List<Map<String, dynamic>> _leaveRequests = [];
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    _loadEmployeesAndLeaves();
+  }
+
+  void _loadEmployeesAndLeaves() async {
+    try {
+      final employeesList = await apiClient.getEmployees();
+      final leavesList = await apiClient.getLeaves();
+      setState(() {
+        _employees = List<Map<String, dynamic>>.from(employeesList.map((e) {
+          return {
+            'name': e['name'] ?? '',
+            'position': e['position'] ?? '',
+            'department': e['department'] ?? '',
+            'status': e['status']?.toString().toLowerCase() ?? 'active',
+            'phone': e['phone'] ?? '',
+            'hireDate': e['hire_date'] ?? '',
+            'salary': (e['salary'] ?? 0).toInt(),
+          };
+        }));
+        _leaveRequests = List<Map<String, dynamic>>.from(leavesList.map((l) {
+          return {
+            'name': l['employee_name'] ?? l['name'] ?? '',
+            'type': l['type'] ?? '',
+            'startDate': l['start_date'] ?? '',
+            'endDate': l['end_date'] ?? '',
+            'days': (l['days'] ?? 0).toInt(),
+            'status': l['status']?.toString().toLowerCase() ?? 'pending',
+          };
+        }));
+        _isLoading = false;
+      });
+    } catch (_) {
+      setState(() => _isLoading = false);
+    }
   }
 
   @override
@@ -69,6 +67,14 @@ class _PersonnelManagementScreenState extends State<PersonnelManagementScreen>
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Scaffold(
+        backgroundColor: AppleTheme.background,
+        appBar: AppBar(title: const Text('Personel'), backgroundColor: Colors.white),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return Scaffold(
       backgroundColor: AppleTheme.background,
       body: NestedScrollView(

@@ -1,4 +1,4 @@
-package banking
+package provider
 
 import (
 	"bytes"

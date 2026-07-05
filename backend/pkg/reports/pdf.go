@@ -32,7 +32,7 @@ func (g *PDFGenerator) GenerateAssessmentReport(data *AssessmentReportData) ([]b
 	
 	// Dönem bilgisi
 	g.pdf.SetFont("Arial", "B", 12)
-	g.pdf.Cell(0, 10, fmt.Sprintf("Dönem: %s", data.Period), "", 1, "L", false, 0, "")
+	g.pdf.CellFormat(0, 10, fmt.Sprintf("Dönem: %s", data.Period), "", 1, "L", false, 0, "")
 	g.pdf.Ln(5)
 
 	// Özet kartları
@@ -46,7 +46,7 @@ func (g *PDFGenerator) GenerateAssessmentReport(data *AssessmentReportData) ([]b
 	// Gider kalemleri tablosu
 	g.pdf.Ln(10)
 	g.pdf.SetFont("Arial", "B", 11)
-	g.pdf.Cell(0, 8, "Gider Kalemleri", "", 1, "L", false, 0, "")
+	g.pdf.CellFormat(0, 8, "Gider Kalemleri", "", 1, "L", false, 0, "")
 
 	headers := []string{"Kalem", "Dağıtım", "Tutar"}
 	widths := []float64{80, 50, 50}
@@ -63,7 +63,7 @@ func (g *PDFGenerator) GenerateAssessmentReport(data *AssessmentReportData) ([]b
 	// Daire bazlı tahakkuklar
 	g.pdf.AddPage()
 	g.pdf.SetFont("Arial", "B", 11)
-	g.pdf.Cell(0, 8, "Daire Bazlı Tahakkuklar", "", 1, "L", false, 0, "")
+	g.pdf.CellFormat(0, 8, "Daire Bazlı Tahakkuklar", "", 1, "L", false, 0, "")
 
 	unitHeaders := []string{"Daire", "Sakin", "Tahakkuk", "Ödenen", "Kalan"}
 	unitWidths := []float64{30, 50, 35, 35, 35}
@@ -92,7 +92,7 @@ func (g *PDFGenerator) GenerateCollectionReport(data *CollectionReportData) ([]b
 	g.addHeader(data.PropertyName, "Tahsilat Raporu")
 
 	g.pdf.SetFont("Arial", "", 10)
-	g.pdf.Cell(0, 8, fmt.Sprintf("Rapor Dönemi: %s - %s", data.StartDate, data.EndDate), "", 1, "L", false, 0, "")
+	g.pdf.CellFormat(0, 8, fmt.Sprintf("Rapor Dönemi: %s - %s", data.StartDate, data.EndDate), "", 1, "L", false, 0, "")
 	g.pdf.Ln(5)
 
 	// Ödeme listesi
@@ -112,8 +112,8 @@ func (g *PDFGenerator) GenerateCollectionReport(data *CollectionReportData) ([]b
 
 	// Toplam
 	g.pdf.SetFont("Arial", "B", 10)
-	g.pdf.Cell(105, 8, "", "", 0, "", false, 0, "")
-	g.pdf.Cell(35, 8, formatCurrency(data.TotalAmount), "T", 1, "R", false, 0, "")
+	g.pdf.CellFormat(105, 8, "", "", 0, "", false, 0, "")
+	g.pdf.CellFormat(35, 8, formatCurrency(data.TotalAmount), "T", 1, "R", false, 0, "")
 
 	g.addFooter()
 
@@ -128,7 +128,7 @@ func (g *PDFGenerator) GenerateConsumptionReport(data *ConsumptionReportData) ([
 	g.addHeader(data.PropertyName, fmt.Sprintf("%s Tüketim Raporu", data.MeterType))
 
 	g.pdf.SetFont("Arial", "", 10)
-	g.pdf.Cell(0, 8, fmt.Sprintf("Dönem: %s", data.Period), "", 1, "L", false, 0, "")
+	g.pdf.CellFormat(0, 8, fmt.Sprintf("Dönem: %s", data.Period), "", 1, "L", false, 0, "")
 	g.pdf.Ln(5)
 
 	headers := []string{"Daire", "Sayaç No", "Önceki", "Yeni", "Tüketim", "Tutar"}
@@ -155,12 +155,12 @@ func (g *PDFGenerator) GenerateConsumptionReport(data *ConsumptionReportData) ([
 
 func (g *PDFGenerator) addHeader(propertyName, reportTitle string) {
 	g.pdf.SetFont("Arial", "B", 16)
-	g.pdf.Cell(0, 10, propertyName, "", 1, "C", false, 0, "")
+	g.pdf.CellFormat(0, 10, propertyName, "", 1, "C", false, 0, "")
 	g.pdf.SetFont("Arial", "", 14)
-	g.pdf.Cell(0, 8, reportTitle, "", 1, "C", false, 0, "")
+	g.pdf.CellFormat(0, 8, reportTitle, "", 1, "C", false, 0, "")
 	g.pdf.SetFont("Arial", "", 9)
 	g.pdf.SetTextColor(128, 128, 128)
-	g.pdf.Cell(0, 6, fmt.Sprintf("Oluşturulma: %s", time.Now().Format("02.01.2006 15:04")), "", 1, "C", false, 0, "")
+	g.pdf.CellFormat(0, 6, fmt.Sprintf("Oluşturulma: %s", time.Now().Format("02.01.2006 15:04")), "", 1, "C", false, 0, "")
 	g.pdf.SetTextColor(0, 0, 0)
 	g.pdf.Ln(5)
 }
@@ -169,7 +169,7 @@ func (g *PDFGenerator) addFooter() {
 	g.pdf.SetY(-20)
 	g.pdf.SetFont("Arial", "I", 8)
 	g.pdf.SetTextColor(128, 128, 128)
-	g.pdf.Cell(0, 10, "SiteEksen - Site Yönetim Platformu", "", 0, "C", false, 0, "")
+	g.pdf.CellFormat(0, 10, "SiteEksen - Site Yönetim Platformu", "", 0, "C", false, 0, "")
 }
 
 func (g *PDFGenerator) addSummaryCards(cards []SummaryCard) {

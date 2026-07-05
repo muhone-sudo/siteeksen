@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../core/theme/apple_theme.dart';
 import '../../../../core/widgets/apple_widgets.dart';
+import '../../../../core/network/api_client.dart';
 
 /// Rezervasyon Yapma Ekranı - Apple Tarzı
 class CreateReservationScreen extends StatefulWidget {
@@ -14,14 +15,9 @@ class _CreateReservationScreenState extends State<CreateReservationScreen> {
   int _selectedFacility = 0;
   DateTime _selectedDate = DateTime.now();
   int _selectedTimeSlot = -1;
+  bool _isLoading = true;
 
-  final List<Map<String, dynamic>> _facilities = [
-    {'id': '1', 'name': 'Tenis Kortu', 'icon': Icons.sports_tennis_rounded, 'color': AppleTheme.systemGreen, 'price': 150},
-    {'id': '2', 'name': 'Havuz', 'icon': Icons.pool_rounded, 'color': AppleTheme.systemBlue, 'price': 0},
-    {'id': '3', 'name': 'Spor Salonu', 'icon': Icons.fitness_center_rounded, 'color': AppleTheme.systemOrange, 'price': 0},
-    {'id': '4', 'name': 'Toplantı Odası', 'icon': Icons.meeting_room_rounded, 'color': AppleTheme.systemPurple, 'price': 200},
-    {'id': '5', 'name': 'Mangal Alanı', 'icon': Icons.outdoor_grill_rounded, 'color': AppleTheme.systemRed, 'price': 100},
-  ];
+  List<Map<String, dynamic>> _facilities = [];
 
   final List<Map<String, dynamic>> _timeSlots = [
     {'time': '09:00 - 10:00', 'available': true},
@@ -35,7 +31,81 @@ class _CreateReservationScreenState extends State<CreateReservationScreen> {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _loadFacilities();
+  }
+
+  void _loadFacilities() async {
+    try {
+      final dynamic data = await apiClient.getFacilities();
+      List<dynamic> list = [];
+      if (data is Map && data.containsKey('facilities')) {
+        list = data['facilities'];
+      } else if (data is List) {
+        list = data;
+      }
+      setState(() {
+        _facilities = list.map((item) => {
+          'id': item['id'] ?? '',
+          'name': item['name'] ?? '',
+          'icon': _getIconForCategory(item['category']),
+          'color': _getColorForCategory(item['category']),
+          'price': (item['hourly_fee'] ?? item['price'] ?? 0).toInt(),
+        }).toList();
+        _isLoading = false;
+      });
+    } catch (_) {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  IconData _getIconForCategory(String? category) {
+    switch (category) {
+      case 'POOL': return Icons.pool_rounded;
+      case 'GYM': return Icons.fitness_center_rounded;
+      case 'TENNIS': return Icons.sports_tennis_rounded;
+      case 'MEETING': return Icons.meeting_room_rounded;
+      default: return Icons.sports_rounded;
+    }
+  }
+
+  Color _getColorForCategory(String? category) {
+    switch (category) {
+      case 'POOL': return AppleTheme.systemBlue;
+      case 'GYM': return AppleTheme.systemOrange;
+      case 'TENNIS': return AppleTheme.systemGreen;
+      case 'MEETING': return AppleTheme.systemPurple;
+      default: return AppleTheme.systemRed;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Scaffold(
+        backgroundColor: AppleTheme.background,
+        appBar: AppBar(
+          title: const Text('Rezervasyon Yap'),
+          backgroundColor: Colors.white,
+          surfaceTintColor: Colors.transparent,
+        ),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (_facilities.isEmpty) {
+      return Scaffold(
+        backgroundColor: AppleTheme.background,
+        appBar: AppBar(
+          title: const Text('Rezervasyon Yap'),
+          backgroundColor: Colors.white,
+          surfaceTintColor: Colors.transparent,
+        ),
+        body: const Center(child: Text('Rezervasyona açık tesis bulunamadı.')),
+      );
+    }
+
     final selectedFacilityData = _facilities[_selectedFacility];
 
     return Scaffold(
@@ -258,50 +328,77 @@ class _CreateReservationScreenState extends State<CreateReservationScreen> {
     );
   }
 
-  void _submitReservation(BuildContext context) {
+  void _submitReservation(BuildContext context) async {
     final facility = _facilities[_selectedFacility];
     final slot = _timeSlots[_selectedTimeSlot];
+    final times = slot['time'].split(' - ');
+    final startTime = times[0];
+    final endTime = times[1];
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: (facility['color'] as Color).withOpacity(0.12),
-                shape: BoxShape.circle,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      await apiClient.createReservation(
+        facilityId: facility['id'],
+        date: _selectedDate.toIso8601String().split('T')[0],
+        startTime: startTime,
+        endTime: endTime,
+      );
+      Navigator.pop(context); // close loader
+
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: (facility['color'] as Color).withOpacity(0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(facility['icon'] as IconData, size: 48, color: facility['color'] as Color),
+               ),
+              const SizedBox(height: 24),
+              const Text('Rezervasyon Onaylandı!', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 12),
+              Text(facility['name'] as String, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 4),
+              Text(
+                '${_formatDate(_selectedDate)} • ${slot['time']}',
+                style: TextStyle(fontSize: 14, color: AppleTheme.secondaryLabel),
               ),
-              child: Icon(facility['icon'] as IconData, size: 48, color: facility['color'] as Color),
-            ),
-            const SizedBox(height: 24),
-            const Text('Rezervasyon Onaylandı!', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
-            const SizedBox(height: 12),
-            Text(facility['name'] as String, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
-            const SizedBox(height: 4),
-            Text(
-              '${_formatDate(_selectedDate)} • ${slot['time']}',
-              style: TextStyle(fontSize: 14, color: AppleTheme.secondaryLabel),
+            ],
+          ),
+          actions: [
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  Navigator.pop(context);
+                },
+                child: const Text('Tamam'),
+              ),
             ),
           ],
         ),
-        actions: [
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context);
-                Navigator.pop(context);
-              },
-              child: const Text('Tamam'),
-            ),
-          ),
-        ],
-      ),
-    );
+      );
+    } catch (e) {
+      Navigator.pop(context); // close loader
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Rezervasyon oluşturulamadı: $e'),
+          backgroundColor: AppleTheme.systemRed,
+        ),
+      );
+    }
   }
 
   String _formatDate(DateTime date) {

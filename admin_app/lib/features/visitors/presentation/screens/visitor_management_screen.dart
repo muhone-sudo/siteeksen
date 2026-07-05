@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../../core/theme/apple_theme.dart';
 import '../../../../core/widgets/apple_widgets.dart';
+import '../../../../core/network/api_client.dart';
 
 /// Ziyaretçi Yönetim Ekranı - Apple Tarzı Minimalist Tasarım
 class VisitorManagementScreen extends StatefulWidget {
@@ -18,46 +19,35 @@ class _VisitorManagementScreenState extends State<VisitorManagementScreen>
 
   final List<String> _filters = ['Tümü', 'Beklenen', 'İçeride', 'Çıkış Yaptı'];
 
-  // Mock data
-  final List<Map<String, dynamic>> _visitors = [
-    {
-      'name': 'Ahmet Yılmaz',
-      'unit': 'D.101',
-      'purpose': 'Misafir',
-      'status': 'expected',
-      'time': '14:30',
-      'phone': '0532 111 2233',
-    },
-    {
-      'name': 'Kargo - Yurtiçi',
-      'unit': 'D.205',
-      'purpose': 'Kargo Teslimi',
-      'status': 'inside',
-      'time': '13:45',
-      'phone': null,
-    },
-    {
-      'name': 'Zeynep Kaya',
-      'unit': 'D.301',
-      'purpose': 'Tadilat Ustası',
-      'status': 'left',
-      'time': '10:20',
-      'phone': '0544 222 3344',
-    },
-    {
-      'name': 'Mehmet Demir',
-      'unit': 'D.102',
-      'purpose': 'Misafir',
-      'status': 'inside',
-      'time': '12:00',
-      'phone': '0533 444 5566',
-    },
-  ];
+  List<Map<String, dynamic>> _visitors = [];
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _loadVisitors();
+  }
+
+  void _loadVisitors() async {
+    try {
+      final list = await apiClient.getVisitors();
+      setState(() {
+        _visitors = List<Map<String, dynamic>>.from(list.map((v) {
+          return {
+            'name': v['name'] ?? '',
+            'unit': v['unit_id'] ?? v['unit'] ?? '',
+            'purpose': v['purpose'] ?? 'Ziyaret',
+            'status': v['status']?.toString().toLowerCase() ?? 'expected',
+            'time': v['time'] ?? '12:00',
+            'phone': v['phone'],
+          };
+        }));
+        _isLoading = false;
+      });
+    } catch (_) {
+      setState(() => _isLoading = false);
+    }
   }
 
   @override
@@ -69,6 +59,14 @@ class _VisitorManagementScreenState extends State<VisitorManagementScreen>
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Scaffold(
+        backgroundColor: AppleTheme.background,
+        appBar: AppBar(title: const Text('Ziyaretçiler'), backgroundColor: Colors.white),
+        body: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return Scaffold(
       backgroundColor: AppleTheme.background,
       body: CustomScrollView(

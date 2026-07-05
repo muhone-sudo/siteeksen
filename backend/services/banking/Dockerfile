@@ -1,0 +1,26 @@
+FROM golang:1.24-alpine AS builder
+
+WORKDIR /app
+
+# Bağımlılıkları kopyala
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Kaynak kodları kopyala
+COPY . .
+
+# Banking service'i derle
+RUN CGO_ENABLED=0 GOOS=linux go build -o /banking-service ./services/banking
+
+# Runtime image
+FROM alpine:3.19
+
+RUN apk --no-cache add ca-certificates tzdata
+
+WORKDIR /app
+
+COPY --from=builder /banking-service .
+
+EXPOSE 8106
+
+CMD ["./banking-service"]
