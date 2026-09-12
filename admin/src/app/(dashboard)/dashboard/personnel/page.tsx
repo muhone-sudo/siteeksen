@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { Plus, X, Users, Briefcase, Calendar, DollarSign, Check, XCircle, Loader2, Phone, Edit, Trash2, Download, Upload } from "lucide-react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { Plus, X, Users, Briefcase, Calendar, DollarSign, Check, XCircle, Phone, Edit, Trash2, Download, Upload } from "lucide-react";
 import apiClient from "@/lib/api-client";
+import { ErrorState, LoadingState, EmptyState, toUserMessage, NotImplementedNotice } from "@/components/ui/data-state";
 
 interface Employee {
     id: string;
@@ -49,6 +50,10 @@ export default function PersonnelPage() {
     const [employees, setEmployees] = useState<Employee[]>([]);
     const [leaves, setLeaves] = useState<Leave[]>([]);
     const [loading, setLoading] = useState(true);
+    const [loadError, setLoadError] = useState<string | null>(null);
+    const [actionError, setActionError] = useState<string | null>(null);
+    const [formError, setFormError] = useState<string | null>(null);
+    const [submitting, setSubmitting] = useState(false);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
     const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
@@ -57,64 +62,83 @@ export default function PersonnelPage() {
 
     const [form, setForm] = useState({ first_name: "", last_name: "", role: "Güvenlik", salary: 0, phone: "", start_date: "" });
 
-    useEffect(() => {
-        apiClient.loadToken();
-        load();
-    }, []);
-
-    async function load() {
+    const load = useCallback(async () => {
         setLoading(true);
         try {
             const [eRes, lRes] = await Promise.all([apiClient.getEmployees(), apiClient.getLeaves()]);
             setEmployees((eRes?.data ?? eRes ?? []).map((e: any) => ({ ...e, deleted: e.deleted ?? 0 })));
             setLeaves((lRes?.data ?? lRes ?? []).map((l: any) => ({ ...l, deleted: l.deleted ?? 0 })));
-        } catch {
-            setEmployees([
-                { id: "1", first_name: "Ahmet", last_name: "Güvenlik", role: "Güvenlik", salary: 22000, phone: "5551112233", start_date: "2023-01-15", status: "active", leave_balance: 14, deleted: 0 },
-                { id: "2", first_name: "Fatma", last_name: "Temizlik", role: "Temizlik", salary: 18000, phone: "5554445566", start_date: "2022-06-01", status: "active", leave_balance: 7, deleted: 0 },
-                { id: "3", first_name: "Mehmet", last_name: "Bahçıvan", role: "Bahçıvan", salary: 16000, phone: "5557778899", start_date: "2024-03-10", status: "active", leave_balance: 21, deleted: 0 },
-                { id: "4", first_name: "Ali", last_name: "Kapıcı", role: "Kapıcı", salary: 20000, phone: "5550001122", start_date: "2021-09-01", status: "active", leave_balance: 0, deleted: 0 },
-            ]);
-            setLeaves([
-                { id: "l1", employee_id: "1", employee_name: "Ahmet Güvenlik", type: "Yıllık İzin", start_date: "2026-06-10", end_date: "2026-06-17", days: 7, status: "pending", reason: "Aile ziyareti", deleted: 0 },
-                { id: "l2", employee_id: "2", employee_name: "Fatma Temizlik", type: "Mazeret İzni", start_date: "2026-06-05", end_date: "2026-06-05", days: 1, status: "approved", deleted: 0 },
-            ]);
+            setLoadError(null);
+        } catch (err) {
+            setEmployees([]);
+            setLeaves([]);
+            setLoadError(toUserMessage(err));
         } finally {
             setLoading(false);
         }
-    }
+    }, []);
 
-    const openAdd = () => { setEditingId(null); setForm({ first_name: "", last_name: "", role: "Güvenlik", salary: 0, phone: "", start_date: "" }); setIsModalOpen(true); };
-    const openEdit = (emp: Employee) => { setEditingId(emp.id); setForm({ first_name: emp.first_name, last_name: emp.last_name, role: emp.role, salary: emp.salary, phone: emp.phone ?? "", start_date: emp.start_date ?? "" }); setIsModalOpen(true); };
+    useEffect(() => {
+        apiClient.loadToken();
+        load();
+    }, [load]);
+
+    const openAdd = () => { setEditingId(null); setFormError(null); setForm({ first_name: "", last_name: "", role: "Güvenlik", salary: 0, phone: "", start_date: "" }); setIsModalOpen(true); };
+    const openEdit = (emp: Employee) => { setEditingId(emp.id); setFormError(null); setForm({ first_name: emp.first_name, last_name: emp.last_name, role: emp.role, salary: emp.salary, phone: emp.phone ?? "", start_date: emp.start_date ?? "" }); setIsModalOpen(true); };
+    const closeModal = () => { setIsModalOpen(false); setEditingId(null); setFormError(null); };
 
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
+        setFormError(null);
+
         if (editingId) {
-            setEmployees(prev => prev.map(emp => emp.id === editingId ? { ...emp, ...form } : emp));
-        } else {
-            try {
-                const res = await apiClient.createEmployee(form);
-                setEmployees(prev => [{ ...res, deleted: 0 }, ...prev]);
-            } catch {
-                setEmployees(prev => [{ id: String(Date.now()), ...form, status: "active", leave_balance: 14, deleted: 0 }, ...prev]);
-            }
+            // apiClient içinde personel güncelleme uç noktası yok; sahte başarı göstermek yerine durumu bildiriyoruz.
+            setFormError("Personel güncelleme özelliği sunucu tarafında henüz hazır değil. Değişiklik kaydedilmedi.");
+            return;
         }
-        setIsModalOpen(false); setEditingId(null);
+
+        setSubmitting(true);
+        try {
+            await apiClient.createEmployee(form);
+            closeModal();
+            await load();
+        } catch (err) {
+            setFormError(toUserMessage(err, "Personel kaydı oluşturulamadı."));
+        } finally {
+            setSubmitting(false);
+        }
     }
 
-    const handleDelete = () => {
+    async function handleDelete() {
         if (!deleteConfirmId) return;
-        setEmployees(prev => prev.map(e => e.id === deleteConfirmId ? { ...e, deleted: 1 } : e));
-        setDeleteConfirmId(null);
-    };
+        const id = deleteConfirmId;
+        setActionError(null);
+        setSubmitting(true);
+        try {
+            await apiClient.deleteEmployee(id);
+            setDeleteConfirmId(null);
+            await load();
+        } catch (err) {
+            setDeleteConfirmId(null);
+            setActionError(toUserMessage(err, "Personel silinemedi."));
+        } finally {
+            setSubmitting(false);
+        }
+    }
 
     async function handleApproveLeave(id: string) {
-        try { await apiClient.approveLeave(id); } catch {}
-        setLeaves(prev => prev.map(l => l.id === id ? { ...l, status: "approved" } : l));
+        setActionError(null);
+        try {
+            await apiClient.approveLeave(id);
+            await load();
+        } catch (err) {
+            setActionError(toUserMessage(err, "İzin talebi onaylanamadı."));
+        }
     }
 
-    const handleRejectLeave = (id: string) => {
-        setLeaves(prev => prev.map(l => l.id === id ? { ...l, status: "rejected" } : l));
+    const handleRejectLeave = () => {
+        // apiClient içinde izin reddetme uç noktası yok; yalnızca ekranda "reddedildi" göstermek yanıltıcı olur.
+        setActionError("İzin reddetme özelliği sunucu tarafında henüz hazır değil. Talep değiştirilmedi.");
     };
 
     const downloadSampleCSV = () => {
@@ -127,14 +151,38 @@ export default function PersonnelPage() {
     const handleCSVUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0]; if (!file) return;
         const reader = new FileReader();
-        reader.onload = (ev) => {
+        reader.onload = async (ev) => {
             const text = ev.target?.result as string;
-            const lines = text.trim().split("\n").slice(1);
-            const newItems: Employee[] = lines.map((line, i) => {
+            const lines = text.trim().split("\n").slice(1).filter(l => l.trim() !== "");
+            if (lines.length === 0) return;
+
+            setActionError(null);
+            setSubmitting(true);
+            let firstError: unknown = null;
+            let failed = 0;
+
+            for (const line of lines) {
                 const [first_name, last_name, role, salary, phone, start_date] = line.split(",");
-                return { id: `csv_${Date.now()}_${i}`, first_name: (first_name ?? "").trim(), last_name: (last_name ?? "").trim(), role: (role ?? "Güvenlik").trim(), salary: parseFloat((salary ?? "0").trim()) || 0, phone: (phone ?? "").trim(), start_date: (start_date ?? "").trim(), status: "active", leave_balance: 14, deleted: 0 };
-            });
-            setEmployees(prev => [...newItems, ...prev]);
+                try {
+                    await apiClient.createEmployee({
+                        first_name: (first_name ?? "").trim(),
+                        last_name: (last_name ?? "").trim(),
+                        role: (role ?? "Güvenlik").trim(),
+                        salary: parseFloat((salary ?? "0").trim()) || 0,
+                        phone: (phone ?? "").trim(),
+                        start_date: (start_date ?? "").trim(),
+                    });
+                } catch (err) {
+                    failed++;
+                    if (firstError === null) firstError = err;
+                }
+            }
+
+            setSubmitting(false);
+            if (failed > 0) {
+                setActionError(`${lines.length} satırdan ${failed} tanesi kaydedilemedi: ${toUserMessage(firstError, "Personel kaydı oluşturulamadı.")}`);
+            }
+            await load();
         };
         reader.readAsText(file);
         if (csvRef.current) csvRef.current.value = "";
@@ -143,6 +191,8 @@ export default function PersonnelPage() {
     const activeEmployees = employees.filter(e => e.deleted === 0);
     const activeLeaves = leaves.filter(l => l.deleted === 0);
     const totalSalary = activeEmployees.reduce((s, e) => s + e.salary, 0);
+    const hasData = !loading && !loadError;
+    const pendingLeaveCount = activeLeaves.filter(l => l.status === "pending").length;
 
     return (
         <div className="space-y-6">
@@ -157,7 +207,7 @@ export default function PersonnelPage() {
                     </button>
                     <label className="flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 cursor-pointer">
                         <Upload className="h-4 w-4" /> CSV Yükle
-                        <input ref={csvRef} type="file" accept=".csv" className="hidden" onChange={handleCSVUpload} />
+                        <input ref={csvRef} type="file" accept=".csv" className="hidden" onChange={handleCSVUpload} disabled={submitting} />
                     </label>
                     <button onClick={openAdd} className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90">
                         <Plus className="h-4 w-4" /> Personel Ekle
@@ -165,12 +215,20 @@ export default function PersonnelPage() {
                 </div>
             </div>
 
+            <NotImplementedNotice />
+
+            {actionError && (
+                <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    {actionError}
+                </div>
+            )}
+
             <div className="grid gap-4 md:grid-cols-4">
                 {[
-                    { label: "Toplam Personel", value: String(activeEmployees.length), icon: Users, color: "text-blue-600" },
-                    { label: "Aktif", value: String(activeEmployees.filter(e => e.status === "active").length), icon: Briefcase, color: "text-green-600" },
-                    { label: "İzinde", value: String(activeLeaves.filter(l => l.status === "approved" && new Date(l.start_date) <= new Date()).length), icon: Calendar, color: "text-orange-600" },
-                    { label: "Aylık Maaş", value: `₺${totalSalary.toLocaleString()}`, icon: DollarSign, color: "text-purple-600" },
+                    { label: "Toplam Personel", value: hasData ? String(activeEmployees.length) : "—", icon: Users, color: "text-blue-600" },
+                    { label: "Aktif", value: hasData ? String(activeEmployees.filter(e => e.status === "active").length) : "—", icon: Briefcase, color: "text-green-600" },
+                    { label: "İzinde", value: hasData ? String(activeLeaves.filter(l => l.status === "approved" && new Date(l.start_date) <= new Date()).length) : "—", icon: Calendar, color: "text-orange-600" },
+                    { label: "Aylık Maaş", value: hasData ? `₺${totalSalary.toLocaleString()}` : "—", icon: DollarSign, color: "text-purple-600" },
                 ].map(s => (
                     <div key={s.label} className="rounded-xl bg-white p-4 shadow-sm dark:bg-gray-800">
                         <p className="text-sm text-gray-500">{s.label}</p>
@@ -182,7 +240,7 @@ export default function PersonnelPage() {
             <div className="flex gap-2 border-b border-gray-200 dark:border-gray-700">
                 {[
                     { id: "employees", label: "Personel Listesi" },
-                    { id: "leaves", label: `İzin Talepleri${activeLeaves.filter(l => l.status === "pending").length > 0 ? ` (${activeLeaves.filter(l => l.status === "pending").length})` : ""}` }
+                    { id: "leaves", label: `İzin Talepleri${hasData && pendingLeaveCount > 0 ? ` (${pendingLeaveCount})` : ""}` }
                 ].map(t => (
                     <button key={t.id} onClick={() => setActiveTab(t.id as typeof activeTab)}
                         className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === t.id ? "border-primary text-primary" : "border-transparent text-gray-500 hover:text-gray-700"}`}>
@@ -193,57 +251,65 @@ export default function PersonnelPage() {
 
             <div className="rounded-xl bg-white shadow-sm dark:bg-gray-800">
                 {loading ? (
-                    <div className="flex items-center justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
+                    <LoadingState />
+                ) : loadError ? (
+                    <ErrorState message={loadError} onRetry={load} />
                 ) : activeTab === "employees" ? (
-                    <table className="w-full">
-                        <thead>
-                            <tr className="border-b border-gray-200 dark:border-gray-700">
-                                <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-500">Ad Soyad</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-500">Görev</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-500">Telefon</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-500">İşe Başlama</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-500">İzin Bakiyesi</th>
-                                <th className="px-6 py-3 text-right text-xs font-medium uppercase text-gray-500">Maaş</th>
-                                <th className="px-6 py-3 text-right text-xs font-medium uppercase text-gray-500">İşlem</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                            {activeEmployees.map(emp => (
-                                <tr key={emp.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                                    <td className="px-6 py-4">
-                                        <div className="flex items-center gap-3">
-                                            <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm">
-                                                {emp.first_name[0]}{emp.last_name[0]}
-                                            </div>
-                                            <span className="font-medium text-gray-900 dark:text-white">{emp.first_name} {emp.last_name}</span>
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <span className={`rounded-full px-2 py-1 text-xs font-medium ${roleColors[emp.role] ?? "bg-gray-100 text-gray-600"}`}>{emp.role}</span>
-                                    </td>
-                                    <td className="px-6 py-4 text-sm text-gray-500">
-                                        <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{emp.phone ?? "—"}</span>
-                                    </td>
-                                    <td className="px-6 py-4 text-sm text-gray-500">{emp.start_date ? new Date(emp.start_date).toLocaleDateString("tr-TR") : "—"}</td>
-                                    <td className="px-6 py-4 text-sm">
-                                        <span className={`font-medium ${(emp.leave_balance ?? 0) > 0 ? "text-green-600" : "text-red-600"}`}>{emp.leave_balance ?? 0} gün</span>
-                                    </td>
-                                    <td className="px-6 py-4 text-right text-sm">
-                                        <button onClick={() => setShowSalary(prev => { const n = new Set(prev); n.has(emp.id) ? n.delete(emp.id) : n.add(emp.id); return n; })}
-                                            className="font-medium text-gray-900 dark:text-white">
-                                            {showSalary.has(emp.id) ? `₺${emp.salary.toLocaleString()}` : "••••••"}
-                                        </button>
-                                    </td>
-                                    <td className="px-6 py-4 text-right">
-                                        <div className="flex justify-end gap-1">
-                                            <button onClick={() => openEdit(emp)} className="p-1.5 rounded hover:bg-blue-100 text-blue-500"><Edit className="h-4 w-4" /></button>
-                                            <button onClick={() => setDeleteConfirmId(emp.id)} className="p-1.5 rounded hover:bg-red-100 text-red-500"><Trash2 className="h-4 w-4" /></button>
-                                        </div>
-                                    </td>
+                    activeEmployees.length === 0 ? (
+                        <EmptyState title="Personel kaydı bulunamadı" />
+                    ) : (
+                        <table className="w-full">
+                            <thead>
+                                <tr className="border-b border-gray-200 dark:border-gray-700">
+                                    <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-500">Ad Soyad</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-500">Görev</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-500">Telefon</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-500">İşe Başlama</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-500">İzin Bakiyesi</th>
+                                    <th className="px-6 py-3 text-right text-xs font-medium uppercase text-gray-500">Maaş</th>
+                                    <th className="px-6 py-3 text-right text-xs font-medium uppercase text-gray-500">İşlem</th>
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                                {activeEmployees.map(emp => (
+                                    <tr key={emp.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                                        <td className="px-6 py-4">
+                                            <div className="flex items-center gap-3">
+                                                <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm">
+                                                    {emp.first_name[0]}{emp.last_name[0]}
+                                                </div>
+                                                <span className="font-medium text-gray-900 dark:text-white">{emp.first_name} {emp.last_name}</span>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <span className={`rounded-full px-2 py-1 text-xs font-medium ${roleColors[emp.role] ?? "bg-gray-100 text-gray-600"}`}>{emp.role}</span>
+                                        </td>
+                                        <td className="px-6 py-4 text-sm text-gray-500">
+                                            <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{emp.phone ?? "—"}</span>
+                                        </td>
+                                        <td className="px-6 py-4 text-sm text-gray-500">{emp.start_date ? new Date(emp.start_date).toLocaleDateString("tr-TR") : "—"}</td>
+                                        <td className="px-6 py-4 text-sm">
+                                            <span className={`font-medium ${(emp.leave_balance ?? 0) > 0 ? "text-green-600" : "text-red-600"}`}>{emp.leave_balance ?? 0} gün</span>
+                                        </td>
+                                        <td className="px-6 py-4 text-right text-sm">
+                                            <button onClick={() => setShowSalary(prev => { const n = new Set(prev); if (n.has(emp.id)) { n.delete(emp.id); } else { n.add(emp.id); } return n; })}
+                                                className="font-medium text-gray-900 dark:text-white">
+                                                {showSalary.has(emp.id) ? `₺${emp.salary.toLocaleString()}` : "••••••"}
+                                            </button>
+                                        </td>
+                                        <td className="px-6 py-4 text-right">
+                                            <div className="flex justify-end gap-1">
+                                                <button onClick={() => openEdit(emp)} className="p-1.5 rounded hover:bg-blue-100 text-blue-500"><Edit className="h-4 w-4" /></button>
+                                                <button onClick={() => setDeleteConfirmId(emp.id)} className="p-1.5 rounded hover:bg-red-100 text-red-500"><Trash2 className="h-4 w-4" /></button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    )
+                ) : activeLeaves.length === 0 ? (
+                    <EmptyState title="İzin talebi bulunamadı" />
                 ) : (
                     <table className="w-full">
                         <thead>
@@ -270,7 +336,7 @@ export default function PersonnelPage() {
                                                 <button onClick={() => handleApproveLeave(l.id)} className="flex items-center gap-1 rounded-lg bg-green-100 px-3 py-1 text-xs font-medium text-green-700 hover:bg-green-200">
                                                     <Check className="h-3 w-3" /> Onayla
                                                 </button>
-                                                <button onClick={() => handleRejectLeave(l.id)} className="flex items-center gap-1 rounded-lg bg-red-100 px-3 py-1 text-xs font-medium text-red-700 hover:bg-red-200">
+                                                <button onClick={handleRejectLeave} className="flex items-center gap-1 rounded-lg bg-red-100 px-3 py-1 text-xs font-medium text-red-700 hover:bg-red-200">
                                                     <XCircle className="h-3 w-3" /> Reddet
                                                 </button>
                                             </div>
@@ -293,9 +359,14 @@ export default function PersonnelPage() {
                     <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl dark:bg-gray-800">
                         <div className="flex items-center justify-between mb-4">
                             <h2 className="text-xl font-bold text-gray-900 dark:text-white">{editingId ? "Personeli Düzenle" : "Personel Ekle"}</h2>
-                            <button onClick={() => { setIsModalOpen(false); setEditingId(null); }}><X className="h-5 w-5 text-gray-500" /></button>
+                            <button onClick={closeModal}><X className="h-5 w-5 text-gray-500" /></button>
                         </div>
                         <form onSubmit={handleSubmit} className="space-y-4">
+                            {formError && (
+                                <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                                    {formError}
+                                </div>
+                            )}
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Ad</label>
@@ -335,8 +406,8 @@ export default function PersonnelPage() {
                                 </div>
                             </div>
                             <div className="flex gap-3 pt-2">
-                                <button type="button" onClick={() => { setIsModalOpen(false); setEditingId(null); }} className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300">İptal</button>
-                                <button type="submit" className="flex-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90">{editingId ? "Güncelle" : "Ekle"}</button>
+                                <button type="button" onClick={closeModal} className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300">İptal</button>
+                                <button type="submit" disabled={submitting} className="flex-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-50">{submitting ? "Kaydediliyor..." : editingId ? "Güncelle" : "Ekle"}</button>
                             </div>
                         </form>
                     </div>
@@ -352,7 +423,7 @@ export default function PersonnelPage() {
                         <p className="text-gray-500 text-sm mb-6">Bu personel kaydı silinecek. Emin misiniz?</p>
                         <div className="flex gap-3">
                             <button onClick={() => setDeleteConfirmId(null)} className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300">İptal</button>
-                            <button onClick={handleDelete} className="flex-1 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700">Sil</button>
+                            <button onClick={handleDelete} disabled={submitting} className="flex-1 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50">{submitting ? "Siliniyor..." : "Sil"}</button>
                         </div>
                     </div>
                 </div>

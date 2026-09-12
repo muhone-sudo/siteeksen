@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Plus, X, Calendar, Clock, Users, XCircle, Loader2, Edit, Trash2 } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { Plus, X, Calendar, Clock, Users, XCircle, Edit, Trash2 } from "lucide-react";
 import apiClient from "@/lib/api-client";
+import { ErrorState, LoadingState, EmptyState, toUserMessage, NotImplementedNotice } from "@/components/ui/data-state";
 
 interface Facility {
     id: string;
@@ -48,74 +49,97 @@ export default function ReservationsPage() {
     const [reservations, setReservations] = useState<Reservation[]>([]);
     const [facilities, setFacilities] = useState<Facility[]>([]);
     const [loading, setLoading] = useState(true);
+    const [loadError, setLoadError] = useState<string | null>(null);
+    const [actionError, setActionError] = useState<string | null>(null);
+    const [formError, setFormError] = useState<string | null>(null);
+    const [submitting, setSubmitting] = useState(false);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
     const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
     const [form, setForm] = useState(emptyForm);
 
-    useEffect(() => {
-        apiClient.loadToken();
-        load();
-    }, []);
-
-    async function load() {
+    const load = useCallback(async () => {
         setLoading(true);
         try {
             const [rRes, fRes] = await Promise.all([apiClient.getReservations(), apiClient.getFacilities()]);
             setReservations((rRes?.data ?? rRes ?? []).map((r: any) => ({ ...r, deleted: r.deleted ?? 0 })));
             setFacilities(fRes?.data ?? fRes ?? []);
-        } catch {
-            setFacilities([
-                { id: "f1", name: "Toplantı Salonu A", type: "meeting_room", capacity: 20, is_available: true },
-                { id: "f2", name: "Barbekü Alanı", type: "bbq", capacity: 40, is_available: true },
-                { id: "f3", name: "Spor Salonu", type: "gym", capacity: 15, is_available: false },
-                { id: "f4", name: "Yüzme Havuzu", type: "pool", capacity: 50, is_available: true },
-            ]);
-            setReservations([
-                { id: "r1", facility_id: "f1", facility_name: "Toplantı Salonu A", resident_name: "Ahmet Yılmaz", unit_number: "A-12", start_time: "2026-06-08T14:00:00", end_time: "2026-06-08T16:00:00", status: "confirmed", deleted: 0 },
-                { id: "r2", facility_id: "f2", facility_name: "Barbekü Alanı", resident_name: "Mehmet Demir", unit_number: "B-05", start_time: "2026-06-09T12:00:00", end_time: "2026-06-09T18:00:00", status: "pending", notes: "Doğum günü partisi", deleted: 0 },
-                { id: "r3", facility_id: "f4", facility_name: "Yüzme Havuzu", resident_name: "Ayşe Kaya", unit_number: "C-08", start_time: "2026-06-07T10:00:00", end_time: "2026-06-07T12:00:00", status: "confirmed", deleted: 0 },
-            ]);
+            setLoadError(null);
+        } catch (err) {
+            setReservations([]);
+            setFacilities([]);
+            setLoadError(toUserMessage(err));
         } finally {
             setLoading(false);
         }
-    }
+    }, []);
 
-    const openAdd = () => { setEditingId(null); setForm(emptyForm); setIsModalOpen(true); };
+    useEffect(() => {
+        apiClient.loadToken();
+        load();
+    }, [load]);
+
+    const openAdd = () => { setEditingId(null); setFormError(null); setForm(emptyForm); setIsModalOpen(true); };
     const openEdit = (r: Reservation) => {
         setEditingId(r.id);
+        setFormError(null);
         setForm({ facility_id: r.facility_id, unit_number: r.unit_number ?? "", resident_name: r.resident_name ?? "", start_time: r.start_time.slice(0, 16), end_time: r.end_time.slice(0, 16), notes: r.notes ?? "" });
         setIsModalOpen(true);
     };
+    const closeModal = () => { setIsModalOpen(false); setEditingId(null); setFormError(null); };
 
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
-        const fac = facilities.find(f => f.id === form.facility_id);
+        setFormError(null);
+
         if (editingId) {
-            setReservations(prev => prev.map(r => r.id === editingId ? { ...r, ...form, facility_name: fac?.name ?? r.facility_name } : r));
-        } else {
-            try {
-                const res = await apiClient.createReservation(form);
-                setReservations(prev => [{ ...res, deleted: 0 }, ...prev]);
-            } catch {
-                setReservations(prev => [{ id: String(Date.now()), facility_id: form.facility_id, facility_name: fac?.name ?? "—", resident_name: form.resident_name, unit_number: form.unit_number, start_time: form.start_time, end_time: form.end_time, status: "pending", notes: form.notes, deleted: 0 }, ...prev]);
-            }
+            // apiClient içinde rezervasyon güncelleme uç noktası yok; sahte başarı göstermek yerine durumu bildiriyoruz.
+            setFormError("Rezervasyon güncelleme özelliği sunucu tarafında henüz hazır değil. Değişiklik kaydedilmedi.");
+            return;
         }
-        setIsModalOpen(false); setEditingId(null);
+
+        setSubmitting(true);
+        try {
+            await apiClient.createReservation(form);
+            closeModal();
+            await load();
+        } catch (err) {
+            setFormError(toUserMessage(err, "Rezervasyon oluşturulamadı."));
+        } finally {
+            setSubmitting(false);
+        }
     }
 
     async function handleCancel(id: string) {
-        try { await apiClient.cancelReservation(id); } catch {}
-        setReservations(prev => prev.map(r => r.id === id ? { ...r, status: "cancelled" } : r));
+        setActionError(null);
+        try {
+            await apiClient.cancelReservation(id);
+            await load();
+        } catch (err) {
+            setActionError(toUserMessage(err, "Rezervasyon iptal edilemedi."));
+        }
     }
 
-    const handleDelete = () => {
+    async function handleDelete() {
         if (!deleteConfirmId) return;
-        setReservations(prev => prev.map(r => r.id === deleteConfirmId ? { ...r, deleted: 1 } : r));
-        setDeleteConfirmId(null);
-    };
+        const id = deleteConfirmId;
+        setActionError(null);
+        setSubmitting(true);
+        try {
+            // Sunucudaki tek kaldırma uç noktası DELETE /reservations/{id} (apiClient.cancelReservation).
+            await apiClient.cancelReservation(id);
+            setDeleteConfirmId(null);
+            await load();
+        } catch (err) {
+            setDeleteConfirmId(null);
+            setActionError(toUserMessage(err, "Rezervasyon silinemedi."));
+        } finally {
+            setSubmitting(false);
+        }
+    }
 
     const active = reservations.filter(r => r.deleted === 0);
+    const hasData = !loading && !loadError;
     const stats = {
         total: active.length,
         confirmed: active.filter(r => r.status === "confirmed").length,
@@ -135,12 +159,20 @@ export default function ReservationsPage() {
                 </button>
             </div>
 
+            <NotImplementedNotice />
+
+            {actionError && (
+                <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    {actionError}
+                </div>
+            )}
+
             <div className="grid gap-4 md:grid-cols-4">
                 {[
-                    { label: "Toplam", value: String(stats.total), color: "text-blue-600" },
-                    { label: "Onaylı", value: String(stats.confirmed), color: "text-green-600" },
-                    { label: "Bekleyen", value: String(stats.pending), color: "text-yellow-600" },
-                    { label: "Müsait Tesis", value: String(stats.availableFacilities), color: "text-purple-600" },
+                    { label: "Toplam", value: hasData ? String(stats.total) : "—", color: "text-blue-600" },
+                    { label: "Onaylı", value: hasData ? String(stats.confirmed) : "—", color: "text-green-600" },
+                    { label: "Bekleyen", value: hasData ? String(stats.pending) : "—", color: "text-yellow-600" },
+                    { label: "Müsait Tesis", value: hasData ? String(stats.availableFacilities) : "—", color: "text-purple-600" },
                 ].map(s => (
                     <div key={s.label} className="rounded-xl bg-white p-4 shadow-sm dark:bg-gray-800">
                         <p className="text-sm text-gray-500">{s.label}</p>
@@ -160,53 +192,58 @@ export default function ReservationsPage() {
 
             <div className="rounded-xl bg-white shadow-sm dark:bg-gray-800">
                 {loading ? (
-                    <div className="flex items-center justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
+                    <LoadingState />
+                ) : loadError ? (
+                    <ErrorState message={loadError} onRetry={load} />
                 ) : activeTab === "reservations" ? (
-                    <table className="w-full">
-                        <thead>
-                            <tr className="border-b border-gray-200 dark:border-gray-700">
-                                <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-500">Tesis</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-500">Sakin</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-500">Tarih & Saat</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-500">Notlar</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-500">Durum</th>
-                                <th className="px-6 py-3 text-right text-xs font-medium uppercase text-gray-500">İşlem</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                            {active.map(r => (
-                                <tr key={r.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                                    <td className="px-6 py-4 font-medium text-sm text-gray-900 dark:text-white">{r.facility_name}</td>
-                                    <td className="px-6 py-4 text-sm">
-                                        <div className="text-gray-900 dark:text-white">{r.resident_name ?? "—"}</div>
-                                        <div className="text-gray-500 text-xs">{r.unit_number}</div>
-                                    </td>
-                                    <td className="px-6 py-4 text-sm text-gray-500">
-                                        <div className="flex items-center gap-1"><Calendar className="h-3 w-3" />{new Date(r.start_time).toLocaleDateString("tr-TR")}</div>
-                                        <div className="flex items-center gap-1 text-xs mt-1"><Clock className="h-3 w-3" />{new Date(r.start_time).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })} – {new Date(r.end_time).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}</div>
-                                    </td>
-                                    <td className="px-6 py-4 text-sm text-gray-500">{r.notes ?? "—"}</td>
-                                    <td className="px-6 py-4">
-                                        <span className={`rounded-full px-2 py-1 text-xs font-medium ${statusConfig[r.status]?.color ?? "bg-gray-100 text-gray-600"}`}>
-                                            {statusConfig[r.status]?.label ?? r.status}
-                                        </span>
-                                    </td>
-                                    <td className="px-6 py-4 text-right">
-                                        <div className="flex justify-end gap-1">
-                                            <button onClick={() => openEdit(r)} className="p-1.5 rounded hover:bg-blue-100 text-blue-500"><Edit className="h-4 w-4" /></button>
-                                            {r.status !== "cancelled" && r.status !== "completed" && (
-                                                <button onClick={() => handleCancel(r.id)} className="p-1.5 rounded hover:bg-orange-100 text-orange-500"><XCircle className="h-4 w-4" /></button>
-                                            )}
-                                            <button onClick={() => setDeleteConfirmId(r.id)} className="p-1.5 rounded hover:bg-red-100 text-red-500"><Trash2 className="h-4 w-4" /></button>
-                                        </div>
-                                    </td>
+                    active.length === 0 ? (
+                        <EmptyState title="Rezervasyon bulunamadı" />
+                    ) : (
+                        <table className="w-full">
+                            <thead>
+                                <tr className="border-b border-gray-200 dark:border-gray-700">
+                                    <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-500">Tesis</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-500">Sakin</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-500">Tarih & Saat</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-500">Notlar</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-500">Durum</th>
+                                    <th className="px-6 py-3 text-right text-xs font-medium uppercase text-gray-500">İşlem</th>
                                 </tr>
-                            ))}
-                            {active.length === 0 && (
-                                <tr><td colSpan={6} className="px-6 py-12 text-center text-gray-400">Rezervasyon bulunamadı</td></tr>
-                            )}
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                                {active.map(r => (
+                                    <tr key={r.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                                        <td className="px-6 py-4 font-medium text-sm text-gray-900 dark:text-white">{r.facility_name}</td>
+                                        <td className="px-6 py-4 text-sm">
+                                            <div className="text-gray-900 dark:text-white">{r.resident_name ?? "—"}</div>
+                                            <div className="text-gray-500 text-xs">{r.unit_number}</div>
+                                        </td>
+                                        <td className="px-6 py-4 text-sm text-gray-500">
+                                            <div className="flex items-center gap-1"><Calendar className="h-3 w-3" />{new Date(r.start_time).toLocaleDateString("tr-TR")}</div>
+                                            <div className="flex items-center gap-1 text-xs mt-1"><Clock className="h-3 w-3" />{new Date(r.start_time).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })} – {new Date(r.end_time).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}</div>
+                                        </td>
+                                        <td className="px-6 py-4 text-sm text-gray-500">{r.notes ?? "—"}</td>
+                                        <td className="px-6 py-4">
+                                            <span className={`rounded-full px-2 py-1 text-xs font-medium ${statusConfig[r.status]?.color ?? "bg-gray-100 text-gray-600"}`}>
+                                                {statusConfig[r.status]?.label ?? r.status}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4 text-right">
+                                            <div className="flex justify-end gap-1">
+                                                <button onClick={() => openEdit(r)} className="p-1.5 rounded hover:bg-blue-100 text-blue-500"><Edit className="h-4 w-4" /></button>
+                                                {r.status !== "cancelled" && r.status !== "completed" && (
+                                                    <button onClick={() => handleCancel(r.id)} className="p-1.5 rounded hover:bg-orange-100 text-orange-500"><XCircle className="h-4 w-4" /></button>
+                                                )}
+                                                <button onClick={() => setDeleteConfirmId(r.id)} className="p-1.5 rounded hover:bg-red-100 text-red-500"><Trash2 className="h-4 w-4" /></button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    )
+                ) : facilities.length === 0 ? (
+                    <EmptyState title="Tesis bulunamadı" />
                 ) : (
                     <div className="grid gap-4 p-6 md:grid-cols-2 lg:grid-cols-3">
                         {facilities.map(f => {
@@ -238,9 +275,14 @@ export default function ReservationsPage() {
                     <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl dark:bg-gray-800">
                         <div className="flex items-center justify-between mb-4">
                             <h2 className="text-xl font-bold text-gray-900 dark:text-white">{editingId ? "Rezervasyonu Düzenle" : "Rezervasyon Ekle"}</h2>
-                            <button onClick={() => { setIsModalOpen(false); setEditingId(null); }}><X className="h-5 w-5 text-gray-500" /></button>
+                            <button onClick={closeModal}><X className="h-5 w-5 text-gray-500" /></button>
                         </div>
                         <form onSubmit={handleSubmit} className="space-y-4">
+                            {formError && (
+                                <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                                    {formError}
+                                </div>
+                            )}
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tesis</label>
                                 <select required value={form.facility_id} onChange={e => setForm({ ...form, facility_id: e.target.value })}
@@ -279,8 +321,8 @@ export default function ReservationsPage() {
                                     className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm dark:border-gray-600 dark:bg-gray-700" />
                             </div>
                             <div className="flex gap-3 pt-2">
-                                <button type="button" onClick={() => { setIsModalOpen(false); setEditingId(null); }} className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300">İptal</button>
-                                <button type="submit" className="flex-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90">{editingId ? "Güncelle" : "Ekle"}</button>
+                                <button type="button" onClick={closeModal} className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300">İptal</button>
+                                <button type="submit" disabled={submitting} className="flex-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-50">{submitting ? "Kaydediliyor..." : editingId ? "Güncelle" : "Ekle"}</button>
                             </div>
                         </form>
                     </div>
@@ -296,7 +338,7 @@ export default function ReservationsPage() {
                         <p className="text-gray-500 text-sm mb-6">Bu rezervasyon silinecek. Emin misiniz?</p>
                         <div className="flex gap-3">
                             <button onClick={() => setDeleteConfirmId(null)} className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300">İptal</button>
-                            <button onClick={handleDelete} className="flex-1 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700">Sil</button>
+                            <button onClick={handleDelete} disabled={submitting} className="flex-1 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50">{submitting ? "Siliniyor..." : "Sil"}</button>
                         </div>
                     </div>
                 </div>

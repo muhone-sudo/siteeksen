@@ -2,12 +2,12 @@ package main
 
 import (
 	"log"
-	"net/http"
 	"os"
 	"time"
 
+	"github.com/siteeksen/backend/pkg/stub"
+
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 )
 
 type InventoryItem struct {
@@ -46,9 +46,7 @@ type StockMovement struct {
 func main() {
 	r := gin.Default()
 
-	r.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"status": "healthy", "service": "inventory"})
-	})
+	r.GET("/health", stub.Health("inventory"))
 
 	v1 := r.Group("/api/v1")
 	{
@@ -83,78 +81,54 @@ func main() {
 	r.Run(":" + port)
 }
 
-func listItems(c *gin.Context) {
-	now := time.Now()
-	items := []InventoryItem{
-		{ID: uuid.New().String(), CategoryName: "Temizlik", Name: "Çöp Poşeti (Büyük)", SKU: "TEM-001", Unit: "PAKET", CurrentStock: 45, MinStock: 20, UnitPrice: 50, TotalValue: 2250, IsLowStock: false, LastMovement: &now, CreatedAt: now},
-		{ID: uuid.New().String(), CategoryName: "Temizlik", Name: "Çamaşır Suyu 5L", SKU: "TEM-002", Unit: "ADET", CurrentStock: 8, MinStock: 10, UnitPrice: 75, TotalValue: 600, IsLowStock: true, LastMovement: &now, CreatedAt: now},
-		{ID: uuid.New().String(), CategoryName: "Elektrik", Name: "LED Ampul 12W", SKU: "ELK-001", Unit: "ADET", CurrentStock: 25, MinStock: 15, UnitPrice: 45, TotalValue: 1125, IsLowStock: false, LastMovement: &now, CreatedAt: now},
-		{ID: uuid.New().String(), CategoryName: "Bahçe", Name: "Gübre 25kg", SKU: "BAH-001", Unit: "ADET", CurrentStock: 3, MinStock: 5, UnitPrice: 250, TotalValue: 750, IsLowStock: true, LastMovement: &now, CreatedAt: now},
-	}
-	c.JSON(http.StatusOK, gin.H{"items": items, "total": len(items)})
+func listItems(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "inventory")
 }
 
-func getInventoryStats(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"total_items": 45, "total_value": 25000.00, "low_stock_items": 5, "out_of_stock": 1, "categories": 6})
+func getInventoryStats(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "inventory")
 }
 
-func getLowStockItems(c *gin.Context) {
-	now := time.Now()
-	items := []InventoryItem{
-		{ID: uuid.New().String(), Name: "Çamaşır Suyu 5L", CurrentStock: 8, MinStock: 10, IsLowStock: true, CreatedAt: now},
-		{ID: uuid.New().String(), Name: "Gübre 25kg", CurrentStock: 3, MinStock: 5, IsLowStock: true, CreatedAt: now},
-	}
-	c.JSON(http.StatusOK, gin.H{"items": items, "count": len(items)})
+func getLowStockItems(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "inventory")
 }
 
-func getItem(c *gin.Context) {
-	c.JSON(http.StatusOK, InventoryItem{ID: c.Param("id"), Name: "Stok Ürünü", CurrentStock: 10, CreatedAt: time.Now()})
+func getItem(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "inventory")
 }
 
-func createItem(c *gin.Context) {
-	c.JSON(http.StatusCreated, gin.H{"id": uuid.New().String(), "message": "Stok kalemi oluşturuldu"})
+func createItem(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "inventory")
 }
 
-func updateItem(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"id": c.Param("id"), "message": "Stok kalemi güncellendi"})
+func updateItem(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "inventory")
 }
 
-func deleteItem(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"id": c.Param("id"), "message": "Stok kalemi silindi"})
+func deleteItem(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "inventory")
 }
 
-func getItemMovements(c *gin.Context) {
-	now := time.Now()
-	movements := []StockMovement{
-		{ID: uuid.New().String(), ItemID: c.Param("id"), MovementType: "IN", Quantity: 50, UnitPrice: 50, Reason: "Satın alma", PerformedBy: "Yönetici", CreatedAt: now.Add(-48 * time.Hour)},
-		{ID: uuid.New().String(), ItemID: c.Param("id"), MovementType: "OUT", Quantity: 5, Reason: "Günlük kullanım", PerformedBy: "Temizlik", CreatedAt: now.Add(-24 * time.Hour)},
-	}
-	c.JSON(http.StatusOK, gin.H{"movements": movements})
+func getItemMovements(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "inventory")
 }
 
-func listMovements(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"movements": []StockMovement{}})
+func listMovements(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "inventory")
 }
 
-func stockIn(c *gin.Context) {
-	c.JSON(http.StatusCreated, gin.H{"id": uuid.New().String(), "movement_type": "IN", "message": "Stok girişi yapıldı"})
+func stockIn(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "inventory")
 }
 
-func stockOut(c *gin.Context) {
-	c.JSON(http.StatusCreated, gin.H{"id": uuid.New().String(), "movement_type": "OUT", "message": "Stok çıkışı yapıldı"})
+func stockOut(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "inventory")
 }
 
-func stockAdjust(c *gin.Context) {
-	c.JSON(http.StatusCreated, gin.H{"id": uuid.New().String(), "movement_type": "ADJUST", "message": "Stok düzeltmesi yapıldı"})
+func stockAdjust(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "inventory")
 }
 
-func getCategories(c *gin.Context) {
-	categories := []gin.H{
-		{"id": "cat-1", "name": "Temizlik Malzemeleri", "item_count": 15},
-		{"id": "cat-2", "name": "Elektrik Malzemeleri", "item_count": 12},
-		{"id": "cat-3", "name": "Bahçe Malzemeleri", "item_count": 8},
-		{"id": "cat-4", "name": "Ofis Malzemeleri", "item_count": 6},
-		{"id": "cat-5", "name": "Tesisat Malzemeleri", "item_count": 4},
-	}
-	c.JSON(http.StatusOK, gin.H{"categories": categories})
+func getCategories(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "inventory")
 }

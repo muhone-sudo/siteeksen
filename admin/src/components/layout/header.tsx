@@ -1,48 +1,131 @@
 "use client";
 
-import { Bell, Menu, Search, User } from "lucide-react";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { signOut, useSession } from "next-auth/react";
+import { Bell, ChevronDown, LogOut, Menu, User } from "lucide-react";
+
+/**
+ * Üst çubuk.
+ *
+ * 2026-09-09 düzeltmeleri (denetim bulguları):
+ *  - Kullanıcı adı ve unvanı "Ahmet Yılmaz / Yönetim Kurulu Başkanı" olarak KODA GÖMÜLÜYDÜ;
+ *    kim giriş yaparsa yapsın bu isim görünüyordu. Artık oturumdan okunuyor.
+ *  - Panelde ÇIKIŞ (logout) düğmesi hiç yoktu — kullanıcı oturumunu kapatamıyordu.
+ *  - Bildirim zilinde her zaman kırmızı "okunmamış" noktası vardı ve düğmenin hiçbir
+ *    işlevi yoktu; sahte gösterge kaldırıldı, düğme bildirimler sayfasına yönlendiriyor.
+ *  - Arama kutusu hiçbir şeye bağlı değildi (onChange yok, global arama özelliği yok);
+ *    çalışmayan bir arayüz öğesi bırakmak yerine kaldırıldı.
+ */
+
+const ROLE_LABELS: Record<string, string> = {
+    MANAGER: "Site Yöneticisi",
+    OWNER: "Malik",
+    TENANT: "Kiracı",
+    RESIDENT: "Sakin",
+    AUDITOR: "Denetçi",
+    STAFF: "Personel",
+};
+
+function roleLabel(roles?: string[]): string {
+    if (!roles || roles.length === 0) return "";
+    // Yetki sırasına göre en üst rolü göster
+    const order = ["MANAGER", "AUDITOR", "STAFF", "OWNER", "TENANT", "RESIDENT"];
+    const top = order.find((r) => roles.includes(r));
+    return top ? ROLE_LABELS[top] : roles[0];
+}
 
 export function Header() {
+    const { data: session, status } = useSession();
+    const router = useRouter();
+    const [menuOpen, setMenuOpen] = useState(false);
+    const [signingOut, setSigningOut] = useState(false);
+
+    const displayName = session?.user?.name?.trim() || session?.user?.phone || "Kullanıcı";
+    const displayRole = roleLabel(session?.user?.roles);
+
+    async function handleSignOut() {
+        setSigningOut(true);
+        // Not: Backend'in POST /auth/logout ucu şu an token'ı geçersizleştirmiyor
+        // (yalnızca "Çıkış başarılı" döndürüyor). Sunucu tarafı token iptali
+        // tasks/roadmap.md FAZ 2.12 kapsamında ele alınacak.
+        await signOut({ callbackUrl: "/login" });
+    }
+
     return (
         <header className="flex h-16 items-center justify-between border-b border-gray-200 bg-white px-6 dark:border-gray-700 dark:bg-gray-800">
             {/* Mobile menu button */}
-            <button className="lg:hidden">
+            <button className="lg:hidden" aria-label="Menü">
                 <Menu className="h-6 w-6" />
             </button>
 
-            {/* Search */}
-            <div className="flex flex-1 items-center px-4 lg:px-0">
-                <div className="relative w-full max-w-md">
-                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                    <input
-                        type="text"
-                        placeholder="Ara..."
-                        className="w-full rounded-lg border border-gray-300 bg-gray-50 py-2 pl-10 pr-4 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary dark:border-gray-600 dark:bg-gray-700"
-                    />
-                </div>
-            </div>
+            <div className="flex-1" />
 
             {/* Right side */}
             <div className="flex items-center gap-4">
-                {/* Notifications */}
-                <button className="relative rounded-lg p-2 hover:bg-gray-100 dark:hover:bg-gray-700">
+                <button
+                    onClick={() => router.push("/dashboard/notifications")}
+                    className="rounded-lg p-2 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    title="Bildirim yönetimi"
+                    aria-label="Bildirim yönetimi"
+                >
                     <Bell className="h-5 w-5 text-gray-600 dark:text-gray-300" />
-                    <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-red-500" />
                 </button>
 
-                {/* Profile */}
-                <div className="flex items-center gap-3">
-                    <div className="hidden text-right sm:block">
-                        <p className="text-sm font-medium text-gray-900 dark:text-white">
-                            Ahmet Yılmaz
-                        </p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                            Yönetim Kurulu Başkanı
-                        </p>
-                    </div>
-                    <button className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-white">
-                        <User className="h-5 w-5" />
+                {/* Profile + logout */}
+                <div className="relative">
+                    <button
+                        onClick={() => setMenuOpen((v) => !v)}
+                        className="flex items-center gap-3 rounded-lg p-1 hover:bg-gray-100 dark:hover:bg-gray-700"
+                        aria-haspopup="menu"
+                        aria-expanded={menuOpen}
+                    >
+                        <div className="hidden text-right sm:block">
+                            <p className="text-sm font-medium text-gray-900 dark:text-white">
+                                {status === "loading" ? "…" : displayName}
+                            </p>
+                            {displayRole && (
+                                <p className="text-xs text-gray-500 dark:text-gray-400">{displayRole}</p>
+                            )}
+                        </div>
+                        <span className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-white">
+                            <User className="h-5 w-5" />
+                        </span>
+                        <ChevronDown className="h-4 w-4 text-gray-400" />
                     </button>
+
+                    {menuOpen && (
+                        <>
+                            {/* Dışarı tıklayınca kapat */}
+                            <div
+                                className="fixed inset-0 z-40"
+                                onClick={() => setMenuOpen(false)}
+                                aria-hidden="true"
+                            />
+                            <div
+                                role="menu"
+                                className="absolute right-0 z-50 mt-2 w-56 rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-gray-700 dark:bg-gray-800"
+                            >
+                                <div className="border-b border-gray-100 px-4 py-2 dark:border-gray-700">
+                                    <p className="truncate text-sm font-medium text-gray-900 dark:text-white">
+                                        {displayName}
+                                    </p>
+                                    {session?.user?.phone && (
+                                        <p className="truncate text-xs text-gray-500">{session.user.phone}</p>
+                                    )}
+                                </div>
+                                <button
+                                    role="menuitem"
+                                    onClick={handleSignOut}
+                                    disabled={signingOut}
+                                    className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 disabled:opacity-50 dark:hover:bg-red-900/20"
+                                >
+                                    <LogOut className="h-4 w-4" />
+                                    {signingOut ? "Çıkış yapılıyor…" : "Çıkış Yap"}
+                                </button>
+                            </div>
+                        </>
+                    )}
                 </div>
             </div>
         </header>

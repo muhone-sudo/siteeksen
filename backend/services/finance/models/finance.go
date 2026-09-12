@@ -20,13 +20,13 @@ type Assessment struct {
 
 // AssessmentSummary aidat özeti (liste görünümü)
 type AssessmentSummary struct {
-	ID          string    `json:"id"`
-	Period      string    `json:"period"` // "2026-01"
-	BaseAmount  float64   `json:"base_amount"`
-	LateFee     float64   `json:"late_fee"`
-	TotalAmount float64   `json:"total_amount"`
-	PaidAmount  float64   `json:"paid_amount"`
-	Status      string    `json:"status"`
+	ID          string  `json:"id"`
+	Period      string  `json:"period"` // "2026-01"
+	BaseAmount  float64 `json:"base_amount"`
+	LateFee     float64 `json:"late_fee"`
+	TotalAmount float64 `json:"total_amount"`
+	PaidAmount  float64 `json:"paid_amount"`
+	Status      string  `json:"status"`
 }
 
 // AssessmentPeriodSummary site genelinde bir tahakkuk döneminin özeti (yönetim görünümü)
@@ -54,14 +54,14 @@ type AssessmentDetailItem struct {
 
 // ExpenseCategory gider kalemi
 type ExpenseCategory struct {
-	ID                   string  `json:"id"`
-	PropertyID           string  `json:"property_id"`
-	Name                 string  `json:"name"`
-	DistributionType     string  `json:"distribution_type"` // SHARE_RATIO, EQUAL, AREA_M2
-	AppliesToCommercial  bool    `json:"applies_to_commercial"`
-	AppliesToGroundFloor bool    `json:"applies_to_ground_floor"`
-	CustomFormula        string  `json:"custom_formula"`
-	IsActive             bool    `json:"is_active"`
+	ID                   string `json:"id"`
+	PropertyID           string `json:"property_id"`
+	Name                 string `json:"name"`
+	DistributionType     string `json:"distribution_type"` // SHARE_RATIO, EQUAL, AREA_M2
+	AppliesToCommercial  bool   `json:"applies_to_commercial"`
+	AppliesToGroundFloor bool   `json:"applies_to_ground_floor"`
+	CustomFormula        string `json:"custom_formula"`
+	IsActive             bool   `json:"is_active"`
 }
 
 // AssessmentExpenseItem tahakkuk oluşturma isteğindeki tek gider kalemi
@@ -121,13 +121,13 @@ type ConsumptionData struct {
 
 // MeterReading sayaç okuma
 type MeterReading struct {
-	ID             string    `json:"id"`
-	MeterID        string    `json:"meter_id"`
-	ReadingDate    time.Time `json:"reading_date"`
-	PreviousValue  float64   `json:"previous_value"`
-	CurrentValue   float64   `json:"current_value"`
-	Consumption    float64   `json:"consumption"`
-	ReadingType    string    `json:"reading_type"` // MANUAL, AUTOMATIC, ESTIMATED
-	PhotoEvidence  string    `json:"photo_evidence_url,omitempty"`
-	ReaderUserID   string    `json:"reader_user_id,omitempty"`
+	ID            string    `json:"id"`
+	MeterID       string    `json:"meter_id"`
+	ReadingDate   time.Time `json:"reading_date"`
+	PreviousValue float64   `json:"previous_value"`
+	CurrentValue  float64   `json:"current_value"`
+	Consumption   float64   `json:"consumption"`
+	ReadingType   string    `json:"reading_type"` // MANUAL, AUTOMATIC, ESTIMATED
+	PhotoEvidence string    `json:"photo_evidence_url,omitempty"`
+	ReaderUserID  string    `json:"reader_user_id,omitempty"`
 }

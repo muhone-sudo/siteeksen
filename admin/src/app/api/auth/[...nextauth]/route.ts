@@ -5,6 +5,15 @@ import CredentialsProvider from "next-auth/providers/credentials";
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 const SERVER_API_URL = process.env.API_URL || API_URL;
 
+/**
+ * Telefon numarasını log için maskeler (KVKK: kişisel veri log'a düz metin yazılmaz).
+ * Örn: "+905551234567" -> "+9055*****67"
+ */
+function maskPhone(phone: string): string {
+    if (phone.length <= 6) return "***";
+    return `${phone.slice(0, 5)}*****${phone.slice(-2)}`;
+}
+
 const authOptions: NextAuthOptions = {
     providers: [
         CredentialsProvider({
@@ -14,16 +23,15 @@ const authOptions: NextAuthOptions = {
                 password: { label: "Şifre", type: "password" },
             },
             async authorize(credentials) {
-                console.log("Authorize called with credentials:", credentials);
-                console.log("Using SERVER_API_URL:", SERVER_API_URL);
-
+                // KVKK: Kimlik bilgileri (telefon, şifre) HİÇBİR koşulda log'a yazılmaz.
+                // Önceki sürüm `console.log("...", credentials)` ile şifreyi düz metin olarak
+                // sunucu log'una yazıyordu. Hata ayıklama gerekiyorsa yalnızca maskelenmiş
+                // telefon ve HTTP durum kodu loglanır.
                 if (!credentials?.phone || !credentials?.password) {
-                    console.log("Missing credentials");
                     return null;
                 }
 
                 try {
-                    console.log(`Fetching from ${SERVER_API_URL}/auth/login...`);
                     const response = await fetch(`${SERVER_API_URL}/auth/login`, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
@@ -33,9 +41,10 @@ const authOptions: NextAuthOptions = {
                         }),
                     });
 
-                    console.log("Response status:", response.status);
-
                     if (!response.ok) {
+                        console.warn(
+                            `[auth] Giriş başarısız (HTTP ${response.status}) — telefon: ${maskPhone(credentials.phone)}`
+                        );
                         return null;
                     }
 

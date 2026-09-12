@@ -10,9 +10,10 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"net/http"
 	"os"
 	"time"
+
+	"github.com/siteeksen/backend/pkg/stub"
 
 	"github.com/gin-gonic/gin"
 )
@@ -582,81 +583,26 @@ func GetAvailableServices() []struct {
 }
 
 func main() {
-	svc, err := NewService()
+	_, err := NewService() // STUB: tum uclar 501
 	if err != nil {
 		log.Fatalf("Service init error: %v", err)
 	}
 
 	r := gin.Default()
 
-	r.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"status": "healthy", "service": "settings"})
-	})
+	r.GET("/health", stub.Health("settings"))
 
 	v1 := r.Group("/api/v1/credentials")
 	{
-		v1.GET("", func(c *gin.Context) {
-			creds, err := svc.GetAll(context.Background())
-			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-				return
-			}
-			c.JSON(http.StatusOK, gin.H{"data": creds})
-		})
-		v1.POST("", func(c *gin.Context) {
-			var req CreateRequest
-			if err := c.ShouldBindJSON(&req); err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-				return
-			}
-			cred, err := svc.Create(context.Background(), &req, "admin", "admin", c.ClientIP())
-			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-				return
-			}
-			c.JSON(http.StatusCreated, cred)
-		})
-		v1.PUT("/:id", func(c *gin.Context) {
-			var req UpdateRequest
-			if err := c.ShouldBindJSON(&req); err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-				return
-			}
-			cred, err := svc.Update(context.Background(), c.Param("id"), &req, "admin", "admin", c.ClientIP())
-			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-				return
-			}
-			c.JSON(http.StatusOK, cred)
-		})
-		v1.DELETE("/:id", func(c *gin.Context) {
-			if err := svc.Delete(context.Background(), c.Param("id"), "admin", "admin", c.ClientIP()); err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-				return
-			}
-			c.JSON(http.StatusOK, gin.H{"message": "Silindi"})
-		})
-		v1.POST("/:id/test", func(c *gin.Context) {
-			result, err := svc.TestConnection(context.Background(), c.Param("id"), "admin", "admin", c.ClientIP())
-			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-				return
-			}
-			c.JSON(http.StatusOK, result)
-		})
-		v1.GET("/:id/audit-log", func(c *gin.Context) {
-			entries, err := svc.GetAuditLog(context.Background(), c.Param("id"), 50)
-			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-				return
-			}
-			c.JSON(http.StatusOK, gin.H{"data": entries})
-		})
+		v1.GET("", stub.Handler("settings"))
+		v1.POST("", stub.Handler("settings"))
+		v1.PUT("/:id", stub.Handler("settings"))
+		v1.DELETE("/:id", stub.Handler("settings"))
+		v1.POST("/:id/test", stub.Handler("settings"))
+		v1.GET("/:id/audit-log", stub.Handler("settings"))
 	}
 
-	r.GET("/api/v1/credentials/available-services", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"data": GetAvailableServices()})
-	})
+	r.GET("/api/v1/credentials/available-services", stub.Handler("settings"))
 
 	port := os.Getenv("PORT")
 	if port == "" {

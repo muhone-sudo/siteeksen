@@ -1,33 +1,16 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import apiClient from "@/lib/api-client";
+import { EmptyState, ErrorState, LoadingState, NotImplementedNotice, toUserMessage } from "@/components/ui/data-state";
 import {
-    Plus, X, Upload, FileText, DollarSign, TrendingUp, TrendingDown,
-    Users, Zap, Wrench, Building, Receipt, CreditCard, Calendar, Check, Edit, Trash2,
+    Plus, X, FileText, TrendingUp, TrendingDown,
+    Users, Zap, Wrench, Building, Receipt, CreditCard, Calendar, Edit, Trash2,
 } from "lucide-react";
 
-interface DuesDecision { id: number; amount: number; distributionMethod: string; effectiveDate: string; decisionNo: string; pageNo: string; decisionDate: string; summary: string; deleted: number; }
-interface Income { id: number; type: string; description: string; amount: number; date: string; paidBy?: string; deleted: number; }
-interface Expense { id: number; category: string; description: string; amount: number; date: string; isRecurring: boolean; deleted: number; }
-
-const mockPersonnel = [
-    { id: 1, name: "Ahmet Güvenlik", role: "Güvenlik", salary: 22000 },
-    { id: 2, name: "Fatma Temizlik", role: "Temizlik", salary: 18000 },
-    { id: 3, name: "Mehmet Bahçıvan", role: "Bahçıvan", salary: 16000 },
-];
-
-const mockDuesDecisions: DuesDecision[] = [
-    { id: 1, amount: 1200, distributionMethod: "equal", effectiveDate: "2026-01-01", decisionNo: "2025/12", pageNo: "45", decisionDate: "2025-12-15", summary: "2026 yılı için aylık aidat 1.200 TL olarak belirlenmiştir.", deleted: 0 },
-];
-const mockIncomes: Income[] = [
-    { id: 1, type: "dues", description: "Ocak 2026 Aidat Ödemeleri", amount: 145600, date: "2026-01-31", deleted: 0 },
-    { id: 2, type: "rent", description: "Site Kafeterya Kirası", amount: 15000, date: "2026-01-05", deleted: 0 },
-];
-const mockExpenses: Expense[] = [
-    { id: 1, category: "personnel", description: "Ocak 2026 Personel Maaşları", amount: 56000, date: "2026-01-31", isRecurring: true, deleted: 0 },
-    { id: 2, category: "utility", description: "Ortak Alan Elektrik", amount: 8500, date: "2026-01-15", isRecurring: true, deleted: 0 },
-];
+interface DuesDecision { id: number; amount: number; distributionMethod: string; effectiveDate: string; decisionNo: string; pageNo: string; decisionDate: string; summary: string; }
+interface Income { id: number; type: string; description: string; amount: number; date: string; paidBy?: string; }
+interface Expense { id: number; category: string; description: string; amount: number; date: string; isRecurring: boolean; }
 
 const incomeTypes: Record<string, { label: string; color: string }> = {
     dues: { label: "Aidat", color: "bg-blue-100 text-blue-700" },
@@ -52,88 +35,123 @@ export default function AccountingPage() {
     const [isDuesModalOpen, setIsDuesModalOpen] = useState(false);
     const [isIncomeModalOpen, setIsIncomeModalOpen] = useState(false);
     const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
-    const [isQuickActionModalOpen, setIsQuickActionModalOpen] = useState(false);
-    const [quickActionType, setQuickActionType] = useState<string>("");
 
-    const [duesDecisions, setDuesDecisions] = useState<DuesDecision[]>(mockDuesDecisions);
-    const [incomes, setIncomes] = useState<Income[]>(mockIncomes);
-    const [expenses, setExpenses] = useState<Expense[]>(mockExpenses);
+    // Aidat kararları ve gelirler için veritabanı tablosu / API uç noktası yok:
+    // listeler boş başlar, uydurma başlangıç verisi kullanılmaz.
+    const [duesDecisions] = useState<DuesDecision[]>([]);
+    const [incomes] = useState<Income[]>([]);
+    const [expenses, setExpenses] = useState<Expense[]>([]);
+
+    const [loading, setLoading] = useState(true);
+    const [loadError, setLoadError] = useState<string | null>(null);
+    const [formError, setFormError] = useState<string | null>(null);
+    const [submitting, setSubmitting] = useState(false);
+    const [deleteError, setDeleteError] = useState<string | null>(null);
 
     const [editingIncome, setEditingIncome] = useState<Income | null>(null);
     const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
     const [deleteConfirm, setDeleteConfirm] = useState<{ type: "income" | "expense" | "dues"; id: number } | null>(null);
 
+    const loadExpenses = useCallback(async () => {
+        setLoading(true);
+        setLoadError(null);
+        try {
+            const data = await apiClient.getExpenses();
+            const items = data?.data ?? data;
+            setExpenses(
+                (Array.isArray(items) ? items : []).map((e: any) => ({
+                    id: e.id,
+                    category: e.category_name?.toLowerCase().includes("personel") ? "personnel" : e.category_name?.toLowerCase().includes("elektrik") ? "utility" : e.category_name?.toLowerCase().includes("bakım") ? "maintenance" : "other",
+                    description: e.description, amount: Number(e.amount ?? 0), date: e.expense_date, isRecurring: false,
+                }))
+            );
+        } catch (err) {
+            setExpenses([]);
+            setLoadError(toUserMessage(err));
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
     useEffect(() => {
         apiClient.loadToken();
-        apiClient.getExpenses().then((data) => {
-            const items = data?.data ?? data;
-            if (Array.isArray(items) && items.length > 0) {
-                setExpenses(items.map((e: any) => ({
-                    id: e.id, category: e.category_name?.toLowerCase().includes("personel") ? "personnel" : e.category_name?.toLowerCase().includes("elektrik") ? "utility" : e.category_name?.toLowerCase().includes("bakım") ? "maintenance" : "other",
-                    description: e.description, amount: e.amount, date: e.expense_date, isRecurring: false, deleted: 0,
-                })));
-            }
-        }).catch(() => {});
-    }, []);
+        loadExpenses();
+    }, [loadExpenses]);
 
     const [newDues, setNewDues] = useState({ amount: 0, distributionMethod: "equal", effectiveDate: "", decisionNo: "", pageNo: "", decisionDate: "", summary: "" });
     const [newIncome, setNewIncome] = useState({ type: "dues", description: "", amount: 0, date: "", paidBy: "" });
     const [newExpense, setNewExpense] = useState({ category: "personnel", description: "", amount: 0, date: "", isRecurring: false });
 
-    const activeIncomes = incomes.filter(i => i.deleted === 0);
-    const activeExpenses = expenses.filter(e => e.deleted === 0);
-    const activeDues = duesDecisions.filter(d => d.deleted === 0);
-    const totalIncome = activeIncomes.reduce((sum, i) => sum + i.amount, 0);
+    const activeIncomes = incomes;
+    const activeExpenses = expenses;
+    const activeDues = duesDecisions;
     const totalExpense = activeExpenses.reduce((sum, e) => sum + e.amount, 0);
-    const balance = totalIncome - totalExpense;
+
+    // Mali özet: gelir tarafı için hiçbir veri kaynağı olmadığından tutar uydurulmaz.
+    // Gider toplamı da yalnızca sunucudan veri geldiğinde gösterilir.
+    const expenseReady = !loading && !loadError;
+    const summaryCards = [
+        { label: "Aylık Aidat", value: "—", color: "text-primary" },
+        { label: "Toplam Gelir", value: "—", color: "text-green-600" },
+        { label: "Toplam Gider", value: expenseReady ? `₺${totalExpense.toLocaleString("tr-TR")}` : "—", color: "text-red-600" },
+        { label: "Net Bakiye", value: "—", color: "text-gray-900 dark:text-white" },
+    ];
 
     const handleAddDues = (e: React.FormEvent) => {
         e.preventDefault();
-        setDuesDecisions([...duesDecisions, { id: Date.now(), ...newDues, distributionMethod: newDues.distributionMethod, deleted: 0 }]);
-        setNewDues({ amount: 0, distributionMethod: "equal", effectiveDate: "", decisionNo: "", pageNo: "", decisionDate: "", summary: "" });
-        setIsDuesModalOpen(false);
+        // dues_decisions tablosu ve uç noktası yok; kaydı yalnızca ekranda tutmak sahte başarıdır.
+        setFormError("Aidat kararları için veritabanı tablosu ve sunucu uç noktası henüz yok. Karar kaydedilmedi.");
     };
 
     const handleAddIncome = (e: React.FormEvent) => {
         e.preventDefault();
-        if (editingIncome) {
-            setIncomes(prev => prev.map(i => i.id === editingIncome.id ? { ...i, ...newIncome } : i));
-        } else {
-            setIncomes([...incomes, { id: Date.now(), ...newIncome, deleted: 0 }]);
-        }
-        setNewIncome({ type: "dues", description: "", amount: 0, date: "", paidBy: "" }); setIsIncomeModalOpen(false); setEditingIncome(null);
+        // incomes tablosu ve uç noktası yok.
+        setFormError("Gelir kayıtları için veritabanı tablosu ve sunucu uç noktası henüz yok. Kayıt saklanmadı.");
     };
 
     const handleAddExpense = async (e: React.FormEvent) => {
         e.preventDefault();
+        setFormError(null);
+        // Gider güncelleme uç noktası yok (api-client.ts'te updateExpense bulunmuyor).
         if (editingExpense) {
-            setExpenses(prev => prev.map(ex => ex.id === editingExpense.id ? { ...ex, ...newExpense } : ex));
-        } else {
-            try { await apiClient.createExpense({ category: newExpense.category, description: newExpense.description, amount: newExpense.amount, expense_date: newExpense.date }); } catch {}
-            setExpenses([...expenses, { id: Date.now(), ...newExpense, deleted: 0 }]);
+            setFormError("Gider güncelleme henüz sunucu tarafında desteklenmiyor. Değişiklik kaydedilmedi.");
+            return;
         }
-        setNewExpense({ category: "personnel", description: "", amount: 0, date: "", isRecurring: false }); setIsExpenseModalOpen(false); setEditingExpense(null);
+        setSubmitting(true);
+        try {
+            await apiClient.createExpense({
+                category: newExpense.category,
+                description: newExpense.description,
+                amount: newExpense.amount,
+                expense_date: newExpense.date,
+                is_recurring: newExpense.isRecurring,
+            });
+            setNewExpense({ category: "personnel", description: "", amount: 0, date: "", isRecurring: false });
+            setIsExpenseModalOpen(false);
+            setEditingExpense(null);
+            await loadExpenses();
+        } catch (err) {
+            setFormError(toUserMessage(err, "Gider kaydedilemedi."));
+        } finally {
+            setSubmitting(false);
+        }
     };
 
-    const openEditIncome = (inc: Income) => { setEditingIncome(inc); setNewIncome({ type: inc.type, description: inc.description, amount: inc.amount, date: inc.date, paidBy: inc.paidBy ?? "" }); setIsIncomeModalOpen(true); };
-    const openEditExpense = (exp: Expense) => { setEditingExpense(exp); setNewExpense({ category: exp.category, description: exp.description, amount: exp.amount, date: exp.date, isRecurring: exp.isRecurring }); setIsExpenseModalOpen(true); };
+    const openEditIncome = (inc: Income) => { setEditingIncome(inc); setNewIncome({ type: inc.type, description: inc.description, amount: inc.amount, date: inc.date, paidBy: inc.paidBy ?? "" }); setFormError(null); setIsIncomeModalOpen(true); };
+    const openEditExpense = (exp: Expense) => { setEditingExpense(exp); setNewExpense({ category: exp.category, description: exp.description, amount: exp.amount, date: exp.date, isRecurring: exp.isRecurring }); setFormError(null); setIsExpenseModalOpen(true); };
 
+    // Silme uç noktası hiçbir kalem için yok; kaydı yalnızca ekrandan kaldırmak
+    // yenilemede geri geldiği için sahte başarıdır.
     const handleDeleteConfirm = () => {
         if (!deleteConfirm) return;
-        if (deleteConfirm.type === "income") setIncomes(prev => prev.map(i => i.id === deleteConfirm.id ? { ...i, deleted: 1 } : i));
-        if (deleteConfirm.type === "expense") setExpenses(prev => prev.map(e => e.id === deleteConfirm.id ? { ...e, deleted: 1 } : e));
-        if (deleteConfirm.type === "dues") setDuesDecisions(prev => prev.map(d => d.id === deleteConfirm.id ? { ...d, deleted: 1 } : d));
-        setDeleteConfirm(null);
+        setDeleteError(
+            deleteConfirm.type === "expense"
+                ? "Gider silme henüz sunucu tarafında desteklenmiyor. Kayıt silinmedi."
+                : "Bu bölüm için silme işlemi sunucu tarafında henüz yok. Kayıt silinmedi."
+        );
     };
 
-    const confirmQuickAction = () => {
-        const today = new Date().toISOString().split("T")[0];
-        const monthLabel = new Date().toLocaleString("tr-TR", { month: "long", year: "numeric" });
-        if (quickActionType === "personnel") setExpenses([...expenses, { id: Date.now(), category: "personnel", description: `${monthLabel} Personel Maaşları`, amount: mockPersonnel.reduce((s, p) => s + p.salary, 0), date: today, isRecurring: true, deleted: 0 }]);
-        if (quickActionType === "maintenance") setExpenses([...expenses, { id: Date.now(), category: "maintenance", description: `${monthLabel} Aylık Bakım`, amount: 12500, date: today, isRecurring: true, deleted: 0 }]);
-        if (quickActionType === "sgk") setExpenses([...expenses, { id: Date.now(), category: "admin", description: `${monthLabel} SGK/Vergi`, amount: 18000, date: today, isRecurring: true, deleted: 0 }]);
-        setIsQuickActionModalOpen(false);
-    };
+    const closeDeleteConfirm = () => { setDeleteConfirm(null); setDeleteError(null); };
 
     const tabs = [
         { id: "dues", label: "Aidat Belirleme", icon: Receipt },
@@ -144,6 +162,8 @@ export default function AccountingPage() {
 
     return (
         <div className="space-y-6">
+            <NotImplementedNotice detail="Muhasebe servisi henüz kalıcı kayıt yapmıyor. Mali özet tutarları yalnızca sunucudan gelen veriyle gösterilir; veri yoksa tahmini/örnek rakam gösterilmez." />
+
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Muhasebe</h1>
@@ -152,12 +172,7 @@ export default function AccountingPage() {
             </div>
 
             <div className="grid gap-4 md:grid-cols-4">
-                {[
-                    { label: "Aylık Aidat", value: `₺${activeDues[activeDues.length - 1]?.amount.toLocaleString() || 0}`, color: "text-primary" },
-                    { label: "Toplam Gelir", value: `₺${totalIncome.toLocaleString()}`, color: "text-green-600" },
-                    { label: "Toplam Gider", value: `₺${totalExpense.toLocaleString()}`, color: "text-red-600" },
-                    { label: "Net Bakiye", value: `₺${balance.toLocaleString()}`, color: balance >= 0 ? "text-green-600" : "text-red-600" },
-                ].map(c => (
+                {summaryCards.map(c => (
                     <div key={c.label} className="rounded-xl bg-white p-4 shadow-sm dark:bg-gray-800">
                         <p className="text-sm text-gray-500">{c.label}</p>
                         <p className={`mt-1 text-2xl font-bold ${c.color}`}>{c.value}</p>
@@ -177,13 +192,17 @@ export default function AccountingPage() {
             <div className="rounded-xl bg-white p-6 shadow-sm dark:bg-gray-800">
                 {activeTab === "dues" && (
                     <div className="space-y-6">
+                        <NotImplementedNotice detail="Bu bölüm için veritabanı tabloları henüz oluşturulmadı; girilen kayıtlar saklanmaz." />
                         <div className="flex items-center justify-between">
                             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Aidat Kararları</h2>
-                            <button onClick={() => setIsDuesModalOpen(true)} className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90">
+                            <button onClick={() => { setFormError(null); setIsDuesModalOpen(true); }} className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90">
                                 <Plus className="h-4 w-4" /> Yeni Aidat Kararı
                             </button>
                         </div>
                         <div className="space-y-4">
+                            {activeDues.length === 0 && (
+                                <EmptyState title="Aidat kararı yok" description="Aidat kararları için sunucu tarafı veri kaynağı henüz mevcut değil." />
+                            )}
                             {activeDues.map((decision) => (
                                 <div key={decision.id} className="rounded-lg border border-gray-200 p-4 dark:border-gray-700">
                                     <div className="flex items-start justify-between">
@@ -211,9 +230,10 @@ export default function AccountingPage() {
 
                 {activeTab === "income" && (
                     <div className="space-y-6">
+                        <NotImplementedNotice detail="Bu bölüm için veritabanı tabloları henüz oluşturulmadı; girilen kayıtlar saklanmaz." />
                         <div className="flex items-center justify-between">
                             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Gelir Kayıtları</h2>
-                            <button onClick={() => { setEditingIncome(null); setNewIncome({ type: "dues", description: "", amount: 0, date: "", paidBy: "" }); setIsIncomeModalOpen(true); }} className="flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700">
+                            <button onClick={() => { setEditingIncome(null); setNewIncome({ type: "dues", description: "", amount: 0, date: "", paidBy: "" }); setFormError(null); setIsIncomeModalOpen(true); }} className="flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700">
                                 <Plus className="h-4 w-4" /> Gelir Ekle
                             </button>
                         </div>
@@ -244,6 +264,9 @@ export default function AccountingPage() {
                                 ))}
                             </tbody>
                         </table>
+                        {activeIncomes.length === 0 && (
+                            <EmptyState title="Gelir kaydı yok" description="Gelir kayıtları için sunucu tarafı veri kaynağı henüz mevcut değil." />
+                        )}
                     </div>
                 )}
 
@@ -251,10 +274,17 @@ export default function AccountingPage() {
                     <div className="space-y-6">
                         <div className="flex items-center justify-between">
                             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Gider Kayıtları</h2>
-                            <button onClick={() => { setEditingExpense(null); setNewExpense({ category: "personnel", description: "", amount: 0, date: "", isRecurring: false }); setIsExpenseModalOpen(true); }} className="flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700">
+                            <button onClick={() => { setEditingExpense(null); setNewExpense({ category: "personnel", description: "", amount: 0, date: "", isRecurring: false }); setFormError(null); setIsExpenseModalOpen(true); }} className="flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700">
                                 <Plus className="h-4 w-4" /> Gider Ekle
                             </button>
                         </div>
+                        {loading ? (
+                            <LoadingState />
+                        ) : loadError ? (
+                            <ErrorState message={loadError} onRetry={loadExpenses} />
+                        ) : activeExpenses.length === 0 ? (
+                            <EmptyState title="Gider kaydı yok" description="Seçili dönemde sunucudan gider kaydı gelmedi." />
+                        ) : (
                         <table className="w-full">
                             <thead>
                                 <tr className="border-b border-gray-200 dark:border-gray-700">
@@ -286,21 +316,23 @@ export default function AccountingPage() {
                                 })}
                             </tbody>
                         </table>
+                        )}
                     </div>
                 )}
 
                 {activeTab === "quick" && (
                     <div className="space-y-6">
+                        <NotImplementedNotice detail="Toplu gider işlemleri sunucu tarafında hazır değil. Tutarlar personel/bakım servislerinden okunamadığı için bu düğmeler devre dışı bırakıldı." />
                         <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Toplu Gider İşlemleri</h2>
                         <p className="text-gray-500">Periyodik ödemeleri tek tıkla giderlere ekleyin.</p>
                         <div className="grid gap-4 md:grid-cols-3">
                             {[
-                                { type: "personnel", icon: Users, color: "bg-blue-100 text-blue-600", label: "Personel Maaşları Ödendi", sub: `Toplam: ₺${mockPersonnel.reduce((s, p) => s + p.salary, 0).toLocaleString()}` },
+                                { type: "personnel", icon: Users, color: "bg-blue-100 text-blue-600", label: "Personel Maaşları Ödendi", sub: "Personel maaş toplamı sunucudan alınamıyor" },
                                 { type: "maintenance", icon: Wrench, color: "bg-orange-100 text-orange-600", label: "Aylık Bakım Ödemeleri", sub: "Asansör, Jeneratör, Temizlik" },
                                 { type: "sgk", icon: FileText, color: "bg-purple-100 text-purple-600", label: "SGK/Vergi Ödemeleri", sub: "Aylık zorunlu ödemeler" },
                             ].map(item => (
-                                <button key={item.type} onClick={() => { setQuickActionType(item.type); setIsQuickActionModalOpen(true); }}
-                                    className="flex flex-col items-center gap-3 rounded-xl border-2 border-dashed border-gray-300 p-6 hover:border-primary hover:bg-primary/5 transition-colors">
+                                <button key={item.type} type="button" disabled
+                                    className="flex flex-col items-center gap-3 rounded-xl border-2 border-dashed border-gray-300 p-6 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
                                     <div className={`rounded-full p-3 ${item.color}`}><item.icon className="h-6 w-6" /></div>
                                     <span className="font-medium text-gray-900 dark:text-white">{item.label}</span>
                                     <span className="text-sm text-gray-500">{item.sub}</span>
@@ -317,8 +349,13 @@ export default function AccountingPage() {
                     <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-2xl dark:bg-gray-800 max-h-[90vh] overflow-y-auto">
                         <div className="flex items-center justify-between mb-4">
                             <h2 className="text-xl font-bold text-gray-900 dark:text-white">Yeni Aidat Kararı</h2>
-                            <button onClick={() => setIsDuesModalOpen(false)}><X className="h-5 w-5 text-gray-500" /></button>
+                            <button onClick={() => { setIsDuesModalOpen(false); setFormError(null); }}><X className="h-5 w-5 text-gray-500" /></button>
                         </div>
+                        {formError && (
+                            <div role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                                {formError}
+                            </div>
+                        )}
                         <form onSubmit={handleAddDues} className="space-y-4">
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
@@ -349,7 +386,7 @@ export default function AccountingPage() {
                                 <textarea rows={3} value={newDues.summary} onChange={(e) => setNewDues({ ...newDues, summary: e.target.value })} className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm dark:border-gray-600 dark:bg-gray-700" placeholder="Aidat kararının özeti..." />
                             </div>
                             <div className="flex gap-3 pt-4">
-                                <button type="button" onClick={() => setIsDuesModalOpen(false)} className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300">İptal</button>
+                                <button type="button" onClick={() => { setIsDuesModalOpen(false); setFormError(null); }} className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300">İptal</button>
                                 <button type="submit" className="flex-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90">Kaydet</button>
                             </div>
                         </form>
@@ -363,8 +400,13 @@ export default function AccountingPage() {
                     <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl dark:bg-gray-800">
                         <div className="flex items-center justify-between mb-4">
                             <h2 className="text-xl font-bold text-gray-900 dark:text-white">{editingIncome ? "Geliri Düzenle" : "Gelir Ekle"}</h2>
-                            <button onClick={() => { setIsIncomeModalOpen(false); setEditingIncome(null); }}><X className="h-5 w-5 text-gray-500" /></button>
+                            <button onClick={() => { setIsIncomeModalOpen(false); setEditingIncome(null); setFormError(null); }}><X className="h-5 w-5 text-gray-500" /></button>
                         </div>
+                        {formError && (
+                            <div role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                                {formError}
+                            </div>
+                        )}
                         <form onSubmit={handleAddIncome} className="space-y-4">
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Gelir Türü</label>
@@ -381,7 +423,7 @@ export default function AccountingPage() {
                                 <div><label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tarih</label><input type="date" required value={newIncome.date} onChange={(e) => setNewIncome({ ...newIncome, date: e.target.value })} className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm dark:border-gray-600 dark:bg-gray-700" /></div>
                             </div>
                             <div className="flex gap-3 pt-4">
-                                <button type="button" onClick={() => { setIsIncomeModalOpen(false); setEditingIncome(null); }} className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300">İptal</button>
+                                <button type="button" onClick={() => { setIsIncomeModalOpen(false); setEditingIncome(null); setFormError(null); }} className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300">İptal</button>
                                 <button type="submit" className="flex-1 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700">{editingIncome ? "Güncelle" : "Ekle"}</button>
                             </div>
                         </form>
@@ -425,26 +467,11 @@ export default function AccountingPage() {
                 </div>
             )}
 
-            {/* Quick Action Confirm */}
-            {isQuickActionModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-                    <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-2xl dark:bg-gray-800">
-                        <div className="flex flex-col items-center text-center">
-                            <div className="rounded-full bg-yellow-100 p-3 mb-4"><Check className="h-6 w-6 text-yellow-600" /></div>
-                            <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-2">Onay Gerekli</h2>
-                            <p className="text-gray-500 mb-6">
-                                {quickActionType === "personnel" && "Tüm personel maaşlarını giderlere eklemek istiyor musunuz?"}
-                                {quickActionType === "maintenance" && "Aylık bakım ödemelerini giderlere eklemek istiyor musunuz?"}
-                                {quickActionType === "sgk" && "SGK/Vergi ödemelerini giderlere eklemek istiyor musunuz?"}
-                            </p>
-                            <div className="flex gap-3 w-full">
-                                <button onClick={() => setIsQuickActionModalOpen(false)} className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300">İptal</button>
-                                <button onClick={confirmQuickAction} className="flex-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90">Onayla</button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
+            {/* Not: "Hızlı işlem" onay modalı kaldırıldı (2026-09-09).
+                "Tüm personel maaşlarını giderlere ekle" / "Aylık bakım ödemelerini ekle" gibi toplu
+                işlemler yalnızca React state'ini değiştiriyordu; sunucuda karşılığı yoktu ve kullanıcıya
+                yapılmamış bir işlem yapılmış gibi gösteriliyordu. Toplu gider oluşturma, gider servisi
+                veritabanına bağlandığında (tasks/roadmap.md FAZ 5.5) gerçek uç noktayla yeniden eklenecek. */}
 
             {/* Delete Confirm */}
             {deleteConfirm && (

@@ -62,46 +62,65 @@ CREATE INDEX idx_visitors_qr ON visitors(qr_code);
 -- 2. ARAÇ / OTOPARK TAKİBİ
 -- =====================================================
 
-CREATE TABLE IF NOT EXISTS vehicles (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    property_id UUID NOT NULL REFERENCES properties(id),
-    unit_id UUID REFERENCES units(id),
-    
-    -- Sahip tipi
-    owner_type VARCHAR(20) NOT NULL CHECK (owner_type IN ('RESIDENT', 'VISITOR', 'STAFF', 'SERVICE')),
-    owner_id UUID,
-    owner_name VARCHAR(255),
-    
-    -- Araç bilgileri
-    plate VARCHAR(20) NOT NULL,
-    brand VARCHAR(50),
-    model VARCHAR(50),
-    color VARCHAR(30),
-    year INT,
-    vehicle_type VARCHAR(20) DEFAULT 'CAR' CHECK (vehicle_type IN ('CAR', 'MOTORCYCLE', 'TRUCK', 'OTHER')),
-    
-    -- Park yeri
-    parking_spot VARCHAR(20),
-    parking_zone_id UUID,
-    
-    -- Geçiş sistemleri
-    rfid_tag VARCHAR(100),
-    hgs_tag VARCHAR(100),
-    
-    -- Durum
-    is_active BOOLEAN DEFAULT true,
-    is_primary BOOLEAN DEFAULT false,  -- Ana araç mı
-    
-    -- Meta
-    photo_url TEXT,
-    notes TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
+-- DÜZELTME (2026-09-09) — bu blok temiz bir veritabanında MIGRATION'I ÇÖKERTİYORDU:
+--
+-- `vehicles` tablosu `001_initial_schema.sql:303`'te zaten oluşturuluyor, ancak farklı
+-- kolonlarla: 001'de `plate_number` var, `property_id` ve `plate` YOK.
+-- Buradaki `CREATE TABLE IF NOT EXISTS` kolonları karşılaştırmadığı için sessizce atlanıyor,
+-- ardından gelen `CREATE UNIQUE INDEX ... ON vehicles(property_id, plate)` ifadesi var olmayan
+-- kolonlara başvurup `42703 undefined_column` hatası veriyordu. Postgres entrypoint'i
+-- `ON_ERROR_STOP=1` ile çalıştığı için migration BURADA duruyor ve bu satırdan sonraki
+-- 29 tablo (parking_zones, facilities, reservations, bank_accounts, bulletin_*, surveys,
+-- packages, assets, contracts, patrol_*, employees, payroll, inventory_*, energy_analytics,
+-- meetings, payment_risk_scores) HİÇ oluşmuyordu. Zincir etkisiyle
+-- `006_soft_delete.sql:18` de var olmayan `reservations` tablosunu ALTER etmeye çalışıp çöküyordu.
+--
+-- Ayrıca `CREATE INDEX idx_vehicles_unit` 001:319'da zaten oluşturulmuş olduğundan
+-- `IF NOT EXISTS` olmadan ikinci kez oluşturulması ayrı bir hata kaynağıydı.
+--
+-- Çözüm: tabloyu yeniden tanımlamak yerine 001'in tablosunu bu modülün beklediği şemaya
+-- genişletiyoruz. Tüm ifadeler idempotenttir (tekrar çalıştırılabilir).
 
-CREATE UNIQUE INDEX idx_vehicles_plate_property ON vehicles(property_id, plate) WHERE is_active = true;
-CREATE INDEX idx_vehicles_unit ON vehicles(unit_id);
-CREATE INDEX idx_vehicles_owner ON vehicles(owner_type, owner_id);
+-- Otopark/geçiş modülünün beklediği kolonlar
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS property_id UUID REFERENCES properties(id);
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS owner_type VARCHAR(20);
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS owner_id UUID;
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS owner_name VARCHAR(255);
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS plate VARCHAR(20);
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS parking_spot VARCHAR(20);
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS parking_zone_id UUID;
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS rfid_tag VARCHAR(100);
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS hgs_tag VARCHAR(100);
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS is_primary BOOLEAN DEFAULT false;
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS photo_url TEXT;
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS notes TEXT;
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
+
+-- 001'in `plate_number` kolonu NOT NULL'dı; yeni kod `plate` kolonunu kullandığı için
+-- kısıt kaldırılmalı, aksi halde otopark servisi hiç kayıt ekleyemez.
+ALTER TABLE vehicles ALTER COLUMN plate_number DROP NOT NULL;
+
+-- Mevcut verinin yeni kolonlara taşınması (idempotent)
+UPDATE vehicles SET plate = plate_number WHERE plate IS NULL AND plate_number IS NOT NULL;
+UPDATE vehicles v SET property_id = u.property_id
+    FROM units u WHERE v.unit_id = u.id AND v.property_id IS NULL;
+UPDATE vehicles SET owner_type = 'RESIDENT' WHERE owner_type IS NULL;
+
+-- owner_type için CHECK kısıtı (yalnızca yoksa ekle)
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'vehicles_owner_type_check'
+    ) THEN
+        ALTER TABLE vehicles
+            ADD CONSTRAINT vehicles_owner_type_check
+            CHECK (owner_type IS NULL OR owner_type IN ('RESIDENT', 'VISITOR', 'STAFF', 'SERVICE'));
+    END IF;
+END $$;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_vehicles_plate_property ON vehicles(property_id, plate) WHERE is_active = true;
+CREATE INDEX IF NOT EXISTS idx_vehicles_unit ON vehicles(unit_id);
+CREATE INDEX IF NOT EXISTS idx_vehicles_owner ON vehicles(owner_type, owner_id);
 
 -- Otopark Bölgeleri
 CREATE TABLE IF NOT EXISTS parking_zones (
@@ -1369,11 +1388,19 @@ INSERT INTO asset_categories (id, property_id, name, depreciation_years) VALUES
 ON CONFLICT (id) DO NOTHING;
 
 -- Varsayılan stok kategorileri
+--
+-- DÜZELTME (2026-09-12): Bu kayıtların kimlikleri `ic0000...` ile başlıyordu; `i` harfi
+-- onaltılık (hex) bir karakter olmadığı için PostgreSQL bunları UUID'ye çeviremiyor ve
+-- migration `invalid input syntax for type uuid` hatasıyla ÇÖKÜYORDU. Hata temiz bir
+-- veritabanında migration 005'in son adımında ortaya çıkıyor, yani `vehicles` çakışması
+-- giderildikten sonra bile kurulum tamamlanamıyordu.
+-- Prefix geçerli hex karşılığı olan `1c` (inventory category) ile değiştirildi.
+-- Bu kimliklere repoda başka hiçbir yerden referans verilmiyor (doğrulandı).
 INSERT INTO inventory_categories (id, property_id, name) VALUES
-    ('ic000001-0000-0000-0000-000000000001', NULL, 'Temizlik Malzemeleri'),
-    ('ic000002-0000-0000-0000-000000000002', NULL, 'Elektrik Malzemeleri'),
-    ('ic000003-0000-0000-0000-000000000003', NULL, 'Tesisat Malzemeleri'),
-    ('ic000004-0000-0000-0000-000000000004', NULL, 'Bahçe Malzemeleri'),
-    ('ic000005-0000-0000-0000-000000000005', NULL, 'Ofis Malzemeleri'),
-    ('ic000006-0000-0000-0000-000000000006', NULL, 'Diğer')
+    ('1c000001-0000-0000-0000-000000000001', NULL, 'Temizlik Malzemeleri'),
+    ('1c000002-0000-0000-0000-000000000002', NULL, 'Elektrik Malzemeleri'),
+    ('1c000003-0000-0000-0000-000000000003', NULL, 'Tesisat Malzemeleri'),
+    ('1c000004-0000-0000-0000-000000000004', NULL, 'Bahçe Malzemeleri'),
+    ('1c000005-0000-0000-0000-000000000005', NULL, 'Ofis Malzemeleri'),
+    ('1c000006-0000-0000-0000-000000000006', NULL, 'Diğer')
 ON CONFLICT (id) DO NOTHING;

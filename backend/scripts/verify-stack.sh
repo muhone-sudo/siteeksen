@@ -1,0 +1,176 @@
+#!/usr/bin/env bash
+#
+# verify-stack.sh — Uçtan uca doğrulama betiği
+#
+# NEDEN VAR:
+# 2026-09-09 denetiminde, proje dokümanlarındaki 78 "yapıldı" iddiasının %49'u yanlış çıktı.
+# Kök neden: hiçbir iş çalıştırılarak doğrulanmıyor, yalnızca "kod yazıldı" anlamında
+# tamamlandı işaretleniyordu. Bu betik o boşluğu kapatır: sıfırdan bir veritabanı kurar,
+# tüm migration'ları uygular, gerçek servisi ayağa kaldırır ve gerçek HTTP istekleriyle
+# temel akışları sınar.
+#
+# KULLANIM (WSL / Linux):
+#   bash backend/scripts/verify-stack.sh
+#
+# GEREKSİNİMLER: docker, psql, go (1.24+), curl
+#
+# ÇIKIŞ KODU: 0 = tüm kontroller geçti, 1 = en az bir kontrol başarısız
+#
+set -uo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+BACKEND_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+MIG_DIR="$BACKEND_DIR/migrations"
+
+CNAME=${VERIFY_CONTAINER:-siteeksen-verify}
+DBPORT=${VERIFY_DB_PORT:-55440}
+SVCPORT=${VERIFY_SVC_PORT:-18090}
+PW=${VERIFY_DB_PASSWORD:-verifypw}
+
+PASS=0
+FAIL=0
+SVC_PID=""
+STUB_PID=""
+
+ok()   { echo "  [GEÇTİ]    $1"; PASS=$((PASS+1)); }
+bad()  { echo "  [BAŞARISIZ] $1"; FAIL=$((FAIL+1)); }
+step() { echo ""; echo "=== $1 ==="; }
+
+cleanup() {
+  [ -n "$SVC_PID" ] && kill "$SVC_PID" 2>/dev/null
+  [ -n "$STUB_PID" ] && kill "$STUB_PID" 2>/dev/null
+  docker rm -f "$CNAME" >/dev/null 2>&1
+}
+trap cleanup EXIT
+
+command -v docker >/dev/null || { echo "docker bulunamadı"; exit 1; }
+command -v psql   >/dev/null || { echo "psql bulunamadı"; exit 1; }
+command -v go     >/dev/null || { echo "go bulunamadı (PATH'e /usr/local/go/bin ekleyin)"; exit 1; }
+
+step "0) Go derleme ve statik denetim"
+cd "$BACKEND_DIR"
+if go build ./... >/tmp/verify-build.log 2>&1; then ok "go build ./..."; else bad "go build ./..."; tail -15 /tmp/verify-build.log; fi
+if go vet   ./... >/tmp/verify-vet.log   2>&1; then ok "go vet ./...";   else bad "go vet ./...";   tail -15 /tmp/verify-vet.log; fi
+
+step "1) Temiz PostgreSQL 16"
+docker rm -f "$CNAME" >/dev/null 2>&1
+docker run --rm -d --name "$CNAME" -e POSTGRES_PASSWORD="$PW" -e POSTGRES_DB=siteeksen \
+  -e POSTGRES_USER=siteeksen -p ${DBPORT}:5432 postgres:16 >/dev/null
+for _ in $(seq 1 60); do
+  docker exec "$CNAME" pg_isready -U siteeksen -d siteeksen >/dev/null 2>&1 && break
+  sleep 1
+done
+docker exec "$CNAME" pg_isready -U siteeksen -d siteeksen >/dev/null 2>&1 \
+  && ok "veritabanı hazır" || { bad "veritabanı başlamadı"; exit 1; }
+
+export PGPASSWORD="$PW"
+PSQL="psql -h 127.0.0.1 -p ${DBPORT} -U siteeksen -d siteeksen -v ON_ERROR_STOP=1 -q"
+
+step "2) Migration'lar (sıfırdan kurulum)"
+MIG_OK=1
+for f in $(ls "$MIG_DIR"/*.sql | sort); do
+  if $PSQL -f "$f" >/tmp/verify-mig.log 2>&1; then
+    ok "$(basename "$f")"
+  else
+    bad "$(basename "$f")"; grep -i ERROR /tmp/verify-mig.log | head -3 | sed 's/^/      /'
+    MIG_OK=0; break
+  fi
+done
+[ "$MIG_OK" = "1" ] || { echo "Migration zinciri kırık — sonraki adımlar atlanıyor"; exit 1; }
+
+step "3) Şema beklentileri"
+TBL=$($PSQL -t -A -c "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE';")
+[ "$TBL" -ge 60 ] && ok "tablo sayısı: $TBL (>=60)" || bad "tablo sayısı yetersiz: $TBL"
+
+for t in expenses parking_zones reservations bank_accounts employees surveys assets meetings; do
+  EX=$($PSQL -t -A -c "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_name='$t';")
+  [ "$EX" = "1" ] && ok "tablo mevcut: $t" || bad "tablo eksik: $t"
+done
+
+# audit_logs kolonları pkg/audit ile uyumlu olmalı
+for c in entity_type entity_id ip_address property_id request_id status_code; do
+  EX=$($PSQL -t -A -c "SELECT count(*) FROM information_schema.columns WHERE table_name='audit_logs' AND column_name='$c';")
+  [ "$EX" = "1" ] && ok "audit_logs.$c" || bad "audit_logs.$c eksik (pkg/audit yazamaz)"
+done
+
+step "4) Migration idempotency (tekrar uygulanabilirlik)"
+for f in $(ls "$MIG_DIR"/00[6-9]*.sql "$MIG_DIR"/01*.sql 2>/dev/null | sort); do
+  if $PSQL -f "$f" >/dev/null 2>&1; then ok "tekrar: $(basename "$f")"; else bad "tekrar: $(basename "$f") (idempotent değil)"; fi
+done
+
+step "5) pkg/audit birim testi (gerçek veritabanına karşı)"
+if TEST_DATABASE_URL="postgres://siteeksen:${PW}@127.0.0.1:${DBPORT}/siteeksen" \
+   go test ./pkg/audit/... -count=1 >/tmp/verify-audit.log 2>&1; then
+  ok "go test ./pkg/audit/..."
+else
+  bad "go test ./pkg/audit/..."; tail -15 /tmp/verify-audit.log
+fi
+
+step "6) identity-service uçtan uca"
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen DB_PASSWORD="$PW" DB_NAME=siteeksen \
+DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${SVCPORT} \
+  go run ./services/identity >/tmp/verify-identity.log 2>&1 &
+SVC_PID=$!
+
+UP=0
+for _ in $(seq 1 45); do
+  curl -fsS "http://127.0.0.1:${SVCPORT}/health" >/dev/null 2>&1 && { UP=1; break; }
+  sleep 1
+done
+if [ "$UP" = "1" ]; then ok "servis ayağa kalktı"; else bad "servis başlamadı"; tail -20 /tmp/verify-identity.log; exit 1; fi
+
+RESP=$(curl -s -w '\n__HTTP__%{http_code}' -X POST "http://127.0.0.1:${SVCPORT}/api/v1/auth/login" \
+  -H 'Content-Type: application/json' -d '{"phone":"5551234567","password":"Demo123!"}')
+CODE=$(echo "$RESP" | grep -o '__HTTP__[0-9]*' | sed 's/__HTTP__//')
+BODY=$(echo "$RESP" | sed 's/__HTTP__[0-9]*//')
+[ "$CODE" = "200" ] && ok "demo giriş (5551234567 / Demo123!) → 200" || bad "demo giriş → $CODE"
+
+CODE2=$(curl -s -o /dev/null -w '%{http_code}' -X POST "http://127.0.0.1:${SVCPORT}/api/v1/auth/login" \
+  -H 'Content-Type: application/json' -d '{"phone":"5551234567","password":"yanlis"}')
+[ "$CODE2" = "401" ] && ok "yanlış şifre reddedildi → 401" || bad "yanlış şifre → $CODE2 (401 bekleniyordu)"
+
+CODE3=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:${SVCPORT}/api/v1/users/me")
+[ "$CODE3" = "401" ] && ok "token'sız erişim reddedildi → 401" || bad "token'sız erişim → $CODE3 (401 bekleniyordu)"
+
+TOKEN=$(echo "$BODY" | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+if [ -n "$TOKEN" ]; then
+  CODE4=$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $TOKEN" "http://127.0.0.1:${SVCPORT}/api/v1/users/me")
+  [ "$CODE4" = "200" ] && ok "token ile /users/me → 200" || bad "token ile /users/me → $CODE4"
+
+  sleep 1
+  AUD=$($PSQL -t -A -c "SELECT count(*) FROM audit_logs;")
+  [ "$AUD" -ge 1 ] && ok "denetim izi yazıldı (audit_logs: $AUD kayıt)" || bad "denetim izi yazılmadı (audit_logs boş)"
+else
+  bad "access_token alınamadı"
+fi
+
+step "7) Dürüstlük: kalıcı olmayan uçlar 501 dönmeli"
+# tasks/dogrulama-politikasi.md §3.5 — kaydetmeyen bir uç 2xx dönemez.
+PORT=${STUB_PORT:-18191} go run ./services/parking >/tmp/verify-parking.log 2>&1 &
+STUB_PID=$!
+SUP=0
+for _ in $(seq 1 45); do
+  curl -fsS "http://127.0.0.1:${STUB_PORT:-18191}/health" >/dev/null 2>&1 && { SUP=1; break; }
+  sleep 1
+done
+if [ "$SUP" = "1" ]; then
+  ok "stub servis (parking) ayağa kalktı"
+  SC=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:${STUB_PORT:-18191}/api/v1/vehicles")
+  [ "$SC" = "501" ] && ok "stub GET /vehicles → 501" || bad "stub GET /vehicles → $SC (501 bekleniyordu)"
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "http://127.0.0.1:${STUB_PORT:-18191}/api/v1/vehicles" \
+    -H 'Content-Type: application/json' -d '{"owner_type":"RESIDENT","plate":"34ABC123"}')
+  [ "$SC" = "501" ] && ok "stub POST /vehicles → 501 (veri kaydedilmiyor)" || bad "stub POST /vehicles → $SC (501 bekleniyordu)"
+  HDR=$(curl -s -D- -o /dev/null "http://127.0.0.1:${STUB_PORT:-18191}/api/v1/vehicles" | grep -ci 'X-SiteEksen-Not-Implemented: true')
+  [ "$HDR" -ge 1 ] && ok "stub yanıtında X-SiteEksen-Not-Implemented başlığı var" || bad "stub başlığı eksik"
+else
+  bad "stub servis başlamadı"
+fi
+kill "$STUB_PID" 2>/dev/null
+
+# Kaynak düzeyinde: mock servislerde uydurma veri kalmamalı
+FAKE=$(grep -rn "Ali Veli\|Ayşe Yılmaz\|Ahmet Yılmaz\|Mehmet Demir\|AYEDAŞ" "$BACKEND_DIR/services" --include=*.go 2>/dev/null | grep -v _test | wc -l)
+[ "$FAKE" -eq 0 ] && ok "servis kaynaklarında uydurma isim/veri kalmadı" || { bad "servis kaynaklarında $FAKE uydurma veri satırı var"; }
+
+step "SONUÇ"
+echo "  Geçen: $PASS   Başarısız: $FAIL"
+[ "$FAIL" -eq 0 ] && { echo "  TÜM KONTROLLER GEÇTİ"; exit 0; } || { echo "  BAŞARISIZ KONTROL VAR"; exit 1; }

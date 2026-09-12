@@ -4,15 +4,15 @@ import "time"
 
 // Announcement - Duyuru modeli
 type Announcement struct {
-	ID         string    `json:"id"`
-	PropertyID string    `json:"property_id"`
-	Title      string    `json:"title"`
-	Content    string    `json:"content"`
-	Category   string    `json:"category"` // MAINTENANCE, PAYMENT, INFO, EMERGENCY
-	Priority   string    `json:"priority"` // LOW, NORMAL, HIGH, URGENT
-	IsPinned   bool      `json:"is_pinned"`
-	CreatedBy  string    `json:"created_by"`
-	CreatedAt  time.Time `json:"created_at"`
+	ID         string     `json:"id"`
+	PropertyID string     `json:"property_id"`
+	Title      string     `json:"title"`
+	Content    string     `json:"content"`
+	Category   string     `json:"category"` // MAINTENANCE, PAYMENT, INFO, EMERGENCY
+	Priority   string     `json:"priority"` // LOW, NORMAL, HIGH, URGENT
+	IsPinned   bool       `json:"is_pinned"`
+	CreatedBy  string     `json:"created_by"`
+	CreatedAt  time.Time  `json:"created_at"`
 	ExpiresAt  *time.Time `json:"expires_at,omitempty"`
 }
 
@@ -26,15 +26,15 @@ type AnnouncementRead struct {
 
 // Survey - Anket modeli
 type Survey struct {
-	ID          string       `json:"id"`
-	PropertyID  string       `json:"property_id"`
-	Title       string       `json:"title"`
-	Description string       `json:"description"`
+	ID          string         `json:"id"`
+	PropertyID  string         `json:"property_id"`
+	Title       string         `json:"title"`
+	Description string         `json:"description"`
 	Options     []SurveyOption `json:"options"`
-	Status      string       `json:"status"` // DRAFT, ACTIVE, CLOSED
-	CreatedBy   string       `json:"created_by"`
-	CreatedAt   time.Time    `json:"created_at"`
-	EndsAt      time.Time    `json:"ends_at"`
+	Status      string         `json:"status"` // DRAFT, ACTIVE, CLOSED
+	CreatedBy   string         `json:"created_by"`
+	CreatedAt   time.Time      `json:"created_at"`
+	EndsAt      time.Time      `json:"ends_at"`
 }
 
 // SurveyOption - Anket seçeneği
@@ -86,7 +86,7 @@ type Reservation struct {
 	ID         string    `json:"id"`
 	FacilityID string    `json:"facility_id"`
 	UserID     string    `json:"user_id"`
-	Date       string    `json:"date"` // YYYY-MM-DD
+	Date       string    `json:"date"`       // YYYY-MM-DD
 	StartTime  string    `json:"start_time"` // HH:MM
 	EndTime    string    `json:"end_time"`
 	Status     string    `json:"status"` // PENDING, CONFIRMED, CANCELLED

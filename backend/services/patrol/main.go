@@ -2,12 +2,12 @@ package main
 
 import (
 	"log"
-	"net/http"
 	"os"
 	"time"
 
+	"github.com/siteeksen/backend/pkg/stub"
+
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 )
 
 type PatrolRoute struct {
@@ -62,9 +62,7 @@ type PatrolLog struct {
 func main() {
 	r := gin.Default()
 
-	r.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"status": "healthy", "service": "patrol"})
-	})
+	r.GET("/health", stub.Health("patrol"))
 
 	v1 := r.Group("/api/v1")
 	{
@@ -98,68 +96,54 @@ func main() {
 	r.Run(":" + port)
 }
 
-func listRoutes(c *gin.Context) {
-	routes := []PatrolRoute{
-		{ID: uuid.New().String(), Name: "Gece Devriyesi", EstimatedMin: 45, IsActive: true, Checkpoints: []Checkpoint{
-			{ID: "cp-1", Name: "A Blok Giriş", Location: "A Blok", SortOrder: 1, NFCCode: "NFC001"},
-			{ID: "cp-2", Name: "B Blok Giriş", Location: "B Blok", SortOrder: 2, NFCCode: "NFC002"},
-			{ID: "cp-3", Name: "Otopark", Location: "Otopark", SortOrder: 3, NFCCode: "NFC003"},
-		}},
-		{ID: uuid.New().String(), Name: "Gündüz Devriyesi", EstimatedMin: 30, IsActive: true},
-	}
-	c.JSON(http.StatusOK, gin.H{"routes": routes})
+func listRoutes(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "patrol")
 }
 
-func getRoute(c *gin.Context) {
-	c.JSON(http.StatusOK, PatrolRoute{ID: c.Param("id"), Name: "Gece Devriyesi"})
+func getRoute(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "patrol")
 }
 
-func createRoute(c *gin.Context) {
-	c.JSON(http.StatusCreated, gin.H{"id": uuid.New().String(), "message": "Rota oluşturuldu"})
+func createRoute(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "patrol")
 }
 
-func updateRoute(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"id": c.Param("id"), "message": "Rota güncellendi"})
+func updateRoute(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "patrol")
 }
 
-func deleteRoute(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"id": c.Param("id"), "message": "Rota silindi"})
+func deleteRoute(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "patrol")
 }
 
-func addCheckpoint(c *gin.Context) {
-	c.JSON(http.StatusCreated, gin.H{"id": uuid.New().String(), "message": "Kontrol noktası eklendi"})
+func addCheckpoint(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "patrol")
 }
 
-func listSessions(c *gin.Context) {
-	now := time.Now()
-	completed := now.Add(-30 * time.Minute)
-	sessions := []PatrolSession{
-		{ID: uuid.New().String(), RouteName: "Gece Devriyesi", GuardName: "Hasan Güvenlik", StartedAt: now.Add(-45 * time.Minute), CompletedAt: &completed, Status: "COMPLETED", TotalPoints: 8, ScannedPts: 8},
-		{ID: uuid.New().String(), RouteName: "Gece Devriyesi", GuardName: "Ahmet Güvenlik", StartedAt: now.Add(-15 * time.Minute), Status: "IN_PROGRESS", TotalPoints: 8, ScannedPts: 3},
-	}
-	c.JSON(http.StatusOK, gin.H{"sessions": sessions})
+func listSessions(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "patrol")
 }
 
-func getActiveSessions(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"sessions": []PatrolSession{}, "count": 0})
+func getActiveSessions(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "patrol")
 }
 
-func getPatrolStats(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"today_patrols": 8, "completed": 7, "in_progress": 1, "issues_reported": 2, "avg_completion_rate": 97.5})
+func getPatrolStats(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "patrol")
 }
 
-func getSession(c *gin.Context) {
-	c.JSON(http.StatusOK, PatrolSession{ID: c.Param("id"), Status: "COMPLETED"})
+func getSession(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "patrol")
 }
 
-func startSession(c *gin.Context) {
-	c.JSON(http.StatusCreated, gin.H{"id": uuid.New().String(), "status": "IN_PROGRESS", "message": "Devriye başladı"})
+func startSession(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "patrol")
 }
 
-func scanCheckpoint(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"session_id": c.Param("id"), "checkpoint_scanned": true, "scanned_at": time.Now()})
+func scanCheckpoint(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "patrol")
 }
 
-func completeSession(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"id": c.Param("id"), "status": "COMPLETED", "message": "Devriye tamamlandı"})
+func completeSession(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "patrol")
 }

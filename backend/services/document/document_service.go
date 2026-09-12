@@ -6,11 +6,12 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/siteeksen/backend/pkg/stub"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -327,81 +328,22 @@ func main() {
 		storagePath = "/tmp/documents"
 	}
 
-	svc, err := NewService(storagePath)
+	_, err := NewService(storagePath) // STUB: tum uclar 501
 	if err != nil {
 		log.Fatalf("Service init error: %v", err)
 	}
 
 	r := gin.Default()
 
-	r.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"status": "healthy", "service": "document"})
-	})
+	r.GET("/health", stub.Health("document"))
 
 	v1 := r.Group("/api/v1/documents")
 	{
-		v1.GET("", func(c *gin.Context) {
-			docType := DocumentType(c.Query("type"))
-			filter := &DocumentFilter{
-				Type:   docType,
-				Limit:  50,
-				Offset: 0,
-			}
-			docs, err := svc.List(context.Background(), filter)
-			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-				return
-			}
-			if docs == nil {
-				docs = []Document{}
-			}
-			c.JSON(http.StatusOK, gin.H{"data": docs})
-		})
-		v1.GET("/:id", func(c *gin.Context) {
-			doc, err := svc.GetByID(context.Background(), c.Param("id"))
-			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-				return
-			}
-			if doc == nil {
-				c.JSON(http.StatusNotFound, gin.H{"error": "Belge bulunamadı"})
-				return
-			}
-			c.JSON(http.StatusOK, doc)
-		})
-		v1.POST("", func(c *gin.Context) {
-			var req UploadRequest
-			if err := c.ShouldBindJSON(&req); err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-				return
-			}
-			doc := &Document{
-				ID:         uuid.New().String(),
-				Title:      req.Title,
-				Type:       req.Type,
-				Category:   req.Category,
-				ResidentID: req.ResidentID,
-				IsActive:   true,
-				UploadedAt: time.Now(),
-				UpdatedAt:  time.Now(),
-			}
-			c.JSON(http.StatusCreated, doc)
-		})
-		v1.DELETE("/:id", func(c *gin.Context) {
-			if err := svc.Delete(context.Background(), c.Param("id")); err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-				return
-			}
-			c.JSON(http.StatusOK, gin.H{"message": "Belge silindi"})
-		})
-		v1.GET("/stats", func(c *gin.Context) {
-			stats, err := svc.GetStats(context.Background(), "")
-			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-				return
-			}
-			c.JSON(http.StatusOK, stats)
-		})
+		v1.GET("", stub.Handler("document"))
+		v1.GET("/:id", stub.Handler("document"))
+		v1.POST("", stub.Handler("document"))
+		v1.DELETE("/:id", stub.Handler("document"))
+		v1.GET("/stats", stub.Handler("document"))
 	}
 
 	port := os.Getenv("PORT")

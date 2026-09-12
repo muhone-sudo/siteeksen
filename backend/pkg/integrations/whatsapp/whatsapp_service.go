@@ -60,6 +60,22 @@ type TextContent struct {
 	PreviewURL bool   `json:"preview_url,omitempty"`
 }
 
+// MediaContent görsel/belge içeriği (WhatsApp Cloud API "media object").
+//
+// Not (2026-09-09): Bu tip `Message` yapısında kullanılıyordu ama hiç tanımlanmamıştı;
+// bu yüzden paket DERLENMİYORDU (`undefined: MediaContent`). Paket hiçbir yerden import
+// edilmediği için hata fark edilmemişti — `go build ./...` zaten ayrı bir kırık import
+// yüzünden başarısız oluyordu ve bu hata onun arkasında gizli kalmıştı.
+//
+// API sözleşmesi gereği `ID` (önceden yüklenmiş medyanın kimliği) ve `Link` (herkese açık
+// URL) alanlarından yalnızca biri gönderilir. `Filename` yalnızca belge tipinde anlamlıdır.
+type MediaContent struct {
+	ID       string `json:"id,omitempty"`
+	Link     string `json:"link,omitempty"`
+	Caption  string `json:"caption,omitempty"`
+	Filename string `json:"filename,omitempty"`
+}
+
 // TemplateContent şablon içeriği
 type TemplateContent struct {
 	Name       string              `json:"name"`

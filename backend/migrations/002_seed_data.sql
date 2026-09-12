@@ -23,13 +23,29 @@ INSERT INTO units (id, property_id, block_id, block, floor, door_number, share_r
 ('33333333-3333-3333-3333-333333333305', '11111111-1111-1111-1111-111111111111', '22222222-2222-2222-2222-222222222221', 'A', 2, '5', 420, 95, 'APARTMENT', false),
 ('33333333-3333-3333-3333-333333333306', '11111111-1111-1111-1111-111111111111', '22222222-2222-2222-2222-222222222221', 'A', 2, '6', 420, 95, 'APARTMENT', false);
 
--- Demo Kullanıcı (Şifre: Demo123!)
+-- Demo Kullanıcılar — Şifre: Demo123!
+--
+-- DÜZELTME (2026-09-12): Buradaki bcrypt hash BOZUKTU. `demo123`, `Demo123!`, `Demo123`,
+-- `demo1234`, `password`, `123456`, `siteeksen` gibi aday şifrelerin HİÇBİRİ ile eşleşmiyordu
+-- (bcrypt ile fiilen test edildi). Üstelik iki kullanıcıya AYNI hash yazılmıştı — oysa bcrypt
+-- her çağrıda farklı salt üretir; bu, değerin gerçek bir hash değil kopyala-yapıştır bir
+-- yer tutucu olduğunun işaretiydi.
+--
+-- Sonuç: sıfırdan kurulan her ortamda demo hesaplarla giriş YAPILAMIYORDU. Geçmişte bu sorun
+-- çalışan container'a elle SQL çalıştırılarak geçiştirilmiş, düzeltme dosyaya hiç yansıtılmamıştı
+-- (bkz. tasks/audit-raporu.md ve tasks/lessons.md — "bende çalışıyor ≠ kurulabilir").
+--
+-- Aşağıdaki hash'ler `bcrypt.GenerateFromPassword(cost=12)` ile üretildi ve üretildikten hemen
+-- sonra `bcrypt.CompareHashAndPassword` ile doğrulandı. Her kullanıcı için ayrı salt kullanıldı.
+--
+-- UYARI: Bu dosya yalnızca GELİŞTİRME/DEMO içindir. Üretim ortamında çalıştırılmamalıdır;
+-- bilinen şifreli hesap açar. Seed'in initdb akışından ayrılması tasks/roadmap.md FAZ 1.7'de.
 INSERT INTO users (id, first_name, last_name, phone, email, password_hash, active_property_id, roles) VALUES
-('44444444-4444-4444-4444-444444444401', 'Ahmet', 'Yılmaz', '+905551234567', 'ahmet@example.com', 
- '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/X4.VTtYV.Uoqy7mPy', -- Demo123!
+('44444444-4444-4444-4444-444444444401', 'Ahmet', 'Yılmaz', '+905551234567', 'ahmet@example.com',
+ '$2a$12$jLt6qcUb2lnr4/h4fWWnAOdMsIwPAQBnlSdkWfv9/yG4EBcOJEdXm', -- Demo123!
  '11111111-1111-1111-1111-111111111111', ARRAY['RESIDENT', 'OWNER']),
 ('44444444-4444-4444-4444-444444444402', 'Mehmet', 'Demir', '+905559876543', 'mehmet@example.com',
- '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/X4.VTtYV.Uoqy7mPy',
+ '$2a$12$y2HxX/x04.wWORM2eymgv.6Pi8.PAYYe3JrcEUvWjYXGkk0HmBwfq', -- Demo123!
  '11111111-1111-1111-1111-111111111111', ARRAY['RESIDENT', 'TENANT']);
 
 -- Sakin-Daire İlişkileri

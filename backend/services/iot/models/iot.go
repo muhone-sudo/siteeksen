@@ -33,18 +33,18 @@ type MeterReading struct {
 
 // Sensor - Sensör modeli
 type Sensor struct {
-	ID            string    `json:"id"`
-	PropertyID    string    `json:"property_id"`
-	Type          string    `json:"type"` // TEMPERATURE, HUMIDITY, PRESSURE, SMOKE, WATER_LEAK
-	Location      string    `json:"location"`
-	SerialNumber  string    `json:"serial_number"`
-	MinThreshold  *float64  `json:"min_threshold,omitempty"`
-	MaxThreshold  *float64  `json:"max_threshold,omitempty"`
-	Unit          string    `json:"unit"` // °C, %, Pa, etc.
-	Status        string    `json:"status"` // ONLINE, OFFLINE, ERROR
-	LastValue     float64   `json:"last_value"`
-	LastUpdate    time.Time `json:"last_update"`
-	BatteryLevel  *int      `json:"battery_level,omitempty"` // Kablosuz sensörler için
+	ID           string    `json:"id"`
+	PropertyID   string    `json:"property_id"`
+	Type         string    `json:"type"` // TEMPERATURE, HUMIDITY, PRESSURE, SMOKE, WATER_LEAK
+	Location     string    `json:"location"`
+	SerialNumber string    `json:"serial_number"`
+	MinThreshold *float64  `json:"min_threshold,omitempty"`
+	MaxThreshold *float64  `json:"max_threshold,omitempty"`
+	Unit         string    `json:"unit"`   // °C, %, Pa, etc.
+	Status       string    `json:"status"` // ONLINE, OFFLINE, ERROR
+	LastValue    float64   `json:"last_value"`
+	LastUpdate   time.Time `json:"last_update"`
+	BatteryLevel *int      `json:"battery_level,omitempty"` // Kablosuz sensörler için
 }
 
 // SensorData - Sensör verisi

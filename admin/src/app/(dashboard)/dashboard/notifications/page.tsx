@@ -1,7 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import apiClient from "@/lib/api-client";
+import {
+    EmptyState,
+    ErrorState,
+    LoadingState,
+    NotImplementedNotice,
+    toUserMessage,
+} from "@/components/ui/data-state";
 import {
     Plus,
     X,
@@ -97,11 +104,10 @@ const mockAutomations: AutomationRule[] = [
     },
 ];
 
-const mockHistory: NotificationHistory[] = [
-    { id: 1, title: "Aidat Hatırlatma", message: "Aidat borcunuz bulunmaktadır...", channel: "sms", audienceType: "overdue", sentCount: 18, sentAt: "2026-01-27T10:00:00", status: "sent", deleted: 0 },
-    { id: 2, title: "Şubat Tahakkuk", message: "Şubat ayı aidatınız tahakkuk etmiştir...", channel: "push", audienceType: "all", sentCount: 124, sentAt: "2026-02-01T09:00:00", status: "sent", deleted: 0 },
-    { id: 3, title: "Asansör Bakım Duyurusu", message: "Yarın asansör bakımı yapılacaktır...", channel: "inapp", audienceType: "all", sentCount: 124, sentAt: "2026-01-30T14:00:00", status: "sent", deleted: 0 },
-];
+// NOT (2026-09-09): Burada daha önce `mockHistory` adıyla 3 sahte gönderim kaydı vardı
+// ("124 kişiye gönderildi" gibi). Bu kayıtlar state'in başlangıç değeri olarak kullanılıyor ve
+// API çağrısı başarısız olduğunda ekranda kalmaya devam ediyordu; yönetici hiç gönderilmemiş
+// bildirimleri gönderilmiş sanıyordu. Sahte veri kaldırıldı; geçmiş yalnızca sunucudan gelir.
 
 const channelConfig: Record<string, { label: string; icon: React.ElementType; color: string }> = {
     sms: { label: "SMS", icon: MessageSquare, color: "bg-green-100 text-green-700" },
@@ -124,28 +130,52 @@ export default function NotificationsPage() {
     const [isSendModalOpen, setIsSendModalOpen] = useState(false);
 
     const [automations, setAutomations] = useState(mockAutomations);
-    const [history, setHistory] = useState(mockHistory);
+    const [history, setHistory] = useState<NotificationHistory[]>([]);
     const [deleteHistoryId, setDeleteHistoryId] = useState<number | null>(null);
 
-    useEffect(() => {
-        apiClient.loadToken();
-        apiClient.getNotificationHistory({ limit: 50 }).then((data) => {
+    const [historyLoading, setHistoryLoading] = useState(true);
+    const [historyError, setHistoryError] = useState<string | null>(null);
+
+    // Gönderim durumu — başarı mesajı YALNIZCA sunucu onayladıktan sonra gösterilir.
+    const [sending, setSending] = useState(false);
+    const [sendError, setSendError] = useState<string | null>(null);
+    const [sendSuccess, setSendSuccess] = useState<string | null>(null);
+
+    const loadHistory = useCallback(async () => {
+        setHistoryLoading(true);
+        setHistoryError(null);
+        try {
+            apiClient.loadToken();
+            const data = await apiClient.getNotificationHistory({ limit: 50 });
             const items = data?.data ?? data;
-            if (Array.isArray(items) && items.length > 0) {
-                setHistory(items.map((n: any) => ({
-                    id: n.id,
-                    title: n.title,
-                    message: n.body ?? n.message ?? "",
-                    channel: n.channel ?? "push",
-                    audienceType: n.audience_type ?? "all",
-                    sentCount: n.sent_count ?? 0,
-                    sentAt: n.sent_at ?? n.created_at,
-                    status: n.status ?? "sent",
-                    deleted: 0,
-                })));
-            }
-        }).catch(() => {});
+            setHistory(
+                Array.isArray(items)
+                    ? items.map((n: any) => ({
+                        id: n.id,
+                        title: n.title,
+                        message: n.body ?? n.message ?? "",
+                        channel: n.channel ?? "push",
+                        audienceType: n.audience_type ?? "all",
+                        sentCount: n.sent_count ?? 0,
+                        sentAt: n.sent_at ?? n.created_at,
+                        status: n.status ?? "sent",
+                        deleted: 0,
+                    }))
+                    : []
+            );
+        } catch (err) {
+            // Sessizce boş listeye düşmek yasak: kullanıcı "hiç bildirim gönderilmemiş" ile
+            // "geçmiş yüklenemedi" durumunu ayırt edebilmeli.
+            setHistoryError(toUserMessage(err, "Bildirim geçmişi yüklenemedi."));
+            setHistory([]);
+        } finally {
+            setHistoryLoading(false);
+        }
     }, []);
+
+    useEffect(() => {
+        void loadHistory();
+    }, [loadHistory]);
 
     // Compose form state
     const [composeForm, setComposeForm] = useState({
@@ -178,7 +208,19 @@ export default function NotificationsPage() {
         setIsSendModalOpen(true);
     };
 
+    /**
+     * DÜZELTME (2026-09-09): Önceki sürüm `catch {}` ile hatayı yutuyor, ardından koşulsuz
+     * olarak modalı kapatıp formu temizliyordu. Sunucu isteği reddetse bile yönetici
+     * bildirimin gönderildiğini sanıyordu — üstelik geçmiş listesindeki sahte kayıtlar
+     * ("124 kişiye gönderildi") bu yanılgıyı pekiştiriyordu.
+     *
+     * Artık: başarı yalnızca sunucu onayladığında bildirilir, hata görünür kılınır ve
+     * hata durumunda form temizlenmez (kullanıcının yazdığı metin kaybolmaz).
+     */
     const confirmSend = async () => {
+        setSending(true);
+        setSendError(null);
+        setSendSuccess(null);
         try {
             await apiClient.sendNotification({
                 title: composeForm.title,
@@ -186,9 +228,15 @@ export default function NotificationsPage() {
                 channel: composeForm.channel,
                 audience_type: composeForm.audienceType,
             });
-        } catch {}
-        setIsSendModalOpen(false);
-        setComposeForm({ ...composeForm, title: "", message: "" });
+            setIsSendModalOpen(false);
+            setComposeForm({ ...composeForm, title: "", message: "" });
+            setSendSuccess("Bildirim gönderim isteği sunucuya iletildi.");
+            await loadHistory();
+        } catch (err) {
+            setSendError(toUserMessage(err, "Bildirim gönderilemedi."));
+        } finally {
+            setSending(false);
+        }
     };
 
     const handleAddAutomation = (e: React.FormEvent) => {
@@ -243,6 +291,28 @@ export default function NotificationsPage() {
                     </p>
                 </div>
             </div>
+
+            <NotImplementedNotice
+                detail={
+                    "Bildirim servisi henüz gerçek bir gönderim altyapısına bağlı değil: sunucu tarafında " +
+                    "push/SMS/e-posta gönderimi yapılmıyor ve gönderim kayıtları kalıcı olarak saklanmıyor. " +
+                    "Buradaki otomasyon kuralları da yalnızca bu tarayıcı oturumunda tutulur."
+                }
+            />
+
+            {sendSuccess && (
+                <div role="status" className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+                    {sendSuccess}
+                </div>
+            )}
+            {sendError && (
+                <div role="alert" className="flex items-start justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3">
+                    <span className="text-sm text-red-800">{sendError}</span>
+                    <button type="button" onClick={() => setSendError(null)} className="rounded p-1 text-red-600 hover:bg-red-100" aria-label="Kapat">
+                        <X className="h-4 w-4" />
+                    </button>
+                </div>
+            )}
 
             {/* Tabs */}
             <div className="flex gap-2 border-b border-gray-200 dark:border-gray-700">
@@ -520,6 +590,18 @@ export default function NotificationsPage() {
                     <div className="space-y-6">
                         <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Gönderim Geçmişi</h3>
 
+                        {historyLoading && <LoadingState label="Gönderim geçmişi yükleniyor..." />}
+                        {!historyLoading && historyError && (
+                            <ErrorState message={historyError} onRetry={() => void loadHistory()} />
+                        )}
+                        {!historyLoading && !historyError && history.filter(h => h.deleted === 0).length === 0 && (
+                            <EmptyState
+                                title="Gönderim kaydı yok"
+                                description="Henüz hiç bildirim gönderilmemiş ya da sunucu gönderim kaydı tutmuyor."
+                            />
+                        )}
+
+                        {!historyLoading && !historyError && history.filter(h => h.deleted === 0).length > 0 && (
                         <table className="w-full">
                             <thead>
                                 <tr className="border-b border-gray-200 dark:border-gray-700">
@@ -572,6 +654,7 @@ export default function NotificationsPage() {
                                 })}
                             </tbody>
                         </table>
+                        )}
                     </div>
                 )}
             </div>
@@ -592,18 +675,25 @@ export default function NotificationsPage() {
                                 <p className="text-sm font-medium text-gray-900 dark:text-white">{composeForm.title}</p>
                                 <p className="text-xs text-gray-500 mt-1">{composeForm.message}</p>
                             </div>
+                            {sendError && (
+                                <div role="alert" className="mb-4 w-full rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-left text-sm text-red-800">
+                                    {sendError}
+                                </div>
+                            )}
                             <div className="flex gap-3 w-full">
                                 <button
                                     onClick={() => setIsSendModalOpen(false)}
-                                    className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300"
+                                    disabled={sending}
+                                    className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-300"
                                 >
                                     İptal
                                 </button>
                                 <button
                                     onClick={confirmSend}
-                                    className="flex-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
+                                    disabled={sending}
+                                    className="flex-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-50"
                                 >
-                                    Gönder
+                                    {sending ? "Gönderiliyor..." : "Gönder"}
                                 </button>
                             </div>
                         </div>

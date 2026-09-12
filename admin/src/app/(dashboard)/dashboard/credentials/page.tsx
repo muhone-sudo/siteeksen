@@ -1,11 +1,11 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import apiClient from "@/lib/api-client";
 import {
-    Plus, X, Eye, EyeOff, Copy, Key, Shield, Wifi, Server,
-    Monitor, Globe, Edit, Trash2, Clock, Lock, CheckCircle,
+    Plus, X, Eye, Copy, Key, Shield, Wifi, Server,
+    Monitor, Globe, Edit, Trash2, Clock, Lock,
 } from "lucide-react";
+import { NotImplementedNotice } from "@/components/ui/data-state";
 
 interface SystemCredential {
     id: number;
@@ -79,9 +79,10 @@ export default function CredentialsPage() {
     const [searchQuery, setSearchQuery] = useState("");
     const [copiedId, setCopiedId] = useState<number | null>(null);
 
-    // Şifreler burada TUTULMAZ — sadece "göster" basılınca API'den çekilir
+    // Şifreler burada TUTULMAZ — sadece "göster" basılınca API'den çekilirdi.
+    // Sunucuda böyle bir uç nokta olmadığı için özellik şu an devre dışı (bkz. handleRevealPassword).
     const [revealedPasswords, setRevealedPasswords] = useState<Record<number, string>>({});
-    const [loadingPasswordId, setLoadingPasswordId] = useState<number | null>(null);
+    const [revealError, setRevealError] = useState<string | null>(null);
 
     const [newCredential, setNewCredential] = useState({
         systemName: "", category: "security" as CredentialCategory,
@@ -89,31 +90,42 @@ export default function CredentialsPage() {
         accessLevel: ["admin"] as AccessLevel[],
     });
 
+    // Erişim kaydı yalnızca bu tarayıcı oturumunda tutulur — sunucuya YAZILMAZ.
+    // Arayüzde bu durum açıkça belirtilir; aksi halde kullanıcı erişimlerin kalıcı olarak
+    // kayıt altına alındığını sanır (2026-09-09 denetim bulgusu).
     const writeLog = useCallback((credentialId: number, credentialName: string, action: AccessLog["action"]) => {
         const log: AccessLog = { id: Date.now(), credentialId, credentialName, action, user: CURRENT_USER, timestamp: new Date().toISOString() };
         setAccessLogs(prev => [log, ...prev]);
     }, []);
 
-    const handleRevealPassword = async (credential: SystemCredential) => {
-        if (revealedPasswords[credential.id]) {
-            setRevealedPasswords(prev => { const n = { ...prev }; delete n[credential.id]; return n; });
-            return;
-        }
-        setLoadingPasswordId(credential.id);
-        try {
-            const res = await apiClient.testApiCredential(String(credential.id));
-            const password = res?.password ?? res?.secret ?? "••••••••";
-            setRevealedPasswords(prev => ({ ...prev, [credential.id]: password }));
-        } catch {
-            setRevealedPasswords(prev => ({ ...prev, [credential.id]: "demo-sifre-2026" }));
-        } finally {
-            setLoadingPasswordId(null);
-        }
+    /**
+     * DÜZELTME (2026-09-09): Bu fonksiyon daha önce `/credentials/:id/test` ucunu çağırıyordu
+     * (ki o bir "şifre göster" ucu değildir) ve hata alınca `catch` içinde kullanıcıya
+     * UYDURMA bir şifre ("demo-sifre-2026") gösteriyordu.
+     *
+     * Backend'de şifre çözüp döndüren bir uç nokta HİÇ YOK: `settings` servisindeki
+     * `GetDecrypted` fonksiyonu yazılmış ama hiçbir route'a bağlanmamış ve servisin tüm
+     * CRUD işlemleri `// TODO: Veritabanına kaydet` durumunda. Yani gösterilecek gerçek bir
+     * sır bulunmuyor.
+     *
+     * Uydurma şifre göstermek, kullanıcının yanlış bir değeri gerçek sanıp sisteme girmesine
+     * yol açar. Bu nedenle özellik, gerçek uç nokta yazılana kadar dürüstçe devre dışıdır.
+     */
+    const handleRevealPassword = (credential: SystemCredential) => {
+        setRevealError(
+            "Şifre gösterme özelliği henüz kullanılamıyor: sunucu tarafında şifreleri güvenli biçimde " +
+            "çözüp döndüren bir uç nokta bulunmuyor. Bu özellik, kimlik bilgileri servisi veritabanına " +
+            "bağlandığında erişim kaydıyla birlikte devreye alınacaktır."
+        );
         writeLog(credential.id, credential.systemName, "view");
     };
 
     const copyToClipboard = async (credential: SystemCredential) => {
-        const password = revealedPasswords[credential.id] ?? "••••••••";
+        const password = revealedPasswords[credential.id];
+        if (!password) {
+            setRevealError("Kopyalanacak bir şifre yok — şifre gösterme özelliği henüz kullanılamıyor.");
+            return;
+        }
         await navigator.clipboard.writeText(password);
         setCopiedId(credential.id);
         setTimeout(() => setCopiedId(null), 2000);
@@ -184,17 +196,40 @@ export default function CredentialsPage() {
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Sistem Kimlik Bilgileri</h1>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">Güvenli şifre ve hesap yönetimi — şifreler yalnızca talep üzerine gösterilir</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Site sistemlerine ait hesap bilgilerinin envanteri</p>
                 </div>
                 <div className="flex gap-2">
                     <button onClick={() => setIsLogModalOpen(true)} className="flex items-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300">
-                        <Clock className="h-4 w-4" /> Erişim Logu ({accessLogs.length})
+                        <Clock className="h-4 w-4" /> Erişim Kaydı ({accessLogs.length})
                     </button>
                     <button onClick={() => setIsAddModalOpen(true)} className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90">
                         <Plus className="h-4 w-4" /> Yeni Kayıt
                     </button>
                 </div>
             </div>
+
+            <NotImplementedNotice
+                detail={
+                    "Kimlik bilgileri servisi henüz veritabanına bağlı değil: burada eklenen/düzenlenen kayıtlar " +
+                    "kalıcı olarak saklanmaz, sayfa yenilendiğinde kaybolur. Şifre gösterme özelliği de sunucu " +
+                    "tarafında hazır olmadığı için devre dışıdır. Erişim kaydı yalnızca bu tarayıcı oturumunda tutulur."
+                }
+            />
+
+            {revealError && (
+                <div role="alert" className="flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3">
+                    <Lock className="mt-0.5 h-5 w-5 shrink-0 text-red-600" aria-hidden="true" />
+                    <div className="flex-1 text-sm text-red-800">{revealError}</div>
+                    <button
+                        type="button"
+                        onClick={() => setRevealError(null)}
+                        className="rounded p-1 text-red-600 hover:bg-red-100"
+                        aria-label="Kapat"
+                    >
+                        <X className="h-4 w-4" />
+                    </button>
+                </div>
+            )}
 
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                 <div className="relative flex-1 max-w-md">
@@ -226,7 +261,6 @@ export default function CredentialsPage() {
                             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                                 {creds.map((credential) => {
                                     const isRevealed = !!revealedPasswords[credential.id];
-                                    const isLoading = loadingPasswordId === credential.id;
                                     return (
                                         <div key={credential.id} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
                                             <div className="flex items-start justify-between mb-3">
@@ -257,14 +291,21 @@ export default function CredentialsPage() {
                                                 </label>
                                                 <div className="flex items-center gap-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg px-3 py-1.5 mt-1">
                                                     <p className="flex-1 text-sm font-mono text-gray-900 dark:text-white tracking-widest">
-                                                        {isLoading ? "Yükleniyor..." : isRevealed ? revealedPasswords[credential.id] : "••••••••••••"}
+                                                        {isRevealed ? revealedPasswords[credential.id] : "••••••••••••"}
                                                     </p>
-                                                    <button onClick={() => handleRevealPassword(credential)} disabled={isLoading}
-                                                        className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50" title={isRevealed ? "Gizle" : "Göster (log yazılır)"}>
-                                                        {isRevealed ? <EyeOff className="h-4 w-4 text-gray-500" /> : <Eye className="h-4 w-4 text-gray-500" />}
+                                                    <button
+                                                        onClick={() => handleRevealPassword(credential)}
+                                                        className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600"
+                                                        title="Şifre gösterme henüz kullanılamıyor"
+                                                    >
+                                                        <Eye className="h-4 w-4 text-gray-400" />
                                                     </button>
-                                                    <button onClick={() => copyToClipboard(credential)} className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600" title="Kopyala (log yazılır)">
-                                                        {copiedId === credential.id ? <CheckCircle className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4 text-gray-500" />}
+                                                    <button
+                                                        onClick={() => copyToClipboard(credential)}
+                                                        className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600"
+                                                        title="Kopyala"
+                                                    >
+                                                        <Copy className={`h-4 w-4 ${copiedId === credential.id ? "text-green-500" : "text-gray-500"}`} />
                                                     </button>
                                                 </div>
                                             </div>

@@ -2,12 +2,12 @@ package main
 
 import (
 	"log"
-	"net/http"
 	"os"
 	"time"
 
+	"github.com/siteeksen/backend/pkg/stub"
+
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 )
 
 type Contract struct {
@@ -31,9 +31,7 @@ type Contract struct {
 func main() {
 	r := gin.Default()
 
-	r.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"status": "healthy", "service": "contract"})
-	})
+	r.GET("/health", stub.Health("contract"))
 
 	v1 := r.Group("/api/v1")
 	{
@@ -59,43 +57,38 @@ func main() {
 	r.Run(":" + port)
 }
 
-func listContracts(c *gin.Context) {
-	contracts := []Contract{
-		{ID: uuid.New().String(), ContractType: "SERVICE", Title: "Bina Temizlik", PartyName: "Temiz A.Ş.", StartDate: "2025-01-01", EndDate: "2025-12-31", MonthlyAmount: 8000, Status: "ACTIVE", DaysUntilExpiry: 334, CreatedAt: time.Now()},
-		{ID: uuid.New().String(), ContractType: "MAINTENANCE", Title: "Asansör Bakım", PartyName: "Asansör Ltd.", StartDate: "2024-06-01", EndDate: "2026-05-31", MonthlyAmount: 2000, Status: "ACTIVE", DaysUntilExpiry: 120, CreatedAt: time.Now()},
-	}
-	c.JSON(http.StatusOK, gin.H{"contracts": contracts, "total": len(contracts)})
+func listContracts(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "contract")
 }
 
-func getContractStats(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"total_contracts": 12, "active_contracts": 10, "expiring_in_30_days": 2, "total_monthly_value": 35000.00})
+func getContractStats(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "contract")
 }
 
-func getExpiringContracts(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"contracts": []Contract{}, "count": 0})
+func getExpiringContracts(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "contract")
 }
 
-func getContract(c *gin.Context) {
-	id := c.Param("id")
-	c.JSON(http.StatusOK, Contract{ID: id, Title: "Sözleşme", Status: "ACTIVE"})
+func getContract(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "contract")
 }
 
-func createContract(c *gin.Context) {
-	c.JSON(http.StatusCreated, gin.H{"id": uuid.New().String(), "message": "Sözleşme oluşturuldu"})
+func createContract(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "contract")
 }
 
-func updateContract(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"id": c.Param("id"), "message": "Sözleşme güncellendi"})
+func updateContract(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "contract")
 }
 
-func deleteContract(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"id": c.Param("id"), "message": "Sözleşme silindi"})
+func deleteContract(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "contract")
 }
 
-func renewContract(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"id": c.Param("id"), "status": "RENEWED", "message": "Sözleşme yenilendi"})
+func renewContract(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "contract")
 }
 
-func terminateContract(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"id": c.Param("id"), "status": "TERMINATED", "message": "Sözleşme feshedildi"})
+func terminateContract(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "contract")
 }

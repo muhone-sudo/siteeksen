@@ -47,11 +47,11 @@ func main() {
 		api.POST("/assessments", handlers.CreateAssessment(financeService))
 		api.GET("/assessments/:id", handlers.GetAssessmentDetails(financeService))
 		api.GET("/expense-categories", handlers.GetExpenseCategories(financeService))
-		
+
 		// Ödemeler
 		api.POST("/payments", handlers.CreatePayment(financeService))
 		api.GET("/payments", handlers.GetPaymentHistory(financeService))
-		
+
 		// Tüketim
 		api.GET("/consumption/summary", handlers.GetConsumptionSummary(financeService))
 	}

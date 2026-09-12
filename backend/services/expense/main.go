@@ -2,9 +2,10 @@ package main
 
 import (
 	"log"
-	"net/http"
 	"os"
 	"time"
+
+	"github.com/siteeksen/backend/pkg/stub"
 
 	"github.com/gin-gonic/gin"
 )
@@ -79,9 +80,7 @@ func main() {
 	r := gin.Default()
 
 	// Health check
-	r.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"status": "healthy", "service": "expense"})
-	})
+	r.GET("/health", stub.Health("expense"))
 
 	// Expense Categories
 	categories := r.Group("/api/v1/expense-categories")
@@ -128,205 +127,67 @@ func main() {
 }
 
 // Category handlers
-func listCategories(c *gin.Context) {
-	categories := []ExpenseCategory{
-		{ID: "1", Name: "Bina Temizliği", Type: "FIXED", ReflectsToAssessment: false, DisplayOrder: 1},
-		{ID: "2", Name: "Güvenlik", Type: "FIXED", ReflectsToAssessment: false, DisplayOrder: 2},
-		{ID: "3", Name: "Yönetici Ücreti", Type: "FIXED", ReflectsToAssessment: false, DisplayOrder: 3},
-		{ID: "4", Name: "Ortak Elektrik", Type: "VARIABLE", ReflectsToAssessment: true, DisplayOrder: 4},
-		{ID: "5", Name: "Ortak Su", Type: "VARIABLE", ReflectsToAssessment: true, DisplayOrder: 5},
-		{ID: "6", Name: "Ortak Isınma", Type: "VARIABLE", ReflectsToAssessment: true, DisplayOrder: 6},
-		{ID: "7", Name: "Asansör Bakımı", Type: "UNPLANNED", ReflectsToAssessment: true, DisplayOrder: 7},
-		{ID: "8", Name: "Bahçe Bakımı", Type: "VARIABLE", ReflectsToAssessment: true, DisplayOrder: 8},
-		{ID: "9", Name: "Acil Tamir", Type: "UNPLANNED", ReflectsToAssessment: true, DisplayOrder: 9},
-	}
-	c.JSON(http.StatusOK, gin.H{"data": categories})
+func listCategories(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "expense")
 }
 
-func createCategory(c *gin.Context) {
-	var cat ExpenseCategory
-	if err := c.ShouldBindJSON(&cat); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-	cat.ID = "new-id"
-	c.JSON(http.StatusCreated, cat)
+func createCategory(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "expense")
 }
 
-func updateCategory(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"message": "Kategori güncellendi"})
+func updateCategory(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "expense")
 }
 
 // Expense handlers
-func listExpenses(c *gin.Context) {
-	// Query params: month, category_id, is_invoiced, reflects_to_assessment
-	expenses := []Expense{
-		{
-			ID: "1", CategoryName: "Ortak Elektrik", Description: "Ocak 2026 elektrik faturası",
-			Amount: 2450.75, ExpenseDate: "2026-01-28", IsInvoiced: true,
-			ReflectsToAssessment: true, Status: "APPROVED", VendorName: "AYEDAŞ",
-		},
-		{
-			ID: "2", CategoryName: "Asansör Bakımı", Description: "Yıllık bakım",
-			Amount: 3500.00, ExpenseDate: "2026-01-15", IsInvoiced: true,
-			ReflectsToAssessment: true, Status: "APPROVED", VendorName: "Kone",
-		},
-		{
-			ID: "3", CategoryName: "Acil Tamir", Description: "Çatı tamir işlemi",
-			Amount: 1800.00, ExpenseDate: "2026-01-20", IsInvoiced: false,
-			InvoiceReason: "Elden ödeme - usta", ReflectsToAssessment: true, Status: "PENDING",
-		},
-	}
-	c.JSON(http.StatusOK, gin.H{"data": expenses, "total": len(expenses)})
+func listExpenses(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "expense")
 }
 
-func getExpense(c *gin.Context) {
-	id := c.Param("id")
-	expense := Expense{
-		ID: id, CategoryID: "4", CategoryName: "Ortak Elektrik",
-		Description: "Ocak 2026 elektrik faturası", Amount: 2450.75,
-		ExpenseDate: "2026-01-28", IsInvoiced: true, ReflectsToAssessment: true,
-		Status: "APPROVED", VendorName: "AYEDAŞ", InvoiceNumber: "2026-001234",
-		Invoices: []Invoice{
-			{ID: "inv1", FileName: "fatura.pdf", FileURL: "/uploads/fatura.pdf", FileType: "PDF", AIProcessed: true},
-		},
-	}
-	c.JSON(http.StatusOK, expense)
+func getExpense(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "expense")
 }
 
-func createExpense(c *gin.Context) {
-	var expense Expense
-	if err := c.ShouldBindJSON(&expense); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-	expense.ID = "new-expense-id"
-	expense.Status = "APPROVED"
-	if !expense.IsInvoiced {
-		expense.Status = "PENDING" // Faturasız giderler onay bekler
-	}
-	expense.CreatedAt = time.Now()
-	c.JSON(http.StatusCreated, expense)
+func createExpense(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "expense")
 }
 
-func updateExpense(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"message": "Gider güncellendi"})
+func updateExpense(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "expense")
 }
 
-func deleteExpense(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"message": "Gider silindi"})
+func deleteExpense(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "expense")
 }
 
-func updateExpenseStatus(c *gin.Context) {
-	var req struct {
-		Status string `json:"status"`
-		Reason string `json:"reason,omitempty"`
-	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"message": "Durum güncellendi", "status": req.Status})
+func updateExpenseStatus(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "expense")
 }
 
 // Invoice handlers
-func uploadInvoice(c *gin.Context) {
-	// Normalde file upload olacak
-	invoice := Invoice{
-		ID:        "new-invoice-id",
-		ExpenseID: c.Param("id"),
-		FileName:  "fatura.pdf",
-		FileURL:   "/uploads/fatura.pdf",
-		FileType:  "PDF",
-	}
-	c.JSON(http.StatusCreated, invoice)
+func uploadInvoice(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "expense")
 }
 
-func deleteInvoice(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"message": "Fatura silindi"})
+func deleteInvoice(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "expense")
 }
 
 // AI Invoice Scanning
-func scanInvoice(c *gin.Context) {
-	var req AIInvoiceScanRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	// TODO: Gerçek AI servisi entegrasyonu
-	// Bu mock response, gerçekte OpenAI GPT-4 Vision veya Google Document AI kullanılacak
-	result := AIInvoiceScanResult{
-		Success:         true,
-		VendorName:      "AYEDAŞ Elektrik Dağıtım A.Ş.",
-		InvoiceNumber:   "2026-001234",
-		InvoiceDate:     "2026-01-28",
-		TotalAmount:     2450.75,
-		Currency:        "TRY",
-		TaxAmount:       441.14,
-		CategorySuggest: "Ortak Elektrik",
-		Confidence:      0.94,
-		RawData: map[string]interface{}{
-			"consumption_kwh": 1250,
-			"unit_price":      1.85,
-		},
-	}
-
-	c.JSON(http.StatusOK, result)
+func scanInvoice(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "expense")
 }
 
 // Reports
-func getExpenseSummary(c *gin.Context) {
-	summary := gin.H{
-		"total_expenses":         45750.25,
-		"invoiced_expenses":      42150.25,
-		"non_invoiced_expenses":  3600.00,
-		"assessment_reflecting":  28500.00,
-		"fixed_expenses":         17250.25,
-		"variable_expenses":      21500.00,
-		"unplanned_expenses":     7000.00,
-		"pending_approval_count": 2,
-		"pending_approval_amount": 3600.00,
-	}
-	c.JSON(http.StatusOK, summary)
+func getExpenseSummary(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "expense")
 }
 
-func getMonthlyReport(c *gin.Context) {
-	// month := c.Query("month") // 2026-01
-	report := []gin.H{
-		{"category": "Ortak Elektrik", "amount": 2450.75, "invoiced": true, "reflects": true},
-		{"category": "Ortak Su", "amount": 1850.00, "invoiced": true, "reflects": true},
-		{"category": "Bina Temizliği", "amount": 8000.00, "invoiced": true, "reflects": false},
-		{"category": "Güvenlik", "amount": 12000.00, "invoiced": true, "reflects": false},
-		{"category": "Asansör Bakımı", "amount": 3500.00, "invoiced": true, "reflects": true},
-	}
-	c.JSON(http.StatusOK, gin.H{"data": report})
+func getMonthlyReport(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "expense")
 }
 
 // Resident view
-func getResidentExpenses(c *gin.Context) {
-	// Sakinler sadece onaylanmış giderleri görebilir
-	expenses := []gin.H{
-		{
-			"category":     "Ortak Elektrik",
-			"amount":       2450.75,
-			"date":         "2026-01-28",
-			"is_invoiced":  true,
-			"reflects":     true,
-			"has_document": true,
-		},
-		{
-			"category":                 "Acil Tamir",
-			"description":              "Çatı tamir işlemi",
-			"amount":                   1800.00,
-			"date":                     "2026-01-20",
-			"is_invoiced":              false,
-			"non_invoiced_reason":      "Elden ödeme - usta",
-			"reflects":                 true,
-			"has_document":             false,
-			"non_invoiced_badge":       true, // Frontend'de belirgin gösterim için
-			"non_invoiced_explanation": "Bu gider için resmi fatura alınamamıştır. Detay için yönetime başvurun.",
-		},
-	}
-	c.JSON(http.StatusOK, gin.H{"data": expenses})
+func getResidentExpenses(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "expense")
 }

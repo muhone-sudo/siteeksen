@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"log"
 	"net/http"
 	"os"
 	"strings"
@@ -10,6 +11,11 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/siteeksen/backend/pkg/audit"
 )
+
+// jwtSigningMethod — imza algoritması allowlist'i.
+// Belirtilmezse jwt kütüphanesi token'ın kendi `alg` başlığına güvenir; bu, algoritma
+// karıştırma (algorithm confusion) saldırılarına kapı açar.
+var jwtSigningMethods = []string{"HS256"}
 
 // Rol değerleri (users.roles TEXT[] içinde taşınır)
 const (
@@ -48,12 +54,28 @@ func AuthMiddleware() gin.HandlerFunc {
 			return
 		}
 
+		// GÜVENLİK (2026-09-09): Önceki sürüm JWT_SECRET boş olsa dahi doğrulamaya devam
+		// ediyordu. Boş anahtarla HS256 doğrulaması, saldırganın istediği user_id/property_id/
+		// roles değerleriyle geçerli token üretmesine izin verir. Artık anahtar yoksa istek
+		// reddedilir (fail-closed).
+		secret := os.Getenv("JWT_SECRET")
+		if secret == "" {
+			log.Printf("[auth] KRİTİK: JWT_SECRET tanımlı değil — kimlik doğrulama yapılamıyor")
+			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
+				"error": "Sunucu kimlik doğrulama yapılandırması eksik",
+			})
+			return
+		}
+
 		tokenString := parts[1]
 		claims := &Claims{}
 
-		token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (interface{}, error) {
-			return []byte(os.Getenv("JWT_SECRET")), nil
-		})
+		token, err := jwt.ParseWithClaims(
+			tokenString,
+			claims,
+			func(token *jwt.Token) (interface{}, error) { return []byte(secret), nil },
+			jwt.WithValidMethods(jwtSigningMethods),
+		)
 
 		if err != nil || !token.Valid {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
@@ -87,7 +109,15 @@ func RequireRole(requiredRoles ...string) gin.HandlerFunc {
 			return
 		}
 
-		userRoles := roles.([]string)
+		userRoles, ok := roles.([]string)
+		if !ok {
+			// Kontrolsüz tip dönüşümü panic'e yol açardı; fail-closed davranıyoruz.
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
+				"error": "Yetki bilgisi okunamadı",
+			})
+			return
+		}
+
 		for _, required := range requiredRoles {
 			for _, userRole := range userRoles {
 				if userRole == required {
@@ -104,26 +134,56 @@ func RequireRole(requiredRoles ...string) gin.HandlerFunc {
 }
 
 // AuditLog hassas kaynaklara erişimi audit_logs tablosuna kaydeder.
-// resourceType bu route grubunun neyi temsil ettiğini belirtir (örn. "user", "finance", "credentials").
-func AuditLog(pool *pgxpool.Pool, resourceType string) gin.HandlerFunc {
+// entityType bu route grubunun neyi temsil ettiğini belirtir (örn. "user", "finance", "credentials").
+//
+// 2026-09-09 düzeltmeleri:
+//   - Hata artık yutulmuyor. Önceki sürüm `_ = audit.LogAction(...)` ile hatayı atıyordu; kolon
+//     adları şemayla uyuşmadığı için INSERT her çağrıda başarısız oluyor ve tablo boş kalıyordu.
+//     Denetim izi yazılamaması sessizce geçilecek bir durum değildir (KVKK) — en azından loglanır.
+//   - `property_id` kaydediliyor (denetim kaydının hangi siteye ait olduğu).
+//   - HTTP durum kodu kaydediliyor; 401/403 ile reddedilen istekler `DENIED` olarak ayrışıyor.
+//     Böylece yetkisiz erişim denemeleri başarılı erişimlerden ayırt edilebiliyor.
+func AuditLog(pool *pgxpool.Pool, entityType string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Next()
+
+		status := c.Writer.Status()
+
+		// Kimlik doğrulanamadığı için reddedilen istekler (401) denetim izine yazılmaz:
+		// kullanıcı bilinmiyor ve bu kayıtlar tabloyu gürültüyle doldurur.
+		// Yetkisi olmadığı için reddedilenler (403) ise güvenlik açısından değerlidir, yazılır.
+		if status == http.StatusUnauthorized {
+			return
+		}
 
 		userIDValue, _ := c.Get("user_id")
 		userID, _ := userIDValue.(string)
 
-		_ = audit.LogAction(
-			c.Request.Context(),
-			pool,
-			userID,
-			c.ClientIP(),
-			c.Request.UserAgent(),
-			auditActionFromMethod(c.Request.Method),
-			resourceType,
-			c.Param("id"),
-			nil,
-			nil,
-		)
+		propertyIDValue, _ := c.Get("property_id")
+		propertyID, _ := propertyIDValue.(string)
+
+		action := auditActionFromMethod(c.Request.Method)
+		if status == http.StatusForbidden {
+			action = "DENIED"
+		}
+
+		err := audit.Log(c.Request.Context(), pool, audit.Entry{
+			UserID:     userID,
+			PropertyID: propertyID,
+			IPAddress:  c.ClientIP(),
+			UserAgent:  c.Request.UserAgent(),
+			Action:     action,
+			EntityType: entityType,
+			EntityID:   c.Param("id"),
+			RequestID:  c.GetHeader("X-Request-Id"),
+			StatusCode: status,
+		})
+		if err != nil {
+			// Denetim izi yazılamadı: isteği başarısız saymıyoruz (kullanıcı işlemi tamamlandı),
+			// ama sessizce geçmiyoruz — bu kayıt izleme sisteminde uyarı üretmelidir.
+			log.Printf("[audit] kayıt yazılamadı: %v (entity=%s action=%s user=%s)",
+				err, entityType, action, userID)
+		}
 	}
 }
 

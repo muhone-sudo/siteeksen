@@ -4,9 +4,10 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"net/http"
 	"os"
 	"time"
+
+	"github.com/siteeksen/backend/pkg/stub"
 
 	"github.com/gin-gonic/gin"
 )
@@ -279,64 +280,17 @@ func (s *Service) GetMetrics(ctx context.Context, siteID string, category Metric
 }
 
 func main() {
-	svc := NewService()
+	_ = NewService() // STUB: servis nesnesi henuz kullanilmiyor (tum uclar 501)
 	r := gin.Default()
 
-	r.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"status": "healthy", "service": "esg"})
-	})
+	r.GET("/health", stub.Health("esg"))
 
 	v1 := r.Group("/api/v1/esg")
 	{
-		v1.GET("/carbon-footprint", func(c *gin.Context) {
-			siteID := c.Query("site_id")
-			if siteID == "" {
-				siteID = "default"
-			}
-			result, err := svc.CalculateCarbonFootprint(context.Background(), siteID, time.Now().Year())
-			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-				return
-			}
-			c.JSON(http.StatusOK, result)
-		})
-		v1.GET("/sustainability-score", func(c *gin.Context) {
-			siteID := c.Query("site_id")
-			if siteID == "" {
-				siteID = "default"
-			}
-			result, err := svc.CalculateSustainabilityScore(context.Background(), siteID)
-			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-				return
-			}
-			c.JSON(http.StatusOK, result)
-		})
-		v1.GET("/annual-report", func(c *gin.Context) {
-			siteID := c.Query("site_id")
-			siteName := c.Query("site_name")
-			if siteID == "" {
-				siteID = "default"
-			}
-			if siteName == "" {
-				siteName = "Site"
-			}
-			report, err := svc.GenerateAnnualReport(context.Background(), siteID, siteName, time.Now().Year())
-			if err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-				return
-			}
-			c.JSON(http.StatusOK, report)
-		})
-		v1.POST("/metrics", func(c *gin.Context) {
-			var metric Metric
-			if err := c.ShouldBindJSON(&metric); err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-				return
-			}
-			svc.RecordMetric(context.Background(), &metric)
-			c.JSON(http.StatusCreated, metric)
-		})
+		v1.GET("/carbon-footprint", stub.Handler("esg"))
+		v1.GET("/sustainability-score", stub.Handler("esg"))
+		v1.GET("/annual-report", stub.Handler("esg"))
+		v1.POST("/metrics", stub.Handler("esg"))
 	}
 
 	port := os.Getenv("PORT")

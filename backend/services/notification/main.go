@@ -2,9 +2,10 @@ package main
 
 import (
 	"log"
-	"net/http"
 	"os"
 	"time"
+
+	"github.com/siteeksen/backend/pkg/stub"
 
 	"github.com/gin-gonic/gin"
 )
@@ -36,9 +37,7 @@ func main() {
 	r := gin.Default()
 
 	// Health check
-	r.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"status": "healthy", "service": "notification"})
-	})
+	r.GET("/health", stub.Health("notification"))
 
 	// Notification endpoints
 	r.POST("/api/v1/notifications/send", sendNotification)
@@ -70,162 +69,52 @@ func main() {
 	}
 }
 
-func sendNotification(c *gin.Context) {
-	var req NotificationRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	// Bildirim tipine göre gönderim
-	switch req.Type {
-	case "PUSH":
-		// Firebase FCM
-		log.Printf("Sending push notification to %v", req.Recipients)
-	case "SMS":
-		// SMS provider (Netgsm, Iletisimci, etc.)
-		log.Printf("Sending SMS to %v", req.Recipients)
-	case "EMAIL":
-		// SMTP / SendGrid / AWS SES
-		log.Printf("Sending email to %v", req.Recipients)
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"message":         "Bildirim gönderildi",
-		"notification_id": "notif-" + time.Now().Format("20060102150405"),
-		"recipients":      len(req.Recipients),
-	})
+func sendNotification(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "notification")
 }
 
-func sendBulkNotification(c *gin.Context) {
-	var req struct {
-		Type       string `json:"type"`
-		PropertyID string `json:"property_id"` // Tüm site sakinlerine
-		Title      string `json:"title"`
-		Body       string `json:"body"`
-	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	// Property'deki tüm kullanıcılara gönder
-	c.JSON(http.StatusOK, gin.H{
-		"message":              "Toplu bildirim kuyruğa alındı",
-		"property_id":          req.PropertyID,
-		"estimated_recipients": 124,
-	})
+func sendBulkNotification(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "notification")
 }
 
-func getNotificationLogs(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{
-		"data": []NotificationLog{
-			{
-				ID:        "log-001",
-				Type:      "PUSH",
-				Recipient: "user-001",
-				Title:     "Ödeme Hatırlatması",
-				Body:      "Ocak ayı aidatınızın son ödeme tarihi yaklaşıyor",
-				Status:    "SENT",
-				SentAt:    time.Now().Add(-1 * time.Hour),
-			},
-		},
-		"total": 1,
-	})
+func getNotificationLogs(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "notification")
 }
 
-func getNotificationStats(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{
-		"today": gin.H{
-			"push":  45,
-			"sms":   12,
-			"email": 8,
-		},
-		"this_month": gin.H{
-			"push":  1250,
-			"sms":   340,
-			"email": 180,
-		},
-		"success_rate": 98.5,
-	})
+func getNotificationStats(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "notification")
 }
 
 // ============ TEMPLATES ============
 
-func listTemplates(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{
-		"data": []gin.H{
-			{
-				"id":        "tpl-001",
-				"name":      "payment_reminder",
-				"type":      "PUSH",
-				"title":     "Ödeme Hatırlatması",
-				"body":      "{{month}} ayı aidatınızın son ödeme tarihi {{due_date}}",
-				"is_active": true,
-			},
-			{
-				"id":        "tpl-002",
-				"name":      "payment_received",
-				"type":      "PUSH",
-				"title":     "Ödeme Alındı ✓",
-				"body":      "{{amount}} TL ödemeniz başarıyla alındı",
-				"is_active": true,
-			},
-		},
-	})
+func listTemplates(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "notification")
 }
 
-func createTemplate(c *gin.Context) {
-	c.JSON(http.StatusCreated, gin.H{"id": "tpl-new", "message": "Şablon oluşturuldu"})
+func createTemplate(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "notification")
 }
 
-func updateTemplate(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"message": "Şablon güncellendi"})
+func updateTemplate(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "notification")
 }
 
 // ============ PREFERENCES ============
 
-func getPreferences(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{
-		"user_id": c.Param("id"),
-		"preferences": gin.H{
-			"push_enabled":        true,
-			"sms_enabled":         true,
-			"email_enabled":       true,
-			"payment_reminders":   true,
-			"announcement_alerts": true,
-			"request_updates":     true,
-			"marketing_messages":  false,
-			"quiet_hours": gin.H{
-				"enabled": true,
-				"start":   "22:00",
-				"end":     "08:00",
-			},
-		},
-	})
+func getPreferences(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "notification")
 }
 
-func updatePreferences(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"message": "Tercihler güncellendi"})
+func updatePreferences(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "notification")
 }
 
 // ============ DEVICE TOKENS ============
 
-func registerDevice(c *gin.Context) {
-	var req struct {
-		UserID   string `json:"user_id" binding:"required"`
-		Token    string `json:"token" binding:"required"`
-		Platform string `json:"platform"` // ios, android, web
-		DeviceID string `json:"device_id"`
-	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusCreated, gin.H{"message": "Cihaz kaydedildi"})
+func registerDevice(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "notification")
 }
 
-func unregisterDevice(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"message": "Cihaz kaydı silindi"})
+func unregisterDevice(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "notification")
 }

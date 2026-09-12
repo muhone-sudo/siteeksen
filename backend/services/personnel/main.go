@@ -2,12 +2,12 @@ package main
 
 import (
 	"log"
-	"net/http"
 	"os"
 	"time"
 
+	"github.com/siteeksen/backend/pkg/stub"
+
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 )
 
 type Employee struct {
@@ -58,9 +58,7 @@ type LeaveRequest struct {
 func main() {
 	r := gin.Default()
 
-	r.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"status": "healthy", "service": "personnel"})
-	})
+	r.GET("/health", stub.Health("personnel"))
 
 	v1 := r.Group("/api/v1")
 	{
@@ -101,78 +99,66 @@ func main() {
 	r.Run(":" + port)
 }
 
-func listEmployees(c *gin.Context) {
-	employees := []Employee{
-		{ID: uuid.New().String(), FirstName: "Hasan", LastName: "Güvenlik", FullName: "Hasan Güvenlik", Department: "Güvenlik", Position: "Güvenlik Görevlisi", HireDate: "2022-03-15", BaseSalary: 18000, Status: "ACTIVE", CreatedAt: time.Now()},
-		{ID: uuid.New().String(), FirstName: "Fatma", LastName: "Temizlik", FullName: "Fatma Temizlik", Department: "Temizlik", Position: "Temizlik Personeli", HireDate: "2023-06-01", BaseSalary: 14000, Status: "ACTIVE", CreatedAt: time.Now()},
-		{ID: uuid.New().String(), FirstName: "Mehmet", LastName: "Bakım", FullName: "Mehmet Bakım", Department: "Teknik", Position: "Teknik Personel", HireDate: "2021-01-10", BaseSalary: 20000, Status: "ACTIVE", CreatedAt: time.Now()},
-	}
-	c.JSON(http.StatusOK, gin.H{"employees": employees, "total": len(employees)})
+func listEmployees(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "personnel")
 }
 
-func getEmployeeStats(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"total_employees": 8, "active": 7, "on_leave": 1, "monthly_payroll": 125000.00, "pending_leaves": 2})
+func getEmployeeStats(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "personnel")
 }
 
-func getEmployee(c *gin.Context) {
-	c.JSON(http.StatusOK, Employee{ID: c.Param("id"), FullName: "Hasan Güvenlik", Status: "ACTIVE"})
+func getEmployee(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "personnel")
 }
 
-func createEmployee(c *gin.Context) {
-	c.JSON(http.StatusCreated, gin.H{"id": uuid.New().String(), "message": "Personel oluşturuldu"})
+func createEmployee(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "personnel")
 }
 
-func updateEmployee(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"id": c.Param("id"), "message": "Personel güncellendi"})
+func updateEmployee(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "personnel")
 }
 
-func deleteEmployee(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"id": c.Param("id"), "message": "Personel silindi"})
+func deleteEmployee(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "personnel")
 }
 
-func getEmployeePayroll(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"employee_id": c.Param("id"), "records": []PayrollRecord{}})
+func getEmployeePayroll(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "personnel")
 }
 
-func getEmployeeLeaves(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"employee_id": c.Param("id"), "leaves": []LeaveRequest{}})
+func getEmployeeLeaves(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "personnel")
 }
 
-func listPayroll(c *gin.Context) {
-	records := []PayrollRecord{
-		{ID: uuid.New().String(), EmployeeName: "Hasan Güvenlik", Period: "2026-01", BaseSalary: 18000, Overtime: 1500, NetSalary: 19500, Status: "PAID"},
-		{ID: uuid.New().String(), EmployeeName: "Fatma Temizlik", Period: "2026-01", BaseSalary: 14000, NetSalary: 14000, Status: "PAID"},
-	}
-	c.JSON(http.StatusOK, gin.H{"records": records})
+func listPayroll(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "personnel")
 }
 
-func generatePayroll(c *gin.Context) {
-	c.JSON(http.StatusCreated, gin.H{"period": "2026-02", "records_generated": 8, "total_amount": 125000.00})
+func generatePayroll(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "personnel")
 }
 
-func markAsPaid(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"id": c.Param("id"), "status": "PAID", "paid_at": time.Now()})
+func markAsPaid(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "personnel")
 }
 
-func listLeaves(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"leaves": []LeaveRequest{}})
+func listLeaves(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "personnel")
 }
 
-func getPendingLeaves(c *gin.Context) {
-	leaves := []LeaveRequest{
-		{ID: uuid.New().String(), EmployeeName: "Fatma Temizlik", LeaveType: "ANNUAL", StartDate: "2026-02-15", EndDate: "2026-02-20", Days: 5, Status: "PENDING", CreatedAt: time.Now()},
-	}
-	c.JSON(http.StatusOK, gin.H{"leaves": leaves, "count": len(leaves)})
+func getPendingLeaves(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "personnel")
 }
 
-func createLeave(c *gin.Context) {
-	c.JSON(http.StatusCreated, gin.H{"id": uuid.New().String(), "status": "PENDING", "message": "İzin talebi oluşturuldu"})
+func createLeave(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "personnel")
 }
 
-func approveLeave(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"id": c.Param("id"), "status": "APPROVED", "message": "İzin onaylandı"})
+func approveLeave(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "personnel")
 }
 
-func rejectLeave(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"id": c.Param("id"), "status": "REJECTED", "message": "İzin reddedildi"})
+func rejectLeave(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "personnel")
 }

@@ -36,7 +36,7 @@ func NewFinanceService(repo *repository.FinanceRepository) *FinanceService {
 
 // DebtStatusResponse borç durumu yanıtı
 type DebtStatusResponse struct {
-	HasDebt       bool      `json:"has_debt"`
+	HasDebt        bool      `json:"has_debt"`
 	CurrentBalance float64   `json:"current_balance"`
 	OverdueAmount  float64   `json:"overdue_amount"`
 	OverdueMonths  int       `json:"overdue_months"`
@@ -116,36 +116,39 @@ func (s *FinanceService) CreateAssessment(ctx context.Context, propertyID string
 
 // PaymentResult ödeme sonucu
 type PaymentResult struct {
-	PaymentID   string `json:"payment_id"`
-	CheckoutURL string `json:"checkout_url,omitempty"`
-	Status      string `json:"status"`
+	PaymentID string  `json:"payment_id"`
+	Amount    float64 `json:"amount"`
+	Status    string  `json:"status"`
+	// PaymentGatewayReady ödeme sağlayıcısı entegrasyonunun hazır olup olmadığını bildirir.
+	// `false` iken istemci kullanıcıya "ödeme alınamıyor" bilgisini göstermeli, ödeme akışını
+	// başarılı gibi sonlandırmamalıdır.
+	PaymentGatewayReady bool   `json:"payment_gateway_ready"`
+	CheckoutURL         string `json:"checkout_url,omitempty"`
 }
 
-// CreatePayment ödeme başlatır
+// CreatePayment ödeme kaydı oluşturur.
+//
+// Tutar hesaplama, sahiplik doğrulaması ve kayıt artık repository katmanında tek bir
+// transaction içinde yapılır (bkz. repository.CreatePayment).
+//
+// ÖNEMLİ (2026-09-09): Bu uç nokta gerçek bir ödeme ALMAZ. Yalnızca `PENDING` durumunda bir
+// ödeme kaydı oluşturur. Önceki sürüm, kredi kartı seçildiğinde var olmayan bir adrese
+// (`https://checkout.siteeksen.com/pay/...`) yönlendiren sahte bir "checkout URL" döndürüyordu;
+// bu, istemciye ödemenin başlatıldığı izlenimi veriyordu. Ödeme sağlayıcısı entegrasyonu
+// yazılana kadar (tasks/questions.md S-06) sahte adres döndürülmez.
 func (s *FinanceService) CreatePayment(ctx context.Context, userID string, assessmentIDs []string, method, cardToken string) (*PaymentResult, error) {
-	// Toplam tutar hesapla
-	totalAmount, err := s.repo.CalculateTotalAmount(ctx, assessmentIDs)
+	paymentID, totalAmount, err := s.repo.CreatePayment(ctx, userID, assessmentIDs, method)
 	if err != nil {
 		return nil, err
-	}
-
-	// Ödeme kaydı oluştur
-	paymentID, err := s.repo.CreatePayment(ctx, userID, assessmentIDs, totalAmount, method)
-	if err != nil {
-		return nil, err
-	}
-
-	// TODO: Ödeme gateway entegrasyonu (iyzico, Param vb.)
-	// Şimdilik mock checkout URL döndür
-	checkoutURL := ""
-	if method == "CREDIT_CARD" {
-		checkoutURL = "https://checkout.siteeksen.com/pay/" + paymentID
 	}
 
 	return &PaymentResult{
-		PaymentID:   paymentID,
-		CheckoutURL: checkoutURL,
-		Status:      "PENDING",
+		PaymentID: paymentID,
+		Amount:    totalAmount,
+		Status:    "PENDING",
+		// Ödeme sağlayıcısı bağlanana kadar tahsilat yapılamaz; istemci bunu kullanıcıya
+		// açıkça göstermelidir.
+		PaymentGatewayReady: false,
 	}, nil
 }
 

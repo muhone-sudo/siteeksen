@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -154,20 +155,50 @@ func (n *NetgsmProvider) GetBalance(ctx context.Context) (*BalanceResponse, erro
 	}
 	defer resp.Body.Close()
 
-	body, _ := io.ReadAll(resp.Body)
-	// Parse balance from response
+	// DÜZELTME (2026-09-09): Önceki sürüm yanıt gövdesini okuyup ATIYOR ve her çağrıda
+	// `Balance: 0` döndürüyordu — yani bakiye sorgusu hiçbir zaman gerçek bir değer vermiyordu
+	// ama başarılı gibi davranıyordu. Ayrıca `body` değişkeni kullanılmadığı için bu paket
+	// DERLENMİYORDU (`declared and not used: body`); paket hiçbir yerden import edilmediğinden
+	// hata fark edilmemişti.
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("netgsm: bakiye yanıtı okunamadı: %w", err)
+	}
+
+	// Netgsm bakiye yanıtı düz metindir ve "<durum kodu> <tutar>" biçiminde döner (örn. "00 123.45").
+	// "00" dışındaki durum kodları hata anlamına gelir.
+	// NOT: Bu biçim sağlayıcı dokümantasyonundan alınmıştır; gerçek hesapla doğrulanmamıştır
+	// (bkz. tasks/questions.md S-10 — SMS sağlayıcı hesabı henüz yok).
+	fields := strings.Fields(string(body))
+	if len(fields) == 0 {
+		return nil, fmt.Errorf("netgsm: boş bakiye yanıtı")
+	}
+	if fields[0] != "00" {
+		return nil, fmt.Errorf("netgsm: bakiye sorgusu reddedildi (durum kodu %q)", fields[0])
+	}
+	if len(fields) < 2 {
+		return nil, fmt.Errorf("netgsm: bakiye yanıtında tutar bulunamadı: %q", strings.TrimSpace(string(body)))
+	}
+
+	amount, err := strconv.ParseFloat(strings.ReplaceAll(fields[1], ",", "."), 64)
+	if err != nil {
+		return nil, fmt.Errorf("netgsm: bakiye tutarı çözümlenemedi (%q): %w", fields[1], err)
+	}
+
 	return &BalanceResponse{
-		Balance:  0, // Parse from body
+		Balance:  amount,
 		Currency: "TRY",
 	}, nil
 }
 
-// GetDeliveryReport teslimat raporu alır
+// GetDeliveryReport teslimat raporu alır.
+//
+// UYARI (2026-09-09): Bu fonksiyon sağlayıcıya HİÇ SORGU ATMADAN her mesaj için
+// "delivered" döndürüyor. Sahte başarı bildirimi, bildirim altyapısı bu pakete
+// bağlandığında (tasks/roadmap.md FAZ 5.11) teslim edilmemiş SMS'leri teslim edilmiş
+// göstereceği için burada dürüstçe "uygulanmadı" hatası döndürülür.
 func (n *NetgsmProvider) GetDeliveryReport(ctx context.Context, messageID string) (*DeliveryReport, error) {
-	return &DeliveryReport{
-		MessageID: messageID,
-		Status:    "delivered",
-	}, nil
+	return nil, fmt.Errorf("netgsm: teslimat raporu sorgulama henüz uygulanmadı (mesaj %s)", messageID)
 }
 
 // normalizePhone telefon numarasını normalleştirir

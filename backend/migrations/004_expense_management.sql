@@ -1,32 +1,69 @@
 -- Gider ve Fatura Yönetimi Migration
 -- ======================================
+--
+-- DÜZELTME (2026-09-09) — bu migration temiz bir veritabanında ÇÖKÜYORDU:
+--
+-- `expense_categories` tablosu `001_initial_schema.sql:130`'da zaten oluşturuluyor
+-- (kanonik tanım: distribution_type, applies_to_commercial, applies_to_ground_floor,
+-- custom_formula, sort_order, is_active). Bu dosya aynı tabloyu `CREATE TABLE IF NOT EXISTS`
+-- ile tamamen farklı kolonlarla yeniden tanımlamaya çalışıyordu.
+--
+-- `CREATE TABLE IF NOT EXISTS` kolonları KARŞILAŞTIRMAZ: tablo zaten var olduğu için ifade
+-- sessizce atlanıyor, ardından gelen INSERT ise var olmayan `description`/`type`/
+-- `reflects_to_assessment`/`is_default`/`display_order` kolonlarına yazmaya çalışıp
+-- `42703 undefined_column` hatası veriyordu. Postgres resmî entrypoint'i `ON_ERROR_STOP=1`
+-- ile çalıştığı için migration burada duruyor ve `expenses`, `expense_invoices`,
+-- `expense_distributions` tabloları HİÇ oluşmuyordu.
+--
+-- Çözüm: tabloyu yeniden tanımlamak yerine 001'in tablosuna eksik kolonları ekliyoruz.
+-- Böylece hem finance servisinin beklediği (001) hem expense servisinin beklediği (004)
+-- kolonlar tek tabloda birleşiyor ve iki çelişkili sözleşme sorunu da ortadan kalkıyor.
 
--- Gider kategorileri
-CREATE TABLE IF NOT EXISTS expense_categories (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    property_id UUID REFERENCES properties(id),
-    name VARCHAR(100) NOT NULL,
-    description TEXT,
-    type VARCHAR(20) NOT NULL CHECK (type IN ('FIXED', 'VARIABLE', 'UNPLANNED')),
-    reflects_to_assessment BOOLEAN NOT NULL DEFAULT true,
-    is_default BOOLEAN DEFAULT false,
-    display_order INT DEFAULT 0,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
+ALTER TABLE expense_categories ADD COLUMN IF NOT EXISTS description TEXT;
+ALTER TABLE expense_categories ADD COLUMN IF NOT EXISTS type VARCHAR(20);
+ALTER TABLE expense_categories ADD COLUMN IF NOT EXISTS reflects_to_assessment BOOLEAN NOT NULL DEFAULT true;
+ALTER TABLE expense_categories ADD COLUMN IF NOT EXISTS is_default BOOLEAN DEFAULT false;
+ALTER TABLE expense_categories ADD COLUMN IF NOT EXISTS display_order INT DEFAULT 0;
+ALTER TABLE expense_categories ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP;
 
--- Varsayılan gider kategorileri (tüm siteler için)
-INSERT INTO expense_categories (id, property_id, name, description, type, reflects_to_assessment, is_default, display_order) VALUES
-    ('10000000-0000-0000-0000-000000000001', NULL, 'Bina Temizliği', 'Ortak alan temizlik hizmeti', 'FIXED', false, true, 1),
-    ('10000000-0000-0000-0000-000000000002', NULL, 'Güvenlik', 'Site güvenlik hizmeti', 'FIXED', false, true, 2),
-    ('10000000-0000-0000-0000-000000000003', NULL, 'Yönetici Ücreti', 'Profesyonel yönetim hizmeti', 'FIXED', false, true, 3),
-    ('10000000-0000-0000-0000-000000000004', NULL, 'Ortak Elektrik', 'Ortak alan elektrik gideri', 'VARIABLE', true, true, 4),
-    ('10000000-0000-0000-0000-000000000005', NULL, 'Ortak Su', 'Ortak alan su gideri', 'VARIABLE', true, true, 5),
-    ('10000000-0000-0000-0000-000000000006', NULL, 'Ortak Isınma', 'Ortak alan ısınma gideri', 'VARIABLE', true, true, 6),
-    ('10000000-0000-0000-0000-000000000007', NULL, 'Asansör Bakımı', 'Periyodik asansör bakım ve onarım', 'UNPLANNED', true, true, 7),
-    ('10000000-0000-0000-0000-000000000008', NULL, 'Bahçe Bakımı', 'Peyzaj ve bahçe bakım hizmeti', 'VARIABLE', true, true, 8),
-    ('10000000-0000-0000-0000-000000000009', NULL, 'Acil Tamir', 'Beklenmeyen arıza ve tamir giderleri', 'UNPLANNED', true, true, 9),
-    ('10000000-0000-0000-0000-000000000010', NULL, 'Diğer', 'Diğer giderler', 'UNPLANNED', true, true, 99)
+-- `type` için CHECK kısıtı (yalnızca yoksa ekle — idempotent).
+-- NULL'a izin verilir çünkü 001 üzerinden gelen mevcut satırlarda bu kolon boş olabilir.
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint WHERE conname = 'expense_categories_type_check'
+    ) THEN
+        ALTER TABLE expense_categories
+            ADD CONSTRAINT expense_categories_type_check
+            CHECK (type IS NULL OR type IN ('FIXED', 'VARIABLE', 'UNPLANNED'));
+    END IF;
+END $$;
+
+-- Varsayılan gider kategorileri (tüm siteler için — property_id NULL = global şablon)
+--
+-- `distribution_type` 001'de NOT NULL olduğu için burada da verilmek ZORUNDA.
+-- Atanan değerler 634 sayılı Kat Mülkiyeti Kanunu m.20'ye göre belirlenmiştir:
+--   m.20/1-a → EŞİT paylaşım: kapıcı, kaloriferci, bahçıvan ve bekçi giderleri
+--   m.20/1-b → ARSA PAYI oranında: sigorta primleri, ortak yerlerin bakım/koruma/onarım
+--              giderleri, yönetici aylığı gibi diğer giderler ve ortak tesislerin işletme giderleri
+--
+-- ÖNEMLİ: Yönetim planı farklı bir dağıtım öngörebilir; bu değerler yalnızca VARSAYILAN'dır ve
+-- site bazında değiştirilebilir olmalıdır. Hukuki teyit bekliyor → tasks/questions.md S-05.
+INSERT INTO expense_categories
+    (id, property_id, name, description, type, reflects_to_assessment, is_default, display_order, distribution_type)
+VALUES
+    -- Personel giderleri (m.20/1-a): eşit paylaşım
+    ('10000000-0000-0000-0000-000000000002', NULL, 'Güvenlik',        'Site güvenlik/bekçi hizmeti',              'FIXED',     false, true,  2, 'EQUAL'),
+    ('10000000-0000-0000-0000-000000000008', NULL, 'Bahçe Bakımı',    'Bahçıvan ve peyzaj bakım hizmeti',         'VARIABLE',  true,  true,  8, 'EQUAL'),
+    -- Diğer giderler (m.20/1-b): arsa payı oranında
+    ('10000000-0000-0000-0000-000000000001', NULL, 'Bina Temizliği',  'Ortak alan temizlik hizmeti',              'FIXED',     false, true,  1, 'SHARE_RATIO'),
+    ('10000000-0000-0000-0000-000000000003', NULL, 'Yönetici Ücreti', 'Yönetici aylığı / profesyonel yönetim',    'FIXED',     false, true,  3, 'SHARE_RATIO'),
+    ('10000000-0000-0000-0000-000000000004', NULL, 'Ortak Elektrik',  'Ortak alan elektrik gideri',               'VARIABLE',  true,  true,  4, 'SHARE_RATIO'),
+    ('10000000-0000-0000-0000-000000000005', NULL, 'Ortak Su',        'Ortak alan su gideri',                     'VARIABLE',  true,  true,  5, 'SHARE_RATIO'),
+    ('10000000-0000-0000-0000-000000000006', NULL, 'Ortak Isınma',    'Ortak alan ısınma gideri',                 'VARIABLE',  true,  true,  6, 'SHARE_RATIO'),
+    ('10000000-0000-0000-0000-000000000007', NULL, 'Asansör Bakımı',  'Periyodik asansör bakım ve onarımı',       'UNPLANNED', true,  true,  7, 'SHARE_RATIO'),
+    ('10000000-0000-0000-0000-000000000009', NULL, 'Acil Tamir',      'Beklenmeyen arıza ve onarım giderleri',    'UNPLANNED', true,  true,  9, 'SHARE_RATIO'),
+    ('10000000-0000-0000-0000-000000000010', NULL, 'Diğer',           'Diğer giderler',                           'UNPLANNED', true,  true, 99, 'SHARE_RATIO')
 ON CONFLICT (id) DO NOTHING;
 
 -- Giderler tablosu

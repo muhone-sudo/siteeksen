@@ -1,10 +1,16 @@
 'use client';
 
 import { useState } from 'react';
+import apiClient from '@/lib/api-client';
+import { NotImplementedNotice, toUserMessage } from '@/components/ui/data-state';
+
+type ReportFormat = 'pdf' | 'xlsx';
 
 export default function ReportsPage() {
     const [selectedPeriod, setSelectedPeriod] = useState('monthly');
     const [selectedReport, setSelectedReport] = useState('financial');
+    const [generatingFormat, setGeneratingFormat] = useState<ReportFormat | null>(null);
+    const [actionError, setActionError] = useState<string | null>(null);
 
     const reports = [
         {
@@ -12,35 +18,30 @@ export default function ReportsPage() {
             title: 'Finansal Rapor',
             description: 'Gelir-gider özeti, tahsilat oranları',
             icon: '💰',
-            lastGenerated: '2026-02-01',
         },
         {
             id: 'collection',
             title: 'Tahsilat Raporu',
             description: 'Aidat tahsilat durumu ve borç analizi',
             icon: '📊',
-            lastGenerated: '2026-02-01',
         },
         {
             id: 'expense',
             title: 'Gider Raporu',
             description: 'Kategorilere göre gider dağılımı',
             icon: '📉',
-            lastGenerated: '2026-01-28',
         },
         {
             id: 'resident',
             title: 'Sakin Raporu',
             description: 'Sakin istatistikleri ve demografik bilgiler',
             icon: '👥',
-            lastGenerated: '2026-01-25',
         },
         {
             id: 'maintenance',
             title: 'Bakım Raporu',
             description: 'Teknik bakım ve onarım istatistikleri',
             icon: '🔧',
-            lastGenerated: '2026-01-20',
         },
         {
             id: 'energy',
@@ -112,26 +113,38 @@ export default function ReportsPage() {
 
     const currentData = reportData[selectedReport] || reportData.financial;
 
-    const handleGenerateReport = () => {
-        alert(`${reports.find((r) => r.id === selectedReport)?.title} raporu oluşturuluyor...`);
-    };
+    const selectedTitle = reports.find((r) => r.id === selectedReport)?.title ?? "Rapor";
 
-    const downloadReportCSV = () => {
-        const title = reports.find((r) => r.id === selectedReport)?.title ?? "Rapor";
-        const rows = [["Kalem", "Değer"], ...currentData.cards.map((c) => [c.label, c.value])];
-        const csv = rows.map((r) => r.join(",")).join("\n");
-        const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `${title.toLowerCase().replace(/\s+/g, "_")}_${selectedPeriod}.csv`;
-        a.click();
-        URL.revokeObjectURL(url);
-    };
+    /**
+     * Raporu gerçekten sunucuda üretir ve dosyayı indirir.
+     * Sahte başarı yok: uç hata verirse indirme yapılmaz, hata kullanıcıya gösterilir.
+     */
+    const generateAndDownload = async (format: ReportFormat) => {
+        setActionError(null);
+        setGeneratingFormat(format);
+        try {
+            // Gateway gövdeyi { type, params } olarak bekliyor; api-client params'ı üst seviyeye yayar.
+            const res = await apiClient.generateReport(selectedReport, {
+                params: { format, period: selectedPeriod },
+            });
+            const reportId = res?.data?.report_id ?? res?.report_id;
+            if (!reportId) {
+                setActionError("Sunucu bir rapor kimliği döndürmedi, dosya indirilemedi.");
+                return;
+            }
 
-    const handleSendEmail = () => {
-        const title = reports.find((r) => r.id === selectedReport)?.title ?? "Rapor";
-        alert(`${title} raporu yönetim e-posta adresine gönderildi.`);
+            const blob = await apiClient.downloadReport(String(reportId));
+            const url = URL.createObjectURL(blob as Blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `${selectedTitle.toLowerCase().replace(/\s+/g, "_")}_${selectedPeriod}.${format === "xlsx" ? "xlsx" : "pdf"}`;
+            a.click();
+            URL.revokeObjectURL(url);
+        } catch (err) {
+            setActionError(toUserMessage(err, "Rapor oluşturulamadı."));
+        } finally {
+            setGeneratingFormat(null);
+        }
     };
 
     return (
@@ -154,13 +167,22 @@ export default function ReportsPage() {
                         <option value="yearly">Yıllık</option>
                     </select>
                     <button
-                        onClick={handleGenerateReport}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                        onClick={() => generateAndDownload('pdf')}
+                        disabled={generatingFormat !== null}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                        Rapor Oluştur
+                        {generatingFormat ? 'Oluşturuluyor...' : 'Rapor Oluştur'}
                     </button>
                 </div>
             </div>
+
+            <NotImplementedNotice detail="Rapor üretimi sunucuda çalışıyor ancak üretilen PDF/Excel dosyaları şu an örnek veri içeriyor (sabit dönem ve sabit daire/sakin kayıtları). Aşağıdaki özet kartlarındaki tutarlar da örnek değerlerdir; mali karar için kullanılmamalıdır." />
+
+            {actionError && (
+                <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    {actionError}
+                </p>
+            )}
 
             {/* Report Types */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -178,9 +200,6 @@ export default function ReportsPage() {
                             <div className="flex-1">
                                 <h3 className="font-semibold text-gray-900">{report.title}</h3>
                                 <p className="text-sm text-gray-500">{report.description}</p>
-                                <p className="text-xs text-gray-400 mt-2">
-                                    Son: {report.lastGenerated}
-                                </p>
                             </div>
                         </div>
                     </div>
@@ -190,7 +209,7 @@ export default function ReportsPage() {
             {/* Report Preview - Dynamic for all report types */}
             <div className="bg-white rounded-xl border p-6 space-y-6">
                 <h2 className="text-xl font-semibold">
-                    {reports.find((r) => r.id === selectedReport)?.title} Özeti
+                    {selectedTitle} Özeti <span className="text-sm font-normal text-gray-500">(örnek veri)</span>
                 </h2>
 
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -209,16 +228,30 @@ export default function ReportsPage() {
                     ))}
                 </div>
 
-                <div className="flex gap-2">
-                    <button onClick={downloadReportCSV} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200">
-                        📥 PDF İndir
+                <div className="flex flex-wrap items-center gap-2">
+                    <button
+                        onClick={() => generateAndDownload('pdf')}
+                        disabled={generatingFormat !== null}
+                        className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                        {generatingFormat === 'pdf' ? '📥 Hazırlanıyor...' : '📥 PDF İndir'}
                     </button>
-                    <button onClick={downloadReportCSV} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200">
-                        📊 Excel İndir
+                    <button
+                        onClick={() => generateAndDownload('xlsx')}
+                        disabled={generatingFormat !== null}
+                        className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                        {generatingFormat === 'xlsx' ? '📊 Hazırlanıyor...' : '📊 Excel İndir'}
                     </button>
-                    <button onClick={handleSendEmail} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200">
+                    {/* E-posta gönderme: sunucuda böyle bir uç yok. Sahte "gönderildi" mesajı kaldırıldı. */}
+                    <button
+                        disabled
+                        title="Rapor e-postası gönderen bir sunucu ucu henüz mevcut değil"
+                        className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg disabled:cursor-not-allowed disabled:opacity-50"
+                    >
                         📧 E-posta Gönder
                     </button>
+                    <span className="text-sm text-gray-500">E-posta gönderme özelliği henüz hazır değil.</span>
                 </div>
             </div>
         </div>

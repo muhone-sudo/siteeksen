@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { X, Mail, User, Briefcase, Edit, Trash2 } from 'lucide-react';
+import { NotImplementedNotice } from '@/components/ui/data-state';
 
 interface UserData {
     id: number;
@@ -29,7 +30,6 @@ export default function SettingsPage() {
         phone: '+90 212 555 0123',
         timezone: 'Europe/Istanbul (UTC+3)',
     });
-    const [generalSaved, setGeneralSaved] = useState(false);
     const [notificationSettings, setNotificationSettings] = useState([
         { label: 'Yeni talep bildirimi', checked: true },
         { label: 'Ödeme hatırlatıcıları', checked: true },
@@ -38,10 +38,10 @@ export default function SettingsPage() {
         { label: 'Sistem güncellemeleri', checked: true },
     ]);
 
-    const handleSaveGeneral = () => {
-        setGeneralSaved(true);
-        setTimeout(() => setGeneralSaved(false), 2000);
-    };
+    // Site ayarlarını sunucuya yazan bir uç yok (api-client.ts'de ayar kaydetme metodu bulunmuyor,
+    // settings servisi tamamen bellek içi/TODO durumunda). Bu yüzden "Kaydedildi" mesajı kaldırıldı
+    // ve kaydet düğmesi devre dışı bırakıldı — sahte başarı gösterilmez.
+    // bkz. tasks/dogrulama-politikasi.md §3
 
     const toggleNotification = (idx: number) => {
         setNotificationSettings(prev => prev.map((n, i) => i === idx ? { ...n, checked: !n.checked } : n));
@@ -85,6 +85,8 @@ export default function SettingsPage() {
                 <h1 className="text-2xl font-bold text-gray-900">Ayarlar</h1>
                 <p className="text-gray-500">Site ve sistem ayarlarınızı yönetin</p>
             </div>
+
+            <NotImplementedNotice detail="Ayarlar servisi henüz sunucuya bağlı değil. Bu sayfada yapılan değişiklikler (genel ayarlar, bildirim tercihleri, yönetici kullanıcılar) kaydedilmez ve sayfa yenilendiğinde kaybolur. Entegrasyon ve fatura sekmelerindeki değerler örnek veridir." />
 
             <div className="flex gap-6">
                 {/* Sidebar Tabs */}
@@ -174,10 +176,17 @@ export default function SettingsPage() {
                             </div>
 
                             <div className="flex items-center gap-3">
-                                <button onClick={handleSaveGeneral} className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">
+                                <button
+                                    type="button"
+                                    disabled
+                                    title="Ayarları sunucuya kaydeden bir uç henüz mevcut değil"
+                                    className="px-6 py-2 bg-blue-600 text-white rounded-lg disabled:cursor-not-allowed disabled:opacity-50"
+                                >
                                     Değişiklikleri Kaydet
                                 </button>
-                                {generalSaved && <span className="text-sm text-green-600">Kaydedildi</span>}
+                                <span className="text-sm text-gray-500">
+                                    Kaydetme özelliği henüz hazır değil.
+                                </span>
                             </div>
                         </div>
                     )}
@@ -213,6 +222,11 @@ export default function SettingsPage() {
                                     + Kullanıcı Ekle
                                 </button>
                             </div>
+
+                            <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                                Bu liste örnek veridir. Ekleme, düzenleme ve silme işlemleri yalnızca bu
+                                ekranda geçerlidir; sunucuya kaydedilmez ve gerçek kullanıcı yetkilerini değiştirmez.
+                            </p>
 
                             <div className="space-y-2">
                                 {activeUsers.map((user) => (
@@ -390,7 +404,7 @@ export default function SettingsPage() {
                     <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-2xl text-center">
                         <div className="flex justify-center mb-4"><div className="rounded-full bg-red-100 p-3"><Trash2 className="h-6 w-6 text-red-600" /></div></div>
                         <h2 className="text-lg font-bold text-gray-900 mb-2">Kullanıcıyı Sil</h2>
-                        <p className="text-gray-500 text-sm mb-6">Bu kullanıcı erişimi kaldırılacak. Emin misiniz?</p>
+                        <p className="text-gray-500 text-sm mb-6">Kayıt yalnızca bu ekrandaki listeden kaldırılacak; kullanıcının gerçek erişim yetkisi değişmez.</p>
                         <div className="flex gap-3">
                             <button onClick={() => setDeleteUserId(null)} className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">İptal</button>
                             <button onClick={handleDeleteUser} className="flex-1 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700">Sil</button>

@@ -2,12 +2,12 @@ package main
 
 import (
 	"log"
-	"net/http"
 	"os"
 	"time"
 
+	"github.com/siteeksen/backend/pkg/stub"
+
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 )
 
 // =====================================================
@@ -79,13 +79,7 @@ func main() {
 	r := gin.Default()
 
 	// Health check
-	r.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"status":  "healthy",
-			"service": "visitor",
-			"version": "1.0.0",
-		})
-	})
+	r.GET("/health", stub.Health("visitor"))
 
 	// Visitor routes
 	v1 := r.Group("/api/v1")
@@ -131,289 +125,81 @@ func main() {
 }
 
 // List all visitors with filters
-func listVisitors(c *gin.Context) {
-	// Query params: date, status, unit_id, search
-	now := time.Now()
-	visitors := []Visitor{
-		{
-			ID:           uuid.New().String(),
-			PropertyID:   "prop-1",
-			UnitID:       "unit-101",
-			VisitorName:  "Ahmet Yılmaz",
-			VisitorPhone: "0532 111 2233",
-			Purpose:      "Misafir",
-			ExpectedAt:   &now,
-			Status:       "EXPECTED",
-			QRCode:       "VIS-" + uuid.New().String()[:8],
-			CreatedAt:    now,
-			UpdatedAt:    now,
-		},
-		{
-			ID:          uuid.New().String(),
-			PropertyID:  "prop-1",
-			UnitID:      "unit-205",
-			VisitorName: "Kargo - Aras",
-			Purpose:     "Kargo Teslimi",
-			CheckedInAt: &now,
-			Status:      "CHECKED_IN",
-			CreatedAt:   now,
-			UpdatedAt:   now,
-		},
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"visitors": visitors,
-		"total":    len(visitors),
-	})
+func listVisitors(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "visitor")
 }
 
 // Get visitor stats
-func getVisitorStats(c *gin.Context) {
-	stats := VisitorStats{
-		TodayTotal:    12,
-		TodayExpected: 3,
-		CurrentInside: 2,
-		TodayLeft:     7,
-	}
-	c.JSON(http.StatusOK, stats)
+func getVisitorStats(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "visitor")
 }
 
 // Get today's visitors
-func getTodayVisitors(c *gin.Context) {
-	now := time.Now()
-	visitors := []Visitor{
-		{
-			ID:           uuid.New().String(),
-			VisitorName:  "Mehmet Demir",
-			UnitID:       "unit-301",
-			Purpose:      "Tadilat Ustası",
-			CheckedInAt:  &now,
-			CheckedOutAt: &now,
-			Status:       "CHECKED_OUT",
-		},
-	}
-	c.JSON(http.StatusOK, gin.H{"visitors": visitors})
+func getTodayVisitors(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "visitor")
 }
 
 // Get expected visitors
-func getExpectedVisitors(c *gin.Context) {
-	expected := time.Now().Add(2 * time.Hour)
-	visitors := []Visitor{
-		{
-			ID:          uuid.New().String(),
-			VisitorName: "Zeynep Kaya",
-			UnitID:      "unit-102",
-			Purpose:     "Doğum Günü Partisi",
-			ExpectedAt:  &expected,
-			Status:      "EXPECTED",
-			QRCode:      "VIS-ABC12345",
-		},
-	}
-	c.JSON(http.StatusOK, gin.H{"visitors": visitors})
+func getExpectedVisitors(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "visitor")
 }
 
 // Get visitors currently inside
-func getCurrentVisitors(c *gin.Context) {
-	now := time.Now()
-	visitors := []Visitor{
-		{
-			ID:          uuid.New().String(),
-			VisitorName: "Kargo Yurtiçi",
-			UnitID:      "unit-405",
-			Purpose:     "Kargo",
-			CheckedInAt: &now,
-			Status:      "CHECKED_IN",
-		},
-	}
-	c.JSON(http.StatusOK, gin.H{"visitors": visitors, "count": len(visitors)})
+func getCurrentVisitors(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "visitor")
 }
 
 // Get single visitor
-func getVisitor(c *gin.Context) {
-	id := c.Param("id")
-	now := time.Now()
-	visitor := Visitor{
-		ID:           id,
-		PropertyID:   "prop-1",
-		UnitID:       "unit-101",
-		VisitorName:  "Ahmet Yılmaz",
-		VisitorPhone: "0532 111 2233",
-		Purpose:      "Misafir",
-		ExpectedAt:   &now,
-		Status:       "EXPECTED",
-		QRCode:       "VIS-12345678",
-		CreatedAt:    now,
-		UpdatedAt:    now,
-	}
-	c.JSON(http.StatusOK, visitor)
+func getVisitor(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "visitor")
 }
 
 // Create visitor (pre-registration)
-func createVisitor(c *gin.Context) {
-	var req VisitorRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	now := time.Now()
-	qrExpiry := now.Add(24 * time.Hour)
-
-	visitor := Visitor{
-		ID:           uuid.New().String(),
-		PropertyID:   "prop-1",
-		UnitID:       req.UnitID,
-		VisitorName:  req.VisitorName,
-		VisitorPhone: req.VisitorPhone,
-		Purpose:      req.Purpose,
-		Status:       "EXPECTED",
-		QRCode:       "VIS-" + uuid.New().String()[:8],
-		QRExpiresAt:  &qrExpiry,
-		Notes:        req.Notes,
-		CreatedAt:    now,
-		UpdatedAt:    now,
-	}
-
-	c.JSON(http.StatusCreated, visitor)
+func createVisitor(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "visitor")
 }
 
 // Update visitor
-func updateVisitor(c *gin.Context) {
-	id := c.Param("id")
-	var req VisitorRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"id":      id,
-		"message": "Ziyaretçi güncellendi",
-	})
+func updateVisitor(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "visitor")
 }
 
 // Delete visitor
-func deleteVisitor(c *gin.Context) {
-	id := c.Param("id")
-	c.JSON(http.StatusOK, gin.H{
-		"id":      id,
-		"message": "Ziyaretçi kaydı silindi",
-	})
+func deleteVisitor(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "visitor")
 }
 
 // Check in visitor
-func checkInVisitor(c *gin.Context) {
-	id := c.Param("id")
-	var req CheckInRequest
-	c.ShouldBindJSON(&req)
-
-	now := time.Now()
-	c.JSON(http.StatusOK, gin.H{
-		"id":            id,
-		"status":        "CHECKED_IN",
-		"checked_in_at": now,
-		"message":       "Ziyaretçi girişi yapıldı",
-	})
+func checkInVisitor(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "visitor")
 }
 
 // Check out visitor
-func checkOutVisitor(c *gin.Context) {
-	id := c.Param("id")
-	now := time.Now()
-	c.JSON(http.StatusOK, gin.H{
-		"id":             id,
-		"status":         "CHECKED_OUT",
-		"checked_out_at": now,
-		"message":        "Ziyaretçi çıkışı yapıldı",
-	})
+func checkOutVisitor(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "visitor")
 }
 
 // Get visitor by QR code
-func getVisitorByQR(c *gin.Context) {
-	code := c.Param("code")
-	now := time.Now()
-	expected := now.Add(1 * time.Hour)
-
-	visitor := Visitor{
-		ID:          uuid.New().String(),
-		VisitorName: "QR ile Gelen Ziyaretçi",
-		UnitID:      "unit-101",
-		Purpose:     "Misafir",
-		ExpectedAt:  &expected,
-		Status:      "EXPECTED",
-		QRCode:      code,
-	}
-
-	c.JSON(http.StatusOK, visitor)
+func getVisitorByQR(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "visitor")
 }
 
 // Regenerate QR code
-func regenerateQR(c *gin.Context) {
-	id := c.Param("id")
-	newQR := "VIS-" + uuid.New().String()[:8]
-	expiry := time.Now().Add(24 * time.Hour)
-
-	c.JSON(http.StatusOK, gin.H{
-		"id":         id,
-		"qr_code":    newQR,
-		"expires_at": expiry,
-		"message":    "Yeni QR kod oluşturuldu",
-	})
+func regenerateQR(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "visitor")
 }
 
 // Notify resident about visitor
-func notifyResident(c *gin.Context) {
-	id := c.Param("id")
-	var req NotifyRequest
-	c.ShouldBindJSON(&req)
-
-	c.JSON(http.StatusOK, gin.H{
-		"id":      id,
-		"method":  req.Method,
-		"sent_at": time.Now(),
-		"message": "Bildirim gönderildi",
-	})
+func notifyResident(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "visitor")
 }
 
 // Get visitors for a specific unit
-func getUnitVisitors(c *gin.Context) {
-	unitID := c.Param("unit_id")
-	now := time.Now()
-
-	visitors := []Visitor{
-		{
-			ID:          uuid.New().String(),
-			UnitID:      unitID,
-			VisitorName: "Daire Ziyaretçisi",
-			Purpose:     "Misafir",
-			ExpectedAt:  &now,
-			Status:      "EXPECTED",
-		},
-	}
-
-	c.JSON(http.StatusOK, gin.H{"visitors": visitors})
+func getUnitVisitors(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "visitor")
 }
 
 // Get visitor history for a unit
-func getUnitVisitorHistory(c *gin.Context) {
-	unitID := c.Param("unit_id")
-	now := time.Now()
-	past := now.Add(-24 * time.Hour)
-
-	visitors := []Visitor{
-		{
-			ID:           uuid.New().String(),
-			UnitID:       unitID,
-			VisitorName:  "Geçmiş Ziyaretçi 1",
-			Purpose:      "Misafir",
-			CheckedInAt:  &past,
-			CheckedOutAt: &past,
-			Status:       "CHECKED_OUT",
-		},
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"visitors": visitors,
-		"total":    len(visitors),
-	})
+func getUnitVisitorHistory(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "visitor")
 }

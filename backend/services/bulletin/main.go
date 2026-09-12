@@ -2,12 +2,12 @@ package main
 
 import (
 	"log"
-	"net/http"
 	"os"
 	"time"
 
+	"github.com/siteeksen/backend/pkg/stub"
+
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 )
 
 // =====================================================
@@ -106,13 +106,7 @@ var categories = []map[string]interface{}{
 func main() {
 	r := gin.Default()
 
-	r.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"status":  "healthy",
-			"service": "bulletin",
-			"version": "1.0.0",
-		})
-	})
+	r.GET("/health", stub.Health("bulletin"))
 
 	v1 := r.Group("/api/v1")
 	{
@@ -164,313 +158,81 @@ func main() {
 	}
 }
 
-func getCategories(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"categories": categories})
+func getCategories(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "bulletin")
 }
 
 // Post Handlers
-func listPosts(c *gin.Context) {
-	// Query params: category, status, search
-	now := time.Now()
-	expiry := now.Add(14 * 24 * time.Hour)
-
-	posts := []BulletinPost{
-		{
-			ID:              uuid.New().String(),
-			PropertyID:      "prop-1",
-			UnitID:          "unit-101",
-			AuthorName:      "Ali V.",
-			UnitNumber:      "D.101",
-			Category:        "SALE",
-			Title:           "IKEA Koltuk Takımı - Az Kullanılmış",
-			Content:         "3+2+1 koltuk takımı, gri renk, 2 yıllık, çok temiz kullanılmış. Taşınma nedeniyle satılıktır.",
-			PhotoURLs:       []string{"/images/couch1.jpg", "/images/couch2.jpg"},
-			Price:           8500,
-			PriceNegotiable: true,
-			Status:          "APPROVED",
-			ExpiresAt:       &expiry,
-			ViewCount:       45,
-			ContactCount:    3,
-			CommentCount:    2,
-			CreatedAt:       now.Add(-48 * time.Hour),
-		},
-		{
-			ID:           uuid.New().String(),
-			PropertyID:   "prop-1",
-			UnitID:       "unit-205",
-			AuthorName:   "Ayşe K.",
-			UnitNumber:   "D.205",
-			Category:     "LOST_FOUND",
-			Title:        "Siyah Cüzdan Bulundu",
-			Content:      "B Blok girişinde siyah deri cüzdan bulunmuştur. Sahibi güvenliğe başvurabilir.",
-			Status:       "APPROVED",
-			ViewCount:    120,
-			CommentCount: 5,
-			CreatedAt:    now.Add(-24 * time.Hour),
-		},
-		{
-			ID:           uuid.New().String(),
-			PropertyID:   "prop-1",
-			UnitID:       "unit-301",
-			AuthorName:   "Mehmet D.",
-			UnitNumber:   "D.301",
-			Category:     "CARPOOL",
-			Title:        "İTÜ Maslak - Hafta içi sabah",
-			Content:      "Hafta içi her sabah 08:00'de İTÜ Maslak'a gidiyorum. Yol arkadaşı arıyorum.",
-			Status:       "APPROVED",
-			ViewCount:    35,
-			ContactCount: 2,
-			CreatedAt:    now.Add(-72 * time.Hour),
-		},
-		{
-			ID:           uuid.New().String(),
-			PropertyID:   "prop-1",
-			AuthorName:   "Anonim",
-			Category:     "SUGGESTION",
-			Title:        "Otopark aydınlatması yetersiz",
-			Content:      "B Blok otoparkının aydınlatması çok yetersiz. Akşam saatlerinde güvenlik sorunu oluşturuyor. Lütfen ek aydınlatma yapılsın.",
-			IsAnonymous:  true,
-			Status:       "APPROVED",
-			ViewCount:    85,
-			CommentCount: 8,
-			IsPinned:     true,
-			CreatedAt:    now.Add(-12 * time.Hour),
-		},
-	}
-
-	c.JSON(http.StatusOK, gin.H{"posts": posts, "total": len(posts)})
+func listPosts(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "bulletin")
 }
 
-func getPendingPosts(c *gin.Context) {
-	now := time.Now()
-	posts := []BulletinPost{
-		{
-			ID:         uuid.New().String(),
-			AuthorName: "Zeynep Y.",
-			UnitNumber: "D.405",
-			Category:   "SERVICE",
-			Title:      "Temizlik Hizmeti Önerisi",
-			Content:    "Güvenilir ev temizliği yapan birini arıyorum. Önerilerinizi bekliyorum.",
-			Status:     "PENDING",
-			CreatedAt:  now.Add(-1 * time.Hour),
-		},
-	}
-	c.JSON(http.StatusOK, gin.H{"posts": posts, "count": len(posts)})
+func getPendingPosts(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "bulletin")
 }
 
-func getMyPosts(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"posts": []BulletinPost{}, "total": 0})
+func getMyPosts(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "bulletin")
 }
 
-func getPost(c *gin.Context) {
-	id := c.Param("id")
-	now := time.Now()
-	expiry := now.Add(14 * 24 * time.Hour)
-
-	post := BulletinPost{
-		ID:              id,
-		PropertyID:      "prop-1",
-		UnitID:          "unit-101",
-		AuthorName:      "Ali V.",
-		UnitNumber:      "D.101",
-		Category:        "SALE",
-		Title:           "IKEA Koltuk Takımı - Az Kullanılmış",
-		Content:         "3+2+1 koltuk takımı, gri renk, 2 yıllık, çok temiz kullanılmış. Taşınma nedeniyle satılıktır.",
-		PhotoURLs:       []string{"/images/couch1.jpg", "/images/couch2.jpg"},
-		Price:           8500,
-		PriceNegotiable: true,
-		Status:          "APPROVED",
-		ExpiresAt:       &expiry,
-		ViewCount:       45,
-		ContactCount:    3,
-		CommentCount:    2,
-		CreatedAt:       now.Add(-48 * time.Hour),
-	}
-	c.JSON(http.StatusOK, post)
+func getPost(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "bulletin")
 }
 
-func createPost(c *gin.Context) {
-	var req PostRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	now := time.Now()
-	expiry := now.Add(14 * 24 * time.Hour)
-
-	post := BulletinPost{
-		ID:              uuid.New().String(),
-		PropertyID:      "prop-1",
-		UnitID:          "unit-101",
-		AuthorID:        "user-1",
-		Category:        req.Category,
-		Title:           req.Title,
-		Content:         req.Content,
-		PhotoURLs:       req.PhotoURLs,
-		Price:           req.Price,
-		PriceNegotiable: req.PriceNegotiable,
-		IsAnonymous:     req.IsAnonymous,
-		Status:          "PENDING",
-		ExpiresAt:       &expiry,
-		CreatedAt:       now,
-		UpdatedAt:       now,
-	}
-
-	c.JSON(http.StatusCreated, post)
+func createPost(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "bulletin")
 }
 
-func updatePost(c *gin.Context) {
-	id := c.Param("id")
-	c.JSON(http.StatusOK, gin.H{"id": id, "message": "İlan güncellendi"})
+func updatePost(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "bulletin")
 }
 
-func deletePost(c *gin.Context) {
-	id := c.Param("id")
-	c.JSON(http.StatusOK, gin.H{"id": id, "message": "İlan silindi"})
+func deletePost(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "bulletin")
 }
 
-func reviewPost(c *gin.Context) {
-	id := c.Param("id")
-	var req ReviewRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	status := "APPROVED"
-	if req.Action == "REJECT" {
-		status = "REJECTED"
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"id":      id,
-		"status":  status,
-		"message": "İlan değerlendirildi",
-	})
+func reviewPost(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "bulletin")
 }
 
-func closePost(c *gin.Context) {
-	id := c.Param("id")
-	c.JSON(http.StatusOK, gin.H{
-		"id":      id,
-		"status":  "CLOSED",
-		"message": "İlan kapatıldı",
-	})
+func closePost(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "bulletin")
 }
 
-func pinPost(c *gin.Context) {
-	id := c.Param("id")
-	c.JSON(http.StatusOK, gin.H{
-		"id":        id,
-		"is_pinned": true,
-		"message":   "İlan sabitlendi",
-	})
+func pinPost(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "bulletin")
 }
 
-func recordView(c *gin.Context) {
-	id := c.Param("id")
-	c.JSON(http.StatusOK, gin.H{"id": id, "view_count": 46})
+func recordView(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "bulletin")
 }
 
 // Comment Handlers
-func getComments(c *gin.Context) {
-	postID := c.Param("id")
-	now := time.Now()
-
-	comments := []BulletinComment{
-		{
-			ID:         uuid.New().String(),
-			PostID:     postID,
-			AuthorName: "Zeynep K.",
-			Content:    "İlgileniyorum, hala satılık mı?",
-			CreatedAt:  now.Add(-12 * time.Hour),
-			Replies: []BulletinComment{
-				{
-					ID:         uuid.New().String(),
-					PostID:     postID,
-					AuthorName: "Ali V.",
-					Content:    "Evet, hala satılık. Görüşmek isterseniz mesaj atabilirsiniz.",
-					CreatedAt:  now.Add(-10 * time.Hour),
-				},
-			},
-		},
-	}
-	c.JSON(http.StatusOK, gin.H{"comments": comments})
+func getComments(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "bulletin")
 }
 
-func createComment(c *gin.Context) {
-	postID := c.Param("id")
-	var req CommentRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	comment := BulletinComment{
-		ID:          uuid.New().String(),
-		PostID:      postID,
-		AuthorID:    "user-1",
-		Content:     req.Content,
-		ParentID:    req.ParentID,
-		IsAnonymous: req.IsAnonymous,
-		CreatedAt:   time.Now(),
-	}
-
-	c.JSON(http.StatusCreated, comment)
+func createComment(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "bulletin")
 }
 
-func deleteComment(c *gin.Context) {
-	commentID := c.Param("comment_id")
-	c.JSON(http.StatusOK, gin.H{"id": commentID, "message": "Yorum silindi"})
+func deleteComment(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "bulletin")
 }
 
 // Message Handlers
-func getMyMessages(c *gin.Context) {
-	now := time.Now()
-	messages := []BulletinMessage{
-		{
-			ID:         uuid.New().String(),
-			PostID:     "post-1",
-			SenderName: "Mehmet D.",
-			Content:    "Merhaba, koltuk takımı için pazarlık yapabilir miyiz?",
-			IsRead:     false,
-			CreatedAt:  now.Add(-2 * time.Hour),
-		},
-	}
-	c.JSON(http.StatusOK, gin.H{"messages": messages, "unread_count": 1})
+func getMyMessages(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "bulletin")
 }
 
-func getPostMessages(c *gin.Context) {
-	postID := c.Param("id")
-	c.JSON(http.StatusOK, gin.H{"post_id": postID, "messages": []BulletinMessage{}})
+func getPostMessages(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "bulletin")
 }
 
-func sendMessage(c *gin.Context) {
-	postID := c.Param("id")
-	var req MessageRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	message := BulletinMessage{
-		ID:        uuid.New().String(),
-		PostID:    postID,
-		SenderID:  "user-1",
-		Content:   req.Content,
-		CreatedAt: time.Now(),
-	}
-
-	c.JSON(http.StatusCreated, message)
+func sendMessage(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "bulletin")
 }
 
-func markAsRead(c *gin.Context) {
-	id := c.Param("id")
-	now := time.Now()
-	c.JSON(http.StatusOK, gin.H{
-		"id":      id,
-		"is_read": true,
-		"read_at": now,
-	})
+func markAsRead(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "bulletin")
 }

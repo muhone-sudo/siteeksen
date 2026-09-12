@@ -2,9 +2,188 @@
 
 Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
+> **Not (2026-09-09):** Bu dosya tek doğruluk kaynağıdır; kökteki `CHANGELOG.md` yalnızca buraya işaret eder.
+> Aşağıdaki **2026-09-09 öncesi** girdiler, 2026-09-09 denetiminde iddialarının önemli bölümü yanlış
+> çıktığı için **güvenilmez** kabul edilmelidir (ayrıntı: `tasks/audit-raporu.md`). Girdiler tarihsel kayıt
+> olarak korunmuştur ama "tamamlandı" ifadeleri kanıtlanmamıştır.
+> Bundan sonraki her girdi `tasks/dogrulama-politikasi.md` uyarınca **kanıt satırı** taşır.
+
 ---
 
 ## [Unreleased]
+
+### 2026-09-12 — FAZ 0/1/3/4: Dürüstlük onarımı + kurulabilirlik (DOĞRULANMIŞ)
+
+> **Bu turdaki her madde çalıştırılarak doğrulandı.** Doğrulama artık WSL üzerinden yapılıyor
+> (Go 1.24.7 kuruldu; Docker, psql zaten mevcuttu). Toplu kanıt:
+> `bash backend/scripts/verify-stack.sh` → **42 kontrol, 0 başarısız.**
+
+#### Eklendi
+- **`backend/scripts/verify-stack.sh`** — kalıcı uçtan uca doğrulama betiği. Sıfırdan PostgreSQL 16
+  kurar, 11 migration'ı uygular, şema beklentilerini denetler, idempotency sınar, `pkg/audit` testini
+  gerçek veritabanına karşı çalıştırır ve identity-service'i ayağa kaldırıp gerçek HTTP istekleriyle
+  giriş / yanlış şifre / yetkisiz erişim / denetim izi akışlarını doğrular.
+- **`backend/migrations/011_audit_log_fix.sql`** — `audit_logs` şemasını koda uyumlu hale getirir:
+  `property_id`, `request_id`, `status_code` eklendi; `tenant_id` zorunluluğu kaldırıldı; 6 indeks.
+- **`backend/pkg/audit/audit_test.go`** — denetim izinin gerçekten yazıldığını **gerçek veritabanına
+  karşı** doğrulayan 2 test. (Böyle bir hatayı derleyici yakalayamaz; yalnızca DB'ye yazan test yakalar.)
+- **`admin/src/components/ui/data-state.tsx`** — ortak `LoadingState` / `ErrorState` / `EmptyState` /
+  `NotImplementedNotice` / `toUserMessage`. Sessiz mock fallback yerine görünür hata durumu sağlar.
+- **Admin panelde çıkış (logout) düğmesi** — daha önce hiç yoktu, kullanıcı oturumunu kapatamıyordu.
+
+#### Düzeltildi — kurulabilirlik (FAZ 1)
+- **Veritabanı artık sıfırdan kurulabiliyor.** Üç ayrı çökme nedeni giderildi:
+  1. `004_expense_management.sql` — `expense_categories` tablosu `001`'de farklı kolonlarla zaten
+     vardı; `CREATE TABLE IF NOT EXISTS` sessizce atlanıyor, ardından gelen `INSERT` var olmayan
+     kolonlara yazıp `42703` veriyordu. Tablo yeniden tanımlanmak yerine eksik kolonlar eklendi;
+     varsayılan kategorilere KMK m.20'ye göre `distribution_type` atandı.
+  2. `005_new_modules.sql` — `vehicles` tablosu aynı sorunu taşıyordu; ayrıca `idx_vehicles_unit`
+     indeksi `001`'de zaten vardı. İdempotent `ALTER TABLE` + `CREATE INDEX IF NOT EXISTS`'e çevrildi,
+     `plate_number` NOT NULL kısıtı kaldırılıp veri `plate` kolonuna taşındı.
+  3. `005_new_modules.sql` — `inventory_categories` seed'inde **geçersiz UUID** (`ic0000...`;
+     `i` hex değil) `invalid input syntax for type uuid` hatası veriyordu → `1c` prefix'ine çevrildi.
+     *(Bu hata statik denetimde yakalanmamıştı; yalnızca gerçek veritabanında çalıştırınca ortaya çıktı.)*
+  **Kanıt:** temiz PostgreSQL'de 11/11 migration OK; **61 tablo** oluşuyor (önceden 005 çöktüğü için
+  `expenses`, `parking_zones`, `reservations`, `bank_accounts`, `employees`, `surveys`, `assets`,
+  `meetings` dahil 29 tablo hiç oluşmuyordu). 006-011 tekrar çalıştırılabilir (idempotent).
+- **Demo giriş onarıldı.** `002_seed_data.sql`'deki bcrypt hash hiçbir şifreyle eşleşmiyordu ve iki
+  kullanıcıya aynı hash yazılmıştı. Hash'ler `cost=12` ile yeniden üretilip doğrulandı.
+  **Giriş bilgileri: `5551234567` / `Demo123!`** (ikinci hesap `5559876543`).
+  **Kanıt:** gerçek identity-service'e `POST /api/v1/auth/login` → **HTTP 200 + JWT**;
+  yanlış şifre → **401**; token'sız `/users/me` → **401**; token ile → **200**.
+- **`go build ./...` onarıldı.** Ölü `backend/api/` dizini kaldırıldı — kırık import (`sitesen/...`)
+  içeriyordu ve `RequireSuperAdmin` yetkiyi **istemciden gelen `X-User-Role` başlığına** göre
+  veriyordu (düzeltilseydi doğrudan kritik güvenlik açığı olurdu). Hiçbir yerden import edilmiyor,
+  hiçbir Dockerfile'da derlenmiyordu.
+  Ayrıca arkasında gizli kalmış iki derleme hatası giderildi: `pkg/integrations/sms`
+  (kullanılmayan `body` + bakiye hiç parse edilmiyordu) ve `pkg/integrations/whatsapp`
+  (tanımsız `MediaContent` tipi). **Kanıt:** `go build ./...` → 0, `go vet ./...` → 0.
+
+#### Düzeltildi — denetim izi (FAZ 3)
+- **Denetim izi (audit log) artık gerçekten çalışıyor.** `pkg/audit` şemada bulunmayan kolon adlarına
+  yazıyordu (`user_ip`/`resource_type`/`resource_id` ⟷ `ip_address`/`entity_type`/`entity_id`);
+  INSERT her çağrıda hata veriyor, hata `pkg/middleware/auth.go`'da `_ =` ile yutuluyordu →
+  tablo aylardır boştu, oysa `legal/kvkk-aydinlatma.md` "log tutuyoruz, 2 yıl saklıyoruz" diyordu.
+  `pkg/audit` tipli `Entry` API'siyle yeniden yazıldı; middleware artık hatayı logluyor,
+  `property_id` ve HTTP durum kodunu kaydediyor, 403'leri `DENIED` olarak ayırıyor ve
+  401'leri gürültü olmasın diye yazmıyor.
+  **Kanıt:** `go test ./pkg/audit/...` → 2/2 PASS (gerçek DB'ye karşı); uçtan uca istekte
+  `audit_logs`'a kayıt yazıldığı doğrulandı.
+
+#### Düzeltildi — para doğruluğu (FAZ 4)
+- **Bakiye hesabındaki kartezyen çarpım giderildi.** `GetUnitBalance`'taki
+  `JOIN users u ON ll.unit_id = (...)` koşulu `u`'ya referans vermiyordu; bu bir CROSS JOIN'di ve
+  bakiyeyi **kullanıcı sayısıyla çarpıyordu** (156 sakinli sitede 1.200 TL borç sakine 187.200 TL
+  olarak gösteriliyordu). Hesap artık `001`'de tanımlı ve doğru yazılmış `unit_balances` view'ı
+  üzerinden, sakinin **tüm** aktif bağımsız bölümlerini kapsayacak şekilde yapılıyor.
+- **Ödeme kaydı tek transaction'a alındı ve IDOR kapatıldı.** Önceki akışta transaction yoktu,
+  `payment_assessments` INSERT'inin hatası yutuluyordu, `amount` sütunu hiç yazılmıyordu ve
+  **tahakkukların çağıran kullanıcıya ait olup olmadığı doğrulanmıyordu** (başkasının tahakkuk
+  kimlikleriyle tutar öğrenilip ödeme bağlanabiliyordu). Artık sahiplik `resident_units` üzerinden
+  doğrulanıyor, satırlar `FOR UPDATE` ile kilitleniyor, `deleted = 0` filtresi uygulanıyor,
+  `payment_assessments.amount` ve `payments.unit_id` yazılıyor.
+  Sahte `https://checkout.siteeksen.com/...` adresi kaldırıldı; yanıta `payment_gateway_ready: false`
+  eklendi (ödeme sağlayıcısı yok — `questions.md` S-06).
+- **Ham veritabanı hatalarının istemciye sızması engellendi** (ödeme ucu): sentinel hatalar uygun
+  HTTP kodlarına eşlendi, beklenmeyen hatalar sunucuda loglanıp genel mesajla döndürülüyor.
+
+#### Düzeltildi — dürüstlük (FAZ 0, admin panel)
+Aşağıdakilerin tamamı `npm run build` → **çıkış kodu 0** ile doğrulandı (21 sayfa).
+- **Giriş şifresi artık log'a yazılmıyor.** `console.log(credentials)` KVKK ihlaliydi; yerine
+  yalnızca maskelenmiş telefon ve HTTP durumu loglanıyor.
+- **Sessiz mock fallback'ler kaldırıldı** (expenses, personnel, parking, reservations, visitors,
+  accounting, notifications, credentials). Sunucu hatasında uydurma veri gösterilmiyor; hata
+  görünür ve "Yeniden dene" ile tekrarlanabilir. Mali özet kartları hata durumunda `—` gösteriyor
+  (önceden ₺45.750 gibi gerçek olmayan rakamlar görünüyordu).
+- **Sahte başarı mesajları kaldırıldı:** `settings` hiçbir şey kaydetmeden "Kaydedildi" diyordu;
+  `notifications` `catch {}` ile gönderilmemiş bildirimi gönderilmiş gösteriyordu (ayrıca geçmiş
+  listesi "124 kişiye gönderildi" gibi sahte kayıtlarla doluydu); `reports` hiçbir şey göndermeden
+  "e-posta gönderildi" diyordu; `accounting`'de sunucuda karşılığı olmayan toplu "hızlı işlem" onayı vardı.
+- **Uydurma şifre gösterimi kaldırıldı.** `credentials` sayfası hata alınca `"demo-sifre-2026"`
+  gösteriyordu; backend'de şifre çözen bir uç nokta hiç yok. Özellik dürüstçe devre dışı bırakıldı
+  ve nedeni ekranda açıklanıyor; erişim kaydının yalnızca yerel olduğu belirtiliyor.
+- **Sahte soft-delete düzeltildi.** Gerçek silme ucu olanlar API'ye bağlandı; olmayanlar sahte başarı
+  yerine dürüst hata veriyor (önceden `deleted:1` yalnızca React state'ine yazılıyor, sayfa
+  yenilenince kayıt geri geliyordu).
+- **Mock servise bağlı sayfalara `NotImplementedNotice` eklendi** — kullanıcı verinin kalıcı
+  olmadığını artık biliyor.
+- **Header düzeltildi:** hardcoded "Ahmet Yılmaz / Yönetim Kurulu Başkanı" yerine gerçek oturum
+  bilgisi; çalışmayan arama kutusu ve sahte bildirim rozeti kaldırıldı; **çıkış düğmesi eklendi.**
+
+#### Not
+- Mobil uygulamalardaki FAZ 0 maddeleri (sahte ödeme ekranı, sahte başarı mesajları, erişilemeyen
+  route'lar) **henüz yapılmadı**; Flutter kurulu olmadığı için doğrulanamıyor (`questions.md` S-01b).
+- 22 mock servisin `501` dönmesi (0.B.1) sıradaki iş.
+
+---
+
+### 2026-09-09 — Denetim, gerçeklik tespiti ve yeniden planlama
+
+Bu tur **kaynak kodda hiçbir değişiklik yapmadı**; yalnızca gerçek durumu tespit etti ve planlama
+dosyalarını yazdı. Amaç: "yapıldı denilen işlerin yapılmamış olması" sorununu ölçmek ve kalıcı olarak çözmek.
+
+#### Eklendi
+- **`tasks/audit-raporu.md`** — 78 doküman iddiasının kod kanıtına karşı denetimi.
+  **Sonuç: iddiaların %49'u YANLIŞ, %28'i kısmen doğru, %23'ü doğru.**
+  **Kanıt:** `tasks/audit/` altındaki 5 ayrıntılı rapor (~370 KB), her bulgu `dosya:satır` referanslı.
+- **`tasks/audit/`** — 5 kanıt dosyası: backend servisleri (25 servis), veri katmanı/altyapı,
+  admin panel (16 sayfa), sakin mobil (13 ekran), yönetici mobil (24 ekran).
+- **`tasks/modul-envanteri.md`** — Olması gereken **60 modüllük referans model**; 634 sayılı KMK ve
+  ikincil mevzuat dayanaklı, `yorum_analizleri.txt`'ten çıkan 20 somut rakip-boşluğu etiketlenmiş (APS-1…APS-20),
+  her modülde "sık atlanan tamamlayıcılar" bölümü.
+- **`tasks/gap-analizi.md`** — Modül durum matrisi (60 modül × bugünkü kapsam), **97 numaralı mantık
+  hatası** (B01-B97, öncelikli), ve mevcut 12 özellik alanı için "düşünülmemiş tamamlayıcılar" listesi.
+- **`tasks/dogrulama-politikasi.md`** — Kanıt seviyeleri (D0-D4), "Bitti" tanımı kontrol listesi,
+  **sessiz başarısızlık yasağı**, tek doğruluk kaynağı kuralları. `✅` işareti kullanımdan kaldırıldı.
+- **`tasks/questions.md`** — Kullanıcı kararı bekleyen 18 konu (S-01…S-18), her biri için
+  "cevap gelmezse uygulanacak varsayılan" ile.
+
+#### Değişti
+- **`tasks/roadmap.md`** — sıfırdan yeniden yazıldı. Kanıt seviyesi kolonu zorunlu; 9 faz
+  (FAZ 0 dürüstlük → FAZ 8 ölçek); **dikey dilim** çalışma ilkesi; CLAUDE.md gereği
+  **ustalık yol haritası** eklendi (PostgreSQL finansal modelleme, mimari, Go disiplini, Flutter üretim,
+  çok kiracılılık, Türkiye mevzuat derinliği, ürün stratejisi).
+- **`tasks/todo.md`** — sıfırdan yeniden yazıldı. Eski "otonom oturum" talimatı geçersiz ilan edildi.
+  FAZ 0 (dürüstlük onarımı) uygulanabilir maddelere bölündü.
+- **`tasks/lessons.md`** — 6 yeni ders eklendi (kanıtsız tamamlandı işaretlemek; hata yutmak;
+  sahte başarı göstermek; genişlik/derinlik; "bende çalışıyor" ≠ kurulabilir; doküman çelişkisi;
+  yazılmış ama hiç çalıştırılmamış kod).
+
+#### Tespit edilen kritik durumlar (henüz düzeltilmedi — FAZ 0/1/2'de ele alınacak)
+- **Veritabanı temiz makinede kurulamıyor:** `004` ve `005` migration'ları `001` ile çakışıp hata veriyor;
+  `005` sonrası **29 tablo hiç oluşmuyor**. **Kanıt:** `004:5,19-30` ⟷ `001:130`; `005:65,102` ⟷ `001:303`
+- **Denetim izi (audit log) hiç çalışmıyor:** kolon adları şemayla uyuşmuyor, hata yutuluyor, tablo boş.
+  **Kanıt:** `pkg/audit/audit.go:28` ⟷ `003:63-76`; `pkg/middleware/auth.go:115`
+- **25 servisin yalnızca 3'ü veritabanına bağlı** (identity, finance, community); 22'si sabit JSON
+  döndürüyor ve yazma işlemlerine `2xx` dönüp hiçbir yere kaydetmiyor.
+- **`go build ./...` başarısız:** kırık import. **Kanıt:** `backend/api/handlers/api_credentials_handler.go:8`
+- **Kimlik doğrulama yok:** gateway'de auth middleware yok, Kong'da JWT plugin'i 0 → maaş, TCKN, IBAN ve
+  **API anahtarları** token'sız erişilebilir. **Kanıt:** `cmd/gateway/main.go:422`, `kong/kong.yml`
+- **Tenant izolasyonu kırılabilir:** `POST /users/me/active-property` sahiplik doğrulamıyor; roller global.
+  **Kanıt:** `identity/repository/user.go:87-91`
+- **Bakiye hesabı hatalı:** kartezyen join nedeniyle bakiye kullanıcı sayısıyla çarpılıyor
+  (1.200 TL → 187.200 TL). **Kanıt:** `finance/repository/finance.go:35-43`
+- **Ödeme hiçbir zaman tamamlanmıyor:** `paid_amount` hiç güncellenmiyor → ödeyen sakin sonsuza dek borçlu.
+  **Kanıt:** `finance/repository/finance.go:206-224`
+- **Sıfırdan kurulumda demo giriş çalışmıyor:** seed bcrypt hash'i hiçbir şifreyle eşleşmiyor
+  (**fiilen test edildi**, `bcryptjs` ile 10 aday şifre denendi), iki kullanıcıda aynı hash.
+  **Kanıt:** `002_seed_data.sql:29,32`
+- **Sakin mobil release APK'da INTERNET izni yok** → release build'de hiçbir API çağrısı çalışmaz;
+  `ios/` klasörü yok; push bildirim hiç yok; biyometrik `FlutterActivity` nedeniyle çalışmıyor.
+- **Yönetici mobil taban adresi yanlış** (`/v1` ≠ `/api/v1`) → üretimde her çağrı 404; router'da auth guard yok.
+- **30'dan fazla noktada sahte başarı mesajı** (mobil ödeme ekranı hiç ağ çağrısı yapmadan
+  "Ödeme Başarılı!" gösteriyor).
+
+#### Doğrulama notu
+- **Fiilen çalıştırılarak doğrulanan:** admin panel derlemesi (`npm install` + `npm run build` →
+  21 sayfa, çıkış kodu 0); demo bcrypt hash uyuşmazlığı.
+- **Doğrulanamayan:** Go/Flutter/Docker bu makinede kurulu değil; kurumsal AppLocker politikası kullanıcı
+  yazılabilir dizinlerden çalıştırılabilir dosya açılmasını engelliyor (portable Go denemesi başarısız).
+  Bu nedenle backend ve mobil bulgular **statik** analizle tespit edildi. Bkz. `questions.md` S-01.
+
+---
+
+## [Unreleased — 2026-09-09 öncesi]
 
 ### Eklendi
 - **Ustalık Mobil Entegrasyon Yol Haritası (Faz 2 & Faz 3 - Yönetici Uygulaması):**

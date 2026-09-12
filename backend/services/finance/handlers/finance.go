@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"errors"
+	"log"
 	"net/http"
 	"strconv"
 
@@ -146,7 +147,22 @@ func CreatePayment(svc *service.FinanceService) gin.HandlerFunc {
 		userID := c.GetString("user_id")
 		result, err := svc.CreatePayment(c.Request.Context(), userID, req.AssessmentIDs, req.PaymentMethod, req.CardToken)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			// Hata eşlemesi (2026-09-09): Önceki sürüm her hatayı `err.Error()` ile ham metin
+			// olarak döndürüyordu; bu, PostgreSQL hata mesajlarıyla tablo/sütun/kısıt adlarını
+			// istemciye sızdırıyordu (bilgi toplama riski).
+			switch {
+			case errors.Is(err, repository.ErrNoPayableAssessment):
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Ödenecek aidat seçilmedi"})
+			case errors.Is(err, repository.ErrAssessmentNotPayable):
+				// Kullanıcıya ait olmayan tahakkuk kimlikleri de buraya düşer; hangi kimliğin
+				// var olduğu bilgisini sızdırmamak için tek ve genel bir mesaj kullanılır.
+				c.JSON(http.StatusBadRequest, gin.H{
+					"error": "Seçilen aidatlardan biri ödenebilir durumda değil",
+				})
+			default:
+				log.Printf("[finance] ödeme oluşturulamadı (user=%s): %v", userID, err)
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Ödeme kaydı oluşturulamadı"})
+			}
 			return
 		}
 

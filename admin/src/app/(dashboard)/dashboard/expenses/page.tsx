@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { Plus, X, TrendingDown, FileText, Zap, Wrench, Building, Users, Receipt, CreditCard, Upload, CheckCircle, AlertCircle, Loader2, Edit, Trash2, Download } from "lucide-react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { Plus, X, FileText, Zap, Wrench, Building, Receipt, CreditCard, Upload, CheckCircle, AlertCircle, Edit, Trash2, Download } from "lucide-react";
 import apiClient from "@/lib/api-client";
+import { ErrorState, LoadingState, EmptyState, toUserMessage, NotImplementedNotice } from "@/components/ui/data-state";
 
 interface Expense {
     id: string;
@@ -45,6 +46,10 @@ export default function ExpensesPage() {
     const [expenses, setExpenses] = useState<Expense[]>([]);
     const [summary, setSummary] = useState<ExpenseSummary | null>(null);
     const [loading, setLoading] = useState(true);
+    const [loadError, setLoadError] = useState<string | null>(null);
+    const [actionError, setActionError] = useState<string | null>(null);
+    const [formError, setFormError] = useState<string | null>(null);
+    const [submitting, setSubmitting] = useState(false);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [filterStatus, setFilterStatus] = useState("all");
     const [editingId, setEditingId] = useState<string | null>(null);
@@ -60,52 +65,65 @@ export default function ExpensesPage() {
         vendor_name: "",
     });
 
-    useEffect(() => {
-        apiClient.loadToken();
-        load();
-    }, []);
-
-    async function load() {
+    const load = useCallback(async () => {
         setLoading(true);
         try {
             const [expRes, sumRes] = await Promise.all([apiClient.getExpenses(), apiClient.getExpenseSummary()]);
             const raw = expRes?.data ?? expRes ?? [];
             setExpenses(raw.map((e: any) => ({ ...e, deleted: e.deleted ?? 0 })));
-            setSummary(sumRes);
-        } catch {
-            setExpenses([
-                { id: "1", category_name: "Ortak Elektrik", description: "Mayıs 2026 elektrik", amount: 2450.75, expense_date: "2026-05-28", is_invoiced: true, status: "APPROVED", vendor_name: "AYEDAŞ", deleted: 0 },
-                { id: "2", category_name: "Asansör Bakımı", description: "Yıllık bakım", amount: 3500, expense_date: "2026-05-15", is_invoiced: true, status: "APPROVED", vendor_name: "Kone", deleted: 0 },
-                { id: "3", category_name: "Acil Tamir", description: "Çatı tamir işlemi", amount: 1800, expense_date: "2026-05-20", is_invoiced: false, status: "PENDING", deleted: 0 },
-            ]);
-            setSummary({ total_expenses: 45750, invoiced_expenses: 42150, non_invoiced_expenses: 3600, assessment_reflecting: 28500, pending_approval_count: 2, pending_approval_amount: 3600 });
+            setSummary(sumRes ?? null);
+            setLoadError(null);
+        } catch (err) {
+            setExpenses([]);
+            setSummary(null);
+            setLoadError(toUserMessage(err));
         } finally {
             setLoading(false);
         }
-    }
+    }, []);
 
-    const openAdd = () => { setEditingId(null); setForm({ category_name: "Bina Temizliği", description: "", amount: 0, expense_date: new Date().toISOString().split("T")[0], is_invoiced: true, vendor_name: "" }); setIsModalOpen(true); };
-    const openEdit = (exp: Expense) => { setEditingId(exp.id); setForm({ category_name: exp.category_name, description: exp.description, amount: exp.amount, expense_date: exp.expense_date, is_invoiced: exp.is_invoiced, vendor_name: exp.vendor_name ?? "" }); setIsModalOpen(true); };
+    useEffect(() => {
+        apiClient.loadToken();
+        load();
+    }, [load]);
+
+    const openAdd = () => { setEditingId(null); setFormError(null); setForm({ category_name: "Bina Temizliği", description: "", amount: 0, expense_date: new Date().toISOString().split("T")[0], is_invoiced: true, vendor_name: "" }); setIsModalOpen(true); };
+    const openEdit = (exp: Expense) => { setEditingId(exp.id); setFormError(null); setForm({ category_name: exp.category_name, description: exp.description, amount: exp.amount, expense_date: exp.expense_date, is_invoiced: exp.is_invoiced, vendor_name: exp.vendor_name ?? "" }); setIsModalOpen(true); };
+    const closeModal = () => { setIsModalOpen(false); setEditingId(null); setFormError(null); };
 
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
+        setFormError(null);
+
         if (editingId) {
-            setExpenses(prev => prev.map(ex => ex.id === editingId ? { ...ex, ...form } : ex));
-        } else {
-            try {
-                const res = await apiClient.createExpense({ category: form.category_name, description: form.description, amount: form.amount, expense_date: form.expense_date, vendor_name: form.vendor_name });
-                setExpenses(prev => [{ ...res, deleted: 0 }, ...prev]);
-            } catch {
-                setExpenses(prev => [{ id: String(Date.now()), ...form, status: "PENDING", deleted: 0 }, ...prev]);
-            }
+            // apiClient içinde gider güncelleme uç noktası yok; sahte başarı göstermek yerine durumu bildiriyoruz.
+            setFormError("Gider güncelleme özelliği sunucu tarafında henüz hazır değil. Değişiklik kaydedilmedi.");
+            return;
         }
-        setIsModalOpen(false); setEditingId(null);
+
+        setSubmitting(true);
+        try {
+            await apiClient.createExpense({
+                category: form.category_name,
+                description: form.description,
+                amount: form.amount,
+                expense_date: form.expense_date,
+                vendor_name: form.vendor_name,
+            });
+            closeModal();
+            await load();
+        } catch (err) {
+            setFormError(toUserMessage(err, "Gider kaydı oluşturulamadı."));
+        } finally {
+            setSubmitting(false);
+        }
     }
 
     const handleDelete = () => {
         if (!deleteConfirmId) return;
-        setExpenses(prev => prev.map(e => e.id === deleteConfirmId ? { ...e, deleted: 1 } : e));
+        // apiClient içinde gider silme uç noktası yok; kaydı yalnızca ekranda silmek yanıltıcı olur.
         setDeleteConfirmId(null);
+        setActionError("Gider silme özelliği sunucu tarafında henüz hazır değil. Kayıt silinmedi.");
     };
 
     const downloadSampleCSV = () => {
@@ -118,14 +136,37 @@ export default function ExpensesPage() {
     const handleCSVUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0]; if (!file) return;
         const reader = new FileReader();
-        reader.onload = (ev) => {
+        reader.onload = async (ev) => {
             const text = ev.target?.result as string;
-            const lines = text.trim().split("\n").slice(1);
-            const newItems: Expense[] = lines.map((line, i) => {
-                const [category_name, description, amount, expense_date, vendor_name, is_invoiced] = line.split(",");
-                return { id: `csv_${Date.now()}_${i}`, category_name: (category_name ?? "").trim(), description: (description ?? "").trim(), amount: parseFloat((amount ?? "0").trim()) || 0, expense_date: (expense_date ?? "").trim(), vendor_name: (vendor_name ?? "").trim(), is_invoiced: (is_invoiced ?? "").trim().toLowerCase() === "true", status: "PENDING", deleted: 0 };
-            });
-            setExpenses(prev => [...newItems, ...prev]);
+            const lines = text.trim().split("\n").slice(1).filter(l => l.trim() !== "");
+            if (lines.length === 0) return;
+
+            setActionError(null);
+            setSubmitting(true);
+            let firstError: unknown = null;
+            let failed = 0;
+
+            for (const line of lines) {
+                const [category_name, description, amount, expense_date, vendor_name] = line.split(",");
+                try {
+                    await apiClient.createExpense({
+                        category: (category_name ?? "").trim(),
+                        description: (description ?? "").trim(),
+                        amount: parseFloat((amount ?? "0").trim()) || 0,
+                        expense_date: (expense_date ?? "").trim(),
+                        vendor_name: (vendor_name ?? "").trim(),
+                    });
+                } catch (err) {
+                    failed++;
+                    if (firstError === null) firstError = err;
+                }
+            }
+
+            setSubmitting(false);
+            if (failed > 0) {
+                setActionError(`${lines.length} satırdan ${failed} tanesi kaydedilemedi: ${toUserMessage(firstError, "Gider kaydı oluşturulamadı.")}`);
+            }
+            await load();
         };
         reader.readAsText(file);
         if (csvRef.current) csvRef.current.value = "";
@@ -133,6 +174,14 @@ export default function ExpensesPage() {
 
     const active = expenses.filter(e => e.deleted === 0);
     const filtered = filterStatus === "all" ? active : active.filter(e => e.status === filterStatus);
+    const hasData = !loading && !loadError;
+
+    const cards = [
+        { label: "Toplam Gider", value: hasData ? `₺${(summary?.total_expenses ?? active.reduce((s, e) => s + e.amount, 0)).toLocaleString()}` : "—", color: "text-red-600" },
+        { label: "Faturalı", value: hasData ? `₺${(summary?.invoiced_expenses ?? active.filter(e => e.is_invoiced).reduce((s, e) => s + e.amount, 0)).toLocaleString()}` : "—", color: "text-green-600" },
+        { label: "Faturasız", value: hasData ? `₺${(summary?.non_invoiced_expenses ?? active.filter(e => !e.is_invoiced).reduce((s, e) => s + e.amount, 0)).toLocaleString()}` : "—", color: "text-orange-600" },
+        { label: "Onay Bekliyor", value: hasData ? String(summary?.pending_approval_count ?? active.filter(e => e.status === "PENDING").length) : "—", color: "text-yellow-600" },
+    ];
 
     return (
         <div className="space-y-6">
@@ -147,7 +196,7 @@ export default function ExpensesPage() {
                     </button>
                     <label className="flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 cursor-pointer">
                         <Upload className="h-4 w-4" /> CSV Yükle
-                        <input ref={csvRef} type="file" accept=".csv" className="hidden" onChange={handleCSVUpload} />
+                        <input ref={csvRef} type="file" accept=".csv" className="hidden" onChange={handleCSVUpload} disabled={submitting} />
                     </label>
                     <button onClick={openAdd} className="flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700">
                         <Plus className="h-4 w-4" /> Gider Ekle
@@ -155,13 +204,16 @@ export default function ExpensesPage() {
                 </div>
             </div>
 
+            <NotImplementedNotice />
+
+            {actionError && (
+                <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    {actionError}
+                </div>
+            )}
+
             <div className="grid gap-4 md:grid-cols-4">
-                {[
-                    { label: "Toplam Gider", value: `₺${(summary?.total_expenses ?? active.reduce((s, e) => s + e.amount, 0)).toLocaleString()}`, color: "text-red-600" },
-                    { label: "Faturalı", value: `₺${(summary?.invoiced_expenses ?? active.filter(e => e.is_invoiced).reduce((s, e) => s + e.amount, 0)).toLocaleString()}`, color: "text-green-600" },
-                    { label: "Faturasız", value: `₺${(summary?.non_invoiced_expenses ?? active.filter(e => !e.is_invoiced).reduce((s, e) => s + e.amount, 0)).toLocaleString()}`, color: "text-orange-600" },
-                    { label: "Onay Bekliyor", value: String(summary?.pending_approval_count ?? active.filter(e => e.status === "PENDING").length), color: "text-yellow-600" },
-                ].map((s) => (
+                {cards.map((s) => (
                     <div key={s.label} className="rounded-xl bg-white p-4 shadow-sm dark:bg-gray-800">
                         <p className="text-sm text-gray-500">{s.label}</p>
                         <p className={`mt-1 text-2xl font-bold ${s.color}`}>{s.value}</p>
@@ -180,7 +232,11 @@ export default function ExpensesPage() {
 
             <div className="rounded-xl bg-white shadow-sm dark:bg-gray-800">
                 {loading ? (
-                    <div className="flex items-center justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>
+                    <LoadingState />
+                ) : loadError ? (
+                    <ErrorState message={loadError} onRetry={load} />
+                ) : filtered.length === 0 ? (
+                    <EmptyState title="Gider kaydı bulunamadı" />
                 ) : (
                     <table className="w-full">
                         <thead>
@@ -227,9 +283,6 @@ export default function ExpensesPage() {
                                     </tr>
                                 );
                             })}
-                            {filtered.length === 0 && (
-                                <tr><td colSpan={8} className="px-6 py-12 text-center text-gray-400">Kayıt bulunamadı</td></tr>
-                            )}
                         </tbody>
                     </table>
                 )}
@@ -241,9 +294,14 @@ export default function ExpensesPage() {
                     <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-2xl dark:bg-gray-800 max-h-[90vh] overflow-y-auto">
                         <div className="flex items-center justify-between mb-4">
                             <h2 className="text-xl font-bold text-gray-900 dark:text-white">{editingId ? "Gideri Düzenle" : "Gider Ekle"}</h2>
-                            <button onClick={() => { setIsModalOpen(false); setEditingId(null); }}><X className="h-5 w-5 text-gray-500" /></button>
+                            <button onClick={closeModal}><X className="h-5 w-5 text-gray-500" /></button>
                         </div>
                         <form onSubmit={handleSubmit} className="space-y-4">
+                            {formError && (
+                                <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                                    {formError}
+                                </div>
+                            )}
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Kategori</label>
                                 <select value={form.category_name} onChange={e => setForm({ ...form, category_name: e.target.value })}
@@ -281,13 +339,13 @@ export default function ExpensesPage() {
                                 <label htmlFor="invoiced" className="text-sm text-gray-700 dark:text-gray-300">Fatura mevcut</label>
                             </div>
                             {form.is_invoiced && (
-                                <div className="flex items-center justify-center h-20 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-primary">
-                                    <div className="flex items-center gap-2 text-gray-500 text-sm"><Upload className="h-4 w-4" /> Fatura yükle (PDF)</div>
+                                <div className="flex items-center justify-center h-20 border-2 border-dashed border-gray-300 rounded-lg text-center">
+                                    <div className="flex items-center gap-2 text-gray-400 text-sm"><Upload className="h-4 w-4" /> Fatura yükleme henüz hazır değil</div>
                                 </div>
                             )}
                             <div className="flex gap-3 pt-2">
-                                <button type="button" onClick={() => { setIsModalOpen(false); setEditingId(null); }} className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300">İptal</button>
-                                <button type="submit" className="flex-1 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700">{editingId ? "Güncelle" : "Ekle"}</button>
+                                <button type="button" onClick={closeModal} className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300">İptal</button>
+                                <button type="submit" disabled={submitting} className="flex-1 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50">{submitting ? "Kaydediliyor..." : editingId ? "Güncelle" : "Ekle"}</button>
                             </div>
                         </form>
                     </div>

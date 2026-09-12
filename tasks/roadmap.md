@@ -1,262 +1,397 @@
 # ROADMAP
 
-Proje ilerleme durumu ve planlaması.
+**Bu dosya 2026-09-09'da sıfırdan yeniden yazıldı.** Önceki sürüm, denetimde iddialarının %49'u yanlış
+çıktığı için geçersiz kabul edildi (bkz. `tasks/audit-raporu.md`). Eski sürüm git geçmişinde durmaktadır.
+
+Tek doğruluk kaynağı: **bu dosya**. Kökteki `ROADMAP.md` yalnızca buraya işaret eder.
 
 ---
 
-## Durum Göstergesi
-- ✅ Tamamlandı
-- 🔄 Devam ediyor
-- 📋 Planlandı
-- ❌ Yapılmadı
+## Nasıl okunur
+
+Durum göstergesi olarak `✅` **kullanılmaz**. Yerine kanıt seviyesi yazılır
+(tanımlar: `tasks/dogrulama-politikasi.md` §1 ve §5):
+
+| Etiket | Anlam |
+|---|---|
+| `[D4]` | Canlı doğrulandı — kanıt satırı zorunlu |
+| `[D3]` | Otomatik test geçiyor |
+| `[D2]` | Derleniyor / statik denetim temiz |
+| `[D1]` | Kod var, doğrulanmadı |
+| `[D0]` | Planlandı |
+| `[MOCK]` | Arayüz/uç nokta var, veri **kalıcı değil** |
+| `[ÖLÜ]` | Kod var, hiçbir yere bağlı değil |
+| `[KIRIK]` | Yazılmış ama çalışmıyor |
+| `[BLOKE]` | Dış karara bağlı — `questions.md` soru numarası yazılır |
+
+**Kural:** Kanıt satırı olmayan madde `[D1]`'den yükseğe çıkamaz.
 
 ---
 
-## Backend Mikroservisler
+## Bugünkü gerçek durum (2026-09-09)
 
-| Servis | Durum | Port | Notlar |
-|--------|-------|------|--------|
-| identity | ✅ | 8081 | Docker'da aktif; gerçek `residents`/`units` modülü eklendi (Mock→DB Faz 1) |
-| finance | ✅ | 8082 | Docker'da aktif, iyzico entegre; gerçek `POST /assessments`, `GET /expense-categories`, `GET /debtors`, rol-duyarlı `GET /payments` eklendi (Mock→DB Faz 2, Adım 1-3 tamamlandı) |
-| community | ✅ | 8083 | Docker'da aktif |
-| iot | ✅ | 8084 | Docker'da aktif, MongoDB bağlı |
-| notification | ✅ | 8085 | Docker'da aktif, Firebase + Kafka |
-| expense | ✅ | 8086 | Servis yazıldı, docker-compose'a eklenmedi |
-| asset | ✅ | — | Servis yazıldı, docker-compose'a eklenmedi |
-| banking | ✅ | — | Servis yazıldı, docker-compose'a eklenmedi |
-| bulletin | ✅ | — | Servis yazıldı, docker-compose'a eklenmedi |
-| contract | ✅ | — | Servis yazıldı, docker-compose'a eklenmedi |
-| document | ✅ | — | Servis yazıldı, docker-compose'a eklenmedi |
-| energy_analytics | ✅ | — | Servis yazıldı, docker-compose'a eklenmedi |
-| esg | ✅ | — | Servis yazıldı, docker-compose'a eklenmedi |
-| inventory | ✅ | — | Servis yazıldı, docker-compose'a eklenmedi |
-| meeting_wizard | ✅ | — | Servis yazıldı, docker-compose'a eklenmedi |
-| nps | ✅ | — | Servis yazıldı, docker-compose'a eklenmedi |
-| package | ✅ | — | Servis yazıldı, docker-compose'a eklenmedi |
-| parking | ✅ | — | Servis yazıldı, docker-compose'a eklenmedi |
-| patrol | ✅ | — | Servis yazıldı, docker-compose'a eklenmedi |
-| personnel | ✅ | — | Servis yazıldı, docker-compose'a eklenmedi |
-| reservation | ✅ | — | Servis yazıldı, docker-compose'a eklenmedi |
-| settings | ✅ | — | Servis yazıldı, docker-compose'a eklenmedi |
-| smart_collection | ✅ | — | Servis yazıldı, docker-compose'a eklenmedi |
-| survey | ✅ | — | Servis yazıldı, docker-compose'a eklenmedi |
-| visitor | ✅ | — | Servis yazıldı, docker-compose'a eklenmedi |
-| gateway (dev) | ✅ | 8888 | Docker'da aktif |
+| Ölçüt | Değer |
+|---|---|
+| Gerçek veritabanına bağlı servis | **3 / 25** (identity, finance, community) |
+| Temiz makinede veritabanı kurulabiliyor mu | **HAYIR** (migration 004 ve 005 çöküyor) |
+| `go build ./...` | **BAŞARISIZ** (kırık import) |
+| Denetim izi (audit log) çalışıyor mu | **HAYIR** (kolon uyuşmazlığı, tablo boş) |
+| Sıfırdan kurulumda demo giriş | **ÇALIŞMIYOR** (bozuk bcrypt hash) |
+| Gateway/Kong'da kimlik doğrulama | **YOK** |
+| Gerçek test kapsamı | **~%0,5** |
+| P0 modüllerin ortalama kapsamı | **~%12** |
+| Uçtan uca gerçekten çalışan modül | **2** (Sakinler/Birimler, Talepler) |
+| Admin panel derleniyor mu | **EVET** — `npm run build` → 21 sayfa, çıkış kodu 0 *(fiilen çalıştırıldı)* |
 
-### Backend Yapılacaklar
-- ✅ **identity-service: Gerçek `residents`/`units` modülü** — `GET/POST /api/v1/residents`, `GET/PATCH /api/v1/residents/:id`, `GET /api/v1/units`; `resident_units`/`users`/`units` JOIN sorgularıyla DB'ye bağlandı (Mock verilerin DB'ye bağlanması — Faz 1/6, Adım 1/4)
-- ✅ **Gateway: `/api/v1/residents`+`/api/v1/units` mock handler'ları kaldırılıp identity-service'e proxy edildi** (Mock verilerin DB'ye bağlanması — Faz 1/6, Adım 2/4)
-- ✅ **Mock→DB Faz 1 (Sakinler/Birimler) tamamlandı + canlı doğrulandı** — identity-service modülü → gateway proxy → admin panel → admin_app (4/4 adım); admin_app `/users?role=RESIDENT` konvansiyonu admin panelin `/residents` kontratıyla birleştirildi. Canlı ortamda demo yönetici hesabıyla `GET/POST/PATCH /api/v1/residents` ve `GET /api/v1/units` uçtan uca test edildi (gerçek DB kaydı oluşturuldu, pasifleştirildi, rolü değiştirildi, DB satırından doğrulandı, sonra temizlendi) — gerçek `resident_units`/`users`/`units` verisi dönüyor, mock'a düşmüyor. Sıradaki faz: Faz 2 — Finans (Aidat/Ödemeler)
-- ✅ **Demo gateway gerçek reverse proxy'ye dönüştürüldü** — identity, finance, community servislerine proxy; henüz olmayan servisler için mock
-- ✅ **Tüm 19 yeni servis docker-compose.yml'e eklendi** — port atandı, Dockerfile yazıldı, hepsi çalışıyor
-- ✅ **Kong `kong.yml` güncellendi** — 24 servis (tüm mikroservisler) Kong üzerinden yönlendiriliyor
-- ✅ **Gateway v1.2.0** — 24 servise proxy routing; tüm yeni servisler docker-compose env'de tanımlı
-- ✅ **KVKK açık rıza akışı + audit log aktif edildi** — migration `009_kvkk_consent.sql` (`users.kvkk_consent_at`), identity-service `POST /users/me/kvkk-consent` + login yanıtında `kvkk_consent_required`; `pkg/audit/` paketi ve gerçek `INSERT INTO audit_logs` ile tamamlanan `AuditLog()` middleware'i `identity`/`finance` route gruplarına bağlandı (Apsiyon karşılaştırması, Paket 5)
-- ✅ **RBAC: Rol bazlı yetkilendirme aktif edildi** — `RequireRole()` middleware'i `MANAGER`/`AUDITOR`/`STAFF` rol sabitleriyle birlikte `POST /users/me/properties` endpoint'ine bağlandı; migration `008_manager_roles.sql` ile demo yöneticiye `MANAGER` rolü eklendi (Apsiyon karşılaştırması, Paket 3)
-- 📋 **Migration-runner eklenmeli** — `docker-entrypoint-initdb.d` yalnızca volume ilk oluşturulduğunda çalışıyor; 006/008/009/010 migration'ları bu yüzden üç ayrı seferde elle uygulanmak zorunda kaldı (`golang-migrate` ya da servis başlangıcında "uygulanmamış migration" kontrolü gerekli)
-- 📋 Her servis için birim testleri yaz (şu an sadece `tests/integration_test.go` var)
-- 📋 `pkg/integrations/ai/` — OpenAI Vision gerçek API key ile test edilmeli
-- 📋 `pkg/integrations/bank/` — banka entegrasyonu gerçek ortamda test edilmeli
-- 📋 Kafka consumer'ları genişlet (şu an sadece notification servisi tüketiyor)
+Ayrıntı: `tasks/audit-raporu.md` · Modül matrisi: `tasks/gap-analizi.md` Bölüm A
 
 ---
 
-## Admin Paneli (Next.js)
+## Çalışma ilkesi: dikey dilim
 
-| Sayfa | Durum | Notlar |
-|-------|-------|--------|
-| Login | ✅ | NextAuth ile |
-| Dashboard (genel bakış) | ✅ | |
-| Sakinler | ✅ | Gerçek API'ye bağlandı — `apiClient.getResidents/getUnits/createResident/updateResident` (Mock→DB Faz 1, Adım 3/4); bakiye sütunu finance entegrasyonu bekleniyor |
-| Aidatlar | ✅ | |
-| Sayaçlar | ✅ | |
-| Talepler | ✅ | |
-| Duyurular | ✅ | |
-| Raporlar | ✅ | |
-| Ayarlar | ✅ | |
-| Muhasebe | 🔄 | Sayfa var, backend bağlantısı eksik |
-| Bildirimler | 🔄 | Sayfa var, backend bağlantısı eksik |
-| API Kimlik Bilgileri | 🔄 | Sayfa var, backend bağlantısı eksik |
+Denetimin **KN-5** kök nedeni: 25 servis / 61 tablo / 37 ekran açıldı, hiçbiri bitmedi (%77 ölü şema).
+Bu yüzden bundan sonra iş **dikey dilim** halinde yapılır:
 
-### Admin Panel Yapılacaklar
-- ✅ `api-client.ts` gateway üzerinden gerçek servislere bağlandı
-- ✅ Token refresh mantığı implement edildi
-- ✅ **Muhasebe sayfası backend'e bağlandı** — expense servisi `/api/v1/expenses`
-- ✅ **Bildirimler sayfası backend'e bağlandı** — notification servisi `/api/v1/notifications`
-- ✅ **API Credentials sayfası backend'e bağlandı** — settings servisi `/api/v1/credentials`
-- ✅ **Gider yönetimi sayfası eklendi** — `/dashboard/expenses`; fatura takibi, kategori filtreleme, mock fallback
-- ✅ **Otopark sayfası eklendi** — `/dashboard/parking`; araç listesi, şu an içeridekiler, giriş/çıkış işlemleri
-- ✅ **Personel sayfası eklendi** — `/dashboard/personnel`; çalışan listesi, izin talepleri, onaylama
-- ✅ **Rezervasyon sayfası eklendi** — `/dashboard/reservations`; tesis ve rezervasyon yönetimi, iptal
-- ✅ **Ziyaretçi sayfası eklendi** — `/dashboard/visitors`; giriş/çıkış takibi, QR kayıt, bugün/içeride filtreleme
-- ✅ **Sidebar güncellendi** — 5 yeni nav öğesi eklendi (Gider Yönetimi, Otopark, Personel, Rezervasyon, Ziyaretçi)
-- ✅ **Tüm sayfalara edit/delete eklendi** — Soft-delete pattern (deleted=1), onay modalı, shared add/edit form
-- ✅ **CSV upload/download** — residents, expenses, parking, personnel, visitors, meters, assessments, announcements, requests sayfalarında gerçek CSV işleme + örnek CSV indirme
-- ✅ **Credentials sayfası güvenlik** — Şifreler sayfa açılışında yüklenmiyor, "Göster" butonuyla çekiliyor + audit log
-- ✅ **Muhasebe/Bildirimler/Sayaçlar** — Accounting edit/delete, notifications history delete, meters gerçek save readings
-- ✅ **Backend soft-delete altyapısı** — Migration 006 (23 tablo + index), identity ve finance repository sorgularına `AND deleted = 0` filtresi
-- ✅ **Sidebar site/apartman seçici gerçek backend'e bağlandı** — `GET /users/me/properties` → seçimde `setActiveProperty` → `refreshAccessToken` → reload zinciri; NextAuth session ↔ apiClient token köprüsü kuruldu; canlı ortamda uçtan uca doğrulandı
-- ✅ **Yeni site ekleme özelliği** — `POST /users/me/properties` (identity) ile site + varsayılan unit + `resident_units(OWNER)` tek transaction'da oluşturuluyor; sidebar modalı ile oluştur → otomatik geçiş zinciri canlı ortamda doğrulandı
-- ✅ **Property türü (`type`)** — migration `007_property_type.sql`; `properties.type` (SITE/APARTMENT/BUILDING, default SITE); sidebar "Yeni Taşınmaz Ekle" modalına Tür seçici eklendi
+> Bir dilim, **şema → servis → API → gateway → panel → mobil → test → doküman** hattının
+> tamamında bitmeden yeni dilim açılmaz.
+
+Yeni modül açmak yerine, mevcut `[MOCK]` modülleri sırayla gerçek hale getirmek tercih edilir.
+Gerçek hale getirilmeyecek modüller **arayüzden kaldırılır** ya da açık `DEMO VERİ` etiketiyle işaretlenir
+(karar: `questions.md` S-03, varsayılan: daralt ve derinleştir).
 
 ---
 
-## Mobil Uygulama — Sakin (Flutter `mobile/`)
+# FAZLAR
 
-| Ekran | Durum | Notlar |
-|-------|-------|--------|
-| Ana Sayfa | ✅ | |
-| Aidat/Ödeme | ✅ | |
-| Talepler | ✅ | |
-| Duyurular | ✅ | |
-| İlan Panosu | ✅ | |
-| Enerji Tüketimi | ✅ | |
-| Koli Takibi | ✅ | |
-| Rezervasyon | ✅ | |
-| Ziyaretçi Ön Kayıt | ✅ | |
-| Anketler | ✅ | |
-| Belgeler | ✅ | |
-| Varlıklar | ✅ | |
-| Profil/Ayarlar | ✅ | |
-| NPS değerlendirme | 📋 | nps servisi hazır, mobil ekran yok |
-| ESG/Sürdürülebilirlik | 📋 | esg servisi hazır, mobil ekran yok |
+## FAZ 0 — Dürüstlük Onarımı `[sürüyor]`
 
-### Mobil Yapılacaklar
-- 📋 Gerçek API entegrasyonu (çoğu ekranda mock data var)
-- 📋 Retrofit/Dio ile API client'ları tamamla
-- 📋 Push notification alma ve gösterme akışını test et
-- ✅ **Talep onay mekanizması** — `community-service` mock'tan gerçek DB-bağlı `requests` modülüne geçirildi; sakin "sorunum çözüldü" diyerek onaylayabiliyor (`CLOSED` + `user_confirmed_at`) ya da reddedip talebi `IN_PROGRESS`'e geri gönderebiliyor — `mobile`/`admin_app`/admin panel uçtan uca güncellendi (Apsiyon karşılaştırması, Paket 1 — son paket)
-- ✅ **Biyometrik giriş (`local_auth`) tam entegrasyonu** — `mobile` ve `admin_app`'te `flutter_secure_storage` tabanlı kalıcı oturum + gerçek `apiClient.login()` akışı + parmak izi/yüz tanıma ile oturum yenileme (Apsiyon karşılaştırması, Paket 4)
-- 📋 App Store / Google Play yayınlama (`docs/store-publishing-guide.md` hazır)
-- ✅ **Android geri tuşu navigasyon düzeltmesi** — `main_screen.dart`'a `PopScope` eklendi (Apsiyon karşılaştırması, Paket 2)
-- ✅ **KVKK açık rıza ekranı** — ilk girişte zorunlu, geçilemez (`PopScope(canPop: false)`) onay ekranı eklendi; `admin_app`'e de aynı akış uygulandı (Paket 5)
+**Amaç:** Sistemin kullanıcıya yalan söylemesini durdurmak. Hiçbir yeni özellik yok; yalnızca
+"yapıldı" diyen ama yapmayan davranışların kaldırılması. Bu faz, güvenin ön koşulu.
+
+| # | İş | Durum | Kanıt / not |
+|---|---|---|---|
+| 0.1 | Giriş şifresinin sunucu log'una yazılmasını kaldır | `[D0]` | `route.ts:17` — KVKK ihlali, en acil madde |
+| 0.2 | Admin panelde 9 sessiz mock fallback'i kaldır → hata durumu göster | `[D0]` | B79; `npm run build` ile doğrulanabilir |
+| 0.3 | Sahte "kaydedildi/gönderildi" mesajlarını kaldır (admin panel 3, yönetici mobil 11, sakin mobil 4) | `[D0]` | B81 |
+| 0.4 | Credentials sayfasındaki uydurma şifre gösterimini kaldır | `[D0]` | B80 |
+| 0.5 | Sahte soft-delete'i kaldır: backend'de silme yoksa buton da olmayacak | `[D0]` | B83, B60 |
+| 0.6 | Kaydetmeyen 22 servis ucunu `501 Not Implemented`'a çevir | `[D0]` | B78; politika §3.5 |
+| 0.7 | `ai_enabled: true` gibi yanlış sağlık bilgilerini gerçek yapılandırmadan türet | `[D0]` | B84 |
+| 0.8 | "API Ayarları" ekranındaki yanlış güvence metnini kaldır | `[D0]` | B85 |
+| 0.9 | Mobilde sessiz boş-listeye düşmeyi kaldır → hata + yeniden dene | `[D0]` | B82 |
+| 0.10 | Erişilemeyen ekranları menüye bağla **ya da** router'dan kaldır | `[D0]` | B89, B90, B91 (admin panelde çıkış butonu yok) |
+| 0.11 | Hukuki metinlerdeki doğrulanamayan taahhütleri düzelt | `[D0]` | B86 |
+
+**Çıkış ölçütü:** Arayüzde, gerçekten yapılmayan hiçbir işlem için başarı mesajı gösterilmiyor.
+
+## FAZ 1 — Kurulabilirlik
+
+**Amaç:** Temiz bir makinede `docker compose down -v && up` ile sistemin ayağa kalkması.
+Bugün bu mümkün değil; mevcut ortam elle müdahalelerin toplamı ve kaybolursa geri getirilemez.
+
+| # | İş | Durum | Kanıt / not |
+|---|---|---|---|
+| 1.1 | Migration 004 `expense_categories` çakışmasını gider | `[BLOKE]` S-02 | B01 — finans şeması, dondurma kapsamında olabilir |
+| 1.2 | Migration 005 `vehicles` çakışmasını gider | `[D0]` | B02 — 29 tablonun oluşmasını engelliyor |
+| 1.3 | Migration 006'nın var olmayan tabloları ALTER etmesini düzelt | `[D0]` | B03 |
+| 1.4 | Migration'ları idempotent yap (`IF NOT EXISTS`, `ON CONFLICT`) + transaction sarmalaması | `[D0]` | B08 |
+| 1.5 | **Migration çalıştırıcı** ekle (sürüm tablosu + kilit + eksikleri uygula) | `[D0]` | B05 — üç kez elle uygulama acısının kalıcı çözümü |
+| 1.6 | Down (geri alma) betikleri | `[D0]` | — |
+| 1.7 | Seed'i `initdb.d` dışına taşı; demo şifre hash'ini bilinen bir şifreyle yeniden üret | `[D0]` | B06 — sıfırdan kurulumda giriş çalışmıyor |
+| 1.8 | Seed verisi tutarsızlığını düzelt (arsa payı toplamı, birim sayısı) | `[D0]` | B15 |
+| 1.9 | `go build ./...` çalışacak hale getir (`backend/api/` ölü dizinini kaldır) | `[D0]` | B04 |
+| 1.10 | 13 servisin `main.go` default portunu compose ile eşitle; çakışmaları gider | `[D0]` | B13 |
+| 1.11 | `firebase-credentials.json` mount'unu koşullu yap | `[D0]` | B07 |
+| 1.12 | CI: Go sürümünü `go.mod` ile eşitle; `\|\| true` kaldır; Trivy kapısı; `go build ./... && go vet ./...` | `[D0]` | B09, B10, B11 |
+| 1.13 | `003`'ün `audit_logs` DROP'unu ALTER'a çevir | `[D0]` | B14 |
+
+**Çıkış ölçütü:** Temiz makinede `docker compose up` → tüm migration'lar uygulanır, demo kullanıcıyla giriş yapılır.
+**Kanıt gereksinimi:** `[D4]` için Docker gerekli → `questions.md` S-01.
+
+## FAZ 2 — Kimlik, Yetki ve İzolasyon
+
+**Amaç:** Hassas verinin internete açık olmaması ve bir sitenin verisinin diğerine sızmaması.
+
+| # | İş | Durum | Kanıt / not |
+|---|---|---|---|
+| 2.1 | Gateway'e zorunlu JWT doğrulama (allowlist: `/health`, `/auth/*`) | `[D0]` | B17 — en kritik güvenlik açığı |
+| 2.2 | Kong'a `jwt` plugin'i; rate-limiting'i 24 servise yay | `[D0]` | B17, B31 |
+| 2.3 | 22 servise `AuthMiddleware` (savunma derinliği) | `[D0]` | B17 |
+| 2.4 | CORS'u origin allowlist'e çevir | `[D0]` | B31 |
+| 2.5 | `JWT_SECRET` boşsa başlatmayı durdur; `WithValidMethods`; compose default'unu kaldır | `[D0]` | B20 |
+| 2.6 | `POST /users/me/active-property` sahiplik doğrulaması | `[D0]` | B18 — tenant izolasyonunun tek dayanağı |
+| 2.7 | Rolleri `(user_id, property_id)` çiftine bağla; JWT'ye aktif site rolleri | `[D0]` | B19 |
+| 2.8 | `RequireRole`'ü tüm yönetim uçlarına uygula; rol/yetki matrisi | `[D0]` | B28, M-60 |
+| 2.9 | Admin panelde rol bazlı görünürlük + sunucu tarafı zorlama | `[D0]` | B28 |
+| 2.10 | Yönetici mobilde RBAC fail-open'ı düzelt; `AUDITOR` kısıtı | `[D0]` | B26 |
+| 2.11 | Yönetici mobilde router auth guard | `[D0]` | B27 |
+| 2.12 | Gerçek çıkış: token denylist (Redis) + mobilde token silme | `[D0]` | B29 |
+| 2.13 | Refresh/access token türü ayrımı (`typ` claim) + rotasyon + yeniden kullanım tespiti | `[D0]` | B30 |
+| 2.14 | IDOR kapatma: `GET /assessments/:id`, ödeme sahipliği, talep site kontrolü | `[D0]` | B23, B24, B64 |
+| 2.15 | `CreateResident`'ın başka siteye ait kullanıcıyı sessizce bağlamasını engelle | `[D0]` | B25 |
+| 2.16 | TCKN/telefon şifreleme (`pkg/encryption`'ı bağla) + maskeleme + erişim denetimi | `[D0]` | B36 |
+| 2.17 | Ham veritabanı hatalarının istemciye dönmesini engelle | `[D0]` | B37 |
+| 2.18 | `DB_SSLMODE` tanımla; sabit şifreleme anahtarını kaldır (KDF + rotasyon) | `[D0]` | B21, B44 |
+| 2.19 | Şifremi unuttum + OTP + şifre politikası + hesap kilitleme | `[D0]` | C.1 — rakibin en çok şikayet edilen noktası |
+
+**Çıkış ölçütü:** Kimliksiz hiçbir uç nokta kalmaz; bir tenant'ın token'ıyla diğerinin verisine erişim
+denemesi otomatik testte başarısız olur.
+
+## FAZ 3 — Denetim İzi ve Gözlemlenebilirlik
+
+| # | İş | Durum | Kanıt / not |
+|---|---|---|---|
+| 3.1 | `audit_logs` kolon uyuşmazlığını gider (kod ⟷ şema) | `[D0]` | B59 — KVKK taahhüdü bugün karşılanmıyor |
+| 3.2 | `old_values`/`new_values` gerçekten yaz | `[D0]` | — |
+| 3.3 | Audit hatasının yutulmasını durdur (log + uyarı) | `[D0]` | KN-2 |
+| 3.4 | Hassas veri **okuma** logu (TCKN, maaş, sır gösterme) | `[D0]` | M-03 |
+| 3.5 | Yapılandırılmış log + istek kimliği + status/süre | `[D0]` | M-10 |
+| 3.6 | Sağlık kontrolü, metrik, hata takibi (mobil çökme raporu dahil) | `[D0]` | M-10 |
+| 3.7 | Yedekleme + **geri yükleme provası** | `[D0]` | M-12 |
+
+## FAZ 4 — Para Doğruluğu `[kısmen BLOKE — S-02]`
+
+**Amaç:** Gösterilen her tutarın doğru olması. Bugün bakiye kullanıcı sayısıyla çarpılıyor ve
+ödeme hiçbir zaman tamamlanmıyor.
+
+| # | İş | Durum | Kanıt / not |
+|---|---|---|---|
+| 4.1 | `GetUnitBalance` kartezyen join'ini düzelt (hazır `unit_balances` view'ını kullan) | `[D0]` | B45 — şema değişikliği gerektirmez |
+| 4.2 | Ödemeyi tamamla: `paid_amount` + tahakkuk durumu, tek transaction, `FOR UPDATE` | `[BLOKE]` S-02 | B46, B47 |
+| 4.3 | Para tipini `float64`'ten kuruş (`int64`) veya `decimal`'e çevir | `[D0]` | B50 — şema zaten `DECIMAL` |
+| 4.4 | Tahakkukta kuruş yuvarlama + kalan dağıtımı (largest remainder) | `[D0]` | B51 |
+| 4.5 | Ödeme idempotency (`Idempotency-Key`) | `[BLOKE]` S-02 | B48 |
+| 4.6 | `CalculateTotalAmount`'a `deleted = 0`; tahsilat oranı kesme hatası | `[D0]` | B53, B54 |
+| 4.7 | `ListDebtors`'ı daire bazlı yap (kiracılı/boş daireler de görünsün) | `[D0]` | B55 |
+| 4.8 | `ListPropertyPayments` tenant filtresini ödeme üzerinden kur | `[D0]` | B56 |
+| 4.9 | Gecikme tazminatı (KMK m.20/2, aylık %5 — **parametrik**) | `[BLOKE]` S-02 | B52, S-05 |
+| 4.10 | Mobil ödeme ekranını gerçek API'ye bağla ya da kaldır | `[D0]` | B49 |
+| 4.11 | Ödeme sağlayıcısı adaptörü (port/adapter, sandbox-stub ile) | `[BLOKE]` S-06 | C.4 |
+
+## FAZ 5 — Mevcut Modülleri Uçtan Uca Bitirme
+
+Sıra, değer/çaba oranına göre. Her dilim `tasks/dogrulama-politikasi.md` §2 "Bitti" tanımına uyar.
+
+| # | Dilim | Durum | Not |
+|---|---|---|---|
+| 5.1 | **Duyurular** — community'deki auth'suz mock'u gerçeğe çevir (tablolar hazır) | `[D0]` | Hedefleme + okundu bilgisi + çok kanallı yayın; en hızlı kazanım |
+| 5.2 | **Talepler** tamamlama — dosya eki, `unit_id`, atama, SLA, yorum | `[D0]` | Zaten en olgun modül; C.6 |
+| 5.3 | **Sakinler** tamamlama — tarihli ilişki, malik/kiracı, devir + borcu yoktur | `[D0]` | C.2 |
+| 5.4 | **Sayaç ve tüketim** — iot'u DB'ye bağla, yönetmelik paylaşımı, tüketim detay faturası | `[D0]` | C.8; rakibin somut şikayeti |
+| 5.5 | **Gider yönetimi** — kalıcılık, onay akışı, bütçe kontrolü, mobilden gider girme | `[BLOKE]` S-02 | C.5; rakibin en büyük boşluğu |
+| 5.6 | **Kasa/banka** — bakiye, IBAN listesi, ekstre içe aktarma + otomatik eşleştirme | `[BLOKE]` S-02 | C.4; yöneticinin ilk baktığı ekran |
+| 5.7 | **Sakin uygulaması** gerçek hale getirme | `[D0]` | INTERNET izni, base URL, kalıcı oturum, route erişimi, gerçek veri (B/C bölümleri) |
+| 5.8 | **Yönetici uygulaması** gerçek hale getirme | `[D0]` | base URL (`/v1` hatası), auth guard, logout, gerçek veri |
+| 5.9 | **Raporlar** — gerçek veriyle besleme, parametre, auth, kalıcı saklama | `[D0]` | C.9 |
+| 5.10 | **Dashboard** — aggregator zarf hatasını düzelt, gerçek sayılar | `[D0]` | B66 |
+| 5.11 | **Bildirim altyapısı** — kuyruk, şablon, kategori/tercih, teslim raporu, push kurulumu | `[BLOKE]` S-10 | M-05; mobilde push hiç yok |
+| 5.12 | **Dosya depolama** — S3 uyumlu, imzalı indirme, belge modülünü bağla | `[BLOKE]` S-09 | M-04; tüm belge/fotoğraf özellikleri buna bağlı |
+| 5.13 | Kalan `[MOCK]` modüller: ziyaretçi, otopark, rezervasyon, personel, kargo, varlık, sözleşme, envanter, anket, ilan | `[D0]` | S-03 kararına göre: gerçekleştir ya da arayüzden kaldır |
+
+## FAZ 6 — Yönetişim Katmanı (KMK) — **ürünü rakipten ayıracak katman**
+
+Bugün tamamen yok. Aidatın yasal dayanağı ve icra gücü buradan doğar.
+
+| # | Dilim | Durum | Dayanak |
+|---|---|---|---|
+| 6.1 | **İşletme projesi (yıllık bütçe)** + tebliğ + 7 gün itiraz + kesinleşme + resmî PDF | `[D0]` | KMK m.37; İİK m.68 belgesi |
+| 6.2 | **Kat malikleri kurulu** — çağrı (15 gün), gündem, hazır bulunanlar, **yeter sayı motoru** (sayı+arsa payı), vekâlet sınırı, **karar nisabı motoru** (salt/çoğunluk/4-5/oybirliği) | `[D0]` | KMK m.29-31, 42, 45 |
+| 6.3 | **Karar defteri ve işletme defteri** + noter kapatma hatırlatıcısı | `[D0]` | KMK m.32, m.36 |
+| 6.4 | **Yönetim planı** + parametrelere bağlanması | `[D0]` | KMK m.28 |
+| 6.5 | **Denetçi ve hesap verme** — 3 aylık denetim, yıllık hesap özeti, ibra, denetçi paketi | `[D0]` | KMK m.39, m.41 |
+| 6.6 | **Yönetim organları** — seçim, görev süresi, imza yetkisi, devir teslim | `[D0]` | KMK m.34, m.40 |
+| 6.7 | **Hukuk ve icra takibi** — ihtar, icra dosyası, kanuni ipotek, masraf/faiz mahsubu | `[D0]` | KMK m.20, m.22, m.25 |
+| 6.8 | **Toplu yapı organları** — blok kurulu, temsilciler kurulu, blok bazlı gider ayrımı | `[D0]` | KMK m.66-73; S-13 |
+
+## FAZ 7 — Uyum ve Operasyonel Derinlik
+
+| # | Dilim | Durum | Not |
+|---|---|---|---|
+| 7.1 | **Periyodik bakım ve yasal uyum takvimi** — asansör, yangın, su deposu, paratoner, jeneratör, baca, havuz | `[D0]` | M-31; denetimde ilk sorulan; hiç yok |
+| 7.2 | **Sigorta yönetimi** — DASK takibi, poliçe yenileme, hasar | `[D0]` | M-36 |
+| 7.3 | **Acil durum ve afet** — plan, tahliye, kritik altyapı, tatbikat, deprem sonrası akış | `[D0]` | M-37; Türkiye için yüksek değer |
+| 7.4 | **Personel** — bordro, SGK, izin bakiyesi, İSG, kıdem karşılığı | `[D0]` | M-34 |
+| 7.5 | **Kural ihlali ve yaptırım** + **tadilat izni** | `[D0]` | M-44, M-45 |
+| 7.6 | **Ortak alan gelir yönetimi** (m.45 oybirliği kuralıyla) | `[D0]` | M-46 |
+| 7.7 | **Vergi/SGK beyan takvimi** | `[D0]` | M-29 |
+| 7.8 | **KVKK uyum yönetimi** — saklama/imha, ilgili kişi başvurusu, kamera/biyometrik envanteri | `[D0]` | S-04 |
+
+## FAZ 8 — Ölçek ve Ticarileşme
+
+| # | Dilim | Durum |
+|---|---|---|
+| 8.1 | **Onboarding ve veri aktarımı** (rakipten geçiş) — kurulum sihirbazı, doğrulamalı toplu içe aktarma, açılış bakiyesi | `[D0]` |
+| 8.2 | Test altyapısı: birim + entegrasyon (testcontainers) + sözleşme testi + mobil golden test | `[D0]` |
+| 8.3 | Ölü kod ve ölü şema temizliği (~3.900 satır, 47 tablo) | `[D0]` |
+| 8.4 | Tek giriş kapısı kararı (Kong ↔ gateway birleştirme) | `[D0]` |
+| 8.5 | OpenAPI'yi gerçek uçlarla senkronize et + sözleşme testi | `[D0]` |
+| 8.6 | Yönetim organizasyonu (portföy) katmanı | `[D0]` |
+| 8.7 | Çok dillilik, erişilebilirlik, offline | `[D0]` |
+| 8.8 | Akıllı tahsilat, ESG, AI yetenekleri (gerçek entegrasyonla) | `[D0]` |
+| 8.9 | SaaS abonelik/faturalama | `[D0]` |
+| 8.10 | Mobil yayın (Play Store iç test → üretim; iOS için `ios/` oluşturma) | `[D0]` |
 
 ---
 
-## Admin Mobil Uygulaması (Flutter `admin_app/`)
+# USTALIK YOL HARİTASI
 
-| Ekran | Durum | Notlar |
-|-------|-------|--------|
-| Login | ✅ | |
-| Dashboard | ✅ | |
-| Sakinler | ✅ | Gerçek API'ye bağlandı, `/users`→`/residents` konvansiyon birleştirmesi yapıldı (Mock→DB Faz 1, Adım 4/4 — Faz 1 tamamlandı) |
-| Finans | ✅ | |
-| Sayaçlar | ✅ | |
-| Duyurular | ✅ | |
-| Talepler | ✅ | |
-| Raporlar | ✅ | |
-| Personel Yönetimi | ✅ | |
-| Rezervasyon Yönetimi | ✅ | |
-| Ziyaretçi Yönetimi | ✅ | |
-| Enerji Panosu | ✅ | |
-| Otopark Yönetimi | ✅ | |
-| Envanter Yönetimi | ✅ | |
-| Gider Yönetimi | ✅ | AI fatura tarama dahil |
-| Sözleşme Yönetimi | ✅ | |
-| Varlık Yönetimi | ✅ | |
-| İlan Panosu | ✅ | |
-| Banka Entegrasyonu | ✅ | |
-| Akıllı Tahsilat | ✅ | |
-| Toplantı Sihirbazı | ✅ | |
-| Koli Takibi | ✅ | |
-| Güvenlik Turu | ✅ | |
-| Anket Yönetimi | ✅ | |
-| API Ayarları | ✅ | |
-| Belge Yönetimi | 📋 | Servis hazır, admin app ekranı yok |
-| NPS Analiz | 📋 | Servis hazır, ekran yok |
-| ESG Raporu | 📋 | Servis hazır, ekran yok |
+CLAUDE.md gereği: bu projede dünya çapında uzmanlığa götüren yol. Klişe tavsiye yok — **bu kod tabanında
+karşılığı olan**, doğrulanabilir teknikler. Her madde "neden bu projede önemli" gerekçesiyle yazıldı.
+
+## U.1 PostgreSQL — finansal veri modelleme
+
+- **Çift taraflı kayıt (double-entry ledger).** Şemada `ledger_entries` + `ledger_lines` **zaten var**
+  (`001:176,191`) ve `debit XOR credit` CHECK kısıtı bile yazılmış — ama hiç kullanılmıyor. En iyi %1'in
+  yaklaşımı: bakiyeyi bir kolonda tutmak yerine **değiştirilemez hareketlerden türetmek**. Böylece
+  "bakiye neden bu?" sorusu her zaman cevaplanabilir olur. `unit_balances` view'ı (`001:422`) bunu doğru yapıyor;
+  bugün kullanılan kırık sorgu yerine bu benimsenmeli.
+- **Para asla kayan nokta değil.** İki doğru seçenek: `NUMERIC` + `shopspring/decimal`, ya da tamsayı kuruş
+  (`int64`). Şemadaki `invoices.amount_total INTEGER` (`003:37`) aslında doğru yaklaşımın izi.
+- **Kuruş dağıtımı: largest remainder yöntemi.** 1000 TL'yi 3 daireye bölerken 333,33×3 = 999,99 → 1 kuruş
+  kaybolur. Doğru yöntem: tam bölüm + kalanı belirli bir sıraya (en yüksek arsa payı, sonra birim numarası)
+  göre dağıtmak. Toplamın gider tutarına **tam** eşit olması yasal bir gerekliliktir.
+- **Zaman aralığı çakışmasını veritabanında engelle:**
+  `EXCLUDE USING gist (facility_id WITH =, tstzrange(start_time, end_time) WITH &&)`.
+  Mevcut `UNIQUE(facility_id, start_time)` (`005:282`) yalnızca aynı başlangıç saatini engelliyor —
+  10:00-12:00 ile 11:00-13:00 çakışmasını kaçırıyor. Bu, uygulama katmanında yazılan çakışma
+  kontrollerinin yarış koşullarına açık olmasının da çözümüdür.
+- **Satır düzeyi güvenlik (RLS) ile tenant izolasyonu.** Bugün izolasyon "her sorguya filtre yazmayı
+  hatırlamak"a bağlı ve 11 sorguda unutulmuş. RLS ile veritabanı bunu **zorlar**:
+  `CREATE POLICY tenant_isolation ON units USING (property_id = current_setting('app.property_id')::uuid)`.
+  Bağlantı başına `SET LOCAL app.property_id` yeterli. Bu, tek başına B18/B19/B61 sınıfı hataları imkânsız kılar.
+- **Türkçe arama:** `pg_trgm` + GIN index. Bugün `ILIKE '%...%'` (`resident.go:57`) leading-wildcard
+  olduğu için index kullanamıyor → full scan. Ek olarak `citext` veya `unaccent` ile "İ/ı" sorunu çözülür.
+- **Keyset (cursor) sayfalama**, `OFFSET` değil: büyük tabloda `OFFSET 10000` giderek yavaşlar.
+- **Kuyruk gerekiyorsa** `SELECT ... FOR UPDATE SKIP LOCKED` — ayrı bir kuyruk altyapısı kurmadan
+  güvenilir iş dağıtımı (bildirim gönderimi, rapor üretimi için yeterli).
+- **Kısmi index (partial index):** `WHERE deleted = 0` filtreli sorgular için
+  `CREATE INDEX ... WHERE deleted = 0` — hem küçük hem hızlı.
+- **`generated always as ... stored`**: `meter_readings.consumption` (`001:256`) bunu doğru kullanıyor —
+  türetilmiş değeri uygulamada hesaplamak yerine veritabanına bırakmak tutarlılık garantisi verir.
+- **Teşhis araçları:** `pg_stat_statements` (yavaş sorgu), `EXPLAIN (ANALYZE, BUFFERS)`,
+  `auto_explain`. Az bilinen: `pg_stat_statements` ile "en çok toplam süre harcayan sorgu" listesi,
+  optimizasyon için tek başına en verimli girdidir.
+
+## U.2 Mimari — doğru soruyu sormak
+
+- **25 mikroservis bu proje için yanlış karar.** Denetimin gösterdiği: 22'si mock, ortak paketler ölü,
+  aynı entegrasyon 2-3 kez yazılmış, iki farklı giriş kapısı var. Küçük ekip için doğru desen
+  **modüler monolit**: tek dağıtım birimi, modül sınırları paket düzeyinde net, tek veritabanı,
+  tek transaction. Ölçek gerektiğinde modül sınırından servis çıkarılır (strangler fig).
+  Bu, "en iyi %1"in dağıtık sistem *kurmaktan çok kaçındığı* alandır — dağıtık sistem bir maliyet,
+  bir yetenek değil.
+- **Mimari kararları yazıya geçir (ADR).** Her önemli karar için: bağlam, seçenekler, karar, sonuçlar.
+  Bu projede "neden Kong **ve** özel gateway?" sorusunun cevabı hiçbir yerde yok; ADR olsaydı olurdu.
+- **Sözleşme önce (contract-first).** `api/openapi.yaml` bugün bayat ve 2 dokümante uç kodda yok.
+  Doğrusu: OpenAPI'yi kaynak kabul et, sunucu iskeletini ve istemciyi ondan üret, CI'da sözleşme testi çalıştır.
+- **Outbox deseni**: veritabanı yazımı ile dış olay yayınını (bildirim, webhook) atomik yapmak için.
+  "Ödeme kaydedildi ama bildirim gitmedi" ya da tersi durumunu yapısal olarak engeller.
+- **Idempotency her mali uçta zorunlu.** İstemciden `Idempotency-Key`, sunucuda anahtar tablosu.
+  Ağ kopması ve çift tıklama gerçektir; bugün mükerrer ödeme mümkün.
+
+## U.3 Go — üretim disiplini
+
+- `golangci-lint` ile **`errcheck`** açık: denetimin en yıkıcı bulgusu (`_ = audit.LogAction`) bu linter'la
+  otomatik yakalanırdı. Ayrıca `sqlclosecheck`, `rowserrcheck`, `bodyclose`, `contextcheck`.
+- **`go test -race`** ve **fuzzing** (`go test -fuzz`): dağıtım matematiği ve IBAN/plaka/TCKN doğrulama gibi
+  saf fonksiyonlar fuzzing için ideal.
+- **testcontainers-go**: gerçek PostgreSQL'e karşı entegrasyon testi. Bugünkü testler mock router
+  kullandığı için hiçbir şey doğrulamıyor; testcontainers ile migration'lar + gerçek sorgular test edilir
+  (ve FAZ 1'deki migration çöküşü CI'da yakalanırdı).
+- **`sqlc`** veya `pgx` + elle yazılmış sorgular: ORM yerine SQL'i açık tutmak, `sqlc` ile derleme
+  zamanında tip güvenliği. `sqlc`, kolon adı uyuşmazlığını (B59) **derleme zamanında** yakalar.
+- `context` yayılımı: `c.Request.Context()` kullan, `context.Background()` kullanma (bugün 18 yerde hata var).
+- **Yapılandırma doğrulaması başlangıçta (fail-fast):** `JWT_SECRET` boşsa `log.Fatal`. Bugün boş anahtarla
+  token doğrulanıyor — sessiz felaket.
+- `errgroup` ile paralel çağrı + tek timeout: dashboard aggregator bugün 5 servisi sırayla çağırıyor (en kötü 10 sn).
+- **Az bilinen:** `go build -gcflags="-m"` ile kaçış analizi; `pprof` ile alokasyon profili.
+  Ama önce ölç: optimizasyon öncesi `pg_stat_statements` neredeyse her zaman daha büyük kazanç gösterir.
+
+## U.4 Flutter — üretime hazırlık
+
+- **Flavor + `--dart-define`**: taban adresi koda gömmek (bugün `http://localhost:8000`) gerçek cihazda
+  çalışmaz. `--dart-define=API_URL=...` + `String.fromEnvironment` ile ortam ayrımı.
+- **Kod üretimi gerçekten kullan:** `freezed` + `json_serializable` pubspec'te var ama 0 kullanım;
+  tüm yanıtlar `Map<String, dynamic>` olarak elle işleniyor. Sonuç: anket ekranı API veri döndürdüğü an
+  çöküyor (var olmayan alan okunuyor). Tipli modeller bu sınıf hatayı derleme zamanına taşır.
+- **`local_auth` için `FlutterFragmentActivity`** zorunlu — bugün `FlutterActivity` olduğu için biyometrik
+  hiçbir zaman çalışmıyor. Bu, "kod yazıldı ama çalıştırılmadı"nın ders niteliğinde örneği.
+- **Release manifest'i ayrı denetle:** izinler yalnızca `debug/AndroidManifest.xml`'de olduğu için
+  release APK'da internet erişimi yok. `flutter build apk --release` sonrası `aapt dump permissions` ile doğrula.
+- **Golden test** (görsel regresyon) + `integration_test` paketi: kritik akışlar (giriş, ödeme) için.
+- Offline-first: saha çalışan yönetici için yazma kuyruğu + çakışma çözümü. Rakibin en büyük boşluğu
+  "mobilden işlem yapamama" — bunu offline destekle çözmek doğrudan farklılaşma sağlar.
+- **Az bilinen:** `flutter build apk --analyze-size` ile boyut analizi; `--split-debug-info` ile
+  sembol dosyalarını ayırıp çökme raporlarını okunur tutmak.
+
+## U.5 Çok kiracılı SaaS
+
+- İzolasyonu **mimariyle** garanti et (RLS), kod incelemesiyle değil. Bir tenant'ın token'ıyla diğerinin
+  kaynağına erişim denemesi **otomatik testte** olmalı — bu test bir kez yazılırsa tüm sınıf kapanır.
+- Tenant bağlamını arka plan işlerine ve kuyruk mesajlarına taşı; önbellek anahtarına tenant ekle.
+- Tenant yaşam döngüsünü baştan tasarla: kurulum, askıya alma, **veri ihracı**, tam silme (KVKK).
+- Gürültülü komşu (noisy neighbor): tenant bazlı hız sınırı ve kota.
+
+## U.6 Türkiye alan bilgisi — asıl rekabet avantajı
+
+Yazılım tarafı taklit edilebilir; **mevzuat derinliği** edilemez.
+
+- **634 sayılı KMK'yı madde madde bil** ve her maddenin yazılımdaki karşılığını kur:
+  m.20 (gider paylaşımı ve aylık %5 gecikme tazminatı), m.22 (kanuni ipotek, müteselsil sorumluluk),
+  m.29-33 (çağrı, yeter sayı, oy, karar defteri, hâkimin müdahalesi), m.34-41 (yönetici, defterler,
+  işletme projesi, hesap verme, denetçi), m.42/45 (nisaplar), m.66-73 (toplu yapı).
+- **Yargıtay içtihadını izle.** Kanun metni her şeyi söylemez; "zemin kat asansör giderine katılır mı",
+  "boş dairenin ısınma payı", "işyerine farklı katsayı" gibi sorular içtihatla netleşir.
+  Bu bilgi, ürünün parametrelerini doğru tasarlamanın tek yolu.
+- **İkincil mevzuat:** ısı/sıhhi sıcak su gider paylaşım yönetmeliği (pay ölçer), asansör işletme ve bakım
+  yönetmeliği (periyodik kontrol + etiket), binaların yangından korunması yönetmeliği,
+  6331 İSG (site işverendir), 5188 özel güvenlik, KVKK + VERBİS, İİK m.68.
+- **Kural motoru yaz, kural gömme.** Yönetim planı siteye göre değişir; kanun zamanla değişir.
+  Oranlar yürürlük tarihli parametre olmalı ve her parametrede **mevzuat dayanağı alanı** bulunmalı.
+  Bu, hukuki bir düzeltmenin kod değişikliği gerektirmemesini sağlar — ölçekte kritik.
+- **Doğrulama algoritmaları:** TCKN kontrol algoritması, IBAN mod-97, plaka normalizasyonu,
+  UAVT adres kodu. Küçük ama güven veren detaylar.
+- **Ekosistem entegrasyonları:** e-Fatura/e-Arşiv (GİB), e-Devlet, tapu, belediye, DASK,
+  bankaların kurumsal tahsilat sistemleri, açık bankacılık.
+
+## U.7 Ürün — rakibin bıraktığı boşluk
+
+`yorum_analizleri.txt`'ten çıkan tek cümlelik strateji: **rakip, mobili web'in çok gerisinde bıraktı.**
+
+- **Mobil-panel işlev paritesi**, özellikle yönetici tarafında: mobilden gider girme, tahsilat işleme,
+  ödeme-sakin eşleştirme, kasa/IBAN görüntüleme. Bunlar bugün rakipte yok ve bu projede de yok →
+  ilk gerçekleştiren kazanır.
+- **Ödeme akışında dürüstlük:** kalem seçerek ödeme, paranın hangi borca gittiğinin anında gösterilmesi,
+  banka hareketinin anında düşülmesi (gereksiz faiz oluşmaması).
+- **Tüketim şeffaflığı:** m³, gün sayısı, birim fiyat, ortak alan payı ve PDF — rakipte "sadece toplam" var.
+- **Talep kapanışında sakin onayı** — bu projede zaten doğru yapılmış, korunmalı.
+- **Geçiş kolaylığı:** rakipten veri aktarımı, satışın önündeki en büyük engeldir.
+- **Uyum takvimi** (asansör/yangın/su deposu) — yöneticinin gerçek kaygısı ve hiçbir rakipte
+  düzgün yok; denetimde ilk sorulan şey.
+
+## U.8 Kişisel çalışma disiplini
+
+- **Kanıtsız "tamam" yazma.** Bu projedeki tek en büyük hasar bundan doğdu (%49 yanlış iddia).
+- **Dikey dilim**: bir şeyi uçtan uca bitirmek, on şeyi yarım bırakmaktan kıyaslanamaz ölçüde değerlidir.
+- **Hatayı görünür kıl.** Sessiz `catch`, `_ = err`, sahte başarı mesajı — hepsi gelecekteki kendine
+  kurulan tuzaktır. `errcheck` ve "sessiz fallback yasak" kuralı bunu yapısal olarak engeller.
+- **Kurulumu her zaman sıfırdan test et.** "Bende çalışıyor" ile "kurulabilir" arasındaki fark,
+  bu projede tüm veritabanı şemasının yeniden üretilemez olması demek oldu.
+- **Silmeyi öğren.** ~3.900 satır ölü kod ve 47 ölü tablo, bakım maliyeti ve yanlış "var" algısı üretiyor.
+  Silinen kod git geçmişinde durur; ölü kod ise her okumada vergi alır.
 
 ---
 
-## Altyapı & DevOps
+## Bağlantılı dosyalar
 
-| Konu | Durum | Notlar |
-|------|-------|--------|
-| Docker Compose (geliştirme) | ✅ | |
-| Kong API Gateway | ✅ | Temel 5 servis yönlendirmesi var |
-| Kubernetes manifests | ✅ | `k8s/` dizininde |
-| CI/CD (GitHub Actions) | ✅ | `.github/workflows/ci-cd.yaml` |
-| PostgreSQL + migrations | ✅ | 5 migration tamamlandı |
-| Redis | ✅ | |
-| MongoDB (IoT) | ✅ | |
-| Kafka | ✅ | Zookeeper ile |
-| Kong güncelleme (yeni servisler) | 📋 | 20+ servis kong.yml'e eklenmeli |
-| Üretim ortamı env değişkenleri | 📋 | `.env.example` mevcut |
-| SSL/TLS yapılandırması | 📋 | |
-| Monitoring / Alerting | 📋 | Grafana, Prometheus |
-| Log aggregation | 📋 | ELK veya Loki |
-
----
-
-## Entegrasyonlar
-
-| Entegrasyon | Durum | Notlar |
-|-------------|-------|--------|
-| iyzico (ödeme) | ✅ | Sandbox bağlantısı kurulu |
-| Firebase (push) | ✅ | `firebase-credentials.json` gerekli |
-| SMS servisi | ✅ | `pkg/integrations/sms/` hazır |
-| WhatsApp | ✅ | `pkg/integrations/whatsapp/` hazır |
-| AI fatura tarama | ✅ | OpenAI Vision / Google Document AI |
-| Banka entegrasyonu | ✅ | `services/banking/turkish_banks.go` |
-| E-Devlet / Belediye | 📋 | Planlandı |
-| e-Fatura | 📋 | Planlandı |
-
----
-
-## Ustalık Entegrasyon Yol Haritası (Eksik & Mock Özelliklerin Bağlanması)
-
-Bu yol haritası, sistemdeki mock özellikleri devre dışı bırakıp, gateway uyuşmazlıklarını düzelterek tüm yapıyı uçtan uca gerçek verilere bağlamak için planlanmıştır.
-
-### Faz 1: API Gateway Rota Düzeltmeleri (Quick Win) — Durum: ✅ Tamamlandı
-Aşağıdaki gerçek servislerin ön yüz tarafından çağrılan ancak Gateway üzerinde 404 hatası veren tüm alt rotalarının `backend/cmd/gateway/main.go` içerisine eklenmesi:
-- [x] `parking-service` proxy rotalarının eklenmesi: `/api/v1/vehicles`, `/api/v1/parking-zones`, `/api/v1/parking-logs`, `/api/v1/plate-recognition`
-- [x] `personnel-service` proxy rotalarının eklenmesi: `/api/v1/employees`, `/api/v1/payroll`, `/api/v1/leaves`
-- [x] `reservation-service` proxy rotalarının eklenmesi: `/api/v1/facilities`
-- [x] `inventory-service` proxy rotalarının eklenmesi: `/api/v1/stock-movements`
-- [x] `package-service` proxy rotalarının eklenmesi: `/api/v1/carriers`, `/api/v1/units/:unit_id/packages`
-- [x] `patrol-service` proxy rotalarının eklenmesi: `/api/v1/patrol-routes`, `/api/v1/patrol-sessions`
-- [x] `smart-collection-service` proxy rotalarının eklenmesi: `/api/v1/collection` (altındaki tüm API yolları)
-- [x] `survey-service` proxy rotalarının eklenmesi: `/api/v1/my-surveys`
-- [x] `asset-service` proxy rotalarının eklenmesi: `/api/v1/asset-categories`
-
-### Faz 2: Banka Entegrasyon Servisinin Entegrasyonu — Durum: ✅ Tamamlandı
-- [x] `banking` servisinin `docker-compose.yml` dosyasına eklenmesi.
-- [x] Gateway üzerinde `/api/v1/banking` rotasının proxy edilmesi.
-- [x] Next.js ve Flutter (`admin_app`) tarafında banka entegrasyon ekranlarının bu servise bağlanması.
-
-### Faz 3: Dashboard Genel İstatistikleri (Aggregator) — Durum: ✅ Tamamlandı
-- [x] Gateway'deki mock `/api/v1/dashboard/stats`, `/api/v1/dashboard/recent-payments`, `/api/v1/dashboard/recent-requests` handler'larının kaldırılması.
-- [x] Backend tarafında merkezi bir dashboard/stats aggregator yapısının kurulması veya mevcut ana servislere entegre edilmesi.
-- [x] Front-end'den atılan istatistik isteklerinin bu gerçek uç noktalara bağlanması.
-
-### Faz 4: Sayaç Yönetimi Servis Katmanı — Durum: ✅ Tamamlandı
-- [x] Gateway üzerindeki mock `/api/v1/meters` ve `/api/v1/meters/readings` rotalarının kaldırılması.
-- [x] Backend tarafında (örneğin `iot-service` veya `energy-service` içinde, ya da bağımsız bir servis varsa ona bağlayarak) gerçek sayaç yönetim servis katmanının (veri tabanı tabloları ve API rotalarıyla birlikte) kurulması veya bağlanması.
-- [x] Front-end sayaç yönetim ekranlarının bu gerçek uç noktalara bağlanması.
-
-### Faz 5: Raporlama Servis Katmanı — Durum: ✅ Tamamlandı
-- [x] Gateway üzerindeki mock `/api/v1/reports/` rotalarının kaldırılması.
-- [x] Backend tarafında (örneğin `finance-service`, `iot-service` veya bağımsız bir raporlama mekanizması) gerçek raporlama servis katmanının (PDF/Excel indirme) kurulması veya bağlanması.
-- [x] Front-end rapor indirme/üretme butonlarının bu gerçek servise yönlendirilmesi.
-- [x] `pkg/reports` kütüphanesi için birim testleri (unit tests) yazıldı, testler başarıyla geçti.
-
-## Ustalık Mobil Entegrasyon Yol Haritası
-
-### Faz 1: Sakin Uygulaması Entegrasyonu (`mobile/`) — Durum: ✅ Tamamlandı
-- [x] `mobile/lib/core/network/api_client.dart` içerisine eksik metotları (Rezervasyon, Duyuru, Anket, Kargo, İlan Panosu) eklemek.
-- [x] Sakin uygulaması Rezervasyon ekranını gerçek API'ye bağlamak.
-- [x] Sakin uygulaması Duyuru ve Anket ekranlarını gerçek API'ye bağlamak.
-- [x] Sakin uygulaması Kargo/Paket ekranını gerçek API'ye bağlamak.
-- [x] Sakin uygulaması İlan Panosu (Bulletin) ekranını gerçek API'ye bağlamak.
-
-### Faz 2: Yönetici Uygulaması Temel Servisleri (`admin_app/`) — Durum: ✅ Tamamlandı
-- [x] `admin_app/lib/core/network/api_client.dart` içerisine otopark, personel, ziyaretçi ve kargo metotlarını eklemek.
-- [x] Yönetici otopark ekranını gerçek `parking-service`'e bağlamak.
-- [x] Yönetici personel ekranını gerçek `personnel-service`'e bağlamak.
-- [x] Yönetici ziyaretçi ekranını gerçek `visitor-service`'e bağlamak.
-- [x] Yönetici kargo ekranını gerçek `package-service`'e bağlamak.
-
-### Faz 3: Yönetici Finansal ve İleri Düzey Servisler (`admin_app/`) — Durum: ✅ Tamamlandı
-- [x] `admin_app/lib/core/network/api_client.dart` içerisine banka ve rezervasyon metotlarını eklemek.
-- [x] Yönetici banka entegrasyon ekranını gerçek `banking-service`'e bağlamak.
-- [x] Yönetici Tesis Rezervasyon ekranını gerçek `reservation-service`'e bağlamak.
+| Dosya | İçerik |
+|---|---|
+| `tasks/audit-raporu.md` | İddia vs gerçek denetimi, kök nedenler, kritik bulgular |
+| `tasks/audit/` | Ayrıntılı kanıt raporları (5 dosya) |
+| `tasks/gap-analizi.md` | Modül durum matrisi, 97 mantık hatası (B01-B97), özellik bazlı eksik tamamlayıcılar |
+| `tasks/modul-envanteri.md` | Olması gereken 60 modülün referans modeli |
+| `tasks/dogrulama-politikasi.md` | "Bitti" tanımı, kanıt seviyeleri, sessiz başarısızlık yasağı |
+| `tasks/todo.md` | Aktif iş kuyruğu |
+| `tasks/questions.md` | Kullanıcı kararı bekleyen konular (S-01…S-18) |
+| `tasks/lessons.md` | Öğrenilen dersler |
+| `tasks/changelog.md` | Yapılan değişiklikler (kanıtla) |

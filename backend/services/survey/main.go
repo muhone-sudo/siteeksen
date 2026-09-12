@@ -2,12 +2,12 @@ package main
 
 import (
 	"log"
-	"net/http"
 	"os"
 	"time"
 
+	"github.com/siteeksen/backend/pkg/stub"
+
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 )
 
 // =====================================================
@@ -93,13 +93,7 @@ type SurveyStats struct {
 func main() {
 	r := gin.Default()
 
-	r.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"status":  "healthy",
-			"service": "survey",
-			"version": "1.0.0",
-		})
-	})
+	r.GET("/health", stub.Health("survey"))
 
 	v1 := r.Group("/api/v1")
 	{
@@ -138,293 +132,62 @@ func main() {
 }
 
 // Survey Handlers
-func listSurveys(c *gin.Context) {
-	now := time.Now()
-	endDate := now.Add(7 * 24 * time.Hour)
-
-	surveys := []Survey{
-		{
-			ID:                  uuid.New().String(),
-			PropertyID:          "prop-1",
-			Title:               "2026 Yılı Bütçe Oylaması",
-			Description:         "2026 yılı için önerilen site bütçesini onaylıyor musunuz?",
-			SurveyType:          "GENERAL_ASSEMBLY",
-			IsAnonymous:         false,
-			IsWeighted:          true,
-			AllowMultiple:       false,
-			StartsAt:            now.Add(-24 * time.Hour),
-			EndsAt:              &endDate,
-			Status:              "ACTIVE",
-			TotalEligibleVoters: 124,
-			TotalVotes:          78,
-			ParticipationRate:   62.9,
-			Options: []SurveyOption{
-				{ID: "opt-1", OptionText: "Onaylıyorum", VoteCount: 65, WeightedVoteCount: 7250.5, Percentage: 83.3},
-				{ID: "opt-2", OptionText: "Onaylamıyorum", VoteCount: 13, WeightedVoteCount: 1420.0, Percentage: 16.7},
-			},
-			CreatedAt: now.Add(-48 * time.Hour),
-		},
-		{
-			ID:                  uuid.New().String(),
-			PropertyID:          "prop-1",
-			Title:               "Havuz Çalışma Saatleri",
-			Description:         "Yaz döneminde havuzun çalışma saatlerini belirleyelim.",
-			SurveyType:          "POLL",
-			IsAnonymous:         true,
-			AllowMultiple:       false,
-			StartsAt:            now.Add(-12 * time.Hour),
-			EndsAt:              &endDate,
-			Status:              "ACTIVE",
-			TotalEligibleVoters: 124,
-			TotalVotes:          45,
-			ParticipationRate:   36.3,
-			Options: []SurveyOption{
-				{ID: "opt-1", OptionText: "08:00 - 20:00", VoteCount: 12, Percentage: 26.7},
-				{ID: "opt-2", OptionText: "09:00 - 21:00", VoteCount: 25, Percentage: 55.6},
-				{ID: "opt-3", OptionText: "10:00 - 22:00", VoteCount: 8, Percentage: 17.8},
-			},
-			CreatedAt: now.Add(-24 * time.Hour),
-		},
-		{
-			ID:                  uuid.New().String(),
-			PropertyID:          "prop-1",
-			Title:               "Elektrikli Araç Şarj İstasyonu",
-			Description:         "Otoparka elektrikli araç şarj istasyonu kurulmasını onaylıyor musunuz?",
-			SurveyType:          "VOTE",
-			IsAnonymous:         false,
-			IsWeighted:          true,
-			AllowComments:       true,
-			StartsAt:            now.Add(-72 * time.Hour),
-			Status:              "ENDED",
-			TotalEligibleVoters: 124,
-			TotalVotes:          98,
-			ParticipationRate:   79.0,
-			Options: []SurveyOption{
-				{ID: "opt-1", OptionText: "Evet", VoteCount: 72, Percentage: 73.5},
-				{ID: "opt-2", OptionText: "Hayır", VoteCount: 26, Percentage: 26.5},
-			},
-			CreatedAt: now.Add(-96 * time.Hour),
-		},
-	}
-
-	c.JSON(http.StatusOK, gin.H{"surveys": surveys, "total": len(surveys)})
+func listSurveys(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "survey")
 }
 
-func getActiveSurveys(c *gin.Context) {
-	now := time.Now()
-	endDate := now.Add(7 * 24 * time.Hour)
-
-	surveys := []Survey{
-		{
-			ID:                uuid.New().String(),
-			Title:             "Havuz Çalışma Saatleri",
-			SurveyType:        "POLL",
-			IsAnonymous:       true,
-			Status:            "ACTIVE",
-			TotalVotes:        45,
-			ParticipationRate: 36.3,
-			EndsAt:            &endDate,
-			Options: []SurveyOption{
-				{OptionText: "08:00 - 20:00", Percentage: 26.7},
-				{OptionText: "09:00 - 21:00", Percentage: 55.6},
-				{OptionText: "10:00 - 22:00", Percentage: 17.8},
-			},
-		},
-	}
-	c.JSON(http.StatusOK, gin.H{"surveys": surveys})
+func getActiveSurveys(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "survey")
 }
 
-func getSurveyStats(c *gin.Context) {
-	stats := SurveyStats{
-		TotalSurveys:     15,
-		ActiveSurveys:    2,
-		PendingVotes:     2,
-		CompletedSurveys: 13,
-	}
-	c.JSON(http.StatusOK, stats)
+func getSurveyStats(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "survey")
 }
 
-func getSurvey(c *gin.Context) {
-	id := c.Param("id")
-	now := time.Now()
-	endDate := now.Add(7 * 24 * time.Hour)
-
-	survey := Survey{
-		ID:                  id,
-		PropertyID:          "prop-1",
-		Title:               "Havuz Çalışma Saatleri",
-		Description:         "Yaz döneminde havuzun çalışma saatlerini belirleyelim.",
-		SurveyType:          "POLL",
-		IsAnonymous:         true,
-		AllowMultiple:       false,
-		StartsAt:            now.Add(-12 * time.Hour),
-		EndsAt:              &endDate,
-		Status:              "ACTIVE",
-		TotalEligibleVoters: 124,
-		TotalVotes:          45,
-		ParticipationRate:   36.3,
-		Options: []SurveyOption{
-			{ID: "opt-1", OptionText: "08:00 - 20:00", VoteCount: 12, Percentage: 26.7, DisplayOrder: 1},
-			{ID: "opt-2", OptionText: "09:00 - 21:00", VoteCount: 25, Percentage: 55.6, DisplayOrder: 2},
-			{ID: "opt-3", OptionText: "10:00 - 22:00", VoteCount: 8, Percentage: 17.8, DisplayOrder: 3},
-		},
-		CreatedAt: now.Add(-24 * time.Hour),
-	}
-	c.JSON(http.StatusOK, survey)
+func getSurvey(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "survey")
 }
 
-func getSurveyResults(c *gin.Context) {
-	id := c.Param("id")
-	c.JSON(http.StatusOK, gin.H{
-		"survey_id": id,
-		"results": []SurveyOption{
-			{ID: "opt-1", OptionText: "08:00 - 20:00", VoteCount: 12, Percentage: 26.7},
-			{ID: "opt-2", OptionText: "09:00 - 21:00", VoteCount: 25, Percentage: 55.6},
-			{ID: "opt-3", OptionText: "10:00 - 22:00", VoteCount: 8, Percentage: 17.8},
-		},
-		"total_votes":        45,
-		"participation_rate": 36.3,
-	})
+func getSurveyResults(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "survey")
 }
 
-func getSurveyVotes(c *gin.Context) {
-	id := c.Param("id")
-	now := time.Now()
-
-	votes := []SurveyVote{
-		{
-			ID:         uuid.New().String(),
-			SurveyID:   id,
-			OptionID:   "opt-2",
-			VoterName:  "Ali V.",
-			UnitNumber: "D.101",
-			Weight:     95.5,
-			VotedAt:    now.Add(-6 * time.Hour),
-		},
-		{
-			ID:         uuid.New().String(),
-			SurveyID:   id,
-			OptionID:   "opt-1",
-			VoterName:  "Ayşe K.",
-			UnitNumber: "D.205",
-			Weight:     120.0,
-			VotedAt:    now.Add(-4 * time.Hour),
-		},
-	}
-	c.JSON(http.StatusOK, gin.H{"votes": votes, "total": len(votes)})
+func getSurveyVotes(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "survey")
 }
 
-func createSurvey(c *gin.Context) {
-	var req SurveyRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	now := time.Now()
-	options := make([]SurveyOption, len(req.Options))
-	for i, opt := range req.Options {
-		options[i] = SurveyOption{
-			ID:           uuid.New().String(),
-			OptionText:   opt,
-			DisplayOrder: i + 1,
-		}
-	}
-
-	survey := Survey{
-		ID:                   uuid.New().String(),
-		PropertyID:           "prop-1",
-		Title:                req.Title,
-		Description:          req.Description,
-		SurveyType:           req.SurveyType,
-		IsAnonymous:          req.IsAnonymous,
-		IsWeighted:           req.IsWeighted,
-		AllowMultiple:        req.AllowMultiple,
-		AllowComments:        req.AllowComments,
-		ShowResultsBeforeEnd: req.ShowResultsBeforeEnd,
-		StartsAt:             now,
-		Status:               "DRAFT",
-		Options:              options,
-		CreatedBy:            "user-1",
-		CreatedAt:            now,
-	}
-
-	c.JSON(http.StatusCreated, survey)
+func createSurvey(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "survey")
 }
 
-func updateSurvey(c *gin.Context) {
-	id := c.Param("id")
-	c.JSON(http.StatusOK, gin.H{"id": id, "message": "Anket güncellendi"})
+func updateSurvey(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "survey")
 }
 
-func deleteSurvey(c *gin.Context) {
-	id := c.Param("id")
-	c.JSON(http.StatusOK, gin.H{"id": id, "message": "Anket silindi"})
+func deleteSurvey(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "survey")
 }
 
-func publishSurvey(c *gin.Context) {
-	id := c.Param("id")
-	c.JSON(http.StatusOK, gin.H{
-		"id":      id,
-		"status":  "ACTIVE",
-		"message": "Anket yayınlandı",
-	})
+func publishSurvey(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "survey")
 }
 
-func endSurvey(c *gin.Context) {
-	id := c.Param("id")
-	c.JSON(http.StatusOK, gin.H{
-		"id":      id,
-		"status":  "ENDED",
-		"message": "Anket sonlandırıldı",
-	})
+func endSurvey(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "survey")
 }
 
-func voteSurvey(c *gin.Context) {
-	id := c.Param("id")
-	var req VoteRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"survey_id":  id,
-		"option_ids": req.OptionIDs,
-		"voted_at":   time.Now(),
-		"message":    "Oyunuz kaydedildi",
-	})
+func voteSurvey(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "survey")
 }
 
-func getMyVote(c *gin.Context) {
-	id := c.Param("id")
-	now := time.Now()
-
-	vote := SurveyVote{
-		ID:       uuid.New().String(),
-		SurveyID: id,
-		OptionID: "opt-2",
-		VotedAt:  now.Add(-2 * time.Hour),
-	}
-	c.JSON(http.StatusOK, vote)
+func getMyVote(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "survey")
 }
 
-func getMySurveys(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"surveys": []Survey{}, "total": 0})
+func getMySurveys(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "survey")
 }
 
-func getPendingVotes(c *gin.Context) {
-	now := time.Now()
-	endDate := now.Add(7 * 24 * time.Hour)
-
-	surveys := []Survey{
-		{
-			ID:         uuid.New().String(),
-			Title:      "Havuz Çalışma Saatleri",
-			SurveyType: "POLL",
-			Status:     "ACTIVE",
-			EndsAt:     &endDate,
-		},
-	}
-	c.JSON(http.StatusOK, gin.H{"surveys": surveys, "count": len(surveys)})
+func getPendingVotes(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "survey")
 }

@@ -2,12 +2,12 @@ package main
 
 import (
 	"log"
-	"net/http"
 	"os"
 	"time"
 
+	"github.com/siteeksen/backend/pkg/stub"
+
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 )
 
 // =====================================================
@@ -131,13 +131,7 @@ type AssetStats struct {
 func main() {
 	r := gin.Default()
 
-	r.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"status":  "healthy",
-			"service": "asset",
-			"version": "1.0.0",
-		})
-	})
+	r.GET("/health", stub.Health("asset"))
 
 	v1 := r.Group("/api/v1")
 	{
@@ -192,317 +186,88 @@ func main() {
 }
 
 // Category Handlers
-func listCategories(c *gin.Context) {
-	categories := []AssetCategory{
-		{ID: "cat-1", Name: "Mobilya", DepreciationYears: 10, AssetCount: 45},
-		{ID: "cat-2", Name: "Elektronik", DepreciationYears: 5, AssetCount: 23},
-		{ID: "cat-3", Name: "Bahçe Ekipmanları", DepreciationYears: 7, AssetCount: 12},
-		{ID: "cat-4", Name: "Temizlik Ekipmanları", DepreciationYears: 5, AssetCount: 18},
-		{ID: "cat-5", Name: "Güvenlik Sistemleri", DepreciationYears: 8, AssetCount: 8},
-		{ID: "cat-6", Name: "Asansör", DepreciationYears: 15, AssetCount: 2},
-		{ID: "cat-7", Name: "HVAC Sistemleri", DepreciationYears: 12, AssetCount: 6},
-	}
-	c.JSON(http.StatusOK, gin.H{"categories": categories})
+func listCategories(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "asset")
 }
 
-func getCategory(c *gin.Context) {
-	id := c.Param("id")
-	category := AssetCategory{
-		ID:                id,
-		Name:              "Mobilya",
-		DepreciationYears: 10,
-		AssetCount:        45,
-	}
-	c.JSON(http.StatusOK, category)
+func getCategory(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "asset")
 }
 
-func createCategory(c *gin.Context) {
-	c.JSON(http.StatusCreated, gin.H{"id": uuid.New().String(), "message": "Kategori oluşturuldu"})
+func createCategory(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "asset")
 }
 
-func updateCategory(c *gin.Context) {
-	id := c.Param("id")
-	c.JSON(http.StatusOK, gin.H{"id": id, "message": "Kategori güncellendi"})
+func updateCategory(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "asset")
 }
 
-func deleteCategory(c *gin.Context) {
-	id := c.Param("id")
-	c.JSON(http.StatusOK, gin.H{"id": id, "message": "Kategori silindi"})
+func deleteCategory(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "asset")
 }
 
 // Asset Handlers
-func listAssets(c *gin.Context) {
-	now := time.Now()
-	assets := []Asset{
-		{
-			ID:                  uuid.New().String(),
-			PropertyID:          "prop-1",
-			CategoryName:        "Mobilya",
-			Name:                "Lobi Koltuk Takımı",
-			AssetCode:           "MOB-001",
-			SerialNumber:        "SN123456",
-			Location:            "A Blok Lobi",
-			PurchaseDate:        "2023-05-15",
-			PurchasePrice:       25000.00,
-			CurrentValue:        20000.00,
-			Condition:           "GOOD",
-			Status:              "ACTIVE",
-			NextMaintenanceDate: "2026-05-15",
-			CreatedAt:           now,
-		},
-		{
-			ID:                  uuid.New().String(),
-			PropertyID:          "prop-1",
-			CategoryName:        "Elektronik",
-			Name:                "Güvenlik Kamera Sistemi",
-			AssetCode:           "ELK-001",
-			Location:            "Tüm Bloklar",
-			PurchaseDate:        "2022-01-10",
-			PurchasePrice:       85000.00,
-			CurrentValue:        51000.00,
-			Condition:           "GOOD",
-			Status:              "ACTIVE",
-			LastMaintenanceDate: "2025-12-01",
-			NextMaintenanceDate: "2026-06-01",
-			CreatedAt:           now,
-		},
-		{
-			ID:            uuid.New().String(),
-			PropertyID:    "prop-1",
-			CategoryName:  "Bahçe Ekipmanları",
-			Name:          "Çim Biçme Makinesi",
-			AssetCode:     "BAH-001",
-			Location:      "Bahçe Deposu",
-			PurchaseDate:  "2024-03-20",
-			PurchasePrice: 15000.00,
-			CurrentValue:  12857.00,
-			Condition:     "GOOD",
-			Status:        "ACTIVE",
-			CreatedAt:     now,
-		},
-	}
-	c.JSON(http.StatusOK, gin.H{"assets": assets, "total": len(assets)})
+func listAssets(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "asset")
 }
 
-func getAssetStats(c *gin.Context) {
-	stats := AssetStats{
-		TotalAssets:         114,
-		TotalValue:          850000.00,
-		ActiveAssets:        108,
-		InMaintenance:       3,
-		DisposedAssets:      3,
-		UpcomingMaintenance: 5,
-		OverdueMaintenance:  1,
-	}
-	c.JSON(http.StatusOK, stats)
+func getAssetStats(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "asset")
 }
 
-func getDueMaintenance(c *gin.Context) {
-	now := time.Now()
-	assets := []Asset{
-		{
-			ID:                  uuid.New().String(),
-			Name:                "Asansör 1",
-			CategoryName:        "Asansör",
-			Location:            "A Blok",
-			NextMaintenanceDate: now.Add(7 * 24 * time.Hour).Format("2006-01-02"),
-			Status:              "ACTIVE",
-		},
-	}
-	c.JSON(http.StatusOK, gin.H{"assets": assets, "count": len(assets)})
+func getDueMaintenance(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "asset")
 }
 
-func getAssetByQR(c *gin.Context) {
-	code := c.Param("code")
-	now := time.Now()
-	asset := Asset{
-		ID:           uuid.New().String(),
-		Name:         "Lobi Koltuk Takımı",
-		QRCode:       code,
-		CategoryName: "Mobilya",
-		Location:     "A Blok Lobi",
-		Condition:    "GOOD",
-		Status:       "ACTIVE",
-		CreatedAt:    now,
-	}
-	c.JSON(http.StatusOK, asset)
+func getAssetByQR(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "asset")
 }
 
-func getAsset(c *gin.Context) {
-	id := c.Param("id")
-	now := time.Now()
-	asset := Asset{
-		ID:                      id,
-		PropertyID:              "prop-1",
-		CategoryID:              "cat-1",
-		CategoryName:            "Mobilya",
-		Name:                    "Lobi Koltuk Takımı",
-		Description:             "3+2+1 deri koltuk takımı, gri renk",
-		AssetCode:               "MOB-001",
-		SerialNumber:            "SN123456",
-		Location:                "A Blok Lobi",
-		PurchaseDate:            "2023-05-15",
-		PurchasePrice:           25000.00,
-		Vendor:                  "Mobilya A.Ş.",
-		WarrantyEnd:             "2025-05-15",
-		DepreciationYears:       10,
-		CurrentValue:            20000.00,
-		AccumulatedDepreciation: 5000.00,
-		Condition:               "GOOD",
-		Status:                  "ACTIVE",
-		NextMaintenanceDate:     "2026-05-15",
-		MaintenanceIntervalDays: 365,
-		CreatedAt:               now,
-		UpdatedAt:               now,
-	}
-	c.JSON(http.StatusOK, asset)
+func getAsset(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "asset")
 }
 
-func createAsset(c *gin.Context) {
-	var req AssetRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	now := time.Now()
-	asset := Asset{
-		ID:                uuid.New().String(),
-		PropertyID:        "prop-1",
-		CategoryID:        req.CategoryID,
-		Name:              req.Name,
-		Description:       req.Description,
-		AssetCode:         req.AssetCode,
-		SerialNumber:      req.SerialNumber,
-		Location:          req.Location,
-		PurchaseDate:      req.PurchaseDate,
-		PurchasePrice:     req.PurchasePrice,
-		CurrentValue:      req.PurchasePrice,
-		Vendor:            req.Vendor,
-		WarrantyEnd:       req.WarrantyEnd,
-		DepreciationYears: req.DepreciationYears,
-		Condition:         req.Condition,
-		Status:            "ACTIVE",
-		QRCode:            "AST-" + uuid.New().String()[:8],
-		PhotoURLs:         req.PhotoURLs,
-		CreatedAt:         now,
-		UpdatedAt:         now,
-	}
-
-	c.JSON(http.StatusCreated, asset)
+func createAsset(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "asset")
 }
 
-func updateAsset(c *gin.Context) {
-	id := c.Param("id")
-	c.JSON(http.StatusOK, gin.H{"id": id, "message": "Demirbaş güncellendi"})
+func updateAsset(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "asset")
 }
 
-func deleteAsset(c *gin.Context) {
-	id := c.Param("id")
-	c.JSON(http.StatusOK, gin.H{"id": id, "message": "Demirbaş silindi"})
+func deleteAsset(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "asset")
 }
 
-func assignAsset(c *gin.Context) {
-	id := c.Param("id")
-	c.JSON(http.StatusOK, gin.H{
-		"id":          id,
-		"assigned_to": "Güvenlik Hasan",
-		"assigned_at": time.Now().Format("2006-01-02"),
-		"message":     "Demirbaş zimmetlendi",
-	})
+func assignAsset(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "asset")
 }
 
-func disposeAsset(c *gin.Context) {
-	id := c.Param("id")
-	c.JSON(http.StatusOK, gin.H{
-		"id":      id,
-		"status":  "DISPOSED",
-		"message": "Demirbaş hurda kaydedildi",
-	})
+func disposeAsset(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "asset")
 }
 
-func generateQR(c *gin.Context) {
-	id := c.Param("id")
-	qrCode := "AST-" + uuid.New().String()[:8]
-	c.JSON(http.StatusOK, gin.H{
-		"id":      id,
-		"qr_code": qrCode,
-		"qr_url":  "/assets/qr/" + qrCode + ".png",
-		"message": "QR kod oluşturuldu",
-	})
+func generateQR(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "asset")
 }
 
 // Maintenance Handlers
-func getAssetMaintenance(c *gin.Context) {
-	assetID := c.Param("id")
-	now := time.Now()
-
-	records := []AssetMaintenance{
-		{
-			ID:              uuid.New().String(),
-			AssetID:         assetID,
-			MaintenanceType: "PREVENTIVE",
-			Description:     "Yıllık genel bakım",
-			LaborCost:       500.00,
-			PartsCost:       200.00,
-			TotalCost:       700.00,
-			PerformedBy:     "Bakım Ahmet",
-			PerformedAt:     "2025-05-15",
-			NextDue:         "2026-05-15",
-			Status:          "COMPLETED",
-			CreatedAt:       now,
-		},
-	}
-	c.JSON(http.StatusOK, gin.H{"maintenance_records": records})
+func getAssetMaintenance(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "asset")
 }
 
-func createMaintenance(c *gin.Context) {
-	assetID := c.Param("id")
-	var req MaintenanceRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	record := AssetMaintenance{
-		ID:              uuid.New().String(),
-		AssetID:         assetID,
-		MaintenanceType: req.MaintenanceType,
-		Description:     req.Description,
-		LaborCost:       req.LaborCost,
-		PartsCost:       req.PartsCost,
-		TotalCost:       req.LaborCost + req.PartsCost,
-		PerformedBy:     req.PerformedBy,
-		Vendor:          req.Vendor,
-		PerformedAt:     req.PerformedAt,
-		NextDue:         req.NextDue,
-		Status:          "COMPLETED",
-		CreatedAt:       time.Now(),
-	}
-
-	c.JSON(http.StatusCreated, record)
+func createMaintenance(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "asset")
 }
 
-func getMaintenanceRecord(c *gin.Context) {
-	id := c.Param("id")
-	c.JSON(http.StatusOK, gin.H{"id": id, "message": "Bakım kaydı"})
+func getMaintenanceRecord(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "asset")
 }
 
-func updateMaintenance(c *gin.Context) {
-	id := c.Param("id")
-	c.JSON(http.StatusOK, gin.H{"id": id, "message": "Bakım kaydı güncellendi"})
+func updateMaintenance(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "asset")
 }
 
-func getDepreciationReport(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{
-		"period":              c.Query("year"),
-		"total_assets":        114,
-		"total_book_value":    850000.00,
-		"annual_depreciation": 95000.00,
-		"by_category": []gin.H{
-			{"category": "Mobilya", "book_value": 150000.00, "depreciation": 15000.00},
-			{"category": "Elektronik", "book_value": 200000.00, "depreciation": 40000.00},
-			{"category": "Asansör", "book_value": 300000.00, "depreciation": 20000.00},
-		},
-	})
+func getDepreciationReport(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "asset")
 }

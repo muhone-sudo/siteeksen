@@ -2,12 +2,12 @@ package main
 
 import (
 	"log"
-	"net/http"
 	"os"
 	"time"
 
+	"github.com/siteeksen/backend/pkg/stub"
+
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 )
 
 // =====================================================
@@ -127,13 +127,7 @@ var supportedBanks = []map[string]string{
 func main() {
 	r := gin.Default()
 
-	r.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"status":  "healthy",
-			"service": "banking",
-			"version": "1.0.0",
-		})
-	})
+	r.GET("/health", stub.Health("banking"))
 
 	v1 := r.Group("/api/v1")
 	{
@@ -180,319 +174,75 @@ func main() {
 }
 
 // Bank Account Handlers
-func listBankAccounts(c *gin.Context) {
-	now := time.Now()
-	accounts := []BankAccount{
-		{
-			ID:             uuid.New().String(),
-			PropertyID:     "prop-1",
-			BankCode:       "0010",
-			BankName:       "Ziraat Bankası",
-			BranchCode:     "1234",
-			BranchName:     "Kadıköy Şubesi",
-			IBAN:           "TR12 0001 0012 3456 7890 1234 56",
-			AccountName:    "ABC Sitesi Yönetimi",
-			Currency:       "TRY",
-			APIEnabled:     true,
-			LastSyncAt:     &now,
-			LastSyncStatus: "SUCCESS",
-			IsPrimary:      true,
-			IsCollection:   true,
-			IsExpense:      true,
-			IsActive:       true,
-			Balance:        125000.50,
-		},
-		{
-			ID:           uuid.New().String(),
-			PropertyID:   "prop-1",
-			BankCode:     "0064",
-			BankName:     "İş Bankası",
-			IBAN:         "TR98 0006 4000 0012 3456 7890 12",
-			AccountName:  "ABC Sitesi - Yedek Hesap",
-			Currency:     "TRY",
-			APIEnabled:   false,
-			IsPrimary:    false,
-			IsCollection: true,
-			IsExpense:    false,
-			IsActive:     true,
-			Balance:      45000.00,
-		},
-	}
-	c.JSON(http.StatusOK, gin.H{"accounts": accounts, "total": len(accounts)})
+func listBankAccounts(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "banking")
 }
 
-func getSupportedBanks(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{"banks": supportedBanks})
+func getSupportedBanks(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "banking")
 }
 
-func getBankingStats(c *gin.Context) {
-	stats := BankingStats{
-		TotalAccounts:         2,
-		TotalBalance:          170000.50,
-		TodayIncoming:         15200.00,
-		TodayOutgoing:         8500.00,
-		UnmatchedTransactions: 5,
-		PendingMatches:        3,
-	}
-	c.JSON(http.StatusOK, stats)
+func getBankingStats(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "banking")
 }
 
-func getBankAccount(c *gin.Context) {
-	id := c.Param("id")
-	now := time.Now()
-	account := BankAccount{
-		ID:          id,
-		BankCode:    "0010",
-		BankName:    "Ziraat Bankası",
-		IBAN:        "TR12 0001 0012 3456 7890 1234 56",
-		AccountName: "ABC Sitesi Yönetimi",
-		Currency:    "TRY",
-		APIEnabled:  true,
-		LastSyncAt:  &now,
-		IsPrimary:   true,
-		IsActive:    true,
-		Balance:     125000.50,
-	}
-	c.JSON(http.StatusOK, account)
+func getBankAccount(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "banking")
 }
 
-func createBankAccount(c *gin.Context) {
-	var req BankAccountRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	account := BankAccount{
-		ID:           uuid.New().String(),
-		PropertyID:   "prop-1",
-		BankCode:     req.BankCode,
-		BankName:     req.BankName,
-		IBAN:         req.IBAN,
-		AccountName:  req.AccountName,
-		Currency:     "TRY",
-		IsPrimary:    req.IsPrimary,
-		IsCollection: req.IsCollection,
-		IsExpense:    req.IsExpense,
-		IsActive:     true,
-	}
-
-	c.JSON(http.StatusCreated, account)
+func createBankAccount(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "banking")
 }
 
-func updateBankAccount(c *gin.Context) {
-	id := c.Param("id")
-	c.JSON(http.StatusOK, gin.H{"id": id, "message": "Banka hesabı güncellendi"})
+func updateBankAccount(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "banking")
 }
 
-func deleteBankAccount(c *gin.Context) {
-	id := c.Param("id")
-	c.JSON(http.StatusOK, gin.H{"id": id, "message": "Banka hesabı silindi"})
+func deleteBankAccount(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "banking")
 }
 
-func syncBankAccount(c *gin.Context) {
-	id := c.Param("id")
-	var req SyncRequest
-	c.ShouldBindJSON(&req)
-
-	c.JSON(http.StatusOK, gin.H{
-		"id":                   id,
-		"sync_started_at":      time.Now(),
-		"transactions_fetched": 25,
-		"new_transactions":     5,
-		"auto_matched":         3,
-		"message":              "Senkronizasyon tamamlandı",
-	})
+func syncBankAccount(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "banking")
 }
 
-func getAccountBalance(c *gin.Context) {
-	id := c.Param("id")
-	c.JSON(http.StatusOK, gin.H{
-		"id":       id,
-		"balance":  125000.50,
-		"currency": "TRY",
-		"as_of":    time.Now(),
-	})
+func getAccountBalance(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "banking")
 }
 
-func getAccountTransactions(c *gin.Context) {
-	id := c.Param("id")
-	transactions := []BankTransaction{}
-	c.JSON(http.StatusOK, gin.H{"account_id": id, "transactions": transactions})
+func getAccountTransactions(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "banking")
 }
 
 // Transaction Handlers
-func listTransactions(c *gin.Context) {
-	now := time.Now()
-	transactions := []BankTransaction{
-		{
-			ID:               uuid.New().String(),
-			BankAccountID:    "acc-1",
-			TransactionDate:  now.Format("2006-01-02"),
-			Amount:           850.00,
-			Currency:         "TRY",
-			Direction:        "IN",
-			CounterpartyName: "ALI VELI",
-			Description:      "OCAK 2026 AIDAT D.101",
-			IsMatched:        true,
-			MatchedType:      "PAYMENT",
-			MatchMethod:      "AUTO",
-			MatchConfidence:  0.95,
-			CreatedAt:        now,
-		},
-		{
-			ID:               uuid.New().String(),
-			BankAccountID:    "acc-1",
-			TransactionDate:  now.Format("2006-01-02"),
-			Amount:           1200.00,
-			Currency:         "TRY",
-			Direction:        "IN",
-			CounterpartyName: "MEHMET DEMIR",
-			Description:      "EFT HAVALE",
-			IsMatched:        false,
-			CreatedAt:        now,
-		},
-		{
-			ID:               uuid.New().String(),
-			BankAccountID:    "acc-1",
-			TransactionDate:  now.Format("2006-01-02"),
-			Amount:           5000.00,
-			Currency:         "TRY",
-			Direction:        "OUT",
-			CounterpartyName: "TEMIZLIK A.Ş.",
-			Description:      "OCAK AYI TEMIZLIK UCRETI",
-			IsMatched:        true,
-			MatchedType:      "EXPENSE",
-			MatchMethod:      "MANUAL",
-			CreatedAt:        now,
-		},
-	}
-	c.JSON(http.StatusOK, gin.H{"transactions": transactions, "total": len(transactions)})
+func listTransactions(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "banking")
 }
 
-func getUnmatchedTransactions(c *gin.Context) {
-	now := time.Now()
-	transactions := []BankTransaction{
-		{
-			ID:               uuid.New().String(),
-			TransactionDate:  now.Format("2006-01-02"),
-			Amount:           1200.00,
-			Currency:         "TRY",
-			Direction:        "IN",
-			CounterpartyName: "MEHMET DEMIR",
-			Description:      "EFT HAVALE",
-			IsMatched:        false,
-			CreatedAt:        now,
-		},
-		{
-			ID:               uuid.New().String(),
-			TransactionDate:  now.Add(-24 * time.Hour).Format("2006-01-02"),
-			Amount:           850.00,
-			Currency:         "TRY",
-			Direction:        "IN",
-			CounterpartyName: "AYSE KAYA",
-			Description:      "AIDAT OCAK",
-			IsMatched:        false,
-			CreatedAt:        now,
-		},
-	}
-	c.JSON(http.StatusOK, gin.H{"transactions": transactions, "count": len(transactions)})
+func getUnmatchedTransactions(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "banking")
 }
 
-func getMatchSuggestions(c *gin.Context) {
-	suggestions := []MatchSuggestion{
-		{
-			TransactionID:     "txn-1",
-			PaymentID:         "pay-1",
-			ResidentName:      "Mehmet Demir",
-			UnitNumber:        "D.205",
-			ExpectedAmount:    1200.00,
-			TransactionAmount: 1200.00,
-			Confidence:        0.92,
-			MatchReason:       "Tutar ve isim eşleşmesi",
-		},
-		{
-			TransactionID:     "txn-2",
-			PaymentID:         "pay-2",
-			ResidentName:      "Ayşe Kaya",
-			UnitNumber:        "D.301",
-			ExpectedAmount:    850.00,
-			TransactionAmount: 850.00,
-			Confidence:        0.88,
-			MatchReason:       "Tutar eşleşmesi, açıklamada 'AIDAT' kelimesi",
-		},
-	}
-	c.JSON(http.StatusOK, gin.H{"suggestions": suggestions})
+func getMatchSuggestions(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "banking")
 }
 
-func getTransaction(c *gin.Context) {
-	id := c.Param("id")
-	now := time.Now()
-	transaction := BankTransaction{
-		ID:               id,
-		TransactionDate:  now.Format("2006-01-02"),
-		Amount:           850.00,
-		Direction:        "IN",
-		CounterpartyName: "ALI VELI",
-		Description:      "OCAK 2026 AIDAT D.101",
-		IsMatched:        true,
-		CreatedAt:        now,
-	}
-	c.JSON(http.StatusOK, transaction)
+func getTransaction(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "banking")
 }
 
-func matchTransaction(c *gin.Context) {
-	id := c.Param("id")
-	var req MatchRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"transaction_id": id,
-		"payment_id":     req.PaymentID,
-		"matched_at":     time.Now(),
-		"match_method":   "MANUAL",
-		"message":        "İşlem eşleştirildi",
-	})
+func matchTransaction(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "banking")
 }
 
-func unmatchTransaction(c *gin.Context) {
-	id := c.Param("id")
-	c.JSON(http.StatusOK, gin.H{
-		"transaction_id": id,
-		"message":        "Eşleştirme kaldırıldı",
-	})
+func unmatchTransaction(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "banking")
 }
 
-func autoMatchTransactions(c *gin.Context) {
-	c.JSON(http.StatusOK, gin.H{
-		"processed": 25,
-		"matched":   18,
-		"unmatched": 7,
-		"message":   "Otomatik eşleştirme tamamlandı",
-	})
+func autoMatchTransactions(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "banking")
 }
 
-func getBankingReport(c *gin.Context) {
-	// Query params: start_date, end_date
-	c.JSON(http.StatusOK, gin.H{
-		"period": gin.H{
-			"start": c.Query("start_date"),
-			"end":   c.Query("end_date"),
-		},
-		"summary": gin.H{
-			"total_incoming":    125000.00,
-			"total_outgoing":    85000.00,
-			"net_change":        40000.00,
-			"transaction_count": 150,
-		},
-		"by_category": []gin.H{
-			{"category": "Aidat Tahsilatı", "amount": 100000.00},
-			{"category": "Gider Ödemeleri", "amount": 75000.00},
-			{"category": "Diğer Gelirler", "amount": 25000.00},
-			{"category": "Diğer Giderler", "amount": 10000.00},
-		},
-	})
+func getBankingReport(c *gin.Context) { // STUB: gercek veri katmani yok
+	stub.NotImplemented(c, "banking")
 }

@@ -18,6 +18,12 @@ var (
 	ErrExpenseCategoryNotFound = errors.New("gider kalemi bulunamadı")
 	ErrAssessmentPeriodExists  = errors.New("bu dönem için tahakkuk zaten oluşturulmuş")
 	ErrNoUnitsInProperty       = errors.New("sitede tanımlı birim bulunamadı")
+
+	// ErrAssessmentNotPayable seçilen tahakkuklardan en az biri kullanıcıya ait değil,
+	// silinmiş ya da ödenecek bakiyesi yok.
+	ErrAssessmentNotPayable = errors.New("seçilen aidatlardan biri ödenebilir durumda değil")
+	// ErrNoPayableAssessment ödenecek hiçbir tahakkuk seçilmemiş.
+	ErrNoPayableAssessment = errors.New("ödenecek aidat seçilmedi")
 )
 
 // FinanceRepository finans veritabanı işlemleri
@@ -30,15 +36,33 @@ func NewFinanceRepository(pool *pgxpool.Pool) *FinanceRepository {
 	return &FinanceRepository{pool: pool}
 }
 
-// GetUnitBalance daire bakiyesini hesaplar
+// GetUnitBalance sakinin aktif olduğu bağımsız bölümlerin toplam bakiyesini hesaplar.
+//
+// DÜZELTME (2026-09-09) — önceki sorgu bakiyeyi KULLANICI SAYISIYLA ÇARPIYORDU:
+//
+//	FROM ledger_lines ll
+//	JOIN users u ON ll.unit_id = ( SELECT ru.unit_id ... LIMIT 1 )
+//
+// Buradaki JOIN koşulu `u` tablosuna hiç referans vermiyor; bu bir CROSS JOIN'dir.
+// Eşleşen her `ledger_lines` satırı `users` tablosundaki satır sayısı kadar tekrarlanıyor,
+// dolayısıyla SUM sonucu = gerçek bakiye × kullanıcı sayısı. 156 sakinli bir sitede
+// 1.200 TL borç sakine 187.200 TL olarak gösteriliyordu. Bu değer doğrudan
+// `current_balance` ve `has_debt` alanlarını besliyor (service/finance.go).
+//
+// Ayrıca `LIMIT 1` ORDER BY'sız kullanıldığı için iki dairesi olan bir sakinin hangi
+// dairesinin hesaplandığı belirsizdi; artık sakinin TÜM aktif bağımsız bölümlerinin
+// bakiyesi toplanıyor.
+//
+// Hesap, 001_initial_schema.sql'de tanımlı ve doğru yazılmış olan `unit_balances`
+// view'ı üzerinden yapılır (tek doğruluk kaynağı).
 func (r *FinanceRepository) GetUnitBalance(ctx context.Context, userID string) (float64, error) {
 	query := `
-		SELECT COALESCE(SUM(ll.debit_amount) - SUM(ll.credit_amount), 0) as balance
-		FROM ledger_lines ll
-		JOIN users u ON ll.unit_id = (
-			SELECT ru.unit_id FROM resident_units ru 
-			WHERE ru.resident_id = $1 AND ru.is_active = true 
-			LIMIT 1
+		SELECT COALESCE(SUM(ub.balance), 0) AS balance
+		FROM unit_balances ub
+		WHERE ub.unit_id IN (
+			SELECT ru.unit_id
+			FROM resident_units ru
+			WHERE ru.resident_id = $1 AND ru.is_active = true
 		)
 	`
 	var balance float64
@@ -190,37 +214,128 @@ func (r *FinanceRepository) GetAssessmentDetails(ctx context.Context, assessment
 	return detail, nil
 }
 
-// CalculateTotalAmount seçili aidatların toplam tutarı
-func (r *FinanceRepository) CalculateTotalAmount(ctx context.Context, assessmentIDs []string) (float64, error) {
-	query := `
-		SELECT COALESCE(SUM(total_amount - COALESCE(paid_amount, 0)), 0)
-		FROM monthly_assessments
-		WHERE id = ANY($1)
-	`
-	var total float64
-	err := r.pool.QueryRow(ctx, query, assessmentIDs).Scan(&total)
-	return total, err
-}
+// CreatePayment ödeme kaydını ve ödeme-tahakkuk ilişkilerini TEK TRANSACTION içinde oluşturur.
+// Ödenecek toplam tutarı kendisi hesaplar ve geri döndürür.
+//
+// DÜZELTME (2026-09-09) — önceki sürümdeki sorunlar:
+//
+//  1. TRANSACTION YOKTU: `payments` satırı yazılıp `payment_assessments` yazılamazsa yarım
+//     kayıt kalıyordu.
+//  2. HATA YUTULUYORDU: `r.pool.Exec(ctx, linkQuery, ...)` dönüş değeri hiç atanmıyordu →
+//     yabancı anahtar ihlali veya mükerrer birincil anahtar hatası sessizce kayboluyordu.
+//  3. `payment_assessments.amount` HİÇ YAZILMIYORDU (sütun mevcut) → hangi tahakkuğa ne kadar
+//     düştüğü kayıtsızdı, mutabakat yapılamıyordu.
+//  4. SAHİPLİK DOĞRULANMIYORDU: `CalculateTotalAmount` yalnızca `WHERE id = ANY($1)` ile
+//     çalışıyordu; kullanıcı BAŞKASININ tahakkuk kimliklerini gönderip tutarını öğrenebiliyor
+//     ve o tahakkuklara kendi ödemesini bağlayabiliyordu (IDOR).
+//  5. `deleted = 0` FİLTRESİ YOKTU → silinmiş tahakkuklar için ödeme alınabiliyordu.
+//  6. Tutar hesaplama ile kayıt ayrı sorgulardaydı; arada tahakkuk değişirse tutarsızlık
+//     oluşuyordu. Artık ikisi aynı transaction içinde ve satırlar `FOR UPDATE` ile kilitli.
+//
+// Not: `monthly_assessments.paid_amount` bu aşamada GÜNCELLENMEZ. Ödeme `PENDING` durumunda
+// oluşturulur; borç düşümü, ödeme sağlayıcısından onay geldiğinde yapılmalıdır. Bu akış henüz
+// yazılmadığı için (ödeme sağlayıcısı entegrasyonu yok — bkz. tasks/questions.md S-06)
+// ödenen tutar borçtan düşmez. Bu bilinen ve dokümante edilmiş bir eksiktir
+// (tasks/gap-analizi.md B46), sessiz bir hata değildir.
+func (r *FinanceRepository) CreatePayment(
+	ctx context.Context,
+	userID string,
+	assessmentIDs []string,
+	method string,
+) (string, float64, error) {
+	if len(assessmentIDs) == 0 {
+		return "", 0, ErrNoPayableAssessment
+	}
 
-// CreatePayment ödeme kaydı oluşturur
-func (r *FinanceRepository) CreatePayment(ctx context.Context, userID string, assessmentIDs []string, amount float64, method string) (string, error) {
-	paymentID := uuid.New().String()
-	query := `
-		INSERT INTO payments (id, user_id, amount, payment_method, status, created_at)
-		VALUES ($1, $2, $3, $4, 'PENDING', NOW())
-	`
-	_, err := r.pool.Exec(ctx, query, paymentID, userID, amount, method)
+	tx, err := r.pool.Begin(ctx)
 	if err != nil {
-		return "", err
+		return "", 0, err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck // commit başarılıysa no-op
+
+	// Yalnızca çağıran kullanıcıya ait, silinmemiş ve ödenecek bakiyesi olan tahakkukları al.
+	// FOR UPDATE: tutar hesaplandıktan sonra commit'e kadar satırlar kilitli kalır.
+	rows, err := tx.Query(ctx, `
+		SELECT ma.id, (ma.total_amount - COALESCE(ma.paid_amount, 0)) AS remaining, ma.unit_id
+		FROM monthly_assessments ma
+		JOIN resident_units ru ON ru.unit_id = ma.unit_id AND ru.is_active = true
+		WHERE ma.id = ANY($1)
+		  AND ru.resident_id = $2
+		  AND ma.deleted = 0
+		FOR UPDATE OF ma
+	`, assessmentIDs, userID)
+	if err != nil {
+		return "", 0, err
 	}
 
-	// Ödeme-aidat ilişkisini kaydet
-	for _, aID := range assessmentIDs {
-		linkQuery := `INSERT INTO payment_assessments (payment_id, assessment_id) VALUES ($1, $2)`
-		r.pool.Exec(ctx, linkQuery, paymentID, aID)
+	type payable struct {
+		id        string
+		remaining float64
+		unitID    string
+	}
+	var items []payable
+	for rows.Next() {
+		var p payable
+		if err := rows.Scan(&p.id, &p.remaining, &p.unitID); err != nil {
+			rows.Close()
+			return "", 0, err
+		}
+		items = append(items, p)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return "", 0, err
 	}
 
-	return paymentID, nil
+	// İstenen tahakkukların hepsi kullanıcıya ait ve ödenebilir olmalı.
+	if len(items) != len(assessmentIDs) {
+		return "", 0, ErrAssessmentNotPayable
+	}
+
+	var total float64
+	sameUnit := true
+	for i, p := range items {
+		if p.remaining <= 0 {
+			return "", 0, ErrAssessmentNotPayable
+		}
+		total += p.remaining
+		if i > 0 && p.unitID != items[0].unitID {
+			sameUnit = false
+		}
+	}
+	if total <= 0 {
+		return "", 0, ErrNoPayableAssessment
+	}
+
+	// Tüm tahakkuklar aynı bağımsız bölüme aitse ödemeyi o birimle ilişkilendir.
+	// (payments.unit_id daha önce hiç doldurulmuyordu; site bazlı ödeme raporlarının
+	//  doğru çalışabilmesi için gerekli — bkz. gap-analizi.md B56.)
+	var unitID *string
+	if sameUnit {
+		unitID = &items[0].unitID
+	}
+
+	paymentID := uuid.New().String()
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO payments (id, user_id, unit_id, amount, payment_method, status, created_at)
+		VALUES ($1, $2, $3, $4, $5, 'PENDING', NOW())
+	`, paymentID, userID, unitID, total, method); err != nil {
+		return "", 0, err
+	}
+
+	for _, p := range items {
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO payment_assessments (payment_id, assessment_id, amount)
+			VALUES ($1, $2, $3)
+		`, paymentID, p.id, p.remaining); err != nil {
+			return "", 0, err
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return "", 0, err
+	}
+	return paymentID, total, nil
 }
 
 // GetPaymentHistory ödeme geçmişi
@@ -376,11 +491,11 @@ func (r *FinanceRepository) GetConsumptionData(ctx context.Context, userID, mete
 
 // unitShare tahakkuk dağıtım hesabı için birim bilgisi
 type unitShare struct {
-	id             string
-	shareRatio     float64
-	grossAreaM2    float64
-	isCommercial   bool
-	isGroundFloor  bool
+	id            string
+	shareRatio    float64
+	grossAreaM2   float64
+	isCommercial  bool
+	isGroundFloor bool
 }
 
 // assessmentDetailRow birime düşen gider kalemi payı
