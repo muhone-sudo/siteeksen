@@ -36,6 +36,7 @@ FIN_PID=""
 GOV_PID=""
 EXP_PID=""
 PER_PID=""
+VIS_PID=""
 
 ok()   { echo "  [GEÇTİ]    $1"; PASS=$((PASS+1)); }
 bad()  { echo "  [BAŞARISIZ] $1"; FAIL=$((FAIL+1)); }
@@ -49,6 +50,7 @@ cleanup() {
   [ -n "$GOV_PID" ] && kill "$GOV_PID" 2>/dev/null
   [ -n "$EXP_PID" ] && kill "$EXP_PID" 2>/dev/null
   [ -n "$PER_PID" ] && kill "$PER_PID" 2>/dev/null
+  [ -n "$VIS_PID" ] && kill "$VIS_PID" 2>/dev/null
   docker rm -f "$CNAME" >/dev/null 2>&1
 }
 trap cleanup EXIT
@@ -743,6 +745,90 @@ else
   bad "personnel-service başlamadı"; tail -10 /tmp/verify-personnel.log
 fi
 kill "$PER_PID" 2>/dev/null
+
+step "14) Ziyaretçi modülü — mock'tan gerçeğe (FAZ 5, 3. modül)"
+VISPORT=${VERIFY_VIS_PORT:-18105}
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen DB_PASSWORD="$PW" DB_NAME=siteeksen \
+DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${VISPORT} \
+  go run ./services/visitor >/tmp/verify-visitor.log 2>&1 &
+VIS_PID=$!
+VUP=0
+for _ in $(seq 1 45); do
+  curl -fsS "http://127.0.0.1:${VISPORT}/health" >/dev/null 2>&1 && { VUP=1; break; }
+  sleep 1
+done
+
+if [ "$VUP" = "1" ] && [ -n "${MGR:-}" ] && [ -n "${TEN:-}" ]; then
+  ok "visitor-service ayağa kalktı"
+  VA="Authorization: Bearer $MGR"
+  VT="Authorization: Bearer $TEN"
+  VJ='Content-Type: application/json'
+  VURL="http://127.0.0.1:${VISPORT}/api/v1"
+
+  # Yöneticinin dairesi A-3, kiracının dairesi A-4
+  MGRUNIT='33333333-3333-3333-3333-333333333303'
+  TENUNIT='33333333-3333-3333-3333-333333333304'
+
+  V1=$(curl -s -X POST "$VURL/visitors" -H "$VA" -H "$VJ" -d "{
+    \"unit_id\":\"$MGRUNIT\",\"visitor_name\":\"Yonetici Ziyaretcisi\",
+    \"visitor_id_number\":\"98765432109\",\"purpose\":\"Misafir\",
+    \"expected_at\":\"2026-10-01T14:00:00Z\"}")
+  V1ID=$(echo "$V1" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+  [ -n "$V1ID" ] && ok "ziyaretçi ön kaydı oluşturuldu ve KALICI" || bad "ziyaretçi kaydı yok: $V1"
+
+  # Sahte "SMS/QR gönderildi" iddiası olmamalı
+  echo "$V1" | grep -q 'henüz devrede değildir' \
+    && ok "bildirim gönderilmediği dürüstçe bildiriliyor" || bad "bildirim durumu belirtilmemiş"
+
+  # Kiracı kendi dairesine ziyaretçi kaydeder
+  V2=$(curl -s -X POST "$VURL/visitors" -H "$VT" -H "$VJ" -d "{
+    \"unit_id\":\"$TENUNIT\",\"visitor_name\":\"Kiraci Ziyaretcisi\",\"purpose\":\"Misafir\"}")
+  V2ID=$(echo "$V2" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+  [ -n "$V2ID" ] && ok "sakin kendi dairesine ziyaretçi kaydedebiliyor" || bad "sakin ziyaretçi kaydedemedi: $V2"
+
+  # MAHREMİYET: kiracı yalnızca KENDİ dairesinin ziyaretçisini görmeli
+  TLIST=$(curl -s "$VURL/visitors" -H "$VT")
+  echo "$TLIST" | grep -q 'Kiraci Ziyaretcisi' && ok "sakin kendi ziyaretçisini görüyor" \
+    || bad "sakin kendi ziyaretçisini göremedi"
+  echo "$TLIST" | grep -q 'Yonetici Ziyaretcisi' \
+    && bad "sakin BAŞKA DAİRENİN ziyaretçisini görüyor (mahremiyet ihlali)" \
+    || ok "sakin başka dairenin ziyaretçisini göremiyor (mahremiyet)"
+
+  # Yönetim tüm siteyi görür
+  MLIST=$(curl -s "$VURL/visitors" -H "$VA")
+  echo "$MLIST" | grep -q 'Kiraci Ziyaretcisi' && ok "yönetim site genelini görüyor" \
+    || bad "yönetim tüm ziyaretçileri göremedi"
+
+  # Kimlik numarası maskeli (yönetici olmayan için)
+  echo "$TLIST" | grep -q '98765432109' && bad "kimlik numarası maskesiz sızdı" \
+    || ok "kimlik numarası sakine maskeli/gizli"
+
+  # Giriş/çıkış akışı ve çift giriş koruması
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$VURL/visitors/$V1ID/check-in" -H "$VA" -H "$VJ" -d '{}')
+  [ "$SC" = "200" ] && ok "ziyaretçi girişi kaydedildi" || bad "giriş → $SC"
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$VURL/visitors/$V1ID/check-in" -H "$VA" -H "$VJ" -d '{}')
+  [ "$SC" = "409" ] && ok "çift giriş engellendi → 409" || bad "çift giriş → $SC"
+
+  INSIDE=$(curl -s "$VURL/visitors/summary" -H "$VA")
+  echo "$INSIDE" | grep -q '"currently_inside":1' && ok "içerideki ziyaretçi sayısı doğru (1)" \
+    || bad "içeride sayısı beklenmedik: $INSIDE"
+
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$VURL/visitors/$V1ID/check-out" -H "$VA" -H "$VJ" -d '{}')
+  [ "$SC" = "200" ] && ok "ziyaretçi çıkışı kaydedildi" || bad "çıkış → $SC"
+
+  # Sakin giriş/çıkış yapamaz (güvenlik görevi değil)
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$VURL/visitors/$V2ID/check-in" -H "$VT" -H "$VJ" -d '{}')
+  [ "$SC" = "403" ] && ok "sakin giriş/çıkış kaydı yapamıyor → 403" || bad "sakin giriş yaptı → $SC"
+
+  # Başka sitenin bağımsız bölümü kabul edilmemeli
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$VURL/visitors" -H "$VA" -H "$VJ" -d '{
+    "unit_id":"00000000-0000-0000-0000-000000000999","visitor_name":"Test"}')
+  [ "$SC" = "400" ] && ok "başka siteye ait bağımsız bölüm reddedildi → 400" \
+    || bad "geçersiz bağımsız bölüm kabul edildi → $SC"
+else
+  bad "visitor-service başlamadı"; tail -10 /tmp/verify-visitor.log
+fi
+kill "$VIS_PID" 2>/dev/null
 
 step "SONUÇ"
 echo "  Geçen: $PASS   Başarısız: $FAIL"
