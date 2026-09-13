@@ -1,238 +1,253 @@
+// bulletin-service — Sakin ilan panosu (satılık/kiralık, kayıp eşya, yardım,
+// araç paylaşımı, etkinlik…).
+//
+// DURUM DEĞİŞİKLİĞİ (2026-09-13): Bu servis mock'tu; sabit ilan listesi
+// döndürüyor ve yazma isteklerine 2xx dönüp hiçbir yere kaydetmiyordu.
+// Artık gerçek veri katmanına bağlıdır (FAZ 5 — 15/22).
+//
+// Duyuru ile ilan farklı şeylerdir:
+//   - DUYURU (community servisi): yönetim yayımlar, onay gerektirmez.
+//   - İLAN (bu servis): sakin verir ve YÖNETİM ONAYINDAN geçer.
+//
+// Onay neden zorunlu: onaysız yayın, sitenin panosunu denetimsiz bir ilan
+// alanına çevirir ve yönetimi içerikten sorumlu bırakır. Reddin gerekçesi de
+// zorunludur; aksi hâlde sakin ilanını düzeltemez.
+//
+// KVKK: anonim ilanda ilan sahibinin adı ve bağımsız bölümü DİĞER SAKİNLERE
+// gösterilmez. Kayıt yine de kullanıcıya bağlıdır (onay ve sorumluluk için);
+// bu sınır kullanıcıya açıkça bildirilir.
 package main
 
 import (
+	"errors"
 	"log"
+	"net/http"
 	"os"
-	"time"
-
-	"github.com/siteeksen/backend/pkg/stub"
 
 	"github.com/gin-gonic/gin"
+	"github.com/siteeksen/backend/pkg/database"
+	"github.com/siteeksen/backend/pkg/middleware"
+	"github.com/siteeksen/backend/services/bulletin/repository"
 )
 
-// =====================================================
-// MODELS
-// =====================================================
-
-type BulletinPost struct {
-	ID              string     `json:"id"`
-	PropertyID      string     `json:"property_id"`
-	UnitID          string     `json:"unit_id"`
-	AuthorID        string     `json:"author_id"`
-	AuthorName      string     `json:"author_name,omitempty"`
-	UnitNumber      string     `json:"unit_number,omitempty"`
-	Category        string     `json:"category"` // SALE, RENT, LOST_FOUND, HELP, SUGGESTION, CARPOOL, SERVICE, EVENT
-	Title           string     `json:"title"`
-	Content         string     `json:"content"`
-	PhotoURLs       []string   `json:"photo_urls,omitempty"`
-	Price           float64    `json:"price,omitempty"`
-	PriceNegotiable bool       `json:"price_negotiable,omitempty"`
-	IsAnonymous     bool       `json:"is_anonymous"`
-	Status          string     `json:"status"` // PENDING, APPROVED, REJECTED, EXPIRED, CLOSED
-	RejectionReason string     `json:"rejection_reason,omitempty"`
-	ExpiresAt       *time.Time `json:"expires_at,omitempty"`
-	ViewCount       int        `json:"view_count"`
-	ContactCount    int        `json:"contact_count"`
-	CommentCount    int        `json:"comment_count"`
-	IsPinned        bool       `json:"is_pinned"`
-	CreatedAt       time.Time  `json:"created_at"`
-	UpdatedAt       time.Time  `json:"updated_at"`
-}
-
-type BulletinComment struct {
-	ID          string            `json:"id"`
-	PostID      string            `json:"post_id"`
-	AuthorID    string            `json:"author_id"`
-	AuthorName  string            `json:"author_name,omitempty"`
-	ParentID    string            `json:"parent_id,omitempty"`
-	Content     string            `json:"content"`
-	IsAnonymous bool              `json:"is_anonymous"`
-	CreatedAt   time.Time         `json:"created_at"`
-	Replies     []BulletinComment `json:"replies,omitempty"`
-}
-
-type BulletinMessage struct {
-	ID         string     `json:"id"`
-	PostID     string     `json:"post_id"`
-	SenderID   string     `json:"sender_id"`
-	SenderName string     `json:"sender_name,omitempty"`
-	ReceiverID string     `json:"receiver_id"`
-	Content    string     `json:"content"`
-	IsRead     bool       `json:"is_read"`
-	ReadAt     *time.Time `json:"read_at,omitempty"`
-	CreatedAt  time.Time  `json:"created_at"`
-}
-
-type PostRequest struct {
-	Category        string   `json:"category" binding:"required"`
-	Title           string   `json:"title" binding:"required"`
-	Content         string   `json:"content" binding:"required"`
-	PhotoURLs       []string `json:"photo_urls"`
-	Price           float64  `json:"price"`
-	PriceNegotiable bool     `json:"price_negotiable"`
-	IsAnonymous     bool     `json:"is_anonymous"`
-}
-
-type CommentRequest struct {
-	Content     string `json:"content" binding:"required"`
-	ParentID    string `json:"parent_id"`
-	IsAnonymous bool   `json:"is_anonymous"`
-}
-
-type MessageRequest struct {
-	Content string `json:"content" binding:"required"`
-}
-
-type ReviewRequest struct {
-	Action string `json:"action" binding:"required"` // APPROVE, REJECT
-	Reason string `json:"reason"`
-}
-
-var categories = []map[string]interface{}{
-	{"code": "SALE", "name": "Satılık", "icon": "shopping_cart", "color": "#4CAF50"},
-	{"code": "RENT", "name": "Kiralık", "icon": "home", "color": "#2196F3"},
-	{"code": "LOST_FOUND", "name": "Kayıp/Buluntu", "icon": "search", "color": "#FF9800"},
-	{"code": "HELP", "name": "Yardımlaşma", "icon": "handshake", "color": "#9C27B0"},
-	{"code": "SUGGESTION", "name": "Öneri/Şikayet", "icon": "lightbulb", "color": "#FFC107"},
-	{"code": "CARPOOL", "name": "Araç Paylaşımı", "icon": "directions_car", "color": "#00BCD4"},
-	{"code": "SERVICE", "name": "Hizmet", "icon": "build", "color": "#795548"},
-	{"code": "EVENT", "name": "Etkinlik", "icon": "event", "color": "#E91E63"},
-}
-
-// =====================================================
-// HANDLERS
-// =====================================================
-
 func main() {
+	dbConfig := database.NewConfigFromEnv()
+	pool, err := database.Connect(dbConfig)
+	if err != nil {
+		log.Fatalf("Veritabanı bağlantısı başarısız: %v", err)
+	}
+	defer database.Close()
+
+	repo := repository.New(pool)
+
 	r := gin.Default()
+	r.GET("/health", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"status": "healthy", "service": "bulletin", "persistent": true,
+		})
+	})
 
-	r.GET("/health", stub.Health("bulletin"))
+	api := r.Group("/api/v1")
+	api.Use(middleware.AuthMiddleware(), middleware.AuditLog(pool, "bulletin"))
 
-	v1 := r.Group("/api/v1")
+	api.GET("/bulletins", func(c *gin.Context) {
+		list, err := repo.List(c.Request.Context(), c.GetString("property_id"),
+			c.GetString("user_id"), c.Query("category"), c.Query("status"),
+			isManagement(c), c.Query("mine") == "true")
+		if err != nil {
+			fail(c, err, "listeleme")
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"data": list, "categories": repository.Categories})
+	})
+
+	api.GET("/bulletins/:id", func(c *gin.Context) {
+		p, err := repo.Get(c.Request.Context(), c.GetString("property_id"),
+			c.Param("id"), c.GetString("user_id"), isManagement(c))
+		if err != nil {
+			fail(c, err, "okuma")
+			return
+		}
+		resp := gin.H{"post": p}
+		if p.IsAnonymous {
+			resp["anonymity_note"] = "İlan anonimdir: ilan sahibinin adı ve bağımsız " +
+				"bölümü diğer sakinlere gösterilmez. Kayıt, onay ve sorumluluk için " +
+				"yine de kullanıcıya bağlıdır — bu, mutlak anonimlik değildir."
+		}
+		c.JSON(http.StatusOK, resp)
+	})
+
+	api.POST("/bulletins", func(c *gin.Context) {
+		var in repository.CreateInput
+		if err := c.ShouldBindJSON(&in); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error":      "category, title ve content zorunludur",
+				"categories": repository.Categories})
+			return
+		}
+		id, err := repo.Create(c.Request.Context(),
+			c.GetString("property_id"), c.GetString("user_id"), in)
+		if err != nil {
+			fail(c, err, "oluşturma")
+			return
+		}
+		c.JSON(http.StatusCreated, gin.H{
+			"id": id, "status": "PENDING",
+			"note": "İlan YÖNETİM ONAYINA gönderildi; onaylanana kadar panoda " +
+				"görünmez. Yöneticiye BİLDİRİM GÖNDERİLMEDİ.",
+		})
+	})
+
+	api.POST("/bulletins/:id/close", func(c *gin.Context) {
+		if err := repo.Close(c.Request.Context(), c.GetString("property_id"),
+			c.Param("id"), c.GetString("user_id"), isManagement(c)); err != nil {
+			fail(c, err, "kapatma")
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{
+			"status": "CLOSED",
+			"note":   "İlan kapatıldı; kayıt ve yorumlar silinmedi.",
+		})
+	})
+
+	// --- Yorumlar ---
+	api.GET("/bulletins/:id/comments", func(c *gin.Context) {
+		list, err := repo.Comments(c.Request.Context(), c.GetString("property_id"),
+			c.Param("id"), c.GetString("user_id"))
+		if err != nil {
+			fail(c, err, "yorum listeleme")
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"data": list})
+	})
+
+	api.POST("/bulletins/:id/comments", func(c *gin.Context) {
+		var in struct {
+			Content     string `json:"content" binding:"required"`
+			IsAnonymous bool   `json:"is_anonymous"`
+		}
+		if err := c.ShouldBindJSON(&in); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "content zorunludur"})
+			return
+		}
+		id, err := repo.AddComment(c.Request.Context(), c.GetString("property_id"),
+			c.Param("id"), c.GetString("user_id"), in.Content, in.IsAnonymous)
+		if err != nil {
+			fail(c, err, "yorum")
+			return
+		}
+		c.JSON(http.StatusCreated, gin.H{"id": id})
+	})
+
+	api.DELETE("/bulletin-comments/:id", func(c *gin.Context) {
+		if err := repo.DeleteComment(c.Request.Context(), c.GetString("property_id"),
+			c.Param("id"), c.GetString("user_id"), isManagement(c)); err != nil {
+			fail(c, err, "yorum silme")
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{
+			"message": "Yorum kaldırıldı",
+			"note":    "Kayıt SİLİNMEDİ, gizlendi; kimin ne yazdığı denetim için korunur.",
+		})
+	})
+
+	// --- Yönetim: onay/ret ---
+	write := api.Group("")
+	write.Use(middleware.RequireRole(middleware.RoleManager, middleware.RoleBoardMember))
 	{
-		// Categories
-		v1.GET("/bulletin/categories", getCategories)
+		write.POST("/bulletins/:id/approve", func(c *gin.Context) {
+			if err := repo.Review(c.Request.Context(), c.GetString("property_id"),
+				c.Param("id"), c.GetString("user_id"), "APPROVED", ""); err != nil {
+				fail(c, err, "onay")
+				return
+			}
+			c.JSON(http.StatusOK, gin.H{
+				"status": "APPROVED",
+				"note":   "İlan sahibine BİLDİRİM GÖNDERİLMEDİ.",
+			})
+		})
 
-		// Posts
-		posts := v1.Group("/bulletin/posts")
-		{
-			posts.GET("", listPosts)
-			posts.GET("/pending", getPendingPosts)
-			posts.GET("/my", getMyPosts)
-			posts.GET("/:id", getPost)
-			posts.POST("", createPost)
-			posts.PUT("/:id", updatePost)
-			posts.DELETE("/:id", deletePost)
-			posts.POST("/:id/review", reviewPost)
-			posts.POST("/:id/close", closePost)
-			posts.POST("/:id/pin", pinPost)
-			posts.POST("/:id/view", recordView)
-		}
+		write.POST("/bulletins/:id/reject", func(c *gin.Context) {
+			var in struct {
+				Reason string `json:"reason" binding:"required"`
+			}
+			if err := c.ShouldBindJSON(&in); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{
+					"error": "Red gerekçesi zorunludur",
+					"note":  "Gerekçesiz ret, sakinin ilanını düzeltmesini imkânsız kılar."})
+				return
+			}
+			if err := repo.Review(c.Request.Context(), c.GetString("property_id"),
+				c.Param("id"), c.GetString("user_id"), "REJECTED", in.Reason); err != nil {
+				fail(c, err, "ret")
+				return
+			}
+			c.JSON(http.StatusOK, gin.H{"status": "REJECTED"})
+		})
 
-		// Comments
-		comments := v1.Group("/bulletin/posts/:id/comments")
-		{
-			comments.GET("", getComments)
-			comments.POST("", createComment)
-			comments.DELETE("/:comment_id", deleteComment)
-		}
+		write.POST("/bulletins/expire-due", func(c *gin.Context) {
+			n, err := repo.ExpirePosts(c.Request.Context(), c.GetString("property_id"))
+			if err != nil {
+				fail(c, err, "süre dolumu")
+				return
+			}
+			c.JSON(http.StatusOK, gin.H{
+				"expired_count": n,
+				"note":          "Zamanlanmış görev altyapısı yoktur; bu uç elle tetiklenir.",
+			})
+		})
 
-		// Messages
-		messages := v1.Group("/bulletin/messages")
-		{
-			messages.GET("", getMyMessages)
-			messages.GET("/post/:post_id", getPostMessages)
-			messages.POST("/post/:post_id", sendMessage)
-			messages.POST("/:id/read", markAsRead)
-		}
+		write.GET("/bulletins-summary", func(c *gin.Context) {
+			s, err := repo.Summary(c.Request.Context(), c.GetString("property_id"))
+			if err != nil {
+				fail(c, err, "özet")
+				return
+			}
+			c.JSON(http.StatusOK, s)
+		})
 	}
 
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "8089"
+		port = "8089" // kong/kong.yml ile aynı olmalı
 	}
-
-	log.Printf("Bulletin Service starting on port %s", port)
+	log.Printf("Bulletin Service başlatıldı: :%s", port)
 	if err := r.Run(":" + port); err != nil {
 		log.Fatal(err)
 	}
 }
 
-func getCategories(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "bulletin")
+func isManagement(c *gin.Context) bool {
+	value, _ := c.Get("roles")
+	roles, _ := value.([]string)
+	for _, r := range roles {
+		switch r {
+		case middleware.RoleManager, middleware.RoleBoardMember,
+			middleware.RoleAuditor, middleware.RoleSuperAdmin:
+			return true
+		}
+	}
+	return false
 }
 
-// Post Handlers
-func listPosts(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "bulletin")
-}
-
-func getPendingPosts(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "bulletin")
-}
-
-func getMyPosts(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "bulletin")
-}
-
-func getPost(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "bulletin")
-}
-
-func createPost(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "bulletin")
-}
-
-func updatePost(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "bulletin")
-}
-
-func deletePost(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "bulletin")
-}
-
-func reviewPost(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "bulletin")
-}
-
-func closePost(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "bulletin")
-}
-
-func pinPost(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "bulletin")
-}
-
-func recordView(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "bulletin")
-}
-
-// Comment Handlers
-func getComments(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "bulletin")
-}
-
-func createComment(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "bulletin")
-}
-
-func deleteComment(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "bulletin")
-}
-
-// Message Handlers
-func getMyMessages(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "bulletin")
-}
-
-func getPostMessages(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "bulletin")
-}
-
-func sendMessage(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "bulletin")
-}
-
-func markAsRead(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "bulletin")
+func fail(c *gin.Context, err error, op string) {
+	switch {
+	case errors.Is(err, repository.ErrNotFound):
+		c.JSON(http.StatusNotFound, gin.H{"error": "İlan bulunamadı"})
+	case errors.Is(err, repository.ErrInvalidCategory):
+		c.JSON(http.StatusUnprocessableEntity, gin.H{
+			"error": "Geçersiz kategori ya da tarih", "categories": repository.Categories})
+	case errors.Is(err, repository.ErrNoUnit):
+		c.JSON(http.StatusForbidden, gin.H{
+			"error": "İlan verebilmek için sitede aktif bir bağımsız bölümünüz olmalıdır"})
+	case errors.Is(err, repository.ErrNotApproved):
+		c.JSON(http.StatusConflict, gin.H{
+			"error": "Yayımlanmamış ilana yorum yapılamaz"})
+	case errors.Is(err, repository.ErrBadState):
+		c.JSON(http.StatusConflict, gin.H{
+			"error": "İlan bu işlem için uygun durumda değil ya da size ait değil"})
+	default:
+		log.Printf("[bulletin] %s başarısız: %v", op, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "İşlem tamamlanamadı"})
+	}
 }

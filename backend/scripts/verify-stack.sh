@@ -48,6 +48,8 @@ SRV_PID=""
 IOT_PID=""
 NTF_PID=""
 PTR_PID=""
+BUL_PID=""
+COM_PID=""
 
 ok()   { echo "  [GEÇTİ]    $1"; PASS=$((PASS+1)); }
 bad()  { echo "  [BAŞARISIZ] $1"; FAIL=$((FAIL+1)); }
@@ -101,6 +103,8 @@ cleanup() {
   kill_tree "$IOT_PID"
   kill_tree "$NTF_PID"
   kill_tree "$PTR_PID"
+  kill_tree "$BUL_PID"
+  kill_tree "$COM_PID"
   rm -rf /tmp/verify-docs
   docker rm -f "$CNAME" >/dev/null 2>&1
 }
@@ -112,7 +116,7 @@ command -v go     >/dev/null || { echo "go bulunamadı (PATH'e /usr/local/go/bin
 
 # Kalıntı süpürme: yarıda kesilmiş bir çalıştırmadan kalan servisler
 # portları tutuyorsa, testler eski süreçlere çarpar ve sonuç rastgele değişir.
-for _p in 18084 18085 18087 18089 18090 18104 18091 18092 18093 18094 18097 18098 18099 18100 18105 18107 18191; do
+for _p in 18083 18084 18085 18087 18088 18089 18090 18104 18091 18092 18093 18094 18097 18098 18099 18100 18105 18107 18191; do
   free_port "$_p"
 done
 
@@ -2789,6 +2793,187 @@ else
   bad "patrol-service başlamadı"; tail -15 /tmp/verify-patrol.log
 fi
 kill_tree "$PTR_PID"
+
+step "26) Duyuru ve ilan panosu — mock'tan gerçeğe (FAZ 5, 15/22)"
+# Önceki davranış: duyuru ve ilan uçları uydurma veri döndürüyordu.
+# Ayrım: DUYURU'yu yönetim yayımlar (onay yok); İLAN'ı sakin verir ve yönetim
+# onayından geçer.
+COMPORT=${VERIFY_COM_PORT:-18083}
+BULPORT=${VERIFY_BUL_PORT:-18088}
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen DB_PASSWORD="$PW" DB_NAME=siteeksen \
+DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${COMPORT} \
+  go run ./services/community >/tmp/verify-community.log 2>&1 &
+COM_PID=$!
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen DB_PASSWORD="$PW" DB_NAME=siteeksen \
+DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${BULPORT} \
+  go run ./services/bulletin >/tmp/verify-bulletin.log 2>&1 &
+BUL_PID=$!
+CUP=0; BUP=0
+for _ in $(seq 1 45); do
+  curl -fsS "http://127.0.0.1:${COMPORT}/health" >/dev/null 2>&1 && { CUP=1; break; }
+  sleep 1
+done
+for _ in $(seq 1 45); do
+  curl -fsS "http://127.0.0.1:${BULPORT}/health" >/dev/null 2>&1 && { BUP=1; break; }
+  sleep 1
+done
+
+if [ "$CUP" = "1" ] && [ "$BUP" = "1" ] && [ -n "${MGR:-}" ] && [ -n "${TEN:-}" ]; then
+  ok "community ve bulletin servisleri ayağa kalktı"
+  BA="Authorization: Bearer $MGR"
+  BT="Authorization: Bearer $TEN"
+  BJ='Content-Type: application/json'
+  CURL2="http://127.0.0.1:${COMPORT}/api/v1"
+  BURL="http://127.0.0.1:${BULPORT}/api/v1"
+
+  # --- DUYURU ---
+  CH=$(curl -s "http://127.0.0.1:${COMPORT}/health")
+  echo "$CH" | grep -q '"announcements":"persistent"' && ok "duyuru modülü gerçek olarak bildiriliyor" \
+    || bad "sağlık ucu: $CH"
+  echo "$CH" | grep -q 'moved:survey-service' && ok "taşınan modüller sağlık ucunda gösteriliyor" \
+    || bad "taşınma bilgisi yok"
+
+  A1=$(curl -s -X POST "$CURL2/announcements" -H "$BA" -H "$BJ" -d '{
+    "title":"Su kesintisi","content":"Yarin 09:00-12:00 arasi su kesintisi olacaktir.",
+    "category":"MAINTENANCE","priority":"HIGH","is_pinned":true}')
+  A1ID=$(echo "$A1" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+  [ -n "$A1ID" ] && ok "duyuru yayımlandı ve KALICI" || bad "duyuru: $A1"
+  DBA=$($PSQL -t -A -c "SELECT count(*) FROM announcements WHERE id='$A1ID';")
+  [ "$DBA" = "1" ] && ok "duyuru veritabanında (mock değil)" || bad "kayıt yok"
+
+  # Geçersiz kategori
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$CURL2/announcements" -H "$BA" -H "$BJ" \
+    -d '{"title":"X","content":"Y","category":"UYDURMA"}')
+  [ "$SC" = "422" ] && ok "geçersiz duyuru kategorisi reddedildi → 422" || bad "geçersiz kategori → $SC"
+
+  # Sakin duyuru yayımlayamaz
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$CURL2/announcements" -H "$BT" -H "$BJ" \
+    -d '{"title":"X","content":"Y"}')
+  [ "$SC" = "403" ] && ok "sakin duyuru yayımlayamıyor → 403" || bad "sakin duyuru yayımladı → $SC"
+
+  # Sakin duyuruyu görür ve okundu işaretler
+  TL2=$(curl -s "$CURL2/announcements" -H "$BT")
+  echo "$TL2" | grep -q 'Su kesintisi' && ok "sakin duyuruyu görüyor" || bad "sakin duyuru listesi: $TL2"
+  echo "$TL2" | grep -q '"is_read":false' && ok "okunmamış duyuru işaretleniyor" || bad "okundu alanı yok"
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$CURL2/announcements/$A1ID/read" -H "$BT" -H "$BJ" -d '{}')
+  [ "$SC" = "200" ] && ok "duyuru okundu işaretlendi" || bad "okundu → $SC"
+  # İşlem tekrarlanabilir olmalı
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$CURL2/announcements/$A1ID/read" -H "$BT" -H "$BJ" -d '{}')
+  [ "$SC" = "200" ] && ok "okundu işareti tekrarlanabilir (idempotent)" || bad "ikinci okundu → $SC"
+  TL3=$(curl -s "$CURL2/announcements" -H "$BT")
+  echo "$TL3" | grep -q '"is_read":true' && ok "okundu durumu kullanıcıya yansıyor" || bad "okundu yansımadı"
+
+  # Okunma istatistiği yalnızca yönetime
+  RS=$(curl -s "$CURL2/announcements/$A1ID/read-stats" -H "$BA")
+  echo "$RS" | grep -q '"read_count":1' && ok "okunma istatistiği gerçek sayımdan" || bad "istatistik: $RS"
+  echo "$RS" | grep -q 'FİİLEN ULAŞTIĞININ kanıtı değildir' \
+    && ok "okunma verisinin sınırı dürüstçe açıklanıyor" || bad "dürüstlük notu yok"
+  SC=$(curl -s -o /dev/null -w '%{http_code}' "$CURL2/announcements/$A1ID/read-stats" -H "$BT")
+  [ "$SC" = "403" ] && ok "sakin okunma istatistiğini göremiyor → 403" || bad "sakin istatistik gördü → $SC"
+
+  # Taşınan modüller doğru yere yönlendiriyor
+  MV=$(curl -s -w '\n%{http_code}' "$CURL2/surveys" -H "$BA")
+  MVCODE=$(echo "$MV" | tail -1)
+  [ "$MVCODE" = "501" ] && ok "community/surveys hâlâ 501 (uydurma veri dönmüyor)" || bad "surveys → $MVCODE"
+  echo "$MV" | grep -q 'survey-service' && ok "kullanıcı gerçek servise yönlendiriliyor" || bad "yönlendirme yok"
+
+  # --- İLAN PANOSU ---
+  B1=$(curl -s -X POST "$BURL/bulletins" -H "$BT" -H "$BJ" -d '{
+    "category":"SALE","title":"Satilik bisiklet","content":"Az kullanilmis, 26 jant.",
+    "price":3500,"price_negotiable":true}')
+  B1ID=$(echo "$B1" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+  [ -n "$B1ID" ] && ok "ilan oluşturuldu ve KALICI" || bad "ilan: $B1"
+  echo "$B1" | grep -q '"status":"PENDING"' && ok "ilan yönetim onayına gönderildi" || bad "ilan durumu: $B1"
+
+  # Onaysız ilan diğer sakinlere görünmemeli
+  OTHER=$(curl -s "$BURL/bulletins" -H "$BA")
+  echo "$OTHER" | grep -q 'Satilik bisiklet' && ok "yönetim bekleyen ilanı görüyor (onaylaması gerekir)" \
+    || bad "yönetim bekleyen ilanı görmüyor"
+  # Kat maliki (3. hesap) onaysız ilanı görmemeli
+  if [ -n "${OWN:-}" ]; then
+    OL2=$(curl -s "$BURL/bulletins" -H "Authorization: Bearer $OWN")
+    echo "$OL2" | grep -q 'Satilik bisiklet' && bad "onaylanmamış ilan diğer sakine görünüyor" \
+      || ok "onaylanmamış ilan diğer sakine görünmüyor"
+  fi
+
+  # Yayımlanmamış ilana yorum yapılamaz
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$BURL/bulletins/$B1ID/comments" -H "$BA" -H "$BJ" \
+    -d '{"content":"Ilgileniyorum"}')
+  [ "$SC" = "409" ] && ok "yayımlanmamış ilana yorum yapılamıyor → 409" || bad "onaysız ilana yorum → $SC"
+
+  # Gerekçesiz ret engellenmeli
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$BURL/bulletins/$B1ID/reject" -H "$BA" -H "$BJ" -d '{}')
+  [ "$SC" = "400" ] && ok "gerekçesiz ret engellendi → 400" || bad "gerekçesiz ret → $SC"
+
+  # Onay
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$BURL/bulletins/$B1ID/approve" -H "$BA" -H "$BJ" -d '{}')
+  [ "$SC" = "200" ] && ok "ilan onaylandı" || bad "onay → $SC"
+  ST2=$($PSQL -t -A -c "SELECT status FROM bulletin_posts WHERE id='$B1ID';")
+  [ "$ST2" = "APPROVED" ] && ok "onay veritabanına yazıldı" || bad "durum: $ST2"
+
+  # Onaylanmış ilan tekrar onaylanamaz
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$BURL/bulletins/$B1ID/approve" -H "$BA" -H "$BJ" -d '{}')
+  [ "$SC" = "409" ] && ok "onaylanmış ilan tekrar onaylanamıyor → 409" || bad "çift onay → $SC"
+
+  # Sakin ilan onaylayamaz
+  B2ID=$(curl -s -X POST "$BURL/bulletins" -H "$BT" -H "$BJ" \
+    -d '{"category":"LOST_FOUND","title":"Kayip kedi","content":"Tekir, A blok civari."}' \
+    | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$BURL/bulletins/$B2ID/approve" -H "$BT" -H "$BJ" -d '{}')
+  [ "$SC" = "403" ] && ok "sakin kendi ilanını onaylayamıyor → 403" || bad "sakin onayladı → $SC"
+
+  # Yorum akışı
+  CM2=$(curl -s -X POST "$BURL/bulletins/$B1ID/comments" -H "$BA" -H "$BJ" \
+    -d '{"content":"Hala satilik mi?"}')
+  CM2ID=$(echo "$CM2" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+  [ -n "$CM2ID" ] && ok "yayımlanmış ilana yorum yapıldı" || bad "yorum: $CM2"
+  CL=$(curl -s "$BURL/bulletins/$B1ID/comments" -H "$BT")
+  echo "$CL" | grep -q 'Hala satilik mi' && ok "yorumlar okunabiliyor" || bad "yorum listesi: $CL"
+
+  # Yorum silme: kayıt silinmez, gizlenir
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X DELETE "$BURL/bulletin-comments/$CM2ID" -H "$BA")
+  [ "$SC" = "200" ] && ok "yorum kaldırıldı" || bad "yorum silme → $SC"
+  DEL=$($PSQL -t -A -c "SELECT is_deleted FROM bulletin_comments WHERE id='$CM2ID';")
+  [ "$DEL" = "t" ] && ok "yorum kaydı silinmedi, gizlendi (denetim izi korunuyor)" || bad "yorum kaydı: $DEL"
+  CL2=$(curl -s "$BURL/bulletins/$B1ID/comments" -H "$BT")
+  echo "$CL2" | grep -q 'Hala satilik mi' && bad "gizlenen yorum hâlâ görünüyor" || ok "gizlenen yorum listede yok"
+
+  # Görüntülenme sayacı kendi ilanında artmamalı
+  curl -s -o /dev/null "$BURL/bulletins/$B1ID" -H "$BT"
+  VOWN=$($PSQL -t -A -c "SELECT view_count FROM bulletin_posts WHERE id='$B1ID';")
+  curl -s -o /dev/null "$BURL/bulletins/$B1ID" -H "$BA"
+  VOTH=$($PSQL -t -A -c "SELECT view_count FROM bulletin_posts WHERE id='$B1ID';")
+  [ "$VOWN" = "0" ] && ok "sahibi kendi ilanını açınca sayaç artmıyor" || bad "kendi görüntülemesi sayıldı: $VOWN"
+  [ "$VOTH" = "1" ] && ok "başkası açınca görüntülenme sayacı artıyor" || bad "sayaç: $VOTH"
+
+  # Kapatma: sahibi kapatabilir
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$BURL/bulletins/$B2ID/close" -H "$BT" -H "$BJ" -d '{}')
+  [ "$SC" = "200" ] && ok "sakin kendi ilanını kapatabiliyor" || bad "kapatma → $SC"
+  # Başkasının ilanını kapatamaz
+  B3ID=$(curl -s -X POST "$BURL/bulletins" -H "$BT" -H "$BJ" \
+    -d '{"category":"HELP","title":"Yardim","content":"Tasinma icin yardim."}' \
+    | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+  if [ -n "${OWN:-}" ]; then
+    SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$BURL/bulletins/$B3ID/close" \
+      -H "Authorization: Bearer $OWN" -H "$BJ" -d '{}')
+    [ "$SC" = "409" ] && ok "başkasının ilanı kapatılamıyor → 409" || bad "başkasının ilanı kapatıldı → $SC"
+  fi
+
+  # Özet ve yetki
+  BSUM=$(curl -s "$BURL/bulletins-summary" -H "$BA")
+  echo "$BSUM" | grep -q '"approved":1' && ok "ilan özeti gerçek sayımdan" || bad "özet: $BSUM"
+  SC=$(curl -s -o /dev/null -w '%{http_code}' "$BURL/bulletins-summary" -H "$BT")
+  [ "$SC" = "403" ] && ok "sakin pano özetini göremiyor → 403" || bad "sakin özet gördü → $SC"
+  SC=$(curl -s -o /dev/null -w '%{http_code}' "$BURL/bulletins")
+  [ "$SC" = "401" ] && ok "kimliksiz ilan erişimi engellendi → 401" || bad "kimliksiz erişim → $SC"
+  SC=$(curl -s -o /dev/null -w '%{http_code}' "$CURL2/announcements")
+  [ "$SC" = "401" ] && ok "kimliksiz duyuru erişimi engellendi → 401" || bad "kimliksiz duyuru → $SC"
+else
+  bad "community/bulletin servisleri başlamadı"
+  tail -10 /tmp/verify-community.log; tail -10 /tmp/verify-bulletin.log
+fi
+kill_tree "$BUL_PID"
+kill_tree "$COM_PID"
 
 step "SONUÇ"
 echo "  Geçen: $PASS   Başarısız: $FAIL"
