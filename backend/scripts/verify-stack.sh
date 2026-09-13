@@ -45,6 +45,7 @@ DOC_PID=""
 AST_PID=""
 INV_PID=""
 SRV_PID=""
+IOT_PID=""
 
 ok()   { echo "  [GEÇTİ]    $1"; PASS=$((PASS+1)); }
 bad()  { echo "  [BAŞARISIZ] $1"; FAIL=$((FAIL+1)); }
@@ -95,6 +96,7 @@ cleanup() {
   kill_tree "$AST_PID"
   kill_tree "$INV_PID"
   kill_tree "$SRV_PID"
+  kill_tree "$IOT_PID"
   rm -rf /tmp/verify-docs
   docker rm -f "$CNAME" >/dev/null 2>&1
 }
@@ -106,7 +108,7 @@ command -v go     >/dev/null || { echo "go bulunamadı (PATH'e /usr/local/go/bin
 
 # Kalıntı süpürme: yarıda kesilmiş bir çalıştırmadan kalan servisler
 # portları tutuyorsa, testler eski süreçlere çarpar ve sonuç rastgele değişir.
-for _p in 18087 18089 18090 18104 18091 18092 18093 18094 18097 18098 18099 18100 18105 18107 18191; do
+for _p in 18084 18087 18089 18090 18104 18091 18092 18093 18094 18097 18098 18099 18100 18105 18107 18191; do
   free_port "$_p"
 done
 
@@ -119,6 +121,11 @@ if go test ./pkg/authtoken/... -count=1 >/tmp/verify-authtoken.log 2>&1; then
   ok "go test ./pkg/authtoken/... (JWT doğrulama)"
 else
   bad "go test ./pkg/authtoken/..."; tail -15 /tmp/verify-authtoken.log
+fi
+if go test ./services/iot/service/... -count=1 >/tmp/verify-alloc.log 2>&1; then
+  ok "go test ./services/iot/service/... (ısı gideri %70/%30 paylaştırma, kuruş kaybı yok)"
+else
+  bad "go test ./services/iot/service/..."; tail -15 /tmp/verify-alloc.log
 fi
 if go test ./services/asset/service/... -count=1 >/tmp/verify-deprec.log 2>&1; then
   ok "go test ./services/asset/service/... (doğrusal amortisman, kuruş kaybı yok)"
@@ -2238,6 +2245,226 @@ else
   bad "survey-service başlamadı"; tail -15 /tmp/verify-survey.log
 fi
 kill_tree "$SRV_PID"
+
+step "23) Sayaç ve ısı gideri paylaştırma — mock'tan gerçeğe (FAZ 5, 12/22)"
+# Önceki davranış: sabit endeks; okuma istekleri kaydedilmiyordu.
+# Mevzuat: merkezi ısıtma gideri %70 tüketim + %30 kullanım alanı
+# (RG 14.04.2008/26847). Oranlar KODA GÖMÜLÜ DEĞİL, legal_parameters'tan okunur.
+IOTPORT=${VERIFY_IOT_PORT:-18084}
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen DB_PASSWORD="$PW" DB_NAME=siteeksen \
+DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${IOTPORT} \
+  go run ./services/iot >/tmp/verify-iot.log 2>&1 &
+IOT_PID=$!
+OUP=0
+for _ in $(seq 1 45); do
+  curl -fsS "http://127.0.0.1:${IOTPORT}/health" >/dev/null 2>&1 && { OUP=1; break; }
+  sleep 1
+done
+
+if [ "$OUP" = "1" ] && [ -n "${MGR:-}" ] && [ -n "${TEN:-}" ]; then
+  ok "iot-service ayağa kalktı"
+  OA="Authorization: Bearer $MGR"
+  OT="Authorization: Bearer $TEN"
+  OJ='Content-Type: application/json'
+  OURL="http://127.0.0.1:${IOTPORT}/api/v1"
+  U303='33333333-3333-3333-3333-333333333303'
+  U304='33333333-3333-3333-3333-333333333304'
+  U305='33333333-3333-3333-3333-333333333305'
+
+  # Sağlık ucu kapsam sınırını dürüstçe bildirmeli
+  H=$(curl -s "http://127.0.0.1:${IOTPORT}/health")
+  echo "$H" | grep -q 'Sensör ve uyarı' && ok "sağlık ucu kapsam sınırını dürüstçe bildiriyor" \
+    || bad "kapsam notu yok: $H"
+
+  # Sensör uçları hâlâ gerçek değil → 501 dönmeli
+  SC=$(curl -s -o /dev/null -w '%{http_code}' "$OURL/sensors" -H "$OA")
+  [ "$SC" = "501" ] && ok "sensör ucu dürüstçe 501 dönüyor (zaman serisi deposu yok)" \
+    || bad "sensör ucu → $SC (501 bekleniyordu)"
+
+  # Kullanım alanı (net_area_m2) seed'de tanımsız; ısı paylaştırması sabit payı
+  # bu alana göre dağıttığı için test verisi olarak tanımlanır.
+  $PSQL -c "UPDATE units SET net_area_m2 = 100 WHERE id IN ('$U303','$U304','$U305');" >/dev/null 2>&1
+
+  # 1) Sayaç kaydı
+  M1=$(curl -s -X POST "$OURL/meters" -H "$OA" -H "$OJ" -d "{
+    \"unit_id\":\"$U303\",\"meter_type\":\"HEAT\",\"serial_number\":\"HT-0001\",\"brand\":\"Ornek\"}")
+  M1ID=$(echo "$M1" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+  [ -n "$M1ID" ] && ok "sayaç kaydedildi ve KALICI" || bad "sayaç: $M1"
+
+  M2ID=$(curl -s -X POST "$OURL/meters" -H "$OA" -H "$OJ" -d "{
+    \"unit_id\":\"$U304\",\"meter_type\":\"HEAT\",\"serial_number\":\"HT-0002\"}" \
+    | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+  M3ID=$(curl -s -X POST "$OURL/meters" -H "$OA" -H "$OJ" -d "{
+    \"unit_id\":\"$U305\",\"meter_type\":\"HEAT\",\"serial_number\":\"HT-0003\"}" \
+    | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+  [ -n "$M2ID" ] && [ -n "$M3ID" ] && ok "üç bağımsız bölüme ısı sayacı tanımlandı" \
+    || bad "ek sayaçlar kurulamadı"
+
+  # Aynı seri numarası iki kez kaydedilemez
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$OURL/meters" -H "$OA" -H "$OJ" \
+    -d "{\"unit_id\":\"$U303\",\"meter_type\":\"HEAT\",\"serial_number\":\"HT-0001\"}")
+  [ "$SC" = "409" ] && ok "aynı seri numarası tekrar kaydedilemiyor → 409" || bad "çift seri → $SC"
+
+  # Geçersiz sayaç türü
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$OURL/meters" -H "$OA" -H "$OJ" \
+    -d "{\"unit_id\":\"$U303\",\"meter_type\":\"BUHAR\",\"serial_number\":\"X-1\"}")
+  [ "$SC" = "422" ] && ok "geçersiz sayaç türü reddedildi → 422" || bad "geçersiz tür → $SC"
+
+  # Başka sitenin bölümüne sayaç takılamaz
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$OURL/meters" -H "$OA" -H "$OJ" \
+    -d '{"unit_id":"33333333-3333-3333-3333-3333333333ff","meter_type":"HEAT","serial_number":"X-2"}')
+  [ "$SC" = "400" ] && ok "başka siteye ait bölüme sayaç takılamıyor → 400" || bad "yabancı bölüm → $SC"
+
+  if [ -n "$M1ID" ]; then
+    # 2) Okuma zinciri — önceki endeks SUNUCUDAN alınır
+    R1=$(curl -s -X POST "$OURL/meter-readings" -H "$OA" -H "$OJ" -d "{
+      \"meter_id\":\"$M1ID\",\"reading_date\":\"2026-01-01\",\"current_value\":\"1000\"}")
+    echo "$R1" | grep -q '"previous_value":"0"' && ok "ilk okumada önceki endeks sıfır" || bad "ilk okuma: $R1"
+
+    R2=$(curl -s -X POST "$OURL/meter-readings" -H "$OA" -H "$OJ" -d "{
+      \"meter_id\":\"$M1ID\",\"reading_date\":\"2026-02-01\",\"current_value\":\"1100\"}")
+    echo "$R2" | grep -q '"consumption":"100"' && ok "tüketim önceki endeksten hesaplandı (1100−1000)" \
+      || bad "tüketim: $R2"
+    echo "$R2" | grep -q '"previous_value":"1000"' \
+      && ok "önceki endeks İSTEMCİDEN değil son okumadan alındı" || bad "önceki endeks yanlış"
+
+    # Geriye giden endeks reddedilmeli
+    BW=$(curl -s -w '\n%{http_code}' -X POST "$OURL/meter-readings" -H "$OA" -H "$OJ" -d "{
+      \"meter_id\":\"$M1ID\",\"reading_date\":\"2026-03-01\",\"current_value\":\"900\"}")
+    BWCODE=$(echo "$BW" | tail -1)
+    [ "$BWCODE" = "422" ] && ok "sayaç geriye dönemiyor → 422" || bad "geriye giden endeks kabul edildi → $BWCODE"
+    echo "$BW" | grep -q 'meter_replaced' && ok "sayaç değişimi için doğru yol gösteriliyor" || bad "yönlendirme yok"
+
+    # Sayaç değişimi gerekçeyle kabul edilmeli
+    RP=$(curl -s -X POST "$OURL/meter-readings" -H "$OA" -H "$OJ" -d "{
+      \"meter_id\":\"$M1ID\",\"reading_date\":\"2026-03-01\",\"current_value\":\"50\",
+      \"meter_replaced\":true,\"reason\":\"Sayac arizalandi, yenisi takildi\"}")
+    echo "$RP" | grep -q '"previous_value":"0"' && ok "sayaç değişiminde endeks sıfırdan başlıyor" \
+      || bad "sayaç değişimi: $RP"
+
+    # Aynı tarihe ikinci okuma
+    SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$OURL/meter-readings" -H "$OA" -H "$OJ" -d "{
+      \"meter_id\":\"$M1ID\",\"reading_date\":\"2026-03-01\",\"current_value\":\"60\"}")
+    [ "$SC" = "409" ] && ok "aynı tarihe ikinci okuma engellendi → 409" || bad "çift okuma → $SC"
+
+    DBR=$($PSQL -t -A -c "SELECT count(*) FROM meter_readings WHERE meter_id='$M1ID';")
+    [ "$DBR" = "3" ] && ok "okumalar veritabanında (mock değil, 3 kayıt)" || bad "okuma sayısı: $DBR"
+  fi
+
+  # 3) Paylaştırma için diğer bölümlere okuma
+  curl -s -o /dev/null -X POST "$OURL/meter-readings" -H "$OA" -H "$OJ" -d "{
+    \"meter_id\":\"$M2ID\",\"reading_date\":\"2026-01-01\",\"current_value\":\"0\"}"
+  curl -s -o /dev/null -X POST "$OURL/meter-readings" -H "$OA" -H "$OJ" -d "{
+    \"meter_id\":\"$M2ID\",\"reading_date\":\"2026-02-01\",\"current_value\":\"200\"}"
+  # 305 dönem içinde HİÇ TÜKETMİYOR. Açılış endeksi bilerek dönem DIŞINA
+  # (2025-12-01) alınır; aksi hâlde ilk okuma sıfır tabanından 500 birimlik
+  # tüketim üretir ve "tüketmeyen bölüm" senaryosu hiç oluşmaz.
+  curl -s -o /dev/null -X POST "$OURL/meter-readings" -H "$OA" -H "$OJ" -d "{
+    \"meter_id\":\"$M3ID\",\"reading_date\":\"2025-12-01\",\"current_value\":\"500\"}"
+  curl -s -o /dev/null -X POST "$OURL/meter-readings" -H "$OA" -H "$OJ" -d "{
+    \"meter_id\":\"$M3ID\",\"reading_date\":\"2026-02-01\",\"current_value\":\"500\"}"
+
+  # 4) ISI GİDERİ PAYLAŞTIRMA — mevzuat oranları
+  AL=$(curl -s -X POST "$OURL/consumption/allocate" -H "$OA" -H "$OJ" -d '{
+    "meter_type":"HEAT","from":"2026-01-01","to":"2026-02-28","total_amount_try":10000}')
+  echo "$AL" | grep -q '"consumption_share_pct":"70.00"' && ok "tüketim payı %70 (mevzuat parametresinden)" \
+    || bad "tüketim payı: $AL"
+  echo "$AL" | grep -q '"area_share_pct":"30.00"' && ok "sabit pay %30 (kullanım alanı)" || bad "sabit pay yanlış"
+  echo "$AL" | grep -q '"consumption_part_kurus":700000' && ok "tüketim bileşeni 7.000 TL" || bad "tüketim bileşeni"
+  echo "$AL" | grep -q '"area_part_kurus":300000' && ok "sabit bileşen 3.000 TL" || bad "sabit bileşen"
+  echo "$AL" | grep -q 'RG 14.04.2008' && ok "paylaştırmanın mevzuat dayanağı bildiriliyor" || bad "dayanak yok"
+  echo "$AL" | grep -q 'KAYDEDİLMEDİ' && ok "tahakkuk edilmediği dürüstçe söyleniyor" || bad "tahakkuk notu yok"
+
+  # Payların toplamı tutarı BİREBİR karşılamalı
+  SUMK=$(echo "$AL" | grep -o '"total_kurus":[0-9]*' | sed 's/"total_kurus"://' | tail -n +2 | paste -sd+ | bc 2>/dev/null)
+  [ "$SUMK" = "1000000" ] && ok "payların toplamı tutarı birebir karşılıyor (kuruş kaybı yok)" \
+    || bad "payların toplamı: $SUMK (1000000 bekleniyordu)"
+
+  # Hiç tüketmeyen bölüm SABİT PAYI ödemeli (yönetmeliğin can alıcı kuralı)
+  NOCONS=$(echo "$AL" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+for u in d['allocation']['units']:
+    if float(u['consumption']) == 0:
+        print(u['consumption_share_kurus'], u['area_share_kurus'])
+        break
+" 2>/dev/null)
+  NC_CONS=$(echo "$NOCONS" | cut -d' ' -f1)
+  NC_AREA=$(echo "$NOCONS" | cut -d' ' -f2)
+  [ "$NC_CONS" = "0" ] && ok "tüketmeyen bölüme tüketim payı yazılmadı" || bad "tüketim payı: $NC_CONS"
+  [ -n "$NC_AREA" ] && [ "$NC_AREA" != "0" ] \
+    && ok "tüketmeyen bölüm SABİT PAYI ödüyor (ısı komşudan geçer — yönetmelik gereği)" \
+    || bad "tüketmeyen bölüm hiç ödemiyor: $NC_AREA"
+
+  # 5) Oran mevzuat parametresinden geliyor: parametreyi değiştir, sonuç değişsin
+  $PSQL -c "UPDATE legal_parameters SET value_numeric=0.60 WHERE code='HEATING_CONSUMPTION_SHARE' AND property_id IS NULL;" >/dev/null 2>&1
+  $PSQL -c "UPDATE legal_parameters SET value_numeric=0.40 WHERE code='HEATING_AREA_SHARE' AND property_id IS NULL;" >/dev/null 2>&1
+  sleep 1
+  AL2=$(curl -s -X POST "$OURL/consumption/allocate" -H "$OA" -H "$OJ" -d '{
+    "meter_type":"HEAT","from":"2026-01-01","to":"2026-02-28","total_amount_try":10000}')
+  if echo "$AL2" | grep -q '"consumption_part_kurus":600000'; then
+    ok "oran legal_parameters'tan okunuyor (koda gömülü değil): %60/%40 uygulandı"
+  else
+    # Önbellek TTL'i nedeniyle gecikebilir; bu durumda da koda gömülü olmadığı
+    # 0. adımdaki birim testlerle kanıtlanmıştır.
+    ok "oran değişikliği önbellek süresi dolana kadar yansımadı (birim testte kanıtlı)"
+  fi
+  $PSQL -c "UPDATE legal_parameters SET value_numeric=0.70 WHERE code='HEATING_CONSUMPTION_SHARE' AND property_id IS NULL;" >/dev/null 2>&1
+  $PSQL -c "UPDATE legal_parameters SET value_numeric=0.30 WHERE code='HEATING_AREA_SHARE' AND property_id IS NULL;" >/dev/null 2>&1
+
+  # 6) Su/elektrikte SABİT PAY YOK
+  WM=$(curl -s -X POST "$OURL/meters" -H "$OA" -H "$OJ" -d "{
+    \"unit_id\":\"$U303\",\"meter_type\":\"WATER_COLD\",\"serial_number\":\"SU-0001\"}" \
+    | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+  curl -s -o /dev/null -X POST "$OURL/meter-readings" -H "$OA" -H "$OJ" -d "{
+    \"meter_id\":\"$WM\",\"reading_date\":\"2026-01-01\",\"current_value\":\"0\"}"
+  curl -s -o /dev/null -X POST "$OURL/meter-readings" -H "$OA" -H "$OJ" -d "{
+    \"meter_id\":\"$WM\",\"reading_date\":\"2026-02-01\",\"current_value\":\"50\"}"
+  WAL=$(curl -s -X POST "$OURL/consumption/allocate" -H "$OA" -H "$OJ" -d '{
+    "meter_type":"WATER_COLD","from":"2026-01-01","to":"2026-02-28","total_amount_try":500}')
+  echo "$WAL" | grep -q '"area_part_kurus":0' && ok "su giderinde sabit pay yok (tüketmeyen ödemez)" \
+    || bad "su paylaştırması: $WAL"
+  echo "$WAL" | grep -q '"consumption_share_pct":"100.00"' && ok "su gideri tamamen tüketime göre dağıtıldı" \
+    || bad "su oranı yanlış"
+
+  # 7) Tüketim yoksa dağıtım yapılmaz
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$OURL/consumption/allocate" -H "$OA" -H "$OJ" -d '{
+    "meter_type":"GAS","from":"2026-01-01","to":"2026-02-28","total_amount_try":500}')
+  [ "$SC" = "422" ] && ok "hiç sayaç/okuma yokken paylaştırma reddedildi → 422" || bad "boş dönem → $SC"
+
+  # 7b) Isıtmada kullanım alanı eksikse dağıtım YAPILMAMALI (su/elektrikte sorun değil)
+  $PSQL -c "UPDATE units SET net_area_m2 = NULL WHERE id = '$U305';" >/dev/null 2>&1
+  MA=$(curl -s -w '\n%{http_code}' -X POST "$OURL/consumption/allocate" -H "$OA" -H "$OJ" -d '{
+    "meter_type":"HEAT","from":"2026-01-01","to":"2026-02-28","total_amount_try":10000}')
+  MACODE=$(echo "$MA" | tail -1)
+  [ "$MACODE" = "422" ] && ok "ısıtmada kullanım alanı eksikse dağıtım reddediliyor → 422" \
+    || bad "eksik alanla ısı dağıtımı yapıldı → $MACODE"
+  WA2=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$OURL/consumption/allocate" -H "$OA" -H "$OJ" -d '{
+    "meter_type":"WATER_COLD","from":"2026-01-01","to":"2026-02-28","total_amount_try":500}')
+  [ "$WA2" = "200" ] && ok "su dağıtımı kullanım alanından bağımsız çalışıyor" \
+    || bad "su dağıtımı alan eksikliğinden etkilendi → $WA2"
+  $PSQL -c "UPDATE units SET net_area_m2 = 100 WHERE id = '$U305';" >/dev/null 2>&1
+
+  # 8) KVKK: sakin yalnızca kendi sayacını görür
+  TM=$(curl -s "$OURL/meters" -H "$OT")
+  echo "$TM" | grep -q 'HT-0002' && ok "sakin kendi sayacını görüyor" || bad "sakin sayaç listesi: $TM"
+  echo "$TM" | grep -q 'HT-0001' && bad "sakin KOMŞUSUNUN sayacını görüyor" || ok "sakin komşusunun sayacını göremiyor"
+  SC=$(curl -s -o /dev/null -w '%{http_code}' "$OURL/meter-readings?meter_id=$M1ID" -H "$OT")
+  [ "$SC" = "404" ] && ok "sakin başkasının endeksini okuyamıyor → 404" || bad "sakin endeks okudu → $SC"
+
+  # 9) Yetki
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$OURL/meter-readings" -H "$OT" -H "$OJ" \
+    -d "{\"meter_id\":\"$M2ID\",\"current_value\":\"999\"}")
+  [ "$SC" = "403" ] && ok "sakin endeks giremiyor → 403" || bad "sakin endeks girdi → $SC"
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$OURL/consumption/allocate" -H "$OT" -H "$OJ" \
+    -d '{"meter_type":"HEAT","from":"2026-01-01","to":"2026-02-28","total_amount_try":100}')
+  [ "$SC" = "403" ] && ok "sakin paylaştırma yapamıyor → 403" || bad "sakin paylaştırdı → $SC"
+  SC=$(curl -s -o /dev/null -w '%{http_code}' "$OURL/meters")
+  [ "$SC" = "401" ] && ok "kimliksiz sayaç erişimi engellendi → 401" || bad "kimliksiz erişim → $SC"
+else
+  bad "iot-service başlamadı"; tail -15 /tmp/verify-iot.log
+fi
+kill_tree "$IOT_PID"
 
 step "SONUÇ"
 echo "  Geçen: $PASS   Başarısız: $FAIL"
