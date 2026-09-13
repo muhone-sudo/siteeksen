@@ -39,6 +39,7 @@ PER_PID=""
 VIS_PID=""
 PRK_PID=""
 RES_PID=""
+PKG_PID=""
 
 ok()   { echo "  [GEÇTİ]    $1"; PASS=$((PASS+1)); }
 bad()  { echo "  [BAŞARISIZ] $1"; FAIL=$((FAIL+1)); }
@@ -55,6 +56,7 @@ cleanup() {
   [ -n "$VIS_PID" ] && kill "$VIS_PID" 2>/dev/null
   [ -n "$PRK_PID" ] && kill "$PRK_PID" 2>/dev/null
   [ -n "$RES_PID" ] && kill "$RES_PID" 2>/dev/null
+  [ -n "$PKG_PID" ] && kill "$PKG_PID" 2>/dev/null
   docker rm -f "$CNAME" >/dev/null 2>&1
 }
 trap cleanup EXIT
@@ -1098,6 +1100,147 @@ else
   bad "reservation-service başlamadı"; tail -10 /tmp/verify-reservation.log
 fi
 kill "$RES_PID" 2>/dev/null
+
+step "17) Kargo modülü — mock'tan gerçeğe (FAZ 5, 6. modül)"
+# Önceki davranış: sabit kargo listesi; teslim alma/teslim etme kaydedilmiyordu ve
+# yanıt "sakine bildirim gönderildi" diyordu — bildirim altyapısı hiç yoktu.
+PKGPORT=${VERIFY_PKG_PORT:-18097}
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen DB_PASSWORD="$PW" DB_NAME=siteeksen \
+DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${PKGPORT} \
+  go run ./services/package >/tmp/verify-package.log 2>&1 &
+PKG_PID=$!
+KUP2=0
+for _ in $(seq 1 45); do
+  curl -fsS "http://127.0.0.1:${PKGPORT}/health" >/dev/null 2>&1 && { KUP2=1; break; }
+  sleep 1
+done
+
+if [ "$KUP2" = "1" ] && [ -n "${MGR:-}" ] && [ -n "${TEN:-}" ]; then
+  ok "package-service ayağa kalktı"
+  PA="Authorization: Bearer $MGR"
+  PT="Authorization: Bearer $TEN"
+  PJ='Content-Type: application/json'
+  PURL="http://127.0.0.1:${PKGPORT}/api/v1"
+  UNIT_MGR='33333333-3333-3333-3333-333333333303'   # yönetici hesabının bölümü
+  UNIT_TEN='33333333-3333-3333-3333-333333333304'   # kiracının bölümü
+
+  # 1) Kargo teslim alma — kalıcı olmalı
+  P1=$(curl -s -X POST "$PURL/packages" -H "$PA" -H "$PJ" -d "{
+    \"unit_id\":\"$UNIT_MGR\",\"recipient_name\":\"Ahmet Yilmaz\",\"carrier\":\"Aras\",
+    \"tracking_number\":\"AR123456\",\"storage_location\":\"Guvenlik kulubesi raf 2\"}")
+  P1ID=$(echo "$P1" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+  [ -n "$P1ID" ] && ok "kargo kaydı oluşturuldu ve KALICI" || bad "kargo kaydedilemedi: $P1"
+
+  if [ -n "$P1ID" ]; then
+    DBC=$($PSQL -t -A -c "SELECT count(*) FROM packages WHERE id='$P1ID';")
+    [ "$DBC" = "1" ] && ok "kargo veritabanında (mock değil)" || bad "kayıt veritabanında yok"
+  fi
+
+  # 2) Bildirim dürüstlüğü: gönderilmediği açıkça söylenmeli
+  echo "$P1" | grep -q '"notification_sent":false' \
+    && ok "bildirim gönderilmediği alan olarak bildiriliyor" || bad "notification_sent alanı yok"
+  echo "$P1" | grep -q 'OTOMATİK BİLDİRİM GÖNDERİLMEDİ' \
+    && ok "bildirim gönderilmediği dürüstçe açıklanıyor" || bad "bildirim iddiası dürüst değil: $P1"
+
+  # 3) Başka sitenin bağımsız bölümüne kargo kaydedilemez
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$PURL/packages" -H "$PA" -H "$PJ" \
+    -d '{"unit_id":"33333333-3333-3333-3333-3333333333ff","recipient_name":"Test"}')
+  [ "$SC" = "400" ] && ok "başka siteye ait bağımsız bölüme kargo kaydedilemiyor → 400" \
+    || bad "geçersiz bölüm kabul edildi → $SC"
+
+  # 4) Kiracıya ait ikinci kargo
+  P2=$(curl -s -X POST "$PURL/packages" -H "$PA" -H "$PJ" -d "{
+    \"unit_id\":\"$UNIT_TEN\",\"recipient_name\":\"Ayse Demir\",\"carrier\":\"Yurtici\"}")
+  P2ID=$(echo "$P2" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+  [ -n "$P2ID" ] && ok "ikinci kargo kaydedildi" || bad "ikinci kargo: $P2"
+
+  # 5) KVKK: sakin yalnızca KENDİ bölümünün kargosunu görür
+  TL=$(curl -s "$PURL/packages" -H "$PT")
+  echo "$TL" | grep -q 'Ayse Demir' && ok "sakin kendi kargosunu görüyor" || bad "sakin listesi: $TL"
+  echo "$TL" | grep -q 'Ahmet Yilmaz' && bad "sakin KOMŞUSUNUN kargosunu görüyor (KVKK ihlali)" \
+    || ok "sakin komşusunun kargosunu göremiyor (KVKK veri minimizasyonu)"
+
+  # Tekil okuma da aynı sınırı uygulamalı
+  if [ -n "$P1ID" ]; then
+    SC=$(curl -s -o /dev/null -w '%{http_code}' "$PURL/packages/$P1ID" -H "$PT")
+    [ "$SC" = "404" ] && ok "sakin, başkasının kargo kaydını tekil olarak da okuyamıyor" \
+      || bad "sakin başkasının kargosunu okudu → $SC"
+  fi
+
+  # 6) Yönetim site genelini görür
+  ML=$(curl -s "$PURL/packages" -H "$PA")
+  echo "$ML" | grep -q 'Ahmet Yilmaz' && echo "$ML" | grep -q 'Ayse Demir' \
+    && ok "yönetim site genelindeki kargoları görüyor" || bad "yönetim listesi eksik: $ML"
+
+  # 7) Haber verildi kaydı — bildirim GÖNDERMEDİĞİNİ söylemeli
+  if [ -n "$P1ID" ]; then
+    N1=$(curl -s -X POST "$PURL/packages/$P1ID/notify" -H "$PA" -H "$PJ" -d '{"method":"PHONE"}')
+    echo "$N1" | grep -q '"status":"NOTIFIED"' && ok "haber verildi kaydı işlendi" || bad "notify: $N1"
+    echo "$N1" | grep -q 'SMS/push bildirim GÖNDERMEZ' \
+      && ok "sistemin bildirim göndermediği açıkça yazılıyor" || bad "notify dürüstlük notu yok"
+
+    # İkinci haber verme hatırlatma sayacını artırmalı
+    N2=$(curl -s -X POST "$PURL/packages/$P1ID/notify" -H "$PA" -H "$PJ" -d '{"method":"DOORBELL"}')
+    echo "$N2" | grep -q '"reminder_count":1' && ok "hatırlatma sayacı artıyor" || bad "sayaç: $N2"
+  fi
+
+  # 8) Teslim — kime teslim edildiği zorunlu
+  if [ -n "$P1ID" ]; then
+    SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$PURL/packages/$P1ID/deliver" \
+      -H "$PA" -H "$PJ" -d '{}')
+    [ "$SC" = "400" ] && ok "teslim alan kişi yazılmadan teslim kaydı yapılamıyor → 400" \
+      || bad "isimsiz teslim kabul edildi → $SC"
+
+    D1=$(curl -s -X POST "$PURL/packages/$P1ID/deliver" -H "$PA" -H "$PJ" \
+      -d '{"delivered_to_name":"Ahmet Yilmaz"}')
+    echo "$D1" | grep -q '"status":"DELIVERED"' && ok "kargo teslim edildi" || bad "teslim: $D1"
+    echo "$D1" | grep -q 'SAKLANMADI' && ok "imza/fotoğraf saklanmadığı dürüstçe bildiriliyor" \
+      || bad "imza saklama iddiası dürüst değil"
+
+    ST=$($PSQL -t -A -c "SELECT status || '|' || COALESCE(delivered_to_name,'') FROM packages WHERE id='$P1ID';")
+    [ "$ST" = "DELIVERED|Ahmet Yilmaz" ] && ok "teslim veritabanına yazıldı (kime teslim edildiği dahil)" \
+      || bad "teslim kaydı: $ST"
+
+    # Aynı paket iki kez teslim edilemez
+    SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$PURL/packages/$P1ID/deliver" \
+      -H "$PA" -H "$PJ" -d '{"delivered_to_name":"Baskasi"}')
+    [ "$SC" = "409" ] && ok "çift teslim engellendi → 409" || bad "çift teslim → $SC"
+  fi
+
+  # 9) İade — gerekçe zorunlu
+  if [ -n "$P2ID" ]; then
+    SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$PURL/packages/$P2ID/return" \
+      -H "$PA" -H "$PJ" -d '{}')
+    [ "$SC" = "400" ] && ok "gerekçesiz iade engellendi → 400" || bad "gerekçesiz iade → $SC"
+
+    SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$PURL/packages/$P2ID/return" \
+      -H "$PA" -H "$PJ" -d '{"reason":"Alici 30 gun teslim almadi"}')
+    [ "$SC" = "200" ] && ok "iade kaydedildi → 200" || bad "iade → $SC"
+    NT=$($PSQL -t -A -c "SELECT notes FROM packages WHERE id='$P2ID';")
+    echo "$NT" | grep -q 'İade: Alici 30 gun teslim almadi' && ok "iade gerekçesi kayda geçti" \
+      || bad "iade gerekçesi kaydedilmedi: $NT"
+  fi
+
+  # 10) Depo özeti gerçek sayımdan gelmeli
+  SUM=$(curl -s "$PURL/packages-summary" -H "$PA")
+  echo "$SUM" | grep -q '"delivered":1' && ok "özet teslim edileni gerçek sayıyor" || bad "özet: $SUM"
+  echo "$SUM" | grep -q '"returned":1' && ok "özet iadeyi gerçek sayıyor" || bad "özet iade: $SUM"
+
+  # 11) Sakin kargo kaydı/teslimi yapamaz
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$PURL/packages" -H "$PT" -H "$PJ" \
+    -d "{\"unit_id\":\"$UNIT_TEN\",\"recipient_name\":\"Kendim\"}")
+  [ "$SC" = "403" ] && ok "sakin kargo kaydı yapamıyor → 403" || bad "sakin kargo kaydetti → $SC"
+
+  SC=$(curl -s -o /dev/null -w '%{http_code}' "$PURL/packages-summary" -H "$PT")
+  [ "$SC" = "403" ] && ok "sakin depo özetini göremiyor → 403" || bad "sakin özeti gördü → $SC"
+
+  # 12) Kimliksiz erişim engelli
+  SC=$(curl -s -o /dev/null -w '%{http_code}' "$PURL/packages")
+  [ "$SC" = "401" ] && ok "kimliksiz kargo listesi erişimi engellendi → 401" || bad "kimliksiz erişim → $SC"
+else
+  bad "package-service başlamadı"; tail -10 /tmp/verify-package.log
+fi
+kill "$PKG_PID" 2>/dev/null
 
 step "SONUÇ"
 echo "  Geçen: $PASS   Başarısız: $FAIL"

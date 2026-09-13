@@ -1,174 +1,230 @@
+// package-service — Site girişinde teslim alınan kargo/paket takibi.
+//
+// DURUM DEĞİŞİKLİĞİ (2026-09-13): Bu servis mock'tu; sabit kargo listesi döndürüyor
+// ve teslim alma/teslim etme isteklerine 2xx dönüp hiçbir yere kaydetmiyordu.
+// Ayrıca "sakine bildirim gönderildi" diyordu — bildirim altyapısı hiç yoktu.
+// Artık gerçek veri katmanına bağlıdır (FAZ 5 — 6/22).
+//
+// Dürüstlük notları:
+//   - Sistem KENDİLİĞİNDEN BİLDİRİM GÖNDERMEZ. /notify ucu, görevlinin sakine elle
+//     (zil, telefon, yüz yüze) haber verdiğini KAYDA GEÇİRMESİ içindir.
+//   - Teslim imzası / fotoğrafı saklanmaz; dosya depolama altyapısı henüz yoktur.
 package main
 
 import (
+	"errors"
 	"log"
+	"net/http"
 	"os"
-	"time"
-
-	"github.com/siteeksen/backend/pkg/stub"
+	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/siteeksen/backend/pkg/database"
+	"github.com/siteeksen/backend/pkg/middleware"
+	"github.com/siteeksen/backend/services/package/repository"
 )
 
-// =====================================================
-// MODELS
-// =====================================================
-
-type Package struct {
-	ID                   string     `json:"id"`
-	PropertyID           string     `json:"property_id"`
-	UnitID               string     `json:"unit_id"`
-	UnitNumber           string     `json:"unit_number,omitempty"`
-	RecipientName        string     `json:"recipient_name"`
-	RecipientPhone       string     `json:"recipient_phone,omitempty"`
-	Carrier              string     `json:"carrier,omitempty"`
-	TrackingNumber       string     `json:"tracking_number,omitempty"`
-	PackageType          string     `json:"package_type"` // PACKAGE, ENVELOPE, LARGE
-	Description          string     `json:"description,omitempty"`
-	PhotoURL             string     `json:"photo_url,omitempty"`
-	StorageLocation      string     `json:"storage_location,omitempty"`
-	ReceivedAt           time.Time  `json:"received_at"`
-	ReceivedBy           string     `json:"received_by,omitempty"`
-	ReceivedByName       string     `json:"received_by_name,omitempty"`
-	NotificationSent     bool       `json:"notification_sent"`
-	NotificationSentAt   *time.Time `json:"notification_sent_at,omitempty"`
-	ReminderCount        int        `json:"reminder_count"`
-	DeliveredAt          *time.Time `json:"delivered_at,omitempty"`
-	DeliveredBy          string     `json:"delivered_by,omitempty"`
-	DeliveredToName      string     `json:"delivered_to_name,omitempty"`
-	DeliverySignatureURL string     `json:"delivery_signature_url,omitempty"`
-	DeliveryPhotoURL     string     `json:"delivery_photo_url,omitempty"`
-	Status               string     `json:"status"` // RECEIVED, NOTIFIED, DELIVERED, RETURNED
-	Notes                string     `json:"notes,omitempty"`
-}
-
-type PackageRequest struct {
-	UnitID          string `json:"unit_id" binding:"required"`
-	RecipientName   string `json:"recipient_name" binding:"required"`
-	RecipientPhone  string `json:"recipient_phone"`
-	Carrier         string `json:"carrier"`
-	TrackingNumber  string `json:"tracking_number"`
-	PackageType     string `json:"package_type"`
-	Description     string `json:"description"`
-	PhotoURL        string `json:"photo_url"`
-	StorageLocation string `json:"storage_location"`
-}
-
-type DeliveryRequest struct {
-	DeliveredToName string `json:"delivered_to_name" binding:"required"`
-	SignatureURL    string `json:"signature_url"`
-	PhotoURL        string `json:"photo_url"`
-	Notes           string `json:"notes"`
-}
-
-type PackageStats struct {
-	TotalReceived   int `json:"total_received"`
-	PendingDelivery int `json:"pending_delivery"`
-	DeliveredToday  int `json:"delivered_today"`
-	AwaitingPickup  int `json:"awaiting_pickup"`
-	OverduePending  int `json:"overdue_pending"` // 3+ gün bekleyenler
-}
-
-var carriers = []string{
-	"Aras Kargo",
-	"Yurtiçi Kargo",
-	"MNG Kargo",
-	"PTT Kargo",
-	"UPS",
-	"DHL",
-	"Sürat Kargo",
-	"Trendyol Express",
-	"Hepsijet",
-	"Getir",
-	"Diğer",
-}
-
-// =====================================================
-// HANDLERS
-// =====================================================
-
 func main() {
+	dbConfig := database.NewConfigFromEnv()
+	pool, err := database.Connect(dbConfig)
+	if err != nil {
+		log.Fatalf("Veritabanı bağlantısı başarısız: %v", err)
+	}
+	defer database.Close()
+
+	repo := repository.New(pool)
+
 	r := gin.Default()
+	r.GET("/health", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"status": "healthy", "service": "package", "persistent": true,
+		})
+	})
 
-	r.GET("/health", stub.Health("package"))
+	api := r.Group("/api/v1")
+	api.Use(middleware.AuthMiddleware(), middleware.AuditLog(pool, "package"))
 
-	v1 := r.Group("/api/v1")
-	{
-		v1.GET("/carriers", getCarriers)
-
-		packages := v1.Group("/packages")
-		{
-			packages.GET("", listPackages)
-			packages.GET("/pending", getPendingPackages)
-			packages.GET("/stats", getPackageStats)
-			packages.GET("/:id", getPackage)
-			packages.POST("", receivePackage)
-			packages.PUT("/:id", updatePackage)
-			packages.DELETE("/:id", deletePackage)
-			packages.POST("/:id/notify", sendNotification)
-			packages.POST("/:id/deliver", deliverPackage)
-			packages.POST("/:id/return", returnPackage)
+	// Sakin yalnızca kendi bağımsız bölümünün kargolarını görür.
+	// Kargo kaydı, kimin ne aldığını gösterir; bu KVKK kapsamında kişisel veridir
+	// ve komşunun paketini görmek için hiçbir meşru menfaat yoktur.
+	api.GET("/packages", func(c *gin.Context) {
+		propertyID := c.GetString("property_id")
+		scope := ""
+		if !hasOpsScope(c) {
+			unitID, uerr := repo.ResidentUnit(c.Request.Context(), propertyID, c.GetString("user_id"))
+			if uerr != nil {
+				fail(c, uerr, "bağımsız bölüm çözümleme")
+				return
+			}
+			scope = unitID
+		} else if q := c.Query("unit_id"); q != "" {
+			scope = q
 		}
 
-		// Unit packages
-		v1.GET("/units/:unit_id/packages", getUnitPackages)
+		list, err := repo.List(c.Request.Context(), propertyID, scope,
+			strings.ToUpper(c.Query("status")), c.Query("pending") == "true")
+		if err != nil {
+			fail(c, err, "kargo listeleme")
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"data": list})
+	})
+
+	api.GET("/packages/:id", func(c *gin.Context) {
+		propertyID := c.GetString("property_id")
+		scope := ""
+		if !hasOpsScope(c) {
+			unitID, uerr := repo.ResidentUnit(c.Request.Context(), propertyID, c.GetString("user_id"))
+			if uerr != nil {
+				fail(c, uerr, "bağımsız bölüm çözümleme")
+				return
+			}
+			scope = unitID
+		}
+		p, err := repo.Get(c.Request.Context(), propertyID, c.Param("id"), scope)
+		if err != nil {
+			fail(c, err, "kargo okuma")
+			return
+		}
+		c.JSON(http.StatusOK, p)
+	})
+
+	// --- Görevli / yönetim işlemleri ---
+	ops := api.Group("")
+	ops.Use(middleware.RequireRole(
+		middleware.RoleManager, middleware.RoleBoardMember, middleware.RoleStaff))
+	{
+		// Depo özeti — unutulmuş paketleri görünür kılar.
+		ops.GET("/packages-summary", func(c *gin.Context) {
+			s, err := repo.Summary(c.Request.Context(), c.GetString("property_id"))
+			if err != nil {
+				fail(c, err, "özet")
+				return
+			}
+			c.JSON(http.StatusOK, s)
+		})
+
+		ops.POST("/packages", func(c *gin.Context) {
+			var in repository.CreateInput
+			if err := c.ShouldBindJSON(&in); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{
+					"error": "unit_id ve recipient_name zorunludur"})
+				return
+			}
+			id, err := repo.Create(c.Request.Context(),
+				c.GetString("property_id"), c.GetString("user_id"), in)
+			if err != nil {
+				fail(c, err, "kargo kaydı")
+				return
+			}
+			c.JSON(http.StatusCreated, gin.H{
+				"id":                id,
+				"status":            "RECEIVED",
+				"notification_sent": false,
+				"note": "Kargo kaydedildi. Sakine OTOMATİK BİLDİRİM GÖNDERİLMEDİ; " +
+					"bildirim altyapısı henüz bağlı değildir. Haber verildiğinde " +
+					"POST /packages/{id}/notify ile kayda geçirin.",
+			})
+		})
+
+		// Haber verildi kaydı — bildirim GÖNDERMEZ, gönderildiğini iddia etmez.
+		ops.POST("/packages/:id/notify", func(c *gin.Context) {
+			var in struct {
+				Method string `json:"method"`
+			}
+			_ = c.ShouldBindJSON(&in)
+			if in.Method == "" {
+				in.Method = "MANUAL"
+			}
+			reminders, err := repo.MarkNotified(c.Request.Context(),
+				c.GetString("property_id"), c.Param("id"), strings.ToUpper(in.Method))
+			if err != nil {
+				fail(c, err, "haber verildi kaydı")
+				return
+			}
+			c.JSON(http.StatusOK, gin.H{
+				"status":         "NOTIFIED",
+				"reminder_count": reminders,
+				"note": "Bu kayıt, sakine ELLE haber verildiğini belgeler. Sistem " +
+					"SMS/push bildirim GÖNDERMEZ.",
+			})
+		})
+
+		ops.POST("/packages/:id/deliver", func(c *gin.Context) {
+			var in struct {
+				DeliveredToName string `json:"delivered_to_name" binding:"required"`
+			}
+			if err := c.ShouldBindJSON(&in); err != nil {
+				// Kime teslim edildiği yazılmadan teslim kaydı, kaybolan kargoda
+				// sorumluluğu belirsiz bırakır.
+				c.JSON(http.StatusBadRequest, gin.H{
+					"error": "Teslim alan kişinin adı (delivered_to_name) zorunludur"})
+				return
+			}
+			if err := repo.Deliver(c.Request.Context(), c.GetString("property_id"),
+				c.Param("id"), c.GetString("user_id"), strings.TrimSpace(in.DeliveredToName)); err != nil {
+				fail(c, err, "teslim")
+				return
+			}
+			c.JSON(http.StatusOK, gin.H{
+				"status": "DELIVERED",
+				"note": "Teslim kaydedildi. İmza/fotoğraf SAKLANMADI; dosya depolama " +
+					"altyapısı henüz yoktur.",
+			})
+		})
+
+		ops.POST("/packages/:id/return", func(c *gin.Context) {
+			var in struct {
+				Reason string `json:"reason" binding:"required"`
+			}
+			if err := c.ShouldBindJSON(&in); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "İade gerekçesi zorunludur"})
+				return
+			}
+			if err := repo.Return(c.Request.Context(), c.GetString("property_id"),
+				c.Param("id"), strings.TrimSpace(in.Reason)); err != nil {
+				fail(c, err, "iade")
+				return
+			}
+			c.JSON(http.StatusOK, gin.H{"status": "RETURNED"})
+		})
 	}
 
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8097"
 	}
-
-	log.Printf("Package Service starting on port %s", port)
+	log.Printf("Package Service başlatıldı: :%s", port)
 	if err := r.Run(":" + port); err != nil {
 		log.Fatal(err)
 	}
 }
 
-func getCarriers(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "package")
+func hasOpsScope(c *gin.Context) bool {
+	value, _ := c.Get("roles")
+	roles, _ := value.([]string)
+	for _, r := range roles {
+		switch r {
+		case middleware.RoleManager, middleware.RoleBoardMember,
+			middleware.RoleStaff, middleware.RoleSuperAdmin:
+			return true
+		}
+	}
+	return false
 }
 
-func listPackages(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "package")
-}
-
-func getPendingPackages(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "package")
-}
-
-func getPackageStats(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "package")
-}
-
-func getPackage(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "package")
-}
-
-func receivePackage(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "package")
-}
-
-func updatePackage(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "package")
-}
-
-func deletePackage(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "package")
-}
-
-func sendNotification(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "package")
-}
-
-func deliverPackage(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "package")
-}
-
-func returnPackage(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "package")
-}
-
-func getUnitPackages(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "package")
+func fail(c *gin.Context, err error, op string) {
+	switch {
+	case errors.Is(err, repository.ErrNotFound):
+		c.JSON(http.StatusNotFound, gin.H{"error": "Kayıt bulunamadı"})
+	case errors.Is(err, repository.ErrUnitNotInSite):
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Belirtilen bağımsız bölüm bu siteye ait değil"})
+	case errors.Is(err, repository.ErrBadState):
+		c.JSON(http.StatusConflict, gin.H{"error": "Paket bu işlem için uygun durumda değil"})
+	case errors.Is(err, repository.ErrNoUnit):
+		c.JSON(http.StatusForbidden, gin.H{"error": "Bu sitede aktif bir bağımsız bölümünüz bulunmuyor"})
+	default:
+		log.Printf("[package] %s başarısız: %v", op, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "İşlem tamamlanamadı"})
+	}
 }
