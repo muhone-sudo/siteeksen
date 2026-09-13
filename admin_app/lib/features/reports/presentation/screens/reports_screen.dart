@@ -1,224 +1,176 @@
-import 'package:flutter/material.dart';
-import '../../../../core/theme/app_theme.dart';
+// Raporlar Ekranı
+//
+// NEDEN YENİDEN YAZILDI (2026-09-13):
+// Ekran sabit bir dönem ("Ocak 2026") ve koda gömülü rapor özetleri gösteriyor,
+// "PDF olarak indir" / "Excel olarak indir" düğmeleri ise hiçbir şey yapmıyordu.
+// Ayrıca gateway tarafındaki rapor üretimi tamamen uydurma tutarlarla PDF
+// üretiyordu; o da kaldırıldı (FAZ 2.2). Mali rapor, KMK m.39 kapsamında hesap
+// verme belgesidir — uydurma içerikli bir rapor hukuki sonuç doğurur.
+//
+// Bu sürümde rapor üretimi sunucudan istenir; sunucu hazır değilse bu açıkça
+// söylenir ve indirme düğmesi yanıltıcı bir başarı göstermez.
 
-class ReportsScreen extends StatelessWidget {
+import 'package:flutter/material.dart';
+
+import '../../../../core/network/api_client.dart';
+import '../../../../core/theme/apple_theme.dart';
+import '../../../../core/widgets/data_state.dart';
+
+class ReportsScreen extends StatefulWidget {
   const ReportsScreen({super.key});
+
+  @override
+  State<ReportsScreen> createState() => _ReportsScreenState();
+}
+
+class _ReportsScreenState extends State<ReportsScreen> {
+  static const _reportTypes = [
+    (
+      id: 'assessment',
+      title: 'Tahakkuk ve Tahsilat Raporu',
+      subtitle: 'Dönem bazlı aidat tahakkuku, tahsilat ve bakiye',
+      icon: Icons.receipt_long_rounded,
+      color: AppleTheme.systemBlue,
+    ),
+    (
+      id: 'expense',
+      title: 'Gider Raporu',
+      subtitle: 'Kalem bazlı gider dökümü',
+      icon: Icons.payments_rounded,
+      color: AppleTheme.systemOrange,
+    ),
+    (
+      id: 'debtor',
+      title: 'Borçlu Listesi',
+      subtitle: 'Ödenmemiş aidat ve gecikme tazminatı',
+      icon: Icons.warning_amber_rounded,
+      color: AppleTheme.systemRed,
+    ),
+    (
+      id: 'annual',
+      title: 'Yıllık Hesap Özeti',
+      subtitle: 'KMK m.39 — yıllık hesap verme belgesi',
+      icon: Icons.description_rounded,
+      color: AppleTheme.systemGreen,
+    ),
+  ];
+
+  int _year = DateTime.now().year;
+  int _month = DateTime.now().month;
+  String? _busyReport;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Raporlar')),
+      backgroundColor: AppleTheme.background,
+      appBar: AppBar(
+        title: const Text('Raporlar'),
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // Period selector
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.calendar_month),
-              title: const Text('Dönem: Ocak 2026'),
-              trailing: const Icon(Icons.keyboard_arrow_down),
-              onTap: () {},
-            ),
-          ),
-          const SizedBox(height: 24),
+          _buildPeriodSelector(),
+          const SizedBox(height: 16),
+          for (final r in _reportTypes) _reportCard(r),
+        ],
+      ),
+    );
+  }
 
-          // Financial Reports
-          const Text('Finansal Raporlar', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 12),
-          _ReportCard(
-            icon: Icons.receipt_long,
-            title: 'Aidat Raporu',
-            description: 'Aylık tahakkuk ve tahsilat detayları',
-            formats: ['PDF', 'Excel'],
-            onTap: () => _showFormatDialog(context, 'Aidat Raporu'),
+  Widget _buildPeriodSelector() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: AppleTheme.cardDecoration,
+      child: Row(
+        children: [
+          const Icon(Icons.calendar_month_rounded, color: AppleTheme.systemBlue),
+          const SizedBox(width: 12),
+          const Text('Dönem', style: TextStyle(fontWeight: FontWeight.w600)),
+          const Spacer(),
+          DropdownButton<int>(
+            value: _month,
+            underline: const SizedBox.shrink(),
+            items: [
+              for (var m = 1; m <= 12; m++)
+                DropdownMenuItem(value: m, child: Text(_monthName(m))),
+            ],
+            onChanged: (v) => setState(() => _month = v ?? _month),
           ),
-          _ReportCard(
-            icon: Icons.payments,
-            title: 'Tahsilat Raporu',
-            description: 'Ödeme listesi ve yöntem dağılımı',
-            formats: ['PDF', 'Excel'],
-            onTap: () => _showFormatDialog(context, 'Tahsilat Raporu'),
-          ),
-          _ReportCard(
-            icon: Icons.trending_down,
-            title: 'Borç Raporu',
-            description: 'Gecikmiş ödemeler ve borçlu listesi',
-            formats: ['PDF', 'Excel'],
-            onTap: () => _showFormatDialog(context, 'Borç Raporu'),
-          ),
-          const SizedBox(height: 24),
-
-          // Consumption Reports
-          const Text('Tüketim Raporları', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 12),
-          _ReportCard(
-            icon: Icons.whatshot,
-            title: 'Isı Tüketimi',
-            description: 'Daire bazlı ısı tüketim raporu',
-            formats: ['PDF', 'Excel'],
-            onTap: () => _showFormatDialog(context, 'Isı Tüketimi'),
-          ),
-          _ReportCard(
-            icon: Icons.water_drop,
-            title: 'Su Tüketimi',
-            description: 'Soğuk ve sıcak su tüketim detayları',
-            formats: ['PDF', 'Excel'],
-            onTap: () => _showFormatDialog(context, 'Su Tüketimi'),
-          ),
-          const SizedBox(height: 24),
-
-          // Other Reports
-          const Text('Diğer Raporlar', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 12),
-          _ReportCard(
-            icon: Icons.people,
-            title: 'Sakin Listesi',
-            description: 'Tüm sakin ve iletişim bilgileri',
-            formats: ['PDF', 'Excel'],
-            onTap: () => _showFormatDialog(context, 'Sakin Listesi'),
-          ),
-          _ReportCard(
-            icon: Icons.support_agent,
-            title: 'Talep Raporu',
-            description: 'Talep istatistikleri ve çözüm süreleri',
-            formats: ['PDF'],
-            onTap: () => _showFormatDialog(context, 'Talep Raporu'),
+          const SizedBox(width: 12),
+          DropdownButton<int>(
+            value: _year,
+            underline: const SizedBox.shrink(),
+            items: [
+              for (var y = DateTime.now().year - 4; y <= DateTime.now().year + 1; y++)
+                DropdownMenuItem(value: y, child: Text('$y')),
+            ],
+            onChanged: (v) => setState(() => _year = v ?? _year),
           ),
         ],
       ),
     );
   }
 
-  void _showFormatDialog(BuildContext context, String reportName) {
-    showModalBottomSheet(
-      context: context,
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(reportName, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 16),
-            ListTile(
-              leading: const Icon(Icons.picture_as_pdf, color: Colors.red),
-              title: const Text('PDF olarak indir'),
-              onTap: () {
-                Navigator.pop(context);
-                _downloadReport(context, 'PDF');
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.table_chart, color: Colors.green),
-              title: const Text('Excel olarak indir'),
-              onTap: () {
-                Navigator.pop(context);
-                _downloadReport(context, 'Excel');
-              },
-            ),
-          ],
+  static String _monthName(int m) => const [
+        '', 'Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
+        'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık',
+      ][m];
+
+  Widget _reportCard(({String id, String title, String subtitle, IconData icon, Color color}) r) {
+    final busy = _busyReport == r.id;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: AppleTheme.cardDecoration,
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        leading: Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: r.color.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(r.icon, color: r.color),
         ),
+        title: Text(r.title, style: const TextStyle(fontWeight: FontWeight.w600)),
+        subtitle: Text(r.subtitle, style: TextStyle(fontSize: 13, color: AppleTheme.secondaryLabel)),
+        trailing: busy
+            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+            : const Icon(Icons.download_rounded),
+        onTap: busy ? null : () => _generate(r.id, r.title),
       ),
     );
   }
 
-  void _downloadReport(BuildContext context, String format) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            const SizedBox(
-              width: 20,
-              height: 20,
-              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-            ),
-            const SizedBox(width: 12),
-            Text('$format raporu hazırlanıyor...'),
+  Future<void> _generate(String type, String title) async {
+    setState(() => _busyReport = type);
+    try {
+      final ref = await apiClient.generateReport(type, year: _year, month: _month);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$title üretildi (referans: $ref)')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      // Rapor üretilemediyse "indirildi" DENMEZ; nedeni gösterilir.
+      showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text(isNotImplemented(e) ? 'Rapor üretimi henüz hazır değil' : 'Rapor üretilemedi'),
+          content: Text(
+            isNotImplemented(e)
+                ? 'Rapor üretimi, gerçek mali veriye bağlanana kadar kapalıdır. '
+                    'Önceki sürüm uydurma tutarlarla PDF üretiyordu; bu kaldırıldı.'
+                : toUserMessage(e),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Tamam')),
           ],
         ),
-        duration: const Duration(seconds: 2),
-      ),
-    );
-    
-    Future.delayed(const Duration(seconds: 2), () {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Rapor indirildi'),
-            backgroundColor: Colors.green,
-            action: SnackBarAction(
-              label: 'Aç',
-              textColor: Colors.white,
-              onPressed: () {},
-            ),
-          ),
-        );
-      }
-    });
-  }
-}
-
-class _ReportCard extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String description;
-  final List<String> formats;
-  final VoidCallback onTap;
-
-  const _ReportCard({
-    required this.icon,
-    required this.title,
-    required this.description,
-    required this.formats,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.only(bottom: 8),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              CircleAvatar(
-                backgroundColor: AppTheme.primaryColor.withOpacity(0.1),
-                child: Icon(icon, color: AppTheme.primaryColor),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(title, style: const TextStyle(fontWeight: FontWeight.w600)),
-                    Text(description, style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
-                  ],
-                ),
-              ),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: formats.map((f) => Container(
-                  margin: const EdgeInsets.only(left: 4),
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: f == 'PDF' ? Colors.red.withOpacity(0.1) : Colors.green.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    f,
-                    style: TextStyle(fontSize: 10, color: f == 'PDF' ? Colors.red : Colors.green),
-                  ),
-                )).toList(),
-              ),
-              const SizedBox(width: 8),
-              const Icon(Icons.download, color: AppTheme.textSecondary),
-            ],
-          ),
-        ),
-      ),
-    );
+      );
+    } finally {
+      if (mounted) setState(() => _busyReport = null);
+    }
   }
 }

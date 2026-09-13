@@ -1,8 +1,16 @@
-import 'package:flutter/material.dart';
-import '../../../../core/theme/apple_theme.dart';
-import '../../../../core/widgets/apple_widgets.dart';
+// Stok Yönetimi Ekranı
+//
+// NEDEN YENİDEN YAZILDI (2026-09-13):
+// Ekran, koda gömülü stok kalemleri ve "kritik seviye" uyarıları gösteriyordu.
+// Uydurma stok bilgisi, yönetimin gereksiz alım yapmasına ya da gerçekten biten
+// malzemeyi fark etmemesine yol açar. Artık veri gerçek API'den gelir.
 
-/// Stok/Envanter Yönetim Ekranı - Apple Tarzı
+import 'package:flutter/material.dart';
+
+import '../../../../core/network/api_client.dart';
+import '../../../../core/theme/apple_theme.dart';
+import '../../../../core/widgets/data_state.dart';
+
 class InventoryManagementScreen extends StatefulWidget {
   const InventoryManagementScreen({super.key});
 
@@ -11,322 +19,122 @@ class InventoryManagementScreen extends StatefulWidget {
 }
 
 class _InventoryManagementScreenState extends State<InventoryManagementScreen> {
-  final TextEditingController _searchController = TextEditingController();
-  int _selectedCategory = 0;
+  bool _loading = true;
+  String? _error;
+  bool _notImplemented = false;
+  List<Map<String, dynamic>> _items = const [];
 
-  final List<String> _categories = ['Tümü', 'Temizlik', 'Elektrik', 'Bahçe', 'Ofis'];
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
 
-  final List<Map<String, dynamic>> _items = [
-    {
-      'name': 'Çöp Poşeti (Büyük)',
-      'category': 'Temizlik',
-      'sku': 'TEM-001',
-      'stock': 45,
-      'minStock': 20,
-      'unit': 'Paket',
-      'price': 50,
-      'isLow': false,
-    },
-    {
-      'name': 'Çamaşır Suyu 5L',
-      'category': 'Temizlik',
-      'sku': 'TEM-002',
-      'stock': 8,
-      'minStock': 10,
-      'unit': 'Adet',
-      'price': 75,
-      'isLow': true,
-    },
-    {
-      'name': 'LED Ampul 12W',
-      'category': 'Elektrik',
-      'sku': 'ELK-001',
-      'stock': 25,
-      'minStock': 15,
-      'unit': 'Adet',
-      'price': 45,
-      'isLow': false,
-    },
-    {
-      'name': 'Gübre 25kg',
-      'category': 'Bahçe',
-      'sku': 'BAH-001',
-      'stock': 3,
-      'minStock': 5,
-      'unit': 'Adet',
-      'price': 250,
-      'isLow': true,
-    },
-  ];
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+      _notImplemented = false;
+    });
+    try {
+      final list = await apiClient.getInventory();
+      if (!mounted) return;
+      setState(() {
+        _items = list.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _notImplemented = isNotImplemented(e);
+        _error = toUserMessage(e);
+        _loading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppleTheme.background,
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar(
-            expandedHeight: 120,
-            floating: false,
-            pinned: true,
-            backgroundColor: Colors.white,
-            surfaceTintColor: Colors.transparent,
-            flexibleSpace: const FlexibleSpaceBar(
-              titlePadding: EdgeInsets.only(left: 20, bottom: 16),
-              title: Text(
-                'Stok Takibi',
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.black,
-                  letterSpacing: -0.5,
-                ),
-              ),
-            ),
-            actions: [
-              IconButton(
-                icon: Icon(Icons.qr_code_scanner_rounded, color: AppleTheme.systemBlue),
-                onPressed: () {},
-              ),
-              const SizedBox(width: 8),
-            ],
-          ),
-
-          // Stats
-          SliverToBoxAdapter(
-            child: Container(
-              height: 100,
-              margin: const EdgeInsets.only(top: 8),
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                children: [
-                  _buildMiniStat('Toplam', '45', Icons.inventory_2_rounded, AppleTheme.systemBlue),
-                  _buildMiniStat('Düşük Stok', '5', Icons.warning_rounded, AppleTheme.systemOrange),
-                  _buildMiniStat('Toplam Değer', '₺25K', Icons.monetization_on_rounded, AppleTheme.systemGreen),
-                ],
-              ),
-            ),
-          ),
-
-          // Search
-          SliverToBoxAdapter(
-            child: AppleSearchBar(
-              controller: _searchController,
-              placeholder: 'Ürün ara...',
-              onChanged: (value) => setState(() {}),
-            ),
-          ),
-
-          // Categories
-          SliverToBoxAdapter(
-            child: Container(
-              height: 44,
-              margin: const EdgeInsets.symmetric(vertical: 8),
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                itemCount: _categories.length,
-                itemBuilder: (context, index) {
-                  final isSelected = _selectedCategory == index;
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: FilterChip(
-                      selected: isSelected,
-                      label: Text(_categories[index]),
-                      onSelected: (selected) => setState(() => _selectedCategory = index),
-                      backgroundColor: Colors.white,
-                      selectedColor: AppleTheme.systemBlue.withOpacity(0.15),
-                      checkmarkColor: AppleTheme.systemBlue,
-                      labelStyle: TextStyle(
-                        color: isSelected ? AppleTheme.systemBlue : AppleTheme.label,
-                        fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
-          ),
-
-          // Low Stock Alert
-          if (_items.any((item) => item['isLow'] == true))
-            SliverToBoxAdapter(
-              child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppleTheme.systemOrange.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppleTheme.systemOrange.withOpacity(0.3)),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.warning_rounded, color: AppleTheme.systemOrange),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Düşük Stok Uyarısı',
-                            style: TextStyle(fontWeight: FontWeight.w600, color: AppleTheme.systemOrange),
-                          ),
-                          Text(
-                            '${_items.where((item) => item['isLow'] == true).length} ürün minimum stok seviyesinin altında',
-                            style: TextStyle(fontSize: 13, color: AppleTheme.secondaryLabel),
-                          ),
-                        ],
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: () {},
-                      child: const Text('Görüntüle'),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-          // Items List
-          const SliverToBoxAdapter(
-            child: AppleSectionHeader(title: 'Stok Kalemleri'),
-          ),
-
-          SliverToBoxAdapter(
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Column(
-                children: _filteredItems.asMap().entries.map((entry) {
-                  return _buildItemTile(entry.value, isLast: entry.key == _filteredItems.length - 1);
-                }).toList(),
-              ),
-            ),
-          ),
-
-          const SliverToBoxAdapter(child: SizedBox(height: 100)),
+      appBar: AppBar(
+        title: const Text('Stok'),
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        actions: [
+          IconButton(icon: const Icon(Icons.refresh_rounded), onPressed: _load, tooltip: 'Yenile'),
         ],
       ),
-      floatingActionButton: AppleFAB(
-        icon: Icons.add_rounded,
-        label: 'Stok Girişi',
-        onPressed: () {},
+      body: _buildBody(),
+    );
+  }
+
+  Widget _buildBody() {
+    if (_loading) return const LoadingView();
+    if (_notImplemented) {
+      return const SingleChildScrollView(
+        child: NotImplementedNotice(
+          title: 'Stok modülü henüz hazır değil',
+          detail: 'Malzeme stok takibi ve giriş/çıkış hareketleri sunucu tarafında '
+              'gerçek veriye bağlanmadı.',
+        ),
+      );
+    }
+    if (_error != null) return ErrorStateView(message: _error!, onRetry: _load);
+    if (_items.isEmpty) {
+      return const EmptyStateView(message: 'Kayıtlı stok kalemi yok.', icon: Icons.inventory_2_outlined);
+    }
+
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: ListView.separated(
+        padding: const EdgeInsets.all(16),
+        itemCount: _items.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 12),
+        itemBuilder: (_, i) => _itemCard(_items[i]),
       ),
     );
   }
 
-  List<Map<String, dynamic>> get _filteredItems {
-    return _items.where((item) {
-      final matchesSearch = _searchController.text.isEmpty ||
-          item['name'].toString().toLowerCase().contains(_searchController.text.toLowerCase());
-      final matchesCategory = _selectedCategory == 0 ||
-          item['category'] == _categories[_selectedCategory];
-      return matchesSearch && matchesCategory;
-    }).toList();
-  }
+  Widget _itemCard(Map<String, dynamic> it) {
+    final qty = it['quantity'];
+    final min = it['min_quantity'] ?? it['critical_level'];
+    // "Kritik" uyarısı YALNIZCA sunucudan gelen eşik varsa gösterilir; uydurulmaz.
+    final isCritical = qty is num && min is num && qty <= min;
 
-  Widget _buildMiniStat(String title, String value, IconData icon, Color color) {
     return Container(
-      width: 120,
-      margin: const EdgeInsets.only(right: 12),
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
+      decoration: AppleTheme.cardDecoration,
+      child: Row(
         children: [
-          Row(
-            children: [
-              Icon(icon, color: color, size: 18),
-              const Spacer(),
-              Text(value, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(title, style: TextStyle(fontSize: 12, color: AppleTheme.secondaryLabel)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildItemTile(Map<String, dynamic> item, {bool isLast = false}) {
-    final isLow = item['isLow'] as bool;
-
-    return Column(
-      children: [
-        InkWell(
-          onTap: () {},
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: isLow ? AppleTheme.systemOrange.withOpacity(0.12) : AppleTheme.systemGray6,
-                    borderRadius: BorderRadius.circular(10),
+                Text((it['name'] ?? 'Kalem').toString(),
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                if (it['category'] != null)
+                  Text(it['category'].toString(),
+                      style: TextStyle(fontSize: 13, color: AppleTheme.secondaryLabel)),
+                if (isCritical)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text('Kritik seviyenin altında',
+                        style: TextStyle(fontSize: 12, color: AppleTheme.systemRed)),
                   ),
-                  child: Icon(
-                    Icons.inventory_2_rounded,
-                    color: isLow ? AppleTheme.systemOrange : AppleTheme.systemGray,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Text(item['name'], style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-                          if (isLow) ...[
-                            const SizedBox(width: 8),
-                            Icon(Icons.warning_rounded, size: 16, color: AppleTheme.systemOrange),
-                          ],
-                        ],
-                      ),
-                      Text(
-                        '${item['category']} • ${item['sku']}',
-                        style: TextStyle(fontSize: 13, color: AppleTheme.secondaryLabel),
-                      ),
-                    ],
-                  ),
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      '${item['stock']} ${item['unit']}',
-                      style: TextStyle(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w600,
-                        color: isLow ? AppleTheme.systemOrange : AppleTheme.label,
-                      ),
-                    ),
-                    Text(
-                      'Min: ${item['minStock']}',
-                      style: TextStyle(fontSize: 12, color: AppleTheme.tertiaryLabel),
-                    ),
-                  ],
-                ),
               ],
             ),
           ),
-        ),
-        if (!isLast)
-          Padding(
-            padding: const EdgeInsets.only(left: 76),
-            child: Container(height: 0.5, color: AppleTheme.opaqueSeparator),
+          Text(
+            qty == null ? '—' : '$qty ${it['unit'] ?? ''}'.trim(),
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: isCritical ? AppleTheme.systemRed : AppleTheme.label,
+            ),
           ),
-      ],
+        ],
+      ),
     );
   }
 }

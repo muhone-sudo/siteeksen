@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/apple_theme.dart';
 import '../../../../core/widgets/apple_widgets.dart';
 import '../../../../core/network/api_client.dart';
+import '../../../../core/widgets/data_state.dart';
 
 /// Kargo Takip Ekranı - Apple Tarzı
 class PackageTrackingScreen extends StatefulWidget {
@@ -457,62 +458,44 @@ class _PackageTrackingScreenState extends State<PackageTrackingScreen> {
     );
   }
 
+  /// Kargo ekleme formu.
+  ///
+  /// NEDEN BİLDİRİM (2026-09-13): Önceki form koda gömülü bir alıcı listesi
+  /// ("Ali Veli - D.101" vb.) gösteriyor, her alanın `onChanged`'i boş bırakılmış
+  /// ve "Kaydet" hiçbir yere yazmıyordu. Kullanıcı kargo kaydettiğini sanıyordu.
+  /// Form gerçek sakin listesine ve `receivePackage` ucuna bağlanana kadar durum
+  /// açıkça bildirilir.
   void _showAddPackageSheet(BuildContext context) {
-    showModalBottomSheet(
+    showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        height: MediaQuery.of(context).size.height * 0.7,
+      builder: (ctx) => Container(
         decoration: const BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
         ),
+        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: 36,
-              height: 5,
-              margin: const EdgeInsets.only(top: 12),
-              decoration: BoxDecoration(
-                color: AppleTheme.systemGray4,
-                borderRadius: BorderRadius.circular(2.5),
-              ),
+            const SizedBox(height: 16),
+            const Text('Kargo Kaydı',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+            const NotImplementedNotice(
+              title: 'Kargo kaydı formu henüz bağlanmadı',
+              detail: 'Kargo modülü sunucu tarafında gerçek veri katmanına '
+                  'bağlanmadığı için bu formdan kayıt oluşturulamaz. '
+                  'Kaydediyormuş gibi göstermek yerine devre dışı bırakıldı.',
             ),
             Padding(
-              padding: const EdgeInsets.all(20),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  TextButton(onPressed: () => Navigator.pop(context), child: const Text('İptal')),
-                  const Text('Yeni Kargo', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
-                  TextButton(onPressed: () => Navigator.pop(context), child: const Text('Kaydet')),
-                ],
-              ),
-            ),
-            const Divider(height: 1),
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.all(20),
-                children: [
-                  DropdownButtonFormField<String>(
-                    decoration: const InputDecoration(labelText: 'Kargo Firması', prefixIcon: Icon(Icons.local_shipping_outlined)),
-                    items: ['Aras Kargo', 'Yurtiçi Kargo', 'MNG Kargo', 'PTT Kargo', 'Sürat Kargo', 'UPS', 'DHL']
-                        .map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
-                    onChanged: (_) {},
-                  ),
-                  const SizedBox(height: 16),
-                  DropdownButtonFormField<String>(
-                    decoration: const InputDecoration(labelText: 'Alıcı', prefixIcon: Icon(Icons.person_outlined)),
-                    items: ['Ali Veli - D.101', 'Ayşe Kaya - D.205', 'Mehmet Demir - D.301']
-                        .map((r) => DropdownMenuItem(value: r, child: Text(r))).toList(),
-                    onChanged: (_) {},
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    decoration: const InputDecoration(labelText: 'Takip Numarası (Opsiyonel)', prefixIcon: Icon(Icons.tag_outlined)),
-                  ),
-                ],
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+              child: SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Kapat'),
+                ),
               ),
             ),
           ],
@@ -520,4 +503,5 @@ class _PackageTrackingScreenState extends State<PackageTrackingScreen> {
       ),
     );
   }
+
 }

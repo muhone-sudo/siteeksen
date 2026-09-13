@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/theme/apple_theme.dart';
 import '../../../../core/widgets/apple_widgets.dart';
 import '../../../../core/network/api_client.dart';
+import '../../../../core/widgets/data_state.dart';
 
 /// Rezervasyon Yönetim Ekranı - Apple Tarzı
 class ReservationManagementScreen extends StatefulWidget {
@@ -557,83 +558,43 @@ class _ReservationManagementScreenState extends State<ReservationManagementScree
     );
   }
 
+  /// Rezervasyon oluşturma formu.
+  ///
+  /// NEDEN BİLDİRİM (2026-09-13): Önceki form koda gömülü bir sakin listesi
+  /// gösteriyor, alanların `onChanged`'i boş bırakılmış ve kaydetme hiçbir yere
+  /// yazmıyordu. Rezervasyon çakışma denetimi de yoktu; iki kişi aynı saati
+  /// "ayırttığını" sanabilirdi. Form gerçek uçlara bağlanana kadar devre dışıdır.
   void _showNewReservationSheet(BuildContext context) {
-    showModalBottomSheet(
+    showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        height: MediaQuery.of(context).size.height * 0.75,
+      builder: (ctx) => Container(
         decoration: const BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
         ),
+        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: 36,
-              height: 5,
-              margin: const EdgeInsets.only(top: 12),
-              decoration: BoxDecoration(
-                color: AppleTheme.systemGray4,
-                borderRadius: BorderRadius.circular(2.5),
-              ),
+            const SizedBox(height: 16),
+            const Text('Yeni Rezervasyon',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+            const NotImplementedNotice(
+              title: 'Rezervasyon formu henüz bağlanmadı',
+              detail: 'Rezervasyon modülü sunucu tarafında gerçek veri katmanına '
+                  'bağlanmadığı için bu formdan kayıt oluşturulamaz. Çakışma '
+                  'denetimi de sunucu tarafında yapılmalıdır.',
             ),
             Padding(
-              padding: const EdgeInsets.all(20),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  TextButton(onPressed: () => Navigator.pop(context), child: const Text('İptal')),
-                  const Text('Yeni Rezervasyon', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
-                  TextButton(onPressed: () => Navigator.pop(context), child: const Text('Kaydet')),
-                ],
-              ),
-            ),
-            const Divider(height: 1),
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.all(20),
-                children: [
-                  DropdownButtonFormField<String>(
-                    decoration: const InputDecoration(labelText: 'Tesis', prefixIcon: Icon(Icons.place_outlined)),
-                    items: _facilities.map((f) => DropdownMenuItem(value: f['id'] as String, child: Text(f['name'] as String))).toList(),
-                    onChanged: (_) {},
-                  ),
-                  const SizedBox(height: 16),
-                  DropdownButtonFormField<String>(
-                    decoration: const InputDecoration(labelText: 'Sakin', prefixIcon: Icon(Icons.person_outlined)),
-                    items: ['Ali Veli - D.101', 'Ayşe Kaya - D.205', 'Mehmet Demir - D.301'].map((r) => DropdownMenuItem(value: r, child: Text(r))).toList(),
-                    onChanged: (_) {},
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    decoration: const InputDecoration(labelText: 'Tarih', prefixIcon: Icon(Icons.calendar_today_outlined)),
-                    readOnly: true,
-                    onTap: () => _selectDate(context),
-                    controller: TextEditingController(text: _formatDate(_selectedDate)),
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: DropdownButtonFormField<String>(
-                          decoration: const InputDecoration(labelText: 'Başlangıç'),
-                          items: ['09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00'].map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
-                          onChanged: (_) {},
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: DropdownButtonFormField<String>(
-                          decoration: const InputDecoration(labelText: 'Bitiş'),
-                          items: ['10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00', '18:00'].map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
-                          onChanged: (_) {},
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+              child: SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Kapat'),
+                ),
               ),
             ),
           ],
@@ -641,4 +602,5 @@ class _ReservationManagementScreenState extends State<ReservationManagementScree
       ),
     );
   }
+
 }
