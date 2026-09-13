@@ -1,225 +1,435 @@
+// reservation-service — Ortak alan (havuz, spor salonu, toplantı odası…) rezervasyonu.
+//
+// DURUM DEĞİŞİKLİĞİ (2026-09-13): Bu servis mock'tu; sabit tesis listesi döndürüyor
+// ve rezervasyon isteklerine 201 dönüp hiçbir yere kaydetmiyordu. Daha da önemlisi
+// ÇAKIŞMA DENETİMİ YOKTU: iki sakin aynı saati "ayırttığını" sanabiliyordu.
+// Artık gerçek veri katmanına bağlıdır (FAZ 5 — 5/22).
+//
+// Sunucu tarafında uygulanan kurallar (hepsi tesis ayarından okunur):
+//   - çakışma denetimi (tesis satırı kilitlenerek, aralık kesişimi + tampon süre)
+//   - min/max süre, çalışma saatleri, açık günler, ileri tarih sınırı
+//   - bağımsız bölüm başına haftalık rezervasyon kotası
+//   - ücret hesabı kuruş üzerinden (pkg/money)
+//
+// Not: Ücret TAHSİL EDİLMEZ; ödeme sağlayıcısı entegrasyonu yoktur. Hatırlatma
+// bildirimi de GÖNDERİLMEZ; bildirim altyapısı henüz bağlı değildir.
 package main
 
 import (
+	"errors"
 	"log"
+	"net/http"
 	"os"
+	"strconv"
 	"time"
 
-	"github.com/siteeksen/backend/pkg/stub"
-
 	"github.com/gin-gonic/gin"
+	"github.com/shopspring/decimal"
+	"github.com/siteeksen/backend/pkg/database"
+	"github.com/siteeksen/backend/pkg/middleware"
+	"github.com/siteeksen/backend/pkg/money"
+	"github.com/siteeksen/backend/services/reservation/repository"
 )
 
-// =====================================================
-// MODELS
-// =====================================================
+// siteLocation, çalışma saati ve gün denetimlerinin yapılacağı yerel saat dilimi.
+// Kat mülkiyeti uygulaması Türkiye'dedir; UTC üzerinden gün/saat denetimi yapmak
+// 03:00 kaymasıyla yanlış sonuç verir.
+var siteLocation = loadLocation()
 
-type Facility struct {
-	ID                    string   `json:"id"`
-	PropertyID            string   `json:"property_id"`
-	Name                  string   `json:"name"`
-	Description           string   `json:"description,omitempty"`
-	Category              string   `json:"category"` // POOL, GYM, TENNIS, MEETING_ROOM, BBQ, SAUNA
-	PhotoURLs             []string `json:"photo_urls,omitempty"`
-	Capacity              int      `json:"capacity"`
-	IsPaid                bool     `json:"is_paid"`
-	HourlyFee             float64  `json:"hourly_fee,omitempty"`
-	DailyFee              float64  `json:"daily_fee,omitempty"`
-	DepositAmount         float64  `json:"deposit_amount,omitempty"`
-	AvailableFrom         string   `json:"available_from"` // "08:00"
-	AvailableTo           string   `json:"available_to"`   // "22:00"
-	AvailableDays         []int    `json:"available_days"` // 0-6
-	MinDurationMinutes    int      `json:"min_duration_minutes"`
-	MaxDurationMinutes    int      `json:"max_duration_minutes"`
-	AdvanceBookingDays    int      `json:"advance_booking_days"`
-	RequiresApproval      bool     `json:"requires_approval"`
-	Rules                 string   `json:"rules,omitempty"`
-	IsActive              bool     `json:"is_active"`
-	MaintenanceMode       bool     `json:"maintenance_mode"`
-	MaintenanceNote       string   `json:"maintenance_note,omitempty"`
-	TodayReservationCount int      `json:"today_reservation_count,omitempty"`
-	UpcomingReservations  int      `json:"upcoming_reservations,omitempty"`
+func loadLocation() *time.Location {
+	loc, err := time.LoadLocation("Europe/Istanbul")
+	if err != nil {
+		// tzdata yoksa sabit +03 kullanılır; sessizce UTC'ye düşülmez.
+		log.Printf("[reservation] Europe/Istanbul yüklenemedi (%v); sabit UTC+3 kullanılıyor", err)
+		return time.FixedZone("+03", 3*60*60)
+	}
+	return loc
 }
-
-type Reservation struct {
-	ID              string     `json:"id"`
-	PropertyID      string     `json:"property_id"`
-	FacilityID      string     `json:"facility_id"`
-	UnitID          string     `json:"unit_id"`
-	ResidentID      string     `json:"resident_id"`
-	ResidentName    string     `json:"resident_name,omitempty"`
-	FacilityName    string     `json:"facility_name,omitempty"`
-	StartTime       time.Time  `json:"start_time"`
-	EndTime         time.Time  `json:"end_time"`
-	DurationMinutes int        `json:"duration_minutes"`
-	GuestCount      int        `json:"guest_count"`
-	Purpose         string     `json:"purpose,omitempty"`
-	SpecialRequests string     `json:"special_requests,omitempty"`
-	Status          string     `json:"status"` // PENDING, APPROVED, REJECTED, CANCELLED, COMPLETED
-	TotalFee        float64    `json:"total_fee"`
-	DepositAmount   float64    `json:"deposit_amount"`
-	PaymentStatus   string     `json:"payment_status,omitempty"`
-	ReviewedBy      string     `json:"reviewed_by,omitempty"`
-	ReviewedAt      *time.Time `json:"reviewed_at,omitempty"`
-	RejectionReason string     `json:"rejection_reason,omitempty"`
-	Notes           string     `json:"notes,omitempty"`
-	CreatedAt       time.Time  `json:"created_at"`
-}
-
-type TimeSlot struct {
-	StartTime   string `json:"start_time"`
-	EndTime     string `json:"end_time"`
-	IsAvailable bool   `json:"is_available"`
-	Reason      string `json:"reason,omitempty"` // BOOKED, MAINTENANCE, CLOSED
-}
-
-type ReservationRequest struct {
-	FacilityID      string `json:"facility_id" binding:"required"`
-	StartTime       string `json:"start_time" binding:"required"` // ISO 8601
-	EndTime         string `json:"end_time" binding:"required"`
-	GuestCount      int    `json:"guest_count"`
-	Purpose         string `json:"purpose"`
-	SpecialRequests string `json:"special_requests"`
-}
-
-type ReviewRequest struct {
-	Action string `json:"action" binding:"required"` // APPROVE, REJECT
-	Reason string `json:"reason"`
-}
-
-// =====================================================
-// HANDLERS
-// =====================================================
 
 func main() {
+	dbConfig := database.NewConfigFromEnv()
+	pool, err := database.Connect(dbConfig)
+	if err != nil {
+		log.Fatalf("Veritabanı bağlantısı başarısız: %v", err)
+	}
+	defer database.Close()
+
+	repo := repository.New(pool)
+
 	r := gin.Default()
+	r.GET("/health", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"status": "healthy", "service": "reservation", "persistent": true,
+		})
+	})
 
-	r.GET("/health", stub.Health("reservation"))
+	api := r.Group("/api/v1")
+	api.Use(middleware.AuthMiddleware(), middleware.AuditLog(pool, "reservation"))
 
-	v1 := r.Group("/api/v1")
+	// --- Tesisler ---
+	api.GET("/facilities", func(c *gin.Context) {
+		list, err := repo.ListFacilities(c.Request.Context(), c.GetString("property_id"))
+		if err != nil {
+			fail(c, err, "tesis listeleme")
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"data": list})
+	})
+
+	api.GET("/facilities/:id", func(c *gin.Context) {
+		f, err := repo.GetFacility(c.Request.Context(), c.GetString("property_id"), c.Param("id"))
+		if err != nil {
+			fail(c, err, "tesis okuma")
+			return
+		}
+		c.JSON(http.StatusOK, f)
+	})
+
+	// Bir günün DOLU aralıkları — sakin takvimde boş saati görebilsin diye.
+	api.GET("/facilities/:id/slots", func(c *gin.Context) {
+		day, err := time.ParseInLocation("2006-01-02", c.Query("date"), siteLocation)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "date parametresi YYYY-AA-GG biçiminde olmalıdır"})
+			return
+		}
+		propertyID := c.GetString("property_id")
+		f, err := repo.GetFacility(c.Request.Context(), propertyID, c.Param("id"))
+		if err != nil {
+			fail(c, err, "tesis okuma")
+			return
+		}
+		busy, err := repo.Slots(c.Request.Context(), propertyID, c.Param("id"), day)
+		if err != nil {
+			fail(c, err, "dolu saat listeleme")
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{
+			"date":           day.Format("2006-01-02"),
+			"open":           isOpenDay(f, day),
+			"available_from": f.AvailableFrom,
+			"available_to":   f.AvailableTo,
+			"buffer_minutes": f.BufferMinutes,
+			"busy":           busy,
+			"note": "Yalnızca DOLU aralıklar döndürülür; tampon süre (buffer_minutes) " +
+				"bu aralıkların önüne ve arkasına eklenerek uygulanır.",
+		})
+	})
+
+	// --- Rezervasyonlar ---
+	// Sakin yalnızca kendi rezervasyonlarını görür; yönetim site genelini görür.
+	api.GET("/reservations", func(c *gin.Context) {
+		scope := ""
+		if !hasOpsScope(c) {
+			scope = c.GetString("user_id")
+		}
+		list, err := repo.List(c.Request.Context(), c.GetString("property_id"),
+			scope, c.Query("status"), c.Query("facility_id"))
+		if err != nil {
+			fail(c, err, "rezervasyon listeleme")
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"data": list})
+	})
+
+	api.POST("/reservations", func(c *gin.Context) {
+		var in struct {
+			FacilityID string `json:"facility_id" binding:"required"`
+			StartTime  string `json:"start_time" binding:"required"`
+			EndTime    string `json:"end_time" binding:"required"`
+			GuestCount int    `json:"guest_count"`
+			Purpose    string `json:"purpose"`
+		}
+		if err := c.ShouldBindJSON(&in); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": "facility_id, start_time ve end_time zorunludur"})
+			return
+		}
+
+		start, err := parseTime(in.StartTime)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "start_time geçersiz (RFC3339 bekleniyor)"})
+			return
+		}
+		end, err := parseTime(in.EndTime)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "end_time geçersiz (RFC3339 bekleniyor)"})
+			return
+		}
+
+		propertyID := c.GetString("property_id")
+		userID := c.GetString("user_id")
+
+		f, err := repo.GetFacility(c.Request.Context(), propertyID, in.FacilityID)
+		if err != nil {
+			fail(c, err, "tesis okuma")
+			return
+		}
+
+		if reason := validate(f, start, end, in.GuestCount); reason != "" {
+			// 422: istek biçimsel olarak doğru ama iş kuralına aykırı.
+			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": reason})
+			return
+		}
+
+		unitID, err := repo.ResidentUnit(c.Request.Context(), propertyID, userID)
+		if err != nil {
+			fail(c, err, "bağımsız bölüm çözümleme")
+			return
+		}
+
+		// Haftalık kota — tesis ayarı (max_reservations_per_unit) bağımsız bölüm başınadır.
+		if f.MaxReservationsPerUnit > 0 {
+			n, cerr := repo.WeeklyCount(c.Request.Context(), f.ID, unitID, start)
+			if cerr != nil {
+				fail(c, cerr, "kota denetimi")
+				return
+			}
+			if n >= f.MaxReservationsPerUnit {
+				c.JSON(http.StatusUnprocessableEntity, gin.H{
+					"error": "Bu tesis için haftalık rezervasyon hakkınız doldu",
+					"limit": f.MaxReservationsPerUnit, "current": n})
+				return
+			}
+		}
+
+		fee := money.Kurus(0)
+		if f.IsPaid {
+			fee = calculateFee(int(end.Sub(start).Minutes()), f.HourlyFee, f.DailyFee)
+		}
+		feeTRY, _ := fee.TRY().Float64()
+
+		status := "APPROVED"
+		if f.RequiresApproval && !f.AutoApproveResidents {
+			status = "PENDING"
+		}
+
+		id, err := repo.Create(c.Request.Context(), propertyID, f.ID, unitID, userID,
+			start, end, f.BufferMinutes, guestCountOr1(in.GuestCount), in.Purpose, status, feeTRY)
+		if err != nil {
+			fail(c, err, "rezervasyon oluşturma")
+			return
+		}
+
+		resp := gin.H{"id": id, "status": status, "total_fee": feeTRY}
+		if feeTRY > 0 {
+			resp["note"] = "Ücret hesaplandı ancak TAHSİL EDİLMEDİ; ödeme sağlayıcısı " +
+				"entegrasyonu henüz yoktur."
+		}
+		if f.Deposit != nil && *f.Deposit > 0 {
+			resp["deposit_note"] = "Tesis için depozito tanımlıdır; depozito tahsilatı da yapılmamıştır."
+		}
+		c.JSON(http.StatusCreated, resp)
+	})
+
+	// İptal: sahibi kendi rezervasyonunu iptal edebilir, yönetim herkesinkini.
+	api.POST("/reservations/:id/cancel", func(c *gin.Context) {
+		var in struct {
+			Reason string `json:"reason"`
+		}
+		_ = c.ShouldBindJSON(&in)
+
+		owner := ""
+		if !hasOpsScope(c) {
+			owner = c.GetString("user_id")
+		}
+		if err := repo.Cancel(c.Request.Context(), c.GetString("property_id"),
+			c.Param("id"), owner, in.Reason); err != nil {
+			fail(c, err, "iptal")
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{
+			"message": "Rezervasyon iptal edildi",
+			"note":    "İade tutarı hesaplanmadı; tahsilat yapılmadığı için iade de yoktur.",
+		})
+	})
+
+	// --- Yönetim: onay / red ---
+	ops := api.Group("")
+	ops.Use(middleware.RequireRole(middleware.RoleManager, middleware.RoleBoardMember))
 	{
-		// Facilities
-		facilities := v1.Group("/facilities")
-		{
-			facilities.GET("", listFacilities)
-			facilities.GET("/:id", getFacility)
-			facilities.POST("", createFacility)
-			facilities.PUT("/:id", updateFacility)
-			facilities.DELETE("/:id", deleteFacility)
-			facilities.GET("/:id/availability", getFacilityAvailability)
-			facilities.GET("/:id/reservations", getFacilityReservations)
-			facilities.POST("/:id/maintenance", setMaintenanceMode)
-		}
+		ops.POST("/reservations/:id/approve", func(c *gin.Context) {
+			if err := repo.Decide(c.Request.Context(), c.GetString("property_id"),
+				c.Param("id"), "APPROVED", c.GetString("user_id"), ""); err != nil {
+				fail(c, err, "onay")
+				return
+			}
+			c.JSON(http.StatusOK, gin.H{
+				"message": "Rezervasyon onaylandı",
+				"note":    "Sakine bildirim GÖNDERİLMEDİ; bildirim altyapısı bağlı değildir.",
+			})
+		})
 
-		// Reservations
-		reservations := v1.Group("/reservations")
-		{
-			reservations.GET("", listReservations)
-			reservations.GET("/pending", getPendingReservations)
-			reservations.GET("/today", getTodayReservations)
-			reservations.GET("/calendar", getCalendarView)
-			reservations.GET("/:id", getReservation)
-			reservations.POST("", createReservation)
-			reservations.PUT("/:id", updateReservation)
-			reservations.DELETE("/:id", cancelReservation)
-			reservations.POST("/:id/review", reviewReservation)
-			reservations.POST("/:id/complete", completeReservation)
-		}
-
-		// Unit reservations
-		v1.GET("/units/:unit_id/reservations", getUnitReservations)
-		v1.GET("/residents/:resident_id/reservations", getResidentReservations)
+		ops.POST("/reservations/:id/reject", func(c *gin.Context) {
+			var in struct {
+				Reason string `json:"reason" binding:"required"`
+			}
+			if err := c.ShouldBindJSON(&in); err != nil {
+				// Gerekçesiz red, sakinin itiraz hakkını işlevsiz bırakır.
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Red gerekçesi zorunludur"})
+				return
+			}
+			if err := repo.Decide(c.Request.Context(), c.GetString("property_id"),
+				c.Param("id"), "REJECTED", c.GetString("user_id"), in.Reason); err != nil {
+				fail(c, err, "red")
+				return
+			}
+			c.JSON(http.StatusOK, gin.H{
+				"message": "Rezervasyon reddedildi",
+				"note":    "Sakine bildirim GÖNDERİLMEDİ; bildirim altyapısı bağlı değildir.",
+			})
+		})
 	}
 
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "8101"
+		port = "8090"
 	}
-
-	log.Printf("Reservation Service starting on port %s", port)
+	log.Printf("Reservation Service başlatıldı: :%s", port)
 	if err := r.Run(":" + port); err != nil {
 		log.Fatal(err)
 	}
 }
 
-// Facility Handlers
-func listFacilities(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "reservation")
+func parseTime(s string) (time.Time, error) {
+	t, err := time.Parse(time.RFC3339, s)
+	if err != nil {
+		return time.Time{}, err
+	}
+	return t, nil
 }
 
-func getFacility(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "reservation")
+func guestCountOr1(n int) int {
+	if n < 1 {
+		return 1
+	}
+	return n
 }
 
-func createFacility(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "reservation")
+// isOpenDay, tesisin o gün açık olup olmadığını yerel saate göre söyler.
+func isOpenDay(f *repository.Facility, t time.Time) bool {
+	if len(f.AvailableDays) == 0 {
+		return true
+	}
+	wd := int(t.In(siteLocation).Weekday()) // 0=Pazar — şema da 0=Pazar diyor
+	for _, d := range f.AvailableDays {
+		if d == wd {
+			return true
+		}
+	}
+	return false
 }
 
-func updateFacility(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "reservation")
+// validate, iş kurallarını sunucu tarafında uygular ve ihlâl varsa Türkçe gerekçe döner.
+// İstemciye güvenilmez: mobil uygulama bu denetimleri yapsa da sunucu yeniden yapar.
+func validate(f *repository.Facility, start, end time.Time, guests int) string {
+	if !f.IsActive {
+		return "Tesis kullanıma kapalıdır"
+	}
+	if f.MaintenanceMode {
+		if f.MaintenanceNote != "" {
+			return "Tesis bakımdadır: " + f.MaintenanceNote
+		}
+		return "Tesis bakımdadır"
+	}
+	if !end.After(start) {
+		return "Bitiş saati başlangıçtan sonra olmalıdır"
+	}
+
+	now := time.Now()
+	if start.Before(now) {
+		return "Geçmiş bir saat için rezervasyon yapılamaz"
+	}
+	if f.AdvanceBookingDays > 0 {
+		limit := now.AddDate(0, 0, f.AdvanceBookingDays)
+		if start.After(limit) {
+			return "Bu tesis en fazla " + strconv.Itoa(f.AdvanceBookingDays) + " gün öncesinden rezerve edilebilir"
+		}
+	}
+
+	minutes := int(end.Sub(start).Minutes())
+	if f.MinDurationMinutes > 0 && minutes < f.MinDurationMinutes {
+		return "En az " + strconv.Itoa(f.MinDurationMinutes) + " dakika rezervasyon yapılabilir"
+	}
+	if f.MaxDurationMinutes > 0 && minutes > f.MaxDurationMinutes {
+		return "En fazla " + strconv.Itoa(f.MaxDurationMinutes) + " dakika rezervasyon yapılabilir"
+	}
+
+	if !isOpenDay(f, start) {
+		return "Tesis seçilen günde kapalıdır"
+	}
+
+	// Çalışma saatleri yerel saate göre denetlenir. Gece yarısını aşan
+	// rezervasyon, tesis kapanış saatini aştığı için zaten reddedilir.
+	ls, le := start.In(siteLocation), end.In(siteLocation)
+	if ls.Format("2006-01-02") != le.Format("2006-01-02") {
+		return "Rezervasyon aynı gün içinde bitmelidir"
+	}
+	if f.AvailableFrom != "" && ls.Format("15:04") < f.AvailableFrom {
+		return "Tesis " + f.AvailableFrom + " öncesinde kapalıdır"
+	}
+	if f.AvailableTo != "" && le.Format("15:04") > f.AvailableTo {
+		return "Tesis " + f.AvailableTo + " sonrasında kapalıdır"
+	}
+
+	if f.Capacity != nil && *f.Capacity > 0 && guests > *f.Capacity {
+		return "Tesis kapasitesi " + strconv.Itoa(*f.Capacity) + " kişidir"
+	}
+	return ""
 }
 
-func deleteFacility(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "reservation")
+// calculateFee, rezervasyon ücretini KURUŞ üzerinden hesaplar.
+//
+//   - Başlanan her saat tam saat sayılır.
+//   - Günlük ücret tanımlıysa ve saatlik toplam günlüğü aşarsa günlük ücret uygulanır
+//     (kullanıcı aleyhine olmayan hesap).
+//   - İkisi de tanımsızsa ücret sıfırdır; uydurma bir varsayılan kullanılmaz.
+func calculateFee(minutes int, hourly, daily *float64) money.Kurus {
+	if minutes <= 0 || (hourly == nil && daily == nil) {
+		return 0
+	}
+	hours := (minutes + 59) / 60
+
+	var total decimal.Decimal
+	if hourly != nil {
+		total = decimal.NewFromFloat(*hourly).Mul(decimal.NewFromInt(int64(hours)))
+	}
+	if daily != nil {
+		d := decimal.NewFromFloat(*daily)
+		if hourly == nil || total.GreaterThan(d) {
+			total = d
+		}
+	}
+	return money.FromTRY(total)
 }
 
-func getFacilityAvailability(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "reservation")
+func hasOpsScope(c *gin.Context) bool {
+	value, _ := c.Get("roles")
+	roles, _ := value.([]string)
+	for _, r := range roles {
+		switch r {
+		case middleware.RoleManager, middleware.RoleBoardMember,
+			middleware.RoleAuditor, middleware.RoleSuperAdmin:
+			return true
+		}
+	}
+	return false
 }
 
-func getFacilityReservations(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "reservation")
-}
-
-func setMaintenanceMode(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "reservation")
-}
-
-// Reservation Handlers
-func listReservations(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "reservation")
-}
-
-func getPendingReservations(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "reservation")
-}
-
-func getTodayReservations(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "reservation")
-}
-
-func getCalendarView(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "reservation")
-}
-
-func getReservation(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "reservation")
-}
-
-func createReservation(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "reservation")
-}
-
-func updateReservation(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "reservation")
-}
-
-func cancelReservation(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "reservation")
-}
-
-func reviewReservation(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "reservation")
-}
-
-func completeReservation(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "reservation")
-}
-
-func getUnitReservations(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "reservation")
-}
-
-func getResidentReservations(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "reservation")
+func fail(c *gin.Context, err error, op string) {
+	switch {
+	case errors.Is(err, repository.ErrNotFound):
+		c.JSON(http.StatusNotFound, gin.H{"error": "Kayıt bulunamadı"})
+	case errors.Is(err, repository.ErrConflict):
+		c.JSON(http.StatusConflict, gin.H{
+			"error": "Seçilen saat aralığı dolu (tesis tampon süresi dahil)"})
+	case errors.Is(err, repository.ErrBadState):
+		c.JSON(http.StatusConflict, gin.H{
+			"error": "Rezervasyon bu işlem için uygun durumda değil ya da size ait değil"})
+	case errors.Is(err, repository.ErrNoUnit):
+		c.JSON(http.StatusForbidden, gin.H{
+			"error": "Bu sitede aktif bir bağımsız bölümünüz bulunmuyor"})
+	default:
+		log.Printf("[reservation] %s başarısız: %v", op, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "İşlem tamamlanamadı"})
+	}
 }

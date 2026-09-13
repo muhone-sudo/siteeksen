@@ -38,6 +38,7 @@ EXP_PID=""
 PER_PID=""
 VIS_PID=""
 PRK_PID=""
+RES_PID=""
 
 ok()   { echo "  [GEÇTİ]    $1"; PASS=$((PASS+1)); }
 bad()  { echo "  [BAŞARISIZ] $1"; FAIL=$((FAIL+1)); }
@@ -53,6 +54,7 @@ cleanup() {
   [ -n "$PER_PID" ] && kill "$PER_PID" 2>/dev/null
   [ -n "$VIS_PID" ] && kill "$VIS_PID" 2>/dev/null
   [ -n "$PRK_PID" ] && kill "$PRK_PID" 2>/dev/null
+  [ -n "$RES_PID" ] && kill "$RES_PID" 2>/dev/null
   docker rm -f "$CNAME" >/dev/null 2>&1
 }
 trap cleanup EXIT
@@ -927,6 +929,175 @@ else
   bad "parking-service başlamadı"; tail -10 /tmp/verify-parking.log
 fi
 kill "$PRK_PID" 2>/dev/null
+
+step "16) Rezervasyon modülü — mock'tan gerçeğe (FAZ 5, 5. modül)"
+# Önceki davranış: sabit tesis listesi + 201 dönüp hiçbir yere kaydetmeyen POST.
+# En kritik eksik ÇAKIŞMA DENETİMİYDİ: iki sakin aynı saati "ayırttığını" sanıyordu.
+RESPORT=${VERIFY_RES_PORT:-18091}
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen DB_PASSWORD="$PW" DB_NAME=siteeksen \
+DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${RESPORT} \
+  go run ./services/reservation >/tmp/verify-reservation.log 2>&1 &
+RES_PID=$!
+RUP=0
+for _ in $(seq 1 45); do
+  curl -fsS "http://127.0.0.1:${RESPORT}/health" >/dev/null 2>&1 && { RUP=1; break; }
+  sleep 1
+done
+
+if [ "$RUP" = "1" ] && [ -n "${MGR:-}" ] && [ -n "${TEN:-}" ]; then
+  ok "reservation-service ayağa kalktı"
+  RA="Authorization: Bearer $MGR"
+  RT="Authorization: Bearer $TEN"
+  RJ='Content-Type: application/json'
+  RURL="http://127.0.0.1:${RESPORT}/api/v1"
+
+  # Tesis: 08:00-22:00, 60-180 dk, 30 dk tampon, haftalık 2 rezervasyon, saatlik 50 / günlük 300 TL
+  FAC=$($PSQL -t -A -c "INSERT INTO facilities
+      (property_id, name, category, capacity, is_paid, hourly_fee, daily_fee,
+       available_from, available_to, available_days,
+       min_duration_minutes, max_duration_minutes, advance_booking_days,
+       max_reservations_per_unit, buffer_minutes, requires_approval)
+    VALUES ('11111111-1111-1111-1111-111111111111','Toplanti Salonu','MEETING_ROOM',20,true,50,300,
+       '08:00','22:00','{0,1,2,3,4,5,6}',60,180,14,2,30,false) RETURNING id;")
+  [ -n "$FAC" ] && ok "tesis oluşturuldu" || bad "tesis oluşturulamadı"
+
+  # Saat denetimleri site yerel saatine (Europe/Istanbul) göre yapılır.
+  D1=$(TZ=Europe/Istanbul date -d 'tomorrow' +%Y-%m-%d)
+  DPAST=$(TZ=Europe/Istanbul date -d 'yesterday' +%Y-%m-%d)
+  DFAR=$(TZ=Europe/Istanbul date -d '+30 days' +%Y-%m-%d)
+
+  FL=$(curl -s "$RURL/facilities" -H "$RA")
+  echo "$FL" | grep -q 'Toplanti Salonu' && ok "tesis listesi veritabanından geliyor" \
+    || bad "tesis listesi: $FL"
+
+  # 1) Normal rezervasyon → 201, otomatik onay, 2 saat × 50 TL = 100 TL
+  R1=$(curl -s -X POST "$RURL/reservations" -H "$RA" -H "$RJ" -d "{
+    \"facility_id\":\"$FAC\",\"start_time\":\"${D1}T10:00:00+03:00\",
+    \"end_time\":\"${D1}T12:00:00+03:00\",\"guest_count\":4,\"purpose\":\"Blok toplantisi\"}")
+  R1ID=$(echo "$R1" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+  [ -n "$R1ID" ] && ok "rezervasyon oluşturuldu ve KALICI" || bad "rezervasyon oluşturulamadı: $R1"
+  echo "$R1" | grep -q '"total_fee":100' && ok "ücret kuruş üzerinden doğru (2 sa × 50 = 100 TL)" \
+    || bad "ücret beklenmedik: $R1"
+  echo "$R1" | grep -q 'TAHSİL EDİLMEDİ' && ok "ücretin tahsil edilmediği dürüstçe bildiriliyor" \
+    || bad "tahsilat durumu belirtilmemiş: $R1"
+
+  if [ -n "$R1ID" ]; then
+    DBC=$($PSQL -t -A -c "SELECT count(*) FROM reservations WHERE id='$R1ID';")
+    [ "$DBC" = "1" ] && ok "rezervasyon veritabanında (mock değil)" || bad "kayıt veritabanında yok"
+  fi
+
+  # 2) ÇAKIŞMA — aynı tesiste kesişen aralık, BAŞKA bir bağımsız bölümden bile olsa reddedilmeli
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$RURL/reservations" -H "$RT" -H "$RJ" -d "{
+    \"facility_id\":\"$FAC\",\"start_time\":\"${D1}T11:00:00+03:00\",
+    \"end_time\":\"${D1}T12:00:00+03:00\"}")
+  [ "$SC" = "409" ] && ok "çakışan saat reddedildi → 409 (mock'ta bu denetim YOKTU)" \
+    || bad "çakışan rezervasyon kabul edildi → $SC"
+
+  # 3) TAMPON SÜRE — 12:00'de biten rezervasyondan 15 dk sonra başlamak 30 dk tamponu ihlâl eder
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$RURL/reservations" -H "$RT" -H "$RJ" -d "{
+    \"facility_id\":\"$FAC\",\"start_time\":\"${D1}T12:15:00+03:00\",
+    \"end_time\":\"${D1}T13:15:00+03:00\"}")
+  [ "$SC" = "409" ] && ok "tampon süre (30 dk) uygulanıyor → 409" || bad "tampon süre uygulanmadı → $SC"
+
+  # 4) Tampon süre DIŞINDA kalan aralık kabul edilmeli
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$RURL/reservations" -H "$RT" -H "$RJ" -d "{
+    \"facility_id\":\"$FAC\",\"start_time\":\"${D1}T13:00:00+03:00\",
+    \"end_time\":\"${D1}T14:00:00+03:00\"}")
+  [ "$SC" = "201" ] && ok "tampon süre dışındaki aralık kabul edildi → 201" \
+    || bad "geçerli aralık reddedildi → $SC"
+
+  # 5) Çalışma saati dışı
+  RESP=$(curl -s -X POST "$RURL/reservations" -H "$RA" -H "$RJ" -d "{
+    \"facility_id\":\"$FAC\",\"start_time\":\"${D1}T06:00:00+03:00\",
+    \"end_time\":\"${D1}T07:00:00+03:00\"}")
+  echo "$RESP" | grep -q '08:00 öncesinde kapalıdır' && ok "çalışma saati dışı reddedildi (yerel saat)" \
+    || bad "çalışma saati denetimi: $RESP"
+
+  # 6) Azami süre (180 dk)
+  RESP=$(curl -s -X POST "$RURL/reservations" -H "$RA" -H "$RJ" -d "{
+    \"facility_id\":\"$FAC\",\"start_time\":\"${D1}T15:00:00+03:00\",
+    \"end_time\":\"${D1}T20:00:00+03:00\"}")
+  echo "$RESP" | grep -q 'En fazla 180 dakika' && ok "azami süre sınırı uygulanıyor" \
+    || bad "azami süre denetimi: $RESP"
+
+  # 7) Geçmiş tarih
+  RESP=$(curl -s -X POST "$RURL/reservations" -H "$RA" -H "$RJ" -d "{
+    \"facility_id\":\"$FAC\",\"start_time\":\"${DPAST}T10:00:00+03:00\",
+    \"end_time\":\"${DPAST}T11:00:00+03:00\"}")
+  echo "$RESP" | grep -q 'Geçmiş bir saat' && ok "geçmiş tarihe rezervasyon engellendi" \
+    || bad "geçmiş tarih denetimi: $RESP"
+
+  # 8) İleri tarih sınırı (14 gün)
+  RESP=$(curl -s -X POST "$RURL/reservations" -H "$RA" -H "$RJ" -d "{
+    \"facility_id\":\"$FAC\",\"start_time\":\"${DFAR}T10:00:00+03:00\",
+    \"end_time\":\"${DFAR}T11:00:00+03:00\"}")
+  echo "$RESP" | grep -q 'en fazla 14 gün öncesinden' && ok "ileri tarih sınırı uygulanıyor" \
+    || bad "ileri tarih denetimi: $RESP"
+
+  # 9) Haftalık kota (bağımsız bölüm başına 2) — yöneticinin 1 rezervasyonu var, 2. kabul, 3. red
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$RURL/reservations" -H "$RA" -H "$RJ" -d "{
+    \"facility_id\":\"$FAC\",\"start_time\":\"${D1}T15:00:00+03:00\",
+    \"end_time\":\"${D1}T17:00:00+03:00\"}")
+  [ "$SC" = "201" ] && ok "kota içindeki 2. rezervasyon kabul edildi" || bad "2. rezervasyon → $SC"
+
+  RESP=$(curl -s -X POST "$RURL/reservations" -H "$RA" -H "$RJ" -d "{
+    \"facility_id\":\"$FAC\",\"start_time\":\"${D1}T18:00:00+03:00\",
+    \"end_time\":\"${D1}T19:00:00+03:00\"}")
+  echo "$RESP" | grep -q 'haftalık rezervasyon hakkınız doldu' && ok "haftalık kota uygulanıyor" \
+    || bad "kota denetimi: $RESP"
+
+  # 10) Dolu saat listesi
+  SL=$(curl -s "$RURL/facilities/$FAC/slots?date=$D1" -H "$RA")
+  echo "$SL" | grep -q '"busy"' && ok "dolu saat listesi veriliyor" || bad "slots: $SL"
+  echo "$SL" | grep -q '"buffer_minutes":30' && ok "tampon süre istemciye bildiriliyor" \
+    || bad "slots tampon süresi eksik"
+
+  # 11) Sakin yalnızca kendi rezervasyonlarını görür
+  TL=$(curl -s "$RURL/reservations" -H "$RT")
+  echo "$TL" | grep -q 'Blok toplantisi' && bad "kiracı, yöneticinin rezervasyonunu görüyor" \
+    || ok "kiracı yalnızca kendi rezervasyonlarını görüyor"
+  ML=$(curl -s "$RURL/reservations" -H "$RA")
+  echo "$ML" | grep -q 'Blok toplantisi' && ok "yönetim site genelini görüyor" \
+    || bad "yönetim listesi: $ML"
+
+  # 12) İptal — sahibi iptal edebilir, saat ve kota serbest kalır
+  if [ -n "$R1ID" ]; then
+    SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$RURL/reservations/$R1ID/cancel" \
+      -H "$RA" -H "$RJ" -d '{"reason":"Toplanti ertelendi"}')
+    [ "$SC" = "200" ] && ok "rezervasyon iptal edildi → 200" || bad "iptal → $SC"
+
+    ST=$($PSQL -t -A -c "SELECT status FROM reservations WHERE id='$R1ID';")
+    [ "$ST" = "CANCELLED" ] && ok "iptal veritabanına yazıldı (kayıt silinmiyor)" \
+      || bad "iptal durumu: $ST"
+
+    # Serbest kalan saat yeniden alınabilmeli
+    SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$RURL/reservations" -H "$RT" -H "$RJ" -d "{
+      \"facility_id\":\"$FAC\",\"start_time\":\"${D1}T10:00:00+03:00\",
+      \"end_time\":\"${D1}T12:00:00+03:00\"}")
+    [ "$SC" = "201" ] && ok "iptal edilen saat yeniden rezerve edilebiliyor" \
+      || bad "iptal sonrası saat serbest kalmadı → $SC"
+  fi
+
+  # 13) Başkasının rezervasyonunu sakin iptal edemez
+  MID=$($PSQL -t -A -c "SELECT id FROM reservations WHERE resident_id='44444444-4444-4444-4444-444444444401' AND status='APPROVED' LIMIT 1;")
+  if [ -n "$MID" ]; then
+    SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$RURL/reservations/$MID/cancel" \
+      -H "$RT" -H "$RJ" -d '{"reason":"olmaz"}')
+    [ "$SC" = "409" ] && ok "sakin, başkasının rezervasyonunu iptal edemiyor" \
+      || bad "başkasının rezervasyonu iptal edildi → $SC"
+  fi
+
+  # 14) Onay/red yalnızca yönetimde
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$RURL/reservations/$FAC/approve" -H "$RT" -H "$RJ" -d '{}')
+  [ "$SC" = "403" ] && ok "sakin rezervasyon onaylayamıyor → 403" || bad "sakin onayladı → $SC"
+
+  # 15) Kimliksiz erişim engelli
+  SC=$(curl -s -o /dev/null -w '%{http_code}' "$RURL/facilities")
+  [ "$SC" = "401" ] && ok "kimliksiz tesis listesi erişimi engellendi → 401" || bad "kimliksiz erişim → $SC"
+else
+  bad "reservation-service başlamadı"; tail -10 /tmp/verify-reservation.log
+fi
+kill "$RES_PID" 2>/dev/null
 
 step "SONUÇ"
 echo "  Geçen: $PASS   Başarısız: $FAIL"
