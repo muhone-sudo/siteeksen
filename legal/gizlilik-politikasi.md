@@ -1,5 +1,23 @@
 # Gizlilik Politikası
 
+> ## ⚠️ TASLAK — YAYINA HAZIR DEĞİL
+>
+> Bu metin **hukuk danışmanı onayından geçmemiştir** ve içinde **doldurulmamış
+> alanlar** bulunmaktadır (`[Şirket Adresi]`, `[Telefon Numarası]` gibi). Bu hâliyle
+> kullanıcıya sunulması, KVKK m.10 aydınlatma yükümlülüğünün gereği gibi yerine
+> getirilmemesi anlamına gelir.
+>
+> Yayına almadan önce yapılması gerekenler:
+>
+> 1. Veri sorumlusu kimlik ve iletişim bilgilerinin doldurulması
+> 2. Veri sorumlusu / veri işleyen ayrımının netleştirilmesi (bkz. `tasks/questions.md` S-04)
+> 3. Hukuk danışmanı onayı
+>
+> Metindeki güvenlik tedbirleri bölümü 2026-09-13'te **gerçek duruma göre**
+> düzeltilmiştir; sağlanmayan hiçbir tedbir sağlanıyormuş gibi yazılmamaktadır.
+
+---
+
 **SiteEksen Site Yönetim Platformu**
 
 Yürürlük Tarihi: 1 Şubat 2026

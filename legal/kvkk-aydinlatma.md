@@ -1,5 +1,23 @@
 # KVKK Aydınlatma Metni
 
+> ## ⚠️ TASLAK — YAYINA HAZIR DEĞİL
+>
+> Bu metin **hukuk danışmanı onayından geçmemiştir** ve içinde **doldurulmamış
+> alanlar** bulunmaktadır (`[Şirket Adresi]`, `[Telefon Numarası]` gibi). Bu hâliyle
+> kullanıcıya sunulması, KVKK m.10 aydınlatma yükümlülüğünün gereği gibi yerine
+> getirilmemesi anlamına gelir.
+>
+> Yayına almadan önce yapılması gerekenler:
+>
+> 1. Veri sorumlusu kimlik ve iletişim bilgilerinin doldurulması
+> 2. Veri sorumlusu / veri işleyen ayrımının netleştirilmesi (bkz. `tasks/questions.md` S-04)
+> 3. Hukuk danışmanı onayı
+>
+> Metindeki güvenlik tedbirleri bölümü 2026-09-13'te **gerçek duruma göre**
+> düzeltilmiştir; sağlanmayan hiçbir tedbir sağlanıyormuş gibi yazılmamaktadır.
+
+---
+
 **SiteEksen Site Yönetim Platformu**
 
 Son Güncelleme: 1 Şubat 2026
@@ -77,6 +95,45 @@ Kişisel verileriniz aşağıdaki amaçlarla işlenmektedir:
 
 ---
 
+## 3b. Kişisel Verilerin Toplanma Yöntemi ve Hukuki Sebebi
+
+> **Bu bölüm 2026-09-13'te eklenmiştir.** KVKK m.10, aydınlatma yükümlülüğünün
+> zorunlu unsurları arasında "kişisel veri toplamanın yöntemi ve hukuki sebebi"ni
+> sayar; metinde bu unsur eksikti. Eksik aydınlatma, işlemenin hukuka aykırı hâle
+> gelmesine yol açabilir.
+
+**Toplama yöntemi**
+
+Kişisel verileriniz, tamamen veya kısmen otomatik yollarla, aşağıdaki kanallardan
+toplanır:
+
+- Mobil uygulama ve yönetim paneli üzerinden **sizin tarafınızdan girilen** bilgiler
+  (kayıt, profil, talep, ziyaretçi ön kaydı, ödeme bildirimi)
+- Site yönetimi tarafından **kat mülkiyeti kayıtlarına dayanılarak** sisteme
+  işlenen bilgiler (bağımsız bölüm, arsa payı, malik/kiracı ilişkisi)
+- Sayaç okuma ve ortak alan sistemlerinden **otomatik olarak** üretilen tüketim
+  ve erişim kayıtları
+- Uygulamayı kullanımınız sırasında oluşan **işlem güvenliği kayıtları** (IP
+  adresi, işlem zamanı, işlem türü)
+
+**Hukuki sebep (KVKK m.5 ve m.6)**
+
+| İşleme konusu | Hukuki sebep |
+|---|---|
+| Ortak gider tahakkuku, tahsilat, borç takibi | **Sözleşmenin kurulması/ifası** (m.5/2-c) ve **kanunlarda açıkça öngörülme** — 634 s. Kat Mülkiyeti Kanunu m.20, m.37 |
+| Malik/kiracı ve bağımsız bölüm kayıtları | **Veri sorumlusunun hukuki yükümlülüğü** (m.5/2-ç) — KMK m.34, m.35 defter ve kayıt tutma |
+| Kat malikleri kurulu, karar defteri, hesap verme | **Kanunlarda açıkça öngörülme** (m.5/2-a) — KMK m.32, m.36, m.39 |
+| İcra takibi ve dava süreçleri | **Bir hakkın tesisi, kullanılması veya korunması** (m.5/2-e) — KMK m.22, İİK m.68 |
+| İşlem güvenliği ve erişim kayıtları | **Veri sorumlusunun meşru menfaati** (m.5/2-f) ve 5651 s. Kanun |
+| Bildirim/hatırlatma gönderimi (SMS, e-posta, push) | **Açık rıza** (m.5/1) — dilediğiniz an geri alabilirsiniz |
+| Biyometrik geçiş sistemleri (kullanılıyorsa) | **Açık rıza** (m.6/2) — özel nitelikli kişisel veri |
+
+Açık rızaya dayanan işlemeler için rızanızı geri almanız hâlinde ilgili işleme
+durdurulur; kanuni yükümlülüğe veya sözleşmenin ifasına dayanan işlemeler ise
+ilgili yükümlülük sürdüğü sürece devam eder.
+
+---
+
 ## 4. Kişisel Verilerin Aktarılması
 
 Kişisel verileriniz aşağıdaki taraflara aktarılabilir:
@@ -109,13 +166,41 @@ Saklama süreleri sonunda veriler güvenli şekilde silinir veya anonim hale get
 
 ## 6. Veri Güvenliği
 
-Kişisel verilerinizin güvenliği için aldığımız önlemler:
+> **Bu bölüm 2026-09-13'te gerçek duruma göre yeniden yazılmıştır.** Önceki sürüm,
+> bugün fiilen uygulanmayan tedbirleri ("AES-256 şifreleme", "TLS 1.3", "günlük
+> yedekleme", "periyodik sızma testi") sağlanıyormuş gibi sayıyordu. Karşılığı
+> olmayan bir güvenlik taahhüdü, KVKK m.12 kapsamında veri sorumlusunu yükümlülük
+> altına sokar ve ilgili kişiyi yanıltır. Aşağıda **uygulanan** ve **henüz
+> uygulanmayan** tedbirler ayrı ayrı listelenmiştir.
 
-- **Şifreleme:** Hassas veriler AES-256 ile şifrelenmektedir
-- **Erişim kontrolü:** Rol bazlı yetkilendirme sistemi
-- **Güvenli iletişim:** TLS 1.3 ile şifrelenmiş iletişim
-- **Düzenli yedekleme:** Günlük yedekleme ve felaket kurtarma
-- **Güvenlik testleri:** Periyodik sızma testleri
+**Hâlen uygulanan tedbirler**
+
+- **Kimlik doğrulama:** Tüm uygulama uçları JWT ile korunur; anahtar tanımlı
+  değilse istek reddedilir (fail-closed). Erişim jetonu 15 dakika geçerlidir.
+- **Yetkilendirme:** Roller **site bazlıdır**; bir sitedeki yetki başka siteye
+  geçmez. Maaş, kimlik ve entegrasyon anahtarı içeren ekranlar yalnızca yönetim
+  rollerine açıktır.
+- **Erişim kaydı (denetim izi):** Kimlik doğrulaması gerektiren isteklerde
+  kullanıcı, IP, işlem türü, kaynak ve HTTP durum kodu `audit_logs` tablosuna
+  yazılır; yetkisiz erişim denemeleri `DENIED` olarak ayrıca izlenir.
+- **Parola saklama:** Parolalar bcrypt (cost 12) ile saklanır; düz metin
+  tutulmaz ve loglanmaz.
+- **Aktarım güvenliği:** Üretim dağıtımında HTTPS kullanılır (sürüm, dağıtımı
+  yapan altyapıya bağlıdır).
+
+**Henüz uygulanmayan / planlanan tedbirler**
+
+Aşağıdakiler bu sürümde **yoktur**; ürün üretim ortamında kişisel veri işlemeye
+başlamadan önce tamamlanmalıdır:
+
+- Hassas alanların (TCKN vb.) veritabanı düzeyinde şifrelenmesi — planlanmıştır,
+  devrede değildir.
+- Otomatik ve düzenli yedekleme ile felaket kurtarma senaryosu.
+- Bağımsız sızma testi ve güvenlik denetimi.
+- Veri sorumlusu ile veri işleyen arasındaki KVKK m.12 sözleşmelerinin
+  imzalanması.
+
+Bu ayrımın kaynağı ve ayrıntısı: `tasks/audit-raporu.md` ve `tasks/gap-analizi.md`.
 
 ---
 
