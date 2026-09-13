@@ -4,10 +4,13 @@ package repository
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/siteeksen/backend/pkg/pii"
 	"github.com/siteeksen/backend/services/personnel/models"
 )
 
@@ -16,15 +19,37 @@ var (
 	ErrLeaveInvalid = errors.New("izin kaydı bulunamadı veya bu siteye ait değil")
 	ErrNotPending   = errors.New("izin talebi onay bekleyen durumda değil")
 	ErrOverlapping  = errors.New("bu tarihlerde personelin onaylı başka bir izni var")
+	// ErrInvalidTCKN, TCKN algoritmik doğrulamadan geçmezse döner.
+	ErrInvalidTCKN = errors.New("geçersiz T.C. kimlik numarası")
+	// ErrInvalidIBAN, IBAN doğrulamadan geçmezse döner.
+	ErrInvalidIBAN = errors.New("geçersiz IBAN")
+	// ErrDuplicateTC, aynı TCKN ile ikinci bir aktif personel açılırsa döner.
+	ErrDuplicateTC = errors.New("bu T.C. kimlik numarasıyla aktif bir personel kaydı zaten var")
 )
 
-type Repository struct{ pool *pgxpool.Pool }
+// Repository, personel verilerini yönetir.
+//
+// TCKN ve IBAN ŞİFRELİ saklanır (FAZ 2.8, KVKK m.12). `vault` olmadan bu
+// servis açılmaz: şifresiz yazmaya devam etmek, korumanın yapılandırma
+// hatasıyla sessizce kapanması olurdu.
+type Repository struct {
+	pool  *pgxpool.Pool
+	vault *pii.Vault
+}
 
-func New(pool *pgxpool.Pool) *Repository { return &Repository{pool: pool} }
+// New, depoyu kurar. vault nil olamaz.
+func New(pool *pgxpool.Pool, vault *pii.Vault) *Repository {
+	return &Repository{pool: pool, vault: vault}
+}
 
+// employeeSelect, şifreli kolonları okur. Düz metin kolonlar (tc_number,
+// bank_iban) BİLEREK okunmaz: migration 019 sonrası yeni kayıtlarda boşturlar,
+// eski kayıtlar `cmd/encrypt-pii` ile taşınır. Okumaya devam etmek, taşınmamış
+// bir kaydı sessizce düz metin göstermek olurdu.
 const employeeSelect = `
 SELECT id, property_id, COALESCE(employee_number,''), first_name, last_name,
-       COALESCE(tc_number,''), COALESCE(bank_iban,''), COALESCE(bank_name,''),
+       COALESCE(tc_number_encrypted,''), COALESCE(bank_iban_encrypted,''),
+       COALESCE(bank_name,''),
        COALESCE(phone,''), COALESCE(email,''), position, COALESCE(department,''),
        hire_date, end_date, COALESCE(contract_type,'FULL_TIME'),
        gross_salary::float8, net_salary::float8, COALESCE(sgk_number,''),
@@ -33,7 +58,11 @@ SELECT id, property_id, COALESCE(employee_number,''), first_name, last_name,
        COALESCE(notes,''), created_at
 FROM employees`
 
-func scanEmployee(row pgx.Row) (*models.Employee, error) {
+// scanEmployee, satırı okur ve şifreli alanları ÇÖZER.
+//
+// Çözme hatası yutulmaz: anahtar değişmiş ya da veri bozulmuşsa, alanı boş
+// göstermek "bu personelin TCKN'si yok" gibi yanlış bir izlenim verirdi.
+func (r *Repository) scanEmployee(row pgx.Row) (*models.Employee, error) {
 	var e models.Employee
 	err := row.Scan(&e.ID, &e.PropertyID, &e.EmployeeNumber, &e.FirstName, &e.LastName,
 		&e.TCNumber, &e.BankIBAN, &e.BankName, &e.Phone, &e.Email, &e.Position,
@@ -43,6 +72,21 @@ func scanEmployee(row pgx.Row) (*models.Employee, error) {
 		&e.Notes, &e.CreatedAt)
 	if err != nil {
 		return nil, err
+	}
+
+	if e.TCNumber != "" {
+		plain, derr := r.vault.Decrypt(e.TCNumber)
+		if derr != nil {
+			return nil, fmt.Errorf("personel %s: TCKN çözülemedi: %w", e.ID, derr)
+		}
+		e.TCNumber = plain
+	}
+	if e.BankIBAN != "" {
+		plain, derr := r.vault.Decrypt(e.BankIBAN)
+		if derr != nil {
+			return nil, fmt.Errorf("personel %s: IBAN çözülemedi: %w", e.ID, derr)
+		}
+		e.BankIBAN = plain
 	}
 	return &e, nil
 }
@@ -59,7 +103,7 @@ func (r *Repository) ListEmployees(ctx context.Context, propertyID string, activ
 
 	out := []models.Employee{}
 	for rows.Next() {
-		e, err := scanEmployee(rows)
+		e, err := r.scanEmployee(rows)
 		if err != nil {
 			return nil, err
 		}
@@ -70,7 +114,7 @@ func (r *Repository) ListEmployees(ctx context.Context, propertyID string, activ
 
 // GetEmployee, tek personeli getirir.
 func (r *Repository) GetEmployee(ctx context.Context, propertyID, id string) (*models.Employee, error) {
-	e, err := scanEmployee(r.pool.QueryRow(ctx, employeeSelect+`
+	e, err := r.scanEmployee(r.pool.QueryRow(ctx, employeeSelect+`
 		WHERE id = $1 AND property_id = $2`, id, propertyID))
 	if err == pgx.ErrNoRows {
 		return nil, ErrNotFound
@@ -84,20 +128,56 @@ func (r *Repository) CreateEmployee(ctx context.Context, propertyID string, in m
 	if contract == "" {
 		contract = "FULL_TIME"
 	}
+
+	// TCKN ve IBAN ÖNCE doğrulanır, sonra şifrelenir. Şifreli bir alandaki
+	// yazım hatası sonradan gözle bulunamaz; yanlış IBAN maaşın başkasına
+	// gitmesi demektir.
+	var tcEnc, tcIdx, ibanEnc, ibanIdx, ibanLast4 *string
+	if t := strings.TrimSpace(in.TCNumber); t != "" {
+		if err := pii.ValidateTCKN(t); err != nil {
+			return "", ErrInvalidTCKN
+		}
+		ct, err := r.vault.Encrypt(t)
+		if err != nil {
+			return "", err
+		}
+		idx := r.vault.BlindIndex(t)
+		tcEnc, tcIdx = &ct, &idx
+	}
+	if b := strings.TrimSpace(in.BankIBAN); b != "" {
+		if err := pii.ValidateIBAN(b); err != nil {
+			return "", ErrInvalidIBAN
+		}
+		ct, err := r.vault.Encrypt(b)
+		if err != nil {
+			return "", err
+		}
+		idx := r.vault.BlindIndex(b)
+		l4 := pii.Last4(b)
+		ibanEnc, ibanIdx, ibanLast4 = &ct, &idx, &l4
+	}
+
 	var id string
 	err := r.pool.QueryRow(ctx, `
 		INSERT INTO employees
-			(property_id, employee_number, first_name, last_name, tc_number, phone, email,
+			(property_id, employee_number, first_name, last_name, phone, email,
 			 position, department, hire_date, contract_type, gross_salary, net_salary,
-			 bank_name, bank_iban, sgk_number, annual_leave_days, remaining_leave_days, notes)
-		VALUES ($1, NULLIF($2,''), $3, $4, NULLIF($5,''), NULLIF($6,''), NULLIF($7,''),
-		        $8, NULLIF($9,''), $10, $11, NULLIF($12,0), NULLIF($13,0),
-		        NULLIF($14,''), NULLIF($15,''), NULLIF($16,''), $17, $17, NULLIF($18,''))
+			 bank_name, sgk_number, annual_leave_days, remaining_leave_days, notes,
+			 tc_number_encrypted, tc_number_index,
+			 bank_iban_encrypted, bank_iban_index, bank_iban_last4, pii_encrypted_at)
+		VALUES ($1, NULLIF($2,''), $3, $4, NULLIF($5,''), NULLIF($6,''),
+		        $7, NULLIF($8,''), $9, $10, NULLIF($11,0), NULLIF($12,0),
+		        NULLIF($13,''), NULLIF($14,''), $15, $15, NULLIF($16,''),
+		        $17, $18, $19, $20, $21, now())
 		RETURNING id`,
-		propertyID, in.EmployeeNumber, in.FirstName, in.LastName, in.TCNumber,
+		propertyID, in.EmployeeNumber, in.FirstName, in.LastName,
 		in.Phone, in.Email, in.Position, in.Department, hireDate, contract,
-		in.GrossSalary, in.NetSalary, in.BankName, in.BankIBAN, in.SGKNumber,
-		annualLeave, in.Notes).Scan(&id)
+		in.GrossSalary, in.NetSalary, in.BankName, in.SGKNumber,
+		annualLeave, in.Notes,
+		tcEnc, tcIdx, ibanEnc, ibanIdx, ibanLast4).Scan(&id)
+	if err != nil && strings.Contains(err.Error(), "uq_employees_tc_active") {
+		return "", ErrDuplicateTC
+	}
 	return id, err
 }
 

@@ -7,6 +7,8 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/siteeksen/backend/pkg/audit"
 	"github.com/siteeksen/backend/pkg/middleware"
 	"github.com/siteeksen/backend/services/personnel/models"
 	"github.com/siteeksen/backend/services/personnel/repository"
@@ -30,6 +32,19 @@ func canSeeSalary(c *gin.Context) bool {
 	return false
 }
 
+// wantsReveal, istemcinin TCKN/IBAN'ı MASKESİZ istediğini söyler.
+//
+// Varsayılan MASKELİDİR. Yönetici bu veriye SGK ve bordro işlemleri için
+// gerçekten ihtiyaç duyar, ama HER ekranda değil: KVKK m.4, verinin işlendiği
+// amaçla "bağlantılı, sınırlı ve ölçülü" olmasını ister.
+//
+// Maskesiz istek `?reveal=true` ile yapılır ve audit_logs'a yolu ve sorgusuyla
+// birlikte yazılır; böylece kimin ne zaman tam veriyi gördüğü kayıtlıdır
+// (KVKK m.12). Yetki hâlâ şarttır: reveal, yetkisi olmayana veri açmaz.
+func wantsReveal(c *gin.Context) bool {
+	return c.Query("reveal") == "true" && isManager(c)
+}
+
 // isManager, TCKN/IBAN'ın MASKESİZ görülebileceği rolleri belirler.
 func isManager(c *gin.Context) bool {
 	value, _ := c.Get("roles")
@@ -44,6 +59,22 @@ func isManager(c *gin.Context) bool {
 
 func mapError(c *gin.Context, err error, op string) {
 	switch {
+	case errors.Is(err, repository.ErrInvalidTCKN):
+		// Şifreli bir alandaki yazım hatası sonradan gözle bulunamaz; bu yüzden
+		// TCKN kaydedilmeden önce algoritmik olarak doğrulanır.
+		c.JSON(http.StatusUnprocessableEntity, gin.H{
+			"error": "T.C. kimlik numarası geçersiz",
+			"note": "Numara algoritmik doğrulamadan geçmedi. Şifreli bir alandaki " +
+				"yazım hatası sonradan gözle bulunamaz; bu yüzden kayıt kabul edilmiyor."})
+	case errors.Is(err, repository.ErrInvalidIBAN):
+		c.JSON(http.StatusUnprocessableEntity, gin.H{
+			"error": "IBAN geçersiz",
+			"note": "IBAN, ISO 13616 mod-97 doğrulamasından geçmedi. Yanlış IBAN, " +
+				"maaşın başkasının hesabına gitmesi demektir."})
+	case errors.Is(err, repository.ErrDuplicateTC):
+		c.JSON(http.StatusConflict, gin.H{
+			"error": "Bu T.C. kimlik numarasıyla aktif bir personel kaydı zaten var",
+			"note":  "Aynı kişinin iki kez kaydedilip iki maaş alması engellenir."})
 	case errors.Is(err, repository.ErrNotFound):
 		c.JSON(http.StatusNotFound, gin.H{"error": "Personel kaydı bulunamadı"})
 	case errors.Is(err, repository.ErrNotPending):
@@ -74,14 +105,40 @@ func ListEmployees(svc *service.Service) gin.HandlerFunc {
 	}
 }
 
-func GetEmployee(svc *service.Service) gin.HandlerFunc {
+func GetEmployee(svc *service.Service, pool *pgxpool.Pool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		e, err := svc.GetEmployee(c.Request.Context(), c.GetString("property_id"),
-			c.Param("id"), canSeeSalary(c), isManager(c))
+			c.Param("id"), canSeeSalary(c), wantsReveal(c))
 		if err != nil {
 			mapError(c, err, "personel okuma")
 			return
 		}
+
+		// Maskesiz görüntüleme AYRI bir denetim kaydı üretir. Genel istek kaydı
+		// "bu kaydı okudu" der; hangi isteğin TAM TCKN/IBAN gördüğünü söylemez.
+		// KVKK m.12, hassas veriye erişimin kanıtlanabilir olmasını gerektirir.
+		if wantsReveal(c) {
+			if aerr := audit.Log(c.Request.Context(), pool, audit.Entry{
+				UserID:     c.GetString("user_id"),
+				PropertyID: c.GetString("property_id"),
+				IPAddress:  c.ClientIP(),
+				UserAgent:  c.Request.UserAgent(),
+				Action:     "PII_REVEAL",
+				EntityType: "employee",
+				EntityID:   c.Param("id"),
+				StatusCode: http.StatusOK,
+				NewValues:  map[string]any{"fields": []string{"tc_number", "bank_iban"}},
+			}); aerr != nil {
+				// Kayıt tutulamıyorsa veri AÇILMAZ: izi tutulamayan bir erişim,
+				// sonradan hesabı verilemeyecek bir erişimdir.
+				log.Printf("[personnel] maskesiz erişim kaydı yazılamadı: %v", aerr)
+				c.JSON(http.StatusInternalServerError, gin.H{
+					"error": "Erişim kaydı tutulamadığı için maskesiz veri açılamadı",
+				})
+				return
+			}
+		}
+
 		c.JSON(http.StatusOK, e)
 	}
 }

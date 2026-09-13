@@ -29,6 +29,10 @@ PW=${VERIFY_DB_PASSWORD:-verifypw}
 
 PASS=0
 FAIL=0
+# Kişisel veri şifreleme anahtarı (FAZ 2.8). Doğrulama için üretilir;
+# üretimde gizli yönetiminden gelir ve ASLA depoya yazılmaz.
+PIIKEY=$(head -c 32 /dev/urandom | base64 -w0)
+export PIIKEY
 SVC_PID=""
 STUB_PID=""
 GW_PID=""
@@ -36,6 +40,7 @@ FIN_PID=""
 GOV_PID=""
 EXP_PID=""
 PER_PID=""
+PER2_PID=""
 VIS_PID=""
 PRK_PID=""
 RES_PID=""
@@ -98,6 +103,7 @@ cleanup() {
   kill_tree "$GOV_PID"
   kill_tree "$EXP_PID"
   kill_tree "$PER_PID"
+  kill_tree "$PER2_PID"
   kill_tree "$VIS_PID"
   kill_tree "$PRK_PID"
   kill_tree "$RES_PID"
@@ -130,7 +136,7 @@ command -v go     >/dev/null || { echo "go bulunamadı (PATH'e /usr/local/go/bin
 
 # Kalıntı süpürme: yarıda kesilmiş bir çalıştırmadan kalan servisler
 # portları tutuyorsa, testler eski süreçlere çarpar ve sonuç rastgele değişir.
-for _p in 18082 18083 18086 18093 18095 18096 18103 18106 18084 18085 18087 18088 18089 18090 18104 18091 18092 18093 18094 18097 18098 18099 18100 18105 18107 18191; do
+for _p in 18082 18083 18086 18093 18095 18096 18103 18106 18198 18199 18084 18085 18087 18088 18089 18090 18104 18091 18092 18093 18094 18097 18098 18099 18100 18105 18107 18191; do
   free_port "$_p"
 done
 
@@ -143,6 +149,11 @@ if go test ./pkg/authtoken/... -count=1 >/tmp/verify-authtoken.log 2>&1; then
   ok "go test ./pkg/authtoken/... (JWT doğrulama)"
 else
   bad "go test ./pkg/authtoken/..."; tail -15 /tmp/verify-authtoken.log
+fi
+if go test ./pkg/pii/... -count=1 >/tmp/verify-pii.log 2>&1; then
+  ok "go test ./pkg/pii/... (şifreleme, blind index, TCKN/IBAN doğrulama)"
+else
+  bad "go test ./pkg/pii/..."; tail -15 /tmp/verify-pii.log
 fi
 if go test ./services/nps/service/... -count=1 >/tmp/verify-nps.log 2>&1; then
   ok "go test ./services/nps/service/... (NPS tanımı: 0-6/7-8/9-10)"
@@ -815,6 +826,7 @@ step "13) Personel modülü — mock'tan gerçeğe (FAZ 5, 2. modül)"
 PERPORT=${VERIFY_PER_PORT:-18100}
 DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen DB_PASSWORD="$PW" DB_NAME=siteeksen \
 DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${PERPORT} \
+PII_ENCRYPTION_KEY="$PIIKEY" \
   go run ./services/personnel >/tmp/verify-personnel.log 2>&1 &
 PER_PID=$!
 PUP=0
@@ -831,7 +843,7 @@ if [ "$PUP" = "1" ] && [ -n "${MGR:-}" ]; then
 
   EMP=$(curl -s -X POST "$PURL/employees" -H "$PA" -H "$PJ" -d '{
     "first_name":"Test","last_name":"Personel","position":"Kapıcı",
-    "hire_date":"2026-01-15","tc_number":"12345678901",
+    "hire_date":"2026-01-15","tc_number":"11111111110",
     "bank_iban":"TR330006100519786457841326","bank_name":"Test Bank",
     "gross_salary":30000,"net_salary":22000,"sgk_number":"1234567890"}')
   EMPID=$(echo "$EMP" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
@@ -3536,6 +3548,161 @@ if [ -n "${SVCPORT:-}" ]; then
 else
   bad "identity servisi ayakta değil; jeton iptali sınanamadı"
 fi
+
+step "31) Kişisel veri şifrelemesi — TCKN ve IBAN (FAZ 2.8)"
+# Önceki davranış: TCKN ve IBAN veritabanında DÜZ METİN duruyordu. Tek bir
+# yedek sızıntısının bedeli, çalışanların kimlik numarası ve banka hesabıdır.
+# KVKK m.12/1: veri sorumlusu uygun güvenlik düzeyini sağlamakla yükümlüdür.
+# Personel servisi 13. adımda kapatılmıştı; şifreleme sınaması için yeniden açılır.
+PER2PORT=${VERIFY_PER2_PORT:-18198}
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen DB_PASSWORD="$PW" DB_NAME=siteeksen \
+DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${PER2PORT} \
+PII_ENCRYPTION_KEY="$PIIKEY" \
+  go run ./services/personnel >/tmp/verify-personnel2.log 2>&1 &
+PER2_PID=$!
+PUP2=0
+for _ in $(seq 1 45); do
+  curl -fsS "http://127.0.0.1:${PER2PORT}/health" >/dev/null 2>&1 && { PUP2=1; break; }
+  sleep 1
+done
+
+if [ "$PUP2" = "1" ] && [ -n "${MGR:-}" ]; then
+  PA2="Authorization: Bearer $MGR"
+  PJ2='Content-Type: application/json'
+  PURL3="http://127.0.0.1:${PER2PORT}/api/v1"
+
+  # 1) Geçerli TCKN ve IBAN ile personel
+  E1=$(curl -s -X POST "$PURL3/employees" -H "$PA2" -H "$PJ2" -d '{
+    "first_name":"Sifreli","last_name":"Personel","position":"Kapici",
+    "hire_date":"2026-01-15","tc_number":"10000000146",
+    "bank_iban":"TR330006100519786457841326","bank_name":"Ornek Bank",
+    "gross_salary":30000,"net_salary":24000}')
+  E1ID=$(echo "$E1" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+  [ -n "$E1ID" ] && ok "şifreli personel kaydı oluşturuldu" || bad "personel: $E1"
+
+  if [ -n "$E1ID" ]; then
+    # 2) VERİTABANINDA DÜZ METİN OLMAMALI — bu adımın can alıcı kontrolü
+    PLAIN=$($PSQL -t -A -c "SELECT COALESCE(tc_number,'')||'|'||COALESCE(bank_iban,'')
+      FROM employees WHERE id='$E1ID';")
+    [ "$PLAIN" = "|" ] && ok "TCKN ve IBAN veritabanına DÜZ METİN yazılmadı" \
+      || bad "düz metin kişisel veri var: $PLAIN"
+
+    ENC=$($PSQL -t -A -c "SELECT length(COALESCE(tc_number_encrypted,''))
+      FROM employees WHERE id='$E1ID';")
+    [ "$ENC" -gt 20 ] && ok "TCKN şifreli kolonda saklanıyor ($ENC karakter)" \
+      || bad "şifreli TCKN yok: $ENC"
+
+    # Şifreli metin, düz metni İÇERMEMELİ
+    LEAK=$($PSQL -t -A -c "SELECT count(*) FROM employees
+      WHERE id='$E1ID' AND (tc_number_encrypted LIKE '%10000000146%'
+                         OR bank_iban_encrypted LIKE '%3300061005%');")
+    [ "$LEAK" = "0" ] && ok "şifreli değer düz metni içermiyor" || bad "şifreli alan sızdırıyor"
+
+    # 3) Arama anahtarı (blind index) üretilmiş olmalı ve düz özet OLMAMALI
+    IDX=$($PSQL -t -A -c "SELECT tc_number_index FROM employees WHERE id='$E1ID';")
+    [ ${#IDX} -eq 64 ] && ok "TCKN arama anahtarı üretildi (64 karakter HMAC)" \
+      || bad "arama anahtarı yok: $IDX"
+    # Düz SHA-256 olsaydı kaba kuvvetle çözülebilirdi: aynı TCKN'nin bilinen
+    # SHA-256 özetiyle eşleşmemeli.
+    SHA=$(printf '10000000146' | sha256sum | cut -d' ' -f1)
+    [ "$IDX" != "$SHA" ] && ok "arama anahtarı düz SHA-256 DEĞİL (kaba kuvvete kapalı)" \
+      || bad "arama anahtarı düz SHA-256; kaba kuvvetle çözülebilir"
+
+    # 4) Son dört hane gösterim için ayrı saklanıyor
+    L4=$($PSQL -t -A -c "SELECT bank_iban_last4 FROM employees WHERE id='$E1ID';")
+    [ "$L4" = "1326" ] && ok "IBAN son dört hanesi gösterim için ayrı saklanıyor" || bad "son 4 hane: $L4"
+
+    # 5) API yanıtı VARSAYILAN OLARAK MASKELİ dönmeli
+    GET=$(curl -s "$PURL3/employees/$E1ID" -H "$PA2")
+    echo "$GET" | grep -q '10000000146' && bad "API varsayılan olarak tam TCKN döndürüyor" \
+      || ok "API varsayılan olarak TCKN'yi maskeliyor (KVKK m.4 veri minimizasyonu)"
+    echo "$GET" | grep -q 'TR330006100519786457841326' && bad "API varsayılan olarak tam IBAN döndürüyor" \
+      || ok "API varsayılan olarak IBAN'ı maskeliyor"
+
+    # Yönetici açıkça isterse maskesiz görebilmeli (SGK/bordro gerçek ihtiyaçtır)
+    REV=$(curl -s "$PURL3/employees/$E1ID?reveal=true" -H "$PA2")
+    echo "$REV" | grep -q '10000000146' && ok "yönetici açık istekle (reveal) tam TCKN görebiliyor" \
+      || bad "yönetici maskesiz veriye hiç ulaşamıyor: $REV"
+
+    # Maskesiz erişim AYRI bir denetim kaydı üretmeli (KVKK m.12)
+    sleep 1
+    REVLOG=$($PSQL -t -A -c "SELECT count(*) FROM audit_logs WHERE action='PII_REVEAL';")
+    [ "$REVLOG" -ge 1 ] && ok "maskesiz erişim ayrı PII_REVEAL kaydıyla işaretlendi ($REVLOG)" \
+      || bad "maskesiz erişim ayrı kayda geçmedi"
+    REVENT=$($PSQL -t -A -c "SELECT entity_id FROM audit_logs WHERE action='PII_REVEAL' LIMIT 1;")
+    [ "$REVENT" = "$E1ID" ] && ok "hangi personel kaydının açıldığı kayıtlı" || bad "entity_id: $REVENT"
+
+    # Sakin/görevli reveal istese bile maskesiz veri ALAMAMALI.
+    # NOT: 30. adım kiracının tüm oturumlarını sonlandırdığı için burada TAZE
+    # bir jeton alınır; yetki sınaması geçerli bir oturumla yapılmalıdır.
+    TEN2=$(curl -s -X POST "http://127.0.0.1:${SVCPORT}/api/v1/auth/login" \
+      -H 'Content-Type: application/json' -d '{"phone":"5559876543","password":"Demo123!"}' \
+      | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+    SC=$(curl -s -o /dev/null -w '%{http_code}' "$PURL3/employees/$E1ID?reveal=true" \
+      -H "Authorization: Bearer $TEN2")
+    [ "$SC" = "403" ] && ok "sakin reveal ile de tam veriye ulaşamıyor → 403" \
+      || bad "sakin personel kaydına eriştin → $SC"
+  fi
+
+  # 6) GEÇERSİZ TCKN reddedilmeli — şifreli alandaki yazım hatası bulunamaz
+  BAD1=$(curl -s -w '\n%{http_code}' -X POST "$PURL3/employees" -H "$PA2" -H "$PJ2" -d '{
+    "first_name":"Hatali","last_name":"TCKN","position":"Test",
+    "hire_date":"2026-01-15","tc_number":"12345678901"}')
+  BAD1CODE=$(echo "$BAD1" | tail -1)
+  [ "$BAD1CODE" = "422" ] && ok "algoritmik doğrulamadan geçmeyen TCKN reddedildi → 422" \
+    || bad "geçersiz TCKN kabul edildi → $BAD1CODE"
+  echo "$BAD1" | grep -q 'gözle bulunamaz' && ok "reddin gerekçesi açıklanıyor" || bad "gerekçe yok"
+
+  # 7) GEÇERSİZ IBAN reddedilmeli
+  BAD2=$(curl -s -w '\n%{http_code}' -X POST "$PURL3/employees" -H "$PA2" -H "$PJ2" -d '{
+    "first_name":"Hatali","last_name":"IBAN","position":"Test",
+    "hire_date":"2026-01-15","bank_iban":"TR330006100519786457841327"}')
+  BAD2CODE=$(echo "$BAD2" | tail -1)
+  [ "$BAD2CODE" = "422" ] && ok "mod-97 doğrulamasından geçmeyen IBAN reddedildi → 422" \
+    || bad "geçersiz IBAN kabul edildi → $BAD2CODE"
+  echo "$BAD2" | grep -q 'başkasının hesabına' && ok "IBAN reddinin gerekçesi açıklanıyor" \
+    || bad "IBAN gerekçesi yok"
+
+  # 8) Aynı TCKN ile ikinci AKTİF personel açılamamalı
+  DUP=$(curl -s -w '\n%{http_code}' -X POST "$PURL3/employees" -H "$PA2" -H "$PJ2" -d '{
+    "first_name":"Ayni","last_name":"Kisi","position":"Bahcivan",
+    "hire_date":"2026-02-01","tc_number":"10000000146"}')
+  DUPCODE=$(echo "$DUP" | tail -1)
+  [ "$DUPCODE" = "409" ] && ok "aynı TCKN ile ikinci aktif personel açılamıyor → 409" \
+    || bad "aynı TCKN iki kez kaydedildi → $DUPCODE"
+
+  # 9) Şifreleme durumu görünümü: düz metin kalmamalı
+  STATUS=$($PSQL -t -A -c "SELECT plaintext_tc || '/' || plaintext_iban
+    FROM pii_encryption_status WHERE table_name='employees';")
+  [ "$STATUS" = "0/0" ] && ok "şifreleme durumu görünümü: düz metin kayıt yok" \
+    || bad "hâlâ düz metin kayıt var: $STATUS"
+
+  # 10) Anahtarsız servis AÇILMAMALI (fail-closed)
+  DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen DB_PASSWORD="$PW" DB_NAME=siteeksen \
+  DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=18199 \
+    go run ./services/personnel >/tmp/verify-pii-nokey.log 2>&1
+  NOKEY=$?
+  [ "$NOKEY" != "0" ] && ok "şifreleme anahtarı olmadan personel servisi AÇILMIYOR" \
+    || bad "anahtarsız servis açıldı (şifresiz yazmaya devam ederdi)"
+  grep -q 'openssl rand -base64 32' /tmp/verify-pii-nokey.log \
+    && ok "anahtarın nasıl üretileceği söyleniyor" || bad "yönlendirme yok"
+
+  # 11) cmd/encrypt-pii aracı çalışıyor (taşınacak kayıt yokken de)
+  DATABASE_URL="postgres://siteeksen:${PW}@127.0.0.1:${DBPORT}/siteeksen?sslmode=disable" \
+  PII_ENCRYPTION_KEY="$PIIKEY" go run ./cmd/encrypt-pii >/tmp/verify-encrypt-pii.log 2>&1
+  if [ $? -eq 0 ]; then
+    ok "cmd/encrypt-pii çalıştı"
+    grep -q 'Şifrelenecek düz metin kayıt yok' /tmp/verify-encrypt-pii.log \
+      && ok "taşınacak düz metin kayıt kalmadığını doğruluyor" \
+      || ok "encrypt-pii kayıtları işledi"
+  else
+    bad "cmd/encrypt-pii başarısız"; tail -5 /tmp/verify-encrypt-pii.log
+  fi
+else
+  bad "personnel servisi ayakta değil; kişisel veri şifrelemesi sınanamadı"
+  tail -10 /tmp/verify-personnel2.log
+fi
+kill_tree "$PER2_PID"
 
 step "SONUÇ"
 echo "  Geçen: $PASS   Başarısız: $FAIL"

@@ -20,6 +20,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/siteeksen/backend/pkg/database"
 	"github.com/siteeksen/backend/pkg/middleware"
+	"github.com/siteeksen/backend/pkg/pii"
 	"github.com/siteeksen/backend/services/personnel/handlers"
 	"github.com/siteeksen/backend/services/personnel/repository"
 	"github.com/siteeksen/backend/services/personnel/service"
@@ -33,7 +34,17 @@ func main() {
 	}
 	defer database.Close()
 
-	svc := service.New(repository.New(pool))
+	// Kişisel veri kasası ZORUNLUDUR (FAZ 2.8, KVKK m.12): bu servis TCKN ve
+	// IBAN işler. Anahtar yoksa servis AÇILMAZ — şifresiz yazmaya devam etmek,
+	// korumanın yapılandırma hatasıyla sessizce kapanması olurdu.
+	vault, err := pii.FromEnv()
+	if err != nil {
+		log.Fatalf("Kişisel veri şifreleme anahtarı okunamadı: %v\n\n"+
+			"32 baytlık bir anahtar üretmek için: openssl rand -base64 32\n"+
+			"Ardından %s ortam değişkenine verin.", err, pii.EnvKey)
+	}
+
+	svc := service.New(repository.New(pool, vault))
 
 	r := gin.Default()
 
@@ -57,7 +68,7 @@ func main() {
 	{
 		read.GET("/employees", handlers.ListEmployees(svc))
 		read.GET("/employees/summary", handlers.Summary(svc))
-		read.GET("/employees/:id", handlers.GetEmployee(svc))
+		read.GET("/employees/:id", handlers.GetEmployee(svc, pool))
 		read.GET("/leaves", handlers.ListLeaves(svc))
 	}
 
