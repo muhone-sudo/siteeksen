@@ -75,7 +75,7 @@ func main() {
 
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "8101"
+		port = "8094"
 	}
 	log.Printf("Inventory Service starting on port %s", port)
 	r.Run(":" + port)

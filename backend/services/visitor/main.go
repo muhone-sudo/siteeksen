@@ -115,7 +115,7 @@ func main() {
 
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "8090"
+		port = "8105"
 	}
 
 	log.Printf("Visitor Service starting on port %s", port)

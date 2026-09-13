@@ -133,7 +133,7 @@ func main() {
 
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "8092"
+		port = "8101"
 	}
 
 	log.Printf("Reservation Service starting on port %s", port)

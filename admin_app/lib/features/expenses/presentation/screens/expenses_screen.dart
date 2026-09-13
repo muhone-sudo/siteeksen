@@ -10,7 +10,6 @@ class ExpensesScreen extends StatefulWidget {
 }
 
 class _ExpensesScreenState extends State<ExpensesScreen> {
-  String _selectedMonth = '2026-02';
   String _filterType = 'all';
 
   final List<_Expense> _expenses = [

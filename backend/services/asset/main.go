@@ -176,7 +176,7 @@ func main() {
 
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "8097"
+		port = "8087"
 	}
 
 	log.Printf("Asset Service starting on port %s", port)

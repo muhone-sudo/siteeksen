@@ -18,18 +18,18 @@ func NewPaymentService() *PaymentService {
 
 // AssessmentPaymentInput - aidat ödeme input
 type AssessmentPaymentInput struct {
-	UserID         string
-	UserName       string
-	UserSurname    string
-	UserEmail      string
-	UserPhone      string
-	UserIP         string
-	AssessmentIDs  []string
-	TotalAmount    float64
-	Card           *CardInput
-	SaveCard       bool
-	Use3DSecure    bool
-	CallbackURL    string
+	UserID        string
+	UserName      string
+	UserSurname   string
+	UserEmail     string
+	UserPhone     string
+	UserIP        string
+	AssessmentIDs []string
+	TotalAmount   float64
+	Card          *CardInput
+	SaveCard      bool
+	Use3DSecure   bool
+	CallbackURL   string
 }
 
 type CardInput struct {
@@ -44,13 +44,13 @@ type CardInput struct {
 
 // PaymentResult - ödeme sonucu
 type PaymentResult struct {
-	Success          bool
-	PaymentID        string
-	TransactionID    string
-	ErrorMessage     string
-	ThreeDSContent   string // 3DS için HTML
-	CardToken        string // Kart kaydedildiyse
-	CardUserKey      string
+	Success        bool
+	PaymentID      string
+	TransactionID  string
+	ErrorMessage   string
+	ThreeDSContent string // 3DS için HTML
+	CardToken      string // Kart kaydedildiyse
+	CardUserKey    string
 }
 
 // ProcessAssessmentPayment - aidat ödemesi işle

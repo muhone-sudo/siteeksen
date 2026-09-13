@@ -116,7 +116,7 @@ func main() {
 
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "8096"
+		port = "8097"
 	}
 
 	log.Printf("Package Service starting on port %s", port)

@@ -52,11 +52,11 @@ CREATE TABLE IF NOT EXISTS visitors (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_visitors_property ON visitors(property_id);
-CREATE INDEX idx_visitors_unit ON visitors(unit_id);
-CREATE INDEX idx_visitors_status ON visitors(status);
-CREATE INDEX idx_visitors_date ON visitors(expected_at);
-CREATE INDEX idx_visitors_qr ON visitors(qr_code);
+CREATE INDEX IF NOT EXISTS idx_visitors_property ON visitors(property_id);
+CREATE INDEX IF NOT EXISTS idx_visitors_unit ON visitors(unit_id);
+CREATE INDEX IF NOT EXISTS idx_visitors_status ON visitors(status);
+CREATE INDEX IF NOT EXISTS idx_visitors_date ON visitors(expected_at);
+CREATE INDEX IF NOT EXISTS idx_visitors_qr ON visitors(qr_code);
 
 -- =====================================================
 -- 2. ARAÇ / OTOPARK TAKİBİ
@@ -180,10 +180,10 @@ CREATE TABLE IF NOT EXISTS parking_logs (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_parking_logs_property ON parking_logs(property_id);
-CREATE INDEX idx_parking_logs_vehicle ON parking_logs(vehicle_id);
-CREATE INDEX idx_parking_logs_entry ON parking_logs(entry_at);
-CREATE INDEX idx_parking_logs_plate ON parking_logs(plate);
+CREATE INDEX IF NOT EXISTS idx_parking_logs_property ON parking_logs(property_id);
+CREATE INDEX IF NOT EXISTS idx_parking_logs_vehicle ON parking_logs(vehicle_id);
+CREATE INDEX IF NOT EXISTS idx_parking_logs_entry ON parking_logs(entry_at);
+CREATE INDEX IF NOT EXISTS idx_parking_logs_plate ON parking_logs(plate);
 
 -- =====================================================
 -- 3. REZERVASYON SİSTEMİ
@@ -239,8 +239,8 @@ CREATE TABLE IF NOT EXISTS facilities (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_facilities_property ON facilities(property_id);
-CREATE INDEX idx_facilities_category ON facilities(category);
+CREATE INDEX IF NOT EXISTS idx_facilities_property ON facilities(property_id);
+CREATE INDEX IF NOT EXISTS idx_facilities_category ON facilities(category);
 
 -- Rezervasyonlar
 CREATE TABLE IF NOT EXISTS reservations (
@@ -291,14 +291,14 @@ CREATE TABLE IF NOT EXISTS reservations (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_reservations_property ON reservations(property_id);
-CREATE INDEX idx_reservations_facility ON reservations(facility_id);
-CREATE INDEX idx_reservations_unit ON reservations(unit_id);
-CREATE INDEX idx_reservations_time ON reservations(start_time, end_time);
-CREATE INDEX idx_reservations_status ON reservations(status);
+CREATE INDEX IF NOT EXISTS idx_reservations_property ON reservations(property_id);
+CREATE INDEX IF NOT EXISTS idx_reservations_facility ON reservations(facility_id);
+CREATE INDEX IF NOT EXISTS idx_reservations_unit ON reservations(unit_id);
+CREATE INDEX IF NOT EXISTS idx_reservations_time ON reservations(start_time, end_time);
+CREATE INDEX IF NOT EXISTS idx_reservations_status ON reservations(status);
 
 -- Çakışma kontrolü için unique constraint
-CREATE UNIQUE INDEX idx_reservations_no_overlap ON reservations(facility_id, start_time)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_reservations_no_overlap ON reservations(facility_id, start_time)
     WHERE status IN ('APPROVED', 'PENDING');
 
 -- =====================================================
@@ -342,8 +342,8 @@ CREATE TABLE IF NOT EXISTS bank_accounts (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_bank_accounts_property ON bank_accounts(property_id);
-CREATE UNIQUE INDEX idx_bank_accounts_iban ON bank_accounts(iban) WHERE is_active = true;
+CREATE INDEX IF NOT EXISTS idx_bank_accounts_property ON bank_accounts(property_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_bank_accounts_iban ON bank_accounts(iban) WHERE is_active = true;
 
 -- Banka İşlemleri (Havale/EFT)
 CREATE TABLE IF NOT EXISTS bank_transactions (
@@ -387,11 +387,11 @@ CREATE TABLE IF NOT EXISTS bank_transactions (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_bank_transactions_property ON bank_transactions(property_id);
-CREATE INDEX idx_bank_transactions_account ON bank_transactions(bank_account_id);
-CREATE INDEX idx_bank_transactions_date ON bank_transactions(transaction_date);
-CREATE INDEX idx_bank_transactions_matched ON bank_transactions(is_matched);
-CREATE INDEX idx_bank_transactions_amount ON bank_transactions(amount, direction);
+CREATE INDEX IF NOT EXISTS idx_bank_transactions_property ON bank_transactions(property_id);
+CREATE INDEX IF NOT EXISTS idx_bank_transactions_account ON bank_transactions(bank_account_id);
+CREATE INDEX IF NOT EXISTS idx_bank_transactions_date ON bank_transactions(transaction_date);
+CREATE INDEX IF NOT EXISTS idx_bank_transactions_matched ON bank_transactions(is_matched);
+CREATE INDEX IF NOT EXISTS idx_bank_transactions_amount ON bank_transactions(amount, direction);
 
 -- =====================================================
 -- 5. SİTE İLAN PANOSU
@@ -437,10 +437,10 @@ CREATE TABLE IF NOT EXISTS bulletin_posts (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_bulletin_posts_property ON bulletin_posts(property_id);
-CREATE INDEX idx_bulletin_posts_category ON bulletin_posts(category);
-CREATE INDEX idx_bulletin_posts_status ON bulletin_posts(status);
-CREATE INDEX idx_bulletin_posts_author ON bulletin_posts(author_id);
+CREATE INDEX IF NOT EXISTS idx_bulletin_posts_property ON bulletin_posts(property_id);
+CREATE INDEX IF NOT EXISTS idx_bulletin_posts_category ON bulletin_posts(category);
+CREATE INDEX IF NOT EXISTS idx_bulletin_posts_status ON bulletin_posts(status);
+CREATE INDEX IF NOT EXISTS idx_bulletin_posts_author ON bulletin_posts(author_id);
 
 -- İlan Yorumları
 CREATE TABLE IF NOT EXISTS bulletin_comments (
@@ -460,7 +460,7 @@ CREATE TABLE IF NOT EXISTS bulletin_comments (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_bulletin_comments_post ON bulletin_comments(post_id);
+CREATE INDEX IF NOT EXISTS idx_bulletin_comments_post ON bulletin_comments(post_id);
 
 -- İlan Özel Mesajları
 CREATE TABLE IF NOT EXISTS bulletin_messages (
@@ -476,8 +476,8 @@ CREATE TABLE IF NOT EXISTS bulletin_messages (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_bulletin_messages_post ON bulletin_messages(post_id);
-CREATE INDEX idx_bulletin_messages_receiver ON bulletin_messages(receiver_id, is_read);
+CREATE INDEX IF NOT EXISTS idx_bulletin_messages_post ON bulletin_messages(post_id);
+CREATE INDEX IF NOT EXISTS idx_bulletin_messages_receiver ON bulletin_messages(receiver_id, is_read);
 
 -- =====================================================
 -- 6. ANKET / OYLAMA SİSTEMİ
@@ -522,9 +522,9 @@ CREATE TABLE IF NOT EXISTS surveys (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_surveys_property ON surveys(property_id);
-CREATE INDEX idx_surveys_status ON surveys(status);
-CREATE INDEX idx_surveys_dates ON surveys(starts_at, ends_at);
+CREATE INDEX IF NOT EXISTS idx_surveys_property ON surveys(property_id);
+CREATE INDEX IF NOT EXISTS idx_surveys_status ON surveys(status);
+CREATE INDEX IF NOT EXISTS idx_surveys_dates ON surveys(starts_at, ends_at);
 
 -- Anket Seçenekleri
 CREATE TABLE IF NOT EXISTS survey_options (
@@ -543,7 +543,7 @@ CREATE TABLE IF NOT EXISTS survey_options (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_survey_options_survey ON survey_options(survey_id);
+CREATE INDEX IF NOT EXISTS idx_survey_options_survey ON survey_options(survey_id);
 
 -- Oylar
 CREATE TABLE IF NOT EXISTS survey_votes (
@@ -566,8 +566,8 @@ CREATE TABLE IF NOT EXISTS survey_votes (
     UNIQUE(survey_id, voter_id)
 );
 
-CREATE INDEX idx_survey_votes_survey ON survey_votes(survey_id);
-CREATE INDEX idx_survey_votes_option ON survey_votes(option_id);
+CREATE INDEX IF NOT EXISTS idx_survey_votes_survey ON survey_votes(survey_id);
+CREATE INDEX IF NOT EXISTS idx_survey_votes_option ON survey_votes(option_id);
 
 -- =====================================================
 -- 7. KARGO TAKİBİ
@@ -619,10 +619,10 @@ CREATE TABLE IF NOT EXISTS packages (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_packages_property ON packages(property_id);
-CREATE INDEX idx_packages_unit ON packages(unit_id);
-CREATE INDEX idx_packages_status ON packages(status);
-CREATE INDEX idx_packages_received ON packages(received_at);
+CREATE INDEX IF NOT EXISTS idx_packages_property ON packages(property_id);
+CREATE INDEX IF NOT EXISTS idx_packages_unit ON packages(unit_id);
+CREATE INDEX IF NOT EXISTS idx_packages_status ON packages(status);
+CREATE INDEX IF NOT EXISTS idx_packages_received ON packages(received_at);
 
 -- =====================================================
 -- 8. DEMİRBAŞ TAKİBİ
@@ -706,11 +706,11 @@ CREATE TABLE IF NOT EXISTS assets (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_assets_property ON assets(property_id);
-CREATE INDEX idx_assets_category ON assets(category_id);
-CREATE INDEX idx_assets_status ON assets(status);
-CREATE INDEX idx_assets_location ON assets(location);
-CREATE INDEX idx_assets_qr ON assets(qr_code);
+CREATE INDEX IF NOT EXISTS idx_assets_property ON assets(property_id);
+CREATE INDEX IF NOT EXISTS idx_assets_category ON assets(category_id);
+CREATE INDEX IF NOT EXISTS idx_assets_status ON assets(status);
+CREATE INDEX IF NOT EXISTS idx_assets_location ON assets(location);
+CREATE INDEX IF NOT EXISTS idx_assets_qr ON assets(qr_code);
 
 -- Demirbaş Bakım Kayıtları
 CREATE TABLE IF NOT EXISTS asset_maintenance (
@@ -744,8 +744,8 @@ CREATE TABLE IF NOT EXISTS asset_maintenance (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_asset_maintenance_asset ON asset_maintenance(asset_id);
-CREATE INDEX idx_asset_maintenance_date ON asset_maintenance(performed_at);
+CREATE INDEX IF NOT EXISTS idx_asset_maintenance_asset ON asset_maintenance(asset_id);
+CREATE INDEX IF NOT EXISTS idx_asset_maintenance_date ON asset_maintenance(performed_at);
 
 -- =====================================================
 -- 9. SÖZLEŞME YÖNETİMİ
@@ -815,10 +815,10 @@ CREATE TABLE IF NOT EXISTS contracts (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_contracts_property ON contracts(property_id);
-CREATE INDEX idx_contracts_type ON contracts(contract_type);
-CREATE INDEX idx_contracts_status ON contracts(status);
-CREATE INDEX idx_contracts_dates ON contracts(start_date, end_date);
+CREATE INDEX IF NOT EXISTS idx_contracts_property ON contracts(property_id);
+CREATE INDEX IF NOT EXISTS idx_contracts_type ON contracts(contract_type);
+CREATE INDEX IF NOT EXISTS idx_contracts_status ON contracts(status);
+CREATE INDEX IF NOT EXISTS idx_contracts_dates ON contracts(start_date, end_date);
 
 -- =====================================================
 -- 10. TUR KONTROL SİSTEMİ
@@ -855,9 +855,9 @@ CREATE TABLE IF NOT EXISTS patrol_checkpoints (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_patrol_checkpoints_property ON patrol_checkpoints(property_id);
-CREATE INDEX idx_patrol_checkpoints_nfc ON patrol_checkpoints(nfc_tag_id);
-CREATE INDEX idx_patrol_checkpoints_qr ON patrol_checkpoints(qr_code);
+CREATE INDEX IF NOT EXISTS idx_patrol_checkpoints_property ON patrol_checkpoints(property_id);
+CREATE INDEX IF NOT EXISTS idx_patrol_checkpoints_nfc ON patrol_checkpoints(nfc_tag_id);
+CREATE INDEX IF NOT EXISTS idx_patrol_checkpoints_qr ON patrol_checkpoints(qr_code);
 
 -- Tur Rotaları
 CREATE TABLE IF NOT EXISTS patrol_routes (
@@ -892,7 +892,7 @@ CREATE TABLE IF NOT EXISTS patrol_routes (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_patrol_routes_property ON patrol_routes(property_id);
+CREATE INDEX IF NOT EXISTS idx_patrol_routes_property ON patrol_routes(property_id);
 
 -- Tur Logları
 CREATE TABLE IF NOT EXISTS patrol_logs (
@@ -927,10 +927,10 @@ CREATE TABLE IF NOT EXISTS patrol_logs (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_patrol_logs_property ON patrol_logs(property_id);
-CREATE INDEX idx_patrol_logs_guard ON patrol_logs(guard_id);
-CREATE INDEX idx_patrol_logs_date ON patrol_logs(started_at);
-CREATE INDEX idx_patrol_logs_status ON patrol_logs(status);
+CREATE INDEX IF NOT EXISTS idx_patrol_logs_property ON patrol_logs(property_id);
+CREATE INDEX IF NOT EXISTS idx_patrol_logs_guard ON patrol_logs(guard_id);
+CREATE INDEX IF NOT EXISTS idx_patrol_logs_date ON patrol_logs(started_at);
+CREATE INDEX IF NOT EXISTS idx_patrol_logs_status ON patrol_logs(status);
 
 -- =====================================================
 -- 11. PERSONEL YÖNETİMİ
@@ -1007,9 +1007,9 @@ CREATE TABLE IF NOT EXISTS employees (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_employees_property ON employees(property_id);
-CREATE INDEX idx_employees_active ON employees(is_active);
-CREATE INDEX idx_employees_tc ON employees(tc_number);
+CREATE INDEX IF NOT EXISTS idx_employees_property ON employees(property_id);
+CREATE INDEX IF NOT EXISTS idx_employees_active ON employees(is_active);
+CREATE INDEX IF NOT EXISTS idx_employees_tc ON employees(tc_number);
 
 -- Bordro
 CREATE TABLE IF NOT EXISTS payroll (
@@ -1060,9 +1060,9 @@ CREATE TABLE IF NOT EXISTS payroll (
     UNIQUE(employee_id, period)
 );
 
-CREATE INDEX idx_payroll_property ON payroll(property_id);
-CREATE INDEX idx_payroll_employee ON payroll(employee_id);
-CREATE INDEX idx_payroll_period ON payroll(period);
+CREATE INDEX IF NOT EXISTS idx_payroll_property ON payroll(property_id);
+CREATE INDEX IF NOT EXISTS idx_payroll_employee ON payroll(employee_id);
+CREATE INDEX IF NOT EXISTS idx_payroll_period ON payroll(period);
 
 -- Personel İzinleri
 CREATE TABLE IF NOT EXISTS employee_leaves (
@@ -1094,9 +1094,9 @@ CREATE TABLE IF NOT EXISTS employee_leaves (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_employee_leaves_employee ON employee_leaves(employee_id);
-CREATE INDEX idx_employee_leaves_dates ON employee_leaves(start_date, end_date);
-CREATE INDEX idx_employee_leaves_status ON employee_leaves(status);
+CREATE INDEX IF NOT EXISTS idx_employee_leaves_employee ON employee_leaves(employee_id);
+CREATE INDEX IF NOT EXISTS idx_employee_leaves_dates ON employee_leaves(start_date, end_date);
+CREATE INDEX IF NOT EXISTS idx_employee_leaves_status ON employee_leaves(status);
 
 -- =====================================================
 -- 12. STOK TAKİBİ
@@ -1151,9 +1151,9 @@ CREATE TABLE IF NOT EXISTS inventory_items (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_inventory_items_property ON inventory_items(property_id);
-CREATE INDEX idx_inventory_items_category ON inventory_items(category_id);
-CREATE INDEX idx_inventory_items_stock ON inventory_items(current_stock, minimum_stock);
+CREATE INDEX IF NOT EXISTS idx_inventory_items_property ON inventory_items(property_id);
+CREATE INDEX IF NOT EXISTS idx_inventory_items_category ON inventory_items(category_id);
+CREATE INDEX IF NOT EXISTS idx_inventory_items_stock ON inventory_items(current_stock, minimum_stock);
 
 -- Stok Hareketleri
 CREATE TABLE IF NOT EXISTS inventory_movements (
@@ -1186,9 +1186,9 @@ CREATE TABLE IF NOT EXISTS inventory_movements (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_inventory_movements_item ON inventory_movements(item_id);
-CREATE INDEX idx_inventory_movements_type ON inventory_movements(movement_type);
-CREATE INDEX idx_inventory_movements_date ON inventory_movements(created_at);
+CREATE INDEX IF NOT EXISTS idx_inventory_movements_item ON inventory_movements(item_id);
+CREATE INDEX IF NOT EXISTS idx_inventory_movements_type ON inventory_movements(movement_type);
+CREATE INDEX IF NOT EXISTS idx_inventory_movements_date ON inventory_movements(created_at);
 
 -- =====================================================
 -- 13. ENERJİ ANALİTİK (AI)
@@ -1230,8 +1230,8 @@ CREATE TABLE IF NOT EXISTS energy_analytics (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_energy_analytics_property ON energy_analytics(property_id);
-CREATE INDEX idx_energy_analytics_period ON energy_analytics(period);
+CREATE INDEX IF NOT EXISTS idx_energy_analytics_property ON energy_analytics(property_id);
+CREATE INDEX IF NOT EXISTS idx_energy_analytics_period ON energy_analytics(period);
 
 -- =====================================================
 -- 14. TOPLANTI KAYITLARI (AI)
@@ -1291,9 +1291,9 @@ CREATE TABLE IF NOT EXISTS meetings (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_meetings_property ON meetings(property_id);
-CREATE INDEX idx_meetings_type ON meetings(meeting_type);
-CREATE INDEX idx_meetings_date ON meetings(meeting_date);
+CREATE INDEX IF NOT EXISTS idx_meetings_property ON meetings(property_id);
+CREATE INDEX IF NOT EXISTS idx_meetings_type ON meetings(meeting_type);
+CREATE INDEX IF NOT EXISTS idx_meetings_date ON meetings(meeting_date);
 
 -- =====================================================
 -- 15. AKILLI TAHSİLAT (AI)
@@ -1332,10 +1332,10 @@ CREATE TABLE IF NOT EXISTS payment_risk_scores (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_payment_risk_property ON payment_risk_scores(property_id);
-CREATE INDEX idx_payment_risk_unit ON payment_risk_scores(unit_id);
-CREATE INDEX idx_payment_risk_category ON payment_risk_scores(risk_category);
-CREATE INDEX idx_payment_risk_date ON payment_risk_scores(analysis_date);
+CREATE INDEX IF NOT EXISTS idx_payment_risk_property ON payment_risk_scores(property_id);
+CREATE INDEX IF NOT EXISTS idx_payment_risk_unit ON payment_risk_scores(unit_id);
+CREATE INDEX IF NOT EXISTS idx_payment_risk_category ON payment_risk_scores(risk_category);
+CREATE INDEX IF NOT EXISTS idx_payment_risk_date ON payment_risk_scores(analysis_date);
 
 -- =====================================================
 -- TRIGGER: updated_at otomatik güncelleme

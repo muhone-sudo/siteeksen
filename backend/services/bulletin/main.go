@@ -149,7 +149,7 @@ func main() {
 
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "8094"
+		port = "8089"
 	}
 
 	log.Printf("Bulletin Service starting on port %s", port)

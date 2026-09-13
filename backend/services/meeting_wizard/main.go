@@ -134,7 +134,7 @@ func main() {
 
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "8103"
+		port = "8095"
 	}
 	log.Printf("Meeting Wizard Service starting on port %s", port)
 	r.Run(":" + port)

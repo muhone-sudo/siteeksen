@@ -9,7 +9,7 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 -- =====================================================
 
 -- Siteler/Apartmanlar
-CREATE TABLE properties (
+CREATE TABLE IF NOT EXISTS properties (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(200) NOT NULL,
     address TEXT NOT NULL,
@@ -25,7 +25,7 @@ CREATE TABLE properties (
 );
 
 -- Bloklar
-CREATE TABLE blocks (
+CREATE TABLE IF NOT EXISTS blocks (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     property_id UUID REFERENCES properties(id) ON DELETE CASCADE,
     name VARCHAR(50) NOT NULL,
@@ -34,7 +34,7 @@ CREATE TABLE blocks (
 );
 
 -- Bağımsız Bölümler (Daireler/Dükkanlar)
-CREATE TABLE units (
+CREATE TABLE IF NOT EXISTS units (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     property_id UUID REFERENCES properties(id) ON DELETE CASCADE,
     block_id UUID REFERENCES blocks(id),
@@ -52,14 +52,14 @@ CREATE TABLE units (
     UNIQUE(property_id, block, door_number)
 );
 
-CREATE INDEX idx_units_property ON units(property_id);
+CREATE INDEX IF NOT EXISTS idx_units_property ON units(property_id);
 
 -- =====================================================
 -- 2. KULLANICILAR VE ROLLER
 -- =====================================================
 
 -- Kullanıcılar
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tc_encrypted VARCHAR(500), -- AES-256 şifreli TCKN
     tc_hash VARCHAR(100), -- SHA-256 hash (arama için)
@@ -77,11 +77,11 @@ CREATE TABLE users (
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE INDEX idx_users_phone ON users(phone);
-CREATE INDEX idx_users_tc_hash ON users(tc_hash);
+CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone);
+CREATE INDEX IF NOT EXISTS idx_users_tc_hash ON users(tc_hash);
 
 -- Sakin-Daire İlişkisi (N:N)
-CREATE TABLE resident_units (
+CREATE TABLE IF NOT EXISTS resident_units (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     resident_id UUID REFERENCES users(id) ON DELETE CASCADE,
     unit_id UUID REFERENCES units(id) ON DELETE CASCADE,
@@ -93,11 +93,11 @@ CREATE TABLE resident_units (
     UNIQUE(resident_id, unit_id, role)
 );
 
-CREATE INDEX idx_resident_units_resident ON resident_units(resident_id);
-CREATE INDEX idx_resident_units_unit ON resident_units(unit_id);
+CREATE INDEX IF NOT EXISTS idx_resident_units_resident ON resident_units(resident_id);
+CREATE INDEX IF NOT EXISTS idx_resident_units_unit ON resident_units(unit_id);
 
 -- Yönetim Kadrosu
-CREATE TABLE management_staff (
+CREATE TABLE IF NOT EXISTS management_staff (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     property_id UUID REFERENCES properties(id) ON DELETE CASCADE,
     user_id UUID REFERENCES users(id),
@@ -115,7 +115,7 @@ CREATE TABLE management_staff (
 -- =====================================================
 
 -- Hesap Planı (Çift taraflı muhasebe)
-CREATE TABLE chart_of_accounts (
+CREATE TABLE IF NOT EXISTS chart_of_accounts (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     property_id UUID REFERENCES properties(id) ON DELETE CASCADE,
     account_code VARCHAR(20) NOT NULL,
@@ -127,7 +127,7 @@ CREATE TABLE chart_of_accounts (
 );
 
 -- Gider Kalemleri
-CREATE TABLE expense_categories (
+CREATE TABLE IF NOT EXISTS expense_categories (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     property_id UUID REFERENCES properties(id) ON DELETE CASCADE,
     name VARCHAR(100) NOT NULL,
@@ -141,7 +141,7 @@ CREATE TABLE expense_categories (
 );
 
 -- Aylık Tahakkuklar
-CREATE TABLE monthly_assessments (
+CREATE TABLE IF NOT EXISTS monthly_assessments (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     property_id UUID REFERENCES properties(id) ON DELETE CASCADE,
     unit_id UUID REFERENCES units(id) ON DELETE CASCADE,
@@ -158,12 +158,12 @@ CREATE TABLE monthly_assessments (
     UNIQUE(unit_id, period_year, period_month)
 );
 
-CREATE INDEX idx_assessments_unit ON monthly_assessments(unit_id);
-CREATE INDEX idx_assessments_status ON monthly_assessments(status);
-CREATE INDEX idx_assessments_period ON monthly_assessments(period_year, period_month);
+CREATE INDEX IF NOT EXISTS idx_assessments_unit ON monthly_assessments(unit_id);
+CREATE INDEX IF NOT EXISTS idx_assessments_status ON monthly_assessments(status);
+CREATE INDEX IF NOT EXISTS idx_assessments_period ON monthly_assessments(period_year, period_month);
 
 -- Tahakkuk Detayları
-CREATE TABLE assessment_details (
+CREATE TABLE IF NOT EXISTS assessment_details (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     assessment_id UUID REFERENCES monthly_assessments(id) ON DELETE CASCADE,
     expense_category_id UUID REFERENCES expense_categories(id),
@@ -173,7 +173,7 @@ CREATE TABLE assessment_details (
 );
 
 -- Yevmiye Defteri (Ledger)
-CREATE TABLE ledger_entries (
+CREATE TABLE IF NOT EXISTS ledger_entries (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     property_id UUID REFERENCES properties(id) ON DELETE CASCADE,
     transaction_date DATE NOT NULL,
@@ -184,11 +184,11 @@ CREATE TABLE ledger_entries (
     created_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE INDEX idx_ledger_property ON ledger_entries(property_id);
-CREATE INDEX idx_ledger_date ON ledger_entries(transaction_date);
+CREATE INDEX IF NOT EXISTS idx_ledger_property ON ledger_entries(property_id);
+CREATE INDEX IF NOT EXISTS idx_ledger_date ON ledger_entries(transaction_date);
 
 -- Yevmiye Kalemleri
-CREATE TABLE ledger_lines (
+CREATE TABLE IF NOT EXISTS ledger_lines (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     entry_id UUID REFERENCES ledger_entries(id) ON DELETE CASCADE,
     account_id UUID REFERENCES chart_of_accounts(id),
@@ -202,7 +202,7 @@ CREATE TABLE ledger_lines (
 );
 
 -- Ödemeler
-CREATE TABLE payments (
+CREATE TABLE IF NOT EXISTS payments (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID REFERENCES users(id),
     unit_id UUID REFERENCES units(id),
@@ -215,11 +215,11 @@ CREATE TABLE payments (
     completed_at TIMESTAMP
 );
 
-CREATE INDEX idx_payments_user ON payments(user_id);
-CREATE INDEX idx_payments_status ON payments(status);
+CREATE INDEX IF NOT EXISTS idx_payments_user ON payments(user_id);
+CREATE INDEX IF NOT EXISTS idx_payments_status ON payments(status);
 
 -- Ödeme-Aidat İlişkisi
-CREATE TABLE payment_assessments (
+CREATE TABLE IF NOT EXISTS payment_assessments (
     payment_id UUID REFERENCES payments(id) ON DELETE CASCADE,
     assessment_id UUID REFERENCES monthly_assessments(id),
     amount DECIMAL(12,2),
@@ -231,7 +231,7 @@ CREATE TABLE payment_assessments (
 -- =====================================================
 
 -- Sayaçlar
-CREATE TABLE meters (
+CREATE TABLE IF NOT EXISTS meters (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     unit_id UUID REFERENCES units(id) ON DELETE CASCADE,
     meter_type VARCHAR(20) NOT NULL, -- HEAT, WATER_COLD, WATER_HOT, GAS, ELECTRIC
@@ -244,10 +244,10 @@ CREATE TABLE meters (
     created_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE INDEX idx_meters_unit ON meters(unit_id);
+CREATE INDEX IF NOT EXISTS idx_meters_unit ON meters(unit_id);
 
 -- Sayaç Okumaları
-CREATE TABLE meter_readings (
+CREATE TABLE IF NOT EXISTS meter_readings (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     meter_id UUID REFERENCES meters(id) ON DELETE CASCADE,
     reading_date DATE NOT NULL,
@@ -260,11 +260,11 @@ CREATE TABLE meter_readings (
     created_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE INDEX idx_readings_meter ON meter_readings(meter_id);
-CREATE INDEX idx_readings_date ON meter_readings(reading_date);
+CREATE INDEX IF NOT EXISTS idx_readings_meter ON meter_readings(meter_id);
+CREATE INDEX IF NOT EXISTS idx_readings_date ON meter_readings(reading_date);
 
 -- Tüketim Tarifeleri
-CREATE TABLE consumption_tariffs (
+CREATE TABLE IF NOT EXISTS consumption_tariffs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     property_id UUID REFERENCES properties(id) ON DELETE CASCADE,
     meter_type VARCHAR(20) NOT NULL,
@@ -277,7 +277,7 @@ CREATE TABLE consumption_tariffs (
 );
 
 -- Tüketim Faturaları
-CREATE TABLE consumption_invoices (
+CREATE TABLE IF NOT EXISTS consumption_invoices (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     meter_reading_id UUID REFERENCES meter_readings(id),
     unit_id UUID REFERENCES units(id),
@@ -300,7 +300,7 @@ CREATE TABLE consumption_invoices (
 -- =====================================================
 
 -- Araçlar
-CREATE TABLE vehicles (
+CREATE TABLE IF NOT EXISTS vehicles (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     unit_id UUID REFERENCES units(id) ON DELETE CASCADE,
     resident_id UUID REFERENCES users(id),
@@ -315,15 +315,15 @@ CREATE TABLE vehicles (
     created_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE INDEX idx_vehicles_plate ON vehicles(plate_number);
-CREATE INDEX idx_vehicles_unit ON vehicles(unit_id);
+CREATE INDEX IF NOT EXISTS idx_vehicles_plate ON vehicles(plate_number);
+CREATE INDEX IF NOT EXISTS idx_vehicles_unit ON vehicles(unit_id);
 
 -- =====================================================
 -- 6. İLETİŞİM VE TALEPLER
 -- =====================================================
 
 -- Duyurular
-CREATE TABLE announcements (
+CREATE TABLE IF NOT EXISTS announcements (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     property_id UUID REFERENCES properties(id) ON DELETE CASCADE,
     title VARCHAR(200) NOT NULL,
@@ -338,10 +338,10 @@ CREATE TABLE announcements (
     created_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE INDEX idx_announcements_property ON announcements(property_id);
+CREATE INDEX IF NOT EXISTS idx_announcements_property ON announcements(property_id);
 
 -- Duyuru Okunma Durumu
-CREATE TABLE announcement_reads (
+CREATE TABLE IF NOT EXISTS announcement_reads (
     announcement_id UUID REFERENCES announcements(id) ON DELETE CASCADE,
     user_id UUID REFERENCES users(id) ON DELETE CASCADE,
     read_at TIMESTAMP DEFAULT NOW(),
@@ -349,7 +349,7 @@ CREATE TABLE announcement_reads (
 );
 
 -- Talep Kategorileri
-CREATE TABLE request_categories (
+CREATE TABLE IF NOT EXISTS request_categories (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     property_id UUID REFERENCES properties(id),
     name VARCHAR(100) NOT NULL,
@@ -359,7 +359,7 @@ CREATE TABLE request_categories (
 );
 
 -- Talepler/Şikayetler
-CREATE TABLE requests (
+CREATE TABLE IF NOT EXISTS requests (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     property_id UUID REFERENCES properties(id) ON DELETE CASCADE,
     unit_id UUID REFERENCES units(id),
@@ -379,12 +379,12 @@ CREATE TABLE requests (
     updated_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE INDEX idx_requests_property ON requests(property_id);
-CREATE INDEX idx_requests_status ON requests(status);
-CREATE INDEX idx_requests_resident ON requests(resident_id);
+CREATE INDEX IF NOT EXISTS idx_requests_property ON requests(property_id);
+CREATE INDEX IF NOT EXISTS idx_requests_status ON requests(status);
+CREATE INDEX IF NOT EXISTS idx_requests_resident ON requests(resident_id);
 
 -- Talep Yorumları
-CREATE TABLE request_comments (
+CREATE TABLE IF NOT EXISTS request_comments (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     request_id UUID REFERENCES requests(id) ON DELETE CASCADE,
     user_id UUID REFERENCES users(id),
@@ -397,7 +397,7 @@ CREATE TABLE request_comments (
 -- 7. DENETİM LOGLARI (KVKK/5651)
 -- =====================================================
 
-CREATE TABLE audit_logs (
+CREATE TABLE IF NOT EXISTS audit_logs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID,
     user_ip INET,
@@ -410,16 +410,16 @@ CREATE TABLE audit_logs (
     created_at TIMESTAMP DEFAULT NOW()
 );
 
-CREATE INDEX idx_audit_user ON audit_logs(user_id);
-CREATE INDEX idx_audit_action ON audit_logs(action);
-CREATE INDEX idx_audit_date ON audit_logs(created_at);
+CREATE INDEX IF NOT EXISTS idx_audit_user ON audit_logs(user_id);
+CREATE INDEX IF NOT EXISTS idx_audit_action ON audit_logs(action);
+CREATE INDEX IF NOT EXISTS idx_audit_date ON audit_logs(created_at);
 
 -- =====================================================
 -- 8. BAKIŞ (VIEWS)
 -- =====================================================
 
 -- Daire Bakiyeleri
-CREATE VIEW unit_balances AS
+CREATE OR REPLACE VIEW unit_balances AS
 SELECT 
     u.id as unit_id,
     u.property_id,
@@ -432,7 +432,7 @@ LEFT JOIN ledger_lines ll ON u.id = ll.unit_id
 GROUP BY u.id, u.property_id, u.block, u.door_number;
 
 -- Aylık Tahsilat Özeti
-CREATE VIEW monthly_collection_summary AS
+CREATE OR REPLACE VIEW monthly_collection_summary AS
 SELECT 
     ma.property_id,
     ma.period_year,

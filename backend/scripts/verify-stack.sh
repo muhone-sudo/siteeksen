@@ -74,17 +74,21 @@ docker exec "$CNAME" pg_isready -U siteeksen -d siteeksen >/dev/null 2>&1 \
 export PGPASSWORD="$PW"
 PSQL="psql -h 127.0.0.1 -p ${DBPORT} -U siteeksen -d siteeksen -v ON_ERROR_STOP=1 -q"
 
-step "2) Migration'lar (sıfırdan kurulum)"
-MIG_OK=1
-for f in $(ls "$MIG_DIR"/*.sql | sort); do
-  if $PSQL -f "$f" >/tmp/verify-mig.log 2>&1; then
-    ok "$(basename "$f")"
-  else
-    bad "$(basename "$f")"; grep -i ERROR /tmp/verify-mig.log | head -3 | sed 's/^/      /'
-    MIG_OK=0; break
-  fi
-done
-[ "$MIG_OK" = "1" ] || { echo "Migration zinciri kırık — sonraki adımlar atlanıyor"; exit 1; }
+step "2) Migration'lar (sıfırdan kurulum, cmd/migrate ile)"
+export DATABASE_URL="postgres://siteeksen:${PW}@127.0.0.1:${DBPORT}/siteeksen?sslmode=disable"
+if go run ./cmd/migrate -dir "$MIG_DIR" >/tmp/verify-mig.log 2>&1; then
+  APPLIED=$(grep -c 'uygulandı:' /tmp/verify-mig.log)
+  ok "cmd/migrate: $APPLIED migration uygulandı"
+else
+  bad "cmd/migrate başarısız"; tail -12 /tmp/verify-mig.log | sed 's/^/      /'
+  echo "Migration zinciri kırık — sonraki adımlar atlanıyor"; exit 1
+fi
+
+# Sürüm tablosu gerçekten dolduruldu mu?
+SM=$($PSQL -t -A -c "SELECT count(*) FROM schema_migrations;")
+MIGFILES=$(ls "$MIG_DIR"/*.sql | wc -l)
+[ "$SM" = "$MIGFILES" ] && ok "schema_migrations: $SM kayıt (dosya sayısıyla eşit)" \
+  || bad "schema_migrations $SM kayıt, dosya sayısı $MIGFILES"
 
 step "3) Şema beklentileri"
 TBL=$($PSQL -t -A -c "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE';")
@@ -102,9 +106,38 @@ for c in entity_type entity_id ip_address property_id request_id status_code; do
 done
 
 step "4) Migration idempotency (tekrar uygulanabilirlik)"
-for f in $(ls "$MIG_DIR"/00[6-9]*.sql "$MIG_DIR"/01*.sql 2>/dev/null | sort); do
-  if $PSQL -f "$f" >/dev/null 2>&1; then ok "tekrar: $(basename "$f")"; else bad "tekrar: $(basename "$f") (idempotent değil)"; fi
+# 4a) Çalıştırıcı ikinci kez çağrıldığında hiçbir şey uygulamamalı
+if go run ./cmd/migrate -dir "$MIG_DIR" 2>&1 | grep -q 'güncel'; then
+  ok "cmd/migrate tekrar çağrıldığında hiçbir şey uygulamıyor"
+else
+  bad "cmd/migrate tekrar çağrıldığında migration uyguladı (sürüm takibi çalışmıyor)"
+fi
+
+# 4b) Her migration dosyası ham olarak da tekrar uygulanabilmeli (madde 1.4).
+# Sürüm tablosu bozulursa veya bir dosya elle çalıştırılırsa şema kırılmamalıdır.
+for f in $(ls "$MIG_DIR"/*.sql | sort); do
+  if $PSQL -f "$f" >/tmp/verify-idem.log 2>&1; then
+    ok "tekrar: $(basename "$f")"
+  else
+    bad "tekrar: $(basename "$f") (idempotent değil)"
+    grep -i ERROR /tmp/verify-idem.log | head -2 | sed 's/^/      /'
+  fi
 done
+
+# 4c) Denetim izi migration tekrarında silinmemeli (madde 1.13)
+$PSQL -c "INSERT INTO audit_logs (user_id, action, entity_type) VALUES (NULL, 'IDEMPOTENCY_PROBE', 'verify');" >/dev/null 2>&1
+$PSQL -f "$MIG_DIR/003_multi_tenant.sql" >/dev/null 2>&1
+PROBE=$($PSQL -t -A -c "SELECT count(*) FROM audit_logs WHERE action='IDEMPOTENCY_PROBE';")
+[ "$PROBE" = "1" ] && ok "003 tekrar uygulandığında denetim izi silinmiyor" \
+  || bad "003 tekrarında denetim izi silindi (DROP TABLE audit_logs geri gelmiş)"
+$PSQL -c "DELETE FROM audit_logs WHERE action='IDEMPOTENCY_PROBE';" >/dev/null 2>&1
+
+# 4d) Seed verisi kendi içinde tutarlı olmalı (madde 1.8)
+CONS=$($PSQL -t -A -c "SELECT CASE WHEN p.total_units = (SELECT count(*) FROM units WHERE property_id=p.id)
+        AND p.total_share_ratio = (SELECT COALESCE(sum(share_ratio),0) FROM units WHERE property_id=p.id)
+        THEN 'ok' ELSE 'tutarsiz' END FROM properties p WHERE p.id='11111111-1111-1111-1111-111111111111';")
+[ "$CONS" = "ok" ] && ok "seed tutarlı: total_units ve arsa payı toplamı birimlerle eşleşiyor" \
+  || bad "seed tutarsız (total_units / total_share_ratio birimlerle eşleşmiyor)"
 
 step "5) pkg/audit birim testi (gerçek veritabanına karşı)"
 if TEST_DATABASE_URL="postgres://siteeksen:${PW}@127.0.0.1:${DBPORT}/siteeksen" \

@@ -1,3 +1,17 @@
+# SiteEksen CI/CD
+#
+# 2026-09-13 revizyonu (tasks/todo.md madde 1.12). Önceki sürümün sorunları:
+#   - Go 1.21 kuruluyordu, `go.mod` 1.24 istiyordu → CI'nin "yeşil" olması derlenebilirliği
+#     kanıtlamıyordu.
+#   - `go build ./...` ve `go vet ./...` hiç çalışmıyordu; yalnızca 5 servis ayrı ayrı
+#     derleniyordu. Depoda derlenmeyen bir dizin (`backend/api/`) aylarca fark edilmedi.
+#   - Lint ve type-check `|| true` ile çalışıyordu → başarısızlık görünmüyordu.
+#   - Trivy bulgu bulsa da işi kırmıyordu (kapı değil, süsleme).
+#   - `flutter analyze`/`flutter test` de `|| true` idi.
+#
+# Artık her adım gerçek bir kapıdır. Uçtan uca doğrulama için
+# `backend/scripts/verify-stack.sh` çalıştırılır (aynı betik local'de de kullanılır).
+
 name: CI/CD Pipeline
 
 on:
@@ -9,126 +23,83 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}
+  GO_VERSION: '1.24'
+  FLUTTER_VERSION: '3.47.4'
 
 jobs:
-  # Backend Test & Build
+  # ------------------------------------------------------------------
+  # Backend: derleme, statik denetim, birim testleri
+  # ------------------------------------------------------------------
   backend:
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_DB: siteeksen_test
-          POSTGRES_USER: test
-          POSTGRES_PASSWORD: test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
     steps:
       - uses: actions/checkout@v4
 
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.21'
-
-      - name: Cache Go modules
-        uses: actions/cache@v3
-        with:
-          path: ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: backend/go.sum
 
       - name: Download dependencies
         working-directory: ./backend
         run: go mod download
 
-      - name: Run unit tests
+      # KAPI: tüm depo derlenmeli. Tek tek servis derlemesi, derlenmeyen bir paketi gizler.
+      - name: Build all packages
         working-directory: ./backend
-        run: go test -v -race -coverprofile=coverage.out ./...
+        run: go build ./...
 
-      - name: Upload coverage
-        uses: codecov/codecov-action@v3
-        with:
-          file: ./backend/coverage.out
-
-      - name: Run integration tests
+      - name: Vet
         working-directory: ./backend
-        env:
-          DB_HOST: localhost
-          DB_PORT: 5432
-          DB_USER: test
-          DB_PASSWORD: test
-          DB_NAME: siteeksen_test
-        run: go test -v -tags=integration ./tests/...
+        run: go vet ./...
 
-      - name: Build all services
+      - name: Check formatting
         working-directory: ./backend
         run: |
-          CGO_ENABLED=0 go build -o bin/identity-service ./services/identity
-          CGO_ENABLED=0 go build -o bin/finance-service ./services/finance
-          CGO_ENABLED=0 go build -o bin/community-service ./services/community
-          CGO_ENABLED=0 go build -o bin/iot-service ./services/iot
-          CGO_ENABLED=0 go build -o bin/notification-service ./services/notification
+          UNFORMATTED=$(gofmt -l . | grep -v '^vendor/' || true)
+          if [ -n "$UNFORMATTED" ]; then
+            echo "Biçimlendirilmemiş dosyalar:"; echo "$UNFORMATTED"; exit 1
+          fi
 
-      - name: Log in to Container Registry
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: docker/login-action@v3
+      - name: Unit tests
+        working-directory: ./backend
+        run: go test -race -coverprofile=coverage.out ./...
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
         with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          file: ./backend/coverage.out
+        continue-on-error: true
 
-      - name: Build and push Identity Service
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: docker/build-push-action@v5
+  # ------------------------------------------------------------------
+  # Uçtan uca doğrulama: temiz veritabanı, migration'lar, gerçek HTTP akışları
+  # ------------------------------------------------------------------
+  verify-stack:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
         with:
-          context: ./backend
-          file: ./backend/services/identity/Dockerfile
-          push: true
-          tags: ${{ env.IMAGE_PREFIX }}/identity-service:latest,${{ env.IMAGE_PREFIX }}/identity-service:${{ github.sha }}
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: backend/go.sum
 
-      - name: Build and push Finance Service
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: docker/build-push-action@v5
-        with:
-          context: ./backend
-          file: ./backend/services/finance/Dockerfile
-          push: true
-          tags: ${{ env.IMAGE_PREFIX }}/finance-service:latest,${{ env.IMAGE_PREFIX }}/finance-service:${{ github.sha }}
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
 
-      - name: Build and push Community Service
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: docker/build-push-action@v5
-        with:
-          context: ./backend
-          file: ./backend/services/community/Dockerfile
-          push: true
-          tags: ${{ env.IMAGE_PREFIX }}/community-service:latest,${{ env.IMAGE_PREFIX }}/community-service:${{ github.sha }}
+      # Bu betik: temiz PostgreSQL 16 kabı → cmd/migrate ile tüm migration'lar →
+      # şema denetimi → idempotency → pkg/audit testi → identity-service ve gateway
+      # üzerinden gerçek giriş/yetki/denetim izi/501 doğrulaması.
+      - name: Run verify-stack.sh
+        run: bash backend/scripts/verify-stack.sh
 
-      - name: Build and push IoT Service
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: docker/build-push-action@v5
-        with:
-          context: ./backend
-          file: ./backend/services/iot/Dockerfile
-          push: true
-          tags: ${{ env.IMAGE_PREFIX }}/iot-service:latest,${{ env.IMAGE_PREFIX }}/iot-service:${{ github.sha }}
-
-      - name: Build and push Notification Service
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: docker/build-push-action@v5
-        with:
-          context: ./backend
-          file: ./backend/services/notification/Dockerfile
-          push: true
-          tags: ${{ env.IMAGE_PREFIX }}/notification-service:latest,${{ env.IMAGE_PREFIX }}/notification-service:${{ github.sha }}
-
-  # Admin Panel Build
+  # ------------------------------------------------------------------
+  # Admin panel
+  # ------------------------------------------------------------------
   admin:
     runs-on: ubuntu-latest
     steps:
@@ -145,118 +116,161 @@ jobs:
         working-directory: ./admin
         run: npm ci
 
-      - name: Run linter
+      - name: Lint
         working-directory: ./admin
-        run: npm run lint || true
+        run: npm run lint
 
-      - name: Run type check
+      - name: Type check
         working-directory: ./admin
-        run: npm run type-check || true
+        run: npx tsc --noEmit
 
       - name: Build
         working-directory: ./admin
         run: npm run build
 
-      - name: Log in to Container Registry
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and push Admin Panel
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: docker/build-push-action@v5
-        with:
-          context: ./admin
-          push: true
-          tags: ${{ env.IMAGE_PREFIX }}/admin-panel:latest,${{ env.IMAGE_PREFIX }}/admin-panel:${{ github.sha }}
-
-  # Mobile Build (Optional - for CI validation)
+  # ------------------------------------------------------------------
+  # Mobil uygulamalar (sakin + yönetici)
+  # ------------------------------------------------------------------
   mobile:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [mobile, admin_app]
     steps:
       - uses: actions/checkout@v4
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.16.0'
+          flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: 'stable'
 
       - name: Install dependencies
-        working-directory: ./mobile
+        working-directory: ./${{ matrix.app }}
         run: flutter pub get
 
-      - name: Analyze code
-        working-directory: ./mobile
-        run: flutter analyze || true
+      # Hata ve uyarılar kapıdır. Bilgi (info) düzeyi uyarılar (prefer_const,
+      # withOpacity deprecation vb.) henüz temizlenmedi; bilerek kapı değil —
+      # bkz. tasks/todo.md 0.C.6.
+      - name: Analyze
+        working-directory: ./${{ matrix.app }}
+        run: flutter analyze --no-fatal-infos
 
-      - name: Run tests
-        working-directory: ./mobile
-        run: flutter test || true
+      - name: Test
+        working-directory: ./${{ matrix.app }}
+        run: flutter test
 
-  # Security Scan
+  # ------------------------------------------------------------------
+  # Güvenlik taraması — bulgu varsa iş BAŞARISIZ olur (kapı)
+  # ------------------------------------------------------------------
   security:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Run Trivy vulnerability scanner
+      - name: Trivy (dosya sistemi)
         uses: aquasecurity/trivy-action@master
         with:
           scan-type: 'fs'
           scan-ref: '.'
           severity: 'CRITICAL,HIGH'
+          ignore-unfixed: true
+          exit-code: '1'
 
-  # Deploy to Kubernetes
+      # Gizli anahtar/parolanın depoya girmesini engeller.
+      - name: Trivy (sır taraması)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          scanners: 'secret'
+          exit-code: '1'
+
+  # ------------------------------------------------------------------
+  # Konteyner imajları — yalnızca main'e push'ta
+  # ------------------------------------------------------------------
+  images:
+    needs: [backend, verify-stack, admin, security]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - name: identity-service
+            dockerfile: services/identity/Dockerfile
+          - name: finance-service
+            dockerfile: services/finance/Dockerfile
+          - name: community-service
+            dockerfile: services/community/Dockerfile
+          - name: gateway
+            dockerfile: cmd/gateway/Dockerfile
+          - name: migrate
+            dockerfile: cmd/migrate/Dockerfile
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push ${{ matrix.name }}
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./backend/${{ matrix.dockerfile }}
+          push: true
+          tags: |
+            ${{ env.IMAGE_PREFIX }}/${{ matrix.name }}:latest
+            ${{ env.IMAGE_PREFIX }}/${{ matrix.name }}:${{ github.sha }}
+
+      # NOT: Mock (501 dönen) servislerin imajı bilerek yayınlanmıyor.
+      # Gerçek veri katmanına bağlanan her servis bu listeye eklenir.
+
+  # ------------------------------------------------------------------
+  # Dağıtım
+  #
+  # UYARI: Bu iş, gerekli secret'lar (KUBE_CONFIG) tanımlıysa çalışır.
+  # Tanımlı değilse atlanır — sessizce "başarılı" görünmez.
+  # ------------------------------------------------------------------
   deploy:
-    needs: [backend, admin, security]
+    needs: [images]
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     environment: production
     steps:
       - uses: actions/checkout@v4
 
+      - name: Gerekli secret kontrolü
+        run: |
+          if [ -z "${{ secrets.KUBE_CONFIG }}" ]; then
+            echo "KUBE_CONFIG tanımlı değil — dağıtım atlanıyor."
+            echo "skip=true" >> "$GITHUB_ENV"
+          fi
+
       - name: Set up kubectl
-        uses: azure/setup-kubectl@v3
+        if: env.skip != 'true'
+        uses: azure/setup-kubectl@v4
 
       - name: Configure kubeconfig
+        if: env.skip != 'true'
         run: |
           mkdir -p ~/.kube
           echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > ~/.kube/config
+          chmod 600 ~/.kube/config
 
       - name: Deploy to Kubernetes
+        if: env.skip != 'true'
         run: |
           kubectl apply -f k8s/deployments.yaml
           kubectl apply -f k8s/ingress.yaml
 
-      - name: Rollout services
-        run: |
-          kubectl rollout restart deployment/identity-service
-          kubectl rollout restart deployment/finance-service
-          kubectl rollout restart deployment/community-service
-          kubectl rollout restart deployment/iot-service
-          kubectl rollout restart deployment/notification-service
-          kubectl rollout restart deployment/admin-panel
-
       - name: Wait for rollout
+        if: env.skip != 'true'
         run: |
           kubectl rollout status deployment/identity-service --timeout=300s
           kubectl rollout status deployment/finance-service --timeout=300s
           kubectl rollout status deployment/admin-panel --timeout=300s
-
-      - name: Run smoke tests
-        run: |
-          echo "Running smoke tests..."
-          # curl -f https://api.siteeksen.com/health || exit 1
-          # curl -f https://admin.siteeksen.com || exit 1
-
-      - name: Notify on success
-        if: success()
-        run: echo "Deployment successful!"
-
-      - name: Notify on failure
-        if: failure()
-        run: echo "Deployment failed!"

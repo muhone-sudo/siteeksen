@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../../../../core/theme/apple_theme.dart';
-import '../../../../core/widgets/apple_widgets.dart';
 
 /// Site İlan Panosu Yönetim Ekranı - Apple Tarzı
 class BulletinBoardScreen extends StatefulWidget {

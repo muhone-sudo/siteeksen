@@ -18,7 +18,7 @@ type PDFGenerator struct {
 func NewPDFGenerator() *PDFGenerator {
 	pdf := gofpdf.New("P", "mm", "A4", "")
 	pdf.SetAutoPageBreak(true, 15)
-	
+
 	return &PDFGenerator{
 		pdf:       pdf,
 		pageWidth: 210,
@@ -29,7 +29,7 @@ func NewPDFGenerator() *PDFGenerator {
 func (g *PDFGenerator) GenerateAssessmentReport(data *AssessmentReportData) ([]byte, error) {
 	g.pdf.AddPage()
 	g.addHeader(data.PropertyName, "Aidat Raporu")
-	
+
 	// Dönem bilgisi
 	g.pdf.SetFont("Arial", "B", 12)
 	g.pdf.CellFormat(0, 10, fmt.Sprintf("Dönem: %s", data.Period), "", 1, "L", false, 0, "")
@@ -174,7 +174,7 @@ func (g *PDFGenerator) addFooter() {
 
 func (g *PDFGenerator) addSummaryCards(cards []SummaryCard) {
 	cardWidth := (g.pageWidth - 20) / float64(len(cards))
-	
+
 	g.pdf.SetFillColor(240, 240, 245)
 	for _, card := range cards {
 		g.pdf.SetFont("Arial", "", 9)
@@ -192,7 +192,7 @@ func (g *PDFGenerator) addTableHeader(headers []string, widths []float64) {
 	g.pdf.SetFillColor(37, 99, 235)
 	g.pdf.SetTextColor(255, 255, 255)
 	g.pdf.SetFont("Arial", "B", 9)
-	
+
 	for i, h := range headers {
 		g.pdf.CellFormat(widths[i], 7, h, "1", 0, "C", true, 0, "")
 	}

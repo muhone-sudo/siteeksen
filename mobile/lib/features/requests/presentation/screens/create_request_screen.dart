@@ -15,7 +15,6 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
   int _selectedPriority = 1;
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
-  final List<String> _attachments = [];
 
   final List<Map<String, dynamic>> _categories = [
     {'name': 'Teknik Arıza', 'icon': Icons.build_rounded, 'color': AppleTheme.systemOrange},

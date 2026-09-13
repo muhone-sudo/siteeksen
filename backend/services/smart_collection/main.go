@@ -97,7 +97,7 @@ func main() {
 
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "8104"
+		port = "8103"
 	}
 	log.Printf("Smart Collection Service starting on port %s", port)
 	r.Run(":" + port)

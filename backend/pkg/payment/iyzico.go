@@ -35,17 +35,17 @@ func NewIyzicoClient() *IyzicoClient {
 
 // PaymentRequest - ödeme isteği
 type PaymentRequest struct {
-	Price           string         `json:"price"`
-	PaidPrice       string         `json:"paidPrice"`
-	Currency        string         `json:"currency"`
-	Installment     int            `json:"installment"`
-	BasketID        string         `json:"basketId"`
-	PaymentCard     *PaymentCard   `json:"paymentCard"`
-	Buyer           *Buyer         `json:"buyer"`
-	ShippingAddress *Address       `json:"shippingAddress"`
-	BillingAddress  *Address       `json:"billingAddress"`
-	BasketItems     []BasketItem   `json:"basketItems"`
-	CallbackURL     string         `json:"callbackUrl,omitempty"`
+	Price           string       `json:"price"`
+	PaidPrice       string       `json:"paidPrice"`
+	Currency        string       `json:"currency"`
+	Installment     int          `json:"installment"`
+	BasketID        string       `json:"basketId"`
+	PaymentCard     *PaymentCard `json:"paymentCard"`
+	Buyer           *Buyer       `json:"buyer"`
+	ShippingAddress *Address     `json:"shippingAddress"`
+	BillingAddress  *Address     `json:"billingAddress"`
+	BasketItems     []BasketItem `json:"basketItems"`
+	CallbackURL     string       `json:"callbackUrl,omitempty"`
 }
 
 type PaymentCard struct {
@@ -89,17 +89,17 @@ type BasketItem struct {
 
 // PaymentResponse - ödeme yanıtı
 type PaymentResponse struct {
-	Status              string  `json:"status"`
-	ErrorCode           string  `json:"errorCode,omitempty"`
-	ErrorMessage        string  `json:"errorMessage,omitempty"`
-	PaymentID           string  `json:"paymentId,omitempty"`
-	Price               float64 `json:"price,omitempty"`
-	PaidPrice           float64 `json:"paidPrice,omitempty"`
-	Currency            string  `json:"currency,omitempty"`
-	Installment         int     `json:"installment,omitempty"`
-	PaymentTransactionID string `json:"paymentTransactionId,omitempty"`
-	CardToken           string  `json:"cardToken,omitempty"`
-	CardUserKey         string  `json:"cardUserKey,omitempty"`
+	Status               string  `json:"status"`
+	ErrorCode            string  `json:"errorCode,omitempty"`
+	ErrorMessage         string  `json:"errorMessage,omitempty"`
+	PaymentID            string  `json:"paymentId,omitempty"`
+	Price                float64 `json:"price,omitempty"`
+	PaidPrice            float64 `json:"paidPrice,omitempty"`
+	Currency             string  `json:"currency,omitempty"`
+	Installment          int     `json:"installment,omitempty"`
+	PaymentTransactionID string  `json:"paymentTransactionId,omitempty"`
+	CardToken            string  `json:"cardToken,omitempty"`
+	CardUserKey          string  `json:"cardUserKey,omitempty"`
 }
 
 // ThreeDSInitRequest - 3D Secure başlatma
@@ -110,9 +110,9 @@ type ThreeDSInitRequest struct {
 
 // ThreeDSInitResponse - 3D Secure başlatma yanıtı
 type ThreeDSInitResponse struct {
-	Status            string `json:"status"`
-	ErrorCode         string `json:"errorCode,omitempty"`
-	ErrorMessage      string `json:"errorMessage,omitempty"`
+	Status             string `json:"status"`
+	ErrorCode          string `json:"errorCode,omitempty"`
+	ErrorMessage       string `json:"errorMessage,omitempty"`
 	ThreeDSHtmlContent string `json:"threeDSHtmlContent,omitempty"`
 }
 
@@ -180,13 +180,13 @@ func (c *IyzicoClient) CreateCardToken(card *PaymentCard, email string) (*CardTo
 }
 
 type CardTokenResponse struct {
-	Status       string `json:"status"`
-	CardToken    string `json:"cardToken"`
-	CardUserKey  string `json:"cardUserKey"`
-	CardAlias    string `json:"cardAlias"`
-	BinNumber    string `json:"binNumber"`
+	Status         string `json:"status"`
+	CardToken      string `json:"cardToken"`
+	CardUserKey    string `json:"cardUserKey"`
+	CardAlias      string `json:"cardAlias"`
+	BinNumber      string `json:"binNumber"`
 	LastFourDigits string `json:"lastFourDigits"`
-	CardType     string `json:"cardType"`
+	CardType       string `json:"cardType"`
 }
 
 // Refund - iade işlemi

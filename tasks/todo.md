@@ -141,18 +141,77 @@ Backend'e dokunan her değişiklikten sonra çalıştırılır.
 - [x] **[D3] 1.14 Kalıcı doğrulama betiği eklendi** — `backend/scripts/verify-stack.sh` (42 kontrol)
 
 ### FAZ 1 — kalanlar
-- [ ] **1.4 Migration'ları tam idempotent yap** — 001'de 25 `CREATE TABLE`, 119 `CREATE INDEX`
-      `IF NOT EXISTS`'siz; transaction sarmalaması yok. *(B08)*
-      *(006-011 zaten idempotent — doğrulandı.)*
-- [ ] **1.5 🔴 Migration çalıştırıcı** — sürüm tablosu + kilit + eksikleri uygulama. *(B05)*
-- [ ] **1.6 Down (geri alma) betikleri**
-- [ ] **1.7b Seed'i `initdb.d` dışına taşı** — üretimde bilinen şifreli hesap açmasın
-- [ ] **1.8 Seed verisi tutarsızlığı** — `total_units=24` ama 6 birim; arsa payı toplamı uyumsuz *(B15)*
-- [ ] **1.10 13 servisin `main.go` default portu** compose ile eşitlenmeli; 4 çift çakışıyor *(B13)*
-- [ ] **1.11 `firebase-credentials.json` mount'u koşullu yapılmalı** *(B07)*
-- [ ] **1.12 CI düzeltmeleri** — Go sürümü `go.mod` ile eşitlensin; `|| true` kaldırılsın;
-      Trivy kapı olsun; `go build ./... && go vet ./...` + `verify-stack.sh` eklensin *(B09, B10, B11)*
-- [ ] **1.13 `003`'ün `audit_logs` DROP'u ALTER'a çevrilmeli** *(B14)*
+- [x] **[D4] 1.4 Migration'lar tam idempotent yapıldı** *(B08)*
+      001'deki 25 `CREATE TABLE` ve 24 `CREATE INDEX`, 003/005'teki 91 index ifadesi
+      `IF NOT EXISTS` aldı; 004'teki `CREATE TRIGGER` öncesine `DROP TRIGGER IF EXISTS`
+      eklendi; `002` tümüyle koruma altına alındı. Her migration artık transaction içinde
+      uygulanıyor (çalıştırıcı sarmalıyor).
+      **Kanıt:** `verify-stack.sh` §4b — **11 migration dosyasının tamamı** temiz kurulumdan
+      sonra yeniden uygulandığında hatasız geçiyor.
+- [x] **[D4] 1.5 🔴 Migration çalıştırıcı eklendi** *(B05)* — `backend/cmd/migrate`
+      `schema_migrations` sürüm tablosu, PostgreSQL **advisory lock** (eşzamanlı çalıştırma
+      koruması), **SHA-256 sağlama denetimi** (uygulanmış bir migration sonradan
+      değiştirilmişse durur) ve migration başına transaction. `-status`, `-dry-run` bayrakları.
+      Docker imajı: `backend/cmd/migrate/Dockerfile`.
+      **Kanıt:** `verify-stack.sh` §2 (11 migration uygulandı, `schema_migrations` 11 kayıt) ve
+      §4a (ikinci çağrıda hiçbir şey uygulamıyor). Sağlama koruması fiilen sınandı: kayıtlı
+      sağlama bozulduğunda çalıştırıcı hata verip **çıkış kodu 1** döndürdü.
+- [x] **[D4] 1.7b Seed `initdb.d` dışına taşındı** — `docker-compose.yml`'deki
+      `./backend/migrations:/docker-entrypoint-initdb.d` mount'u kaldırıldı; migration'ları
+      artık tek seferlik `migrate` servisi uyguluyor ve tüm servisler onun **başarıyla
+      tamamlanmasını** bekliyor (`service_completed_successfully`).
+      Demo veri `SEED_DEMO_DATA` ile kontrol ediliyor: üretimde `false` verildiğinde
+      migration uygulanmış sayılır (sürüm zinciri kırılmaz) ama **bilinen şifreli demo
+      hesaplar açılmaz**.
+- [x] **[D4] 1.8 Seed verisi tutarlı hâle getirildi** *(B15)*
+      `total_units=24` deniyordu ama 6 birim vardı; `total_share_ratio=10000` iken birimlerin
+      arsa payı toplamı 2480'di. Bu tutarsızlık **arsa payına göre dağıtımı (KMK m.20/1-b)
+      test edilemez** kılıyordu: payda yanlış olduğu için her tahakkuk hatalı çıkardı.
+      Artık 2 blok × 12 = **24 bağımsız bölüm** var ve arsa payları **tam 10000** ediyor.
+      Gider kalemlerinin dağıtım türleri de KMK m.20'ye göre düzeltildi.
+      **Kanıt:** `verify-stack.sh` §4d — SQL ile `total_units` ve arsa payı toplamı doğrulanıyor.
+- [x] **[D4] 1.10 Servis varsayılan portları eşitlendi** *(B13)*
+      13 servisin `main.go` varsayılanı compose/gateway tablosundan farklıydı ve 4 çift aynı
+      varsayılan porta sahipti (document/parking, banking/esg, nps/package,
+      energy_analytics/settings) → local'de ikisi birden çalıştırılamıyordu.
+      Kanonik tablo: gateway yönlendirmesi + docker-compose. Fark **0**.
+- [x] **[D4] 1.11 `firebase-credentials.json` mount'u kaldırıldı** *(B07)*
+      Dosya depoda yok; Docker eksik yolu **dizin** olarak yaratıp `docker-compose up`'ı
+      kırıyordu. Firebase zaten koda hiç bağlı değil (denetim bulgusu).
+      **Kanıt:** `docker compose config` → çıkış kodu 0.
+- [x] **[D4] 1.12 CI gerçek kapı hâline getirildi** *(B09, B10, B11)*
+      Go sürümü `1.21` → **1.24** (`go.mod` ile aynı); `go build ./...`, `go vet ./...`,
+      `gofmt` denetimi ve `go test -race ./...` eklendi; admin'de `|| true` kaldırıldı
+      (`npm run lint`, `tsc --noEmit`, `npm run build`); Trivy artık `exit-code: 1` ile **kapı**
+      ve ayrıca **sır taraması** yapıyor; mobil için iki uygulama da matris olarak
+      `flutter analyze`/`flutter test` çalıştırıyor; yeni **verify-stack** işi tüm uçtan uca
+      doğrulamayı CI'da koşuyor. Dağıtım işi secret yoksa sessizce "başarılı" görünmüyor.
+      **Kanıt:** aynı komutlar local'de çalıştırıldı — `gofmt -l` boş, `go test ./...` 6/6 paket
+      geçti, `npm run build` 0, `flutter analyze`/`flutter test` her iki uygulamada 0.
+- [x] **[D4] 1.13 `003`'ün `audit_logs` DROP'u kaldırıldı** *(B14)*
+      `DROP TABLE IF EXISTS audit_logs;` migration her tekrarlandığında **KVKK kapsamındaki
+      tüm denetim izini siliyordu**. Artık tablo düşürülmüyor; eksik kolonlar idempotent
+      `ALTER` ile ekleniyor. `011` ayrıca 001'den kalan eski kolonları (`user_ip`,
+      `resource_type NOT NULL`, `resource_id`) veriyi taşıyarak tasfiye ediyor ve
+      `created_at`'i `TIMESTAMPTZ`'ye çeviriyor.
+      **Kanıt:** `verify-stack.sh` §4c — tabloya kayıt atılıp 003 yeniden uygulanıyor, kayıt
+      hâlâ orada.
+- [ ] **1.6 Down (geri alma) betikleri** — `cmd/migrate` ileri yönlüdür; geri alma yok.
+
+### Flutter doğrulaması — AÇILDI (2026-09-13)
+- [x] **[D4] Flutter 3.47.4 WSL'e kuruldu** *(S-01b)* → mobil işler artık `[D1]` değil,
+      çalıştırılarak doğrulanabiliyor.
+- [x] **[D4] İki uygulamanın da derlenmeyen `widget_test.dart`'ı düzeltildi**
+      Her ikisi de `flutter create` şablonundan kalan, var olmayan `MyApp` sınıfını çağıran
+      sayaç testiydi → `flutter analyze` **hata** veriyordu ve çalıştırılabilir tek test yoktu.
+      Gerçek duman testleriyle değiştirildi (2+2 test).
+- [x] **[D4] Mobilde ölü kod ve kullanılmayan import'lar temizlendi**
+      Rotaya hiç bağlı olmayan `home_screen.dart` silindi: sabit "Ahmet Yılmaz", sabit
+      **"Borcunuz Bulunmamaktadır"** kartı, uydurma tüketim grafiği ve uydurma kampanyalar
+      içeriyordu. 13 kullanılmayan import/alan kaldırıldı.
+      **Kanıt:** `bash backend/scripts/verify-mobile.sh` → her iki uygulamada
+      `flutter analyze` **hata/uyarı yok**, `flutter test` geçiyor.
+- [x] **[D3] Mobil doğrulama betiği eklendi** — `backend/scripts/verify-mobile.sh`
 
 ---
 

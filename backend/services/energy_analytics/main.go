@@ -110,7 +110,7 @@ func main() {
 
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "8102"
+		port = "8092"
 	}
 	log.Printf("Energy Analytics Service starting on port %s", port)
 	r.Run(":" + port)

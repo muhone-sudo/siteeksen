@@ -8,52 +8,52 @@ import (
 
 // Tenant - Kiracı (Site Yönetimi) bilgileri
 type Tenant struct {
-	ID                string             `json:"id"`
-	Name              string             `json:"name"`
-	Slug              string             `json:"slug"` // subdomain için: mavikent.siteeksen.com
-	CustomDomain      string             `json:"custom_domain,omitempty"` // mavikent-siteyonetimi.com
-	SubscriptionPlan  string             `json:"subscription_plan"` // STARTER, PRO, ENTERPRISE
-	SubscriptionStatus string            `json:"subscription_status"` // ACTIVE, TRIAL, SUSPENDED
-	MaxUnits          int                `json:"max_units"` // Plan limiti
-	MaxUsers          int                `json:"max_users"`
-	Features          []string           `json:"features"` // Aktif özellikler
-	Settings          *TenantSettings    `json:"settings"`
-	Branding          *TenantBranding    `json:"branding,omitempty"`
-	CreatedAt         string             `json:"created_at"`
-	ExpiresAt         string             `json:"expires_at,omitempty"`
+	ID                 string          `json:"id"`
+	Name               string          `json:"name"`
+	Slug               string          `json:"slug"`                    // subdomain için: mavikent.siteeksen.com
+	CustomDomain       string          `json:"custom_domain,omitempty"` // mavikent-siteyonetimi.com
+	SubscriptionPlan   string          `json:"subscription_plan"`       // STARTER, PRO, ENTERPRISE
+	SubscriptionStatus string          `json:"subscription_status"`     // ACTIVE, TRIAL, SUSPENDED
+	MaxUnits           int             `json:"max_units"`               // Plan limiti
+	MaxUsers           int             `json:"max_users"`
+	Features           []string        `json:"features"` // Aktif özellikler
+	Settings           *TenantSettings `json:"settings"`
+	Branding           *TenantBranding `json:"branding,omitempty"`
+	CreatedAt          string          `json:"created_at"`
+	ExpiresAt          string          `json:"expires_at,omitempty"`
 }
 
 // TenantSettings - Kiracı ayarları
 type TenantSettings struct {
-	Timezone           string `json:"timezone"`
-	Currency           string `json:"currency"`
-	Language           string `json:"language"`
-	DateFormat         string `json:"date_format"`
-	AssessmentDueDay   int    `json:"assessment_due_day"` // Aidat son ödeme günü
-	LateFeePercentage  float64 `json:"late_fee_percentage"`
-	MeterReadingDeadline int  `json:"meter_reading_deadline"` // Ay içinde günü
-	EnableReservations bool   `json:"enable_reservations"`
-	EnableSurveys      bool   `json:"enable_surveys"`
-	EnableBulletins    bool   `json:"enable_bulletins"`
+	Timezone             string  `json:"timezone"`
+	Currency             string  `json:"currency"`
+	Language             string  `json:"language"`
+	DateFormat           string  `json:"date_format"`
+	AssessmentDueDay     int     `json:"assessment_due_day"` // Aidat son ödeme günü
+	LateFeePercentage    float64 `json:"late_fee_percentage"`
+	MeterReadingDeadline int     `json:"meter_reading_deadline"` // Ay içinde günü
+	EnableReservations   bool    `json:"enable_reservations"`
+	EnableSurveys        bool    `json:"enable_surveys"`
+	EnableBulletins      bool    `json:"enable_bulletins"`
 }
 
 // TenantBranding - Marka özelleştirme
 type TenantBranding struct {
-	LogoURL       string `json:"logo_url,omitempty"`
-	PrimaryColor  string `json:"primary_color"`
+	LogoURL        string `json:"logo_url,omitempty"`
+	PrimaryColor   string `json:"primary_color"`
 	SecondaryColor string `json:"secondary_color"`
-	AppName       string `json:"app_name,omitempty"` // Özel uygulama adı
+	AppName        string `json:"app_name,omitempty"` // Özel uygulama adı
 }
 
 // SubscriptionPlan - Abonelik planı
 type SubscriptionPlan struct {
-	ID          string   `json:"id"`
-	Name        string   `json:"name"`
-	PriceMonthly int     `json:"price_monthly"` // TL
-	PriceYearly int      `json:"price_yearly"`
-	MaxUnits    int      `json:"max_units"`
-	MaxUsers    int      `json:"max_users"`
-	Features    []string `json:"features"`
+	ID           string   `json:"id"`
+	Name         string   `json:"name"`
+	PriceMonthly int      `json:"price_monthly"` // TL
+	PriceYearly  int      `json:"price_yearly"`
+	MaxUnits     int      `json:"max_units"`
+	MaxUsers     int      `json:"max_users"`
+	Features     []string `json:"features"`
 }
 
 // GetPlans - Mevcut planlar

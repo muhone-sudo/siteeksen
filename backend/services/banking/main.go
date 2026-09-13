@@ -164,7 +164,7 @@ func main() {
 
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "8093"
+		port = "8106"
 	}
 
 	log.Printf("Banking Service starting on port %s", port)

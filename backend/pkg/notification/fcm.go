@@ -60,8 +60,8 @@ type FCMNotification struct {
 }
 
 type AndroidConfig struct {
-	Priority     string                 `json:"priority,omitempty"`
-	Notification *AndroidNotification   `json:"notification,omitempty"`
+	Priority     string               `json:"priority,omitempty"`
+	Notification *AndroidNotification `json:"notification,omitempty"`
 }
 
 type AndroidNotification struct {
@@ -91,8 +91,8 @@ type ApsPayload struct {
 
 // SendResponse - gönderim yanıtı
 type SendResponse struct {
-	Name         string `json:"name,omitempty"`
-	Error        *FCMError `json:"error,omitempty"`
+	Name  string    `json:"name,omitempty"`
+	Error *FCMError `json:"error,omitempty"`
 }
 
 type FCMError struct {

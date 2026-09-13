@@ -40,18 +40,18 @@ type LineItem struct {
 
 // ScanResult - AI tarama sonucu
 type ScanResult struct {
-	Success    bool        `json:"success"`
-	Data       InvoiceData `json:"data,omitempty"`
-	Confidence float64     `json:"confidence_score"`
-	Error      string      `json:"error,omitempty"`
-	ProcessedAt time.Time  `json:"processed_at"`
+	Success     bool        `json:"success"`
+	Data        InvoiceData `json:"data,omitempty"`
+	Confidence  float64     `json:"confidence_score"`
+	Error       string      `json:"error,omitempty"`
+	ProcessedAt time.Time   `json:"processed_at"`
 }
 
 // InvoiceParser - Fatura okuyucu servis
 type InvoiceParser struct {
-	openAIKey     string
-	googleAIKey   string
-	preferredAI   string // "openai" veya "google"
+	openAIKey   string
+	googleAIKey string
+	preferredAI string // "openai" veya "google"
 }
 
 // NewInvoiceParser - Yeni parser oluştur
@@ -69,7 +69,7 @@ func (p *InvoiceParser) ParseInvoice(ctx context.Context, fileData []byte, fileT
 	if strings.ToLower(fileType) == "pdf" {
 		return p.parsePDF(ctx, fileData)
 	}
-	
+
 	// Görüntü dosyaları için direkt AI Vision kullan
 	return p.parseImage(ctx, fileData, fileType)
 }
@@ -78,17 +78,17 @@ func (p *InvoiceParser) ParseInvoice(ctx context.Context, fileData []byte, fileT
 func (p *InvoiceParser) parseImage(ctx context.Context, imageData []byte, fileType string) (*ScanResult, error) {
 	// Base64 encode
 	base64Image := base64.StdEncoding.EncodeToString(imageData)
-	
+
 	// OpenAI GPT-4 Vision API çağrısı
 	if p.openAIKey != "" {
 		return p.callOpenAIVision(ctx, base64Image, fileType)
 	}
-	
+
 	// Google Document AI fallback
 	if p.googleAIKey != "" {
 		return p.callGoogleDocumentAI(ctx, imageData)
 	}
-	
+
 	return &ScanResult{
 		Success: false,
 		Error:   "AI servis anahtarı yapılandırılmamış",
@@ -135,24 +135,24 @@ Sadece JSON döndür, başka açıklama ekleme.`
 	}
 
 	jsonBody, _ := json.Marshal(requestBody)
-	
+
 	req, err := http.NewRequestWithContext(ctx, "POST", "https://api.openai.com/v1/chat/completions", bytes.NewBuffer(jsonBody))
 	if err != nil {
 		return nil, err
 	}
-	
+
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+p.openAIKey)
-	
+
 	client := &http.Client{Timeout: 60 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
-	
+
 	body, _ := io.ReadAll(resp.Body)
-	
+
 	// Response parse
 	var openAIResp struct {
 		Choices []struct {
@@ -161,21 +161,21 @@ Sadece JSON döndür, başka açıklama ekleme.`
 			} `json:"message"`
 		} `json:"choices"`
 	}
-	
+
 	if err := json.Unmarshal(body, &openAIResp); err != nil {
 		return nil, err
 	}
-	
+
 	if len(openAIResp.Choices) == 0 {
 		return &ScanResult{Success: false, Error: "AI yanıt vermedi"}, nil
 	}
-	
+
 	// JSON çıkarma
 	content := openAIResp.Choices[0].Message.Content
 	content = strings.TrimPrefix(content, "```json")
 	content = strings.TrimSuffix(content, "```")
 	content = strings.TrimSpace(content)
-	
+
 	var invoiceData InvoiceData
 	if err := json.Unmarshal([]byte(content), &invoiceData); err != nil {
 		return &ScanResult{
@@ -184,7 +184,7 @@ Sadece JSON döndür, başka açıklama ekleme.`
 			Confidence: 0.5,
 		}, nil
 	}
-	
+
 	return &ScanResult{
 		Success:     true,
 		Data:        invoiceData,
@@ -197,7 +197,7 @@ Sadece JSON döndür, başka açıklama ekleme.`
 func (p *InvoiceParser) callGoogleDocumentAI(ctx context.Context, fileData []byte) (*ScanResult, error) {
 	// Google Document AI Invoice Parser
 	// https://cloud.google.com/document-ai/docs/processors-list#processor_invoice-parser
-	
+
 	// TODO: Gerçek entegrasyon
 	return &ScanResult{
 		Success: false,
@@ -209,17 +209,17 @@ func (p *InvoiceParser) callGoogleDocumentAI(ctx context.Context, fileData []byt
 func (p *InvoiceParser) parsePDF(ctx context.Context, pdfData []byte) (*ScanResult, error) {
 	// PDF'i görüntüye dönüştür (poppler veya ImageMagick ile)
 	// Veya PDF'den text çıkar ve text olarak analiz et
-	
+
 	// Şimdilik direkt base64 olarak gönder (GPT-4 PDF desteği gelecekte)
 	base64PDF := base64.StdEncoding.EncodeToString(pdfData)
-	
+
 	return p.callOpenAIVision(ctx, base64PDF, "PDF")
 }
 
 // SuggestCategory - Açıklamaya göre kategori öner
 func (p *InvoiceParser) SuggestCategory(description string) string {
 	description = strings.ToLower(description)
-	
+
 	categoryKeywords := map[string][]string{
 		"Ortak Elektrik": {"elektrik", "enerji", "ayedaş", "bedaş", "enerjisa"},
 		"Ortak Su":       {"su", "iski", "aski"},
@@ -229,7 +229,7 @@ func (p *InvoiceParser) SuggestCategory(description string) string {
 		"Bina Temizliği": {"temizlik", "cleaning"},
 		"Güvenlik":       {"güvenlik", "security", "kamera"},
 	}
-	
+
 	for category, keywords := range categoryKeywords {
 		for _, keyword := range keywords {
 			if strings.Contains(description, keyword) {
@@ -237,6 +237,6 @@ func (p *InvoiceParser) SuggestCategory(description string) string {
 			}
 		}
 	}
-	
+
 	return "Diğer"
 }

@@ -170,6 +170,9 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- İdempotency (madde 1.4): CREATE TRIGGER'ın IF NOT EXISTS biçimi yoktur;
+-- tekrar uygulamada "already exists" hatası vermemesi için önce düşürülür.
+DROP TRIGGER IF EXISTS expense_updated_at ON expenses;
 CREATE TRIGGER expense_updated_at
     BEFORE UPDATE ON expenses
     FOR EACH ROW

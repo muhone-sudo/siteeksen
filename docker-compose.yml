@@ -13,12 +13,37 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./backend/migrations:/docker-entrypoint-initdb.d
+      # NOT (2026-09-13, madde 1.7b): `./backend/migrations:/docker-entrypoint-initdb.d`
+      # mount'u KALDIRILDI. initdb yalnızca veri dizini boşken çalışır; mevcut bir
+      # veritabanına yeni migration uygulanamıyor, hangi sürümün uygulandığı
+      # bilinmiyordu ve demo veri üretimde de yükleniyordu.
+      # Migration'lar artık aşağıdaki `migrate` servisi tarafından uygulanır.
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U siteeksen" ]
       interval: 10s
       timeout: 5s
       retries: 5
+
+  # Migration çalıştırıcısı — tek seferlik. Tüm servisler bunun BAŞARIYLA
+  # tamamlanmasını bekler; böylece hiçbir servis eksik şemayla başlamaz.
+  migrate:
+    build:
+      context: ./backend
+      dockerfile: cmd/migrate/Dockerfile
+    container_name: siteeksen-migrate
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: siteeksen
+      DB_PASSWORD: ${DB_PASSWORD:-siteeksen_dev_123}
+      DB_NAME: siteeksen
+      DB_SSLMODE: disable
+      # Üretimde false verin: bilinen şifreli demo hesaplar açılmaz.
+      SEED_DEMO_DATA: ${SEED_DEMO_DATA:-true}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
 
   # Redis - Cache ve Session
   redis:
@@ -87,6 +112,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
 
   # Finance Service
   finance-service:
@@ -110,6 +137,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
 
   # Community Service
   community-service:
@@ -130,6 +159,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
 
   # IoT Service
   iot-service:
@@ -151,6 +182,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
       mongodb:
         condition: service_started
 
@@ -176,12 +209,18 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_started
       kafka:
         condition: service_started
-    volumes:
-      - ./firebase-credentials.json:/app/firebase-credentials.json:ro
+    # NOT (2026-09-13, madde 1.11): `./firebase-credentials.json` bind mount'u KALDIRILDI.
+    # Dosya depoda yok (ve olmamalı); Docker eksik yolu DİZİN olarak yaratıyor, bu da
+    # dosya bekleyen kodu şaşırtıyor ve `docker-compose up`'ı kırıyordu.
+    # Ayrıca denetimde tespit edildiği üzere Firebase koda hiç bağlanmamıştır.
+    # Gerçek entegrasyona geçildiğinde kimlik bilgisi ortam değişkeniyle
+    # (FIREBASE_CREDENTIALS_JSON) ya da bir secret yöneticisiyle verilmelidir.
 
   # Admin Panel (Next.js)
   admin-panel:
@@ -218,6 +257,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
 
   # Asset Service
   asset-service:

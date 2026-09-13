@@ -122,7 +122,7 @@ func main() {
 
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "8095"
+		port = "8104"
 	}
 
 	log.Printf("Survey Service starting on port %s", port)

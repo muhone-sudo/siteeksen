@@ -34,6 +34,44 @@
 -- Tüm ifadeler idempotenttir.
 -- ============================================================================
 
+-- 0) 001'den gelen ESKİ kolon adlarını tasfiye et.
+--
+-- 2026-09-13 notu: `003` daha önce `DROP TABLE audit_logs` ile 001'in tablosunu yok edip
+-- yeniden yaratıyordu. Bu, migration her tekrarlandığında TÜM DENETİM İZİNİ SİLİYORDU
+-- (madde 1.13), bu yüzden DROP kaldırıldı. Ancak o zaman 001'in tablosu yerinde kalıyor ve
+-- eski kolonlar (`user_ip`, `resource_type NOT NULL`, `resource_id`) hayatta kalıyor;
+-- `resource_type` NOT NULL olduğu için pkg/audit'in INSERT'ü başarısız oluyordu.
+-- Burada veri yeni kolonlara taşınır ve eski kolonlar düşürülür (tek kaynak ilkesi).
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns
+               WHERE table_name = 'audit_logs' AND column_name = 'resource_type') THEN
+        UPDATE audit_logs SET entity_type = resource_type WHERE entity_type IS NULL;
+        ALTER TABLE audit_logs DROP COLUMN resource_type;
+    END IF;
+
+    IF EXISTS (SELECT 1 FROM information_schema.columns
+               WHERE table_name = 'audit_logs' AND column_name = 'resource_id') THEN
+        UPDATE audit_logs SET entity_id = resource_id WHERE entity_id IS NULL;
+        ALTER TABLE audit_logs DROP COLUMN resource_id;
+    END IF;
+
+    IF EXISTS (SELECT 1 FROM information_schema.columns
+               WHERE table_name = 'audit_logs' AND column_name = 'user_ip') THEN
+        UPDATE audit_logs SET ip_address = user_ip WHERE ip_address IS NULL;
+        ALTER TABLE audit_logs DROP COLUMN user_ip;
+    END IF;
+
+    -- Denetim kaydının zamanı saat dilimi taşımalıdır: KVKK/5651 kapsamında
+    -- "ne zaman" sorusunun tek anlamlı yanıtı olması gerekir.
+    IF EXISTS (SELECT 1 FROM information_schema.columns
+               WHERE table_name = 'audit_logs' AND column_name = 'created_at'
+                 AND data_type = 'timestamp without time zone') THEN
+        ALTER TABLE audit_logs
+            ALTER COLUMN created_at TYPE TIMESTAMPTZ USING created_at AT TIME ZONE 'UTC';
+    END IF;
+END $$;
+
 -- 1) tenant_id artık zorunlu değil
 ALTER TABLE audit_logs ALTER COLUMN tenant_id DROP NOT NULL;
 

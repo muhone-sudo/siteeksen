@@ -9,12 +9,12 @@ import (
 type NotificationType string
 
 const (
-	TypePaymentReminder  NotificationType = "PAYMENT_REMINDER"
-	TypePaymentReceived  NotificationType = "PAYMENT_RECEIVED"
-	TypeNewAnnouncement  NotificationType = "NEW_ANNOUNCEMENT"
-	TypeRequestUpdate    NotificationType = "REQUEST_UPDATE"
-	TypeMeterReading     NotificationType = "METER_READING"
-	TypeEmergency        NotificationType = "EMERGENCY"
+	TypePaymentReminder NotificationType = "PAYMENT_REMINDER"
+	TypePaymentReceived NotificationType = "PAYMENT_RECEIVED"
+	TypeNewAnnouncement NotificationType = "NEW_ANNOUNCEMENT"
+	TypeRequestUpdate   NotificationType = "REQUEST_UPDATE"
+	TypeMeterReading    NotificationType = "METER_READING"
+	TypeEmergency       NotificationType = "EMERGENCY"
 )
 
 // NotificationService - bildirim servisi

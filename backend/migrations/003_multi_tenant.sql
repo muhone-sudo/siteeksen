@@ -22,9 +22,9 @@ CREATE TABLE IF NOT EXISTS tenants (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_tenants_slug ON tenants(slug);
-CREATE INDEX idx_tenants_custom_domain ON tenants(custom_domain);
-CREATE INDEX idx_tenants_subscription_status ON tenants(subscription_status);
+CREATE INDEX IF NOT EXISTS idx_tenants_slug ON tenants(slug);
+CREATE INDEX IF NOT EXISTS idx_tenants_custom_domain ON tenants(custom_domain);
+CREATE INDEX IF NOT EXISTS idx_tenants_subscription_status ON tenants(subscription_status);
 
 -- Property tablosuna tenant_id ekle (mevcut property = tenant)
 ALTER TABLE properties ADD COLUMN IF NOT EXISTS tenant_id UUID REFERENCES tenants(id);
@@ -44,8 +44,8 @@ CREATE TABLE IF NOT EXISTS invoices (
     paid_at TIMESTAMP WITH TIME ZONE
 );
 
-CREATE INDEX idx_invoices_tenant ON invoices(tenant_id);
-CREATE INDEX idx_invoices_status ON invoices(status);
+CREATE INDEX IF NOT EXISTS idx_invoices_tenant ON invoices(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_invoices_status ON invoices(status);
 
 -- Kullanım metrikleri
 CREATE TABLE IF NOT EXISTS usage_metrics (
@@ -57,26 +57,31 @@ CREATE TABLE IF NOT EXISTS usage_metrics (
     UNIQUE(tenant_id, metric_type, recorded_at)
 );
 
-CREATE INDEX idx_usage_metrics_tenant ON usage_metrics(tenant_id, recorded_at);
+CREATE INDEX IF NOT EXISTS idx_usage_metrics_tenant ON usage_metrics(tenant_id, recorded_at);
 
 -- Audit log (tenant bazlı)
-DROP TABLE IF EXISTS audit_logs;
+--
+-- DÜZELTME (2026-09-13, madde 1.13): Bu blok daha önce `DROP TABLE IF EXISTS audit_logs;`
+-- ile başlıyordu. Migration yeniden uygulandığında (ya da bir ortamda sırayla çalıştırıldığında)
+-- KVKK kapsamındaki TÜM DENETİM İZİ SİLİNİYORDU. Denetim kaydı silinemez bir varlıktır.
+-- Tablo artık düşürülmüyor; eksik kolonlar idempotent biçimde ekleniyor.
 CREATE TABLE IF NOT EXISTS audit_logs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    tenant_id UUID NOT NULL REFERENCES tenants(id),
     user_id UUID REFERENCES users(id),
-    action VARCHAR(100) NOT NULL, -- CREATE, UPDATE, DELETE, LOGIN, etc.
-    entity_type VARCHAR(100), -- user, assessment, payment, etc.
-    entity_id UUID,
-    old_values JSONB,
-    new_values JSONB,
-    ip_address INET,
-    user_agent TEXT,
+    action VARCHAR(100) NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_audit_logs_tenant ON audit_logs(tenant_id, created_at);
-CREATE INDEX idx_audit_logs_entity ON audit_logs(entity_type, entity_id);
+ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS tenant_id UUID REFERENCES tenants(id);
+ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS entity_type VARCHAR(100);
+ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS entity_id UUID;
+ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS old_values JSONB;
+ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS new_values JSONB;
+ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS ip_address INET;
+ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS user_agent TEXT;
+
+CREATE INDEX IF NOT EXISTS idx_audit_logs_tenant ON audit_logs(tenant_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_entity ON audit_logs(entity_type, entity_id);
 
 -- Varsayılan tenant oluştur (demo)
 INSERT INTO tenants (id, name, slug, subscription_plan, subscription_status, max_units, max_users, features, settings)

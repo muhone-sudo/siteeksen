@@ -1,10 +1,8 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../features/auth/presentation/screens/login_screen.dart';
 import '../../features/auth/presentation/screens/kvkk_consent_screen.dart';
-import '../../features/home/presentation/screens/home_screen.dart';
 import '../../features/home/presentation/screens/resident_home_screen.dart';
 import '../../features/finance/presentation/screens/finance_screen.dart';
 import '../../features/finance/presentation/screens/dues_payment_screen.dart';

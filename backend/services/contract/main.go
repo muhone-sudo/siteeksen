@@ -51,7 +51,7 @@ func main() {
 
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "8098"
+		port = "8090"
 	}
 	log.Printf("Contract Service starting on port %s", port)
 	r.Run(":" + port)

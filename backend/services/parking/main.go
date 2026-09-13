@@ -155,7 +155,7 @@ func main() {
 
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "8091"
+		port = "8098"
 	}
 
 	log.Printf("Parking Service starting on port %s", port)
