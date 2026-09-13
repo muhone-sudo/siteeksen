@@ -41,24 +41,55 @@ PRK_PID=""
 RES_PID=""
 PKG_PID=""
 CTR_PID=""
+DOC_PID=""
 
 ok()   { echo "  [GEÇTİ]    $1"; PASS=$((PASS+1)); }
 bad()  { echo "  [BAŞARISIZ] $1"; FAIL=$((FAIL+1)); }
 step() { echo ""; echo "=== $1 ==="; }
 
+# kill_tree, bir sürecin ÇOCUKLARIYLA BİRLİKTE öldürülmesini sağlar.
+#
+# `go run X &` iki süreç yaratır: `go run` sarmalayıcısı ve derlenmiş ikili.
+# Yalnızca sarmalayıcıyı öldürmek ikiliyi ayakta bırakır; ikili portu tutmaya
+# devam eder ve BİR SONRAKİ çalıştırmanın sağlık kontrolü bu eski sürece cevap
+# verir. Testler o zaman eski veritabanına karşı koşar ve sonuçlar rastgele
+# değişir. Bu yüzden ağacın tamamı öldürülür.
+kill_tree() {
+  local pid="$1"
+  [ -z "$pid" ] && return 0
+  local child
+  for child in $(pgrep -P "$pid" 2>/dev/null); do
+    kill_tree "$child"
+  done
+  kill "$pid" 2>/dev/null || true
+}
+
+# free_port, verilen portu dinleyen kalıntı süreçleri sonlandırır.
+# Önceki (yarıda kesilmiş) bir çalıştırmadan kalan servis, yeni çalıştırmayı
+# sessizce bozar; bu yüzden başlamadan önce süpürülür.
+free_port() {
+  local port="$1" pid
+  for pid in $(ss -lntp 2>/dev/null | grep -oE "127\\.0\\.0\\.1:${port}\\b.*pid=[0-9]+" \
+               | grep -oE 'pid=[0-9]+' | cut -d= -f2 | sort -u); do
+    kill_tree "$pid"
+  done
+}
+
 cleanup() {
-  [ -n "$SVC_PID" ] && kill "$SVC_PID" 2>/dev/null
-  [ -n "$STUB_PID" ] && kill "$STUB_PID" 2>/dev/null
-  [ -n "$GW_PID" ] && kill "$GW_PID" 2>/dev/null
-  [ -n "$FIN_PID" ] && kill "$FIN_PID" 2>/dev/null
-  [ -n "$GOV_PID" ] && kill "$GOV_PID" 2>/dev/null
-  [ -n "$EXP_PID" ] && kill "$EXP_PID" 2>/dev/null
-  [ -n "$PER_PID" ] && kill "$PER_PID" 2>/dev/null
-  [ -n "$VIS_PID" ] && kill "$VIS_PID" 2>/dev/null
-  [ -n "$PRK_PID" ] && kill "$PRK_PID" 2>/dev/null
-  [ -n "$RES_PID" ] && kill "$RES_PID" 2>/dev/null
-  [ -n "$PKG_PID" ] && kill "$PKG_PID" 2>/dev/null
-  [ -n "$CTR_PID" ] && kill "$CTR_PID" 2>/dev/null
+  kill_tree "$SVC_PID"
+  kill_tree "$STUB_PID"
+  kill_tree "$GW_PID"
+  kill_tree "$FIN_PID"
+  kill_tree "$GOV_PID"
+  kill_tree "$EXP_PID"
+  kill_tree "$PER_PID"
+  kill_tree "$VIS_PID"
+  kill_tree "$PRK_PID"
+  kill_tree "$RES_PID"
+  kill_tree "$PKG_PID"
+  kill_tree "$CTR_PID"
+  kill_tree "$DOC_PID"
+  rm -rf /tmp/verify-docs
   docker rm -f "$CNAME" >/dev/null 2>&1
 }
 trap cleanup EXIT
@@ -66,6 +97,12 @@ trap cleanup EXIT
 command -v docker >/dev/null || { echo "docker bulunamadı"; exit 1; }
 command -v psql   >/dev/null || { echo "psql bulunamadı"; exit 1; }
 command -v go     >/dev/null || { echo "go bulunamadı (PATH'e /usr/local/go/bin ekleyin)"; exit 1; }
+
+# Kalıntı süpürme: yarıda kesilmiş bir çalıştırmadan kalan servisler
+# portları tutuyorsa, testler eski süreçlere çarpar ve sonuç rastgele değişir.
+for _p in 18090 18091 18092 18093 18094 18097 18098 18099 18100 18105 18107 18191; do
+  free_port "$_p"
+done
 
 step "0) Go derleme ve statik denetim"
 cd "$BACKEND_DIR"
@@ -76,6 +113,11 @@ if go test ./pkg/authtoken/... -count=1 >/tmp/verify-authtoken.log 2>&1; then
   ok "go test ./pkg/authtoken/... (JWT doğrulama)"
 else
   bad "go test ./pkg/authtoken/..."; tail -15 /tmp/verify-authtoken.log
+fi
+if go test ./pkg/storage/... -count=1 >/tmp/verify-storage.log 2>&1; then
+  ok "go test ./pkg/storage/... (dosya depolama, SigV4 imzalama, dizin dışına çıkma)"
+else
+  bad "go test ./pkg/storage/..."; tail -15 /tmp/verify-storage.log
 fi
 if go test ./services/governance/service/... -count=1 >/tmp/verify-quorum.log 2>&1; then
   ok "go test ./services/governance/service/... (nisap ve çoğunluk kuralları)"
@@ -250,7 +292,7 @@ if [ "$SUP" = "1" ]; then
 else
   bad "stub servis başlamadı"
 fi
-kill "$STUB_PID" 2>/dev/null
+kill_tree "$STUB_PID"
 
 # Kaynak düzeyinde: mock servislerde uydurma veri kalmamalı
 # Yorum satırları hariç (neyin kaldırıldığını anlatan açıklamalar sayılmaz).
@@ -299,7 +341,7 @@ if [ "$GUP" = "1" ]; then
 else
   bad "gateway başlamadı"; tail -10 /tmp/verify-gateway.log
 fi
-kill "$GW_PID" 2>/dev/null
+kill_tree "$GW_PID"
 
 # Kaynak düzeyinde: Kong yapılandırmasında jwt eklentisi olmalı
 KJ=$(grep -c "name: jwt" "$BACKEND_DIR/../kong/kong.yml" 2>/dev/null | head -1)
@@ -580,7 +622,7 @@ if [ "$GUP2" = "1" ] && [ -n "${MGR:-}" ]; then
 else
   bad "governance-service başlamadı"; tail -10 /tmp/verify-governance.log
 fi
-kill "$GOV_PID" 2>/dev/null
+kill_tree "$GOV_PID"
 
 step "12) Gider modülü — mock'tan gerçeğe (FAZ 5, ilk modül)"
 EXPPORT=${VERIFY_EXP_PORT:-18086}
@@ -674,7 +716,7 @@ if [ "$EUP" = "1" ] && [ -n "${MGR:-}" ]; then
 else
   bad "expense-service başlamadı"; tail -10 /tmp/verify-expense.log
 fi
-kill "$EXP_PID" 2>/dev/null
+kill_tree "$EXP_PID"
 
 step "13) Personel modülü — mock'tan gerçeğe (FAZ 5, 2. modül)"
 PERPORT=${VERIFY_PER_PORT:-18100}
@@ -754,7 +796,7 @@ if [ "$PUP" = "1" ] && [ -n "${MGR:-}" ]; then
 else
   bad "personnel-service başlamadı"; tail -10 /tmp/verify-personnel.log
 fi
-kill "$PER_PID" 2>/dev/null
+kill_tree "$PER_PID"
 
 step "14) Ziyaretçi modülü — mock'tan gerçeğe (FAZ 5, 3. modül)"
 VISPORT=${VERIFY_VIS_PORT:-18105}
@@ -838,7 +880,7 @@ if [ "$VUP" = "1" ] && [ -n "${MGR:-}" ] && [ -n "${TEN:-}" ]; then
 else
   bad "visitor-service başlamadı"; tail -10 /tmp/verify-visitor.log
 fi
-kill "$VIS_PID" 2>/dev/null
+kill_tree "$VIS_PID"
 
 step "15) Otopark modülü — mock'tan gerçeğe (FAZ 5, 4. modül)"
 PRKPORT=${VERIFY_PRK_PORT:-18098}
@@ -932,7 +974,7 @@ if [ "$KUP" = "1" ] && [ -n "${MGR:-}" ]; then
 else
   bad "parking-service başlamadı"; tail -10 /tmp/verify-parking.log
 fi
-kill "$PRK_PID" 2>/dev/null
+kill_tree "$PRK_PID"
 
 step "16) Rezervasyon modülü — mock'tan gerçeğe (FAZ 5, 5. modül)"
 # Önceki davranış: sabit tesis listesi + 201 dönüp hiçbir yere kaydetmeyen POST.
@@ -1101,7 +1143,7 @@ if [ "$RUP" = "1" ] && [ -n "${MGR:-}" ] && [ -n "${TEN:-}" ]; then
 else
   bad "reservation-service başlamadı"; tail -10 /tmp/verify-reservation.log
 fi
-kill "$RES_PID" 2>/dev/null
+kill_tree "$RES_PID"
 
 step "17) Kargo modülü — mock'tan gerçeğe (FAZ 5, 6. modül)"
 # Önceki davranış: sabit kargo listesi; teslim alma/teslim etme kaydedilmiyordu ve
@@ -1242,7 +1284,7 @@ if [ "$KUP2" = "1" ] && [ -n "${MGR:-}" ] && [ -n "${TEN:-}" ]; then
 else
   bad "package-service başlamadı"; tail -10 /tmp/verify-package.log
 fi
-kill "$PKG_PID" 2>/dev/null
+kill_tree "$PKG_PID"
 
 step "18) Sözleşme modülü — mock'tan gerçeğe (FAZ 5, 7. modül)"
 # Önceki davranış: sabit sözleşme listesi; yazma istekleri kaydedilmiyordu.
@@ -1405,7 +1447,221 @@ if [ "$CUP" = "1" ] && [ -n "${MGR:-}" ] && [ -n "${TEN:-}" ]; then
 else
   bad "contract-service başlamadı"; tail -10 /tmp/verify-contract.log
 fi
-kill "$CTR_PID" 2>/dev/null
+kill_tree "$CTR_PID"
+
+step "19) Belge arşivi + dosya depolama — mock'tan gerçeğe (FAZ 5, 8/22 · S-09)"
+# Önceki davranış: sabit belge listesi; yükleme ucu 2xx dönüp DOSYAYI HİÇBİR YERE
+# YAZMIYORDU. Artık pkg/storage üzerinden gerçekten saklanıyor (yerel ya da S3 uyumlu).
+DOCPORT=${VERIFY_DOC_PORT:-18093}
+DOCDIR=/tmp/verify-docs
+rm -rf "$DOCDIR"; mkdir -p "$DOCDIR"
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen DB_PASSWORD="$PW" DB_NAME=siteeksen \
+DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${DOCPORT} \
+STORAGE_BACKEND=local STORAGE_LOCAL_DIR="$DOCDIR" \
+  go run ./services/document >/tmp/verify-document.log 2>&1 &
+DOC_PID=$!
+DUP=0
+for _ in $(seq 1 45); do
+  curl -fsS "http://127.0.0.1:${DOCPORT}/health" >/dev/null 2>&1 && { DUP=1; break; }
+  sleep 1
+done
+
+if [ "$DUP" = "1" ] && [ -n "${MGR:-}" ] && [ -n "${TEN:-}" ]; then
+  ok "document-service ayağa kalktı"
+  DA="Authorization: Bearer $MGR"
+  DT="Authorization: Bearer $TEN"
+  DURL="http://127.0.0.1:${DOCPORT}/api/v1"
+
+  # Yalnızca KAT MALİKİ olan (yönetimde olmayan) üçüncü bir hesap:
+  # OWNERS kademesinin gerçekten çalıştığını göstermek için gerekli.
+  $PSQL -c "INSERT INTO users (id, first_name, last_name, phone, email, password_hash,
+      active_property_id, roles)
+    VALUES ('44444444-4444-4444-4444-444444444403','Zeynep','Kaya','+905550000003','zeynep@example.com',
+      (SELECT password_hash FROM users WHERE id='44444444-4444-4444-4444-444444444401'),
+      '11111111-1111-1111-1111-111111111111', ARRAY['RESIDENT'])
+    ON CONFLICT (id) DO NOTHING;" >/dev/null 2>&1
+  $PSQL -c "INSERT INTO resident_units (resident_id, unit_id, role, start_date)
+    VALUES ('44444444-4444-4444-4444-444444444403','33333333-3333-3333-3333-333333333305','OWNER',CURRENT_DATE)
+    ON CONFLICT DO NOTHING;" >/dev/null 2>&1
+  OWN=$(curl -s -X POST "http://127.0.0.1:${SVCPORT}/api/v1/auth/login" \
+    -H 'Content-Type: application/json' -d '{"phone":"5550000003","password":"Demo123!"}' \
+    | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+  DO_="Authorization: Bearer $OWN"
+  [ -n "$OWN" ] && ok "kat maliki (yönetimde olmayan) hesabı girişi" || bad "kat maliki girişi başarısız"
+
+  # Depolama sağlayıcısı sağlık ucunda dürüstçe bildirilmeli
+  H=$(curl -s "http://127.0.0.1:${DOCPORT}/health")
+  echo "$H" | grep -q '"backend":"local"' && ok "sağlık ucu depolama sağlayıcısını bildiriyor" \
+    || bad "sağlık ucu depolama bilgisi: $H"
+
+  # 1) Gerçek dosya yükleme
+  echo "2026 yili isletme projesi - ornek icerik" > /tmp/verify-upload.txt
+  WANTSUM=$(sha256sum /tmp/verify-upload.txt | cut -d' ' -f1)
+  U1=$(curl -s -X POST "$DURL/documents" -H "$DA" \
+    -F "file=@/tmp/verify-upload.txt;type=text/plain" \
+    -F "category=ACCOUNTING" -F "title=Hesap belgesi 2026" -F "visibility=OWNERS")
+  D1ID=$(echo "$U1" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+  [ -n "$D1ID" ] && ok "belge yüklendi ve kaydedildi" || bad "yükleme başarısız: $U1"
+  echo "$U1" | grep -q "\"sha256\":\"$WANTSUM\"" && ok "SHA-256 özeti doğru hesaplandı" \
+    || bad "özet uyuşmuyor: $U1 (beklenen $WANTSUM)"
+
+  # 2) DOSYA GERÇEKTEN DİSKE YAZILDI MI? (mock'un yapmadığı şey)
+  STORED=$(find "$DOCDIR" -type f ! -name '*.meta.json' | head -1)
+  if [ -n "$STORED" ]; then
+    ok "dosya nesne deposuna gerçekten yazıldı"
+    GOTSUM=$(sha256sum "$STORED" | cut -d' ' -f1)
+    [ "$GOTSUM" = "$WANTSUM" ] && ok "diskteki içerik bozulmadan saklandı" \
+      || bad "diskteki içerik farklı: $GOTSUM"
+  else
+    bad "nesne deposunda dosya yok — yükleme yine sahte"
+  fi
+
+  # Depo anahtarı site kimliğiyle başlamalı (site izolasyonu)
+  echo "$STORED" | grep -q 'properties/11111111-1111-1111-1111-111111111111/documents/' \
+    && ok "depo anahtarı site kimliğiyle ayrılmış" || bad "depo anahtarı site bazlı değil: $STORED"
+
+  # 3) Diğer kademelerde birer belge
+  echo "Genel kurul karar tutanagi" > /tmp/verify-upload2.txt
+  U2=$(curl -s -X POST "$DURL/documents" -H "$DA" \
+    -F "file=@/tmp/verify-upload2.txt;type=text/plain" \
+    -F "category=DECISION" -F "title=Karar tutanagi" -F "visibility=RESIDENTS")
+  D2ID=$(echo "$U2" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+  echo "Ozluk dosyasi - kapici" > /tmp/verify-upload3.txt
+  U3=$(curl -s -X POST "$DURL/documents" -H "$DA" \
+    -F "file=@/tmp/verify-upload3.txt;type=text/plain" \
+    -F "category=PERSONNEL" -F "title=Ozluk dosyasi")
+  D3ID=$(echo "$U3" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+  [ -n "$D2ID" ] && [ -n "$D3ID" ] && ok "üç görünürlük kademesinde belge oluşturuldu" \
+    || bad "ek belgeler oluşturulamadı"
+
+  # Görünürlük belirtilmediğinde EN DAR kademe uygulanmalı
+  VIS3=$($PSQL -t -A -c "SELECT visibility FROM documents WHERE id='$D3ID';")
+  [ "$VIS3" = "MANAGEMENT" ] && ok "görünürlük belirtilmediğinde en dar kademe uygulanıyor" \
+    || bad "varsayılan görünürlük geniş: $VIS3"
+
+  # 4) KVKK: kademelere göre görünürlük
+  TL=$(curl -s "$DURL/documents" -H "$DT")
+  echo "$TL" | grep -q 'Karar tutanagi' && ok "kiracı sakinlere açık belgeyi görüyor" || bad "kiracı listesi: $TL"
+  echo "$TL" | grep -q 'Hesap belgesi' && bad "kiracı, kat maliklerine özel belgeyi görüyor" \
+    || ok "kiracı kat maliki belgesini göremiyor"
+  echo "$TL" | grep -q 'Ozluk dosyasi' && bad "kiracı ÖZLÜK DOSYASINI görüyor (KVKK ihlali)" \
+    || ok "kiracı özlük dosyasını göremiyor (KVKK m.4)"
+
+  OL=$(curl -s "$DURL/documents" -H "$DO_")
+  echo "$OL" | grep -q 'Hesap belgesi' && ok "kat maliki hesap belgesini görüyor (KMK m.36)" \
+    || bad "kat maliki hesap belgesini göremiyor: $OL"
+  echo "$OL" | grep -q 'Ozluk dosyasi' && bad "kat maliki özlük dosyasını görüyor" \
+    || ok "kat maliki özlük dosyasını göremiyor"
+
+  ML=$(curl -s "$DURL/documents" -H "$DA")
+  echo "$ML" | grep -q 'Ozluk dosyasi' && ok "yönetim tüm kademeleri görüyor" || bad "yönetim listesi: $ML"
+
+  # Tekil okuma da kademeyi uygulamalı ve VARLIĞI SIZDIRMAMALI
+  SC=$(curl -s -o /dev/null -w '%{http_code}' "$DURL/documents/$D3ID" -H "$DT")
+  [ "$SC" = "404" ] && ok "yetkisiz tekil okuma belgenin varlığını sızdırmıyor → 404" \
+    || bad "yetkisiz tekil okuma → $SC"
+
+  # Depo anahtarı istemciye ASLA verilmemeli
+  echo "$ML" | grep -q 'storage_key' && bad "yanıt depo anahtarını sızdırıyor" \
+    || ok "depo anahtarı istemciye verilmiyor"
+
+  # 5) Tekil görüntüleme ve indirme — içerik bozulmadan gelmeli
+  if [ -n "$D1ID" ]; then
+    VIEW=$(curl -s "$DURL/documents/$D1ID" -H "$DA")
+    echo "$VIEW" | grep -q '"title":"Hesap belgesi 2026"' && ok "belge üst verisi okunabiliyor" \
+      || bad "tekil okuma: $VIEW"
+    curl -s -D /tmp/verify-dl-head.txt -o /tmp/verify-dl.txt "$DURL/documents/$D1ID/download" -H "$DA"
+    DLSUM=$(sha256sum /tmp/verify-dl.txt | cut -d' ' -f1)
+    [ "$DLSUM" = "$WANTSUM" ] && ok "indirilen dosya yüklenenle birebir aynı" || bad "indirme bozuk: $DLSUM"
+    grep -qi "X-Document-SHA256: $WANTSUM" /tmp/verify-dl-head.txt \
+      && ok "bütünlük özeti indirme başlığında veriliyor" || bad "SHA-256 başlığı yok"
+  fi
+
+  # 6) KVKK m.12 — belge erişim kaydı
+  if [ -n "$D1ID" ]; then
+    AL=$(curl -s "$DURL/documents/$D1ID/access-log" -H "$DA")
+    echo "$AL" | grep -q '"action":"DOWNLOAD"' && ok "indirme erişim kaydına yazıldı (KVKK m.12)" \
+      || bad "indirme kaydı yok: $AL"
+    echo "$AL" | grep -q '"action":"VIEW"' || bad "görüntüleme kaydı yok: $AL"
+
+    SC=$(curl -s -o /dev/null -w '%{http_code}' "$DURL/documents/$D1ID/access-log" -H "$DT")
+    [ "$SC" = "403" ] && ok "sakin erişim kayıtlarını göremiyor → 403" || bad "sakin erişim kaydı gördü → $SC"
+
+    # Reddedilen erişim de kayda geçmeli
+    DEN=$($PSQL -t -A -c "SELECT count(*) FROM document_access_logs WHERE action='DENIED';")
+    [ "$DEN" -ge 1 ] && ok "reddedilen belge erişimi de kayda geçiyor ($DEN kayıt)" \
+      || bad "DENIED belge erişim kaydı yok"
+
+    # Erişim kayıtları salt-ekleme olmalı
+    if $PSQL -c "UPDATE document_access_logs SET action='VIEW' WHERE id=(SELECT min(id) FROM document_access_logs);" >/dev/null 2>&1; then
+      bad "erişim kayıtları değiştirilebiliyor (kanıt değeri yok)"
+    else
+      ok "erişim kayıtları değiştirilemiyor (salt-ekleme tetikleyicisi)"
+    fi
+    if $PSQL -c "DELETE FROM document_access_logs WHERE id=(SELECT min(id) FROM document_access_logs);" >/dev/null 2>&1; then
+      bad "erişim kayıtları silinebiliyor"
+    else
+      ok "erişim kayıtları silinemiyor"
+    fi
+  fi
+
+  # 7) Sürümleme — yönetim planı değişikliği eskisini silmez
+  echo "Yonetim plani - yeni surum" > /tmp/verify-upload4.txt
+  V1=$(curl -s -X POST "$DURL/documents" -H "$DA" \
+    -F "file=@/tmp/verify-upload4.txt;type=text/plain" \
+    -F "category=MANAGEMENT_PLAN" -F "title=Yonetim plani" -F "visibility=RESIDENTS")
+  V1ID=$(echo "$V1" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+  echo "Yonetim plani - 2. surum" > /tmp/verify-upload5.txt
+  V2=$(curl -s -X POST "$DURL/documents" -H "$DA" \
+    -F "file=@/tmp/verify-upload5.txt;type=text/plain" \
+    -F "category=MANAGEMENT_PLAN" -F "title=Yonetim plani" -F "visibility=RESIDENTS" \
+    -F "replaces_id=$V1ID")
+  echo "$V2" | grep -q '"id"' && ok "yeni sürüm yüklendi" || bad "sürüm yüklenemedi: $V2"
+  VOLD=$($PSQL -t -A -c "SELECT is_current FROM documents WHERE id='$V1ID';")
+  [ "$VOLD" = "f" ] && ok "eski sürüm güncel olmaktan çıktı (silinmedi)" || bad "eski sürüm durumu: $VOLD"
+  VNEW=$($PSQL -t -A -c "SELECT version FROM documents WHERE replaces_id='$V1ID';")
+  [ "$VNEW" = "2" ] && ok "sürüm numarası otomatik arttı" || bad "sürüm numarası: $VNEW"
+  DEFL=$(curl -s "$DURL/documents?category=MANAGEMENT_PLAN" -H "$DA")
+  [ "$(echo "$DEFL" | grep -o '"version"' | wc -l)" = "1" ] \
+    && ok "varsayılan listede yalnızca güncel sürüm var" || bad "liste eski sürümü de döndürüyor"
+
+  # 8) Geçersiz kategori
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$DURL/documents" -H "$DA" \
+    -F "file=@/tmp/verify-upload.txt" -F "category=UYDURMA" -F "title=X")
+  [ "$SC" = "422" ] && ok "geçersiz kategori reddedildi → 422" || bad "geçersiz kategori → $SC"
+
+  # Üst veri yazılamayan yükleme depoda öksüz dosya bırakmamalı
+  ORPHAN=$(find "$DOCDIR" -type f ! -name '*.meta.json' | wc -l)
+  DBCOUNT=$($PSQL -t -A -c "SELECT count(*) FROM documents;")
+  [ "$ORPHAN" = "$DBCOUNT" ] && ok "depodaki dosya sayısı kayıt sayısıyla eşit ($ORPHAN) — öksüz dosya yok" \
+    || bad "depo ile kayıt uyuşmuyor: $ORPHAN dosya, $DBCOUNT kayıt"
+
+  # 9) Arşivleme — gerekçe zorunlu, kayıt silinmez
+  if [ -n "$D2ID" ]; then
+    SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$DURL/documents/$D2ID/archive" \
+      -H "$DA" -H 'Content-Type: application/json' -d '{}')
+    [ "$SC" = "400" ] && ok "gerekçesiz arşivleme engellendi → 400" || bad "gerekçesiz arşivleme → $SC"
+
+    SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$DURL/documents/$D2ID/archive" \
+      -H "$DA" -H 'Content-Type: application/json' -d '{"reason":"Yanlis donem yuklendi"}')
+    [ "$SC" = "200" ] && ok "belge arşivden çıkarıldı → 200" || bad "arşivleme → $SC"
+    ARC=$($PSQL -t -A -c "SELECT count(*) FROM documents WHERE id='$D2ID' AND archived_at IS NOT NULL;")
+    [ "$ARC" = "1" ] && ok "arşiv kaydı korunuyor (belge silinmiyor)" || bad "arşiv kaydı: $ARC"
+    AL2=$(curl -s "$DURL/documents" -H "$DA")
+    echo "$AL2" | grep -q 'Karar tutanagi' && bad "arşivlenen belge varsayılan listede görünüyor" \
+      || ok "arşivlenen belge varsayılan listeden çıktı"
+  fi
+
+  # 10) Yetki ve kimlik
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$DURL/documents" -H "$DT" \
+    -F "file=@/tmp/verify-upload.txt" -F "category=OTHER" -F "title=X")
+  [ "$SC" = "403" ] && ok "sakin belge yükleyemiyor → 403" || bad "sakin belge yükledi → $SC"
+  SC=$(curl -s -o /dev/null -w '%{http_code}' "$DURL/documents")
+  [ "$SC" = "401" ] && ok "kimliksiz belge erişimi engellendi → 401" || bad "kimliksiz erişim → $SC"
+else
+  bad "document-service başlamadı"; tail -15 /tmp/verify-document.log
+fi
+kill_tree "$DOC_PID"
 
 step "SONUÇ"
 echo "  Geçen: $PASS   Başarısız: $FAIL"
