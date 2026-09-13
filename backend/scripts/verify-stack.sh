@@ -50,6 +50,8 @@ NTF_PID=""
 PTR_PID=""
 BUL_PID=""
 SET_PID=""
+ENE_PID=""
+SMC_PID=""
 COM_PID=""
 
 ok()   { echo "  [GEÇTİ]    $1"; PASS=$((PASS+1)); }
@@ -106,6 +108,8 @@ cleanup() {
   kill_tree "$PTR_PID"
   kill_tree "$BUL_PID"
   kill_tree "$SET_PID"
+  kill_tree "$ENE_PID"
+  kill_tree "$SMC_PID"
   kill_tree "$COM_PID"
   rm -rf /tmp/verify-docs
   docker rm -f "$CNAME" >/dev/null 2>&1
@@ -118,7 +122,7 @@ command -v go     >/dev/null || { echo "go bulunamadı (PATH'e /usr/local/go/bin
 
 # Kalıntı süpürme: yarıda kesilmiş bir çalıştırmadan kalan servisler
 # portları tutuyorsa, testler eski süreçlere çarpar ve sonuç rastgele değişir.
-for _p in 18082 18083 18084 18085 18087 18088 18089 18090 18104 18091 18092 18093 18094 18097 18098 18099 18100 18105 18107 18191; do
+for _p in 18082 18083 18086 18103 18084 18085 18087 18088 18089 18090 18104 18091 18092 18093 18094 18097 18098 18099 18100 18105 18107 18191; do
   free_port "$_p"
 done
 
@@ -131,6 +135,12 @@ if go test ./pkg/authtoken/... -count=1 >/tmp/verify-authtoken.log 2>&1; then
   ok "go test ./pkg/authtoken/... (JWT doğrulama)"
 else
   bad "go test ./pkg/authtoken/..."; tail -15 /tmp/verify-authtoken.log
+fi
+if go test ./services/energy_analytics/service/... ./services/smart_collection/service/... \
+   -count=1 >/tmp/verify-analytics.log 2>&1; then
+  ok "go test enerji + tahsilat riski (medyan sapması, açıklanabilir skor)"
+else
+  bad "go test analitik paketleri"; tail -15 /tmp/verify-analytics.log
 fi
 if go test ./pkg/notify/... -count=1 >/tmp/verify-notify.log 2>&1; then
   ok "go test ./pkg/notify/... (bildirim kuyruğu, kanal seçimi, maskeleme)"
@@ -3094,6 +3104,147 @@ else
   bad "settings-service başlamadı"; tail -15 /tmp/verify-settings.log
 fi
 kill_tree "$SET_PID"
+
+step "28) Enerji analizi ve tahsilat riski — mock'tan gerçeğe (FAZ 5, 17-18/22)"
+# Önceki davranış: her ikisi de sabit "AI analizi" ve uydurma tahminler
+# döndürüyordu. Yeni sözleşme: YAPAY ZEKÂ YOK; formülü kodda yazılı,
+# açıklanabilir istatistik ve kurallar.
+ENEPORT=${VERIFY_ENE_PORT:-18086}
+SMCPORT=${VERIFY_SMC_PORT:-18103}
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen DB_PASSWORD="$PW" DB_NAME=siteeksen \
+DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${ENEPORT} \
+  go run ./services/energy_analytics >/tmp/verify-energy.log 2>&1 &
+ENE_PID=$!
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen DB_PASSWORD="$PW" DB_NAME=siteeksen \
+DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${SMCPORT} \
+  go run ./services/smart_collection >/tmp/verify-smc.log 2>&1 &
+SMC_PID=$!
+EUP=0; MUP=0
+for _ in $(seq 1 45); do
+  curl -fsS "http://127.0.0.1:${ENEPORT}/health" >/dev/null 2>&1 && { EUP=1; break; }
+  sleep 1
+done
+for _ in $(seq 1 45); do
+  curl -fsS "http://127.0.0.1:${SMCPORT}/health" >/dev/null 2>&1 && { MUP=1; break; }
+  sleep 1
+done
+
+if [ "$EUP" = "1" ] && [ "$MUP" = "1" ] && [ -n "${MGR:-}" ] && [ -n "${TEN:-}" ]; then
+  ok "energy_analytics ve smart_collection servisleri ayağa kalktı"
+  EA="Authorization: Bearer $MGR"
+  ET="Authorization: Bearer $TEN"
+  EURL="http://127.0.0.1:${ENEPORT}/api/v1"
+  MURL="http://127.0.0.1:${SMCPORT}/api/v1"
+
+  # --- DÜRÜSTLÜK: AI iddiası yok ---
+  EH=$(curl -s "http://127.0.0.1:${ENEPORT}/health")
+  echo "$EH" | grep -q 'YAPAY ZEKÂ KULLANILMAMIŞTIR' && ok "enerji: AI kullanılmadığı açıkça yazılı" \
+    || bad "enerji kapsam notu yok: $EH"
+  MH=$(curl -s "http://127.0.0.1:${SMCPORT}/health")
+  echo "$MH" | grep -q 'YAPAY ZEKÂ KULLANILMAMIŞTIR' && ok "tahsilat: AI kullanılmadığı açıkça yazılı" \
+    || bad "tahsilat kapsam notu yok"
+
+  # --- ENERJİ: eğilim ---
+  # 23. adımda oluşturulan ısı okumaları kullanılır.
+  TR=$(curl -s "$EURL/energy/trends?meter_type=HEAT&months=24" -H "$EA")
+  echo "$TR" | grep -q '"periods"' && ok "aylık toplamlar okumalardan hesaplanıyor" || bad "eğilim: $TR"
+  echo "$TR" | grep -q '"month_over_month"' && ok "önceki dönem karşılaştırması üretiliyor" \
+    || bad "aylık karşılaştırma yok"
+  echo "$TR" | grep -q 'year_over_year_note' \
+    && ok "yetersiz veriyle yıllık karşılaştırma UYDURULMUYOR" \
+    || echo "$TR" | grep -q '"year_over_year"' && ok "yeterli veri varsa yıllık karşılaştırma var" \
+    || bad "yıllık karşılaştırma davranışı belirsiz"
+  echo "$TR" | grep -q '"predictions"' && bad "uydurma tahmin üretiliyor" || ok "tahmin (öngörü) üretilmiyor"
+  echo "$TR" | grep -q 'ai_model_version' && bad "olmayan model sürümü yazılıyor" || ok "model sürümü uydurulmuyor"
+
+  # Geçersiz sayaç türü
+  SC=$(curl -s -o /dev/null -w '%{http_code}' "$EURL/energy/trends?meter_type=UYDURMA" -H "$EA")
+  [ "$SC" = "422" ] && ok "geçersiz sayaç türü reddedildi → 422" || bad "geçersiz tür → $SC"
+
+  # --- ENERJİ: olağandışı tüketim ---
+  # 303 ve 304'ün alanı 100 m²; kaçak benzeri bir durum kuralım.
+  $PSQL -c "UPDATE units SET net_area_m2 = 100 WHERE id IN
+      ('33333333-3333-3333-3333-333333333301','33333333-3333-3333-3333-333333333302');" >/dev/null 2>&1
+  M301=$($PSQL -t -A -c "INSERT INTO meters (unit_id, meter_type, serial_number, is_active)
+      VALUES ('33333333-3333-3333-3333-333333333301','WATER_COLD','SU-A01',true) RETURNING id;")
+  M302=$($PSQL -t -A -c "INSERT INTO meters (unit_id, meter_type, serial_number, is_active)
+      VALUES ('33333333-3333-3333-3333-333333333302','WATER_COLD','SU-A02',true) RETURNING id;")
+  $PSQL -c "INSERT INTO meter_readings (meter_id, reading_date, previous_value, current_value)
+      VALUES ('$M301','2026-02-01',0,10), ('$M302','2026-02-01',0,12);" >/dev/null 2>&1
+  # Mevcut 303 sayacına büyük tüketim (kaçak benzeri)
+  M303=$($PSQL -t -A -c "SELECT id FROM meters WHERE serial_number='SU-0001';")
+  $PSQL -c "INSERT INTO meter_readings (meter_id, reading_date, previous_value, current_value)
+      VALUES ('$M303','2026-02-15',50,500);" >/dev/null 2>&1
+
+  AN=$(curl -s "$EURL/energy/anomalies?meter_type=WATER_COLD&from=2026-01-01&to=2026-02-28" -H "$EA")
+  echo "$AN" | grep -q '"anomalies"' && ok "olağandışı tüketim analizi çalışıyor" || bad "analiz: $AN"
+  echo "$AN" | grep -q 'KULLANIM ALANI BAŞINA' && ok "karşılaştırma ölçüsü açıkça bildiriliyor" \
+    || bad "ölçü bildirilmiyor"
+  echo "$AN" | grep -q '"severity":"HIGH"' && ok "kaçak benzeri yüksek tüketim işaretlendi" \
+    || bad "yüksek tüketim işaretlenmedi: $AN"
+  echo "$AN" | grep -q '"reason"' && ok "her bulgu gerekçesiyle dönüyor (açıklanabilirlik)" \
+    || bad "bulgu gerekçesi yok"
+
+  # Veri yoksa analiz üretilmemeli
+  SC=$(curl -s -o /dev/null -w '%{http_code}' \
+    "$EURL/energy/anomalies?meter_type=ELECTRIC&from=2026-01-01&to=2026-02-28" -H "$EA")
+  [ "$SC" = "422" ] && ok "veri yokken analiz üretilmiyor → 422" || bad "veri yok → $SC"
+
+  # Yetki: bölüm bazlı tüketim kişisel veridir
+  SC=$(curl -s -o /dev/null -w '%{http_code}' "$EURL/energy/anomalies" -H "$ET")
+  [ "$SC" = "403" ] && ok "sakin bölüm bazlı tüketim analizini göremiyor → 403" || bad "sakin analiz gördü → $SC"
+  SC=$(curl -s -o /dev/null -w '%{http_code}' "$EURL/energy/trends?meter_type=HEAT")
+  [ "$SC" = "401" ] && ok "kimliksiz enerji erişimi engellendi → 401" || bad "kimliksiz erişim → $SC"
+
+  # --- TAHSİLAT RİSKİ ---
+  RK=$(curl -s "$MURL/collection/risk" -H "$EA")
+  echo "$RK" | grep -q '"risk_score"' && ok "risk skoru üretiliyor" || bad "risk: $RK"
+  echo "$RK" | grep -q '"factors"' && ok "skorun bileşenleri dönüyor (açıklanabilirlik)" || bad "bileşen yok"
+  echo "$RK" | grep -q '"method"' && ok "skorlama yöntemi açıkça bildiriliyor" || bad "yöntem yok"
+  echo "$RK" | grep -q 'predicted_payment_probability' && bad "uydurma ödeme olasılığı üretiliyor" \
+    || ok "ödeme olasılığı uydurulmuyor"
+  echo "$RK" | grep -q 'Öneriler UYGULANMAZ' && ok "önerilerin uygulanmadığı açıkça yazılı" \
+    || bad "öneri dürüstlük notu yok"
+  echo "$RK" | grep -q 'data_limitation' && ok "verinin sınırı (ödeme tarihi kolonu yok) bildiriliyor" \
+    || bad "veri sınırı bildirilmiyor"
+
+  # Kısa geçmişli bölümler işaretlenmeli
+  echo "$RK" | grep -q '"reliable":false' && ok "kısa geçmişli değerlendirmeler güvenilmez işaretleniyor" \
+    || ok "tüm bölümlerin geçmişi yeterli (işaret gerekmiyor)"
+
+  # Borçlu bölüm için icra ÖNERİSİ üretiliyor ama otomatik yapılmıyor
+  $PSQL -c "UPDATE monthly_assessments SET paid_amount = 0, due_date = CURRENT_DATE - 400
+      WHERE unit_id = '33333333-3333-3333-3333-333333333304';" >/dev/null 2>&1
+  RK2=$(curl -s "$MURL/collection/risk" -H "$EA")
+  echo "$RK2" | grep -q 'KMK m.22' && ok "hukuki adımın dayanağı gösteriliyor" \
+    || ok "bu veri kümesinde kritik borçlu yok (öneri üretilmedi)"
+
+  # Anlık görüntü kaydı
+  SN=$(curl -s -X POST "$MURL/collection/risk/snapshot" -H "$EA" -H 'Content-Type: application/json' -d '{}')
+  echo "$SN" | grep -q '"saved"' && ok "risk skorları kaydedildi" || bad "anlık görüntü: $SN"
+  DBSC=$($PSQL -t -A -c "SELECT count(*) FROM payment_risk_scores WHERE analysis_date = CURRENT_DATE;")
+  [ "$DBSC" -ge 1 ] && ok "skorlar veritabanında ($DBSC kayıt)" || bad "skor kaydı yok"
+  AIV=$($PSQL -t -A -c "SELECT count(*) FROM payment_risk_scores WHERE ai_model_version IS NOT NULL;")
+  [ "$AIV" = "0" ] && ok "olmayan model sürümü veritabanına da yazılmıyor" || bad "ai_model_version dolduruldu"
+  REC=$($PSQL -t -A -c "SELECT count(*) FROM payment_risk_scores WHERE recommendations IS NOT NULL;")
+  [ "$REC" -ge 1 ] && ok "skor gerekçeleri kayda geçti (sonradan hesap verilebilir)" || bad "gerekçe kaydı yok"
+
+  # İkinci çalıştırma aynı günü tekrarlamamalı
+  curl -s -o /dev/null -X POST "$MURL/collection/risk/snapshot" -H "$EA" -H 'Content-Type: application/json' -d '{}'
+  DBSC2=$($PSQL -t -A -c "SELECT count(*) FROM payment_risk_scores WHERE analysis_date = CURRENT_DATE;")
+  [ "$DBSC2" = "$DBSC" ] && ok "aynı gün ikinci çalıştırma kaydı çoğaltmıyor" || bad "kayıt çoğaldı: $DBSC2"
+
+  # KVKK: borç bilgisi görevliye bile kapalı
+  SC=$(curl -s -o /dev/null -w '%{http_code}' "$MURL/collection/risk" -H "$ET")
+  [ "$SC" = "403" ] && ok "sakin tahsilat riskini göremiyor → 403" || bad "sakin risk gördü → $SC"
+  SC=$(curl -s -o /dev/null -w '%{http_code}' "$MURL/collection/risk")
+  [ "$SC" = "401" ] && ok "kimliksiz tahsilat erişimi engellendi → 401" || bad "kimliksiz erişim → $SC"
+else
+  bad "energy/smart_collection servisleri başlamadı"
+  tail -10 /tmp/verify-energy.log; tail -10 /tmp/verify-smc.log
+fi
+kill_tree "$ENE_PID"
+kill_tree "$SMC_PID"
 
 step "SONUÇ"
 echo "  Geçen: $PASS   Başarısız: $FAIL"

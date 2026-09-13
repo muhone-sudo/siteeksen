@@ -1,148 +1,163 @@
+// smart_collection-service — Ödeme riski değerlendirmesi ve tahsilat önerisi.
+//
+// DURUM DEĞİŞİKLİĞİ (2026-09-14): Bu servis mock'tu; sabit "AI risk skoru" ve
+// uydurma ödeme olasılıkları döndürüyordu. Artık gerçek veri katmanına
+// bağlıdır (FAZ 5 — 18/22).
+//
+// KAPSAM — DÜRÜSTLÜK: BU SERVİSTE YAPAY ZEKÂ YOKTUR.
+// Skor, ağırlıkları kodda açıkça yazılı bir kural toplamıdır ve HER BİLEŞENİ
+// gerekçesiyle birlikte döner. `ai_model_version` ve "ödeme olasılığı %62"
+// gibi alanlar doldurulmaz: model yokken olasılık yazmak uydurmadır.
+//
+// Neden açıklanabilirlik şart: bu skor, icra takibi gibi sonuçlar doğurabilecek
+// bir yönetim kararını besler (634 s. KMK m.20/2 gecikme tazminatı, m.22 kanuni
+// ipotek ve takip). Gerekçesi gösterilemeyen bir skor, yönetimin hesap
+// veremeyeceği bir karardır.
+//
+// Servis HİÇBİR İŞLEMİ KENDİLİĞİNDEN YAPMAZ: hatırlatma göndermez, takip
+// başlatmaz. Yalnızca önceliklendirme yapar ve ilk adımı ÖNERİR.
 package main
 
 import (
+	"errors"
 	"log"
+	"net/http"
 	"os"
-	"time"
-
-	"github.com/siteeksen/backend/pkg/stub"
+	"sort"
 
 	"github.com/gin-gonic/gin"
+	"github.com/siteeksen/backend/pkg/database"
+	"github.com/siteeksen/backend/pkg/middleware"
+	"github.com/siteeksen/backend/services/smart_collection/repository"
+	svc "github.com/siteeksen/backend/services/smart_collection/service"
 )
 
-// AI-Powered Smart Collection Service
-// Ödeme riski analizi, tahsilat stratejileri
+const noAINotice = "Bu değerlendirmede YAPAY ZEKÂ KULLANILMAMIŞTIR. Skor, " +
+	"ağırlıkları kodda yazılı bir kural toplamıdır; her bileşeni gerekçesiyle " +
+	"birlikte döner. Ödeme olasılığı tahmini ÜRETİLMEZ."
 
-type PaymentRisk struct {
-	ID              string       `json:"id"`
-	ResidentID      string       `json:"resident_id"`
-	ResidentName    string       `json:"resident_name"`
-	UnitNumber      string       `json:"unit_number"`
-	RiskScore       float64      `json:"risk_score"` // 0-100
-	RiskLevel       string       `json:"risk_level"` // LOW, MEDIUM, HIGH, CRITICAL
-	PaymentHistory  gin.H        `json:"payment_history"`
-	Factors         []RiskFactor `json:"factors"`
-	Prediction      string       `json:"prediction"`
-	SuggestedAction string       `json:"suggested_action"`
-	LastUpdated     time.Time    `json:"last_updated"`
-}
-
-type RiskFactor struct {
-	Factor      string  `json:"factor"`
-	Impact      string  `json:"impact"` // POSITIVE, NEGATIVE
-	Weight      float64 `json:"weight"`
-	Description string  `json:"description"`
-}
-
-type CollectionStrategy struct {
-	ID           string           `json:"id"`
-	ResidentID   string           `json:"resident_id"`
-	ResidentName string           `json:"resident_name"`
-	UnitNumber   string           `json:"unit_number"`
-	TotalDebt    float64          `json:"total_debt"`
-	DaysOverdue  int              `json:"days_overdue"`
-	RiskLevel    string           `json:"risk_level"`
-	Strategy     string           `json:"strategy"` // REMINDER, PAYMENT_PLAN, LEGAL_WARNING, LEGAL_ACTION
-	Actions      []StrategyAction `json:"actions"`
-	Status       string           `json:"status"` // PENDING, IN_PROGRESS, COMPLETED
-	CreatedAt    time.Time        `json:"created_at"`
-}
-
-type StrategyAction struct {
-	Order       int        `json:"order"`
-	ActionType  string     `json:"action_type"` // SMS, EMAIL, PHONE_CALL, LETTER, LEGAL
-	Description string     `json:"description"`
-	ScheduledAt string     `json:"scheduled_at"`
-	ExecutedAt  *time.Time `json:"executed_at,omitempty"`
-	Result      string     `json:"result,omitempty"`
-	Status      string     `json:"status"` // PENDING, EXECUTED, SKIPPED
-}
-
-type CollectionDashboard struct {
-	TotalOverdue       float64 `json:"total_overdue"`
-	OverdueAccounts    int     `json:"overdue_accounts"`
-	HighRiskAccounts   int     `json:"high_risk_accounts"`
-	CollectedThisMonth float64 `json:"collected_this_month"`
-	CollectionRate     float64 `json:"collection_rate"`
-	RiskDistribution   gin.H   `json:"risk_distribution"`
-	AgingReport        []gin.H `json:"aging_report"`
-}
+const actionNotice = "Öneriler UYGULANMAZ, yalnızca gösterilir. Hatırlatma " +
+	"gönderilmez, icra takibi başlatılmaz. Hukuki adımlar yönetim kararıyla ve " +
+	"gereken hâllerde kat malikleri kurulu kararıyla atılır."
 
 func main() {
+	dbConfig := database.NewConfigFromEnv()
+	pool, err := database.Connect(dbConfig)
+	if err != nil {
+		log.Fatalf("Veritabanı bağlantısı başarısız: %v", err)
+	}
+	defer database.Close()
+
+	repo := repository.New(pool)
+
 	r := gin.Default()
+	r.GET("/health", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"status": "healthy", "service": "smart_collection", "persistent": true,
+			"scope_note": noAINotice,
+		})
+	})
 
-	r.GET("/health", stub.Health("smart_collection"))
+	api := r.Group("/api/v1")
+	api.Use(middleware.AuthMiddleware(), middleware.AuditLog(pool, "smart_collection"))
 
-	v1 := r.Group("/api/v1")
+	// Borç ve ödeme geçmişi kişisel veridir; yalnızca yönetim ve denetçi görür.
+	// Görevli (staff) BİLEREK dışarıda: kapıcının komşunun borcunu bilmesi için
+	// hiçbir meşru gerekçe yoktur (KVKK m.4 veri minimizasyonu).
+	read := api.Group("")
+	read.Use(middleware.RequireRole(
+		middleware.RoleManager, middleware.RoleBoardMember, middleware.RoleAuditor))
 	{
-		// Dashboard
-		v1.GET("/collection/dashboard", getCollectionDashboard)
+		read.GET("/collection/risk", func(c *gin.Context) {
+			histories, err := repo.Histories(c.Request.Context(), c.GetString("property_id"))
+			if err != nil {
+				fail(c, err, "risk değerlendirme")
+				return
+			}
 
-		// Risk Analysis
-		v1.GET("/collection/risks", listPaymentRisks)
-		v1.GET("/collection/risks/:id", getPaymentRisk)
-		v1.POST("/collection/analyze", runRiskAnalysis)
+			list := make([]svc.Assessment, 0, len(histories))
+			for _, h := range histories {
+				list = append(list, svc.Evaluate(h))
+			}
+			// En riskli önce: yönetimin sınırlı zamanı en çok buraya harcanmalı.
+			sort.Slice(list, func(i, j int) bool { return list[i].Score > list[j].Score })
 
-		// Strategies
-		v1.GET("/collection/strategies", listStrategies)
-		v1.GET("/collection/strategies/:id", getStrategy)
-		v1.POST("/collection/strategies/generate", generateStrategies)
-		v1.POST("/collection/strategies/:id/execute", executeStrategy)
-		v1.POST("/collection/strategies/:id/actions/:action_id/execute", executeAction)
+			counts := map[string]int{}
+			unreliable := 0
+			for _, a := range list {
+				counts[a.Category]++
+				if a.TotalAssessments > 0 && !a.Reliable {
+					unreliable++
+				}
+			}
 
-		// Predictions
-		v1.GET("/collection/predictions", getPaymentPredictions)
-		v1.GET("/collection/forecast", getCollectionForecast)
+			resp := gin.H{
+				"data":   list,
+				"totals": counts,
+				"method": "Skor bileşenleri: ödenmemiş oranı (40), geç ödeme oranı (20), " +
+					"ortalama gecikme (15), en uzun süren gecikme (25). Toplam 100.",
+				"note":        noAINotice,
+				"action_note": actionNotice,
+				"data_limitation": "Ödeme tarihi ayrı bir kolonda tutulmadığı için " +
+					"'zamanında ödendi' tespiti kaydın güncellenme tarihinden çıkarılır; " +
+					"geçmişe dönük düzeltmelerde yanılabilir.",
+			}
+			if unreliable > 0 {
+				resp["short_history_units"] = unreliable
+				resp["short_history_note"] = "Bazı bölümlerin ödeme geçmişi skoru anlamlı " +
+					"kılacak kadar uzun değil; bu kayıtlar reliable=false ile işaretlendi."
+			}
+			c.JSON(http.StatusOK, resp)
+		})
+	}
+
+	// Skorların kaydı bir yönetim işlemidir (dönemsel karşılaştırma için).
+	write := api.Group("")
+	write.Use(middleware.RequireRole(middleware.RoleManager, middleware.RoleBoardMember))
+	{
+		write.POST("/collection/risk/snapshot", func(c *gin.Context) {
+			propertyID := c.GetString("property_id")
+			histories, err := repo.Histories(c.Request.Context(), propertyID)
+			if err != nil {
+				fail(c, err, "anlık görüntü")
+				return
+			}
+			list := make([]svc.Assessment, 0, len(histories))
+			for _, h := range histories {
+				list = append(list, svc.Evaluate(h))
+			}
+			if err := repo.SaveScores(c.Request.Context(), propertyID, list); err != nil {
+				fail(c, err, "anlık görüntü kaydı")
+				return
+			}
+			c.JSON(http.StatusCreated, gin.H{
+				"saved": len(list),
+				"note": "Skorlar bugünün tarihiyle kaydedildi (aynı gün tekrar " +
+					"çalıştırılırsa önceki kayıt yenilenir). Skor bileşenlerinin " +
+					"gerekçeleri de saklandı: bir ay sonra 'bu daire neden kritikti?' " +
+					"sorusunun cevabı kayıtta bulunur.",
+				"action_note": actionNotice,
+			})
+		})
 	}
 
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "8103"
+		port = "8103" // kong/kong.yml ile aynı olmalı
 	}
-	log.Printf("Smart Collection Service starting on port %s", port)
-	r.Run(":" + port)
+	log.Printf("Smart Collection Service başlatıldı: :%s", port)
+	if err := r.Run(":" + port); err != nil {
+		log.Fatal(err)
+	}
 }
 
-func getCollectionDashboard(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "smart_collection")
-}
-
-func listPaymentRisks(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "smart_collection")
-}
-
-func getPaymentRisk(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "smart_collection")
-}
-
-func runRiskAnalysis(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "smart_collection")
-}
-
-func listStrategies(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "smart_collection")
-}
-
-func getStrategy(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "smart_collection")
-}
-
-func generateStrategies(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "smart_collection")
-}
-
-func executeStrategy(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "smart_collection")
-}
-
-func executeAction(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "smart_collection")
-}
-
-func getPaymentPredictions(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "smart_collection")
-}
-
-func getCollectionForecast(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "smart_collection")
+func fail(c *gin.Context, err error, op string) {
+	switch {
+	case errors.Is(err, repository.ErrNoUnits):
+		c.JSON(http.StatusUnprocessableEntity, gin.H{
+			"error": "Sitede bağımsız bölüm kaydı yok; değerlendirme yapılamaz"})
+	default:
+		log.Printf("[smart_collection] %s başarısız: %v", op, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "İşlem tamamlanamadı"})
+	}
 }
