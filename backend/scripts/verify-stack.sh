@@ -47,6 +47,7 @@ INV_PID=""
 SRV_PID=""
 IOT_PID=""
 NTF_PID=""
+PTR_PID=""
 
 ok()   { echo "  [GEÇTİ]    $1"; PASS=$((PASS+1)); }
 bad()  { echo "  [BAŞARISIZ] $1"; FAIL=$((FAIL+1)); }
@@ -99,6 +100,7 @@ cleanup() {
   kill_tree "$SRV_PID"
   kill_tree "$IOT_PID"
   kill_tree "$NTF_PID"
+  kill_tree "$PTR_PID"
   rm -rf /tmp/verify-docs
   docker rm -f "$CNAME" >/dev/null 2>&1
 }
@@ -2634,6 +2636,159 @@ else
   bad "notification-service başlamadı"; tail -15 /tmp/verify-notification.log
 fi
 kill_tree "$NTF_PID"
+
+step "25) Devriye (tur kontrol) modülü — mock'tan gerçeğe (FAZ 5, 14/22)"
+# Önceki davranış: sabit tur kaydı; okutmalar kaydedilmiyordu — hiç gezilmemiş
+# bir tur "tamamlandı" görünüyordu.
+# İki kritik kural: (1) zaman SUNUCUDAN gelir, (2) tur durumu istemciden
+# alınmaz, okutulan noktalardan HESAPLANIR.
+PTRPORT=${VERIFY_PTR_PORT:-18099}
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen DB_PASSWORD="$PW" DB_NAME=siteeksen \
+DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${PTRPORT} \
+  go run ./services/patrol >/tmp/verify-patrol.log 2>&1 &
+PTR_PID=$!
+PUP=0
+for _ in $(seq 1 45); do
+  curl -fsS "http://127.0.0.1:${PTRPORT}/health" >/dev/null 2>&1 && { PUP=1; break; }
+  sleep 1
+done
+
+if [ "$PUP" = "1" ] && [ -n "${MGR:-}" ] && [ -n "${TEN:-}" ]; then
+  ok "patrol-service ayağa kalktı"
+  RA="Authorization: Bearer $MGR"
+  RT2="Authorization: Bearer $TEN"
+  RJ2='Content-Type: application/json'
+  PURL2="http://127.0.0.1:${PTRPORT}/api/v1"
+
+  # 1) Kontrol noktaları
+  CP1=$(curl -s -X POST "$PURL2/patrol-checkpoints" -H "$RA" -H "$RJ2" \
+    -d '{"name":"A Blok giris","location":"A Blok","nfc_tag_id":"NFC-A-01","display_order":1}' \
+    | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+  CP2=$(curl -s -X POST "$PURL2/patrol-checkpoints" -H "$RA" -H "$RJ2" \
+    -d '{"name":"Otopark","location":"Bodrum","nfc_tag_id":"NFC-B-01","display_order":2}' \
+    | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+  CP3=$(curl -s -X POST "$PURL2/patrol-checkpoints" -H "$RA" -H "$RJ2" \
+    -d '{"name":"Cati","location":"Teras","nfc_tag_id":"NFC-C-01","display_order":3}' \
+    | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+  [ -n "$CP1" ] && [ -n "$CP2" ] && [ -n "$CP3" ] && ok "kontrol noktaları tanımlandı" \
+    || bad "kontrol noktaları oluşturulamadı"
+
+  # Aynı NFC kimliği tekrar kullanılamaz
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$PURL2/patrol-checkpoints" -H "$RA" -H "$RJ2" \
+    -d '{"name":"Kopya","nfc_tag_id":"NFC-A-01"}')
+  [ "$SC" = "409" ] && ok "aynı NFC kimliği ikinci kez kullanılamıyor → 409" || bad "çift NFC → $SC"
+
+  # 2) Güzergâh — 3. nokta isteğe bağlı
+  RT_=$(curl -s -X POST "$PURL2/patrol-routes" -H "$RA" -H "$RJ2" -d "{
+    \"name\":\"Gece turu\",\"expected_duration_minutes\":30,\"tolerance_minutes\":10,
+    \"checkpoints\":[
+      {\"checkpoint_id\":\"$CP1\",\"name\":\"A Blok giris\",\"order\":1,\"optional\":false},
+      {\"checkpoint_id\":\"$CP2\",\"name\":\"Otopark\",\"order\":2,\"optional\":false},
+      {\"checkpoint_id\":\"$CP3\",\"name\":\"Cati\",\"order\":3,\"optional\":true}]}")
+  RTID=$(echo "$RT_" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+  [ -n "$RTID" ] && ok "tur güzergâhı oluşturuldu" || bad "güzergâh: $RT_"
+
+  # Boş güzergâh reddedilmeli
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$PURL2/patrol-routes" -H "$RA" -H "$RJ2" \
+    -d '{"name":"Bos","checkpoints":[]}')
+  [ "$SC" = "400" ] || [ "$SC" = "422" ] && ok "noktasız güzergâh reddedildi → $SC" \
+    || bad "boş güzergâh kabul edildi → $SC"
+
+  # Başka sitenin noktası eklenemez
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$PURL2/patrol-routes" -H "$RA" -H "$RJ2" \
+    -d '{"name":"Yabanci","checkpoints":[{"checkpoint_id":"00000000-0000-0000-0000-000000000001","order":1}]}')
+  [ "$SC" = "422" ] && ok "başka siteye ait nokta güzergâha eklenemiyor → 422" || bad "yabancı nokta → $SC"
+
+  if [ -n "$RTID" ]; then
+    # 3) Tur başlat — başlangıç zamanı SUNUCUDAN
+    P1=$(curl -s -X POST "$PURL2/patrols" -H "$RA" -H "$RJ2" -d "{\"route_id\":\"$RTID\"}")
+    P1ID=$(echo "$P1" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+    [ -n "$P1ID" ] && ok "tur başlatıldı ve KALICI" || bad "tur: $P1"
+    echo "$P1" | grep -q 'SUNUCUDAN' && ok "zamanın sunucudan alındığı bildiriliyor" || bad "zaman notu yok"
+    DBP=$($PSQL -t -A -c "SELECT count(*) FROM patrol_logs WHERE id='$P1ID';")
+    [ "$DBP" = "1" ] && ok "tur kaydı veritabanında (mock değil)" || bad "kayıt yok"
+
+    # Aynı görevli ikinci turu açamaz
+    SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$PURL2/patrols" -H "$RA" -H "$RJ2" \
+      -d "{\"route_id\":\"$RTID\"}")
+    [ "$SC" = "409" ] && ok "aynı görevli iki turu birden açamıyor → 409" || bad "çift tur → $SC"
+
+    # 4) Nokta okutma
+    S1=$(curl -s -X POST "$PURL2/patrols/$P1ID/scan" -H "$RA" -H "$RJ2" \
+      -d "{\"checkpoint_id\":\"$CP1\",\"note\":\"Kapi kilitli\"}")
+    echo "$S1" | grep -q '"checkpoints_visited":1' && ok "nokta okutuldu (1/3)" || bad "okutma: $S1"
+
+    # Aynı nokta iki kez okutulamaz
+    SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$PURL2/patrols/$P1ID/scan" -H "$RA" -H "$RJ2" \
+      -d "{\"checkpoint_id\":\"$CP1\"}")
+    [ "$SC" = "409" ] && ok "aynı nokta iki kez okutulamıyor → 409" || bad "çift okutma → $SC"
+
+    # Güzergâhta olmayan nokta okutulamaz
+    CPX=$(curl -s -X POST "$PURL2/patrol-checkpoints" -H "$RA" -H "$RJ2" \
+      -d '{"name":"Guzergah disi","nfc_tag_id":"NFC-X-01"}' \
+      | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+    SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$PURL2/patrols/$P1ID/scan" -H "$RA" -H "$RJ2" \
+      -d "{\"checkpoint_id\":\"$CPX\"}")
+    [ "$SC" = "422" ] && ok "güzergâh dışı nokta okutulamıyor → 422" || bad "güzergâh dışı → $SC"
+
+    # 5) Sorun bildirimi
+    SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$PURL2/patrols/$P1ID/issues" -H "$RA" -H "$RJ2" \
+      -d "{\"checkpoint_id\":\"$CP1\",\"severity\":\"HIGH\",\"description\":\"Yangin tupu bos\"}")
+    [ "$SC" = "201" ] && ok "tur sırasında sorun bildirildi" || bad "sorun bildirimi → $SC"
+    ISS=$($PSQL -t -A -c "SELECT issues_reported FROM patrol_logs WHERE id='$P1ID';")
+    [ "$ISS" = "1" ] && ok "sorun tur kaydına işlendi" || bad "sorun sayısı: $ISS"
+
+    # 6) EKSİK TUR — zorunlu 2. nokta okutulmadan kapatılıyor
+    C1=$(curl -s -X POST "$PURL2/patrols/$P1ID/complete" -H "$RA" -H "$RJ2" \
+      -d '{"notes":"Tur bitti"}')
+    echo "$C1" | grep -q '"status":"INCOMPLETE"' \
+      && ok "eksik tur COMPLETED değil INCOMPLETE olarak kapandı (durum hesaplanıyor)" \
+      || bad "eksik tur durumu: $C1"
+    echo "$C1" | grep -q 'Otopark' && ok "okutulmayan zorunlu nokta raporlanıyor" || bad "eksik nokta listesi yok"
+    echo "$C1" | grep -q '"too_fast":true' && ok "beklenenden kısa süren tur işaretlendi" \
+      || bad "çok hızlı tur işaretlenmedi: $C1"
+    echo "$C1" | grep -q 'fiilen gezilmemiş olabilir' && ok "denetim uyarısı anlaşılır" || bad "uyarı metni yok"
+    DBST=$($PSQL -t -A -c "SELECT status FROM patrol_logs WHERE id='$P1ID';")
+    [ "$DBST" = "INCOMPLETE" ] && ok "durum veritabanına da INCOMPLETE yazıldı" || bad "veritabanı durumu: $DBST"
+
+    # Kapanmış tura okutma yapılamaz
+    SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$PURL2/patrols/$P1ID/scan" -H "$RA" -H "$RJ2" \
+      -d "{\"checkpoint_id\":\"$CP2\"}")
+    [ "$SC" = "409" ] && ok "kapanmış tura okutma yapılamıyor → 409" || bad "kapalı tura okutma → $SC"
+
+    # 7) TAM TUR — zorunlu noktaların hepsi okutulursa COMPLETED
+    P2ID=$(curl -s -X POST "$PURL2/patrols" -H "$RA" -H "$RJ2" -d "{\"route_id\":\"$RTID\"}" \
+      | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+    curl -s -o /dev/null -X POST "$PURL2/patrols/$P2ID/scan" -H "$RA" -H "$RJ2" -d "{\"checkpoint_id\":\"$CP1\"}"
+    curl -s -o /dev/null -X POST "$PURL2/patrols/$P2ID/scan" -H "$RA" -H "$RJ2" -d "{\"checkpoint_id\":\"$CP2\"}"
+    C2=$(curl -s -X POST "$PURL2/patrols/$P2ID/complete" -H "$RA" -H "$RJ2" -d '{}')
+    echo "$C2" | grep -q '"status":"COMPLETED"' \
+      && ok "zorunlu noktalar tamamlanınca tur COMPLETED (isteğe bağlı nokta aranmıyor)" \
+      || bad "tam tur durumu: $C2"
+
+    # 8) Okutma zamanı SUNUCUDAN — kayıt zaman damgası taşımalı
+    SCANTS=$($PSQL -t -A -c "SELECT checkpoint_details->0->>'scanned_at' FROM patrol_logs WHERE id='$P2ID';")
+    [ -n "$SCANTS" ] && ok "okutma zamanı kayda geçti ($SCANTS)" || bad "okutma zaman damgası yok"
+  fi
+
+  # 9) Özet
+  PSUM=$(curl -s "$PURL2/patrols-summary" -H "$RA")
+  echo "$PSUM" | grep -q '"completed":1' && ok "özet tamamlanan turu sayıyor" || bad "özet: $PSUM"
+  echo "$PSUM" | grep -q '"incomplete":1' && ok "özet eksik turu ayrı sayıyor" || bad "özet eksik tur"
+  echo "$PSUM" | grep -q '"suspiciously_fast"' && ok "özet şüpheli hızlı turları bildiriyor" || bad "hızlı tur sayacı yok"
+
+  # 10) Yetki
+  SC=$(curl -s -o /dev/null -w '%{http_code}' "$PURL2/patrols" -H "$RT2")
+  [ "$SC" = "403" ] && ok "sakin devriye kayıtlarını göremiyor → 403" || bad "sakin devriye gördü → $SC"
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$PURL2/patrol-checkpoints" -H "$RT2" -H "$RJ2" \
+    -d '{"name":"X"}')
+  [ "$SC" = "403" ] && ok "sakin kontrol noktası tanımlayamıyor → 403" || bad "sakin nokta ekledi → $SC"
+  SC=$(curl -s -o /dev/null -w '%{http_code}' "$PURL2/patrols")
+  [ "$SC" = "401" ] && ok "kimliksiz devriye erişimi engellendi → 401" || bad "kimliksiz erişim → $SC"
+else
+  bad "patrol-service başlamadı"; tail -15 /tmp/verify-patrol.log
+fi
+kill_tree "$PTR_PID"
 
 step "SONUÇ"
 echo "  Geçen: $PASS   Başarısız: $FAIL"
