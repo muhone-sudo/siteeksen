@@ -35,6 +35,7 @@ GW_PID=""
 FIN_PID=""
 GOV_PID=""
 EXP_PID=""
+PER_PID=""
 
 ok()   { echo "  [GEÇTİ]    $1"; PASS=$((PASS+1)); }
 bad()  { echo "  [BAŞARISIZ] $1"; FAIL=$((FAIL+1)); }
@@ -47,6 +48,7 @@ cleanup() {
   [ -n "$FIN_PID" ] && kill "$FIN_PID" 2>/dev/null
   [ -n "$GOV_PID" ] && kill "$GOV_PID" 2>/dev/null
   [ -n "$EXP_PID" ] && kill "$EXP_PID" 2>/dev/null
+  [ -n "$PER_PID" ] && kill "$PER_PID" 2>/dev/null
   docker rm -f "$CNAME" >/dev/null 2>&1
 }
 trap cleanup EXIT
@@ -661,6 +663,86 @@ else
   bad "expense-service başlamadı"; tail -10 /tmp/verify-expense.log
 fi
 kill "$EXP_PID" 2>/dev/null
+
+step "13) Personel modülü — mock'tan gerçeğe (FAZ 5, 2. modül)"
+PERPORT=${VERIFY_PER_PORT:-18100}
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen DB_PASSWORD="$PW" DB_NAME=siteeksen \
+DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${PERPORT} \
+  go run ./services/personnel >/tmp/verify-personnel.log 2>&1 &
+PER_PID=$!
+PUP=0
+for _ in $(seq 1 45); do
+  curl -fsS "http://127.0.0.1:${PERPORT}/health" >/dev/null 2>&1 && { PUP=1; break; }
+  sleep 1
+done
+
+if [ "$PUP" = "1" ] && [ -n "${MGR:-}" ]; then
+  ok "personnel-service ayağa kalktı"
+  PA="Authorization: Bearer $MGR"
+  PJ='Content-Type: application/json'
+  PURL="http://127.0.0.1:${PERPORT}/api/v1"
+
+  EMP=$(curl -s -X POST "$PURL/employees" -H "$PA" -H "$PJ" -d '{
+    "first_name":"Test","last_name":"Personel","position":"Kapıcı",
+    "hire_date":"2026-01-15","tc_number":"12345678901",
+    "bank_iban":"TR330006100519786457841326","bank_name":"Test Bank",
+    "gross_salary":30000,"net_salary":22000,"sgk_number":"1234567890"}')
+  EMPID=$(echo "$EMP" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+  [ -n "$EMPID" ] && ok "personel kaydı oluşturuldu ve KALICI" || bad "personel oluşturulamadı: $EMP"
+
+  # Varsayılan yıllık izin 14 gün olmalı (4857 s. İş Kanunu m.53)
+  AL=$($PSQL -t -A -c "SELECT annual_leave_days FROM employees WHERE id='$EMPID';")
+  [ "$AL" = "14" ] && ok "varsayılan yıllık izin 14 gün (İş K. m.53)" || bad "yıllık izin $AL gün"
+
+  # KVKK: liste yanıtında TCKN ve IBAN MASKELİ olmalı
+  LST=$(curl -s "$PURL/employees" -H "$PA")
+  echo "$LST" | grep -q '12345678901' && bad "liste yanıtında TCKN maskesiz görünüyor" \
+    || ok "liste yanıtında TCKN maskeli (KVKK veri minimizasyonu)"
+  echo "$LST" | grep -q 'TR330006100519786457841326' && bad "liste yanıtında IBAN maskesiz" \
+    || ok "liste yanıtında IBAN maskeli"
+  echo "$LST" | grep -q '"gross_salary":30000' && ok "yöneticiye maaş bilgisi dönüyor" \
+    || bad "yöneticiye maaş dönmedi"
+
+  # Sakin personel modülüne hiç erişememeli
+  SC=$(curl -s -o /dev/null -w '%{http_code}' "$PURL/employees" -H "Authorization: Bearer $TEN")
+  [ "$SC" = "403" ] && ok "sakin personel modülüne erişemiyor → 403" \
+    || bad "sakin personel listesini gördü → $SC"
+
+  # İzin akışı: talep → onay → bakiye düşümü
+  LV=$(curl -s -X POST "$PURL/leaves" -H "$PA" -H "$PJ" -d "{
+    \"employee_id\":\"$EMPID\",\"leave_type\":\"ANNUAL\",
+    \"start_date\":\"2026-07-01\",\"end_date\":\"2026-07-05\",\"reason\":\"Yıllık izin\"}")
+  LVID=$(echo "$LV" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+  [ -n "$LVID" ] && ok "izin talebi oluşturuldu" || bad "izin talebi oluşturulamadı: $LV"
+
+  # Gün sayısı sunucuda hesaplanmalı (1-5 Temmuz dahil = 5 gün)
+  LD=$($PSQL -t -A -c "SELECT days::int FROM employee_leaves WHERE id='$LVID';")
+  [ "$LD" = "5" ] && ok "izin gün sayısı sunucuda hesaplandı (5 gün)" || bad "izin günü $LD"
+
+  # Çakışan izin reddedilmeli
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$PURL/leaves" -H "$PA" -H "$PJ" -d "{
+    \"employee_id\":\"$EMPID\",\"leave_type\":\"ANNUAL\",
+    \"start_date\":\"2026-07-03\",\"end_date\":\"2026-07-08\"}")
+  [ "$SC" = "409" ] && ok "çakışan izin talebi reddedildi → 409" || bad "çakışan izin kabul edildi → $SC"
+
+  curl -s -o /dev/null -X POST "$PURL/leaves/$LVID/approve" -H "$PA" -H "$PJ" -d '{}'
+  REM=$($PSQL -t -A -c "SELECT remaining_leave_days FROM employees WHERE id='$EMPID';")
+  [ "$REM" = "9" ] && ok "onaydan sonra izin bakiyesi düştü (14 → 9)" || bad "izin bakiyesi $REM (9 bekleniyordu)"
+
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$PURL/leaves/$LVID/approve" -H "$PA" -H "$PJ" -d '{}')
+  [ "$SC" = "409" ] && ok "çift onaylama engellendi → 409" || bad "çift onaylama → $SC"
+
+  # İşten ayrılışta kayıt SİLİNMEMELİ
+  curl -s -o /dev/null -X POST "$PURL/employees/$EMPID/terminate" -H "$PA" -H "$PJ" \
+    -d '{"reason":"İstifa","end_date":"2026-08-31"}'
+  STILL=$($PSQL -t -A -c "SELECT count(*) FROM employees WHERE id='$EMPID';")
+  ACT=$($PSQL -t -A -c "SELECT is_active FROM employees WHERE id='$EMPID';")
+  [ "$STILL" = "1" ] && [ "$ACT" = "f" ] && ok "işten ayrılışta özlük kaydı silinmiyor, pasife alınıyor" \
+    || bad "özlük kaydı silindi ya da pasife alınmadı (count=$STILL active=$ACT)"
+else
+  bad "personnel-service başlamadı"; tail -10 /tmp/verify-personnel.log
+fi
+kill "$PER_PID" 2>/dev/null
 
 step "SONUÇ"
 echo "  Geçen: $PASS   Başarısız: $FAIL"
