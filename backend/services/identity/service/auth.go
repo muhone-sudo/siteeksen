@@ -134,13 +134,21 @@ func (s *AuthService) CreateProperty(ctx context.Context, userID string, req mod
 	return s.userRepo.CreateProperty(ctx, userID, req)
 }
 
+// tokenIssuer — jetonların `iss` claim değeri. kong/kong.yml'deki consumer anahtarı
+// ile birebir aynı olmak zorundadır.
+const tokenIssuer = "siteeksen"
+
 func (s *AuthService) generateTokens(user *models.User) (*TokenPair, error) {
 	now := time.Now()
 	accessExpiry := now.Add(15 * time.Minute)
 	refreshExpiry := now.Add(7 * 24 * time.Hour)
 
 	// Access token
+	// `iss` claim'i Kong'un jwt eklentisi için zorunludur: Kong, jetonun hangi
+	// consumer'a ait olduğunu bu değerden (key_claim_name: iss) çözer.
+	// kong/kong.yml içindeki consumer'ın jwt_secrets.key değeriyle aynı olmalıdır.
 	accessClaims := jwt.MapClaims{
+		"iss":         tokenIssuer,
 		"sub":         user.ID,
 		"property_id": user.ActivePropertyID,
 		"roles":       user.Roles,
@@ -156,6 +164,7 @@ func (s *AuthService) generateTokens(user *models.User) (*TokenPair, error) {
 
 	// Refresh token
 	refreshClaims := jwt.RegisteredClaims{
+		Issuer:    tokenIssuer,
 		Subject:   user.ID,
 		IssuedAt:  jwt.NewNumericDate(now),
 		ExpiresAt: jwt.NewNumericDate(refreshExpiry),

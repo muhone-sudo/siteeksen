@@ -31,6 +31,7 @@ PASS=0
 FAIL=0
 SVC_PID=""
 STUB_PID=""
+GW_PID=""
 
 ok()   { echo "  [GEÇTİ]    $1"; PASS=$((PASS+1)); }
 bad()  { echo "  [BAŞARISIZ] $1"; FAIL=$((FAIL+1)); }
@@ -39,6 +40,7 @@ step() { echo ""; echo "=== $1 ==="; }
 cleanup() {
   [ -n "$SVC_PID" ] && kill "$SVC_PID" 2>/dev/null
   [ -n "$STUB_PID" ] && kill "$STUB_PID" 2>/dev/null
+  [ -n "$GW_PID" ] && kill "$GW_PID" 2>/dev/null
   docker rm -f "$CNAME" >/dev/null 2>&1
 }
 trap cleanup EXIT
@@ -51,6 +53,12 @@ step "0) Go derleme ve statik denetim"
 cd "$BACKEND_DIR"
 if go build ./... >/tmp/verify-build.log 2>&1; then ok "go build ./..."; else bad "go build ./..."; tail -15 /tmp/verify-build.log; fi
 if go vet   ./... >/tmp/verify-vet.log   2>&1; then ok "go vet ./...";   else bad "go vet ./...";   tail -15 /tmp/verify-vet.log; fi
+# Veritabanı gerektirmeyen birim testleri
+if go test ./pkg/authtoken/... -count=1 >/tmp/verify-authtoken.log 2>&1; then
+  ok "go test ./pkg/authtoken/... (JWT doğrulama)"
+else
+  bad "go test ./pkg/authtoken/..."; tail -15 /tmp/verify-authtoken.log
+fi
 
 step "1) Temiz PostgreSQL 16"
 docker rm -f "$CNAME" >/dev/null 2>&1
@@ -170,6 +178,58 @@ kill "$STUB_PID" 2>/dev/null
 # Kaynak düzeyinde: mock servislerde uydurma veri kalmamalı
 FAKE=$(grep -rn "Ali Veli\|Ayşe Yılmaz\|Ahmet Yılmaz\|Mehmet Demir\|AYEDAŞ" "$BACKEND_DIR/services" --include=*.go 2>/dev/null | grep -v _test | wc -l)
 [ "$FAKE" -eq 0 ] && ok "servis kaynaklarında uydurma isim/veri kalmadı" || { bad "servis kaynaklarında $FAKE uydurma veri satırı var"; }
+
+step "8) Gateway kimlik doğrulaması (FAZ 2.1)"
+# Gateway daha önce HİÇBİR jeton doğrulaması yapmıyordu: maaş, TCKN, IBAN ve
+# API anahtarları token'sız erişilebiliyordu.
+GWPORT=${VERIFY_GW_PORT:-18099}
+IDENTITY_SERVICE_URL="http://127.0.0.1:${SVCPORT}" \
+JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${GWPORT} \
+  go run ./cmd/gateway >/tmp/verify-gateway.log 2>&1 &
+GW_PID=$!
+GUP=0
+for _ in $(seq 1 45); do
+  curl -fsS "http://127.0.0.1:${GWPORT}/health" >/dev/null 2>&1 && { GUP=1; break; }
+  sleep 1
+done
+if [ "$GUP" = "1" ]; then
+  ok "gateway ayağa kalktı"
+
+  SC=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:${GWPORT}/api/v1/users/me")
+  [ "$SC" = "401" ] && ok "gateway: token'sız /users/me → 401" || bad "gateway: token'sız /users/me → $SC (401 bekleniyordu)"
+
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer sahte.jeton.dizesi" \
+    "http://127.0.0.1:${GWPORT}/api/v1/users/me")
+  [ "$SC" = "401" ] && ok "gateway: geçersiz jeton → 401" || bad "gateway: geçersiz jeton → $SC (401 bekleniyordu)"
+
+  GRESP=$(curl -s "http://127.0.0.1:${GWPORT}/api/v1/auth/login" -H 'Content-Type: application/json' \
+    -d '{"phone":"5551234567","password":"Demo123!"}')
+  GTOKEN=$(echo "$GRESP" | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+  [ -n "$GTOKEN" ] && ok "gateway: /auth/login açık uç olarak çalışıyor" || bad "gateway: /auth/login üzerinden giriş yapılamadı"
+
+  if [ -n "$GTOKEN" ]; then
+    SC=$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $GTOKEN" \
+      "http://127.0.0.1:${GWPORT}/api/v1/users/me")
+    [ "$SC" = "200" ] && ok "gateway: geçerli jetonla /users/me → 200" || bad "gateway: geçerli jetonla /users/me → $SC"
+  fi
+
+  # Uydurma mali rapor üretimi kaldırıldı
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST -H "Authorization: Bearer ${GTOKEN:-x}" \
+    "http://127.0.0.1:${GWPORT}/api/v1/reports/generate" -H 'Content-Type: application/json' -d '{"type":"assessment"}')
+  [ "$SC" = "501" ] && ok "gateway: uydurma rapor üretimi kapatıldı → 501" || bad "gateway: /reports/generate → $SC (501 bekleniyordu)"
+else
+  bad "gateway başlamadı"; tail -10 /tmp/verify-gateway.log
+fi
+kill "$GW_PID" 2>/dev/null
+
+# Kaynak düzeyinde: Kong yapılandırmasında jwt eklentisi olmalı
+KJ=$(grep -c "name: jwt" "$BACKEND_DIR/../kong/kong.yml" 2>/dev/null | head -1)
+KJ=${KJ:-0}
+[ "$KJ" -ge 20 ] && ok "kong.yml: jwt eklentisi $KJ rotada tanımlı" || bad "kong.yml: jwt eklentisi eksik ($KJ)"
+KC=$(grep -c 'origins:' "$BACKEND_DIR/../kong/kong.yml" 2>/dev/null | head -1)
+KW=$(grep -c "'\*'" "$BACKEND_DIR/../kong/kong.yml" 2>/dev/null | head -1)
+KC=${KC:-0}; KW=${KW:-0}
+[ "$KW" -eq 0 ] && ok "kong.yml: joker (*) CORS kökeni kalmadı ($KC servis)" || bad "kong.yml: hâlâ $KW joker CORS kökeni var"
 
 step "SONUÇ"
 echo "  Geçen: $PASS   Başarısız: $FAIL"

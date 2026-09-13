@@ -156,6 +156,50 @@ Backend'e dokunan her değişiklikten sonra çalıştırılır.
 
 ---
 
+# FAZ 2 — Kimlik, yetki, izolasyon (başladı)
+
+- [x] **[D4] 2.1 🔴 Gateway'e kimlik doğrulaması eklendi** *(B17, B18)*
+      **Sorun:** `cmd/gateway` 25 servise yönlendiriyor ama **hiçbir jeton doğrulaması
+      yapmıyordu**; Kong'da da kimlik eklentisi yoktu. Maaş, TCKN, IBAN ve **API anahtarları**
+      token'sız erişilebiliyordu.
+      **Çözüm:**
+      - `pkg/authtoken` — jeton doğrulamanın tek kaynağı (çatıdan bağımsız). `pkg/middleware`
+        de artık bunu kullanıyor; mantık iki yerde çoğaltılmıyor.
+      - Gateway: `/api/v1/auth/*` ve `/health` dışındaki her yol geçerli JWT ister; `JWT_SECRET`
+        yoksa **fail-closed** (500).
+      - Gateway istemciden gelen `X-User-Id`, `X-User-Role`, `X-Property-Id`, `X-Tenant-Id`
+        gibi kimlik başlıklarını **siliyor** (aşağı akışta kimlik sahteciliği engellendi).
+      - CORS artık joker `*` değil, `CORS_ALLOWED_ORIGINS` allowlist'i.
+      - Her isteğe `X-Request-Id` veriliyor (denetim izi ilişkilendirmesi — FAZ 3.5).
+      - `kong/kong.yml`: `/api/v1/auth` dışındaki **24 rotada** `jwt` eklentisi; consumer anahtarı
+        Kong env vault'tan (`{vault://env/jwt-secret}`) okunuyor; CORS joker kökenleri kaldırıldı.
+      - `identity`: jetonlara Kong'un beklediği `iss: "siteeksen"` claim'i eklendi.
+      **Kanıt:** `go test ./pkg/authtoken/...` → 6/6 geçti (alg=none, yanlış anahtar, süresi dolmuş,
+      anahtar yok senaryoları dahil). `verify-stack.sh` §8: gateway üzerinden token'sız `/users/me`
+      → **401**, geçersiz jeton → **401**, `/auth/login` → **200**, geçerli jetonla `/users/me` → **200**.
+- [x] **[D4] 2.2 🔴 Gateway'deki uydurma mali rapor üretimi kaldırıldı** *(B87)*
+      `/api/v1/reports/generate` içi tamamen sabit (uydurma daire, sakin adı ve tutarlar) olan
+      **indirilebilir PDF/Excel** üretiyordu. Gerçek mali veriye bağlanana kadar `501` döner.
+      Gerçek rapor üretimi finance-service içinde yapılacaktır (FAZ 4/6).
+      **Kanıt:** `verify-stack.sh` §8 → `POST /api/v1/reports/generate` → **501**.
+- [x] **[D4] 2.3 🟠 Dashboard özetindeki uydurma sayılar kaldırıldı** *(B79)*
+      `/dashboard/stats` kaynaklara ulaşamazsa `156 sakin / 245.000 TL gelir / %94 tahsilat`
+      sabitlerini döndürüyordu. Artık ulaşılamayan kaynak için **alan hiç dönmez** ve
+      `unavailable[]` listesinde nedeniyle bildirilir (`partial: true`).
+      `recent-payments` sessizce boş liste döndürmek yerine `502` veriyor (boş liste "ödeme yok"
+      anlamına gelir — bu yanlış bilgidir).
+- [ ] **2.4 🔴 `POST /users/me/active-property` sahiplik doğrulaması** — JWT'deki `property_id`
+      istemci tarafından seçilebiliyor *(B21)*
+- [ ] **2.5 🔴 Rolleri siteye göre kapsamla** — `users.roles` global; bir sitede MANAGER olan
+      tüm sitelerde MANAGER *(B22)*
+- [ ] **2.6 🔴 Tenant izolasyonu (PostgreSQL RLS)** — `pkg/tenant` ölü kod *(B20)*
+- [ ] **2.7 🟠 Çıkışta jeton iptali** (jti kara listesi / Redis)
+- [ ] **2.8 🟠 Hassas alanların şifrelenmesi** — `pkg/encryption` hiçbir yerden import edilmiyor;
+      TCKN düz metin *(B26)*
+- [ ] **2.9 🟠 Panelde rol bazlı erişim kontrolü** *(B28)* → 0.A.10 ile aynı iş
+
+---
+
 # FAZ 3 — Denetim izi (ilk madde tamamlandı)
 
 - [x] **[D4] 3.1 🔴 Denetim izi çalışır hale getirildi** *(B59)*

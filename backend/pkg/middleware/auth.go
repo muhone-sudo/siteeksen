@@ -1,21 +1,15 @@
 package middleware
 
 import (
+	"errors"
 	"log"
 	"net/http"
-	"os"
-	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/siteeksen/backend/pkg/audit"
+	"github.com/siteeksen/backend/pkg/authtoken"
 )
-
-// jwtSigningMethod — imza algoritması allowlist'i.
-// Belirtilmezse jwt kütüphanesi token'ın kendi `alg` başlığına güvenir; bu, algoritma
-// karıştırma (algorithm confusion) saldırılarına kapı açar.
-var jwtSigningMethods = []string{"HS256"}
 
 // Rol değerleri (users.roles TEXT[] içinde taşınır)
 const (
@@ -27,70 +21,33 @@ const (
 	RoleStaff    = "STAFF"
 )
 
-// Claims JWT token payload
-type Claims struct {
-	UserID     string   `json:"user_id"`
-	PropertyID string   `json:"property_id"`
-	Roles      []string `json:"roles"`
-	jwt.RegisteredClaims
-}
+// Claims, jeton doğrulamasının tek kaynağı olan pkg/authtoken'a takma addır.
+// Aynı doğrulama mantığı net/http tabanlı gateway tarafından da kullanılır.
+type Claims = authtoken.Claims
 
 // AuthMiddleware JWT doğrulama middleware'i
 func AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"error": "Authorization header gerekli",
-			})
-			return
-		}
-
-		parts := strings.Split(authHeader, " ")
-		if len(parts) != 2 || parts[0] != "Bearer" {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"error": "Geçersiz Authorization formatı",
-			})
-			return
-		}
-
-		// GÜVENLİK (2026-09-09): Önceki sürüm JWT_SECRET boş olsa dahi doğrulamaya devam
-		// ediyordu. Boş anahtarla HS256 doğrulaması, saldırganın istediği user_id/property_id/
-		// roles değerleriyle geçerli token üretmesine izin verir. Artık anahtar yoksa istek
-		// reddedilir (fail-closed).
-		secret := os.Getenv("JWT_SECRET")
-		if secret == "" {
-			log.Printf("[auth] KRİTİK: JWT_SECRET tanımlı değil — kimlik doğrulama yapılamıyor")
-			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
-				"error": "Sunucu kimlik doğrulama yapılandırması eksik",
-			})
-			return
-		}
-
-		tokenString := parts[1]
-		claims := &Claims{}
-
-		token, err := jwt.ParseWithClaims(
-			tokenString,
-			claims,
-			func(token *jwt.Token) (interface{}, error) { return []byte(secret), nil },
-			jwt.WithValidMethods(jwtSigningMethods),
-		)
-
-		if err != nil || !token.Valid {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"error": "Geçersiz veya süresi dolmuş token",
-			})
+		claims, err := authtoken.ParseAuthHeader(c.GetHeader("Authorization"))
+		if err != nil {
+			// GÜVENLİK (2026-09-09): Önceki sürüm JWT_SECRET boş olsa dahi doğrulamaya devam
+			// ediyordu. Boş anahtarla HS256 doğrulaması, saldırganın istediği user_id/
+			// property_id/roles değerleriyle geçerli token üretmesine izin verir.
+			// Artık anahtar yoksa istek reddedilir (fail-closed).
+			if errors.Is(err, authtoken.ErrNoSecret) {
+				log.Printf("[auth] KRİTİK: JWT_SECRET tanımlı değil — kimlik doğrulama yapılamıyor")
+				c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
+					"error": "Sunucu kimlik doğrulama yapılandırması eksik",
+				})
+				return
+			}
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 			return
 		}
 
 		// Context'e kullanıcı bilgilerini ekle
-		// JWT'de user_id "sub" claim'inde taşınıyor
-		userID := claims.UserID
-		if userID == "" {
-			userID = claims.RegisteredClaims.Subject
-		}
-		c.Set("user_id", userID)
+		// JWT'de user_id "sub" claim'inde de taşınabiliyor
+		c.Set("user_id", claims.Subject())
 		c.Set("property_id", claims.PropertyID)
 		c.Set("roles", claims.Roles)
 
