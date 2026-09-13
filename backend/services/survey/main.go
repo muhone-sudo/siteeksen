@@ -1,193 +1,296 @@
+// survey-service — Anket, görüş yoklaması ve danışma oylaması.
+//
+// DURUM DEĞİŞİKLİĞİ (2026-09-13): Bu servis mock'tu; sabit anket ve sabit sonuç
+// döndürüyordu — yani kimse oy vermese bile "%68 evet" yazıyordu. Artık gerçek
+// veri katmanına bağlıdır (FAZ 5 — 11/22).
+//
+// HUKUKİ SINIR (en önemli tasarım kararı):
+// Bu servisten alınan sonuç GENEL KURUL KARARI DEĞİLDİR ve karar yerine geçmez.
+// Kat malikleri kurulu kararı, KMK m.29-32 uyarınca usulüne uygun çağrı, toplantı
+// ve yeter sayı ile alınır; karar defterine yazılır. Bunların tamamı governance
+// servisindedir. Bu yüzden `survey_type=GENERAL_ASSEMBLY` isteği REDDEDİLİR —
+// bir sitenin çevrimiçi anketi "genel kurul kararı" sanması, sonradan iptal
+// davasıyla (KMK m.33) geri dönen bir hatadır.
+//
+// Diğer hukuka bağlı kararlar:
+//   - VOTE türünde oy hakkı yalnızca KAT MALİKLERİNDEDİR ve bağımsız bölüm
+//     başına bir oydur (KMK m.31/1). Kiracı görüş yoklamasına katılır, karara değil.
+//   - Ağırlıklı oylamada ölçü ARSA PAYIDIR, metrekare değil (KMK m.20). Şemadaki
+//     "m² bazlı ağırlık" açıklaması hukuken yanlıştı; kod arsa payını kullanır.
+//   - Sonuçlar saklanan sayaçlardan değil, OYLARDAN hesaplanır.
 package main
 
 import (
+	"errors"
 	"log"
+	"net/http"
 	"os"
 	"time"
 
-	"github.com/siteeksen/backend/pkg/stub"
-
 	"github.com/gin-gonic/gin"
+	"github.com/siteeksen/backend/pkg/database"
+	"github.com/siteeksen/backend/pkg/middleware"
+	"github.com/siteeksen/backend/services/survey/repository"
 )
 
-// =====================================================
-// MODELS
-// =====================================================
-
-type Survey struct {
-	ID                   string         `json:"id"`
-	PropertyID           string         `json:"property_id"`
-	Title                string         `json:"title"`
-	Description          string         `json:"description,omitempty"`
-	SurveyType           string         `json:"survey_type"` // POLL, SURVEY, VOTE, GENERAL_ASSEMBLY
-	IsAnonymous          bool           `json:"is_anonymous"`
-	IsWeighted           bool           `json:"is_weighted"` // m² bazlı
-	AllowMultiple        bool           `json:"allow_multiple"`
-	AllowComments        bool           `json:"allow_comments"`
-	ShowResultsBeforeEnd bool           `json:"show_results_before_end"`
-	StartsAt             time.Time      `json:"starts_at"`
-	EndsAt               *time.Time     `json:"ends_at,omitempty"`
-	Status               string         `json:"status"` // DRAFT, ACTIVE, ENDED, CANCELLED
-	TotalEligibleVoters  int            `json:"total_eligible_voters"`
-	TotalVotes           int            `json:"total_votes"`
-	ParticipationRate    float64        `json:"participation_rate"`
-	Options              []SurveyOption `json:"options,omitempty"`
-	CreatedBy            string         `json:"created_by"`
-	CreatedAt            time.Time      `json:"created_at"`
-}
-
-type SurveyOption struct {
-	ID                string  `json:"id"`
-	SurveyID          string  `json:"survey_id"`
-	OptionText        string  `json:"option_text"`
-	Description       string  `json:"description,omitempty"`
-	DisplayOrder      int     `json:"display_order"`
-	VoteCount         int     `json:"vote_count"`
-	WeightedVoteCount float64 `json:"weighted_vote_count"`
-	Percentage        float64 `json:"percentage"`
-}
-
-type SurveyVote struct {
-	ID         string    `json:"id"`
-	SurveyID   string    `json:"survey_id"`
-	OptionID   string    `json:"option_id"`
-	VoterID    string    `json:"voter_id"`
-	VoterName  string    `json:"voter_name,omitempty"`
-	UnitID     string    `json:"unit_id,omitempty"`
-	UnitNumber string    `json:"unit_number,omitempty"`
-	Weight     float64   `json:"weight"`
-	Comment    string    `json:"comment,omitempty"`
-	VotedAt    time.Time `json:"voted_at"`
-}
-
-type SurveyRequest struct {
-	Title                string   `json:"title" binding:"required"`
-	Description          string   `json:"description"`
-	SurveyType           string   `json:"survey_type" binding:"required"`
-	IsAnonymous          bool     `json:"is_anonymous"`
-	IsWeighted           bool     `json:"is_weighted"`
-	AllowMultiple        bool     `json:"allow_multiple"`
-	AllowComments        bool     `json:"allow_comments"`
-	ShowResultsBeforeEnd bool     `json:"show_results_before_end"`
-	StartsAt             string   `json:"starts_at"`
-	EndsAt               string   `json:"ends_at"`
-	Options              []string `json:"options" binding:"required,min=2"`
-}
-
-type VoteRequest struct {
-	OptionIDs []string `json:"option_ids" binding:"required"`
-	Comment   string   `json:"comment"`
-}
-
-type SurveyStats struct {
-	TotalSurveys     int `json:"total_surveys"`
-	ActiveSurveys    int `json:"active_surveys"`
-	PendingVotes     int `json:"pending_votes"`
-	CompletedSurveys int `json:"completed_surveys"`
-}
-
-// =====================================================
-// HANDLERS
-// =====================================================
+// legalNotice, her anket yanıtında verilen uyarıdır. Kullanıcının sonucu
+// genel kurul kararı sanmasını engeller.
+const legalNotice = "Bu sonuç GENEL KURUL KARARI DEĞİLDİR ve karar yerine geçmez. " +
+	"Kat malikleri kurulu kararı, usulüne uygun çağrı ve yeter sayı ile toplantıda " +
+	"alınır ve karar defterine yazılır (634 s. KMK m.29-32)."
 
 func main() {
+	dbConfig := database.NewConfigFromEnv()
+	pool, err := database.Connect(dbConfig)
+	if err != nil {
+		log.Fatalf("Veritabanı bağlantısı başarısız: %v", err)
+	}
+	defer database.Close()
+
+	repo := repository.New(pool)
+
 	r := gin.Default()
+	r.GET("/health", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"status": "healthy", "service": "survey", "persistent": true,
+		})
+	})
 
-	r.GET("/health", stub.Health("survey"))
+	api := r.Group("/api/v1")
+	api.Use(middleware.AuthMiddleware(), middleware.AuditLog(pool, "survey"))
 
-	v1 := r.Group("/api/v1")
-	{
-		// Surveys
-		surveys := v1.Group("/surveys")
-		{
-			surveys.GET("", listSurveys)
-			surveys.GET("/active", getActiveSurveys)
-			surveys.GET("/stats", getSurveyStats)
-			surveys.GET("/:id", getSurvey)
-			surveys.GET("/:id/results", getSurveyResults)
-			surveys.GET("/:id/votes", getSurveyVotes)
-			surveys.POST("", createSurvey)
-			surveys.PUT("/:id", updateSurvey)
-			surveys.DELETE("/:id", deleteSurvey)
-			surveys.POST("/:id/publish", publishSurvey)
-			surveys.POST("/:id/end", endSurvey)
-			surveys.POST("/:id/vote", voteSurvey)
-			surveys.GET("/:id/my-vote", getMyVote)
+	// Listeleme: sitedeki herkes. Taslaklar yalnızca yönetime görünür.
+	api.GET("/surveys", func(c *gin.Context) {
+		list, err := repo.List(c.Request.Context(), c.GetString("property_id"),
+			c.GetString("user_id"), c.Query("status"), isManagement(c))
+		if err != nil {
+			fail(c, err, "listeleme")
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"data": list, "legal_notice": legalNotice})
+	})
+
+	api.GET("/surveys/:id", func(c *gin.Context) {
+		propertyID := c.GetString("property_id")
+		userID := c.GetString("user_id")
+
+		// Sonuçların görünürlüğünü belirlemek için önce anketi sonuçsuz okuyup
+		// ayarına bakarız; sonuç sızdırmamak için iki aşamalı yapılır.
+		base, err := repo.Get(c.Request.Context(), propertyID, c.Param("id"), userID, false)
+		if err != nil {
+			fail(c, err, "okuma")
+			return
+		}
+		if base.Status == "DRAFT" && !isManagement(c) {
+			// Yayınlanmamış anket sakinlere görünmez.
+			c.JSON(http.StatusNotFound, gin.H{"error": "Anket bulunamadı"})
+			return
 		}
 
-		// Resident surveys
-		v1.GET("/my-surveys", getMySurveys)
-		v1.GET("/pending-votes", getPendingVotes)
+		visible := resultsVisible(base, isManagement(c))
+		s, err := repo.Get(c.Request.Context(), propertyID, c.Param("id"), userID, visible)
+		if err != nil {
+			fail(c, err, "okuma")
+			return
+		}
+
+		resp := gin.H{"survey": s, "results_visible": visible, "legal_notice": legalNotice}
+		if !visible {
+			resp["results_note"] = "Sonuçlar oylama bitmeden açıklanmıyor " +
+				"(anket ayarı: show_results_before_end=false). Erken sonuç göstermek " +
+				"sonraki oyları etkiler."
+		}
+		if s.IsAnonymous {
+			resp["anonymity_note"] = "Anket anonimdir: kimin hangi seçeneğe oy verdiği " +
+				"HİÇBİR KULLANICIYA gösterilmez. Ancak aynı kişinin iki kez oy vermesini " +
+				"engellemek için oy kaydı kullanıcıya bağlıdır — bu, mutlak anonimlik değildir."
+		}
+		c.JSON(http.StatusOK, resp)
+	})
+
+	api.GET("/surveys/:id/comments", func(c *gin.Context) {
+		list, err := repo.Comments(c.Request.Context(),
+			c.GetString("property_id"), c.Param("id"))
+		if err != nil {
+			fail(c, err, "yorumlar")
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"data": list})
+	})
+
+	// Oy verme: sitedeki herkes deneyebilir; uygunluk sunucuda denetlenir.
+	api.POST("/surveys/:id/vote", func(c *gin.Context) {
+		var in struct {
+			OptionID string `json:"option_id" binding:"required"`
+			Comment  string `json:"comment"`
+		}
+		if err := c.ShouldBindJSON(&in); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "option_id zorunludur"})
+			return
+		}
+		res, err := repo.Vote(c.Request.Context(), c.GetString("property_id"),
+			c.Param("id"), in.OptionID, c.GetString("user_id"), in.Comment)
+		if err != nil {
+			fail(c, err, "oy")
+			return
+		}
+		c.JSON(http.StatusCreated, gin.H{
+			"message": "Oyunuz kaydedildi", "weight": res.Weight,
+			"unit": res.UnitName, "legal_notice": legalNotice,
+		})
+	})
+
+	// Yönetim işlemleri.
+	write := api.Group("")
+	write.Use(middleware.RequireRole(middleware.RoleManager, middleware.RoleBoardMember))
+	{
+		write.POST("/surveys", func(c *gin.Context) {
+			var in repository.CreateInput
+			if err := c.ShouldBindJSON(&in); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{
+					"error":       "title ve en az iki seçenek (options) zorunludur",
+					"valid_types": repository.Types})
+				return
+			}
+			id, err := repo.Create(c.Request.Context(),
+				c.GetString("property_id"), c.GetString("user_id"), in)
+			if err != nil {
+				fail(c, err, "oluşturma")
+				return
+			}
+			resp := gin.H{
+				"id": id, "status": "DRAFT",
+				"note": "Anket TASLAK olarak oluşturuldu; yayına almak için " +
+					"POST /surveys/{id}/publish çağrılmalıdır.",
+				"legal_notice": legalNotice,
+			}
+			if in.IsWeighted {
+				resp["weighting_note"] = "Ağırlıklı oylamada ölçü ARSA PAYIDIR " +
+					"(634 s. KMK m.20), metrekare değil."
+			}
+			c.JSON(http.StatusCreated, resp)
+		})
+
+		write.POST("/surveys/:id/publish", func(c *gin.Context) {
+			if err := repo.Publish(c.Request.Context(),
+				c.GetString("property_id"), c.Param("id")); err != nil {
+				fail(c, err, "yayınlama")
+				return
+			}
+			c.JSON(http.StatusOK, gin.H{
+				"status": "ACTIVE",
+				"note": "Sakinlere BİLDİRİM GÖNDERİLMEDİ; bildirim altyapısı henüz " +
+					"bağlı değildir.",
+			})
+		})
+
+		write.POST("/surveys/:id/close", func(c *gin.Context) {
+			if err := repo.Close(c.Request.Context(),
+				c.GetString("property_id"), c.Param("id")); err != nil {
+				fail(c, err, "sonlandırma")
+				return
+			}
+			c.JSON(http.StatusOK, gin.H{"status": "ENDED", "legal_notice": legalNotice})
+		})
+
+		write.POST("/surveys/:id/cancel", func(c *gin.Context) {
+			var in struct {
+				Reason string `json:"reason" binding:"required"`
+			}
+			if err := c.ShouldBindJSON(&in); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "İptal gerekçesi zorunludur"})
+				return
+			}
+			if err := repo.Cancel(c.Request.Context(), c.GetString("property_id"),
+				c.Param("id"), in.Reason); err != nil {
+				fail(c, err, "iptal")
+				return
+			}
+			c.JSON(http.StatusOK, gin.H{
+				"status": "CANCELLED",
+				"note":   "Verilmiş oylar SİLİNMEDİ; iptal gerekçesi kayda geçti.",
+			})
+		})
 	}
 
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "8104"
+		port = "8104" // kong/kong.yml ile aynı olmalı
 	}
-
-	log.Printf("Survey Service starting on port %s", port)
+	log.Printf("Survey Service başlatıldı: :%s", port)
 	if err := r.Run(":" + port); err != nil {
 		log.Fatal(err)
 	}
 }
 
-// Survey Handlers
-func listSurveys(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "survey")
+// resultsVisible, sonuçların isteği yapana gösterilip gösterilmeyeceğini söyler.
+//
+// Yönetim her zaman görür (oylamayı yürüten taraftır). Sakinler için: oylama
+// bittiyse ya da anket "erken sonuç göster" ayarıyla açıldıysa görünür.
+// Erken sonuç göstermek sonraki oyları etkiler; bu yüzden varsayılan kapalıdır.
+func resultsVisible(s *repository.Survey, management bool) bool {
+	if management {
+		return true
+	}
+	if s.Status == "ENDED" || s.Status == "CANCELLED" {
+		return true
+	}
+	if s.EndsAt != nil && time.Now().After(*s.EndsAt) {
+		return true
+	}
+	return s.ShowResults
 }
 
-func getActiveSurveys(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "survey")
+func isManagement(c *gin.Context) bool {
+	value, _ := c.Get("roles")
+	roles, _ := value.([]string)
+	for _, r := range roles {
+		switch r {
+		case middleware.RoleManager, middleware.RoleBoardMember,
+			middleware.RoleAuditor, middleware.RoleSuperAdmin:
+			return true
+		}
+	}
+	return false
 }
 
-func getSurveyStats(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "survey")
-}
-
-func getSurvey(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "survey")
-}
-
-func getSurveyResults(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "survey")
-}
-
-func getSurveyVotes(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "survey")
-}
-
-func createSurvey(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "survey")
-}
-
-func updateSurvey(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "survey")
-}
-
-func deleteSurvey(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "survey")
-}
-
-func publishSurvey(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "survey")
-}
-
-func endSurvey(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "survey")
-}
-
-func voteSurvey(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "survey")
-}
-
-func getMyVote(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "survey")
-}
-
-func getMySurveys(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "survey")
-}
-
-func getPendingVotes(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "survey")
+func fail(c *gin.Context, err error, op string) {
+	switch {
+	case errors.Is(err, repository.ErrNotFound):
+		c.JSON(http.StatusNotFound, gin.H{"error": "Anket bulunamadı"})
+	case errors.Is(err, repository.ErrGeneralAssembly):
+		// En önemli reddetme: hukuken geçersiz bir "karar" üretilmesini engeller.
+		c.JSON(http.StatusUnprocessableEntity, gin.H{
+			"error": "Genel kurul kararı bu servisten alınamaz",
+			"note": "Kat malikleri kurulu kararı için governance servisini kullanın: " +
+				"çağrı, yeter sayı (KMK m.30/31) ve karar defteri (m.32) orada işlenir.",
+			"legal_basis": "634 s. KMK m.29-32",
+		})
+	case errors.Is(err, repository.ErrNeedsTwoOptions):
+		c.JSON(http.StatusUnprocessableEntity, gin.H{
+			"error": "Anket en az iki seçenek içermelidir"})
+	case errors.Is(err, repository.ErrAlreadyVoted):
+		c.JSON(http.StatusConflict, gin.H{"error": "Bu ankete zaten oy verdiniz"})
+	case errors.Is(err, repository.ErrNotEligible):
+		c.JSON(http.StatusForbidden, gin.H{
+			"error": "Bu oylamada oy hakkınız yok",
+			"note": "Karar oylamalarında (VOTE) oy hakkı kat maliklerine aittir ve " +
+				"bağımsız bölüm başına bir oydur (634 s. KMK m.31/1).",
+		})
+	case errors.Is(err, repository.ErrNotStarted):
+		c.JSON(http.StatusConflict, gin.H{"error": "Oylama henüz başlamadı"})
+	case errors.Is(err, repository.ErrEnded):
+		c.JSON(http.StatusConflict, gin.H{"error": "Oylama sona erdi"})
+	case errors.Is(err, repository.ErrInvalidOption):
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "Seçenek bu ankete ait değil"})
+	case errors.Is(err, repository.ErrBadState):
+		c.JSON(http.StatusConflict, gin.H{
+			"error": "Anket bu işlem için uygun durumda değil", "valid_types": repository.Types})
+	case errors.Is(err, repository.ErrInvalidDate):
+		c.JSON(http.StatusUnprocessableEntity, gin.H{
+			"error": "Tarihler geçersiz (RFC3339 bekleniyor; bitiş, başlangıçtan sonra olmalı)"})
+	default:
+		log.Printf("[survey] %s başarısız: %v", op, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "İşlem tamamlanamadı"})
+	}
 }

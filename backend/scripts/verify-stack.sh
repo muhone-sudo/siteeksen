@@ -43,6 +43,8 @@ PKG_PID=""
 CTR_PID=""
 DOC_PID=""
 AST_PID=""
+INV_PID=""
+SRV_PID=""
 
 ok()   { echo "  [GEÇTİ]    $1"; PASS=$((PASS+1)); }
 bad()  { echo "  [BAŞARISIZ] $1"; FAIL=$((FAIL+1)); }
@@ -91,6 +93,8 @@ cleanup() {
   kill_tree "$CTR_PID"
   kill_tree "$DOC_PID"
   kill_tree "$AST_PID"
+  kill_tree "$INV_PID"
+  kill_tree "$SRV_PID"
   rm -rf /tmp/verify-docs
   docker rm -f "$CNAME" >/dev/null 2>&1
 }
@@ -102,7 +106,7 @@ command -v go     >/dev/null || { echo "go bulunamadı (PATH'e /usr/local/go/bin
 
 # Kalıntı süpürme: yarıda kesilmiş bir çalıştırmadan kalan servisler
 # portları tutuyorsa, testler eski süreçlere çarpar ve sonuç rastgele değişir.
-for _p in 18087 18090 18091 18092 18093 18094 18097 18098 18099 18100 18105 18107 18191; do
+for _p in 18087 18089 18090 18104 18091 18092 18093 18094 18097 18098 18099 18100 18105 18107 18191; do
   free_port "$_p"
 done
 
@@ -1871,6 +1875,369 @@ else
   bad "asset-service başlamadı"; tail -15 /tmp/verify-asset.log
 fi
 kill_tree "$AST_PID"
+
+step "21) Stok modülü — mock'tan gerçeğe (FAZ 5, 10/22)"
+# Önceki davranış: sabit stok listesi; hareket istekleri kaydedilmiyordu, yani
+# stok sayısı hiç değişmiyordu. Kritik nokta: stok güncellemesi hareket kaydıyla
+# AYNI transaction'da ve satır kilitlenerek yapılmalı — yoksa eşzamanlı iki çıkış
+# depoda olmayan malzemeyi kayıtta bırakır.
+INVPORT=${VERIFY_INV_PORT:-18089}
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen DB_PASSWORD="$PW" DB_NAME=siteeksen \
+DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${INVPORT} \
+  go run ./services/inventory >/tmp/verify-inventory.log 2>&1 &
+INV_PID=$!
+IUP=0
+for _ in $(seq 1 45); do
+  curl -fsS "http://127.0.0.1:${INVPORT}/health" >/dev/null 2>&1 && { IUP=1; break; }
+  sleep 1
+done
+
+if [ "$IUP" = "1" ] && [ -n "${MGR:-}" ] && [ -n "${TEN:-}" ]; then
+  ok "inventory-service ayağa kalktı"
+  IA="Authorization: Bearer $MGR"
+  IT="Authorization: Bearer $TEN"
+  IJ='Content-Type: application/json'
+  IURL="http://127.0.0.1:${INVPORT}/api/v1"
+
+  # 1) Kategori ve kalem
+  ICAT=$(curl -s -X POST "$IURL/inventory-categories" -H "$IA" -H "$IJ" -d '{"name":"Temizlik"}')
+  ICATID=$(echo "$ICAT" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+  [ -n "$ICATID" ] && ok "stok kategorisi oluşturuldu" || bad "kategori: $ICAT"
+
+  I1=$(curl -s -X POST "$IURL/inventory" -H "$IA" -H "$IJ" -d "{
+    \"category_id\":\"$ICATID\",\"name\":\"Camasir suyu\",\"unit\":\"LT\",
+    \"sku\":\"TMZ-001\",\"minimum_stock\":\"10\",\"warehouse\":\"Ana depo\"}")
+  I1ID=$(echo "$I1" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+  [ -n "$I1ID" ] && ok "stok kalemi oluşturuldu ve KALICI" || bad "kalem: $I1"
+  echo "$I1" | grep -q '"current_stock":"0"' && ok "açılış stoğu sıfır (her miktar bir harekete dayanır)" \
+    || bad "açılış stoğu sıfır değil: $I1"
+
+  # Geçersiz birim reddedilmeli
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$IURL/inventory" -H "$IA" -H "$IJ" \
+    -d '{"name":"X","unit":"litre"}')
+  [ "$SC" = "422" ] && ok "geçersiz birim reddedildi → 422" || bad "geçersiz birim → $SC"
+
+  if [ -n "$I1ID" ]; then
+    # 2) Giriş — 100 LT × 50 TL
+    M1=$(curl -s -X POST "$IURL/inventory/$I1ID/movements" -H "$IA" -H "$IJ" -d '{
+      "movement_type":"IN","quantity":"100","unit_price":50,
+      "reference_type":"PURCHASE","reference_number":"FTR-2026-1","vendor":"Ornek Kimya"}')
+    echo "$M1" | grep -q '"new_stock":"100"' && ok "giriş hareketi stoğu gerçekten artırdı (0 → 100)" \
+      || bad "giriş: $M1"
+    DBS=$($PSQL -t -A -c "SELECT current_stock::numeric(12,0) FROM inventory_items WHERE id='$I1ID';")
+    [ "$DBS" = "100" ] && ok "stok veritabanına yazıldı (mock değil)" || bad "veritabanı stoğu: $DBS"
+
+    # 3) Ağırlıklı ortalama maliyet — 100×50 + 100×70 → 60
+    M2=$(curl -s -X POST "$IURL/inventory/$I1ID/movements" -H "$IA" -H "$IJ" -d '{
+      "movement_type":"IN","quantity":"100","unit_price":70,"reference_type":"PURCHASE"}')
+    echo "$M2" | grep -q '"unit_price":60' \
+      && ok "birim maliyet ağırlıklı ortalamayla güncellendi ((100×50+100×70)/200 = 60 TL)" \
+      || bad "ağırlıklı ortalama yanlış: $M2"
+    LASTP=$($PSQL -t -A -c "SELECT last_purchase_price::numeric(12,0) FROM inventory_items WHERE id='$I1ID';")
+    [ "$LASTP" = "70" ] && ok "son alış fiyatı ayrıca saklanıyor" || bad "son alış fiyatı: $LASTP"
+
+    # Stok değeri = 200 × 60 = 12.000
+    GI=$(curl -s "$IURL/inventory/$I1ID" -H "$IA")
+    echo "$GI" | grep -q '"stock_value":12000' && ok "stok değeri ortalama maliyetle hesaplanıyor (12.000 TL)" \
+      || bad "stok değeri: $GI"
+
+    # 4) Çıkış
+    M3=$(curl -s -X POST "$IURL/inventory/$I1ID/movements" -H "$IA" -H "$IJ" -d '{
+      "movement_type":"OUT","quantity":"30","reference_type":"USAGE","notes":"A blok temizlik"}')
+    echo "$M3" | grep -q '"new_stock":"170"' && ok "çıkış hareketi stoğu azalttı (200 → 170)" \
+      || bad "çıkış: $M3"
+
+    # 5) NEGATİF STOK YASAK
+    NEG=$(curl -s -w '\n%{http_code}' -X POST "$IURL/inventory/$I1ID/movements" -H "$IA" -H "$IJ" \
+      -d '{"movement_type":"OUT","quantity":"1000"}')
+    NEGCODE=$(echo "$NEG" | tail -1)
+    [ "$NEGCODE" = "409" ] && ok "stoktan fazla çıkış engellendi → 409" || bad "negatif stok oluştu → $NEGCODE"
+    echo "$NEG" | grep -q 'ADJUST' && ok "kullanıcıya doğru yol (sayım düzeltmesi) gösteriliyor" \
+      || bad "yönlendirme notu yok"
+    DBS2=$($PSQL -t -A -c "SELECT current_stock::numeric(12,0) FROM inventory_items WHERE id='$I1ID';")
+    [ "$DBS2" = "170" ] && ok "reddedilen çıkış stoğu değiştirmedi" || bad "stok bozuldu: $DBS2"
+
+    # 6) EŞZAMANLILIK — 10 paralel çıkış × 10 LT; stok tam olarak 70 olmalı
+    # NOT: çıplak `wait` kullanılmaz — kabuğun tüm arka plan çocuklarını, yani
+    # doğrulama boyunca ayakta tutulan servisleri de bekler ve betik asılı kalır.
+    # Yalnızca bu döngüde başlatılan işler beklenir.
+    CONC_PIDS=""
+    for _i in $(seq 1 10); do
+      curl -s -o /dev/null -X POST "$IURL/inventory/$I1ID/movements" -H "$IA" -H "$IJ" \
+        -d '{"movement_type":"OUT","quantity":"10","reference_type":"USAGE"}' &
+      CONC_PIDS="$CONC_PIDS $!"
+    done
+    for _p in $CONC_PIDS; do wait "$_p" 2>/dev/null; done
+    CONC=$($PSQL -t -A -c "SELECT current_stock::numeric(12,0) FROM inventory_items WHERE id='$I1ID';")
+    [ "$CONC" = "70" ] && ok "10 eşzamanlı çıkış kayıp/çift sayım olmadan işlendi (170 → 70)" \
+      || bad "eşzamanlı çıkışta stok bozuldu: $CONC (70 bekleniyordu)"
+    MCOUNT=$($PSQL -t -A -c "SELECT count(*) FROM inventory_movements WHERE item_id='$I1ID';")
+    [ "$MCOUNT" = "13" ] && ok "her miktar değişikliği bir hareket kaydı üretti (13 kayıt)" \
+      || bad "hareket sayısı: $MCOUNT (13 bekleniyordu)"
+
+    # Kayıp güncelleme (lost update) denetimi: eşzamanlı 10 çıkış, 170'ten
+    # başlayarak 160,150,...,70 sonuçlarını üretmek zorundadır. İki istek aynı
+    # stoğu okusaydı aynı sonucu yazar ve bu küme eksik kalırdı.
+    DISTINCT=$($PSQL -t -A -c "SELECT count(DISTINCT new_stock) FROM inventory_movements
+      WHERE item_id='$I1ID' AND movement_type='OUT' AND quantity = 10;")
+    [ "$DISTINCT" = "10" ] && ok "eşzamanlı çıkışların hiçbiri aynı stoğu okumadı (10 ayrı sonuç)" \
+      || bad "kayıp güncelleme: $DISTINCT ayrı sonuç (10 bekleniyordu)"
+
+    # Her hareketin kendi içinde tutarlı olduğu: önceki − miktar = sonraki
+    BROKEN=$($PSQL -t -A -c "SELECT count(*) FROM inventory_movements
+      WHERE item_id='$I1ID' AND movement_type='OUT'
+        AND previous_stock - quantity <> new_stock;")
+    [ "$BROKEN" = "0" ] && ok "her çıkış hareketi kendi içinde tutarlı (önceki − miktar = sonraki)" \
+      || bad "$BROKEN hareket kaydı tutarsız"
+
+    # 7) Sayım düzeltmesi — gerekçe zorunlu, yalnızca yönetim
+    SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$IURL/inventory/$I1ID/movements" -H "$IA" -H "$IJ" \
+      -d '{"movement_type":"ADJUST","quantity":"65"}')
+    [ "$SC" = "400" ] && ok "gerekçesiz sayım düzeltmesi engellendi → 400" || bad "gerekçesiz ADJUST → $SC"
+
+    M4=$(curl -s -X POST "$IURL/inventory/$I1ID/movements" -H "$IA" -H "$IJ" \
+      -d '{"movement_type":"ADJUST","quantity":"65","notes":"Yillik sayim: 5 LT fire"}')
+    echo "$M4" | grep -q '"new_stock":"65"' && ok "sayım düzeltmesi stoğu hedef değere getirdi" \
+      || bad "ADJUST: $M4"
+    ADJ=$($PSQL -t -A -c "SELECT notes FROM inventory_movements WHERE item_id='$I1ID' AND movement_type='ADJUST';")
+    echo "$ADJ" | grep -q '5 LT fire' && ok "sayım farkının gerekçesi kayda geçti" || bad "gerekçe kaydı: $ADJ"
+
+    # 8) Asgari seviye uyarısı
+    M5=$(curl -s -X POST "$IURL/inventory/$I1ID/movements" -H "$IA" -H "$IJ" \
+      -d '{"movement_type":"OUT","quantity":"60","reference_type":"USAGE"}')
+    echo "$M5" | grep -q '"below_minimum":true' && ok "asgari seviyenin altına düşüş bildiriliyor" \
+      || bad "asgari seviye uyarısı yok: $M5"
+    echo "$M5" | grep -q 'BİLDİRİM OLARAK GÖNDERİLMEDİ' \
+      && ok "uyarının bildirim olarak gönderilmediği dürüstçe söyleniyor" || bad "bildirim dürüstlük notu yok"
+    LOW=$(curl -s "$IURL/inventory?below_minimum=true" -H "$IA")
+    echo "$LOW" | grep -q 'Camasir suyu' && ok "asgari seviye altı süzgeci çalışıyor" || bad "süzgeç: $LOW"
+  fi
+
+  # 9) Özet
+  ISUM=$(curl -s "$IURL/inventory-summary" -H "$IA")
+  echo "$ISUM" | grep -q '"purchase_cost_ytd_try":12000' && ok "yıl içi alım maliyeti doğru (5.000+7.000)" \
+    || bad "alım maliyeti: $ISUM"
+  echo "$ISUM" | grep -q '"below_minimum":1' && ok "özet asgari seviye altındakileri sayıyor" \
+    || bad "özet asgari seviye: $ISUM"
+
+  # 10) Yetki — sayım düzeltmesi görevliye kapalı olmalı
+  SC=$(curl -s -o /dev/null -w '%{http_code}' "$IURL/inventory" -H "$IT")
+  [ "$SC" = "403" ] && ok "sakin stok listesini göremiyor → 403" || bad "sakin stok gördü → $SC"
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$IURL/inventory/$I1ID/movements" -H "$IT" -H "$IJ" \
+    -d '{"movement_type":"OUT","quantity":"1"}')
+  [ "$SC" = "403" ] && ok "sakin stok hareketi giremiyor → 403" || bad "sakin hareket girdi → $SC"
+  SC=$(curl -s -o /dev/null -w '%{http_code}' "$IURL/inventory")
+  [ "$SC" = "401" ] && ok "kimliksiz stok erişimi engellendi → 401" || bad "kimliksiz erişim → $SC"
+
+  # 11) Pasife alma — kayıt ve hareketler silinmez
+  if [ -n "$I1ID" ]; then
+    SC=$(curl -s -o /dev/null -w '%{http_code}' -X DELETE "$IURL/inventory/$I1ID" -H "$IA" -H "$IJ" -d '{}')
+    [ "$SC" = "400" ] && ok "gerekçesiz pasife alma engellendi → 400" || bad "gerekçesiz pasife alma → $SC"
+    SC=$(curl -s -o /dev/null -w '%{http_code}' -X DELETE "$IURL/inventory/$I1ID" -H "$IA" -H "$IJ" \
+      -d '{"reason":"Artik kullanilmiyor"}')
+    [ "$SC" = "200" ] && ok "stok kalemi pasife alındı" || bad "pasife alma → $SC"
+    STILL=$($PSQL -t -A -c "SELECT count(*) FROM inventory_movements WHERE item_id='$I1ID';")
+    [ "$STILL" -ge 13 ] && ok "pasife alınan kalemin hareket geçmişi korundu ($STILL kayıt)" \
+      || bad "hareket geçmişi silindi: $STILL"
+    SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$IURL/inventory/$I1ID/movements" -H "$IA" -H "$IJ" \
+      -d '{"movement_type":"IN","quantity":"1"}')
+    [ "$SC" = "409" ] && ok "pasif kaleme hareket girilemiyor → 409" || bad "pasif kaleme hareket → $SC"
+  fi
+else
+  bad "inventory-service başlamadı"; tail -15 /tmp/verify-inventory.log
+fi
+kill_tree "$INV_PID"
+
+step "22) Anket/oylama modülü — mock'tan gerçeğe (FAZ 5, 11/22)"
+# Önceki davranış: sabit anket ve SABİT SONUÇ — kimse oy vermese bile "%68 evet".
+# En kritik kural: bu servisten alınan sonuç GENEL KURUL KARARI DEĞİLDİR
+# (KMK m.29-32); GENERAL_ASSEMBLY türü bilerek reddedilir.
+SRVPORT=${VERIFY_SRV_PORT:-18104}
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen DB_PASSWORD="$PW" DB_NAME=siteeksen \
+DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${SRVPORT} \
+  go run ./services/survey >/tmp/verify-survey.log 2>&1 &
+SRV_PID=$!
+SUP=0
+for _ in $(seq 1 45); do
+  curl -fsS "http://127.0.0.1:${SRVPORT}/health" >/dev/null 2>&1 && { SUP=1; break; }
+  sleep 1
+done
+
+if [ "$SUP" = "1" ] && [ -n "${MGR:-}" ] && [ -n "${TEN:-}" ]; then
+  ok "survey-service ayağa kalktı"
+  SA="Authorization: Bearer $MGR"
+  ST_="Authorization: Bearer $TEN"
+  SJ='Content-Type: application/json'
+  SURL="http://127.0.0.1:${SRVPORT}/api/v1"
+
+  # 1) HUKUKİ SINIR — genel kurul kararı bu servisten alınamaz
+  GA=$(curl -s -w '\n%{http_code}' -X POST "$SURL/surveys" -H "$SA" -H "$SJ" -d '{
+    "title":"Yonetici secimi","survey_type":"GENERAL_ASSEMBLY",
+    "options":["Aday A","Aday B"]}')
+  GACODE=$(echo "$GA" | tail -1)
+  [ "$GACODE" = "422" ] && ok "GENERAL_ASSEMBLY anketi reddedildi → 422" \
+    || bad "genel kurul anketi kabul edildi → $GACODE"
+  echo "$GA" | grep -q 'KMK m.29-32' && ok "reddin hukuki dayanağı bildiriliyor" || bad "hukuki dayanak yok"
+  echo "$GA" | grep -q 'governance' && ok "kullanıcı doğru servise yönlendiriliyor" || bad "yönlendirme yok"
+
+  # 2) En az iki seçenek
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$SURL/surveys" -H "$SA" -H "$SJ" \
+    -d '{"title":"Tek secenek","options":["Evet"]}')
+  [ "$SC" = "422" ] && ok "tek seçenekli anket reddedildi → 422" || bad "tek seçenek kabul edildi → $SC"
+
+  # 3) Görüş yoklaması (POLL) — taslak olarak oluşur
+  S1=$(curl -s -X POST "$SURL/surveys" -H "$SA" -H "$SJ" -d '{
+    "title":"Bahce duzenlemesi tercihi","survey_type":"POLL",
+    "options":["Cim alan","Cocuk parki","Otopark"],"allow_comments":true}')
+  S1ID=$(echo "$S1" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+  [ -n "$S1ID" ] && ok "anket oluşturuldu ve KALICI" || bad "anket: $S1"
+  echo "$S1" | grep -q '"status":"DRAFT"' && ok "anket taslak olarak açılıyor" || bad "durum taslak değil"
+  echo "$S1" | grep -q 'GENEL KURUL KARARI DEĞİLDİR' && ok "hukuki uyarı yanıtta veriliyor" \
+    || bad "hukuki uyarı yok"
+
+  if [ -n "$S1ID" ]; then
+    DBC=$($PSQL -t -A -c "SELECT count(*) FROM surveys WHERE id='$S1ID';")
+    [ "$DBC" = "1" ] && ok "anket veritabanında (mock değil)" || bad "kayıt yok"
+    OPTC=$($PSQL -t -A -c "SELECT count(*) FROM survey_options WHERE survey_id='$S1ID';")
+    [ "$OPTC" = "3" ] && ok "seçenekler kaydedildi (3 adet)" || bad "seçenek sayısı: $OPTC"
+
+    # 4) Taslak sakinlere görünmemeli
+    SC=$(curl -s -o /dev/null -w '%{http_code}' "$SURL/surveys/$S1ID" -H "$ST_")
+    [ "$SC" = "404" ] && ok "yayınlanmamış anket sakine görünmüyor → 404" || bad "taslak sakine göründü → $SC"
+    TL=$(curl -s "$SURL/surveys" -H "$ST_")
+    echo "$TL" | grep -q 'Bahce duzenlemesi' && bad "taslak sakin listesinde" || ok "taslak sakin listesinde değil"
+
+    # Yayınlanmadan oy verilemez
+    OPT1=$($PSQL -t -A -c "SELECT id FROM survey_options WHERE survey_id='$S1ID' ORDER BY display_order LIMIT 1;")
+    SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$SURL/surveys/$S1ID/vote" -H "$ST_" -H "$SJ" \
+      -d "{\"option_id\":\"$OPT1\"}")
+    [ "$SC" = "409" ] && ok "yayınlanmamış ankete oy verilemiyor → 409" || bad "taslağa oy verildi → $SC"
+
+    # 5) Yayına al
+    SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$SURL/surveys/$S1ID/publish" -H "$SA" -H "$SJ" -d '{}')
+    [ "$SC" = "200" ] && ok "anket yayına alındı" || bad "yayınlama → $SC"
+
+    # 6) Oy verme — sonuç OYLARDAN hesaplanmalı
+    V1=$(curl -s -X POST "$SURL/surveys/$S1ID/vote" -H "$ST_" -H "$SJ" \
+      -d "{\"option_id\":\"$OPT1\",\"comment\":\"Cocuklar icin daha iyi olur\"}")
+    echo "$V1" | grep -q 'Oyunuz kaydedildi' && ok "sakin oy verebildi" || bad "oy: $V1"
+    DBV=$($PSQL -t -A -c "SELECT count(*) FROM survey_votes WHERE survey_id='$S1ID';")
+    [ "$DBV" = "1" ] && ok "oy veritabanına yazıldı" || bad "oy sayısı: $DBV"
+
+    # Aynı kişi ikinci kez oy veremez
+    SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$SURL/surveys/$S1ID/vote" -H "$ST_" -H "$SJ" \
+      -d "{\"option_id\":\"$OPT1\"}")
+    [ "$SC" = "409" ] && ok "aynı kişi ikinci kez oy veremiyor → 409" || bad "çift oy → $SC"
+
+    # Başka ankete ait seçenekle oy verilemez
+    SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$SURL/surveys/$S1ID/vote" -H "$SA" -H "$SJ" \
+      -d '{"option_id":"00000000-0000-0000-0000-000000000001"}')
+    [ "$SC" = "422" ] && ok "yabancı seçenekle oy verilemiyor → 422" || bad "yabancı seçenek → $SC"
+
+    # 7) Sonuçlar bitmeden sakine kapalı (varsayılan)
+    R1=$(curl -s "$SURL/surveys/$S1ID" -H "$ST_")
+    echo "$R1" | grep -q '"results_visible":false' && ok "sonuçlar oylama bitmeden sakine kapalı" \
+      || bad "erken sonuç sızdırıldı: $R1"
+    echo "$R1" | grep -q '"vote_count"' && bad "kapalı olmasına rağmen oy sayısı döndü" \
+      || ok "kapalıyken oy sayıları yanıtta yok"
+    R2=$(curl -s "$SURL/surveys/$S1ID" -H "$SA")
+    echo "$R2" | grep -q '"results_visible":true' && ok "yönetim sonuçları görebiliyor" || bad "yönetim sonucu: $R2"
+
+    # 8) Anonimlik — yorumda isim verilmemeli, ama dürüstçe açıklanmalı
+    CM=$(curl -s "$SURL/surveys/$S1ID/comments" -H "$SA")
+    echo "$CM" | grep -q 'Cocuklar icin daha iyi olur' && ok "yorum kaydedildi" || bad "yorum: $CM"
+    echo "$CM" | grep -q 'Mehmet' && bad "anonim ankette yorum sahibinin adı sızdı" \
+      || ok "anonim ankette yorum sahibi gizli"
+    echo "$R2" | grep -q 'mutlak anonimlik değildir' && ok "anonimliğin sınırı dürüstçe açıklanıyor" \
+      || bad "anonimlik notu yok"
+
+    # 9) Sonlandır → sonuçlar açılır ve oylardan hesaplanır
+    SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$SURL/surveys/$S1ID/close" -H "$SA" -H "$SJ" -d '{}')
+    [ "$SC" = "200" ] && ok "oylama sonlandırıldı" || bad "sonlandırma → $SC"
+    R3=$(curl -s "$SURL/surveys/$S1ID" -H "$ST_")
+    echo "$R3" | grep -q '"results_visible":true' && ok "bitişten sonra sonuçlar açıldı" || bad "sonuç açılmadı"
+    echo "$R3" | grep -q '"percentage":"100.00"' && ok "yüzde OYLARDAN hesaplandı (tek oy → %100)" \
+      || bad "yüzde hesabı: $R3"
+
+    # Saklanan sayaç kolonu KULLANILMAMALI
+    $PSQL -c "UPDATE survey_options SET vote_count=999, percentage=99 WHERE survey_id='$S1ID';" >/dev/null 2>&1
+    R4=$(curl -s "$SURL/surveys/$S1ID" -H "$SA")
+    echo "$R4" | grep -q '"vote_count":999' && bad "sonuç bayat sayaç kolonundan okunuyor" \
+      || ok "sonuç bayat sayaç kolonundan OKUNMUYOR, oylardan hesaplanıyor"
+
+    # Bitmiş ankete oy verilemez
+    SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$SURL/surveys/$S1ID/vote" -H "$SA" -H "$SJ" \
+      -d "{\"option_id\":\"$OPT1\"}")
+    [ "$SC" = "409" ] && ok "bitmiş ankete oy verilemiyor → 409" || bad "bitmiş ankete oy → $SC"
+  fi
+
+  # 10) KARAR OYLAMASI (VOTE) — yalnızca kat malikleri, arsa payı ağırlıklı
+  S2=$(curl -s -X POST "$SURL/surveys" -H "$SA" -H "$SJ" -d '{
+    "title":"Cati yalitimi teklifi","survey_type":"VOTE","is_weighted":true,
+    "options":["Kabul","Ret"],"show_results_before_end":true}')
+  S2ID=$(echo "$S2" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+  echo "$S2" | grep -q 'ARSA PAYIDIR' && ok "ağırlıklandırmanın arsa payı olduğu bildiriliyor" \
+    || bad "ağırlık notu yok: $S2"
+
+  if [ -n "$S2ID" ]; then
+    # Uygun seçmen sayısı BAĞIMSIZ BÖLÜM başına sayılmalı (KMK m.31/1)
+    ELIG=$($PSQL -t -A -c "SELECT total_eligible_voters FROM surveys WHERE id='$S2ID';")
+    OWNERUNITS=$($PSQL -t -A -c "SELECT count(DISTINCT ru.unit_id) FROM resident_units ru
+      JOIN units u ON u.id=ru.unit_id
+      WHERE u.property_id='11111111-1111-1111-1111-111111111111'
+        AND ru.is_active AND ru.role='OWNER';")
+    [ "$ELIG" = "$OWNERUNITS" ] && ok "oy hakkı bağımsız bölüm başına sayıldı (KMK m.31/1): $ELIG" \
+      || bad "uygun seçmen sayısı: $ELIG (beklenen $OWNERUNITS)"
+
+    curl -s -o /dev/null -X POST "$SURL/surveys/$S2ID/publish" -H "$SA" -H "$SJ" -d '{}'
+    OPT2=$($PSQL -t -A -c "SELECT id FROM survey_options WHERE survey_id='$S2ID' ORDER BY display_order LIMIT 1;")
+
+    # Kiracı karar oylamasına KATILAMAZ
+    TV=$(curl -s -w '\n%{http_code}' -X POST "$SURL/surveys/$S2ID/vote" -H "$ST_" -H "$SJ" \
+      -d "{\"option_id\":\"$OPT2\"}")
+    TVCODE=$(echo "$TV" | tail -1)
+    [ "$TVCODE" = "403" ] && ok "kiracı karar oylamasına oy veremiyor → 403" || bad "kiracı oy verdi → $TVCODE"
+    echo "$TV" | grep -q 'KMK m.31/1' && ok "oy hakkı sınırının dayanağı bildiriliyor" || bad "dayanak yok"
+
+    # Kat maliki oy verir; ağırlık ARSA PAYI olmalı
+    OV=$(curl -s -X POST "$SURL/surveys/$S2ID/vote" -H "$SA" -H "$SJ" \
+      -d "{\"option_id\":\"$OPT2\"}")
+    SHARE=$($PSQL -t -A -c "SELECT share_ratio::numeric(10,0) FROM units
+      WHERE id='33333333-3333-3333-3333-333333333303';")
+    echo "$OV" | grep -q "\"weight\":\"$SHARE" && ok "oy ağırlığı arsa payından alındı ($SHARE)" \
+      || bad "oy ağırlığı beklenmedik: $OV (arsa payı $SHARE)"
+    DBW=$($PSQL -t -A -c "SELECT weight::numeric(10,0) FROM survey_votes WHERE survey_id='$S2ID';")
+    [ "$DBW" = "$SHARE" ] && ok "ağırlık veritabanına arsa payı olarak yazıldı" || bad "veritabanı ağırlığı: $DBW"
+
+    # show_results_before_end=true ise sakin sonucu görebilmeli
+    RS=$(curl -s "$SURL/surveys/$S2ID" -H "$ST_")
+    echo "$RS" | grep -q '"results_visible":true' && ok "erken sonuç ayarı açıkken sonuç görünüyor" \
+      || bad "erken sonuç ayarı çalışmıyor"
+    echo "$RS" | grep -q '"weighted_share"' && ok "ağırlıklı oylamada ağırlık payı raporlanıyor" \
+      || bad "ağırlıklı pay yok"
+  fi
+
+  # 11) Yetki ve kimlik
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$SURL/surveys" -H "$ST_" -H "$SJ" \
+    -d '{"title":"X","options":["a","b"]}')
+  [ "$SC" = "403" ] && ok "sakin anket açamıyor → 403" || bad "sakin anket açtı → $SC"
+  SC=$(curl -s -o /dev/null -w '%{http_code}' "$SURL/surveys")
+  [ "$SC" = "401" ] && ok "kimliksiz anket erişimi engellendi → 401" || bad "kimliksiz erişim → $SC"
+
+  # 12) İptal — oylar silinmez
+  if [ -n "$S2ID" ]; then
+    SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$SURL/surveys/$S2ID/cancel" -H "$SA" -H "$SJ" -d '{}')
+    [ "$SC" = "400" ] && ok "gerekçesiz iptal engellendi → 400" || bad "gerekçesiz iptal → $SC"
+    SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$SURL/surveys/$S2ID/cancel" -H "$SA" -H "$SJ" \
+      -d '{"reason":"Teklif geri cekildi"}')
+    [ "$SC" = "200" ] && ok "anket iptal edildi" || bad "iptal → $SC"
+    VOTESLEFT=$($PSQL -t -A -c "SELECT count(*) FROM survey_votes WHERE survey_id='$S2ID';")
+    [ "$VOTESLEFT" = "1" ] && ok "iptalde oylar silinmedi" || bad "oylar silindi: $VOTESLEFT"
+  fi
+else
+  bad "survey-service başlamadı"; tail -15 /tmp/verify-survey.log
+fi
+kill_tree "$SRV_PID"
 
 step "SONUÇ"
 echo "  Geçen: $PASS   Başarısız: $FAIL"
