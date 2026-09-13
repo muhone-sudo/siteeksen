@@ -1,273 +1,300 @@
+// asset-service — Demirbaş (sabit kıymet) envanteri, bakım takibi ve amortisman.
+//
+// DURUM DEĞİŞİKLİĞİ (2026-09-13): Bu servis mock'tu; sabit demirbaş listesi
+// döndürüyor ve yazma isteklerine 2xx dönüp hiçbir yere kaydetmiyordu.
+// Artık gerçek veri katmanına bağlıdır (FAZ 5 — 9/22).
+//
+// Neden önemli (hukuki çerçeve):
+//   - KMK m.36: yönetici, işletme defterini ve BELGELERİ kat maliklerinin
+//     incelemesine hazır bulundurur; demirbaş listesi bunun parçasıdır.
+//   - KMK m.34/m.38: yönetici değişiminde demirbaş DEVREDİLİR. Devrin
+//     yapılabilmesi için envanterin ve defter değerinin güncel olması gerekir.
+//   - KMK m.45: ortak yerler üzerinde temliki tasarruf (satış/devir) OYBİRLİĞİ
+//     ister. Bu yüzden kayıttan düşme, karar dayanağı olmadan kaydedilmez.
+//   - KMK m.37: bakım gideri işletme projesinin kalemidir; yıl içi gerçekleşen
+//     bakım maliyeti özet ucunda verilir.
+//
+// Amortisman DEFTERDE SAKLANMAZ, her okumada hesaplanır: saklanan değer zamanla
+// sessizce yanlışa döner ve yanlış defter değeri devir/bütçe konuşmasını bozar.
 package main
 
 import (
+	"errors"
 	"log"
+	"net/http"
 	"os"
+	"strconv"
 	"time"
 
-	"github.com/siteeksen/backend/pkg/stub"
-
 	"github.com/gin-gonic/gin"
+	"github.com/siteeksen/backend/pkg/database"
+	"github.com/siteeksen/backend/pkg/middleware"
+	"github.com/siteeksen/backend/services/asset/repository"
+	assetsvc "github.com/siteeksen/backend/services/asset/service"
 )
 
-// =====================================================
-// MODELS
-// =====================================================
-
-type Asset struct {
-	ID                      string    `json:"id"`
-	PropertyID              string    `json:"property_id"`
-	CategoryID              string    `json:"category_id,omitempty"`
-	CategoryName            string    `json:"category_name,omitempty"`
-	Name                    string    `json:"name"`
-	Description             string    `json:"description,omitempty"`
-	AssetCode               string    `json:"asset_code,omitempty"`
-	SerialNumber            string    `json:"serial_number,omitempty"`
-	Barcode                 string    `json:"barcode,omitempty"`
-	QRCode                  string    `json:"qr_code,omitempty"`
-	PhotoURLs               []string  `json:"photo_urls,omitempty"`
-	Location                string    `json:"location,omitempty"`
-	Building                string    `json:"building,omitempty"`
-	Floor                   string    `json:"floor,omitempty"`
-	Room                    string    `json:"room,omitempty"`
-	PurchaseDate            string    `json:"purchase_date,omitempty"`
-	PurchasePrice           float64   `json:"purchase_price,omitempty"`
-	PurchaseInvoice         string    `json:"purchase_invoice,omitempty"`
-	Vendor                  string    `json:"vendor,omitempty"`
-	WarrantyStart           string    `json:"warranty_start,omitempty"`
-	WarrantyEnd             string    `json:"warranty_end,omitempty"`
-	DepreciationMethod      string    `json:"depreciation_method,omitempty"`
-	DepreciationYears       int       `json:"depreciation_years,omitempty"`
-	ResidualValue           float64   `json:"residual_value,omitempty"`
-	CurrentValue            float64   `json:"current_value,omitempty"`
-	AccumulatedDepreciation float64   `json:"accumulated_depreciation,omitempty"`
-	Condition               string    `json:"condition"` // NEW, GOOD, FAIR, POOR, DISPOSED
-	Status                  string    `json:"status"`    // ACTIVE, IN_MAINTENANCE, RESERVED, DISPOSED
-	AssignedTo              string    `json:"assigned_to,omitempty"`
-	AssignedToID            string    `json:"assigned_to_id,omitempty"`
-	AssignedAt              string    `json:"assigned_at,omitempty"`
-	LastMaintenanceDate     string    `json:"last_maintenance_date,omitempty"`
-	NextMaintenanceDate     string    `json:"next_maintenance_date,omitempty"`
-	MaintenanceIntervalDays int       `json:"maintenance_interval_days,omitempty"`
-	Notes                   string    `json:"notes,omitempty"`
-	CreatedAt               time.Time `json:"created_at"`
-	UpdatedAt               time.Time `json:"updated_at"`
-}
-
-type AssetCategory struct {
-	ID                string `json:"id"`
-	PropertyID        string `json:"property_id,omitempty"`
-	Name              string `json:"name"`
-	Description       string `json:"description,omitempty"`
-	DepreciationYears int    `json:"depreciation_years"`
-	ParentID          string `json:"parent_id,omitempty"`
-	AssetCount        int    `json:"asset_count,omitempty"`
-}
-
-type AssetMaintenance struct {
-	ID              string    `json:"id"`
-	AssetID         string    `json:"asset_id"`
-	AssetName       string    `json:"asset_name,omitempty"`
-	MaintenanceType string    `json:"maintenance_type"` // PREVENTIVE, CORRECTIVE, INSPECTION
-	Description     string    `json:"description"`
-	LaborCost       float64   `json:"labor_cost"`
-	PartsCost       float64   `json:"parts_cost"`
-	TotalCost       float64   `json:"total_cost"`
-	PerformedBy     string    `json:"performed_by,omitempty"`
-	Vendor          string    `json:"vendor,omitempty"`
-	ScheduledDate   string    `json:"scheduled_date,omitempty"`
-	PerformedAt     string    `json:"performed_at,omitempty"`
-	NextDue         string    `json:"next_due,omitempty"`
-	Status          string    `json:"status"` // SCHEDULED, COMPLETED, CANCELLED
-	DocumentURLs    []string  `json:"document_urls,omitempty"`
-	Notes           string    `json:"notes,omitempty"`
-	CreatedAt       time.Time `json:"created_at"`
-}
-
-type AssetRequest struct {
-	CategoryID        string   `json:"category_id"`
-	Name              string   `json:"name" binding:"required"`
-	Description       string   `json:"description"`
-	AssetCode         string   `json:"asset_code"`
-	SerialNumber      string   `json:"serial_number"`
-	Location          string   `json:"location"`
-	Building          string   `json:"building"`
-	Floor             string   `json:"floor"`
-	Room              string   `json:"room"`
-	PurchaseDate      string   `json:"purchase_date"`
-	PurchasePrice     float64  `json:"purchase_price"`
-	Vendor            string   `json:"vendor"`
-	WarrantyEnd       string   `json:"warranty_end"`
-	DepreciationYears int      `json:"depreciation_years"`
-	Condition         string   `json:"condition"`
-	PhotoURLs         []string `json:"photo_urls"`
-}
-
-type MaintenanceRequest struct {
-	MaintenanceType string  `json:"maintenance_type" binding:"required"`
-	Description     string  `json:"description" binding:"required"`
-	LaborCost       float64 `json:"labor_cost"`
-	PartsCost       float64 `json:"parts_cost"`
-	PerformedBy     string  `json:"performed_by"`
-	Vendor          string  `json:"vendor"`
-	PerformedAt     string  `json:"performed_at"`
-	NextDue         string  `json:"next_due"`
-}
-
-type AssetStats struct {
-	TotalAssets         int     `json:"total_assets"`
-	TotalValue          float64 `json:"total_value"`
-	ActiveAssets        int     `json:"active_assets"`
-	InMaintenance       int     `json:"in_maintenance"`
-	DisposedAssets      int     `json:"disposed_assets"`
-	UpcomingMaintenance int     `json:"upcoming_maintenance"`
-	OverdueMaintenance  int     `json:"overdue_maintenance"`
-}
-
-// =====================================================
-// HANDLERS
-// =====================================================
-
 func main() {
+	dbConfig := database.NewConfigFromEnv()
+	pool, err := database.Connect(dbConfig)
+	if err != nil {
+		log.Fatalf("Veritabanı bağlantısı başarısız: %v", err)
+	}
+	defer database.Close()
+
+	repo := repository.New(pool)
+
 	r := gin.Default()
+	r.GET("/health", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"status": "healthy", "service": "asset", "persistent": true,
+		})
+	})
 
-	r.GET("/health", stub.Health("asset"))
+	api := r.Group("/api/v1")
+	api.Use(middleware.AuthMiddleware(), middleware.AuditLog(pool, "asset"))
 
-	v1 := r.Group("/api/v1")
+	// Okuma: yönetim, denetçi ve görevli. Görevli bakımı yapan kişidir;
+	// hangi cihazın bakımının geldiğini görmeden işini yapamaz.
+	read := api.Group("")
+	read.Use(middleware.RequireRole(
+		middleware.RoleManager, middleware.RoleBoardMember,
+		middleware.RoleAuditor, middleware.RoleStaff))
 	{
-		// Categories
-		categories := v1.Group("/asset-categories")
-		{
-			categories.GET("", listCategories)
-			categories.GET("/:id", getCategory)
-			categories.POST("", createCategory)
-			categories.PUT("/:id", updateCategory)
-			categories.DELETE("/:id", deleteCategory)
-		}
+		read.GET("/asset-categories", func(c *gin.Context) {
+			list, err := repo.ListCategories(c.Request.Context(), c.GetString("property_id"))
+			if err != nil {
+				fail(c, err, "kategori listeleme")
+				return
+			}
+			c.JSON(http.StatusOK, gin.H{"data": list})
+		})
 
-		// Assets
-		assets := v1.Group("/assets")
-		{
-			assets.GET("", listAssets)
-			assets.GET("/stats", getAssetStats)
-			assets.GET("/due-maintenance", getDueMaintenance)
-			assets.GET("/qr/:code", getAssetByQR)
-			assets.GET("/:id", getAsset)
-			assets.POST("", createAsset)
-			assets.PUT("/:id", updateAsset)
-			assets.DELETE("/:id", deleteAsset)
-			assets.POST("/:id/assign", assignAsset)
-			assets.POST("/:id/dispose", disposeAsset)
-			assets.POST("/:id/generate-qr", generateQR)
-		}
+		read.GET("/assets", func(c *gin.Context) {
+			expiring := 0
+			if v := c.Query("warranty_expires_days"); v != "" {
+				n, perr := strconv.Atoi(v)
+				if perr != nil || n < 0 {
+					c.JSON(http.StatusBadRequest, gin.H{
+						"error": "warranty_expires_days pozitif bir tam sayı olmalıdır"})
+					return
+				}
+				expiring = n
+			}
+			list, err := repo.List(c.Request.Context(), c.GetString("property_id"),
+				repository.ListFilter{
+					CategoryID:      c.Query("category_id"),
+					Status:          c.Query("status"),
+					Condition:       c.Query("condition"),
+					Location:        c.Query("location"),
+					MaintenanceDue:  c.Query("maintenance_due") == "true",
+					WarrantyExpires: expiring,
+					IncludeDisposed: c.Query("include_disposed") == "true",
+				})
+			if err != nil {
+				fail(c, err, "listeleme")
+				return
+			}
+			now := time.Now()
+			for i := range list {
+				applyDepreciation(&list[i], now)
+			}
+			c.JSON(http.StatusOK, gin.H{"data": list})
+		})
 
-		// Maintenance
-		maintenance := v1.Group("/assets/:id/maintenance")
-		{
-			maintenance.GET("", getAssetMaintenance)
-			maintenance.POST("", createMaintenance)
-			maintenance.GET("/:id", getMaintenanceRecord)
-			maintenance.PUT("/:id", updateMaintenance)
-		}
+		read.GET("/assets/:id", func(c *gin.Context) {
+			a, err := repo.Get(c.Request.Context(), c.GetString("property_id"), c.Param("id"))
+			if err != nil {
+				fail(c, err, "okuma")
+				return
+			}
+			dep := applyDepreciation(a, time.Now())
+			resp := gin.H{"asset": a}
+			if dep != nil {
+				resp["depreciation"] = dep
+			} else {
+				resp["depreciation_note"] = "Amortisman hesaplanamadı: satın alma tarihi, " +
+					"tutarı veya faydalı ömür tanımlı değil. Uydurma bir değer üretilmez."
+			}
+			c.JSON(http.StatusOK, resp)
+		})
 
-		// Depreciation
-		v1.GET("/assets/depreciation-report", getDepreciationReport)
+		read.GET("/assets/:id/maintenance", func(c *gin.Context) {
+			list, err := repo.MaintenanceHistory(c.Request.Context(),
+				c.GetString("property_id"), c.Param("id"))
+			if err != nil {
+				fail(c, err, "bakım geçmişi")
+				return
+			}
+			c.JSON(http.StatusOK, gin.H{"data": list})
+		})
+
+		read.GET("/assets-summary", func(c *gin.Context) {
+			s, err := repo.Summary(c.Request.Context(), c.GetString("property_id"))
+			if err != nil {
+				fail(c, err, "özet")
+				return
+			}
+			c.JSON(http.StatusOK, s)
+		})
+	}
+
+	// Bakım kaydı görevli tarafından da girilebilir — işi yapan kişidir.
+	ops := api.Group("")
+	ops.Use(middleware.RequireRole(
+		middleware.RoleManager, middleware.RoleBoardMember, middleware.RoleStaff))
+	{
+		ops.POST("/assets/:id/maintenance", func(c *gin.Context) {
+			var in repository.MaintenanceInput
+			if err := c.ShouldBindJSON(&in); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{
+					"error":       "maintenance_type ve description zorunludur",
+					"valid_types": repository.MaintenanceTypes})
+				return
+			}
+			id, err := repo.RecordMaintenance(c.Request.Context(),
+				c.GetString("property_id"), c.Param("id"), in)
+			if err != nil {
+				fail(c, err, "bakım kaydı")
+				return
+			}
+			c.JSON(http.StatusCreated, gin.H{
+				"id":         id,
+				"total_cost": in.LaborCost + in.PartsCost,
+				"note": "Toplam maliyet sunucuda işçilik + parça olarak hesaplandı; " +
+					"sıradaki bakım tarihi aynı işlemde güncellendi. Bu tutar gider " +
+					"kaydına OTOMATİK AKTARILMADI — gider modülüne ayrıca girilmelidir.",
+			})
+		})
+	}
+
+	// Yazma: yalnızca yönetim.
+	write := api.Group("")
+	write.Use(middleware.RequireRole(middleware.RoleManager, middleware.RoleBoardMember))
+	{
+		write.POST("/asset-categories", func(c *gin.Context) {
+			var in struct {
+				Name              string `json:"name" binding:"required"`
+				Description       string `json:"description"`
+				DepreciationYears int    `json:"depreciation_years"`
+			}
+			if err := c.ShouldBindJSON(&in); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "name zorunludur"})
+				return
+			}
+			id, err := repo.CreateCategory(c.Request.Context(), c.GetString("property_id"),
+				in.Name, in.Description, in.DepreciationYears)
+			if err != nil {
+				fail(c, err, "kategori oluşturma")
+				return
+			}
+			c.JSON(http.StatusCreated, gin.H{"id": id})
+		})
+
+		write.POST("/assets", func(c *gin.Context) {
+			var in repository.CreateInput
+			if err := c.ShouldBindJSON(&in); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "name zorunludur"})
+				return
+			}
+			id, err := repo.Create(c.Request.Context(), c.GetString("property_id"), in)
+			if err != nil {
+				fail(c, err, "oluşturma")
+				return
+			}
+			c.JSON(http.StatusCreated, gin.H{
+				"id": id, "status": "ACTIVE",
+				"note": "Demirbaş fotoğrafı ve fatura görüntüsü BU UÇTAN yüklenmez; " +
+					"belge servisine (related_type=ASSET, related_id=<id>) yüklenir.",
+			})
+		})
+
+		write.POST("/assets/:id/assign", func(c *gin.Context) {
+			var in struct {
+				AssignedTo string `json:"assigned_to"`
+			}
+			_ = c.ShouldBindJSON(&in)
+			if err := repo.Assign(c.Request.Context(), c.GetString("property_id"),
+				c.Param("id"), in.AssignedTo); err != nil {
+				fail(c, err, "zimmet")
+				return
+			}
+			msg := "Zimmet kaydedildi"
+			if in.AssignedTo == "" {
+				msg = "Zimmet kaldırıldı"
+			}
+			c.JSON(http.StatusOK, gin.H{"message": msg})
+		})
+
+		write.POST("/assets/:id/dispose", func(c *gin.Context) {
+			var in struct {
+				Reason       string `json:"reason" binding:"required"`
+				DecisionRef  string `json:"decision_ref" binding:"required"`
+				NewCondition string `json:"new_condition"`
+			}
+			if err := c.ShouldBindJSON(&in); err != nil {
+				// Karar dayanağı olmadan ortak malın elden çıkarılması kaydedilemez.
+				c.JSON(http.StatusBadRequest, gin.H{
+					"error": "Kayıttan düşme için gerekçe (reason) ve karar dayanağı " +
+						"(decision_ref: genel kurul karar tarih/no) zorunludur",
+					"legal_basis": "634 s. KMK m.45 — ortak yerlerde temliki tasarruf oybirliği ister",
+				})
+				return
+			}
+			if err := repo.Dispose(c.Request.Context(), c.GetString("property_id"),
+				c.Param("id"), in.Reason, in.DecisionRef, in.NewCondition); err != nil {
+				fail(c, err, "kayıttan düşme")
+				return
+			}
+			c.JSON(http.StatusOK, gin.H{
+				"status": "DISPOSED",
+				"note": "Kayıt SİLİNMEDİ; geçmişi ve bakım kayıtları korunur " +
+					"(yönetici devrinde hesap verilebilirlik — KMK m.34/m.38).",
+			})
+		})
 	}
 
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "8087"
+		port = "8087" // kong/kong.yml ile aynı olmalı
 	}
-
-	log.Printf("Asset Service starting on port %s", port)
+	log.Printf("Asset Service başlatıldı: :%s", port)
 	if err := r.Run(":" + port); err != nil {
 		log.Fatal(err)
 	}
 }
 
-// Category Handlers
-func listCategories(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "asset")
+// applyDepreciation, demirbaşın amortismanını hesaplayıp alanlarına yazar.
+// Hesaplanamıyorsa alanlar null kalır — sıfır yazmak "tamamen itfa edilmiş"
+// izlenimi verirdi.
+func applyDepreciation(a *repository.Asset, now time.Time) *assetsvc.Depreciation {
+	dep := assetsvc.LinearDepreciation(
+		a.PurchasePrice, a.ResidualValue, a.DepreciationYears, a.PurchaseDate, now)
+	if dep == nil {
+		return nil
+	}
+	acc, book := dep.Accumulated, dep.BookValue
+	a.AccumulatedDeprec = &acc
+	a.BookValue = &book
+	return dep
 }
 
-func getCategory(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "asset")
-}
-
-func createCategory(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "asset")
-}
-
-func updateCategory(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "asset")
-}
-
-func deleteCategory(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "asset")
-}
-
-// Asset Handlers
-func listAssets(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "asset")
-}
-
-func getAssetStats(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "asset")
-}
-
-func getDueMaintenance(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "asset")
-}
-
-func getAssetByQR(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "asset")
-}
-
-func getAsset(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "asset")
-}
-
-func createAsset(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "asset")
-}
-
-func updateAsset(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "asset")
-}
-
-func deleteAsset(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "asset")
-}
-
-func assignAsset(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "asset")
-}
-
-func disposeAsset(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "asset")
-}
-
-func generateQR(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "asset")
-}
-
-// Maintenance Handlers
-func getAssetMaintenance(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "asset")
-}
-
-func createMaintenance(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "asset")
-}
-
-func getMaintenanceRecord(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "asset")
-}
-
-func updateMaintenance(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "asset")
-}
-
-func getDepreciationReport(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "asset")
+func fail(c *gin.Context, err error, op string) {
+	switch {
+	case errors.Is(err, repository.ErrNotFound):
+		c.JSON(http.StatusNotFound, gin.H{"error": "Demirbaş bulunamadı"})
+	case errors.Is(err, repository.ErrBadState):
+		c.JSON(http.StatusConflict, gin.H{
+			"error":            "Demirbaş bu işlem için uygun durumda değil ya da gönderilen değer geçersiz",
+			"valid_conditions": repository.Conditions, "valid_types": repository.MaintenanceTypes})
+	case errors.Is(err, repository.ErrInvalidCategory):
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "Kategori bu siteye ait değil"})
+	case errors.Is(err, repository.ErrDuplicateCode):
+		c.JSON(http.StatusConflict, gin.H{"error": "Bu demirbaş kodu zaten kullanılıyor"})
+	case errors.Is(err, repository.ErrInvalidDate):
+		c.JSON(http.StatusUnprocessableEntity, gin.H{
+			"error": "Tarihler geçersiz (YYYY-AA-GG bekleniyor)"})
+	default:
+		log.Printf("[asset] %s başarısız: %v", op, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "İşlem tamamlanamadı"})
+	}
 }

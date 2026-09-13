@@ -42,6 +42,7 @@ RES_PID=""
 PKG_PID=""
 CTR_PID=""
 DOC_PID=""
+AST_PID=""
 
 ok()   { echo "  [GEÇTİ]    $1"; PASS=$((PASS+1)); }
 bad()  { echo "  [BAŞARISIZ] $1"; FAIL=$((FAIL+1)); }
@@ -89,6 +90,7 @@ cleanup() {
   kill_tree "$PKG_PID"
   kill_tree "$CTR_PID"
   kill_tree "$DOC_PID"
+  kill_tree "$AST_PID"
   rm -rf /tmp/verify-docs
   docker rm -f "$CNAME" >/dev/null 2>&1
 }
@@ -100,7 +102,7 @@ command -v go     >/dev/null || { echo "go bulunamadı (PATH'e /usr/local/go/bin
 
 # Kalıntı süpürme: yarıda kesilmiş bir çalıştırmadan kalan servisler
 # portları tutuyorsa, testler eski süreçlere çarpar ve sonuç rastgele değişir.
-for _p in 18090 18091 18092 18093 18094 18097 18098 18099 18100 18105 18107 18191; do
+for _p in 18087 18090 18091 18092 18093 18094 18097 18098 18099 18100 18105 18107 18191; do
   free_port "$_p"
 done
 
@@ -113,6 +115,11 @@ if go test ./pkg/authtoken/... -count=1 >/tmp/verify-authtoken.log 2>&1; then
   ok "go test ./pkg/authtoken/... (JWT doğrulama)"
 else
   bad "go test ./pkg/authtoken/..."; tail -15 /tmp/verify-authtoken.log
+fi
+if go test ./services/asset/service/... -count=1 >/tmp/verify-deprec.log 2>&1; then
+  ok "go test ./services/asset/service/... (doğrusal amortisman, kuruş kaybı yok)"
+else
+  bad "go test ./services/asset/service/..."; tail -15 /tmp/verify-deprec.log
 fi
 if go test ./pkg/storage/... -count=1 >/tmp/verify-storage.log 2>&1; then
   ok "go test ./pkg/storage/... (dosya depolama, SigV4 imzalama, dizin dışına çıkma)"
@@ -273,7 +280,7 @@ fi
 
 step "7) Dürüstlük: kalıcı olmayan uçlar 501 dönmeli"
 # tasks/dogrulama-politikasi.md §3.5 — kaydetmeyen bir uç 2xx dönemez.
-PORT=${STUB_PORT:-18191} go run ./services/asset >/tmp/verify-stub.log 2>&1 &
+PORT=${STUB_PORT:-18191} go run ./services/esg >/tmp/verify-stub.log 2>&1 &
 STUB_PID=$!
 SUP=0
 for _ in $(seq 1 45); do
@@ -281,13 +288,13 @@ for _ in $(seq 1 45); do
   sleep 1
 done
 if [ "$SUP" = "1" ]; then
-  ok "stub servis (asset) ayağa kalktı"
-  SC=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:${STUB_PORT:-18191}/api/v1/assets")
-  [ "$SC" = "501" ] && ok "stub GET /assets → 501" || bad "stub GET /assets → $SC (501 bekleniyordu)"
-  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "http://127.0.0.1:${STUB_PORT:-18191}/api/v1/assets" \
-    -H 'Content-Type: application/json' -d '{"name":"Test demirbas"}')
-  [ "$SC" = "501" ] && ok "stub POST /assets → 501 (veri kaydedilmiyor)" || bad "stub POST /assets → $SC (501 bekleniyordu)"
-  HDR=$(curl -s -D- -o /dev/null "http://127.0.0.1:${STUB_PORT:-18191}/api/v1/assets" | grep -ci 'X-SiteEksen-Not-Implemented: true')
+  ok "stub servis (esg) ayağa kalktı"
+  SC=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:${STUB_PORT:-18191}/api/v1/esg/carbon-footprint")
+  [ "$SC" = "501" ] && ok "stub GET /esg/carbon-footprint → 501" || bad "stub GET /esg/carbon-footprint → $SC (501 bekleniyordu)"
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "http://127.0.0.1:${STUB_PORT:-18191}/api/v1/esg/metrics" \
+    -H 'Content-Type: application/json' -d '{"metric":"test"}')
+  [ "$SC" = "501" ] && ok "stub POST /esg/metrics → 501 (veri kaydedilmiyor)" || bad "stub POST /esg/metrics → $SC (501 bekleniyordu)"
+  HDR=$(curl -s -D- -o /dev/null "http://127.0.0.1:${STUB_PORT:-18191}/api/v1/esg/carbon-footprint" | grep -ci 'X-SiteEksen-Not-Implemented: true')
   [ "$HDR" -ge 1 ] && ok "stub yanıtında X-SiteEksen-Not-Implemented başlığı var" || bad "stub başlığı eksik"
 else
   bad "stub servis başlamadı"
@@ -1678,6 +1685,192 @@ else
   bad "document-service başlamadı"; tail -15 /tmp/verify-document.log
 fi
 kill_tree "$DOC_PID"
+
+step "20) Demirbaş modülü — mock'tan gerçeğe (FAZ 5, 9/22)"
+# Önceki davranış: sabit demirbaş listesi; yazma istekleri kaydedilmiyordu.
+# Kritik nokta: amortisman DEFTERDE SAKLANMAZ, her okumada hesaplanır — saklanan
+# değer zamanla sessizce yanlışa döner ve devir/bütçe konuşmasını bozar.
+ASTPORT=${VERIFY_AST_PORT:-18087}
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen DB_PASSWORD="$PW" DB_NAME=siteeksen \
+DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${ASTPORT} \
+  go run ./services/asset >/tmp/verify-asset.log 2>&1 &
+AST_PID=$!
+AUP=0
+for _ in $(seq 1 45); do
+  curl -fsS "http://127.0.0.1:${ASTPORT}/health" >/dev/null 2>&1 && { AUP=1; break; }
+  sleep 1
+done
+
+if [ "$AUP" = "1" ] && [ -n "${MGR:-}" ] && [ -n "${TEN:-}" ]; then
+  ok "asset-service ayağa kalktı"
+  AA="Authorization: Bearer $MGR"
+  AT="Authorization: Bearer $TEN"
+  AJ='Content-Type: application/json'
+  AURL="http://127.0.0.1:${ASTPORT}/api/v1"
+
+  TWOYEARSAGO=$(date -d '-2 years' +%Y-%m-%d)
+  SOONWARR=$(date -d '+20 days' +%Y-%m-%d)
+  PASTDUE=$(date -d '-10 days' +%Y-%m-%d)
+
+  # 1) Kategori
+  CAT=$(curl -s -X POST "$AURL/asset-categories" -H "$AA" -H "$AJ" \
+    -d '{"name":"Asansor ekipmani","depreciation_years":10}')
+  CATID=$(echo "$CAT" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+  [ -n "$CATID" ] && ok "demirbaş kategorisi oluşturuldu" || bad "kategori: $CAT"
+
+  # 2) Demirbaş — 10.000 TL, 5 yıl, 2 yıl önce alınmış → birikmiş 4.000, defter 6.000
+  A1=$(curl -s -X POST "$AURL/assets" -H "$AA" -H "$AJ" -d "{
+    \"category_id\":\"$CATID\",\"name\":\"Jenerator\",\"asset_code\":\"DMB-001\",
+    \"location\":\"A Blok bodrum\",\"purchase_date\":\"$TWOYEARSAGO\",
+    \"purchase_price\":10000,\"depreciation_years\":5,\"vendor\":\"Ornek Enerji\",
+    \"maintenance_interval_days\":180,\"condition\":\"GOOD\"}")
+  A1ID=$(echo "$A1" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+  [ -n "$A1ID" ] && ok "demirbaş kaydedildi ve KALICI" || bad "demirbaş: $A1"
+
+  if [ -n "$A1ID" ]; then
+    DBC=$($PSQL -t -A -c "SELECT count(*) FROM assets WHERE id='$A1ID';")
+    [ "$DBC" = "1" ] && ok "demirbaş veritabanında (mock değil)" || bad "kayıt yok"
+
+    # 3) Amortisman HESAPLANARAK dönmeli
+    G=$(curl -s "$AURL/assets/$A1ID" -H "$AA")
+    echo "$G" | grep -q '"accumulated":4000' && ok "birikmiş amortisman doğru (2 yıl × 2.000 = 4.000 TL)" \
+      || bad "birikmiş amortisman: $G"
+    echo "$G" | grep -q '"book_value":6000' && ok "defter değeri doğru (10.000 − 4.000 = 6.000 TL)" \
+      || bad "defter değeri yanlış"
+    echo "$G" | grep -q '"annual_amount":2000' && ok "yıllık amortisman payı doğru" || bad "yıllık pay yanlış"
+
+    # Saklanan kolon KULLANILMAMALI: kolonu elle bozup okumanın değişmediğini göster
+    $PSQL -c "UPDATE assets SET current_value=99999, accumulated_depreciation=99999 WHERE id='$A1ID';" >/dev/null 2>&1
+    G2=$(curl -s "$AURL/assets/$A1ID" -H "$AA")
+    echo "$G2" | grep -q '"book_value":6000' \
+      && ok "defter değeri saklanan (bayat) kolondan OKUNMUYOR, hesaplanıyor" \
+      || bad "bayat kolon kullanılıyor: $G2"
+  fi
+
+  # 4) Amortisman verisi eksikse uydurulmamalı
+  A2=$(curl -s -X POST "$AURL/assets" -H "$AA" -H "$AJ" \
+    -d '{"name":"Bahce hortumu","condition":"NEW"}')
+  A2ID=$(echo "$A2" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+  G3=$(curl -s "$AURL/assets/$A2ID" -H "$AA")
+  echo "$G3" | grep -q 'depreciation_note' && ok "eksik veride amortisman uydurulmuyor" \
+    || bad "eksik veride amortisman üretildi: $G3"
+  echo "$G3" | grep -q '"book_value"' && bad "eksik veride defter değeri yazıldı" \
+    || ok "eksik veride defter değeri boş bırakılıyor"
+
+  # 5) Başka sitenin kategorisi kullanılamaz
+  OTHERCAT=$($PSQL -t -A -c "INSERT INTO properties (id, name, address, city, district, total_units, total_share_ratio)
+      VALUES ('99999999-9999-9999-9999-999999999999','Baska Site','X','Ist','Kadikoy',1,1)
+      ON CONFLICT (id) DO NOTHING;
+    INSERT INTO asset_categories (property_id, name) VALUES
+      ('99999999-9999-9999-9999-999999999999','Baska site kategorisi') RETURNING id;" 2>/dev/null | tail -1)
+  if [ -n "$OTHERCAT" ]; then
+    SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$AURL/assets" -H "$AA" -H "$AJ" \
+      -d "{\"name\":\"Test\",\"category_id\":\"$OTHERCAT\"}")
+    [ "$SC" = "422" ] && ok "başka sitenin kategorisi kullanılamıyor → 422" \
+      || bad "başka site kategorisi kabul edildi → $SC"
+  fi
+
+  # 6) Bakım kaydı — toplam maliyet SUNUCUDA hesaplanmalı, takvim aynı işlemde güncellenmeli
+  if [ -n "$A1ID" ]; then
+    $PSQL -c "UPDATE assets SET next_maintenance_date='$PASTDUE' WHERE id='$A1ID';" >/dev/null 2>&1
+    DUE=$(curl -s "$AURL/assets?maintenance_due=true" -H "$AA")
+    echo "$DUE" | grep -q 'Jenerator' && ok "bakımı gecikmiş demirbaş süzgeci çalışıyor" \
+      || bad "gecikmiş bakım süzgeci: $DUE"
+
+    # İstemci yanlış bir toplam gönderse bile sunucu kendi hesabını kullanmalı
+    M1=$(curl -s -X POST "$AURL/assets/$A1ID/maintenance" -H "$AA" -H "$AJ" -d '{
+      "maintenance_type":"PREVENTIVE","description":"Yillik bakim",
+      "labor_cost":1500,"parts_cost":2500,"total_cost":1,"performed_by":"Ornek Teknik"}')
+    echo "$M1" | grep -q '"total_cost":4000' && ok "bakım toplamı sunucuda hesaplandı (1.500+2.500)" \
+      || bad "bakım toplamı: $M1"
+    DBTOTAL=$($PSQL -t -A -c "SELECT total_cost::numeric(12,2) FROM asset_maintenance
+      WHERE asset_id='$A1ID' ORDER BY created_at DESC LIMIT 1;")
+    [ "$DBTOTAL" = "4000.00" ] && ok "istemcinin gönderdiği yanlış toplam kullanılmadı" \
+      || bad "veritabanındaki toplam: $DBTOTAL"
+
+    # Bakım takvimi aynı işlemde güncellenmeli (180 gün sonrası)
+    NEXTM=$($PSQL -t -A -c "SELECT next_maintenance_date FROM assets WHERE id='$A1ID';")
+    EXPECTEDM=$(date -d "+180 days" +%Y-%m-%d)
+    [ "$NEXTM" = "$EXPECTEDM" ] && ok "sıradaki bakım tarihi aynı işlemde güncellendi ($NEXTM)" \
+      || bad "bakım takvimi güncellenmedi: $NEXTM (beklenen $EXPECTEDM)"
+    DUE2=$(curl -s "$AURL/assets?maintenance_due=true" -H "$AA")
+    echo "$DUE2" | grep -q 'Jenerator' && bad "bakımı yapılan demirbaş hâlâ gecikmiş görünüyor" \
+      || ok "bakımı yapılan demirbaş gecikmiş listesinden çıktı"
+
+    # Geçersiz bakım türü
+    SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$AURL/assets/$A1ID/maintenance" -H "$AA" -H "$AJ" \
+      -d '{"maintenance_type":"UYDURMA","description":"x"}')
+    [ "$SC" = "409" ] && ok "geçersiz bakım türü reddedildi" || bad "geçersiz bakım türü → $SC"
+
+    # Bakım geçmişi
+    HIST=$(curl -s "$AURL/assets/$A1ID/maintenance" -H "$AA")
+    echo "$HIST" | grep -q 'Yillik bakim' && ok "bakım geçmişi okunabiliyor" || bad "bakım geçmişi: $HIST"
+  fi
+
+  # 7) Garanti süzgeci
+  $PSQL -c "UPDATE assets SET warranty_end='$SOONWARR' WHERE id='$A1ID';" >/dev/null 2>&1
+  W=$(curl -s "$AURL/assets?warranty_expires_days=30" -H "$AA")
+  echo "$W" | grep -q 'Jenerator' && ok "garantisi bitmek üzere olanlar süzülebiliyor" || bad "garanti süzgeci: $W"
+  echo "$W" | grep -q '"warranty_days_left"' && ok "garantiye kalan gün hesaplanıyor" || bad "kalan gün yok"
+
+  # 8) Zimmet
+  if [ -n "$A1ID" ]; then
+    SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$AURL/assets/$A1ID/assign" -H "$AA" -H "$AJ" \
+      -d '{"assigned_to":"Teknik Servis"}')
+    [ "$SC" = "200" ] && ok "zimmet kaydedildi" || bad "zimmet → $SC"
+    ASG=$($PSQL -t -A -c "SELECT assigned_to FROM assets WHERE id='$A1ID';")
+    [ "$ASG" = "Teknik Servis" ] && ok "zimmet veritabanına yazıldı" || bad "zimmet kaydı: $ASG"
+  fi
+
+  # 9) Kayıttan düşme — karar dayanağı ZORUNLU (KMK m.45)
+  if [ -n "$A2ID" ]; then
+    D0=$(curl -s -X POST "$AURL/assets/$A2ID/dispose" -H "$AA" -H "$AJ" -d '{"reason":"Kirildi"}')
+    echo "$D0" | grep -q 'decision_ref' && ok "karar dayanağı olmadan kayıttan düşülemiyor" \
+      || bad "gerekçesiz kayıttan düşme kabul edildi: $D0"
+    echo "$D0" | grep -q 'KMK m.45' && ok "hukuki dayanak kullanıcıya bildiriliyor" || bad "hukuki dayanak yok"
+
+    SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$AURL/assets/$A2ID/dispose" -H "$AA" -H "$AJ" \
+      -d '{"reason":"Kullanilamaz hale geldi","decision_ref":"2026/3 sayili genel kurul karari","new_condition":"DISPOSED"}')
+    [ "$SC" = "200" ] && ok "karar dayanağıyla kayıttan düşüldü → 200" || bad "kayıttan düşme → $SC"
+    ST=$($PSQL -t -A -c "SELECT status FROM assets WHERE id='$A2ID';")
+    [ "$ST" = "DISPOSED" ] && ok "kayıt silinmedi, durumu DISPOSED oldu" || bad "durum: $ST"
+    NT=$($PSQL -t -A -c "SELECT notes FROM assets WHERE id='$A2ID';")
+    echo "$NT" | grep -q '2026/3 sayili genel kurul karari' && ok "karar dayanağı kayda geçti" \
+      || bad "karar dayanağı kaydedilmedi: $NT"
+
+    # Varsayılan listede görünmemeli
+    L=$(curl -s "$AURL/assets" -H "$AA")
+    echo "$L" | grep -q 'Bahce hortumu' && bad "kayıttan düşen demirbaş varsayılan listede" \
+      || ok "kayıttan düşen demirbaş varsayılan listeden çıktı"
+    L2=$(curl -s "$AURL/assets?include_disposed=true" -H "$AA")
+    echo "$L2" | grep -q 'Bahce hortumu' && ok "istenirse kayıttan düşenler de listeleniyor" \
+      || bad "include_disposed çalışmıyor"
+
+    # İkinci kez kayıttan düşülemez
+    SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$AURL/assets/$A2ID/dispose" -H "$AA" -H "$AJ" \
+      -d '{"reason":"tekrar","decision_ref":"x"}')
+    [ "$SC" = "409" ] && ok "kayıttan düşmüş demirbaş tekrar düşülemiyor → 409" || bad "çift düşme → $SC"
+  fi
+
+  # 10) Özet
+  SUM=$(curl -s "$AURL/assets-summary" -H "$AA")
+  echo "$SUM" | grep -q '"maintenance_cost_ytd_try":4000' && ok "yıl içi bakım gideri özeti doğru" \
+    || bad "bakım gideri özeti: $SUM"
+  echo "$SUM" | grep -q '"purchase_total_try":10000' && ok "aktif demirbaşların alım değeri toplamı doğru" \
+    || bad "alım değeri toplamı: $SUM"
+  echo "$SUM" | grep -q '"disposed":1' && ok "özet kayıttan düşenleri ayrı sayıyor" || bad "özet disposed: $SUM"
+
+  # 11) Yetki
+  SC=$(curl -s -o /dev/null -w '%{http_code}' "$AURL/assets" -H "$AT")
+  [ "$SC" = "403" ] && ok "sakin demirbaş envanterini göremiyor → 403" || bad "sakin envanteri gördü → $SC"
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$AURL/assets" -H "$AT" -H "$AJ" -d '{"name":"X"}')
+  [ "$SC" = "403" ] && ok "sakin demirbaş ekleyemiyor → 403" || bad "sakin demirbaş ekledi → $SC"
+  SC=$(curl -s -o /dev/null -w '%{http_code}' "$AURL/assets")
+  [ "$SC" = "401" ] && ok "kimliksiz demirbaş erişimi engellendi → 401" || bad "kimliksiz erişim → $SC"
+else
+  bad "asset-service başlamadı"; tail -15 /tmp/verify-asset.log
+fi
+kill_tree "$AST_PID"
 
 step "SONUÇ"
 echo "  Geçen: $PASS   Başarısız: $FAIL"
