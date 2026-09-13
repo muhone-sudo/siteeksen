@@ -501,6 +501,9 @@ services:
       SURVEY_SERVICE_URL: http://survey-service:8104
       VISITOR_SERVICE_URL: http://visitor-service:8105
       BANKING_SERVICE_URL: http://banking-service:8106
+      GOVERNANCE_SERVICE_URL: http://governance-service:8107
+      JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key-change-in-production}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:3001}
       PORT: 8888
     ports:
       - "8888:8888"
@@ -508,6 +511,29 @@ services:
       - identity-service
       - finance-service
       - community-service
+      - governance-service
+
+  # Governance Service — KMK yönetişim süreçleri (gerçek veri katmanına bağlı)
+  governance-service:
+    build:
+      context: ./backend
+      dockerfile: services/governance/Dockerfile
+    container_name: siteeksen-governance
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: siteeksen
+      DB_PASSWORD: ${DB_PASSWORD:-siteeksen_dev_123}
+      DB_NAME: siteeksen
+      JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key-change-in-production}
+      PORT: 8107
+    ports:
+      - "8107:8107"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
 
   # Kong API Gateway
   kong:

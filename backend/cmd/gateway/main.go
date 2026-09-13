@@ -221,6 +221,7 @@ func main() {
 	surveyURL := getEnv("SURVEY_SERVICE_URL", "http://localhost:8104")
 	visitorURL := getEnv("VISITOR_SERVICE_URL", "http://localhost:8105")
 	bankingURL := getEnv("BANKING_SERVICE_URL", "http://localhost:8106")
+	governanceURL := getEnv("GOVERNANCE_SERVICE_URL", "http://localhost:8107")
 	port := getEnv("PORT", "8888")
 	corsOrigins := strings.Split(getEnv("CORS_ALLOWED_ORIGINS",
 		"http://localhost:3000,http://localhost:3001"), ",")
@@ -334,6 +335,11 @@ func main() {
 
 	// --- BANKING SERVICE (8106) ---
 	proxyPaths(mux, newProxy(bankingURL), "/api/v1/bank-accounts", "/api/v1/bank-transactions", "/api/v1/banking")
+
+	// --- GOVERNANCE SERVICE (8107) — KMK yönetişim süreçleri ---
+	// İşletme projesi (m.37), genel kurul (m.29-33), defterler (m.32/36), icra takibi (m.22).
+	// `meeting_wizard` stub'ının aksine bu servis gerçek veri katmanına bağlıdır.
+	proxyPaths(mux, newProxy(governanceURL), "/api/v1/governance")
 
 	// --- TOPLU (aggregate) UÇLAR ---
 	// Bu uçlar birden çok servisten veri toplar. Hiçbir kaynağa ulaşılamazsa

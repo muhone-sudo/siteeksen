@@ -790,6 +790,38 @@ services:
       key_claim_name: iss
       secret_is_base64: false
       run_on_preflight: false
+- name: governance-service
+  url: http://governance-service:8107
+  routes:
+  - name: governance-routes
+    paths:
+    - /api/v1/governance
+    strip_path: false
+  plugins:
+  - name: cors
+    config:
+      origins:
+      - http://localhost:3000
+      - http://localhost:3001
+      methods:
+      - GET
+      - POST
+      - PUT
+      - PATCH
+      - DELETE
+      - OPTIONS
+      headers:
+      - Authorization
+      - Content-Type
+      max_age: 3600
+      credentials: true
+  - name: jwt
+    config:
+      claims_to_verify:
+      - exp
+      key_claim_name: iss
+      secret_is_base64: false
+      run_on_preflight: false
 consumers:
 - username: siteeksen-api
   jwt_secrets:

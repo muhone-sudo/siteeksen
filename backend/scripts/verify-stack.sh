@@ -33,6 +33,7 @@ SVC_PID=""
 STUB_PID=""
 GW_PID=""
 FIN_PID=""
+GOV_PID=""
 
 ok()   { echo "  [GEÇTİ]    $1"; PASS=$((PASS+1)); }
 bad()  { echo "  [BAŞARISIZ] $1"; FAIL=$((FAIL+1)); }
@@ -43,6 +44,7 @@ cleanup() {
   [ -n "$STUB_PID" ] && kill "$STUB_PID" 2>/dev/null
   [ -n "$GW_PID" ] && kill "$GW_PID" 2>/dev/null
   [ -n "$FIN_PID" ] && kill "$FIN_PID" 2>/dev/null
+  [ -n "$GOV_PID" ] && kill "$GOV_PID" 2>/dev/null
   docker rm -f "$CNAME" >/dev/null 2>&1
 }
 trap cleanup EXIT
@@ -60,6 +62,11 @@ if go test ./pkg/authtoken/... -count=1 >/tmp/verify-authtoken.log 2>&1; then
   ok "go test ./pkg/authtoken/... (JWT doğrulama)"
 else
   bad "go test ./pkg/authtoken/..."; tail -15 /tmp/verify-authtoken.log
+fi
+if go test ./services/governance/service/... -count=1 >/tmp/verify-quorum.log 2>&1; then
+  ok "go test ./services/governance/service/... (nisap ve çoğunluk kuralları)"
+else
+  bad "go test ./services/governance/service/..."; tail -15 /tmp/verify-quorum.log
 fi
 
 step "1) Temiz PostgreSQL 16"
@@ -420,6 +427,114 @@ if [ -n "${MGR:-}" ]; then
     -d "{\"property_id\":\"$OWN\"}")
   [ "$SC" = "200" ] && ok "kendi sitesine geçiş kabul edildi → 200" || bad "kendi sitesine geçiş → $SC"
 fi
+
+step "11) Yönetişim: işletme projesi, genel kurul, defter (FAZ 6)"
+GOVPORT=${VERIFY_GOV_PORT:-18107}
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen DB_PASSWORD="$PW" DB_NAME=siteeksen \
+DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${GOVPORT} \
+  go run ./services/governance >/tmp/verify-governance.log 2>&1 &
+GOV_PID=$!
+GUP2=0
+for _ in $(seq 1 45); do
+  curl -fsS "http://127.0.0.1:${GOVPORT}/health" >/dev/null 2>&1 && { GUP2=1; break; }
+  sleep 1
+done
+
+if [ "$GUP2" = "1" ] && [ -n "${MGR:-}" ]; then
+  ok "governance-service ayağa kalktı"
+  GA="Authorization: Bearer $MGR"
+  GJ='Content-Type: application/json'
+  GURL="http://127.0.0.1:${GOVPORT}/api/v1/governance"
+
+  # --- İşletme projesi (KMK m.37) ---
+  # 240.000 eşit + 60.000 arsa payı + 36.000 arsa payı = 336.000,00 TL = 33.600.000 kuruş
+  BUD=$(curl -s -X POST "$GURL/budgets" -H "$GA" -H "$GJ" -d '{
+    "period_year": 2031,
+    "items":[{"name":"Kapıcı gideri","amount":240000,"distribution_type":"EQUAL"},
+             {"name":"Sigorta primi","amount":60000,"distribution_type":"SHARE_RATIO"},
+             {"name":"Asansör bakım","amount":36000,"distribution_type":"SHARE_RATIO"}]}')
+  BID=$(echo "$BUD" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+  [ -n "$BID" ] && ok "işletme projesi oluşturuldu" || bad "işletme projesi oluşturulamadı: $BUD"
+
+  if [ -n "$BID" ]; then
+    # Kuruş kaybı olmamalı: payların toplamı tutara BİREBİR eşit
+    SUMK=$($PSQL -t -A -c "SELECT COALESCE(sum(annual_kurus),0) FROM operating_budget_unit_shares WHERE budget_id='$BID';")
+    [ "$SUMK" = "33600000" ] && ok "dağıtımda kuruş kaybı yok (toplam $SUMK kuruş = 336.000,00 TL)" \
+      || bad "dağıtım toplamı $SUMK kuruş (33600000 bekleniyordu)"
+
+    # Eşit dağıtılan kalemde daireler arası fark en çok 1 kuruş olmalı
+    SPREAD=$($PSQL -t -A -c "SELECT max(v)-min(v) FROM (SELECT (breakdown->>'Kapıcı gideri')::bigint AS v FROM operating_budget_unit_shares WHERE budget_id='$BID') t;")
+    [ "$SPREAD" -le 1 ] 2>/dev/null && ok "eşit dağıtımda daireler arası fark <= 1 kuruş" \
+      || bad "eşit dağıtımda fark $SPREAD kuruş"
+
+    # Tebliğ edilmeden kesinleştirilemez (m.37)
+    SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$GURL/budgets/$BID/finalize" -H "$GA" -H "$GJ" -d '{}')
+    [ "$SC" = "409" ] && ok "tebliğ edilmeden kesinleştirme engellendi → 409" || bad "tebliğsiz kesinleştirme → $SC"
+
+    SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$GURL/budgets/$BID/notify" -H "$GA" -H "$GJ" \
+      -d '{"method":"TAAHHUTLU_MEKTUP"}')
+    [ "$SC" = "200" ] && ok "işletme projesi tebliğ edildi" || bad "tebliğ → $SC"
+
+    # İtiraz süresi (7 gün) dolmadan kesinleşemez (m.37/2)
+    SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$GURL/budgets/$BID/finalize" -H "$GA" -H "$GJ" -d '{}')
+    [ "$SC" = "409" ] && ok "itiraz süresi dolmadan kesinleştirme engellendi → 409" \
+      || bad "süre dolmadan kesinleştirme → $SC"
+
+    DL=$($PSQL -t -A -c "SELECT (objection_deadline - CURRENT_DATE) FROM operating_budgets WHERE id='$BID';")
+    [ "$DL" = "7" ] && ok "itiraz süresi 7 gün olarak işlendi (KMK m.37/2)" || bad "itiraz süresi $DL gün"
+  fi
+
+  # --- Genel kurul (KMK m.29-30) ---
+  ASM=$(curl -s -X POST "$GURL/assemblies" -H "$GA" -H "$GJ" -d '{
+    "kind":"ORDINARY","call_number":1,"scheduled_at":"2031-03-01T18:00:00Z",
+    "agenda_items":[{"order_no":1,"title":"Yönetici seçimi"}]}')
+  AID=$(echo "$ASM" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+  [ -n "$AID" ] && ok "genel kurul oluşturuldu" || bad "genel kurul oluşturulamadı"
+
+  if [ -n "$AID" ]; then
+    # Tam yarı katılımda nisap SAĞLANMAMALI (m.30 "yarıdan fazla")
+    for u in $($PSQL -t -A -c "SELECT id FROM units WHERE property_id='11111111-1111-1111-1111-111111111111' ORDER BY block, door_number LIMIT 12;"); do
+      curl -s -o /dev/null -X POST "$GURL/assemblies/$AID/attendees" -H "$GA" -H "$GJ" -d "{\"unit_id\":\"$u\"}"
+    done
+    Q=$(curl -s "$GURL/assemblies/$AID/quorum" -H "$GA")
+    echo "$Q" | grep -q '"met":false' && ok "12/24 katılımda nisap sağlanmadı (tam yarı yetmez)" \
+      || bad "tam yarı katılımda nisap sağlandı sayıldı: $Q"
+
+    # 13. daire eklenince nisap sağlanmalı
+    U13=$($PSQL -t -A -c "SELECT id FROM units WHERE property_id='11111111-1111-1111-1111-111111111111' ORDER BY block, door_number OFFSET 12 LIMIT 1;")
+    curl -s -o /dev/null -X POST "$GURL/assemblies/$AID/attendees" -H "$GA" -H "$GJ" -d "{\"unit_id\":\"$U13\"}"
+    Q=$(curl -s "$GURL/assemblies/$AID/quorum" -H "$GA")
+    echo "$Q" | grep -q '"met":true' && ok "13/24 katılımda nisap sağlandı" || bad "13/24 katılımda nisap sağlanmadı: $Q"
+  fi
+
+  # --- Defter (KMK m.32/36) ---
+  BOOK=$(curl -s -X POST "$GURL/books?kind=DECISION&year=2031" -H "$GA" -H "$GJ" -d '{}')
+  BKID=$(echo "$BOOK" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+  if [ -n "$BKID" ]; then
+    curl -s -o /dev/null -X POST "$GURL/books/$BKID/entries" -H "$GA" -H "$GJ" \
+      -d '{"title":"Olağan genel kurul","body":"Yönetici seçildi."}'
+    curl -s -o /dev/null -X POST "$GURL/books/$BKID/entries" -H "$GA" -H "$GJ" \
+      -d '{"title":"İşletme projesi","body":"2031 projesi kabul edildi."}'
+    V=$(curl -s "$GURL/books/$BKID/verify" -H "$GA")
+    echo "$V" | grep -q '"valid":true' && ok "defter hash zinciri doğrulandı" || bad "defter zinciri bozuk: $V"
+
+    # Defter kaydı değiştirilemez olmalı
+    UPD=$($PSQL -c "UPDATE book_entries SET body='degistirildi' WHERE book_id='$BKID';" 2>&1)
+    echo "$UPD" | grep -q "değiştirilemez" && ok "defter kaydı değiştirilemiyor (veritabanı koruması)" \
+      || bad "defter kaydı değiştirilebildi"
+  else
+    bad "defter oluşturulamadı"
+  fi
+
+  # --- Denetçi yazma yetkisi olmamalı (görevler ayrılığı) ---
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$GURL/budgets" -H "Authorization: Bearer $TEN" -H "$GJ" \
+    -d '{"period_year":2032,"items":[{"name":"x","amount":1,"distribution_type":"EQUAL"}]}')
+  [ "$SC" = "403" ] && ok "yönetim rolü olmayan kullanıcı işletme projesi oluşturamıyor → 403" \
+    || bad "yetkisiz kullanıcı işletme projesi oluşturdu → $SC"
+else
+  bad "governance-service başlamadı"; tail -10 /tmp/verify-governance.log
+fi
+kill "$GOV_PID" 2>/dev/null
 
 step "SONUÇ"
 echo "  Geçen: $PASS   Başarısız: $FAIL"
