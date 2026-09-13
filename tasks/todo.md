@@ -471,9 +471,9 @@ Ayrıntı: `tasks/roadmap.md`
 | FAZ 0 | Dürüstlük onarımı | **Tamamlandı** — uydurma veri ve sahte başarı mesajı kalmadı |
 | FAZ 1 | Kurulabilirlik — migration çalıştırıcı, idempotency, portlar, CI | **Tamamlandı** (1.6 down betikleri hariç) |
 | FAZ 2 | Kimlik/yetki/izolasyon | **Çekirdek tamam** — gateway auth, site bazlı roller, sahiplik doğrulaması, RBAC. Kalan: RLS (2.6), jeton iptali (2.7), alan şifreleme (2.8) |
-| FAZ 3 | Denetim izi + gözlemlenebilirlik | Çalışıyor. Kalan: hassas veri okuma logu (3.4), yapılandırılmış log (3.5) |
+| FAZ 3 | Denetim izi + gözlemlenebilirlik | Çalışıyor. Hassas veri okuma logu (3.4) **belgeler için yapıldı** (`document_access_logs`); diğer hassas uçlar ve yapılandırılmış log (3.5) kaldı |
 | FAZ 4 | Para doğruluğu | **Çekirdek tamam** — ödeme borçtan düşüyor, kuruş dağıtımı, gecikme tazminatı. Kalan: bakiye testi (4.12), tam kuruş göçü (4.13) |
-| FAZ 5 | 22 mock servisi gerçeğe çevirme | **Başlamadı** — hepsi dürüstçe 501 döndürüyor (S-03: "hepsini tamamla") |
+| FAZ 5 | 22 mock servisi gerçeğe çevirme | **Devam ediyor — 8/22** (gider, personel, ziyaretçi, otopark, rezervasyon, kargo, sözleşme, belge). Kalan 14 servis dürüstçe 501 döndürüyor |
 | FAZ 6 | Yönetişim katmanı (KMK) | **Çekirdek tamam** — işletme projesi, genel kurul, defterler, icra. Kalan: arayüzler (6.7) |
 | FAZ 7 | Uyum ve operasyonel derinlik | Başlamadı |
 | FAZ 8 | Ölçek ve ticarileşme | Başlamadı |
@@ -491,12 +491,12 @@ Uygulanan kararların özeti:
 |---|---|---|
 | S-01 / S-01b | WSL kullan, ne gerekiyorsa kur | Go 1.24.7 + Flutter 3.47.4 kuruldu |
 | S-02 | Finans şeması dondurması **iptal** | 012/013/014 migration'ları yazıldı |
-| S-03 | 22 mock servisin **hepsini tamamla** | Ara adım: hepsi dürüstçe 501; gerçeğe çevirme FAZ 5 |
+| S-03 | 22 mock servisin **hepsini tamamla** | **8/22 tamamlandı** (2026-09-13); kalan 14'ü dürüstçe 501 |
 | S-04 | Her iki KVKK modelini de destekle | Veri modeli site bazlı; hukuki metin taslak işaretli |
 | S-05 | Mevzuatı araştır, parametre yap | `legal_parameters` + `pkg/legalparams` (26 parametre) |
 | S-06 | Sağlayıcıdan bağımsız ödeme arayüzü | `payment_gateway_ready:false` + yönetici onay akışı |
 | S-07 / S-08 | Banka ve e-fatura **sonraki sürüme** | Yapılmadı (karar gereği) |
-| S-09 | Oracle/Cloudflare/AWS uyumlu depolama | **Yapılmadı** — sıradaki iş |
+| S-09 | Oracle/Cloudflare/AWS uyumlu depolama | **Tamamlandı** — `pkg/storage` (local + S3/SigV4, harici bağımlılık yok) |
 | S-10 / S-11 | Sağlayıcı bağımsız bildirim + AI yalnız backend | **Yapılmadı** — sıradaki iş |
 | S-12…S-16 | Varsayılanları uygula | Veri modeli çok siteli; blok bazlı gider destekli |
 | S-17 | Her madde sonrası commit, bölüm sonunda push | Uygulanıyor — **push kimlik bilgisi gerekiyor** |
@@ -504,21 +504,52 @@ Uygulanan kararların özeti:
 
 ---
 
+# FAZ 5 — modül dönüşüm durumu (S-03: "hepsini tamamla")
+
+Her modül için ölçüt: gerçek veri katmanı + RBAC + KVKK sınırı + `verify-stack.sh`
+içinde kendi adımı. Bir modül baştan sona bitmeden diğerine geçilmez (dikey dilim).
+
+| # | Modül | Durum | Doğrulama adımı |
+|---|---|---|---|
+| 1 | gider (expense) | **Tamamlandı** | §12 |
+| 2 | personel | **Tamamlandı** | §13 |
+| 3 | ziyaretçi | **Tamamlandı** | §14 |
+| 4 | otopark | **Tamamlandı** | §15 |
+| 5 | rezervasyon | **Tamamlandı** | §16 |
+| 6 | kargo (package) | **Tamamlandı** | §17 |
+| 7 | sözleşme | **Tamamlandı** | §18 |
+| 8 | belge arşivi | **Tamamlandı** | §19 |
+| 9 | demirbaş (asset) | Sırada | — |
+| 10 | stok (inventory) | Sırada | — |
+| 11 | anket (survey) | Sırada | — |
+| 12 | tur kontrol (patrol) | Sırada | — |
+| 13 | sayaç/IoT | Sırada | — |
+| 14 | duyuru (bulletin) | Sırada | — |
+| 15 | ayarlar (settings) | Sırada | — |
+| 16 | bildirim (notification) | **S-10 arayüzüne bağlı** | — |
+| 17 | banka (banking) | S-07 gereği sonraki sürüm | — |
+| 18 | enerji analitiği | Sırada | — |
+| 19 | ESG | Sırada | — |
+| 20 | NPS | Sırada | — |
+| 21 | akıllı tahsilat | Ödeme sağlayıcısına bağlı | — |
+| 22 | toplantı sihirbazı | FAZ 6.6'ya bağlı | — |
+
+---
+
 # Sıradaki işler (öncelik sırasıyla)
 
-1. **FAZ 5 — mock servisleri gerçeğe çevirme (S-03: "hepsini tamamla")**
-   22 servis hâlâ 501 döndürüyor. Öncelik: gider (expense), personel, ziyaretçi,
-   otopark, rezervasyon, kargo — günlük operasyonda en çok kullanılanlar.
-   Her servis için: şema → repository → service → handler → RBAC → panel/mobil → test.
-   Dikey dilim ilkesi: bir modül baştan sona bitmeden diğerine geçilmez.
-2. **S-09 depolama arayüzü** — belge/fatura/talep fotoğrafı için kalıcı depolama yok.
-   S3 uyumlu arayüz + Oracle/Cloudflare R2/AWS adaptörleri.
-3. **S-10 bildirim arayüzü** — sağlayıcı bağımsız kuyruk; anahtar yokken `log` adaptörü
-   (gönderim veritabanına yazılır, dışarı çıkmaz).
-4. **FAZ 2 kalanı** — PostgreSQL RLS (2.6), çıkışta jeton iptali (2.7), TCKN/IBAN alan
+1. **FAZ 5 kalanı** — 14 servis. Sıradaki: demirbaş, stok, anket, tur kontrol, sayaç.
+2. **S-10 bildirim arayüzü** — sağlayıcı bağımsız kuyruk; anahtar yokken `log` adaptörü
+   (gönderim veritabanına yazılır, dışarı çıkmaz). Kargo, rezervasyon ve sözleşme
+   modülleri "bildirim gönderilmedi" notu düşüyor; bu arayüz gelince o notlar kalkar.
+3. **FAZ 2 kalanı** — PostgreSQL RLS (2.6), çıkışta jeton iptali (2.7), TCKN/IBAN alan
    şifrelemesi (2.8).
-5. **FAZ 6 arayüzleri (6.7)** — yönetişim servisi API olarak hazır; panel ekranları yok.
-6. **FAZ 3 kalanı** — hassas veri okuma logu (3.4), yapılandırılmış log (3.5).
+4. **FAZ 6 arayüzleri (6.7)** — yönetişim servisi API olarak hazır; panel ekranları yok.
+5. **FAZ 3 kalanı** — hassas veri okuma logu (3.4) belgeler için yapıldı; personel ve
+   sakin uçlarına da genişletilecek. Yapılandırılmış log (3.5).
+6. **Panelde çıkış (logout) düğmesi yok** — oturum bayatladığında kullanıcı sıkışıyor
+   (`/api/auth/signout` elle çağrılmak zorunda). Küçük ama gerçek bir kullanılabilirlik
+   hatası.
 
 ---
 

@@ -109,22 +109,29 @@ Next.js admin paneli, iki Flutter mobil uygulaması (sakin + yönetici) içerir.
 
 > Aşağıdaki notlar **çalıştırılarak** doğrulanmıştır. Bu bölümdeki hiçbir ifade "olması gerekeni"
 > değil, **bugün gerçekte olanı** anlatır.
-> Toplu kanıt: `bash backend/scripts/verify-stack.sh` → **102/102**,
+> Toplu kanıt: `bash backend/scripts/verify-stack.sh` → **283/283**,
 > `bash backend/scripts/verify-mobile.sh` → **8/8**.
 > Tarihçe ve `dosya:satır` kanıtı: `tasks/audit-raporu.md`, `tasks/changelog.md`.
 
 **Hızlı başlangıç**
 
 ```bash
-bash backend/scripts/dev-up.sh     # PostgreSQL + gerçek servisler + gateway
+bash backend/scripts/dev-up.sh     # PostgreSQL + 12 gerçek servis + gateway
 cd admin && npm run dev            # http://localhost:3001
 # Demo: 5551234567 / Demo123! (yönetici) · 5559876543 / Demo123! (kiracı)
 ```
 
-- **4 servis gerçek veri katmanına bağlıdır:** `identity`, `finance`, `community` ve yeni
-  `governance` (KMK yönetişim süreçleri). Kalan **22 servis bilerek `501 Not Implemented`
-  döndürür** — artık uydurma veri döndürmez ve yazma isteğine `2xx` vermez (`pkg/stub`).
+- **12 servis gerçek veri katmanına bağlıdır** (2026-09-13):
+  `identity`, `finance`, `community`, `governance` (KMK yönetişim), `expense` (gider),
+  `personnel` (personel), `visitor` (ziyaretçi), `parking` (otopark),
+  `reservation` (rezervasyon), `package` (kargo), `contract` (sözleşme),
+  `document` (belge arşivi). Kalan **14 servis bilerek `501 Not Implemented`
+  döndürür** — uydurma veri döndürmez ve yazma isteğine `2xx` vermez (`pkg/stub`).
   Bir modüle başlamadan önce durumunu `tasks/gap-analizi.md` Bölüm A'dan doğrula.
+- **Dosya saklama artık var (S-09):** `pkg/storage`. Yerel dosya sistemi ya da S3
+  uyumlu sağlayıcı (Oracle Object Storage / Cloudflare R2 / AWS S3). S3 imzalama
+  (SigV4) harici bağımlılık olmadan, yalnızca stdlib ile yazıldı. Yapılandırma
+  eksikse servis açılmaz — sessizce "yüklendi" demez.
 - **Para hesapları `pkg/money` üzerinden, tam sayı KURUŞ ile yapılır.** Dağıtımda en büyük
   kalan yöntemi kullanılır; payların toplamı tutara birebir eşittir. Yeni para kodu
   `float64` kullanmaz.
@@ -172,9 +179,11 @@ cd admin && npm run dev            # http://localhost:3001
   ama **hiçbir yerden import edilmez**. Fark: artık bunlar **var gibi gösterilmiyor** —
   ödeme yanıtı `payment_gateway_ready:false` döndürüyor, panel/mobil "bağlı değil" diyor,
   uydurma AI yanıtları kaldırıldı.
-- **Ölü şema büyük ölçüde duruyor:** `005_new_modules.sql`'in tabloları hâlâ kod tarafından
-  kullanılmıyor (ilgili servisler 501). FAZ 5'te modül modül gerçeğe çevrilecek.
-  Yeni eklenen `012`/`013`/`014` tablolarının **tamamı kullanılıyor**.
+- **Ölü şema küçülüyor:** `005_new_modules.sql`'in tabloları modül modül canlandırılıyor.
+  Bugün kullanılanlar: `expenses`, `employees`, `visitors`, `parking_zones`,
+  `vehicles`, `parking_logs`, `facilities`, `reservations`, `packages`, `contracts`.
+  Kalanlar (demirbaş, stok, anket, tur kontrol, IoT…) hâlâ ölü — ilgili servisler 501.
+  `012`/`013`/`014`/`015` tablolarının **tamamı kullanılıyor**.
 - **Admin panel API hedefi:** `NEXT_PUBLIC_API_URL` (yerel geliştirme:
   `http://localhost:8888/api/v1`). `admin/.env.local` `dev-up.sh` ile birlikte kullanılır.
 - **Mobil taban adresleri düzeltildi:** her iki uygulama da
@@ -203,7 +212,7 @@ Repo yolu WSL'de: `/mnt/c/Users/md064615/Documents/Projeler/proje99`
 
 | Betik | Kapsam | Ne zaman |
 |---|---|---|
-| `bash backend/scripts/verify-stack.sh` | **102 kontrol** — sıfırdan PostgreSQL, `cmd/migrate` ile 14 migration, şema denetimi, tam idempotency, `pkg/audit`+`pkg/legalparams`+`pkg/money`+nisap testleri, identity/gateway/finance/governance uçtan uca (giriş, yetki, 501 dürüstlüğü, ödeme→borç düşümü, gecikme tazminatı, nisap, defter zinciri) | **Backend'e dokunan her değişiklikten sonra** |
+| `bash backend/scripts/verify-stack.sh` | **283 kontrol** — sıfırdan PostgreSQL, `cmd/migrate` ile 15 migration, şema denetimi, tam idempotency, `pkg/audit`+`pkg/legalparams`+`pkg/money`+`pkg/storage`+nisap testleri, ve uçtan uca: identity (giriş, roller), gateway (kimlik doğrulama), finance (ödeme→borç, gecikme tazminatı), governance (işletme projesi, nisap, defter zinciri), 501 dürüstlüğü, gider, personel, ziyaretçi, otopark, rezervasyon, kargo, sözleşme, belge arşivi | **Backend'e dokunan her değişiklikten sonra** |
 | `bash backend/scripts/verify-mobile.sh` | **8 kontrol** — iki Flutter uygulaması için `pub get` + `analyze` + `test` ve arayüzde uydurma veri taraması | Mobil değişikliklerden sonra |
 | `cd admin && npx tsc --noEmit && npm run lint && npm run build` | Panel | Panel değişikliklerinden sonra |
 | `bash backend/scripts/dev-up.sh` | Geliştirme ortamını ayağa kaldırır | Elle deneme için |
@@ -275,6 +284,14 @@ Active services and their ports:
 | community | 8083 | Requests, bulletin |
 | iot | 8084 | Sensors (also uses MongoDB) |
 | notification | 8085 | Firebase push, Kafka consumer |
+| expense | 8086 | Gider ve kalem bazlı dağıtım (**gerçek DB**) |
+| contract | 8090 | Sözleşme takibi, ihbar penceresi (**gerçek DB**) |
+| document | 8091 | Belge arşivi + dosya depolama (**gerçek DB + pkg/storage**) |
+| package | 8097 | Kargo/paket takibi (**gerçek DB**) |
+| parking | 8098 | Araç ve otopark hareketleri (**gerçek DB**) |
+| personnel | 8100 | Personel ve izin (**gerçek DB**) |
+| reservation | 8101 | Ortak alan rezervasyonu, çakışma denetimi (**gerçek DB**) |
+| visitor | 8105 | Ziyaretçi kayıt/çıkış (**gerçek DB**) |
 | governance | 8107 | KMK yönetişim: işletme projesi, genel kurul, defterler, icra (**gerçek DB**) |
 | gateway | 8888 | Custom dev gateway (`cmd/gateway/`) — kimlik doğrulama kapısı |
 
@@ -345,7 +362,8 @@ Kalıcı çözüm için önerilen yaklaşım PostgreSQL satır düzeyi güvenli�
 | Gateway / Kong kimlik doğrulama | **Var** — gateway'de `/auth/*` dışı her yol JWT ister; Kong'da 25 rotada `jwt` eklentisi |
 | CORS | **Allowlist** (`CORS_ALLOWED_ORIGINS`); joker `*` kalmadı |
 | KVKK denetim izi | **Çalışıyor** — kullanıcı, IP, işlem, kaynak, durum kodu yazılıyor; 403'ler `DENIED` |
-| Rol bazlı yetkilendirme | **Site bazlı roller** + finance/governance'ta `RequireRole` + panelde `middleware.ts` ve menü süzme |
+| Rol bazlı yetkilendirme | **Site bazlı roller** + gerçek servislerin hepsinde `RequireRole` + panelde `middleware.ts` ve menü süzme. Roller giriş yanıtında da döner (2026-09-13 düzeltmesi; yoksa panel herkesi yetkisiz sayıyordu). |
+| Belge erişim kaydı | **Var** — `document_access_logs`, salt-ekleme (tetikleyici korumalı), KVKK m.12 |
 | Aktif site seçimi | **Sahiplik doğrulanıyor** — başkasının sitesine geçiş 403 |
 | Giriş şifresi loglanması | **Kaldırıldı** — yalnızca maskelenmiş telefon ve HTTP durumu loglanıyor |
 | İstemci kimlik başlıkları | Gateway `X-User-*` / `X-Property-Id` / `X-Tenant-Id` başlıklarını **siler** |

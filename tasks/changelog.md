@@ -12,6 +12,97 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-09-13 (ikinci tur) — FAZ 5: Sekiz modül mock'tan gerçeğe + dosya depolama (DOĞRULANMIŞ)
+
+> **Toplu kanıt:** `bash backend/scripts/verify-stack.sh` → **283 kontrol, 0 başarısız**
+> (art arda iki tur aynı sonuç — kararlılık ayrıca doğrulandı).
+> Gerçek veri katmanına bağlı servis sayısı **4 → 12**. Kalan mock servis: **14**.
+
+#### Gerçeğe çevrilen modüller
+
+| # | Modül | Önceki davranış | Eklenen gerçek davranış | Kanıt |
+|---|---|---|---|---|
+| 1 | gider (expense) | sabit JSON | kalem bazlı dağıtım, faturasız gider onayı | §12 |
+| 2 | personel | sabit JSON | TCKN/IBAN maskeleme, izin bakiyesi, çakışma reddi | §13 |
+| 3 | ziyaretçi | sabit JSON | sakin yalnızca kendi ziyaretçisini görür | §14 |
+| 4 | otopark | sabit JSON | plaka normalleştirme, kapasite, ücret (kuruş) | §15 |
+| 5 | rezervasyon | sabit JSON | **çakışma denetimi**, tampon süre, kota, saat kuralları | §16 |
+| 6 | kargo (package) | "bildirim gönderildi" yalanı | teslim/iade kaydı, KVKK bölüm bazlı görünürlük | §17 |
+| 7 | sözleşme | sabit JSON | ihbar penceresi, elle yenileme, mali yük özeti | §18 |
+| 8 | belge arşivi | "yüklendi" deyip yazmıyordu | gerçek dosya saklama, sürümleme, erişim kaydı | §19 |
+
+#### Rezervasyon — çakışma denetimi *(FAZ 5.5)*
+
+Mock sürümde çakışma denetimi **hiç yoktu**: iki sakin aynı saati "ayırttığını"
+sanabiliyordu. Artık tesis satırı `FOR UPDATE` ile kilitlenip `tstzrange` kesişimi
+ve `buffer_minutes` tamponu **aynı transaction içinde** denetleniyor (yarış durumu yok).
+Ayrıca min/max süre, çalışma saatleri ve açık günler (Europe/Istanbul yerel saatiyle),
+`advance_booking_days` ve bağımsız bölüm başına haftalık kota sunucuda uygulanıyor.
+**Kanıt:** `verify-stack.sh` §16 — çakışan istek 409, tampon içi istek 409, tampon
+dışı istek 201, iptal sonrası saat yeniden alınabiliyor.
+
+#### Kargo — KVKK veri minimizasyonu *(FAZ 5.6)*
+
+Sakin artık **komşusunun kargosunu göremiyor** (liste ve tekil okuma ayrı ayrı
+sınırlandı). Teslimde `delivered_to_name` zorunlu — kaybolan kargoda sorumluluk
+belirli. `notify` ucu bildirim **göndermez**, görevlinin elle haber verdiğini kayda
+geçirir ve bunu yanıtta açıkça söyler. **Kanıt:** §17.
+
+#### Sözleşme — ihbar penceresi *(FAZ 5.7)*
+
+Kendiliğinden yenilenen bir sözleşmede ihbar süresi kaçırılırsa site habersiz yeni
+bir mali yüke bağlanır. Artık `notice_due` hesaplanıyor; **sistem kendiliğinden
+yenileme yapmıyor**, yenileme elle onaylanıyor ve bitiş tarihi "bugünden" değil
+**mevcut bitişten** itibaren uzatılıyor. `auto_renew` var ama `renewal_period_months`
+yoksa kayıt reddediliyor (422). **Kanıt:** §18.
+
+#### Dosya depolama — `pkg/storage` *(S-09)*
+
+Projede dosya saklama **hiç yoktu**. Eklendi:
+- `Store` arayüzü (Put/Get/Stat/Delete) + `local` ve `s3` adaptörleri
+- S3 imzalama (AWS SigV4) **harici bağımlılık olmadan**, yalnızca stdlib ile.
+  Aynı kod Oracle Object Storage, Cloudflare R2 ve AWS S3'te çalışır.
+- Yapılandırma eksikse `ErrNotConfigured` — sessizce varsayılana düşülmez
+- Her yükleme SHA-256 özeti döner (belge bütünlüğü kanıtı)
+- `ValidateKey`: dizin dışına çıkma (`..`, mutlak yol) engellenir
+- `Describe()` erişim anahtarını asla yazmaz
+
+**Kanıt:** `go test ./pkg/storage/...` → 8 test geçti (SigV4 imzası `httptest` ile
+doğrulandı); `verify-stack.sh` §19 — yüklenen dosyanın **diskte gerçekten** olduğu,
+diskteki SHA-256'nın yüklenenle aynı olduğu ve indirilenin bozulmadığı sınandı.
+
+#### Belge arşivi — migration 015 *(FAZ 5.8)*
+
+- `documents`: kategori, görünürlük kademesi, sürümleme, SHA-256, saklama süresi
+- `document_access_logs`: KVKK m.12 erişim kaydı, **salt-ekleme** (tetikleyici korumalı)
+- Görünürlük SORGUDA uygulanıyor (fail-closed):
+  `RESIDENTS` ⊂ `OWNERS` (KMK m.36 inceleme hakkı) ⊂ `MANAGEMENT`
+- Görünürlük belirtilmezse **en dar** kademe uygulanır
+- Yetkisiz tekil okuma **404** döner → belgenin varlığı sızdırılmaz
+- Erişim kaydı yazılamıyorsa belge **verilmez**
+- Üst veri yazılamazsa depodaki dosya geri alınır (öksüz dosya bırakılmaz)
+
+#### Düzeltilen hatalar
+
+- **Panelde sonsuz yönlendirme döngüsü (ERR_TOO_MANY_REDIRECTS).** İki neden:
+  (1) identity giriş yanıtında `roles`/`active_property_id` alanları yoktu; panel
+  oturumda rol bulamayıp **giriş yapan herkesi** yetkisiz sayıyordu.
+  (2) `/dashboard` ön eki `/dashboard/forbidden` sayfasını da kapsıyordu → sayfa
+  kendine yönleniyordu. Roller artık hem jetona hem yanıta aynı kümeden yazılıyor;
+  forbidden sayfası RBAC'tan muaf ve `safeRedirect()` genel döngü koruması eklendi.
+  **Gerileme koruması:** `verify-stack.sh` §9'a 4 kontrol eklendi.
+- **`verify-stack.sh` kararsızdı (flaky).** `go run X &` iki süreç yaratıyor; betik
+  yalnızca sarmalayıcıyı öldürüyor, derlenmiş ikili portu tutmaya devam ediyordu.
+  Bir sonraki çalıştırmanın sağlık kontrolü **eski sürece** cevap veriyor ve testler
+  eski veritabanına karşı koşuyordu → aynı kodda bir tur 279/279, bir tur 257/279.
+  Artık süreç **ağacı** öldürülüyor (`kill_tree`) ve başlangıçta portlar süpürülüyor
+  (`free_port`). Kararsız bir doğrulama betiğinin kanıt değeri yoktur.
+- **`reservation` servisinin varsayılan portu** `kong/kong.yml` ile hizalandı (8101).
+- **`dev-up.sh`** yalnızca 4 servisi kaldırıyordu; gerçeğe çevrilen 8 modül ayakta
+  olmadığı için gateway bunlara 502 dönüyordu. Artık 12 servis + gateway kalkıyor.
+
+---
+
 ### 2026-09-13 — FAZ 0/1/2/4/6: Dürüstlük tamamlandı, güvenlik ve yönetişim katmanı (DOĞRULANMIŞ)
 
 > **Toplu kanıt:**

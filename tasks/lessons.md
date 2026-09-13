@@ -219,3 +219,56 @@ Format:
   ekran "beklenmeyen hata" gösteriyordu.
 - **Kural:** Liste uçları **tek sözleşme** kullanır (`{"data": [...]}`). İstemci tarafında
   ayrıca toleranslı bir yardımcı bulunur; böylece sürüm farkında ekran kırılmaz.
+
+---
+
+## 2026-09-13 (ikinci tur) — FAZ 5 dersleri
+
+### Ders 10 — Kararsız doğrulama betiğinin kanıt değeri yoktur
+
+**Ne oldu:** `verify-stack.sh` aynı kodda bir tur 279/279, bir tur 257/279 verdi.
+
+**Kök neden:** `go run ./services/x &` **iki** süreç yaratır: `go run` sarmalayıcısı
+ve derlenmiş ikili. Betik yalnızca sarmalayıcıyı öldürüyordu; ikili ayakta kalıp
+portu tutmaya devam ediyordu. Bir sonraki çalıştırmada yeni servis porta bağlanamıyor,
+ama sağlık kontrolü **eski sürece** cevap verdiği için "ayağa kalktı" deniyor ve
+testler eski veritabanına karşı koşuyordu.
+
+**Kural:** Arka planda süreç başlatan her betik, süreç **ağacını** öldürmek
+zorundadır (`pgrep -P` ile özyinelemeli). Ayrıca başlangıçta kullanılacak portlar
+süpürülmelidir. Sağlık kontrolünün 200 dönmesi, **senin** başlattığın sürecin
+cevap verdiği anlamına gelmez.
+
+**Daha genel kural:** Bir doğrulama iki kez üst üste aynı sonucu vermiyorsa, önce
+betiği düzelt — sonuçları yorumlama. Kararsız test, testsizlikten daha kötüdür:
+yanlış güven verir.
+
+### Ders 11 — Bir sözleşmenin iki tüketicisi varsa ikisini de sına
+
+**Ne oldu:** Roller JWT claim'ine yazılıyor ama API yanıtına yazılmıyordu. Backend
+testleri jetona baktığı için **geçiyordu**; panel ise yanıta baktığı için giriş
+yapan herkesi yetkisiz sayıyor ve sonsuz yönlendirme döngüsüne giriyordu.
+
+**Kural:** Aynı bilginin iki taşıyıcısı varsa (jeton claim'i ↔ API yanıt gövdesi,
+veritabanı kolonu ↔ önbellek, şema CHECK ↔ koddaki sabit liste), **ikisi de** ayrı
+ayrı sınanmalıdır. Birinin doğru olması diğerini kanıtlamaz.
+
+**Uygulama:** `verify-stack.sh` §9'a artık hem jeton hem yanıt kontrol ediliyor.
+Aynı ilke `repository.ValidTypes` ↔ migration `CHECK` kısıtı için de geçerli —
+bu yüzden kod tarafındaki listeler şemadaki kısıtla birebir aynı tutuluyor.
+
+### Ders 12 — "Kaydediyor" ile "sakladığını söylüyor" farkı diskten doğrulanır
+
+**Ne oldu:** Belge servisi mock'ken "yüklendi" diyip hiçbir şey yazmıyordu. Bunu
+yakalayan şey bir HTTP durum kodu değil, **diskte dosyayı arayan** bir kontrol oldu.
+
+**Kural:** Bir modül "sakladım" diyorsa, doğrulama o veriyi **bağımsız bir yoldan**
+okumalıdır: HTTP yanıtına değil, doğrudan veritabanına/diske bakarak. Ayrıca
+saklananın **bozulmadığı** (SHA-256) ve geri okunduğunda **aynı** geldiği sınanmalı.
+
+### Ders 13 — Fail-closed varsayılanı, alan unutulduğunda da korumalıdır
+
+Belge görünürlüğü belirtilmediğinde **en dar** kademe (`MANAGEMENT`) uygulanır.
+Geniş bir varsayılan seçilseydi, `visibility` alanını göndermeyi unutan tek bir
+istemci özlük dosyasını tüm sakinlere açardı. Aynı ilke: rol listesi çözülemezse
+jeton üretilmez, `AllowedVisibilities` boşsa hiçbir kayıt dönmez.
