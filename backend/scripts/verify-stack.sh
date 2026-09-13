@@ -147,6 +147,27 @@ else
   bad "go test ./pkg/audit/..."; tail -15 /tmp/verify-audit.log
 fi
 
+step "5b) Mevzuat parametreleri ve para aritmetiği"
+if TEST_DATABASE_URL="postgres://siteeksen:${PW}@127.0.0.1:${DBPORT}/siteeksen" \
+   go test ./pkg/legalparams/... -count=1 >/tmp/verify-legal.log 2>&1; then
+  ok "go test ./pkg/legalparams/... (mevzuat parametreleri)"
+else
+  bad "go test ./pkg/legalparams/..."; tail -15 /tmp/verify-legal.log
+fi
+if go test ./pkg/money/... -count=1 >/tmp/verify-money.log 2>&1; then
+  ok "go test ./pkg/money/... (kuruş dağıtımı, gecikme tazminatı)"
+else
+  bad "go test ./pkg/money/..."; tail -15 /tmp/verify-money.log
+fi
+
+# Gecikme tazminatı oranının kanuna uygunluğu (KMK m.20/2 — aylık %5)
+LF=$($PSQL -t -A -c "SELECT value_numeric FROM legal_parameters WHERE code='LATE_FEE_MONTHLY_RATE' AND property_id IS NULL;")
+[ "$LF" = "0.050000" ] && ok "gecikme tazminatı oranı %5 (KMK m.20/2)" || bad "gecikme tazminatı oranı beklenmedik: $LF"
+
+# Isıtma paylarının toplamı 1 olmalı (%70 + %30)
+HS=$($PSQL -t -A -c "SELECT sum(value_numeric) FROM legal_parameters WHERE code IN ('HEATING_CONSUMPTION_SHARE','HEATING_AREA_SHARE') AND property_id IS NULL;")
+[ "$HS" = "1.000000" ] && ok "ısıtma gider payları toplamı 1 (%70 + %30)" || bad "ısıtma payları toplamı $HS"
+
 step "6) identity-service uçtan uca"
 DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen DB_PASSWORD="$PW" DB_NAME=siteeksen \
 DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${SVCPORT} \

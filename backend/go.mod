@@ -68,6 +68,7 @@ require (
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/richardlehane/mscfb v1.0.4 // indirect
 	github.com/richardlehane/msoleps v1.0.4 // indirect
+	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/spiffe/go-spiffe/v2 v2.6.0 // indirect
 	github.com/tiendc/go-deepcopy v1.7.1 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect

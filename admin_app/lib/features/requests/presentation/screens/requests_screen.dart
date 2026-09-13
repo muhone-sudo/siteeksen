@@ -1,6 +1,26 @@
+// Talep listesi ekranı.
+//
+// NE DEĞİŞTİ VE NEDEN (2026-09-13):
+// Ekranda koda gömülü 4 sahte talep vardı ("Asansör arızası / A Blok D.5",
+// "Su kaçağı / B Blok D.12" ...) ve sekme başlıkları da sabit sayı gösteriyordu
+// ("Açık (2)"). Yönetici gerçekte açık olan talepleri göremediği için bu ekran
+// yanıltıcıydı. Artık liste `GET /requests` ucundan gelir (community servisi bu
+// ucu gerçekten veritabanından karşılar) ve sekme sayıları gelen veriden sayılır.
+//
+// Liste tek seferde çekilip sekmelere göre yerelde süzülür: sekme başlıklarındaki
+// sayıların doğru olması için üç durumun tamamı aynı anda gereklidir.
+//
+// Not: Sunucu talebe ait daire ADINI döndürmüyor (yalnızca `unit_id` var), bu
+// yüzden uydurma "A Blok D.5" metni yerine talep numarası (`ticket_number`)
+// gösterilir.
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+
+import '../../../../core/network/api_client.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/utils/formatters.dart';
+import '../../../../core/widgets/data_state.dart';
 
 class RequestsScreen extends StatefulWidget {
   const RequestsScreen({super.key});
@@ -9,20 +29,60 @@ class RequestsScreen extends StatefulWidget {
   State<RequestsScreen> createState() => _RequestsScreenState();
 }
 
-class _RequestsScreenState extends State<RequestsScreen> with SingleTickerProviderStateMixin {
+class _RequestsScreenState extends State<RequestsScreen>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
-  final _requests = [
-    _Request(id: '1', title: 'Asansör arızası', type: 'MAINTENANCE', unit: 'A Blok D.5', date: '01.02.2026', status: 'OPEN'),
-    _Request(id: '2', title: 'Su kaçağı', type: 'MAINTENANCE', unit: 'B Blok D.12', date: '31.01.2026', status: 'IN_PROGRESS'),
-    _Request(id: '3', title: 'Otopark şikayeti', type: 'COMPLAINT', unit: 'C Blok D.3', date: '30.01.2026', status: 'OPEN'),
-    _Request(id: '4', title: 'Gürültü şikayeti', type: 'COMPLAINT', unit: 'A Blok D.8', date: '29.01.2026', status: 'RESOLVED'),
-  ];
+  bool _loading = true;
+  Object? _error;
+  List<Map<String, dynamic>> _requests = const [];
+
+  static const _statuses = ['OPEN', 'IN_PROGRESS', 'RESOLVED'];
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: _statuses.length, vsync: this);
+    _load();
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final data = await apiClient.getRequests();
+      if (!mounted) return;
+      setState(() {
+        _requests = data
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e;
+        _loading = false;
+      });
+    }
+  }
+
+  List<Map<String, dynamic>> _byStatus(String status) =>
+      _requests.where((r) => r['status'] == status).toList();
+
+  /// Sekme başlığı: veri yüklenmeden sayı YAZILMAZ (sahte sayı göstermemek için).
+  String _tabLabel(String text, String status) {
+    if (_loading || _error != null) return text;
+    return '$text (${_byStatus(status).length})';
   }
 
   @override
@@ -30,113 +90,165 @@ class _RequestsScreenState extends State<RequestsScreen> with SingleTickerProvid
     return Scaffold(
       appBar: AppBar(
         title: const Text('Talepler'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _loading ? null : _load,
+          ),
+        ],
         bottom: TabBar(
           controller: _tabController,
-          tabs: const [
-            Tab(text: 'Açık (2)'),
-            Tab(text: 'İşlemde (1)'),
-            Tab(text: 'Çözüldü (1)'),
+          tabs: [
+            Tab(text: _tabLabel('Açık', 'OPEN')),
+            Tab(text: _tabLabel('İşlemde', 'IN_PROGRESS')),
+            Tab(text: _tabLabel('Çözüldü', 'RESOLVED')),
           ],
         ),
       ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          _buildList('OPEN'),
-          _buildList('IN_PROGRESS'),
-          _buildList('RESOLVED'),
-        ],
-      ),
+      body: _buildBody(),
+    );
+  }
+
+  Widget _buildBody() {
+    if (_loading) {
+      return const LoadingView(message: 'Talepler alınıyor...');
+    }
+    if (_error != null) {
+      final error = _error!;
+      if (isNotImplemented(error)) {
+        return const NotImplementedNotice(
+          title: 'Talep listesi henüz hazır değil',
+          detail: 'Sunucu bu listeyi henüz üretmiyor (501).',
+        );
+      }
+      return ErrorStateView(message: toUserMessage(error), onRetry: _load);
+    }
+    return TabBarView(
+      controller: _tabController,
+      children: _statuses.map(_buildList).toList(),
     );
   }
 
   Widget _buildList(String status) {
-    final filtered = _requests.where((r) => r.status == status).toList();
+    final filtered = _byStatus(status);
     if (filtered.isEmpty) {
-      return const Center(child: Text('Talep bulunamadı'));
+      // "Veri yok" ile "veri alınamadı" farklı şeylerdir; buraya yalnızca
+      // sunucu başarıyla yanıt verdiğinde düşülür.
+      return EmptyStateView(
+        message: '${_statusText(status)} durumunda talep yok.',
+        icon: Icons.inbox_rounded,
+      );
     }
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: filtered.length,
-      itemBuilder: (context, index) {
-        final request = filtered[index];
-        return Card(
-          margin: const EdgeInsets.only(bottom: 8),
-          child: InkWell(
-            onTap: () => context.go('/requests/${request.id}'),
-            borderRadius: BorderRadius.circular(12),
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Row(
-                children: [
-                  CircleAvatar(
-                    backgroundColor: _getStatusColor(request.status).withOpacity(0.1),
-                    child: Icon(_getTypeIcon(request.type), color: _getStatusColor(request.status)),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(request.title, style: const TextStyle(fontWeight: FontWeight.w600)),
-                        Text('${request.unit} • ${request.date}', style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
-                      ],
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: ListView.builder(
+        padding: const EdgeInsets.all(16),
+        physics: const AlwaysScrollableScrollPhysics(),
+        itemCount: filtered.length,
+        itemBuilder: (context, index) {
+          final request = filtered[index];
+          final id = (request['id'] ?? '').toString();
+          final title = (request['title'] ?? '').toString();
+          final ticket = (request['ticket_number'] ?? '').toString();
+          final requestStatus = (request['status'] ?? '').toString();
+
+          return Card(
+            margin: const EdgeInsets.only(bottom: 8),
+            child: InkWell(
+              onTap: id.isEmpty ? null : () => context.go('/requests/$id'),
+              borderRadius: BorderRadius.circular(12),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      backgroundColor:
+                          _statusColor(requestStatus).withValues(alpha: 0.1),
+                      child: Icon(
+                        _priorityIcon((request['priority'] ?? '').toString()),
+                        color: _statusColor(requestStatus),
+                      ),
                     ),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: _getStatusColor(request.status).withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(4),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(title.isEmpty ? '(başlıksız talep)' : title,
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.w600)),
+                          Text(
+                            '${ticket.isEmpty ? '—' : ticket} • '
+                            '${formatDate(request['created_at'])}',
+                            style: const TextStyle(
+                                fontSize: 12, color: AppTheme.textSecondary),
+                          ),
+                        ],
+                      ),
                     ),
-                    child: Text(
-                      _getStatusText(request.status),
-                      style: TextStyle(fontSize: 11, color: _getStatusColor(request.status)),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color:
+                            _statusColor(requestStatus).withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        _statusText(requestStatus),
+                        style: TextStyle(
+                            fontSize: 11, color: _statusColor(requestStatus)),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 
-  Color _getStatusColor(String status) {
+  Color _statusColor(String status) {
     switch (status) {
-      case 'OPEN': return AppTheme.warningColor;
-      case 'IN_PROGRESS': return AppTheme.primaryColor;
-      case 'RESOLVED': return AppTheme.successColor;
-      default: return AppTheme.textSecondary;
+      case 'OPEN':
+        return AppTheme.warningColor;
+      case 'IN_PROGRESS':
+        return AppTheme.primaryColor;
+      case 'RESOLVED':
+        return AppTheme.successColor;
+      default:
+        return AppTheme.textSecondary;
     }
   }
 
-  String _getStatusText(String status) {
+  String _statusText(String status) {
     switch (status) {
-      case 'OPEN': return 'Açık';
-      case 'IN_PROGRESS': return 'İşlemde';
-      case 'RESOLVED': return 'Çözüldü';
-      default: return status;
+      case 'OPEN':
+        return 'Açık';
+      case 'IN_PROGRESS':
+        return 'İşlemde';
+      case 'RESOLVED':
+        return 'Çözüldü';
+      case 'CLOSED':
+        return 'Kapandı';
+      default:
+        return status;
     }
   }
 
-  IconData _getTypeIcon(String type) {
-    switch (type) {
-      case 'MAINTENANCE': return Icons.build;
-      case 'COMPLAINT': return Icons.report_problem;
-      case 'SUGGESTION': return Icons.lightbulb;
-      default: return Icons.help;
+  /// Sunucu talep "tipi" döndürmüyor; gerçekten var olan tek sınıflandırma
+  /// `priority` alanıdır, ikon ondan türetilir.
+  IconData _priorityIcon(String priority) {
+    switch (priority) {
+      case 'URGENT':
+      case 'HIGH':
+        return Icons.priority_high;
+      case 'LOW':
+        return Icons.low_priority;
+      default:
+        return Icons.support_agent;
     }
   }
-}
-
-class _Request {
-  final String id;
-  final String title;
-  final String type;
-  final String unit;
-  final String date;
-  final String status;
-  _Request({required this.id, required this.title, required this.type, required this.unit, required this.date, required this.status});
 }

@@ -388,6 +388,169 @@ class ApiClient {
     final response = await _dio.get('/reservations');
     return response.data['data'] ?? response.data;
   }
+
+  Future<void> createReservation(Map<String, dynamic> data) async {
+    await _dio.post('/reservations', data: data);
+  }
+
+  Future<void> cancelReservation(String id) async {
+    await _dio.delete('/reservations/$id');
+  }
+
+  // ============ GİDERLER ============
+  Future<List<dynamic>> getExpenses({int? year, int? month, String? status}) async {
+    final response = await _dio.get('/expenses', queryParameters: {
+      if (year != null) 'year': year,
+      if (month != null) 'month': month,
+      if (status != null) 'status': status,
+    });
+    return _list(response.data, 'expenses');
+  }
+
+  Future<Map<String, dynamic>> getExpense(String id) async {
+    final response = await _dio.get('/expenses/$id');
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
+  Future<void> createExpense(Map<String, dynamic> data) async {
+    await _dio.post('/expenses', data: data);
+  }
+
+  // ============ SÖZLEŞMELER ============
+  Future<List<dynamic>> getContracts({String? status}) async {
+    final response = await _dio.get('/contracts', queryParameters: {
+      if (status != null) 'status': status,
+    });
+    return _list(response.data, 'contracts');
+  }
+
+  Future<void> createContract(Map<String, dynamic> data) async {
+    await _dio.post('/contracts', data: data);
+  }
+
+  // ============ İLAN PANOSU ============
+  Future<List<dynamic>> getBulletins() async {
+    final response = await _dio.get('/bulletin');
+    return _list(response.data, 'bulletins');
+  }
+
+  Future<void> createBulletin(Map<String, dynamic> data) async {
+    await _dio.post('/bulletin', data: data);
+  }
+
+  Future<void> deleteBulletin(String id) async {
+    await _dio.delete('/bulletin/$id');
+  }
+
+  // ============ ENERJİ / TÜKETİM ANALİTİĞİ ============
+  Future<Map<String, dynamic>> getEnergySummary() async {
+    final response = await _dio.get('/energy/summary');
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
+  Future<List<dynamic>> getEnergyConsumption({String? period}) async {
+    final response = await _dio.get('/energy/consumption', queryParameters: {
+      if (period != null) 'period': period,
+    });
+    return _list(response.data, 'consumption');
+  }
+
+  // ============ AKILLI TAHSİLAT ============
+  Future<Map<String, dynamic>> getCollectionOverview() async {
+    final response = await _dio.get('/smart-collection/overview');
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
+  Future<List<dynamic>> getCollectionCandidates() async {
+    final response = await _dio.get('/smart-collection/candidates');
+    return _list(response.data, 'candidates');
+  }
+
+  Future<void> startCollectionAction(String residentId, String action) async {
+    await _dio.post('/smart-collection/actions',
+        data: {'resident_id': residentId, 'action': action});
+  }
+
+  // ============ GENEL KURUL / TOPLANTI ============
+  Future<List<dynamic>> getMeetings() async {
+    final response = await _dio.get('/meetings');
+    return _list(response.data, 'meetings');
+  }
+
+  Future<void> createMeeting(Map<String, dynamic> data) async {
+    await _dio.post('/meetings', data: data);
+  }
+
+  // ============ ANKETLER ============
+  Future<List<dynamic>> getSurveys() async {
+    final response = await _dio.get('/surveys');
+    return _list(response.data, 'surveys');
+  }
+
+  Future<void> createSurvey(Map<String, dynamic> data) async {
+    await _dio.post('/surveys', data: data);
+  }
+
+  Future<Map<String, dynamic>> getSurveyResults(String id) async {
+    final response = await _dio.get('/surveys/$id/results');
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
+  // ============ DEVRİYE ============
+  Future<List<dynamic>> getPatrolRoutes() async {
+    final response = await _dio.get('/patrol-routes');
+    return _list(response.data, 'routes');
+  }
+
+  Future<List<dynamic>> getPatrolSessions() async {
+    final response = await _dio.get('/patrol-sessions');
+    return _list(response.data, 'sessions');
+  }
+
+  // ============ DEMİRBAŞ ============
+  Future<List<dynamic>> getAssets() async {
+    final response = await _dio.get('/assets');
+    return _list(response.data, 'assets');
+  }
+
+  Future<void> createAsset(Map<String, dynamic> data) async {
+    await _dio.post('/assets', data: data);
+  }
+
+  // ============ STOK ============
+  Future<List<dynamic>> getInventory() async {
+    final response = await _dio.get('/inventory');
+    return _list(response.data, 'items');
+  }
+
+  Future<void> createStockMovement(Map<String, dynamic> data) async {
+    await _dio.post('/stock-movements', data: data);
+  }
+
+  // ============ API KİMLİK BİLGİLERİ ============
+  Future<List<dynamic>> getCredentials() async {
+    final response = await _dio.get('/credentials');
+    return _list(response.data, 'credentials');
+  }
+
+  Future<void> createCredential(Map<String, dynamic> data) async {
+    await _dio.post('/credentials', data: data);
+  }
+
+  Future<void> deleteCredential(String id) async {
+    await _dio.delete('/credentials/$id');
+  }
+
+  /// Servislerin liste yanıtları iki biçimde gelebiliyor:
+  /// düz dizi ya da `{"<anahtar>": [...]}` / `{"data": [...]}`.
+  static List<dynamic> _list(dynamic data, String key) {
+    if (data is List) return data;
+    if (data is Map) {
+      final v = data[key] ?? data['data'] ?? data['items'];
+      if (v is List) return v;
+    }
+    return const [];
+  }
 }
 
 // Singleton
