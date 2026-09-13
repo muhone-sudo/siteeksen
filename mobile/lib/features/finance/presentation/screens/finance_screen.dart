@@ -1,7 +1,74 @@
-import 'package:flutter/material.dart';
+// Finansal Durum Ekranı (sakin)
+//
+// NEDEN DEĞİŞTİRİLDİ (2026-09-13):
+// Önceki sürüm hiçbir ağ çağrısı yapmıyordu. Toplam borç koda gömülü "₺1.200,00"
+// idi ve altındaki dört aidat satırı ("Ocak 2026 / Aralık 2025 …") tamamen
+// uydurmaydı — her kullanıcıya, her sitede aynı rakamlar gösteriliyordu.
+// "Öde" düğmesinin `onPressed`'i boştu, satırların `onTap`'i boştu.
+// Para ekranında uydurma rakam göstermek kabul edilemez.
+//
+// Bu sürüm:
+//   - Borcu `GET /finance/debt-status`, tahakkukları `GET /finance/assessments`
+//     uçlarından alır (apiClient.getDebtStatus / getAssessments).
+//   - Veri alınamazsa uydurma rakam göstermez; hatayı ve "yeniden dene"yi gösterir.
+//   - Tahakkuk yoksa "veri yok" der; bu "veri alınamadı" ile karıştırılmaz.
+//   - "Öde" gerçek ödeme ekranına (duesPayment) götürür.
 
-class FinanceScreen extends StatelessWidget {
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../../../core/network/api_client.dart';
+import '../../../../core/utils/formatters.dart';
+import '../../../../core/widgets/data_state.dart';
+
+class FinanceScreen extends StatefulWidget {
   const FinanceScreen({super.key});
+
+  @override
+  State<FinanceScreen> createState() => _FinanceScreenState();
+}
+
+class _FinanceScreenState extends State<FinanceScreen> {
+  bool _loading = true;
+  String? _loadError;
+  bool _notImplemented = false;
+
+  Map<String, dynamic>? _debt;
+  List<Map<String, dynamic>> _assessments = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _loadError = null;
+      _notImplemented = false;
+    });
+    try {
+      final debt = await apiClient.getDebtStatus();
+      final assessments = await apiClient.getAssessments();
+      if (!mounted) return;
+      setState(() {
+        _debt = debt;
+        _assessments = assessments
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _notImplemented = isNotImplemented(e);
+        _loadError = toUserMessage(e);
+        _loading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -9,45 +76,33 @@ class FinanceScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Finansal Durumum'),
       ),
-      body: ListView(
+      body: _buildBody(context),
+    );
+  }
+
+  Widget _buildBody(BuildContext context) {
+    if (_loading) {
+      return const LoadingView(message: 'Finansal durumunuz alınıyor…');
+    }
+    if (_notImplemented) {
+      return const SingleChildScrollView(
+        child: NotImplementedNotice(
+          title: 'Finans modülü henüz hazır değil',
+          detail: 'Sunucu bu uç için henüz gerçek veri döndürmüyor.',
+        ),
+      );
+    }
+    if (_loadError != null) {
+      return ErrorStateView(message: _loadError!, onRetry: _load);
+    }
+
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // Özet Kart
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                children: [
-                  const Text(
-                    'Toplam Borç',
-                    style: TextStyle(color: Colors.grey),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    '₺1.200,00',
-                    style: Theme.of(context).textTheme.headlineLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: () {},
-                          child: const Text('Öde'),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
+          _buildSummaryCard(context),
           const SizedBox(height: 24),
-
-          // Aidatlar Başlığı
           Text(
             'Aidatlarım',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
@@ -55,79 +110,151 @@ class FinanceScreen extends StatelessWidget {
                 ),
           ),
           const SizedBox(height: 12),
-
-          // Aidat Listesi
-          _AssessmentItem(
-            period: 'Ocak 2026',
-            amount: '₺1.200,00',
-            status: 'PENDING',
-          ),
-          _AssessmentItem(
-            period: 'Aralık 2025',
-            amount: '₺1.150,00',
-            status: 'PAID',
-          ),
-          _AssessmentItem(
-            period: 'Kasım 2025',
-            amount: '₺1.150,00',
-            status: 'PAID',
-          ),
-          _AssessmentItem(
-            period: 'Ekim 2025',
-            amount: '₺1.100,00',
-            status: 'PAID',
-          ),
+          ..._buildAssessmentList(),
         ],
       ),
     );
   }
+
+  Widget _buildSummaryCard(BuildContext context) {
+    final balance = (_debt?['current_balance'] as num?)?.toDouble();
+    final hasDebt = (_debt?['has_debt'] as bool?) ?? ((balance ?? 0) > 0);
+    final overdueMonths = (_debt?['overdue_months'] as num?)?.toInt() ?? 0;
+    final nextDue = _debt?['next_due_date'];
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          children: [
+            const Text(
+              'Toplam Borç',
+              style: TextStyle(color: Colors.grey),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              // Sunucudan bakiye gelmediyse uydurma rakam değil "—" gösterilir.
+              balance == null ? '—' : formatTry(balance),
+              style: Theme.of(context).textTheme.headlineLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: balance == null
+                        ? Colors.grey
+                        : (hasDebt ? Colors.red : Colors.green),
+                  ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              overdueMonths > 0
+                  ? '$overdueMonths ay gecikmiş ödeme var'
+                  : (formatDate(nextDue) == '—'
+                      ? 'Yaklaşan ödeme yok'
+                      : 'Son ödeme tarihi: ${formatDate(nextDue)}'),
+              style: TextStyle(
+                fontSize: 13,
+                color: overdueMonths > 0 ? Colors.orange : Colors.grey,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () async {
+                      await context.pushNamed('duesPayment');
+                      // Ödeme ekranından dönüldüğünde bakiye tazelensin.
+                      if (mounted) _load();
+                    },
+                    child: const Text('Öde'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _buildAssessmentList() {
+    if (_assessments.isEmpty) {
+      return const [
+        EmptyStateView(
+          message: 'Tahakkuk kaydı bulunamadı.',
+          icon: Icons.receipt_long_rounded,
+        ),
+      ];
+    }
+    return _assessments.map(_AssessmentItem.new).toList();
+  }
 }
 
 class _AssessmentItem extends StatelessWidget {
-  final String period;
-  final String amount;
-  final String status;
+  /// Sunucudan gelen ham tahakkuk kaydı (`AssessmentSummary`).
+  final Map<String, dynamic> assessment;
 
-  const _AssessmentItem({
-    required this.period,
-    required this.amount,
-    required this.status,
-  });
+  const _AssessmentItem(this.assessment);
+
+  /// `2026-01` → `Ocak 2026`. Biçim beklenenden farklıysa ham değer gösterilir.
+  String get _periodLabel {
+    final period = assessment['period'] as String?;
+    if (period == null || !period.contains('-')) return period ?? 'Dönem';
+    final parts = period.split('-');
+    final month = int.tryParse(parts[1]) ?? 0;
+    const names = [
+      '', 'Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
+      'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'
+    ];
+    if (month < 1 || month > 12) return period;
+    return '${names[month]} ${parts[0]}';
+  }
 
   @override
   Widget build(BuildContext context) {
+    final status = (assessment['status'] as String?) ?? 'PENDING';
     final isPaid = status == 'PAID';
+    final isOverdue = status == 'OVERDUE';
+    final color = isPaid
+        ? Colors.green
+        : isOverdue
+            ? Colors.red
+            : Colors.orange;
+    final total = (assessment['total_amount'] as num?)?.toDouble() ?? 0;
 
     return Card(
       child: ListTile(
         leading: CircleAvatar(
-          backgroundColor: isPaid
-              ? Colors.green.withOpacity(0.1)
-              : Colors.orange.withOpacity(0.1),
+          backgroundColor: color.withValues(alpha: 0.1),
           child: Icon(
-            isPaid ? Icons.check : Icons.schedule,
-            color: isPaid ? Colors.green : Colors.orange,
+            isPaid
+                ? Icons.check
+                : isOverdue
+                    ? Icons.priority_high
+                    : Icons.schedule,
+            color: color,
           ),
         ),
-        title: Text(period),
-        subtitle: Text(amount),
+        title: Text(_periodLabel),
+        subtitle: Text(formatTry(total)),
         trailing: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
-            color: isPaid
-                ? Colors.green.withOpacity(0.1)
-                : Colors.orange.withOpacity(0.1),
+            color: color.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(20),
           ),
           child: Text(
-            isPaid ? 'Ödendi' : 'Bekliyor',
+            isPaid
+                ? 'Ödendi'
+                : isOverdue
+                    ? 'Gecikmiş'
+                    : status == 'PARTIAL'
+                        ? 'Kısmi'
+                        : 'Bekliyor',
             style: TextStyle(
-              color: isPaid ? Colors.green : Colors.orange,
+              color: color,
               fontWeight: FontWeight.w500,
             ),
           ),
         ),
-        onTap: () {},
       ),
     );
   }

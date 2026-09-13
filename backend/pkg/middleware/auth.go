@@ -11,14 +11,21 @@ import (
 	"github.com/siteeksen/backend/pkg/authtoken"
 )
 
-// Rol değerleri (users.roles TEXT[] içinde taşınır)
+// Rol değerleri.
+//
+// Roller AKTİF SİTEYE göre çözümlenir (migration 013 + identity servisi):
+//   - Sakinlik rolleri `resident_units` tablosundan gelir.
+//   - Yönetim rolleri `property_roles` tablosundan gelir.
+//   - `users.roles` yalnızca platform düzeyi roller içindir (SUPER_ADMIN).
 const (
-	RoleResident = "RESIDENT"
-	RoleOwner    = "OWNER"
-	RoleTenant   = "TENANT"
-	RoleManager  = "MANAGER"
-	RoleAuditor  = "AUDITOR"
-	RoleStaff    = "STAFF"
+	RoleResident    = "RESIDENT"
+	RoleOwner       = "OWNER"
+	RoleTenant      = "TENANT"
+	RoleManager     = "MANAGER"
+	RoleAuditor     = "AUDITOR"
+	RoleStaff       = "STAFF"
+	RoleBoardMember = "BOARD_MEMBER"
+	RoleSuperAdmin  = "SUPER_ADMIN"
 )
 
 // Claims, jeton doğrulamasının tek kaynağı olan pkg/authtoken'a takma addır.

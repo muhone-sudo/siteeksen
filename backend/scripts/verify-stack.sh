@@ -32,6 +32,7 @@ FAIL=0
 SVC_PID=""
 STUB_PID=""
 GW_PID=""
+FIN_PID=""
 
 ok()   { echo "  [GEÇTİ]    $1"; PASS=$((PASS+1)); }
 bad()  { echo "  [BAŞARISIZ] $1"; FAIL=$((FAIL+1)); }
@@ -41,6 +42,7 @@ cleanup() {
   [ -n "$SVC_PID" ] && kill "$SVC_PID" 2>/dev/null
   [ -n "$STUB_PID" ] && kill "$STUB_PID" 2>/dev/null
   [ -n "$GW_PID" ] && kill "$GW_PID" 2>/dev/null
+  [ -n "$FIN_PID" ] && kill "$FIN_PID" 2>/dev/null
   docker rm -f "$CNAME" >/dev/null 2>&1
 }
 trap cleanup EXIT
@@ -284,6 +286,85 @@ KC=$(grep -c 'origins:' "$BACKEND_DIR/../kong/kong.yml" 2>/dev/null | head -1)
 KW=$(grep -c "'\*'" "$BACKEND_DIR/../kong/kong.yml" 2>/dev/null | head -1)
 KC=${KC:-0}; KW=${KW:-0}
 [ "$KW" -eq 0 ] && ok "kong.yml: joker (*) CORS kökeni kalmadı ($KC servis)" || bad "kong.yml: hâlâ $KW joker CORS kökeni var"
+
+step "9) Yetkilendirme: site bazlı roller ve sahiplik doğrulaması (FAZ 2.4/2.5/2.9)"
+FINPORT=${VERIFY_FIN_PORT:-18092}
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen DB_PASSWORD="$PW" DB_NAME=siteeksen \
+DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${FINPORT} \
+  go run ./services/finance >/tmp/verify-finance.log 2>&1 &
+FIN_PID=$!
+FUP=0
+for _ in $(seq 1 45); do
+  curl -fsS "http://127.0.0.1:${FINPORT}/health" >/dev/null 2>&1 && { FUP=1; break; }
+  sleep 1
+done
+
+if [ "$FUP" = "1" ]; then
+  ok "finance-service ayağa kalktı"
+
+  # Yönetici hesabı (migration 008 + 013 ile MANAGER rolü site bazlı atanmış)
+  MGR=$(curl -s -X POST "http://127.0.0.1:${SVCPORT}/api/v1/auth/login" \
+    -H 'Content-Type: application/json' -d '{"phone":"5551234567","password":"Demo123!"}' \
+    | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+  # Kiracı hesabı (yönetim rolü YOK)
+  TEN=$(curl -s -X POST "http://127.0.0.1:${SVCPORT}/api/v1/auth/login" \
+    -H 'Content-Type: application/json' -d '{"phone":"5559876543","password":"Demo123!"}' \
+    | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+
+  [ -n "$MGR" ] && ok "yönetici girişi" || bad "yönetici girişi başarısız"
+  [ -n "$TEN" ] && ok "kiracı girişi" || bad "kiracı girişi başarısız"
+
+  # Rollerin jetondan site bazlı geldiğini doğrula
+  MGR_ROLES=$(echo "$MGR" | cut -d. -f2 | tr '_-' '/+' | base64 -d 2>/dev/null)
+  echo "$MGR_ROLES" | grep -q 'MANAGER' && ok "yönetici jetonunda MANAGER rolü var" \
+    || bad "yönetici jetonunda MANAGER rolü yok"
+  TEN_ROLES=$(echo "$TEN" | cut -d. -f2 | tr '_-' '/+' | base64 -d 2>/dev/null)
+  echo "$TEN_ROLES" | grep -q 'MANAGER' && bad "kiracı jetonunda MANAGER rolü VAR (roller hâlâ global)" \
+    || ok "kiracı jetonunda yönetim rolü yok (roller site bazlı)"
+  echo "$TEN_ROLES" | grep -q 'TENANT' && ok "kiracı jetonunda TENANT rolü var" \
+    || bad "kiracı jetonunda TENANT rolü yok"
+
+  # Site geneli borçlu listesi yalnızca yönetime açık olmalı
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $MGR" \
+    "http://127.0.0.1:${FINPORT}/api/v1/finance/debtors")
+  [ "$SC" = "200" ] && ok "yönetici: /finance/debtors → 200" || bad "yönetici: /finance/debtors → $SC"
+
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $TEN" \
+    "http://127.0.0.1:${FINPORT}/api/v1/finance/debtors")
+  [ "$SC" = "403" ] && ok "kiracı: /finance/debtors → 403 (site geneli borç listesi gizli)" \
+    || bad "kiracı: /finance/debtors → $SC (403 bekleniyordu)"
+
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $TEN" \
+    "http://127.0.0.1:${FINPORT}/api/v1/finance/debt-status")
+  [ "$SC" = "200" ] && ok "kiracı: kendi borç durumunu görebiliyor → 200" \
+    || bad "kiracı: /finance/debt-status → $SC"
+
+  # Yetkisiz erişim denemesi denetim izine DENIED olarak yazılmalı
+  sleep 1
+  DEN=$($PSQL -t -A -c "SELECT count(*) FROM audit_logs WHERE action='DENIED';")
+  [ "$DEN" -ge 1 ] && ok "yetkisiz erişim denetim izine DENIED olarak yazıldı ($DEN kayıt)" \
+    || bad "DENIED denetim kaydı yok"
+else
+  bad "finance-service başlamadı"; tail -10 /tmp/verify-finance.log
+fi
+kill "$FIN_PID" 2>/dev/null
+
+# Aktif site seçiminde sahiplik doğrulaması (FAZ 2.4)
+if [ -n "${MGR:-}" ]; then
+  # Kullanıcının bağlı OLMADIĞI bir site kimliği
+  OTHER=$($PSQL -t -A -c "INSERT INTO properties (id, name, address, city, district, total_share_ratio, total_units) VALUES (gen_random_uuid(), 'Yabanci Site', 'x', 'x', 'x', 1000, 1) RETURNING id;")
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "http://127.0.0.1:${SVCPORT}/api/v1/users/me/active-property" \
+    -H "Authorization: Bearer $MGR" -H 'Content-Type: application/json' \
+    -d "{\"property_id\":\"$OTHER\"}")
+  [ "$SC" = "403" ] && ok "başkasının sitesine geçiş reddedildi → 403" \
+    || bad "başkasının sitesine geçiş → $SC (403 bekleniyordu)"
+
+  OWN=$($PSQL -t -A -c "SELECT id FROM properties WHERE id='11111111-1111-1111-1111-111111111111';")
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "http://127.0.0.1:${SVCPORT}/api/v1/users/me/active-property" \
+    -H "Authorization: Bearer $MGR" -H 'Content-Type: application/json' \
+    -d "{\"property_id\":\"$OWN\"}")
+  [ "$SC" = "200" ] && ok "kendi sitesine geçiş kabul edildi → 200" || bad "kendi sitesine geçiş → $SC"
+fi
 
 step "SONUÇ"
 echo "  Geçen: $PASS   Başarısız: $FAIL"

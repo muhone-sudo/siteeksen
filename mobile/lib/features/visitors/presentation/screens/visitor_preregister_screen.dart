@@ -1,12 +1,36 @@
+// Ziyaretçi Ön Kayıt Ekranı (sakin)
+//
+// NEDEN DEĞİŞTİRİLDİ (2026-09-13):
+// "Ön Kayıt Oluştur" düğmesi HİÇBİR AĞ ÇAĞRISI YAPMADAN "Ön Kayıt Oluşturuldu!"
+// diyor ve üstüne "QR kodlu giriş linki SMS olarak gönderildi" diye
+// GERÇEKLEŞMEMİŞ bir işlemi bildiriyordu. Kullanıcı misafirini kaydettiğini
+// sanıyor, güvenlik görevlisine hiçbir bilgi ulaşmıyordu.
+// Ayrıca tarih biçimlendirmesi elle yapılıyordu (`core/utils/formatters.dart`
+// varken).
+//
+// Bu sürüm:
+//   - Kaydı gerçekten gönderir: `POST /visitors`
+//     (apiClient.createVisitorPreRegistration).
+//   - Yalnızca sunucu 2xx dönerse "oluşturuldu" der.
+//   - Ziyaretçi servisi bugün 501 döndürüyor (backend/services/visitor/main.go —
+//     tüm uçlar stub). Bu durumda kullanıcıya kaydın OLUŞMADIĞI açıkça söylenir.
+//   - SMS/QR gönderimi için entegrasyon yoktur; bu vaat metni kaldırılıp yerine
+//     `NotImplementedNotice` kondu.
+
 import 'package:flutter/material.dart';
+
+import '../../../../core/network/api_client.dart';
 import '../../../../core/theme/apple_theme.dart';
+import '../../../../core/utils/formatters.dart';
+import '../../../../core/widgets/data_state.dart';
 
 /// Ziyaretçi Ön Kayıt Ekranı - Apple Tarzı
 class VisitorPreRegisterScreen extends StatefulWidget {
   const VisitorPreRegisterScreen({super.key});
 
   @override
-  State<VisitorPreRegisterScreen> createState() => _VisitorPreRegisterScreenState();
+  State<VisitorPreRegisterScreen> createState() =>
+      _VisitorPreRegisterScreenState();
 }
 
 class _VisitorPreRegisterScreenState extends State<VisitorPreRegisterScreen> {
@@ -16,13 +40,29 @@ class _VisitorPreRegisterScreenState extends State<VisitorPreRegisterScreen> {
   DateTime _selectedDate = DateTime.now();
   TimeOfDay _selectedTime = TimeOfDay.now();
   int _selectedVisitorType = 0;
+  bool _submitting = false;
 
-  final List<Map<String, dynamic>> _visitorTypes = [
-    {'name': 'Misafir', 'icon': Icons.person_rounded, 'color': AppleTheme.systemBlue},
-    {'name': 'Kurye', 'icon': Icons.local_shipping_rounded, 'color': AppleTheme.systemGreen},
-    {'name': 'Temizlik', 'icon': Icons.cleaning_services_rounded, 'color': AppleTheme.systemPurple},
-    {'name': 'Tamirat', 'icon': Icons.build_rounded, 'color': AppleTheme.systemOrange},
+  /// `code` değeri sunucuya `purpose` alanında gönderilir
+  /// (005_new_modules.sql:26 → visitors.purpose).
+  static const _visitorTypes = [
+    (name: 'Misafir', code: 'GUEST', icon: Icons.person_rounded, color: AppleTheme.systemBlue),
+    (name: 'Kurye', code: 'COURIER', icon: Icons.local_shipping_rounded, color: AppleTheme.systemGreen),
+    (name: 'Temizlik', code: 'CLEANING', icon: Icons.cleaning_services_rounded, color: AppleTheme.systemPurple),
+    (name: 'Tamirat', code: 'MAINTENANCE', icon: Icons.build_rounded, color: AppleTheme.systemOrange),
   ];
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _phoneController.dispose();
+    _plateController.dispose();
+    super.dispose();
+  }
+
+  bool get _canSubmit =>
+      _nameController.text.trim().isNotEmpty &&
+      _phoneController.text.trim().isNotEmpty &&
+      !_submitting;
 
   @override
   Widget build(BuildContext context) {
@@ -42,42 +82,55 @@ class _VisitorPreRegisterScreenState extends State<VisitorPreRegisterScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Ziyaretçi Türü', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                  const Text('Ziyaretçi Türü',
+                      style:
+                          TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
                   const SizedBox(height: 12),
                   Row(
-                    children: _visitorTypes.asMap().entries.map((entry) {
-                      final isSelected = _selectedVisitorType == entry.key;
-                      return Expanded(
-                        child: GestureDetector(
-                          onTap: () => setState(() => _selectedVisitorType = entry.key),
-                          child: AnimatedContainer(
-                            duration: AppleTheme.fastAnimation,
-                            margin: EdgeInsets.only(right: entry.key < 3 ? 8 : 0),
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            decoration: BoxDecoration(
-                              color: isSelected 
-                                  ? (entry.value['color'] as Color).withOpacity(0.15)
-                                  : Colors.white,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: isSelected ? entry.value['color'] as Color : Colors.transparent,
-                                width: 2,
-                              ),
-                            ),
-                            child: Column(
-                              children: [
-                                Icon(entry.value['icon'] as IconData, color: entry.value['color'] as Color),
-                                const SizedBox(height: 6),
-                                Text(
-                                  entry.value['name'] as String,
-                                  style: TextStyle(fontSize: 12, fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500),
+                    children: [
+                      for (var i = 0; i < _visitorTypes.length; i++)
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () =>
+                                setState(() => _selectedVisitorType = i),
+                            child: AnimatedContainer(
+                              duration: AppleTheme.fastAnimation,
+                              margin: EdgeInsets.only(
+                                  right: i < _visitorTypes.length - 1 ? 8 : 0),
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              decoration: BoxDecoration(
+                                color: _selectedVisitorType == i
+                                    ? _visitorTypes[i]
+                                        .color
+                                        .withValues(alpha: 0.15)
+                                    : Colors.white,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: _selectedVisitorType == i
+                                      ? _visitorTypes[i].color
+                                      : Colors.transparent,
+                                  width: 2,
                                 ),
-                              ],
+                              ),
+                              child: Column(
+                                children: [
+                                  Icon(_visitorTypes[i].icon,
+                                      color: _visitorTypes[i].color),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    _visitorTypes[i].name,
+                                    style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: _selectedVisitorType == i
+                                            ? FontWeight.w600
+                                            : FontWeight.w500),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ),
-                      );
-                    }).toList(),
+                    ],
                   ),
                 ],
               ),
@@ -93,23 +146,31 @@ class _VisitorPreRegisterScreenState extends State<VisitorPreRegisterScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Ziyaretçi Bilgileri', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+                  const Text('Ziyaretçi Bilgileri',
+                      style:
+                          TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
                   const SizedBox(height: 20),
                   TextField(
                     controller: _nameController,
-                    decoration: AppleTheme.inputDecoration('Ad Soyad', prefixIcon: Icons.person_rounded),
+                    decoration: AppleTheme.inputDecoration('Ad Soyad',
+                        prefixIcon: Icons.person_rounded),
                     textCapitalization: TextCapitalization.words,
+                    onChanged: (_) => setState(() {}),
                   ),
                   const SizedBox(height: 16),
                   TextField(
                     controller: _phoneController,
-                    decoration: AppleTheme.inputDecoration('Telefon', prefixIcon: Icons.phone_rounded),
+                    decoration: AppleTheme.inputDecoration('Telefon',
+                        prefixIcon: Icons.phone_rounded),
                     keyboardType: TextInputType.phone,
+                    onChanged: (_) => setState(() {}),
                   ),
                   const SizedBox(height: 16),
                   TextField(
                     controller: _plateController,
-                    decoration: AppleTheme.inputDecoration('Araç Plakası (Opsiyonel)', prefixIcon: Icons.directions_car_rounded),
+                    decoration: AppleTheme.inputDecoration(
+                        'Araç Plakası (Opsiyonel)',
+                        prefixIcon: Icons.directions_car_rounded),
                     textCapitalization: TextCapitalization.characters,
                   ),
                 ],
@@ -126,7 +187,9 @@ class _VisitorPreRegisterScreenState extends State<VisitorPreRegisterScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Ziyaret Zamanı', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+                  const Text('Ziyaret Zamanı',
+                      style:
+                          TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
                   const SizedBox(height: 16),
                   Row(
                     children: [
@@ -142,14 +205,28 @@ class _VisitorPreRegisterScreenState extends State<VisitorPreRegisterScreen> {
                             ),
                             child: Row(
                               children: [
-                                Icon(Icons.calendar_today_rounded, color: AppleTheme.systemBlue),
+                                const Icon(Icons.calendar_today_rounded,
+                                    color: AppleTheme.systemBlue),
                                 const SizedBox(width: 12),
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text('Tarih', style: TextStyle(fontSize: 12, color: AppleTheme.secondaryLabel)),
-                                    Text(_formatDate(_selectedDate), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
-                                  ],
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      const Text('Tarih',
+                                          style: TextStyle(
+                                              fontSize: 12,
+                                              color:
+                                                  AppleTheme.secondaryLabel)),
+                                      // Elle biçimlendirme yerine ortak yardımcı.
+                                      Text(formatDate(_selectedDate),
+                                          style: const TextStyle(
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.w500),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis),
+                                    ],
+                                  ),
                                 ),
                               ],
                             ),
@@ -169,14 +246,25 @@ class _VisitorPreRegisterScreenState extends State<VisitorPreRegisterScreen> {
                             ),
                             child: Row(
                               children: [
-                                Icon(Icons.access_time_rounded, color: AppleTheme.systemBlue),
+                                const Icon(Icons.access_time_rounded,
+                                    color: AppleTheme.systemBlue),
                                 const SizedBox(width: 12),
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text('Saat', style: TextStyle(fontSize: 12, color: AppleTheme.secondaryLabel)),
-                                    Text(_selectedTime.format(context), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
-                                  ],
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      const Text('Saat',
+                                          style: TextStyle(
+                                              fontSize: 12,
+                                              color:
+                                                  AppleTheme.secondaryLabel)),
+                                      Text(_selectedTime.format(context),
+                                          style: const TextStyle(
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.w500)),
+                                    ],
+                                  ),
                                 ),
                               ],
                             ),
@@ -190,27 +278,13 @@ class _VisitorPreRegisterScreenState extends State<VisitorPreRegisterScreen> {
             ),
           ),
 
-          // Info Card
-          SliverToBoxAdapter(
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 16),
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppleTheme.systemBlue.withOpacity(0.08),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.info_rounded, color: AppleTheme.systemBlue),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      'Ziyaretçinize QR kodlu giriş linki SMS ile gönderilecektir.',
-                      style: TextStyle(fontSize: 14, color: AppleTheme.secondaryLabel),
-                    ),
-                  ),
-                ],
-              ),
+          // SMS/QR vaadi kaldırıldı: ne SMS ne QR entegrasyonu var.
+          const SliverToBoxAdapter(
+            child: NotImplementedNotice(
+              title: 'QR kod ve SMS bildirimi henüz hazır değil',
+              detail: 'Ziyaretçinize otomatik SMS ya da QR kodlu giriş linki '
+                  'gönderilmez. Ön kayıt yalnızca güvenlik kaydı olarak '
+                  'oluşturulur.',
             ),
           ),
 
@@ -218,29 +292,34 @@ class _VisitorPreRegisterScreenState extends State<VisitorPreRegisterScreen> {
         ],
       ),
       bottomNavigationBar: Container(
-        padding: EdgeInsets.fromLTRB(16, 16, 16, MediaQuery.of(context).padding.bottom + 16),
+        padding: EdgeInsets.fromLTRB(
+            16, 16, 16, MediaQuery.of(context).padding.bottom + 16),
         decoration: BoxDecoration(
           color: Colors.white,
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -2))],
+          boxShadow: [
+            BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 10,
+                offset: const Offset(0, -2))
+          ],
         ),
         child: SizedBox(
           width: double.infinity,
           child: ElevatedButton.icon(
-            onPressed: _canSubmit ? () => _submitPreRegister(context) : null,
-            icon: const Icon(Icons.qr_code_rounded),
-            label: const Text('Ön Kayıt Oluştur'),
-            style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
+            onPressed: _canSubmit ? _submitPreRegister : null,
+            icon: _submitting
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.person_add_alt_1_rounded),
+            label: Text(_submitting ? 'Gönderiliyor…' : 'Ön Kayıt Oluştur'),
+            style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16)),
           ),
         ),
       ),
     );
-  }
-
-  bool get _canSubmit => _nameController.text.isNotEmpty && _phoneController.text.isNotEmpty;
-
-  String _formatDate(DateTime date) {
-    const months = ['Oca', 'Şub', 'Mar', 'Nis', 'May', 'Haz', 'Tem', 'Ağu', 'Eyl', 'Eki', 'Kas', 'Ara'];
-    return '${date.day} ${months[date.month - 1]} ${date.year}';
   }
 
   Future<void> _selectDate(BuildContext context) async {
@@ -254,14 +333,49 @@ class _VisitorPreRegisterScreenState extends State<VisitorPreRegisterScreen> {
   }
 
   Future<void> _selectTime(BuildContext context) async {
-    final picked = await showTimePicker(context: context, initialTime: _selectedTime);
+    final picked =
+        await showTimePicker(context: context, initialTime: _selectedTime);
     if (picked != null) setState(() => _selectedTime = picked);
   }
 
-  void _submitPreRegister(BuildContext context) {
-    showDialog(
+  /// Ön kaydı sunucuya gönderir. Alan adları `visitors` tablosuyla uyumludur
+  /// (backend/migrations/005_new_modules.sql:10-30).
+  Future<void> _submitPreRegister() async {
+    setState(() => _submitting = true);
+
+    final expectedAt = DateTime(
+      _selectedDate.year,
+      _selectedDate.month,
+      _selectedDate.day,
+      _selectedTime.hour,
+      _selectedTime.minute,
+    );
+    final plate = _plateController.text.trim();
+
+    try {
+      final result = await apiClient.createVisitorPreRegistration({
+        'visitor_name': _nameController.text.trim(),
+        'visitor_phone': _phoneController.text.trim(),
+        if (plate.isNotEmpty) 'vehicle_plate': plate,
+        'purpose': _visitorTypes[_selectedVisitorType].code,
+        'expected_at': expectedAt.toUtc().toIso8601String(),
+      });
+      if (!mounted) return;
+      setState(() => _submitting = false);
+      _showSuccess(result, expectedAt);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _submitting = false);
+      _showFailure(e);
+    }
+  }
+
+  void _showSuccess(Map<String, dynamic> result, DateTime expectedAt) {
+    final code = (result['qr_code'] as String?)?.trim();
+
+    showDialog<void>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -269,18 +383,23 @@ class _VisitorPreRegisterScreenState extends State<VisitorPreRegisterScreen> {
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: AppleTheme.systemGreen.withOpacity(0.12),
+                color: AppleTheme.systemGreen.withValues(alpha: 0.12),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.check_circle_rounded, size: 64, color: AppleTheme.systemGreen),
+              child: const Icon(Icons.check_circle_rounded,
+                  size: 64, color: AppleTheme.systemGreen),
             ),
             const SizedBox(height: 24),
-            const Text('Ön Kayıt Oluşturuldu!', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
+            const Text('Ön Kayıt Oluşturuldu',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
             const SizedBox(height: 8),
             Text(
-              '${_nameController.text} için QR kodlu giriş linki SMS olarak gönderildi.',
+              '${_nameController.text.trim()} için '
+              '${formatDateTime(expectedAt)} ziyareti kaydedildi.'
+              '${code == null || code.isEmpty ? '' : '\nGiriş kodu: $code'}',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 14, color: AppleTheme.secondaryLabel),
+              style: const TextStyle(
+                  fontSize: 14, color: AppleTheme.secondaryLabel),
             ),
           ],
         ),
@@ -289,12 +408,35 @@ class _VisitorPreRegisterScreenState extends State<VisitorPreRegisterScreen> {
             width: double.infinity,
             child: ElevatedButton(
               onPressed: () {
-                Navigator.pop(context);
+                Navigator.pop(ctx);
                 Navigator.pop(context);
               },
               child: const Text('Tamam'),
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  void _showFailure(Object error) {
+    final notImplemented = isNotImplemented(error);
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(notImplemented
+            ? 'Ziyaretçi modülü henüz hazır değil'
+            : 'Ön kayıt oluşturulamadı'),
+        content: Text(
+          notImplemented
+              ? 'Sunucu ziyaretçi kayıtlarını henüz saklamıyor. Ön kayıt '
+                  'OLUŞTURULMADI; misafirinizi güvenliğe ayrıca bildirin.'
+              : '${toUserMessage(error)}\n\nÖn kayıt OLUŞTURULMADI.',
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('Tamam')),
         ],
       ),
     );

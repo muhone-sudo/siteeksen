@@ -151,7 +151,7 @@ class ApiClient {
 
   Future<List<dynamic>> getUserProperties() async {
     final response = await _dio.get('/users/me/properties');
-    return response.data;
+    return _list(response.data);
   }
 
   // Finance
@@ -164,7 +164,7 @@ class ApiClient {
     final response = await _dio.get('/finance/assessments', queryParameters: {
       if (year != null) 'year': year,
     });
-    return response.data;
+    return _list(response.data);
   }
 
   Future<Map<String, dynamic>> createPayment({
@@ -195,7 +195,7 @@ class ApiClient {
     final response = await _dio.get('/requests', queryParameters: {
       if (status != null) 'status': status,
     });
-    return response.data;
+    return _list(response.data);
   }
 
   Future<Map<String, dynamic>> createRequest({
@@ -229,12 +229,12 @@ class ApiClient {
   // Reservations
   Future<List<dynamic>> getReservations() async {
     final response = await _dio.get('/reservations');
-    return response.data;
+    return _list(response.data);
   }
 
   Future<List<dynamic>> getFacilities() async {
     final response = await _dio.get('/facilities');
-    return response.data;
+    return _list(response.data);
   }
 
   Future<Map<String, dynamic>> createReservation({
@@ -259,13 +259,13 @@ class ApiClient {
   // Announcements
   Future<List<dynamic>> getAnnouncements() async {
     final response = await _dio.get('/announcements');
-    return response.data;
+    return _list(response.data);
   }
 
   // Surveys
   Future<List<dynamic>> getSurveys() async {
     final response = await _dio.get('/surveys');
-    return response.data;
+    return _list(response.data);
   }
 
   Future<Map<String, dynamic>> submitSurveyResponse(String surveyId, Map<String, dynamic> data) async {
@@ -276,13 +276,13 @@ class ApiClient {
   // Packages
   Future<List<dynamic>> getPackages() async {
     final response = await _dio.get('/packages');
-    return response.data;
+    return _list(response.data);
   }
 
   // Visitors
   Future<List<dynamic>> getVisitors() async {
     final response = await _dio.get('/visitors');
-    return response.data;
+    return _list(response.data);
   }
 
   Future<Map<String, dynamic>> createVisitorPreRegistration(Map<String, dynamic> data) async {
@@ -293,12 +293,25 @@ class ApiClient {
   // Bulletins (İlan Panosu)
   Future<List<dynamic>> getBulletins() async {
     final response = await _dio.get('/bulletins');
-    return response.data;
+    return _list(response.data);
   }
 
   Future<Map<String, dynamic>> createBulletin(Map<String, dynamic> data) async {
     final response = await _dio.post('/bulletins', data: data);
     return response.data;
+  }
+
+  /// Servisler liste yanıtını iki biçimde döndürebiliyor: düz dizi ya da
+  /// `{"data": [...]}` sarmalayıcısı. Sunucu sözleşmesi `{"data": ...}` olarak
+  /// tekilleştirildi; bu yardımcı, eski biçimi de kabul ederek istemcinin
+  /// sürüm farkında kırılmasını engeller.
+  static List<dynamic> _list(dynamic data) {
+    if (data is List) return data;
+    if (data is Map) {
+      final v = data['data'] ?? data['items'];
+      if (v is List) return v;
+    }
+    return const [];
   }
 }
 

@@ -1,11 +1,14 @@
 package handlers
 
 import (
+	"errors"
+	"log"
 	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/siteeksen/backend/services/identity/models"
+	"github.com/siteeksen/backend/services/identity/repository"
 	"github.com/siteeksen/backend/services/identity/service"
 )
 
@@ -122,7 +125,14 @@ func SetActiveProperty(svc *service.AuthService) gin.HandlerFunc {
 		userID := c.GetString("user_id")
 		err := svc.SetActiveProperty(c.Request.Context(), userID, req.PropertyID)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Site seçilemedi"})
+			// Kullanıcının bağlı olmadığı bir site seçmeye çalışması bir yetki ihlalidir;
+			// 400 değil 403 döner ve denetim izinde DENIED olarak ayrışır.
+			if errors.Is(err, repository.ErrPropertyNotOwned) {
+				c.JSON(http.StatusForbidden, gin.H{"error": "Bu siteye erişim yetkiniz yok"})
+				return
+			}
+			log.Printf("[identity] aktif site güncellenemedi (user=%s): %v", userID, err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Site seçilemedi"})
 			return
 		}
 

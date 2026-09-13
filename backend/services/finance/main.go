@@ -33,27 +33,49 @@ func main() {
 		c.JSON(200, gin.H{"status": "ok", "service": "finance"})
 	})
 
-	// Protected routes
+	// -----------------------------------------------------------------------
+	// Korumalı uçlar
+	//
+	// YETKİLENDİRME (2026-09-13, todo 2.9 / gap-analizi B28):
+	// Bu servis daha önce yalnızca "giriş yapmış olma" şartı arıyordu. Sonuç:
+	// herhangi bir sakin, sitedeki TÜM DAİRELERİN borç listesini (`/debtors`),
+	// tüm ödemeleri (`/payments`) ve dönem özetlerini görebiliyordu. Bunlar
+	// yönetim bilgisidir; KVKK açısından da gereğinden fazla veri paylaşımıdır.
+	//
+	// Ayrım:
+	//   - SAKİN uçları: kişinin KENDİ borcu, KENDİ tahakkukları, KENDİ ödemesi.
+	//   - YÖNETİM uçları: site geneli listeler ve tahakkuk oluşturma.
+	//     MANAGER (yönetici), BOARD_MEMBER (yönetim kurulu) ve AUDITOR (denetçi)
+	//     erişebilir; AUDITOR yalnızca okuma uçlarında yer alır (KMK m.41 denetim
+	//     görevi okumayı gerektirir, tahakkuk oluşturmayı değil).
+	// -----------------------------------------------------------------------
 	api := r.Group("/api/v1/finance")
 	api.Use(middleware.AuthMiddleware(), middleware.AuditLog(pool, "finance"))
 	{
-		// Borç durumu
+		// --- Sakinin kendi verisi ---
 		api.GET("/debt-status", handlers.GetDebtStatus(financeService))
-		api.GET("/debtors", handlers.GetDebtors(financeService))
-
-		// Aidatlar
 		api.GET("/assessments", handlers.GetAssessments(financeService))
-		api.GET("/assessments/overview", handlers.GetAssessmentOverview(financeService))
-		api.POST("/assessments", handlers.CreateAssessment(financeService))
 		api.GET("/assessments/:id", handlers.GetAssessmentDetails(financeService))
-		api.GET("/expense-categories", handlers.GetExpenseCategories(financeService))
-
-		// Ödemeler
 		api.POST("/payments", handlers.CreatePayment(financeService))
-		api.GET("/payments", handlers.GetPaymentHistory(financeService))
-
-		// Tüketim
 		api.GET("/consumption/summary", handlers.GetConsumptionSummary(financeService))
+
+		// --- Yönetim: site geneli okuma ---
+		mgmtRead := api.Group("")
+		mgmtRead.Use(middleware.RequireRole(
+			middleware.RoleManager, middleware.RoleBoardMember, middleware.RoleAuditor))
+		{
+			mgmtRead.GET("/debtors", handlers.GetDebtors(financeService))
+			mgmtRead.GET("/payments", handlers.GetPaymentHistory(financeService))
+			mgmtRead.GET("/assessments/overview", handlers.GetAssessmentOverview(financeService))
+			mgmtRead.GET("/expense-categories", handlers.GetExpenseCategories(financeService))
+		}
+
+		// --- Yönetim: yazma (denetçi hariç) ---
+		mgmtWrite := api.Group("")
+		mgmtWrite.Use(middleware.RequireRole(middleware.RoleManager, middleware.RoleBoardMember))
+		{
+			mgmtWrite.POST("/assessments", handlers.CreateAssessment(financeService))
+		}
 	}
 
 	// Sunucuyu başlat

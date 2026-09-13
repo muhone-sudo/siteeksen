@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/siteeksen/backend/services/identity/models"
@@ -83,11 +84,115 @@ func (r *UserRepository) GetUserProperties(ctx context.Context, userID string) (
 	return properties, nil
 }
 
-// SetActiveProperty aktif siteyi değiştirir
+// ErrPropertyNotOwned, kullanıcı seçmeye çalıştığı siteye bağlı değilse döner.
+var ErrPropertyNotOwned = errors.New("kullanıcı bu siteye bağlı değil")
+
+// SetActiveProperty aktif siteyi değiştirir.
+//
+// GÜVENLİK (2026-09-13, todo 2.4 / gap-analizi B21):
+// Önceki sürüm gelen `propertyID`'yi HİÇ DOĞRULAMADAN yazıyordu. JWT'deki
+// `property_id` claim'i tüm izolasyonun tek dayanağı olduğu için bu, herhangi bir
+// kullanıcının bir istekle BAŞKA BİR SİTENİN verisine geçmesi anlamına geliyordu:
+//
+//	POST /users/me/active-property {"property_id": "<başka site>"} → 200
+//	ardından alınan jeton o siteye erişim veriyordu.
+//
+// Artık site, kullanıcının aktif bir `resident_units` bağı bulunan siteler
+// arasından seçilmek zorunda. Bağ yoksa istek reddedilir (fail-closed).
+// Güncelleme, yarış durumuna yer bırakmamak için tek ifadede yapılır:
+// UPDATE yalnızca bağ var ise satır etkiler.
 func (r *UserRepository) SetActiveProperty(ctx context.Context, userID, propertyID string) error {
-	query := `UPDATE users SET active_property_id = $1, updated_at = NOW() WHERE id = $2`
-	_, err := r.pool.Exec(ctx, query, propertyID, userID)
-	return err
+	const query = `
+		UPDATE users
+		SET active_property_id = $1, updated_at = NOW()
+		WHERE id = $2
+		  AND EXISTS (
+			SELECT 1
+			FROM resident_units ru
+			JOIN units u ON ru.unit_id = u.id
+			WHERE ru.resident_id = $2
+			  AND ru.is_active = true
+			  AND u.property_id = $1
+		  )`
+	tag, err := r.pool.Exec(ctx, query, propertyID, userID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrPropertyNotOwned
+	}
+	return nil
+}
+
+// GetPropertyRoles, kullanıcının BELİRLİ BİR SİTEDEKİ rollerini döndürür.
+//
+// GÜVENLİK (2026-09-13, todo 2.5 / gap-analizi B22):
+// Roller daha önce `users.roles` kolonundan GLOBAL okunuyordu; bir sitede yönetici
+// olan kişi tüm sitelerde yönetici sayılıyordu. Artık roller aktif siteye göre,
+// iki kaynaktan birleştirilerek hesaplanır:
+//
+//	property_roles  → yönetim rolleri (MANAGER, AUDITOR, STAFF, BOARD_MEMBER)
+//	resident_units  → sakinlik rolleri (OWNER, TENANT) + her bağ için RESIDENT
+//
+// `users.roles` yalnızca platform düzeyi roller (örn. SUPER_ADMIN) için kalır.
+//
+// propertyID boşsa yalnızca platform rolleri döner — yani hiçbir site verisine
+// erişim vermeyen, en dar yetki kümesi (fail-closed).
+func (r *UserRepository) GetPropertyRoles(ctx context.Context, userID, propertyID string) ([]string, error) {
+	const query = `
+		-- Platform düzeyi roller (site bağımsız)
+		SELECT DISTINCT pr.role
+		FROM users u
+		CROSS JOIN LATERAL unnest(u.roles) AS pr(role)
+		WHERE u.id = $1 AND u.deleted = 0 AND pr.role = 'SUPER_ADMIN'
+
+		UNION
+
+		-- Site bazlı yönetim rolleri
+		SELECT DISTINCT p.role
+		FROM property_roles p
+		WHERE p.user_id = $1
+		  AND p.property_id = NULLIF($2, '')::uuid
+		  AND p.is_active
+		  AND p.valid_from <= CURRENT_DATE
+		  AND (p.valid_to IS NULL OR p.valid_to >= CURRENT_DATE)
+
+		UNION
+
+		-- Sakinlik rolleri (bağımsız bölüm bağından türer)
+		SELECT DISTINCT ru.role
+		FROM resident_units ru
+		JOIN units un ON un.id = ru.unit_id
+		WHERE ru.resident_id = $1
+		  AND ru.is_active = true
+		  AND un.property_id = NULLIF($2, '')::uuid
+
+		UNION
+
+		-- Sitede herhangi bir bağı olan herkes RESIDENT sayılır
+		SELECT 'RESIDENT'
+		FROM resident_units ru
+		JOIN units un ON un.id = ru.unit_id
+		WHERE ru.resident_id = $1
+		  AND ru.is_active = true
+		  AND un.property_id = NULLIF($2, '')::uuid
+		LIMIT 100`
+
+	rows, err := r.pool.Query(ctx, query, userID, propertyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	roles := []string{}
+	for rows.Next() {
+		var role string
+		if err := rows.Scan(&role); err != nil {
+			return nil, err
+		}
+		roles = append(roles, role)
+	}
+	return roles, rows.Err()
 }
 
 // SetKVKKConsent kullanıcının KVKK açık rıza onay zamanını işaretler

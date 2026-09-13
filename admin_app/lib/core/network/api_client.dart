@@ -154,7 +154,7 @@ class ApiClient {
       if (block != null && block.isNotEmpty) 'block': block,
       if (role != null && role.isNotEmpty) 'role': role,
     });
-    return response.data['data'];
+    return _list(response.data, 'data');
   }
 
   Future<Map<String, dynamic>> getResident(String id) async {
@@ -174,13 +174,15 @@ class ApiClient {
 
   Future<List<dynamic>> getUnits() async {
     final response = await _dio.get('/units');
-    return response.data['data'];
+    return _list(response.data, 'data');
   }
 
   // ============ FINANCE ============
   
   Future<Map<String, dynamic>> getFinanceOverview() async {
-    final response = await _dio.get('/finance/overview');
+    // DÜZELTME (2026-09-13): '/finance/overview' diye bir uç YOK; her çağrı 404 dönüyordu.
+    // Finance servisindeki gerçek uç dönem bazlı tahakkuk/tahsilat özetidir.
+    final response = await _dio.get('/finance/assessments/overview');
     return response.data;
   }
   
@@ -189,7 +191,7 @@ class ApiClient {
       'year': year,
       'month': month,
     });
-    return response.data['data'];
+    return _list(response.data, 'data');
   }
   
   Future<void> createAssessment(Map<String, dynamic> data) async {
@@ -201,12 +203,12 @@ class ApiClient {
       'status': status,
       'page': page,
     });
-    return response.data['data'];
+    return _list(response.data, 'data');
   }
   
   Future<List<dynamic>> getExpenseCategories() async {
     final response = await _dio.get('/finance/expense-categories');
-    return response.data['data'];
+    return _list(response.data, 'data');
   }
   
   Future<void> sendPaymentReminder(String userId) async {
@@ -222,7 +224,7 @@ class ApiClient {
   
   Future<List<dynamic>> getMeters({String? type}) async {
     final response = await _dio.get('/meters', queryParameters: {'type': type});
-    return response.data['data'];
+    return _list(response.data, 'data');
   }
   
   Future<void> submitMeterReading(String meterId, double value) async {
@@ -237,7 +239,7 @@ class ApiClient {
   
   Future<List<dynamic>> getAnnouncements() async {
     final response = await _dio.get('/announcements');
-    return response.data['data'];
+    return _list(response.data, 'data');
   }
   
   Future<void> createAnnouncement(Map<String, dynamic> data) async {
@@ -256,7 +258,7 @@ class ApiClient {
   
   Future<List<dynamic>> getRequests({String? status}) async {
     final response = await _dio.get('/requests', queryParameters: {'status': status});
-    return response.data['data'];
+    return _list(response.data, 'data');
   }
   
   Future<Map<String, dynamic>> getRequest(String id) async {
@@ -289,7 +291,7 @@ class ApiClient {
   // ============ PARKING ============
   Future<List<dynamic>> getVehicles() async {
     final response = await _dio.get('/vehicles');
-    return response.data['data'] ?? response.data;
+    return _list(response.data, 'data');
   }
 
   Future<void> createVehicle(Map<String, dynamic> data) async {
@@ -298,7 +300,7 @@ class ApiClient {
 
   Future<List<dynamic>> getParkingLogs() async {
     final response = await _dio.get('/parking-logs');
-    return response.data['data'] ?? response.data;
+    return _list(response.data, 'data');
   }
 
   Future<Map<String, dynamic>> recognizePlate(String base64Image) async {
@@ -309,7 +311,7 @@ class ApiClient {
   // ============ PERSONNEL ============
   Future<List<dynamic>> getEmployees() async {
     final response = await _dio.get('/employees');
-    return response.data['data'] ?? response.data;
+    return _list(response.data, 'data');
   }
 
   Future<void> createEmployee(Map<String, dynamic> data) async {
@@ -318,7 +320,7 @@ class ApiClient {
 
   Future<List<dynamic>> getLeaves() async {
     final response = await _dio.get('/leaves');
-    return response.data['data'] ?? response.data;
+    return _list(response.data, 'data');
   }
 
   Future<void> updateLeaveStatus(String leaveId, String status) async {
@@ -328,7 +330,7 @@ class ApiClient {
   // ============ VISITORS ============
   Future<List<dynamic>> getVisitors() async {
     final response = await _dio.get('/visitors');
-    return response.data['data'] ?? response.data;
+    return _list(response.data, 'data');
   }
 
   Future<void> recordVisitorEntry(String visitorId) async {
@@ -342,17 +344,17 @@ class ApiClient {
   // ============ PACKAGES ============
   Future<List<dynamic>> getPackages() async {
     final response = await _dio.get('/packages');
-    return response.data['data'] ?? response.data;
+    return _list(response.data, 'data');
   }
 
   Future<List<dynamic>> getCarriers() async {
     final response = await _dio.get('/carriers');
-    return response.data['data'] ?? response.data;
+    return _list(response.data, 'data');
   }
 
   Future<List<dynamic>> getUnitPackages(String unitId) async {
     final response = await _dio.get('/units/$unitId/packages');
-    return response.data['data'] ?? response.data;
+    return _list(response.data, 'data');
   }
 
   Future<void> receivePackage(Map<String, dynamic> data) async {
@@ -366,12 +368,12 @@ class ApiClient {
   // ============ BANKING ============
   Future<List<dynamic>> getBankAccounts() async {
     final response = await _dio.get('/bank-accounts');
-    return response.data['data'] ?? response.data;
+    return _list(response.data, 'data');
   }
 
   Future<List<dynamic>> getBankTransactions() async {
     final response = await _dio.get('/bank-transactions');
-    return response.data['data'] ?? response.data;
+    return _list(response.data, 'data');
   }
 
   Future<void> matchBankTransaction(String transactionId, String assessmentId) async {
@@ -381,12 +383,12 @@ class ApiClient {
   // ============ FACILITIES & RESERVATIONS ============
   Future<List<dynamic>> getFacilities() async {
     final response = await _dio.get('/facilities');
-    return response.data['facilities'] ?? response.data['data'] ?? response.data;
+    return _list(response.data, 'facilities');
   }
 
   Future<List<dynamic>> getReservations() async {
     final response = await _dio.get('/reservations');
-    return response.data['data'] ?? response.data;
+    return _list(response.data, 'data');
   }
 
   Future<void> createReservation(Map<String, dynamic> data) async {

@@ -62,7 +62,10 @@ func GetAssessments(svc *service.FinanceService) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Aidatlar alınamadı"})
 			return
 		}
-		c.JSON(http.StatusOK, assessments)
+		// Liste uçları tek sözleşme kullanır: {"data": [...]}.
+		// Bazı uçlar düz dizi, bazıları sarmalayıcı döndürüyordu; istemciler
+		// bu farkı bilmediği için çalışan bir sunucuda bile hata gösteriyordu.
+		c.JSON(http.StatusOK, gin.H{"data": assessments})
 	}
 }
 
@@ -181,7 +184,7 @@ func GetPaymentHistory(svc *service.FinanceService) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Ödeme geçmişi alınamadı"})
 			return
 		}
-		c.JSON(http.StatusOK, payments)
+		c.JSON(http.StatusOK, gin.H{"data": payments})
 	}
 }
 

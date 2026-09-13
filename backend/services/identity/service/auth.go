@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -44,7 +45,7 @@ func (s *AuthService) Login(ctx context.Context, phone, password string) (*Token
 		return nil, nil, errors.New("geçersiz şifre")
 	}
 
-	tokens, err := s.generateTokens(user)
+	tokens, err := s.generateTokens(ctx, user)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -81,7 +82,7 @@ func (s *AuthService) RefreshToken(ctx context.Context, refreshToken string) (*T
 		return nil, err
 	}
 
-	return s.generateTokens(user)
+	return s.generateTokens(ctx, user)
 }
 
 // GetUserByID ID ile kullanıcı getirir
@@ -138,12 +139,24 @@ func (s *AuthService) CreateProperty(ctx context.Context, userID string, req mod
 // ile birebir aynı olmak zorundadır.
 const tokenIssuer = "siteeksen"
 
-func (s *AuthService) generateTokens(user *models.User) (*TokenPair, error) {
+func (s *AuthService) generateTokens(ctx context.Context, user *models.User) (*TokenPair, error) {
 	now := time.Now()
 	accessExpiry := now.Add(15 * time.Minute)
 	refreshExpiry := now.Add(7 * 24 * time.Hour)
 
 	// Access token
+	// GÜVENLİK (2026-09-13, todo 2.5): Roller artık AKTİF SİTEYE göre hesaplanır.
+	// Önceki sürüm `users.roles` kolonunu olduğu gibi jetona koyuyordu; bu kolon
+	// global olduğu için bir sitede MANAGER olan kişi TÜM sitelerde yönetici
+	// sayılıyordu (gap-analizi B22).
+	//
+	// Rol çözümlemesi başarısız olursa jeton ÜRETİLMEZ. Boş rol listesiyle devam
+	// etmek, yetki kontrollerini sessizce atlatan bir jeton üretmek demektir.
+	roles, err := s.userRepo.GetPropertyRoles(ctx, user.ID, user.ActivePropertyID)
+	if err != nil {
+		return nil, fmt.Errorf("kullanıcının site rolleri belirlenemedi: %w", err)
+	}
+
 	// `iss` claim'i Kong'un jwt eklentisi için zorunludur: Kong, jetonun hangi
 	// consumer'a ait olduğunu bu değerden (key_claim_name: iss) çözer.
 	// kong/kong.yml içindeki consumer'ın jwt_secrets.key değeriyle aynı olmalıdır.
@@ -151,7 +164,7 @@ func (s *AuthService) generateTokens(user *models.User) (*TokenPair, error) {
 		"iss":         tokenIssuer,
 		"sub":         user.ID,
 		"property_id": user.ActivePropertyID,
-		"roles":       user.Roles,
+		"roles":       roles,
 		"iat":         now.Unix(),
 		"exp":         accessExpiry.Unix(),
 		"jti":         uuid.New().String(),
