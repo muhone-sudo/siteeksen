@@ -37,6 +37,7 @@ GOV_PID=""
 EXP_PID=""
 PER_PID=""
 VIS_PID=""
+PRK_PID=""
 
 ok()   { echo "  [GEÇTİ]    $1"; PASS=$((PASS+1)); }
 bad()  { echo "  [BAŞARISIZ] $1"; FAIL=$((FAIL+1)); }
@@ -51,6 +52,7 @@ cleanup() {
   [ -n "$EXP_PID" ] && kill "$EXP_PID" 2>/dev/null
   [ -n "$PER_PID" ] && kill "$PER_PID" 2>/dev/null
   [ -n "$VIS_PID" ] && kill "$VIS_PID" 2>/dev/null
+  [ -n "$PRK_PID" ] && kill "$PRK_PID" 2>/dev/null
   docker rm -f "$CNAME" >/dev/null 2>&1
 }
 trap cleanup EXIT
@@ -223,7 +225,7 @@ fi
 
 step "7) Dürüstlük: kalıcı olmayan uçlar 501 dönmeli"
 # tasks/dogrulama-politikasi.md §3.5 — kaydetmeyen bir uç 2xx dönemez.
-PORT=${STUB_PORT:-18191} go run ./services/parking >/tmp/verify-parking.log 2>&1 &
+PORT=${STUB_PORT:-18191} go run ./services/asset >/tmp/verify-stub.log 2>&1 &
 STUB_PID=$!
 SUP=0
 for _ in $(seq 1 45); do
@@ -231,13 +233,13 @@ for _ in $(seq 1 45); do
   sleep 1
 done
 if [ "$SUP" = "1" ]; then
-  ok "stub servis (parking) ayağa kalktı"
-  SC=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:${STUB_PORT:-18191}/api/v1/vehicles")
-  [ "$SC" = "501" ] && ok "stub GET /vehicles → 501" || bad "stub GET /vehicles → $SC (501 bekleniyordu)"
-  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "http://127.0.0.1:${STUB_PORT:-18191}/api/v1/vehicles" \
-    -H 'Content-Type: application/json' -d '{"owner_type":"RESIDENT","plate":"34ABC123"}')
-  [ "$SC" = "501" ] && ok "stub POST /vehicles → 501 (veri kaydedilmiyor)" || bad "stub POST /vehicles → $SC (501 bekleniyordu)"
-  HDR=$(curl -s -D- -o /dev/null "http://127.0.0.1:${STUB_PORT:-18191}/api/v1/vehicles" | grep -ci 'X-SiteEksen-Not-Implemented: true')
+  ok "stub servis (asset) ayağa kalktı"
+  SC=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:${STUB_PORT:-18191}/api/v1/assets")
+  [ "$SC" = "501" ] && ok "stub GET /assets → 501" || bad "stub GET /assets → $SC (501 bekleniyordu)"
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "http://127.0.0.1:${STUB_PORT:-18191}/api/v1/assets" \
+    -H 'Content-Type: application/json' -d '{"name":"Test demirbas"}')
+  [ "$SC" = "501" ] && ok "stub POST /assets → 501 (veri kaydedilmiyor)" || bad "stub POST /assets → $SC (501 bekleniyordu)"
+  HDR=$(curl -s -D- -o /dev/null "http://127.0.0.1:${STUB_PORT:-18191}/api/v1/assets" | grep -ci 'X-SiteEksen-Not-Implemented: true')
   [ "$HDR" -ge 1 ] && ok "stub yanıtında X-SiteEksen-Not-Implemented başlığı var" || bad "stub başlığı eksik"
 else
   bad "stub servis başlamadı"
@@ -245,7 +247,9 @@ fi
 kill "$STUB_PID" 2>/dev/null
 
 # Kaynak düzeyinde: mock servislerde uydurma veri kalmamalı
-FAKE=$(grep -rn "Ali Veli\|Ayşe Yılmaz\|Ahmet Yılmaz\|Mehmet Demir\|AYEDAŞ" "$BACKEND_DIR/services" --include=*.go 2>/dev/null | grep -v _test | wc -l)
+# Yorum satırları hariç (neyin kaldırıldığını anlatan açıklamalar sayılmaz).
+FAKE=$(grep -rn "Ali Veli\|Ayşe Yılmaz\|Ahmet Yılmaz\|Mehmet Demir\|AYEDAŞ" "$BACKEND_DIR/services" --include=*.go 2>/dev/null \
+  | grep -v _test | grep -v ':[0-9]*:[[:space:]]*//' | wc -l)
 [ "$FAKE" -eq 0 ] && ok "servis kaynaklarında uydurma isim/veri kalmadı" || { bad "servis kaynaklarında $FAKE uydurma veri satırı var"; }
 
 step "8) Gateway kimlik doğrulaması (FAZ 2.1)"
@@ -829,6 +833,100 @@ else
   bad "visitor-service başlamadı"; tail -10 /tmp/verify-visitor.log
 fi
 kill "$VIS_PID" 2>/dev/null
+
+step "15) Otopark modülü — mock'tan gerçeğe (FAZ 5, 4. modül)"
+PRKPORT=${VERIFY_PRK_PORT:-18098}
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen DB_PASSWORD="$PW" DB_NAME=siteeksen \
+DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${PRKPORT} \
+  go run ./services/parking >/tmp/verify-parking.log 2>&1 &
+PRK_PID=$!
+KUP=0
+for _ in $(seq 1 45); do
+  curl -fsS "http://127.0.0.1:${PRKPORT}/health" >/dev/null 2>&1 && { KUP=1; break; }
+  sleep 1
+done
+
+if [ "$KUP" = "1" ] && [ -n "${MGR:-}" ]; then
+  ok "parking-service ayağa kalktı"
+  KA="Authorization: Bearer $MGR"
+  KJ='Content-Type: application/json'
+  KURL="http://127.0.0.1:${PRKPORT}/api/v1"
+
+  # Ücretli misafir otoparkı: saatlik 25 TL, günlük 100 TL, kapasite 2
+  ZONE=$($PSQL -t -A -c "INSERT INTO parking_zones (property_id, name, capacity, is_paid, hourly_fee, daily_fee, is_visitor_allowed)
+      VALUES ('11111111-1111-1111-1111-111111111111','Misafir Otoparki',2,true,25,100,true) RETURNING id;")
+  [ -n "$ZONE" ] && ok "otopark bölgesi oluşturuldu" || bad "bölge oluşturulamadı"
+
+  # Araç kaydı — plaka normalleştirmesi sınanır
+  V=$(curl -s -X POST "$KURL/vehicles" -H "$KA" -H "$KJ" -d '{
+    "unit_id":"33333333-3333-3333-3333-333333333303","plate":"34 abc 123",
+    "brand":"Test","model":"Arac","owner_name":"Sakin"}')
+  VID=$(echo "$V" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+  [ -n "$VID" ] && ok "araç kaydı oluşturuldu ve KALICI" || bad "araç kaydedilemedi: $V"
+
+  # Aynı plaka farklı yazımla tekrar kaydedilememeli
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$KURL/vehicles" -H "$KA" -H "$KJ" \
+    -d '{"plate":"34-ABC-123"}')
+  [ "$SC" = "409" ] && ok "aynı plaka farklı yazımla tekrar kaydedilemiyor → 409" \
+    || bad "plaka çift kaydedildi → $SC"
+
+  # Plakadan sorgulama (normalleştirilmiş arama)
+  PQ=$(curl -s "$KURL/vehicles/plate/34ABC123" -H "$KA")
+  echo "$PQ" | grep -q '"plate"' && ok "plakadan araç sorgulama çalışıyor" || bad "plaka sorgusu: $PQ"
+
+  # Sakin aracı giriş yapar → ÜCRETSİZ olmalı
+  E1=$(curl -s -X POST "$KURL/parking-logs/entry" -H "$KA" -H "$KJ" -d "{
+    \"plate\":\"34 ABC 123\",\"parking_zone_id\":\"$ZONE\",\"entry_method\":\"MANUAL\"}")
+  E1ID=$(echo "$E1" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+  echo "$E1" | grep -q '"is_resident_vehicle":true' && ok "sitede kayıtlı araç tanındı" \
+    || bad "kayıtlı araç tanınmadı: $E1"
+
+  # Aynı plaka çıkış yapmadan tekrar giremez
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$KURL/parking-logs/entry" -H "$KA" -H "$KJ" \
+    -d "{\"plate\":\"34ABC123\",\"parking_zone_id\":\"$ZONE\"}")
+  [ "$SC" = "409" ] && ok "çıkış yapmamış araç tekrar giremiyor → 409" || bad "çift giriş → $SC"
+
+  # Misafir aracı girişi
+  E2=$(curl -s -X POST "$KURL/parking-logs/entry" -H "$KA" -H "$KJ" -d "{
+    \"plate\":\"06 XYZ 999\",\"parking_zone_id\":\"$ZONE\"}")
+  E2ID=$(echo "$E2" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+  echo "$E2" | grep -q '"is_resident_vehicle":false' && ok "misafir aracı ayırt edildi" \
+    || bad "misafir aracı ayırt edilemedi"
+
+  # Bölge kapasitesi 2 → üçüncü araç reddedilmeli
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$KURL/parking-logs/entry" -H "$KA" -H "$KJ" \
+    -d "{\"plate\":\"35 KKK 111\",\"parking_zone_id\":\"$ZONE\"}")
+  [ "$SC" = "409" ] && ok "dolu bölgeye giriş engellendi → 409" || bad "dolu bölgeye giriş → $SC"
+
+  # Doluluk GERÇEK açık kayıtlardan sayılmalı
+  ZL=$(curl -s "$KURL/parking-zones" -H "$KA")
+  echo "$ZL" | grep -q '"occupied_count":2' && ok "doluluk gerçek giriş kayıtlarından sayılıyor (2/2)" \
+    || bad "doluluk yanlış: $ZL"
+
+  # Sakin aracı çıkışı → ücret 0
+  X1=$(curl -s -X POST "$KURL/parking-logs/$E1ID/exit" -H "$KA" -H "$KJ" -d '{}')
+  echo "$X1" | grep -q '"calculated_fee":0' && ok "sitede kayıtlı araçtan ücret alınmıyor" \
+    || bad "kayıtlı araca ücret çıktı: $X1"
+
+  # Misafir çıkışı → başlanan saat tam sayılır (25 TL)
+  X2=$(curl -s -X POST "$KURL/parking-logs/$E2ID/exit" -H "$KA" -H "$KJ" -d '{}')
+  echo "$X2" | grep -q '"calculated_fee":25' && ok "misafir ücreti hesaplandı (başlanan saat = 25 TL)" \
+    || bad "misafir ücreti beklenmedik: $X2"
+  echo "$X2" | grep -q 'TAHSİL EDİLMEDİ' && ok "ücretin tahsil edilmediği dürüstçe bildiriliyor" \
+    || bad "tahsilat durumu belirtilmemiş"
+
+  # Çıkış yapmış kayda tekrar çıkış verilemez
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$KURL/parking-logs/$E2ID/exit" -H "$KA" -H "$KJ" -d '{}')
+  [ "$SC" = "409" ] && ok "çift çıkış engellendi → 409" || bad "çift çıkış → $SC"
+
+  # Sakin giriş/çıkış kaydı yapamaz
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$KURL/parking-logs/entry" \
+    -H "Authorization: Bearer $TEN" -H "$KJ" -d '{"plate":"01 AAA 111"}')
+  [ "$SC" = "403" ] && ok "sakin otopark giriş kaydı yapamıyor → 403" || bad "sakin giriş yaptı → $SC"
+else
+  bad "parking-service başlamadı"; tail -10 /tmp/verify-parking.log
+fi
+kill "$PRK_PID" 2>/dev/null
 
 step "SONUÇ"
 echo "  Geçen: $PASS   Başarısız: $FAIL"
