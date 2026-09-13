@@ -68,6 +68,7 @@ func main() {
 			mgmtRead.GET("/payments", handlers.GetPaymentHistory(financeService))
 			mgmtRead.GET("/assessments/overview", handlers.GetAssessmentOverview(financeService))
 			mgmtRead.GET("/expense-categories", handlers.GetExpenseCategories(financeService))
+			mgmtRead.GET("/payments/pending", handlers.ListPendingPayments(financeService))
 		}
 
 		// --- Yönetim: yazma (denetçi hariç) ---
@@ -75,6 +76,10 @@ func main() {
 		mgmtWrite.Use(middleware.RequireRole(middleware.RoleManager, middleware.RoleBoardMember))
 		{
 			mgmtWrite.POST("/assessments", handlers.CreateAssessment(financeService))
+			// Tahsilat onayı: ödeme sağlayıcısı entegrasyonu olmadığı için havale/EFT/nakit
+			// tahsilatını yönetici onaylar. Onay, tahakkukların paid_amount değerini artırır.
+			mgmtWrite.POST("/payments/:id/confirm", handlers.ConfirmPayment(financeService))
+			mgmtWrite.POST("/payments/:id/reject", handlers.RejectPayment(financeService))
 		}
 	}
 

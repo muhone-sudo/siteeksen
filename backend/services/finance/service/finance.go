@@ -152,6 +152,27 @@ func (s *FinanceService) CreatePayment(ctx context.Context, userID string, asses
 	}, nil
 }
 
+// ConfirmPayment, yöneticinin bekleyen bir ödemeyi tahsil edilmiş olarak onaylamasıdır.
+//
+// NEDEN BU AKIŞ VAR (todo 4.2): Ödeme sağlayıcısı entegrasyonu yok (questions.md S-06),
+// ama Türkiye'de site aidatlarının büyük kısmı havale/EFT ve nakit ile tahsil ediliyor.
+// Yönetici onayı olmadan `paid_amount` hiç güncellenmiyor; ödemesini yapmış sakin
+// sistemde sonsuza dek borçlu kalıyordu. Onay akışı bu boşluğu kapatır ve sağlayıcı
+// entegrasyonu geldiğinde aynı repository çağrısı webhook'tan kullanılabilir.
+func (s *FinanceService) ConfirmPayment(ctx context.Context, paymentID, propertyID, reference string) error {
+	return s.repo.ConfirmPayment(ctx, paymentID, propertyID, reference)
+}
+
+// RejectPayment, bekleyen ödemeyi başarısız işaretler; borç olduğu gibi kalır.
+func (s *FinanceService) RejectPayment(ctx context.Context, paymentID, propertyID string) error {
+	return s.repo.RejectPayment(ctx, paymentID, propertyID)
+}
+
+// ListPendingPayments, onay bekleyen ödemeleri getirir (yönetim ekranı için).
+func (s *FinanceService) ListPendingPayments(ctx context.Context, propertyID string) ([]models.PropertyPayment, error) {
+	return s.repo.ListPendingPayments(ctx, propertyID)
+}
+
 // GetPaymentHistory ödeme geçmişi getirir — yönetim rolleri site genelindeki tüm ödemeleri,
 // sakinler yalnızca kendi ödemelerini görür
 func (s *FinanceService) GetPaymentHistory(ctx context.Context, userID, propertyID string, roles []string) (interface{}, error) {

@@ -347,7 +347,62 @@ if [ "$FUP" = "1" ]; then
 else
   bad "finance-service başlamadı"; tail -10 /tmp/verify-finance.log
 fi
-kill "$FIN_PID" 2>/dev/null
+# NOT: finance-service burada kapatılmaz; 10. adım (para doğruluğu) aynı servisi kullanır.
+# Temizlik `cleanup` tuzağı tarafından yapılır.
+
+step "10) Para doğruluğu: ödeme tahakkuktan düşüyor mu? (FAZ 4.2)"
+# Önceki davranış: ödeme kaydı oluşuyor ama monthly_assessments.paid_amount HİÇ
+# güncellenmiyordu → ödeyen sakin sonsuza dek borçlu kalıyordu (gap-analizi B46).
+if [ "$FUP" = "1" ] && [ -n "${MGR:-}" ]; then
+  ASSESS='66666666-6666-6666-6666-666666666601'   # demo: A-3, 1200,00 TL, PENDING
+  BEFORE=$($PSQL -t -A -c "SELECT COALESCE(paid_amount,0)::text FROM monthly_assessments WHERE id='$ASSESS';")
+
+  PAYRESP=$(curl -s -X POST "http://127.0.0.1:${FINPORT}/api/v1/finance/payments" \
+    -H "Authorization: Bearer $MGR" -H 'Content-Type: application/json' \
+    -d "{\"assessment_ids\":[\"$ASSESS\"],\"payment_method\":\"BANK_TRANSFER\"}")
+  PAYID=$(echo "$PAYRESP" | sed -n 's/.*"payment_id":"\([^"]*\)".*/\1/p')
+  [ -n "$PAYID" ] && ok "ödeme kaydı oluşturuldu" || bad "ödeme kaydı oluşturulamadı: $PAYRESP"
+
+  echo "$PAYRESP" | grep -q '"payment_gateway_ready":false' \
+    && ok "istemciye tahsilatın yapılmadığı bildiriliyor (payment_gateway_ready:false)" \
+    || bad "payment_gateway_ready alanı yok/yanlış"
+
+  # Onay öncesi borç DEĞİŞMEMELİ
+  MID=$($PSQL -t -A -c "SELECT COALESCE(paid_amount,0)::text FROM monthly_assessments WHERE id='$ASSESS';")
+  [ "$MID" = "$BEFORE" ] && ok "onay öncesi borç değişmedi (ödeme PENDING)" \
+    || bad "onaysız ödeme borçtan düştü: $BEFORE → $MID"
+
+  if [ -n "$PAYID" ]; then
+    SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST \
+      "http://127.0.0.1:${FINPORT}/api/v1/finance/payments/${PAYID}/confirm" \
+      -H "Authorization: Bearer $MGR" -H 'Content-Type: application/json' \
+      -d '{"reference":"DEKONT-TEST-1"}')
+    [ "$SC" = "200" ] && ok "yönetici ödemeyi onayladı → 200" || bad "ödeme onayı → $SC"
+
+    AFTER=$($PSQL -t -A -c "SELECT COALESCE(paid_amount,0)::text FROM monthly_assessments WHERE id='$ASSESS';")
+    STAT=$($PSQL -t -A -c "SELECT status FROM monthly_assessments WHERE id='$ASSESS';")
+    [ "$AFTER" = "1200.00" ] && ok "tahakkukun ödenen tutarı güncellendi: $BEFORE → $AFTER" \
+      || bad "ödenen tutar güncellenmedi: $BEFORE → $AFTER (1200.00 bekleniyordu)"
+    [ "$STAT" = "PAID" ] && ok "tahakkuk durumu PAID oldu" || bad "tahakkuk durumu $STAT (PAID bekleniyordu)"
+
+    # Çift onay engellenmeli (idempotency)
+    SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST \
+      "http://127.0.0.1:${FINPORT}/api/v1/finance/payments/${PAYID}/confirm" \
+      -H "Authorization: Bearer $MGR" -H 'Content-Type: application/json' -d '{}')
+    [ "$SC" = "409" ] && ok "çift onaylama engellendi → 409" || bad "çift onaylama → $SC (409 bekleniyordu)"
+
+    # Borç durumu da düşmüş olmalı
+    DEBT=$(curl -s -H "Authorization: Bearer $MGR" "http://127.0.0.1:${FINPORT}/api/v1/finance/debt-status")
+    echo "$DEBT" | grep -q '"has_debt":false' \
+      && ok "ödeme sonrası borç durumu güncellendi (has_debt:false)" \
+      || bad "ödeme sonrası hâlâ borçlu görünüyor: $DEBT"
+
+    # Geri al: betik tekrar çalıştırılabilir kalsın
+    $PSQL -c "UPDATE monthly_assessments SET paid_amount=0, status='PENDING' WHERE id='$ASSESS';" >/dev/null 2>&1
+  fi
+else
+  bad "para doğruluğu adımı atlandı (finance servisi ya da jeton yok)"
+fi
 
 # Aktif site seçiminde sahiplik doğrulaması (FAZ 2.4)
 if [ -n "${MGR:-}" ]; then

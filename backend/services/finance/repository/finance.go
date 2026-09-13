@@ -24,6 +24,14 @@ var (
 	ErrAssessmentNotPayable = errors.New("seçilen aidatlardan biri ödenebilir durumda değil")
 	// ErrNoPayableAssessment ödenecek hiçbir tahakkuk seçilmemiş.
 	ErrNoPayableAssessment = errors.New("ödenecek aidat seçilmedi")
+
+	// ErrPaymentNotFound onaylanmak istenen ödeme kaydı yok.
+	ErrPaymentNotFound = errors.New("ödeme kaydı bulunamadı")
+	// ErrPaymentNotPending ödeme zaten sonuçlanmış (tamamlanmış/iptal edilmiş).
+	// Çift onaylamayı engeller.
+	ErrPaymentNotPending = errors.New("ödeme onay bekleyen durumda değil")
+	// ErrPaymentNotOwned ödeme, onaylayan yöneticinin sitesine ait değil.
+	ErrPaymentNotOwned = errors.New("bu ödeme sizin sitenize ait değil")
 )
 
 // FinanceRepository finans veritabanı işlemleri
@@ -336,6 +344,147 @@ func (r *FinanceRepository) CreatePayment(
 		return "", 0, err
 	}
 	return paymentID, total, nil
+}
+
+// ConfirmPayment, bekleyen bir ödemeyi TAMAMLANDI olarak işaretler ve ilgili
+// tahakkukların ödenen tutarını günceller.
+//
+// NEDEN VAR (2026-09-13, todo 4.2 / gap-analizi B46):
+// Ödeme akışı `monthly_assessments.paid_amount` alanını HİÇ güncellemiyordu.
+// Sonuç: ödemesini yapan sakin sistemde sonsuza dek borçlu görünüyor, gecikme
+// tazminatı işlemeye devam ediyor ve borçlu listesinden düşmüyordu. Bu, para
+// ile ilgili en ağır hatalardan biridir.
+//
+// Ödeme sağlayıcısı entegrasyonu henüz yok (questions.md S-06). Türkiye'deki
+// site yönetimlerinin büyük kısmı zaten havale/EFT ile tahsil ettiği için,
+// tahsilatı YÖNETİCİNİN ONAYLAMASI gerçek bir iş akışıdır ve bu fonksiyon onu
+// karşılar. Sağlayıcı entegrasyonu geldiğinde aynı fonksiyon webhook'tan da
+// çağrılabilir.
+//
+// Garantiler:
+//   - Tek transaction; ödeme satırı `FOR UPDATE` ile kilitli.
+//   - Yalnızca `PENDING` ödeme onaylanabilir → çift onay (idempotency ihlali) engellenir.
+//   - Onaylayan kişi, ödemenin ait olduğu SİTENİN yöneticisi olmalıdır.
+//   - `paid_amount` artırılır, `status` PARTIAL/PAID olarak yeniden hesaplanır.
+func (r *FinanceRepository) ConfirmPayment(
+	ctx context.Context,
+	paymentID, propertyID, reference string,
+) error {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck // commit başarılıysa no-op
+
+	var status string
+	err = tx.QueryRow(ctx,
+		`SELECT status FROM payments WHERE id = $1 FOR UPDATE`, paymentID).Scan(&status)
+	if err == pgx.ErrNoRows {
+		return ErrPaymentNotFound
+	}
+	if err != nil {
+		return err
+	}
+	if status != "PENDING" {
+		return ErrPaymentNotPending
+	}
+
+	// Ödemenin bağlı olduğu tahakkuklar onaylayanın sitesine ait mi?
+	// Aksi hâlde bir sitenin yöneticisi başka sitenin ödemesini onaylayabilirdi.
+	var foreign int
+	err = tx.QueryRow(ctx, `
+		SELECT count(*)
+		FROM payment_assessments pa
+		JOIN monthly_assessments ma ON ma.id = pa.assessment_id
+		WHERE pa.payment_id = $1 AND ma.property_id <> $2`, paymentID, propertyID).Scan(&foreign)
+	if err != nil {
+		return err
+	}
+	if foreign > 0 {
+		return ErrPaymentNotOwned
+	}
+
+	// Tahakkukları güncelle. paid_amount artırılır; durum yeniden hesaplanır.
+	// GREATEST/LEAST kullanılmaz: fazla ödeme (paid > total) bir veri hatasıdır,
+	// gizlenmemeli — bu durumda status PAID olur ve fark raporlarda görünür.
+	tag, err := tx.Exec(ctx, `
+		UPDATE monthly_assessments ma
+		SET paid_amount = COALESCE(ma.paid_amount, 0) + pa.amount,
+		    status = CASE
+		        WHEN COALESCE(ma.paid_amount, 0) + pa.amount >= ma.total_amount THEN 'PAID'
+		        ELSE 'PARTIAL'
+		    END,
+		    updated_at = NOW()
+		FROM payment_assessments pa
+		WHERE pa.payment_id = $1 AND ma.id = pa.assessment_id AND ma.deleted = 0`, paymentID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNoPayableAssessment
+	}
+
+	if _, err := tx.Exec(ctx, `
+		UPDATE payments
+		SET status = 'COMPLETED', completed_at = NOW(), transaction_id = NULLIF($2, '')
+		WHERE id = $1`, paymentID, reference); err != nil {
+		return err
+	}
+
+	return tx.Commit(ctx)
+}
+
+// RejectPayment, bekleyen bir ödemeyi başarısız olarak işaretler.
+// Tahakkuklar değişmez; borç olduğu gibi kalır.
+func (r *FinanceRepository) RejectPayment(ctx context.Context, paymentID, propertyID string) error {
+	tag, err := r.pool.Exec(ctx, `
+		UPDATE payments p
+		SET status = 'FAILED', completed_at = NOW()
+		WHERE p.id = $1
+		  AND p.status = 'PENDING'
+		  AND EXISTS (
+			SELECT 1 FROM payment_assessments pa
+			JOIN monthly_assessments ma ON ma.id = pa.assessment_id
+			WHERE pa.payment_id = p.id AND ma.property_id = $2
+		  )`, paymentID, propertyID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrPaymentNotPending
+	}
+	return nil
+}
+
+// ListPendingPayments, yöneticinin onay bekleyen ödemelerini getirir.
+func (r *FinanceRepository) ListPendingPayments(ctx context.Context, propertyID string) ([]models.PropertyPayment, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT DISTINCT p.id,
+		       COALESCE(u.first_name || ' ' || u.last_name, ''),
+		       COALESCE(un.block || '-' || un.door_number, ''),
+		       p.amount, p.payment_method, p.status, p.created_at
+		FROM payments p
+		JOIN payment_assessments pa ON pa.payment_id = p.id
+		JOIN monthly_assessments ma ON ma.id = pa.assessment_id
+		LEFT JOIN users u ON u.id = p.user_id
+		LEFT JOIN units un ON un.id = p.unit_id
+		WHERE ma.property_id = $1 AND p.status = 'PENDING'
+		ORDER BY p.created_at DESC`, propertyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	payments := []models.PropertyPayment{}
+	for rows.Next() {
+		var p models.PropertyPayment
+		if err := rows.Scan(&p.ID, &p.Name, &p.Unit, &p.Amount,
+			&p.PaymentMethod, &p.Status, &p.CreatedAt); err != nil {
+			return nil, err
+		}
+		payments = append(payments, p)
+	}
+	return payments, rows.Err()
 }
 
 // GetPaymentHistory ödeme geçmişi

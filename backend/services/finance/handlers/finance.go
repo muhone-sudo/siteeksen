@@ -173,6 +173,75 @@ func CreatePayment(svc *service.FinanceService) gin.HandlerFunc {
 	}
 }
 
+// ConfirmPayment, yöneticinin bekleyen bir ödemeyi tahsil edilmiş olarak onaylamasıdır (todo 4.2).
+// Bu işlem tahakkukların `paid_amount` değerini artırır ve durumlarını PARTIAL/PAID yapar.
+func ConfirmPayment(svc *service.FinanceService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		paymentID := c.Param("id")
+		propertyID := c.GetString("property_id")
+
+		var req struct {
+			// Reference: dekont/havale referansı. Zorunlu değildir ama denetim için önerilir.
+			Reference string `json:"reference"`
+		}
+		_ = c.ShouldBindJSON(&req) // gövde boş olabilir
+
+		err := svc.ConfirmPayment(c.Request.Context(), paymentID, propertyID, req.Reference)
+		if err != nil {
+			mapPaymentConfirmError(c, err, paymentID)
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"message": "Ödeme onaylandı ve borçtan düşüldü"})
+	}
+}
+
+// RejectPayment, bekleyen ödemeyi başarısız işaretler. Borç olduğu gibi kalır.
+func RejectPayment(svc *service.FinanceService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		paymentID := c.Param("id")
+		propertyID := c.GetString("property_id")
+
+		if err := svc.RejectPayment(c.Request.Context(), paymentID, propertyID); err != nil {
+			mapPaymentConfirmError(c, err, paymentID)
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"message": "Ödeme reddedildi; borç değişmedi"})
+	}
+}
+
+// ListPendingPayments, onay bekleyen ödemeleri listeler (yönetim ekranı).
+func ListPendingPayments(svc *service.FinanceService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		propertyID := c.GetString("property_id")
+		payments, err := svc.ListPendingPayments(c.Request.Context(), propertyID)
+		if err != nil {
+			log.Printf("[finance] bekleyen ödemeler alınamadı (property=%s): %v", propertyID, err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Bekleyen ödemeler alınamadı"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"data": payments})
+	}
+}
+
+// mapPaymentConfirmError, onay/ret akışının hatalarını HTTP durumlarına eşler.
+// Ham veritabanı hatası istemciye sızdırılmaz.
+func mapPaymentConfirmError(c *gin.Context, err error, paymentID string) {
+	switch {
+	case errors.Is(err, repository.ErrPaymentNotFound):
+		c.JSON(http.StatusNotFound, gin.H{"error": "Ödeme kaydı bulunamadı"})
+	case errors.Is(err, repository.ErrPaymentNotPending):
+		// Çift onaylama girişimi. 409: kaynağın durumu bu işleme uygun değil.
+		c.JSON(http.StatusConflict, gin.H{"error": "Bu ödeme zaten sonuçlanmış"})
+	case errors.Is(err, repository.ErrPaymentNotOwned):
+		c.JSON(http.StatusForbidden, gin.H{"error": "Bu ödeme sizin sitenize ait değil"})
+	case errors.Is(err, repository.ErrNoPayableAssessment):
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Ödemeye bağlı tahakkuk bulunamadı"})
+	default:
+		log.Printf("[finance] ödeme onay/ret hatası (payment=%s): %v", paymentID, err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "İşlem tamamlanamadı"})
+	}
+}
+
 // GetPaymentHistory ödeme geçmişi — yönetim rolleri site genelini, sakinler kendi geçmişini görür
 func GetPaymentHistory(svc *service.FinanceService) gin.HandlerFunc {
 	return func(c *gin.Context) {
