@@ -272,3 +272,71 @@ Belge görünürlüğü belirtilmediğinde **en dar** kademe (`MANAGEMENT`) uygu
 Geniş bir varsayılan seçilseydi, `visibility` alanını göndermeyi unutan tek bir
 istemci özlük dosyasını tüm sakinlere açardı. Aynı ilke: rol listesi çözülemezse
 jeton üretilmez, `AllowedVisibilities` boşsa hiçbir kayıt dönmez.
+
+---
+
+## 2026-09-14 — FAZ 5 tamamlanma dersleri
+
+### Ders 14 — "Yapılmadı" da bir sonuçtur; gerekçesiyle yazılırsa
+
+22 mock servisin ikisi (banka, toplantı sihirbazı) bilerek yazılmadı. Bunları
+yarım yamalak yazmak, "tamamlandı" listesine eklemek için kendimizi kandırmak
+olurdu. Bunun yerine 501 döndürüp **neden** yazılmadığını, **neyin eksik**
+olduğunu ve **nereye gidileceğini** söylüyorlar.
+
+**Kural:** Bir modül yazılmayacaksa, kararın gerekçesi koda ve API yanıtına
+yazılır. "Yapılmadı" ile "unutuldu" arasındaki fark, yazılı gerekçedir.
+
+### Ders 15 — Uydurma sayı üretmektense hiç üretme
+
+Üç modül "yapay zekâ" iddiasıyla sayı üretiyordu: enerji tahmini, ödeme
+olasılığı, sürdürülebilirlik skoru. Model yok. Bu sayıların hepsi kaldırıldı;
+yerlerine formülü kodda yazılı, her sonucu gerekçeli hesaplar kondu.
+
+**Kural:** Bir sayının dayanağını gösteremiyorsan onu üretme. Özellikle:
+- Katsayısı dışarıdan gelmesi gereken hesapta (emisyon faktörü) katsayıyı
+  **kullanıcıdan iste**, koda gömme.
+- Kabul görmüş formülü olmayan bileşik skoru (sürdürülebilirlik) **üretme**.
+- Yetersiz veriyle (3 yanıtlık NPS, 1 tahakkukluk risk skoru) üretilen sonucu
+  **güvenilmez işaretle**.
+
+### Ders 16 — Aynı kuralı iki katmanda birden uygula
+
+Site ayarlarının mevzuat parametrelerini ezmesi hem uygulamada hem de
+veritabanı `CHECK` kısıtında engellendi. Uygulama kontrolü tek başına yetmez:
+doğrudan SQL yazan bir betiği ya da ileride yazılacak başka bir servisi bağlamaz.
+
+**Kural:** Bir kural ihlâli geri alınamaz sonuç doğuruyorsa (kanuna aykırı
+tahakkuk, silinen borç, kaybolan denetim izi), kuralı veritabanına da yaz.
+Salt-ekleme tetikleyicileri, `CHECK` kısıtları ve kısmi tekil indeksler bunun
+için vardır.
+
+### Ders 17 — Saklanan türetilmiş değer bayatlar
+
+Amortisman, anket sonucu ve dönem toplamı için şemada saklama kolonları vardı.
+Hiçbiri kullanılmadı; hepsi her okumada hesaplanıyor. Doğrulamada kolonlar
+**elle bozulup** okumanın değişmediği gösteriliyor.
+
+**Kural:** Türetilmiş değeri saklıyorsan, onu güncelleyen tek bir yol olduğundan
+emin ol. Emin olamıyorsan saklama — hesapla. Bayat bir defter değeri, yönetici
+devrini ve bütçeyi yanlış temele oturtur.
+
+### Ders 18 — İstemcinin gönderdiği "sonuç"a güvenme, girdisine güven
+
+Tekrar eden kalıp: istemci "tur tamamlandı", "toplam 4.000 TL", "önceki endeks
+1000" diyordu. Üçü de sunucuda yeniden hesaplanıyor artık.
+
+**Kural:** İstemci NE YAPTIĞINI söyler, NE OLDUĞUNU değil. Durum, süre, toplam
+ve önceki değer sunucudan gelir. Bu bir güvenlik meselesi olmadan önce bir
+doğruluk meselesidir: istemcinin saati yanlış olabilir, hesabı eksik olabilir.
+
+### Ders 19 — Yanlış alarm veren kontrol, kontrolsüzlükten kötüdür
+
+Eşzamanlılık testindeki "hareket zinciri" kontrolü, kod doğruyken bile
+kopukluk raporluyordu: eşzamanlı kayıtlar aynı zaman damgasına düşünce gerçek
+sıra kurulamıyordu. Kontrol, ölçmek istediği şeyi (kayıp güncelleme) doğrudan
+ölçecek biçimde yeniden yazıldı.
+
+**Kural:** Bir kontrol başarısız olduğunda önce "bu kontrol doğru şeyi mi
+ölçüyor?" diye sor. Yanlış alarm veren kontrol, zamanla görmezden gelinir ve
+gerçek hatayı da gizler.

@@ -12,6 +12,65 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-09-14 — FAZ 5 TAMAMLANDI: 22 mock servisin tamamı ele alındı (DOĞRULANMIŞ)
+
+> **Toplu kanıt:** `bash backend/scripts/verify-stack.sh` → **646 kontrol, 0 başarısız**
+> Gerçek veri katmanına bağlı servis: **4 → 20**. Bilerek yazılmayan: **2** (gerekçeli).
+> Dev ortamı: 24 servis + gateway + panel ayakta (hepsi `/health` → 200).
+
+#### Bu turda gerçeğe çevrilen modüller (9-22)
+
+| # | Modül | Önceki davranış | En kritik eklenen kural | Adım |
+|---|---|---|---|---|
+| 9 | demirbaş | sabit liste | amortisman **saklanmaz, hesaplanır**; kayıttan düşme karar dayanağı ister (KMK m.45) | §20 |
+| 10 | stok | hareket kaydedilmiyordu | satır kilidiyle eşzamanlılık; negatif stok yasak; sayım düzeltmesi gerekçe ister | §21 |
+| 11 | anket | sabit sonuç (%68 evet) | **genel kurul kararı üretilemez** (KMK m.29-32); oy hakkı bağımsız bölüm başına (m.31/1); ağırlık arsa payı (m.20) | §22 |
+| 12 | sayaç/IoT | sabit endeks | ısı gideri %70 tüketim + %30 alan (RG 14.04.2008); oranlar `legal_parameters`'tan; endeks zinciri sunucuda | §23 |
+| 13 | bildirim | "gönderildi" yalanı | giden kutusu; sağlayıcı yoksa PENDING kalır; ticari ileti onaysız gönderilmez (6563 m.6) | §24 |
+| 14 | devriye | hiç gezilmemiş tur "tamamlandı" | zaman sunucudan; durum okutmalardan **hesaplanır**; çok hızlı tur işaretlenir | §25 |
+| 15 | duyuru + ilan | uydurma veri | ilan yönetim onayından geçer; okundu kaydı; yorum silinmez gizlenir | §26 |
+| 16 | ayarlar | sabit ayar | **mevzuat parametreleri ezilemez** — uygulama + veritabanı kısıtı | §27 |
+| 17 | enerji analizi | uydurma "AI" tahmini | medyandan sapma, alan başına karşılaştırma; tahmin üretilmez | §28 |
+| 18 | akıllı tahsilat | uydurma risk skoru | ağırlıkları yazılı, gerekçeli skor; icra **önerilir**, yapılmaz (KMK m.22) | §28 |
+| 19 | NPS | sabit "NPS: 42" | sabit tanım (0-6/7-8/9-10); yanıt yoksa skor yok; anonim | §29 |
+| 20 | ESG | sabit karbon ayak izi | **emisyon katsayısı koda gömülmez**, kullanıcı kaynağıyla verir | §29 |
+| 21 | banka | uydurma bakiye | **yazılmadı** — S-07 kullanıcı kararı; 501 + engel listesi | §29 |
+| 22 | toplantı sihirbazı | uydurma transkript/özet | **yazılmadı** — governance ile tekrar olurdu; oraya yönlendirir | §29 |
+
+#### Yeni altyapı
+
+- **`pkg/storage` (S-09)** — dosya saklama. `local` + `s3` (SigV4, harici
+  bağımlılık yok; Oracle / Cloudflare R2 / AWS). Yapılandırma yoksa açılmaz.
+- **`pkg/notify` (S-10)** — sağlayıcıdan bağımsız giden kutusu. Sağlayıcı yoksa
+  bildirim PENDING kalır ve hiçbir yerde "gönderildi" denmez.
+- **migration 015** belge arşivi + erişim kaydı, **016** bildirim + tercihler,
+  **017** site ayarları + değişiklik geçmişi. Üçünde de salt-ekleme tetikleyicileri.
+
+#### "Yapay zekâ" iddiası kaldırıldı
+
+Enerji analizi, tahsilat riski ve karbon ayak izi **gerçek hesap** yapar ama
+YZ kullanmaz. `ai_model_version`, `predictions`, `predicted_payment_probability`
+alanları bilerek boş bırakılır ve doğrulamada boş kaldıkları ayrıca sınanır.
+Gerekçe: bir model olmadan sürüm numarası yazmak ve "ödeme olasılığı %62" demek,
+olmayan bir yeteneği var göstermektir. Bunun yerine formülü kodda yazılı,
+her sonucu gerekçeli istatistikler üretilir.
+
+#### Düzeltilen hatalar
+
+- **`verify-stack.sh` eşzamanlılık testi betiği kilitliyordu.** Çıplak `wait`,
+  kabuğun tüm arka plan çocuklarını — yani doğrulama boyunca ayakta tutulan
+  servisleri — bekliyordu. Artık yalnızca ilgili işler bekleniyor.
+- **Hareket zinciri kontrolü yanlış alarm veriyordu.** Eşzamanlı kayıtlar aynı
+  zaman damgasına düştüğünde gerçek sıra kurulamıyordu. Yerine kayıp
+  güncellemeyi doğrudan ölçen kontrol kondu.
+- **Isı paylaştırmasında kullanım alanı zorunluluğu** yanlışlıkla su/elektriği
+  de kapsıyordu; alan yalnızca ısıtmada gerekir.
+- **Stub dürüstlük testi kimliksiz çağırıyordu.** Stub uçları da kimlik
+  doğrulaması arkasında olmalı: kimliksiz 401, kimlikli 501. 501'i kimliksiz
+  servis etmek, olmayan bir modülün varlığını dışarıya doğrulamak olurdu.
+
+---
+
 ### 2026-09-13 (ikinci tur) — FAZ 5: Sekiz modül mock'tan gerçeğe + dosya depolama (DOĞRULANMIŞ)
 
 > **Toplu kanıt:** `bash backend/scripts/verify-stack.sh` → **283 kontrol, 0 başarısız**

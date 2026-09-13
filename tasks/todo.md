@@ -473,7 +473,7 @@ Ayrıntı: `tasks/roadmap.md`
 | FAZ 2 | Kimlik/yetki/izolasyon | **Çekirdek tamam** — gateway auth, site bazlı roller, sahiplik doğrulaması, RBAC. Kalan: RLS (2.6), jeton iptali (2.7), alan şifreleme (2.8) |
 | FAZ 3 | Denetim izi + gözlemlenebilirlik | Çalışıyor. Hassas veri okuma logu (3.4) **belgeler için yapıldı** (`document_access_logs`); diğer hassas uçlar ve yapılandırılmış log (3.5) kaldı |
 | FAZ 4 | Para doğruluğu | **Çekirdek tamam** — ödeme borçtan düşüyor, kuruş dağıtımı, gecikme tazminatı. Kalan: bakiye testi (4.12), tam kuruş göçü (4.13) |
-| FAZ 5 | 22 mock servisi gerçeğe çevirme | **Devam ediyor — 8/22** (gider, personel, ziyaretçi, otopark, rezervasyon, kargo, sözleşme, belge). Kalan 14 servis dürüstçe 501 döndürüyor |
+| FAZ 5 | 22 mock servisi gerçeğe çevirme | **TAMAMLANDI (2026-09-14)** — 20 servis gerçek veri katmanında; 2 servis (banka, toplantı sihirbazı) gerekçeli kapsam kararıyla 501 |
 | FAZ 6 | Yönetişim katmanı (KMK) | **Çekirdek tamam** — işletme projesi, genel kurul, defterler, icra. Kalan: arayüzler (6.7) |
 | FAZ 7 | Uyum ve operasyonel derinlik | Başlamadı |
 | FAZ 8 | Ölçek ve ticarileşme | Başlamadı |
@@ -519,37 +519,54 @@ içinde kendi adımı. Bir modül baştan sona bitmeden diğerine geçilmez (dik
 | 6 | kargo (package) | **Tamamlandı** | §17 |
 | 7 | sözleşme | **Tamamlandı** | §18 |
 | 8 | belge arşivi | **Tamamlandı** | §19 |
-| 9 | demirbaş (asset) | Sırada | — |
-| 10 | stok (inventory) | Sırada | — |
-| 11 | anket (survey) | Sırada | — |
-| 12 | tur kontrol (patrol) | Sırada | — |
-| 13 | sayaç/IoT | Sırada | — |
-| 14 | duyuru (bulletin) | Sırada | — |
-| 15 | ayarlar (settings) | Sırada | — |
-| 16 | bildirim (notification) | **S-10 arayüzüne bağlı** | — |
-| 17 | banka (banking) | S-07 gereği sonraki sürüm | — |
-| 18 | enerji analitiği | Sırada | — |
-| 19 | ESG | Sırada | — |
-| 20 | NPS | Sırada | — |
-| 21 | akıllı tahsilat | Ödeme sağlayıcısına bağlı | — |
-| 22 | toplantı sihirbazı | FAZ 6.6'ya bağlı | — |
+| 9 | demirbaş (asset) | **Tamamlandı** | §20 |
+| 10 | stok (inventory) | **Tamamlandı** | §21 |
+| 11 | anket (survey) | **Tamamlandı** | §22 |
+| 12 | sayaç/IoT + ısı payı | **Tamamlandı** | §23 |
+| 13 | bildirim (notification) | **Tamamlandı** (S-10) | §24 |
+| 14 | devriye (patrol) | **Tamamlandı** | §25 |
+| 15 | duyuru + ilan panosu | **Tamamlandı** | §26 |
+| 16 | ayarlar (settings) | **Tamamlandı** | §27 |
+| 17 | enerji analitiği | **Tamamlandı** (YZ yok) | §28 |
+| 18 | akıllı tahsilat | **Tamamlandı** (YZ yok) | §28 |
+| 19 | NPS | **Tamamlandı** | §29 |
+| 20 | ESG / karbon | **Tamamlandı** (katsayı kullanıcıdan) | §29 |
+| 21 | banka (banking) | **Yazılmadı — S-07 kullanıcı kararı**; 501 + gerekçe | §29 |
+| 22 | toplantı sihirbazı | **Yazılmadı — governance ile tekrar**; yönlendirir | §29 |
+
+### Bu fazda bilerek YAPILMAYANLAR (gerekçeli)
+
+| Konu | Neden |
+|---|---|
+| Banka entegrasyonu | S-07: kullanıcı sonraki sürüme bıraktı. Ayrıca API sözleşmesi ve alan şifrelemesi (2.8) yok; yanlış eşleştirme sakinin borcunu siler |
+| Toplantı sihirbazı | Governance'ta zaten var; ikinci tablo karar defterinin tekliğini (KMK m.32) bozar |
+| Ses kaydı / transkript / AI özet | Altyapı yok; ayrıca genel kurul ses kaydı KVKK m.5-6 kapsamında ayrı dayanak ve açık rıza sorunu doğurur |
+| IoT sensör uçları | Zaman serisi deposu (MongoDB) kurulu değil, `go.mod`'da bile yok |
+| Entegrasyon kimlik bilgisi kasası | Alan düzeyinde şifreleme (2.8) olmadan sağlayıcı anahtarı saklanmaz |
+| Bileşik "sürdürülebilirlik skoru" | Kabul görmüş formülü yok; uydurma ağırlıkla üretilen sayı bir şey ölçmez |
 
 ---
 
 # Sıradaki işler (öncelik sırasıyla)
 
-1. **FAZ 5 kalanı** — 14 servis. Sıradaki: demirbaş, stok, anket, tur kontrol, sayaç.
-2. **S-10 bildirim arayüzü** — sağlayıcı bağımsız kuyruk; anahtar yokken `log` adaptörü
-   (gönderim veritabanına yazılır, dışarı çıkmaz). Kargo, rezervasyon ve sözleşme
-   modülleri "bildirim gönderilmedi" notu düşüyor; bu arayüz gelince o notlar kalkar.
-3. **FAZ 2 kalanı** — PostgreSQL RLS (2.6), çıkışta jeton iptali (2.7), TCKN/IBAN alan
-   şifrelemesi (2.8).
-4. **FAZ 6 arayüzleri (6.7)** — yönetişim servisi API olarak hazır; panel ekranları yok.
-5. **FAZ 3 kalanı** — hassas veri okuma logu (3.4) belgeler için yapıldı; personel ve
-   sakin uçlarına da genişletilecek. Yapılandırılmış log (3.5).
-6. **Panelde çıkış (logout) düğmesi yok** — oturum bayatladığında kullanıcı sıkışıyor
-   (`/api/auth/signout` elle çağrılmak zorunda). Küçük ama gerçek bir kullanılabilirlik
-   hatası.
+FAZ 5 bittiği için öncelik güvenlik ve arayüz tarafına kayıyor.
+
+1. **FAZ 2 kalanı — güvenlik**
+   - 2.6 PostgreSQL satır düzeyi güvenlik (RLS): izolasyon bugün yalnızca
+     uygulama katmanında. Bir sorguda filtre unutulursa başka sitenin verisi sızar.
+   - 2.7 Çıkışta jeton iptali: jeton süresi dolana kadar (15 dk) geçerli kalıyor.
+   - 2.8 TCKN/IBAN alan şifrelemesi: düz metin duruyor. Kimlik bilgisi kasası
+     ve banka entegrasyonu da bunu bekliyor.
+2. **FAZ 6.7 — yönetişim arayüzleri.** Governance servisi API olarak hazır ama
+   panelde ekranı yok: işletme projesi, genel kurul, karar defteri.
+3. **Modülleri bildirim altyapısına bağlama.** `pkg/notify` hazır; kargo,
+   rezervasyon, anket, duyuru ve stok modülleri hâlâ "bildirim gönderilmedi"
+   notu düşüyor. Bu notların kalkması için ilgili yerlerde `Enqueue` çağrılmalı.
+4. **Panel ve mobil arayüzler.** 20 gerçek modülün çoğunun panelde karşılığı yok.
+5. **FAZ 3 kalanı** — hassas veri okuma logu (3.4) belgeler için yapıldı; personel
+   ve sakin uçlarına genişletilecek. Yapılandırılmış log (3.5).
+6. **Panelde çıkış (logout) düğmesi yok** — oturum bayatlayınca kullanıcı sıkışıyor.
+7. **1.6 migration geri alma (down) betikleri.**
 
 ---
 
