@@ -282,7 +282,7 @@ func main() {
 
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "8090"
+		port = "8101" // kong/kong.yml ile aynı olmalı
 	}
 	log.Printf("Reservation Service başlatıldı: :%s", port)
 	if err := r.Run(":" + port); err != nil {

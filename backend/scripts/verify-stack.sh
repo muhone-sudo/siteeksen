@@ -40,6 +40,7 @@ VIS_PID=""
 PRK_PID=""
 RES_PID=""
 PKG_PID=""
+CTR_PID=""
 
 ok()   { echo "  [GEÇTİ]    $1"; PASS=$((PASS+1)); }
 bad()  { echo "  [BAŞARISIZ] $1"; FAIL=$((FAIL+1)); }
@@ -57,6 +58,7 @@ cleanup() {
   [ -n "$PRK_PID" ] && kill "$PRK_PID" 2>/dev/null
   [ -n "$RES_PID" ] && kill "$RES_PID" 2>/dev/null
   [ -n "$PKG_PID" ] && kill "$PKG_PID" 2>/dev/null
+  [ -n "$CTR_PID" ] && kill "$CTR_PID" 2>/dev/null
   docker rm -f "$CNAME" >/dev/null 2>&1
 }
 trap cleanup EXIT
@@ -1241,6 +1243,169 @@ else
   bad "package-service başlamadı"; tail -10 /tmp/verify-package.log
 fi
 kill "$PKG_PID" 2>/dev/null
+
+step "18) Sözleşme modülü — mock'tan gerçeğe (FAZ 5, 7. modül)"
+# Önceki davranış: sabit sözleşme listesi; yazma istekleri kaydedilmiyordu.
+# Kritik iş kuralı: kendiliğinden yenilenen sözleşmede ihbar süresi kaçırılırsa
+# site habersiz yeni bir mali yüke bağlanır → notice_due işaretlenmeli, yenileme ELLE olmalı.
+CTRPORT=${VERIFY_CTR_PORT:-18094}
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen DB_PASSWORD="$PW" DB_NAME=siteeksen \
+DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${CTRPORT} \
+  go run ./services/contract >/tmp/verify-contract.log 2>&1 &
+CTR_PID=$!
+CUP=0
+for _ in $(seq 1 45); do
+  curl -fsS "http://127.0.0.1:${CTRPORT}/health" >/dev/null 2>&1 && { CUP=1; break; }
+  sleep 1
+done
+
+if [ "$CUP" = "1" ] && [ -n "${MGR:-}" ] && [ -n "${TEN:-}" ]; then
+  ok "contract-service ayağa kalktı"
+  CA="Authorization: Bearer $MGR"
+  CT="Authorization: Bearer $TEN"
+  CJ='Content-Type: application/json'
+  CURL="http://127.0.0.1:${CTRPORT}/api/v1"
+
+  TODAY=$(date +%Y-%m-%d)
+  NEXTYEAR=$(date -d '+1 year' +%Y-%m-%d)
+  SOON=$(date -d '+20 days' +%Y-%m-%d)
+  PASTEND=$(date -d '-5 days' +%Y-%m-%d)
+  LASTYEAR=$(date -d '-1 year' +%Y-%m-%d)
+
+  # 1) Sözleşme oluşturma — aylık 5.000 TL asansör bakımı
+  C1=$(curl -s -X POST "$CURL/contracts" -H "$CA" -H "$CJ" -d "{
+    \"contract_type\":\"MAINTENANCE\",\"title\":\"Asansor bakim sozlesmesi\",
+    \"party_name\":\"Ornek Asansor A.S.\",\"party_type\":\"COMPANY\",\"party_tax_id\":\"1234567890\",
+    \"start_date\":\"$TODAY\",\"end_date\":\"$NEXTYEAR\",
+    \"payment_type\":\"MONTHLY\",\"monthly_amount\":5000,
+    \"auto_renew\":true,\"renewal_period_months\":12,\"renewal_notice_days\":30,\"max_renewals\":1}")
+  C1ID=$(echo "$C1" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+  [ -n "$C1ID" ] && ok "sözleşme oluşturuldu ve KALICI" || bad "sözleşme oluşturulamadı: $C1"
+
+  if [ -n "$C1ID" ]; then
+    DBC=$($PSQL -t -A -c "SELECT count(*) FROM contracts WHERE id='$C1ID';")
+    [ "$DBC" = "1" ] && ok "sözleşme veritabanında (mock değil)" || bad "kayıt veritabanında yok"
+  fi
+
+  # 2) Geçersiz tür reddedilmeli
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$CURL/contracts" -H "$CA" -H "$CJ" -d "{
+    \"contract_type\":\"UYDURMA\",\"title\":\"X\",\"party_name\":\"Y\",\"start_date\":\"$TODAY\"}")
+  [ "$SC" = "422" ] && ok "geçersiz sözleşme türü reddedildi → 422" || bad "geçersiz tür kabul edildi → $SC"
+
+  # 3) Bitiş < başlangıç reddedilmeli
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$CURL/contracts" -H "$CA" -H "$CJ" -d "{
+    \"contract_type\":\"SERVICE\",\"title\":\"Ters tarih\",\"party_name\":\"Y\",
+    \"start_date\":\"$TODAY\",\"end_date\":\"$LASTYEAR\"}")
+  [ "$SC" = "422" ] && ok "bitiş tarihi başlangıçtan önce olamıyor → 422" || bad "ters tarih kabul edildi → $SC"
+
+  # 4) auto_renew var ama yenileme süresi yok → kabul edilmemeli
+  #    (ihbar penceresi hesaplanamaz, site habersiz yeni döneme bağlanır)
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$CURL/contracts" -H "$CA" -H "$CJ" -d "{
+    \"contract_type\":\"SERVICE\",\"title\":\"Suresiz yenileme\",\"party_name\":\"Y\",
+    \"start_date\":\"$TODAY\",\"auto_renew\":true}")
+  [ "$SC" = "422" ] && ok "yenileme süresi olmadan kendiliğinden yenileme kurulamıyor → 422" \
+    || bad "eksik yenileme tanımı kabul edildi → $SC"
+
+  # 5) İhbar penceresi — 20 gün sonra bitecek, ihbar süresi 30 gün → notice_due true
+  C2=$(curl -s -X POST "$CURL/contracts" -H "$CA" -H "$CJ" -d "{
+    \"contract_type\":\"SERVICE\",\"title\":\"Guvenlik hizmeti\",\"party_name\":\"Ornek Guvenlik Ltd.\",
+    \"start_date\":\"$LASTYEAR\",\"end_date\":\"$SOON\",
+    \"payment_type\":\"YEARLY\",\"yearly_amount\":120000,\"renewal_notice_days\":30}")
+  C2ID=$(echo "$C2" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+  [ -n "$C2ID" ] && ok "ikinci sözleşme oluşturuldu" || bad "ikinci sözleşme: $C2"
+
+  LIST=$(curl -s "$CURL/contracts?expiring_days=30" -H "$CA")
+  echo "$LIST" | grep -q 'Guvenlik hizmeti' && ok "yaklaşan bitiş süzgeci çalışıyor (expiring_days)" \
+    || bad "expiring_days süzgeci: $LIST"
+  echo "$LIST" | grep -q '"notice_due":true' && ok "fesih ihbar penceresi işaretleniyor" \
+    || bad "notice_due hesaplanmadı: $LIST"
+  echo "$LIST" | grep -q 'Asansor bakim' && bad "süzgeç dışı sözleşme listeye sızdı" \
+    || ok "süzgeç yalnızca yaklaşanları döndürüyor"
+
+  # 6) Mali yük özeti — 5.000 aylık + 120.000/12 = 10.000 aylık, 120.000 yıllık
+  SUM=$(curl -s "$CURL/contracts-summary" -H "$CA")
+  echo "$SUM" | grep -q '"monthly_commitment_try":15000' \
+    && ok "aylık mali yük doğru hesaplandı (5.000 + 120.000/12 = 15.000 TL)" \
+    || bad "aylık yük beklenmedik: $SUM"
+  echo "$SUM" | grep -q '"yearly_commitment_try":180000' && ok "yıllık mali yük doğru (180.000 TL)" \
+    || bad "yıllık yük beklenmedik: $SUM"
+  echo "$SUM" | grep -q '"notice_due":1' && ok "özet ihbar süresi dolan sözleşmeyi sayıyor" \
+    || bad "özet notice_due: $SUM"
+
+  # 7) KVKK: kat maliki özeti görebilir ama karşı tarafın verisini göremez
+  SC=$(curl -s -o /dev/null -w '%{http_code}' "$CURL/contracts-summary" -H "$CT")
+  [ "$SC" = "200" ] && ok "kat maliki mali yük özetini görebiliyor (KMK m.39 hesap verme)" \
+    || bad "özet sakine kapalı → $SC"
+  TS=$(curl -s "$CURL/contracts-summary" -H "$CT")
+  echo "$TS" | grep -q '1234567890' && bad "özet karşı tarafın vergi numarasını sızdırıyor" \
+    || ok "özet kişisel/ticari veri sızdırmıyor"
+  SC=$(curl -s -o /dev/null -w '%{http_code}' "$CURL/contracts" -H "$CT")
+  [ "$SC" = "403" ] && ok "sakin sözleşme ayrıntılarını göremiyor → 403" || bad "sakin ayrıntı gördü → $SC"
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$CURL/contracts" -H "$CT" -H "$CJ" -d "{
+    \"contract_type\":\"OTHER\",\"title\":\"X\",\"party_name\":\"Y\",\"start_date\":\"$TODAY\"}")
+  [ "$SC" = "403" ] && ok "sakin sözleşme yapamıyor → 403" || bad "sakin sözleşme yaptı → $SC"
+
+  # 8) Yenileme — bitiş tarihi 12 ay uzamalı, sayaç artmalı
+  if [ -n "$C1ID" ]; then
+    OLDEND=$($PSQL -t -A -c "SELECT end_date FROM contracts WHERE id='$C1ID';")
+    RN=$(curl -s -X POST "$CURL/contracts/$C1ID/renew" -H "$CA" -H "$CJ" -d '{}')
+    echo "$RN" | grep -q '"current_renewal":1' && ok "yenileme sayacı arttı" || bad "yenileme: $RN"
+    echo "$RN" | grep -q 'KENDİLİĞİNDEN YENİLEMEZ' \
+      && ok "sistemin kendiliğinden yenilemediği dürüstçe bildiriliyor" || bad "yenileme dürüstlük notu yok"
+    NEWEND=$($PSQL -t -A -c "SELECT end_date FROM contracts WHERE id='$C1ID';")
+    EXPECTED=$(date -d "$OLDEND +12 months" +%Y-%m-%d)
+    [ "$NEWEND" = "$EXPECTED" ] && ok "bitiş tarihi mevcut bitişten itibaren uzatıldı ($NEWEND)" \
+      || bad "uzatma yanlış: $OLDEND → $NEWEND (beklenen $EXPECTED)"
+
+    # max_renewals=1 → ikinci yenileme reddedilmeli
+    SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$CURL/contracts/$C1ID/renew" -H "$CA" -H "$CJ" -d '{}')
+    [ "$SC" = "422" ] && ok "azami yenileme sayısı aşılamıyor → 422" || bad "azami yenileme aşıldı → $SC"
+  fi
+
+  # 9) Süresi dolanları işaretleme — idempotent ve auto_renew'leri atlamalı
+  C3ID=$($PSQL -t -A -c "INSERT INTO contracts (property_id, contract_type, title, party_name,
+      start_date, end_date, status, auto_renew)
+    VALUES ('11111111-1111-1111-1111-111111111111','OTHER','Suresi dolmus','Eski Firma',
+      '$LASTYEAR','$PASTEND','ACTIVE',false) RETURNING id;")
+  C4ID=$($PSQL -t -A -c "INSERT INTO contracts (property_id, contract_type, title, party_name,
+      start_date, end_date, status, auto_renew, renewal_period_months)
+    VALUES ('11111111-1111-1111-1111-111111111111','OTHER','Kendiliginden yenilenen','Yeni Firma',
+      '$LASTYEAR','$PASTEND','ACTIVE',true,12) RETURNING id;")
+  EX=$(curl -s -X POST "$CURL/contracts/expire-due" -H "$CA" -H "$CJ" -d '{}')
+  echo "$EX" | grep -q '"expired_count":1' && ok "süresi dolan sözleşme EXPIRED işaretlendi" \
+    || bad "expire-due: $EX"
+  ST4=$($PSQL -t -A -c "SELECT status FROM contracts WHERE id='$C4ID';")
+  [ "$ST4" = "ACTIVE" ] && ok "kendiliğinden yenilenen sözleşme süre dolumunun dışında tutuldu" \
+    || bad "auto_renew sözleşme EXPIRED yapıldı: $ST4"
+  EX2=$(curl -s -X POST "$CURL/contracts/expire-due" -H "$CA" -H "$CJ" -d '{}')
+  echo "$EX2" | grep -q '"expired_count":0' && ok "expire-due idempotent (ikinci çalıştırma 0)" \
+    || bad "expire-due idempotent değil: $EX2"
+
+  # 10) Fesih — gerekçe zorunlu
+  if [ -n "$C2ID" ]; then
+    SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$CURL/contracts/$C2ID/terminate" -H "$CA" -H "$CJ" -d '{}')
+    [ "$SC" = "400" ] && ok "gerekçesiz fesih engellendi → 400" || bad "gerekçesiz fesih → $SC"
+
+    SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$CURL/contracts/$C2ID/terminate" -H "$CA" -H "$CJ" \
+      -d '{"reason":"Hizmet kalitesi yetersiz - genel kurul karari"}')
+    [ "$SC" = "200" ] && ok "fesih kaydedildi → 200" || bad "fesih → $SC"
+    TR=$($PSQL -t -A -c "SELECT status || '|' || COALESCE(termination_reason,'') FROM contracts WHERE id='$C2ID';")
+    echo "$TR" | grep -q '^TERMINATED|Hizmet kalitesi' && ok "fesih gerekçesiyle birlikte kayda geçti" \
+      || bad "fesih kaydı: $TR"
+
+    # Feshedilmiş sözleşme tekrar feshedilemez
+    SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$CURL/contracts/$C2ID/terminate" -H "$CA" -H "$CJ" \
+      -d '{"reason":"tekrar"}')
+    [ "$SC" = "409" ] && ok "feshedilmiş sözleşme tekrar feshedilemiyor → 409" || bad "çift fesih → $SC"
+  fi
+
+  # 11) Kimliksiz erişim engelli
+  SC=$(curl -s -o /dev/null -w '%{http_code}' "$CURL/contracts")
+  [ "$SC" = "401" ] && ok "kimliksiz sözleşme erişimi engellendi → 401" || bad "kimliksiz erişim → $SC"
+else
+  bad "contract-service başlamadı"; tail -10 /tmp/verify-contract.log
+fi
+kill "$CTR_PID" 2>/dev/null
 
 step "SONUÇ"
 echo "  Geçen: $PASS   Başarısız: $FAIL"
