@@ -59,7 +59,7 @@ func main() {
 	})
 
 	api := r.Group("/api/v1")
-	api.Use(middleware.AuthMiddleware(), middleware.AuditLog(pool, "smart_collection"))
+	api.Use(middleware.AuthMiddleware(pool), middleware.AuditLog(pool, "smart_collection"))
 
 	// Borç ve ödeme geçmişi kişisel veridir; yalnızca yönetim ve denetçi görür.
 	// Görevli (staff) BİLEREK dışarıda: kapıcının komşunun borcunu bilmesi için

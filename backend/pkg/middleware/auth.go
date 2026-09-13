@@ -4,11 +4,13 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/siteeksen/backend/pkg/audit"
 	"github.com/siteeksen/backend/pkg/authtoken"
+	"github.com/siteeksen/backend/pkg/revocation"
 )
 
 // Rol değerleri.
@@ -32,9 +34,26 @@ const (
 // Aynı doğrulama mantığı net/http tabanlı gateway tarafından da kullanılır.
 type Claims = authtoken.Claims
 
-// AuthMiddleware JWT doğrulama middleware'i
-func AuthMiddleware() gin.HandlerFunc {
+// AuthMiddleware, JWT doğrulaması ve JETON İPTALİ denetimi yapar.
+//
+// `pool` ZORUNLUDUR ve imzada yer alır. Paket düzeyinde bir "kurulmuşsa
+// denetle" değişkeni kullanmak, kurulumu unutulan bir serviste iptal edilmiş
+// jetonu sessizce kabul etmek olurdu. Bu imza sayesinde eksik kalan her çağrı
+// yeri derleme hatası verir.
+//
+// pool nil ise istek REDDEDİLİR (fail-closed): iptal denetimi yapılamayan bir
+// jetona güvenilmez.
+func AuthMiddleware(pool *pgxpool.Pool) gin.HandlerFunc {
+	checker := revocation.New(pool)
 	return func(c *gin.Context) {
+		if pool == nil {
+			log.Printf("[auth] KRİTİK: jeton iptal denetimi yapılandırılmamış")
+			c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{
+				"error": "Sunucu kimlik doğrulama yapılandırması eksik",
+			})
+			return
+		}
+
 		claims, err := authtoken.ParseAuthHeader(c.GetHeader("Authorization"))
 		if err != nil {
 			// GÜVENLİK (2026-09-09): Önceki sürüm JWT_SECRET boş olsa dahi doğrulamaya devam
@@ -49,6 +68,31 @@ func AuthMiddleware() gin.HandlerFunc {
 				return
 			}
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+			return
+		}
+
+		// Jeton iptal edilmiş mi? (çıkış, tüm cihazlardan çıkış, şifre değişikliği)
+		var issuedAt time.Time
+		if claims.IssuedAt != nil {
+			issuedAt = claims.IssuedAt.Time
+		}
+		revoked, reason, rerr := checker.IsRevoked(
+			c.Request.Context(), claims.ID, claims.Subject(), issuedAt)
+		if rerr != nil {
+			// Denetim yapılamadıysa jeton KABUL EDİLMEZ. "Veritabanı yanıt
+			// vermiyor" durumunda iptal edilmiş jetonları kabul etmek, iptal
+			// mekanizmasını saldırgan için kapatılabilir hâle getirirdi.
+			log.Printf("[auth] jeton iptal denetimi başarısız: %v", rerr)
+			c.AbortWithStatusJSON(http.StatusServiceUnavailable, gin.H{
+				"error": "Kimlik doğrulama geçici olarak yapılamıyor",
+			})
+			return
+		}
+		if revoked {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+				"error": "Oturum sonlandırılmış; lütfen tekrar giriş yapın",
+				"note":  reason,
+			})
 			return
 		}
 

@@ -49,7 +49,7 @@ func main() {
 	})
 
 	api := r.Group("/api/v1")
-	api.Use(middleware.AuthMiddleware(), middleware.AuditLog(pool, "expense"))
+	api.Use(middleware.AuthMiddleware(pool), middleware.AuditLog(pool, "expense"))
 
 	// Okuma: yönetim + denetçi (KMK m.41 denetim görevi giderleri görmeyi gerektirir).
 	read := api.Group("")

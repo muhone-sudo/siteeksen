@@ -29,6 +29,7 @@ import (
 	"os"
 
 	"github.com/gin-gonic/gin"
+	"github.com/siteeksen/backend/pkg/database"
 	"github.com/siteeksen/backend/pkg/middleware"
 )
 
@@ -37,6 +38,17 @@ const decisionNote = "Banka entegrasyonu, kullanıcı kararıyla (tasks/question
 	"döndürülmedi. Ödeme kaydı bugün finance servisinde yönetici onayıyla yapılır."
 
 func main() {
+	// Veritabanı yalnızca JETON İPTALİ denetimi için gerekir (FAZ 2.7):
+	// bu servis hiçbir iş verisi tutmaz. Kimlik doğrulama davranışı tüm
+	// servislerde aynı olmalıdır; aksi hâlde iptal edilmiş bir jeton burada
+	// kabul edilirdi.
+	dbConfig := database.NewConfigFromEnv()
+	pool, err := database.Connect(dbConfig)
+	if err != nil {
+		log.Fatalf("Veritabanı bağlantısı başarısız: %v", err)
+	}
+	defer database.Close()
+
 	r := gin.Default()
 
 	r.GET("/health", func(c *gin.Context) {
@@ -51,7 +63,7 @@ func main() {
 	})
 
 	api := r.Group("/api/v1")
-	api.Use(middleware.AuthMiddleware())
+	api.Use(middleware.AuthMiddleware(pool))
 
 	deferred := func(c *gin.Context) {
 		c.Header("X-SiteEksen-Not-Implemented", "true")

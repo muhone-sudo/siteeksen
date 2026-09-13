@@ -42,7 +42,7 @@ func main() {
 	})
 
 	api := r.Group("/api/v1")
-	api.Use(middleware.AuthMiddleware(), middleware.AuditLog(pool, "visitor"))
+	api.Use(middleware.AuthMiddleware(pool), middleware.AuditLog(pool, "visitor"))
 
 	api.GET("/visitors", func(c *gin.Context) {
 		propertyID := c.GetString("property_id")

@@ -34,6 +34,7 @@ import (
 	"os"
 
 	"github.com/gin-gonic/gin"
+	"github.com/siteeksen/backend/pkg/database"
 	"github.com/siteeksen/backend/pkg/middleware"
 )
 
@@ -43,6 +44,17 @@ const governanceNote = "Kat malikleri kurulu toplantısı governance servisinde 
 	"karar defteri (m.32). Bu servis aynı veriyi ikinci kez tutmaz."
 
 func main() {
+	// Veritabanı yalnızca JETON İPTALİ denetimi için gerekir (FAZ 2.7):
+	// bu servis hiçbir iş verisi tutmaz. Kimlik doğrulama davranışı tüm
+	// servislerde aynı olmalıdır; aksi hâlde iptal edilmiş bir jeton burada
+	// kabul edilirdi.
+	dbConfig := database.NewConfigFromEnv()
+	pool, err := database.Connect(dbConfig)
+	if err != nil {
+		log.Fatalf("Veritabanı bağlantısı başarısız: %v", err)
+	}
+	defer database.Close()
+
 	r := gin.Default()
 
 	r.GET("/health", func(c *gin.Context) {
@@ -57,7 +69,7 @@ func main() {
 	})
 
 	api := r.Group("/api/v1")
-	api.Use(middleware.AuthMiddleware())
+	api.Use(middleware.AuthMiddleware(pool))
 
 	// Toplantı uçları: governance'a yönlendirilir.
 	redirect := func(c *gin.Context) {

@@ -77,14 +77,6 @@ func RefreshToken(svc *service.AuthService) gin.HandlerFunc {
 	}
 }
 
-// Logout çıkış işlemi
-func Logout(svc *service.AuthService) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		// Token'ı blacklist'e ekle
-		c.JSON(http.StatusOK, gin.H{"message": "Çıkış başarılı"})
-	}
-}
-
 // GetCurrentUser mevcut kullanıcı bilgisi
 func GetCurrentUser(svc *service.AuthService) gin.HandlerFunc {
 	return func(c *gin.Context) {

@@ -167,7 +167,16 @@ func authMiddleware(next http.Handler) http.Handler {
 			writeJSON(w, http.StatusUnauthorized, Response{Success: false, Error: err.Error()})
 			return
 		}
-		_ = claims // Aşağı akış servisleri jetonu kendileri de doğrular; gateway kapı görevi görür.
+		// JETON İPTALİ (FAZ 2.7) burada DEĞİL, aşağı akış servislerinde denetlenir.
+		//
+		// Gerekçe: iptal denetimi veritabanı sorgusu ister; gateway'in veritabanı
+		// bağlantısı yoktur ve olmaması bilinçlidir (kapı katmanı, veri katmanına
+		// bağımlı olmamalı). Gateway her isteği Authorization başlığıyla birlikte
+		// ilgili servise iletir; iptal edilmiş jeton orada 401 alır.
+		//
+		// Gateway'in kendi ürettiği özet uçları da aynı başlığı aşağı akışa
+		// taşıdığı için iptal edilmiş jetonla veri dönmez.
+		_ = claims
 
 		next.ServeHTTP(w, r)
 	})

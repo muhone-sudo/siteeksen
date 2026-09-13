@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/siteeksen/backend/pkg/database"
 	"github.com/siteeksen/backend/pkg/middleware"
+	"github.com/siteeksen/backend/pkg/revocation"
 	"github.com/siteeksen/backend/services/identity/handlers"
 	"github.com/siteeksen/backend/services/identity/repository"
 	"github.com/siteeksen/backend/services/identity/service"
@@ -23,7 +24,9 @@ func main() {
 
 	// Repository ve Service
 	userRepo := repository.NewUserRepository(pool)
-	authService := service.NewAuthService(userRepo, os.Getenv("JWT_SECRET"))
+	revocationChecker := revocation.New(pool)
+	authService := service.NewAuthService(userRepo, os.Getenv("JWT_SECRET")).
+		WithRevocations(revocationChecker)
 	residentRepo := repository.NewResidentRepository(pool)
 	residentService := service.NewResidentService(residentRepo)
 
@@ -42,24 +45,29 @@ func main() {
 		{
 			auth.POST("/login", handlers.Login(authService))
 			auth.POST("/refresh", handlers.RefreshToken(authService))
-			auth.POST("/logout", handlers.Logout(authService))
+			// Çıkış, kimlik doğrulama middleware'inin ARKASINDA DEĞİLDİR:
+			// süresi dolmuş ya da iptal edilmiş bir jetonla da çıkış denenebilmeli
+			// ve istemci anlamlı bir yanıt almalıdır. Jeton başlıktan elle okunur.
+			auth.POST("/logout", handlers.Logout(revocationChecker))
 		}
 	}
 
 	// Protected routes
 	protected := api.Group("/users")
-	protected.Use(middleware.AuthMiddleware(), middleware.AuditLog(pool, "user"))
+	protected.Use(middleware.AuthMiddleware(pool), middleware.AuditLog(pool, "user"))
 	{
 		protected.GET("/me", handlers.GetCurrentUser(authService))
 		protected.GET("/me/properties", handlers.GetUserProperties(authService))
 		protected.POST("/me/properties", middleware.RequireRole(middleware.RoleManager, middleware.RoleOwner), handlers.CreateProperty(authService))
 		protected.POST("/me/active-property", handlers.SetActiveProperty(authService))
 		protected.POST("/me/kvkk-consent", handlers.SetKVKKConsent(authService))
+		// Tüm cihazlardan çıkış: hesabın ele geçirildiği şüphesinde kullanılır.
+		protected.POST("/me/logout-all", handlers.LogoutAll(revocationChecker))
 	}
 
 	// Sakinler ve birimler
 	residents := api.Group("/residents")
-	residents.Use(middleware.AuthMiddleware(), middleware.AuditLog(pool, "resident"))
+	residents.Use(middleware.AuthMiddleware(pool), middleware.AuditLog(pool, "resident"))
 	{
 		residents.GET("", handlers.ListResidents(residentService))
 		residents.POST("", handlers.CreateResident(residentService))
@@ -68,7 +76,7 @@ func main() {
 	}
 
 	units := api.Group("/units")
-	units.Use(middleware.AuthMiddleware())
+	units.Use(middleware.AuthMiddleware(pool))
 	{
 		units.GET("", handlers.ListUnits(residentService))
 	}

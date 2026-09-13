@@ -217,7 +217,8 @@ TBL=$($PSQL -t -A -c "SELECT count(*) FROM information_schema.tables WHERE table
 
 for t in expenses parking_zones reservations bank_accounts employees surveys assets meetings \
          documents document_access_logs notifications notification_preferences \
-         property_settings property_setting_history; do
+         property_settings property_setting_history \
+         revoked_tokens user_token_invalidation; do
   EX=$($PSQL -t -A -c "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_name='$t';")
   [ "$EX" = "1" ] && ok "tablo mevcut: $t" || bad "tablo eksik: $t"
 done
@@ -331,7 +332,8 @@ fi
 
 step "7) Dürüstlük: kalıcı olmayan uçlar 501 dönmeli"
 # tasks/dogrulama-politikasi.md §3.5 — kaydetmeyen bir uç 2xx dönemez.
-JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${STUB_PORT:-18191} \
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen DB_PASSWORD="$PW" DB_NAME=siteeksen \
+DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${STUB_PORT:-18191} \
   go run ./services/banking >/tmp/verify-stub.log 2>&1 &
 STUB_PID=$!
 SUP=0
@@ -3294,10 +3296,12 @@ DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen DB_PASSWORD="$PW" DB_NAME=
 DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${ESGPORT} \
   go run ./services/esg >/tmp/verify-esg.log 2>&1 &
 ESG_PID=$!
-JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${BNKPORT} \
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen DB_PASSWORD="$PW" DB_NAME=siteeksen \
+DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${BNKPORT} \
   go run ./services/banking >/tmp/verify-bnk.log 2>&1 &
 BNK_PID=$!
-JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${MTGPORT} \
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen DB_PASSWORD="$PW" DB_NAME=siteeksen \
+DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${MTGPORT} \
   go run ./services/meeting_wizard >/tmp/verify-mtg.log 2>&1 &
 MTG_PID=$!
 
@@ -3437,6 +3441,101 @@ kill_tree "$NPS_PID"
 kill_tree "$ESG_PID"
 kill_tree "$BNK_PID"
 kill_tree "$MTG_PID"
+
+step "30) Jeton iptali — çıkış artık gerçekten çıkış (FAZ 2.7)"
+# Önceki davranış: "çıkış yap" yalnızca 'Çıkış başarılı' yazıyordu. Jeton süresi
+# dolana kadar (erişim 15 dk, YENİLEME 7 GÜN) geçerli kalıyordu; ortak
+# bilgisayardan çıkan sakinin oturumu fiilen kapanmıyordu.
+if [ -n "${SVCPORT:-}" ]; then
+  IURL2="http://127.0.0.1:${SVCPORT}/api/v1"
+
+  # Taze bir oturum aç (erişim + yenileme jetonu)
+  LOGIN=$(curl -s -X POST "$IURL2/auth/login" -H 'Content-Type: application/json' \
+    -d '{"phone":"5559876543","password":"Demo123!"}')
+  ACC=$(echo "$LOGIN" | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+  REF=$(echo "$LOGIN" | sed -n 's/.*"refresh_token":"\([^"]*\)".*/\1/p')
+  [ -n "$ACC" ] && [ -n "$REF" ] && ok "test oturumu açıldı" || bad "test girişi başarısız"
+
+  # Jeton jti taşımalı — taşımayan jeton iptal edilemez
+  JTI=$(echo "$ACC" | cut -d. -f2 | tr '_-' '/+' | base64 -d 2>/dev/null | grep -o '"jti":"[^"]*"')
+  [ -n "$JTI" ] && ok "erişim jetonu jti taşıyor (iptal edilebilir)" || bad "jetonda jti yok"
+
+  # Çıkıştan ÖNCE jeton çalışmalı
+  SC=$(curl -s -o /dev/null -w '%{http_code}' "$IURL2/users/me" -H "Authorization: Bearer $ACC")
+  [ "$SC" = "200" ] && ok "çıkıştan önce jeton geçerli → 200" || bad "jeton geçersiz → $SC"
+
+  # Çıkış: erişim VE yenileme jetonu birlikte iptal edilmeli
+  LO=$(curl -s -X POST "$IURL2/auth/logout" -H "Authorization: Bearer $ACC" \
+    -H 'Content-Type: application/json' -d "{\"refresh_token\":\"$REF\"}")
+  echo "$LO" | grep -q '"access_token_revoked":true' && ok "erişim jetonu iptal edildi" \
+    || bad "erişim jetonu iptal edilmedi: $LO"
+  echo "$LO" | grep -q '"refresh_token_revoked":true' && ok "yenileme jetonu iptal edildi" \
+    || bad "yenileme jetonu iptal edilmedi: $LO"
+
+  DBREV=$($PSQL -t -A -c "SELECT count(*) FROM revoked_tokens;")
+  [ "$DBREV" -ge 2 ] && ok "iptal kayıtları veritabanında ($DBREV kayıt)" || bad "iptal kaydı yok: $DBREV"
+
+  # Çıkıştan SONRA aynı jeton reddedilmeli
+  SC=$(curl -s -o /dev/null -w '%{http_code}' "$IURL2/users/me" -H "Authorization: Bearer $ACC")
+  [ "$SC" = "401" ] && ok "çıkıştan sonra erişim jetonu reddediliyor → 401" \
+    || bad "çıkıştan sonra jeton hâlâ geçerli → $SC"
+
+  # İptal edilen yenileme jetonuyla yeni jeton ÜRETİLEMEMELİ (asıl tehlike)
+  RF=$(curl -s -w '\n%{http_code}' -X POST "$IURL2/auth/refresh" \
+    -H 'Content-Type: application/json' -d "{\"refresh_token\":\"$REF\"}")
+  RFCODE=$(echo "$RF" | tail -1)
+  [ "$RFCODE" != "200" ] && ok "iptal edilen yenileme jetonuyla yeni jeton üretilemiyor → $RFCODE" \
+    || bad "iptal edilen yenileme jetonu hâlâ yeni jeton üretiyor (çıkış işe yaramıyor)"
+
+  # İptal, TÜM servislerde geçerli olmalı — yalnızca identity'de değil
+  if [ -n "${FINPORT:-}" ]; then
+    SC=$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $ACC" \
+      "http://127.0.0.1:${FINPORT}/api/v1/finance/debt-status")
+    [ "$SC" = "401" ] && ok "iptal edilen jeton finance servisinde de reddediliyor → 401" \
+      || bad "iptal edilen jeton başka serviste kabul ediliyor → $SC"
+  fi
+
+  # TÜM CİHAZLARDAN ÇIKIŞ: iki ayrı oturum açıp ikisini birden düşür
+  A1=$(curl -s -X POST "$IURL2/auth/login" -H 'Content-Type: application/json' \
+    -d '{"phone":"5559876543","password":"Demo123!"}' \
+    | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+  sleep 1
+  A2=$(curl -s -X POST "$IURL2/auth/login" -H 'Content-Type: application/json' \
+    -d '{"phone":"5559876543","password":"Demo123!"}' \
+    | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+  SC=$(curl -s -o /dev/null -w '%{http_code}' "$IURL2/users/me" -H "Authorization: Bearer $A1")
+  [ "$SC" = "200" ] && ok "yeni oturumlar açıldı" || bad "yeni oturum açılamadı → $SC"
+
+  LA=$(curl -s -X POST "$IURL2/users/me/logout-all" -H "Authorization: Bearer $A2" \
+    -H 'Content-Type: application/json' -d '{}')
+  echo "$LA" | grep -q 'sonlandırıldı' && ok "tüm cihazlardan çıkış işlendi" || bad "logout-all: $LA"
+  sleep 2
+  SC=$(curl -s -o /dev/null -w '%{http_code}' "$IURL2/users/me" -H "Authorization: Bearer $A1")
+  [ "$SC" = "401" ] && ok "başka cihazdaki oturum da düştü → 401" || bad "diğer oturum düşmedi → $SC"
+  SC=$(curl -s -o /dev/null -w '%{http_code}' "$IURL2/users/me" -H "Authorization: Bearer $A2")
+  [ "$SC" = "401" ] && ok "çıkışı yapan cihazın oturumu da düştü → 401" || bad "kendi oturumu düşmedi → $SC"
+
+  # Toplu iptalden SONRA açılan oturum çalışmalı (iptal geçmişe dönüktür)
+  sleep 1
+  A3=$(curl -s -X POST "$IURL2/auth/login" -H 'Content-Type: application/json' \
+    -d '{"phone":"5559876543","password":"Demo123!"}' \
+    | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+  SC=$(curl -s -o /dev/null -w '%{http_code}' "$IURL2/users/me" -H "Authorization: Bearer $A3")
+  [ "$SC" = "200" ] && ok "toplu iptalden sonra açılan yeni oturum çalışıyor → 200" \
+    || bad "yeni oturum da reddedildi → $SC (iptal geçmişe dönük olmalı)"
+
+  # Kimliksiz çıkış isteği hata vermemeli ama 'başarılı' da dememeli
+  LO2=$(curl -s -X POST "$IURL2/auth/logout" -H 'Content-Type: application/json' -d '{}')
+  echo "$LO2" | grep -q 'Geçerli bir oturum bulunamadı' \
+    && ok "kimliksiz çıkışta ne olduğu dürüstçe söyleniyor" || bad "kimliksiz çıkış: $LO2"
+
+  # Temizlik işlevi çalışıyor mu
+  PURGED=$($PSQL -t -A -c "SELECT purge_expired_revoked_tokens();")
+  [ -n "$PURGED" ] && ok "süresi dolmuş iptal kayıtları temizleme işlevi çalışıyor" \
+    || bad "temizleme işlevi yok"
+else
+  bad "identity servisi ayakta değil; jeton iptali sınanamadı"
+fi
 
 step "SONUÇ"
 echo "  Geçen: $PASS   Başarısız: $FAIL"

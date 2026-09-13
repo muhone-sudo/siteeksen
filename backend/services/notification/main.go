@@ -56,7 +56,7 @@ func main() {
 	})
 
 	api := r.Group("/api/v1")
-	api.Use(middleware.AuthMiddleware(), middleware.AuditLog(pool, "notification"))
+	api.Use(middleware.AuthMiddleware(pool), middleware.AuditLog(pool, "notification"))
 
 	// --- Kullanıcının kendi bildirimleri ---
 	api.GET("/notifications", func(c *gin.Context) {

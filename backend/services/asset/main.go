@@ -51,7 +51,7 @@ func main() {
 	})
 
 	api := r.Group("/api/v1")
-	api.Use(middleware.AuthMiddleware(), middleware.AuditLog(pool, "asset"))
+	api.Use(middleware.AuthMiddleware(pool), middleware.AuditLog(pool, "asset"))
 
 	// Okuma: yönetim, denetçi ve görevli. Görevli bakımı yapan kişidir;
 	// hangi cihazın bakımının geldiğini görmeden işini yapamaz.

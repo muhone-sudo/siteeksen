@@ -48,7 +48,7 @@ func main() {
 	})
 
 	api := r.Group("/api/v1")
-	api.Use(middleware.AuthMiddleware(), middleware.AuditLog(pool, "bulletin"))
+	api.Use(middleware.AuthMiddleware(pool), middleware.AuditLog(pool, "bulletin"))
 
 	api.GET("/bulletins", func(c *gin.Context) {
 		list, err := repo.List(c.Request.Context(), c.GetString("property_id"),

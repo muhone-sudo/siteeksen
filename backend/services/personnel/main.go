@@ -46,7 +46,7 @@ func main() {
 	})
 
 	api := r.Group("/api/v1")
-	api.Use(middleware.AuthMiddleware(), middleware.AuditLog(pool, "personnel"))
+	api.Use(middleware.AuthMiddleware(pool), middleware.AuditLog(pool, "personnel"))
 
 	// Okuma: yönetim, denetçi ve görevli personel.
 	// Hassas alan maskeleme handler katmanında role göre yapılır.

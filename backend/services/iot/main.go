@@ -55,7 +55,7 @@ func main() {
 	})
 
 	api := r.Group("/api/v1")
-	api.Use(middleware.AuthMiddleware(), middleware.AuditLog(pool, "iot"))
+	api.Use(middleware.AuthMiddleware(pool), middleware.AuditLog(pool, "iot"))
 
 	// --- Sayaçlar ---
 	// Sakin kendi bölümünün sayaçlarını görür; yönetim site genelini görür.

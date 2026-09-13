@@ -41,7 +41,7 @@ func main() {
 	})
 
 	api := r.Group("/api/v1")
-	api.Use(middleware.AuthMiddleware(), middleware.AuditLog(pool, "parking"))
+	api.Use(middleware.AuthMiddleware(pool), middleware.AuditLog(pool, "parking"))
 
 	// --- Araçlar ---
 	// Sakin kendi araçlarını görür ve kaydeder; yönetim/görevli site genelini görür.

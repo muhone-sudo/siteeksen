@@ -53,7 +53,7 @@ func main() {
 	//     görevi okumayı gerektirir, tahakkuk oluşturmayı değil).
 	// -----------------------------------------------------------------------
 	api := r.Group("/api/v1/finance")
-	api.Use(middleware.AuthMiddleware(), middleware.AuditLog(pool, "finance"))
+	api.Use(middleware.AuthMiddleware(pool), middleware.AuditLog(pool, "finance"))
 	{
 		// --- Sakinin kendi verisi ---
 		api.GET("/debt-status", handlers.GetDebtStatus(financeService))

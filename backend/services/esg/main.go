@@ -62,7 +62,7 @@ func main() {
 	})
 
 	api := r.Group("/api/v1/esg")
-	api.Use(middleware.AuthMiddleware(), middleware.AuditLog(pool, "esg"))
+	api.Use(middleware.AuthMiddleware(pool), middleware.AuditLog(pool, "esg"))
 
 	read := api.Group("")
 	read.Use(middleware.RequireRole(

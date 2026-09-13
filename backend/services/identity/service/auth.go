@@ -8,6 +8,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"github.com/siteeksen/backend/pkg/revocation"
 	"github.com/siteeksen/backend/services/identity/models"
 	"github.com/siteeksen/backend/services/identity/repository"
 	"golang.org/x/crypto/bcrypt"
@@ -24,6 +25,9 @@ type TokenPair struct {
 type AuthService struct {
 	userRepo  *repository.UserRepository
 	jwtSecret []byte
+	// revocations, jeton iptal denetimidir (FAZ 2.7). Yenileme akışında
+	// kullanılır; nil bırakılırsa iptal denetimi YAPILMAZ.
+	revocations *revocation.Checker
 }
 
 // NewAuthService yeni servis oluşturur
@@ -77,6 +81,14 @@ func (s *AuthService) Login(ctx context.Context, phone, password string) (*Token
 }
 
 // RefreshToken token yeniler
+// ErrTokenRevoked, iptal edilmiş bir jetonla yenileme denendiğinde döner.
+var ErrTokenRevoked = errors.New("jeton iptal edilmiş; yeniden giriş yapılmalı")
+
+// RefreshToken, yenileme jetonuyla yeni jeton çifti üretir.
+//
+// İPTAL DENETİMİ ŞART: çıkışta iptal edilmiş bir yenileme jetonu, denetlenmezse
+// 7 gün boyunca yeni erişim jetonu üretmeye devam ederdi — yani çıkış hiçbir işe
+// yaramazdı. Denetim yapılamıyorsa jeton KABUL EDİLMEZ (fail-closed).
 func (s *AuthService) RefreshToken(ctx context.Context, refreshToken string) (*TokenPair, error) {
 	claims := &jwt.RegisteredClaims{}
 	token, err := jwt.ParseWithClaims(refreshToken, claims, func(t *jwt.Token) (interface{}, error) {
@@ -85,6 +97,24 @@ func (s *AuthService) RefreshToken(ctx context.Context, refreshToken string) (*T
 
 	if err != nil || !token.Valid {
 		return nil, errors.New("geçersiz refresh token")
+	}
+
+	// Çıkışta iptal edilen bir yenileme jetonu, denetlenmezse 7 GÜN boyunca yeni
+	// erişim jetonu üretmeye devam eder — yani "çıkış yap" hiçbir işe yaramaz.
+	if s.revocations != nil {
+		var issuedAt time.Time
+		if claims.IssuedAt != nil {
+			issuedAt = claims.IssuedAt.Time
+		}
+		revoked, _, rerr := s.revocations.IsRevoked(ctx, claims.ID, claims.Subject, issuedAt)
+		if rerr != nil {
+			// Fail-closed: denetim yapılamıyorsa jeton kabul edilmez. Aksi hâlde
+			// iptal mekanizması, veritabanını yoran bir saldırganca kapatılabilirdi.
+			return nil, fmt.Errorf("jeton iptal denetimi yapılamadı: %w", rerr)
+		}
+		if revoked {
+			return nil, ErrTokenRevoked
+		}
 	}
 
 	user, err := s.userRepo.GetByID(ctx, claims.Subject)
@@ -226,4 +256,14 @@ func (s *AuthService) generateTokens(user *models.User, roles []string) (*TokenP
 		RefreshToken: refreshTokenString,
 		ExpiresIn:    int64(accessExpiry.Sub(now).Seconds()),
 	}, nil
+}
+
+// WithRevocations, jeton iptal denetleyicisini bağlar ve servisi geri döner.
+//
+// Ayrı bir kurucu yerine zincirlenebilir ayarlayıcı kullanılır: mevcut
+// NewAuthService çağrıları bozulmaz, bağlanmadığında da alan nil kalır ve
+// bu durum kodda görünür olur.
+func (s *AuthService) WithRevocations(c *revocation.Checker) *AuthService {
+	s.revocations = c
+	return s
 }

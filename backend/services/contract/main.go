@@ -47,7 +47,7 @@ func main() {
 	})
 
 	api := r.Group("/api/v1")
-	api.Use(middleware.AuthMiddleware(), middleware.AuditLog(pool, "contract"))
+	api.Use(middleware.AuthMiddleware(pool), middleware.AuditLog(pool, "contract"))
 
 	// Özet: kişisel veri içermez, siteye kayıtlı herkese açıktır.
 	api.GET("/contracts-summary", func(c *gin.Context) {

@@ -59,7 +59,7 @@ func main() {
 	})
 
 	api := r.Group("/api/v1")
-	api.Use(middleware.AuthMiddleware(), middleware.AuditLog(pool, "energy"))
+	api.Use(middleware.AuthMiddleware(pool), middleware.AuditLog(pool, "energy"))
 
 	// Analizler yönetim, denetçi ve görevliye açıktır: bölüm bazlı tüketim
 	// kişisel veridir ve sakinler birbirininkini görmemelidir.

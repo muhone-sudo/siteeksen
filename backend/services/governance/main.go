@@ -46,7 +46,7 @@ func main() {
 	})
 
 	api := r.Group("/api/v1/governance")
-	api.Use(middleware.AuthMiddleware(), middleware.AuditLog(pool, "governance"))
+	api.Use(middleware.AuthMiddleware(pool), middleware.AuditLog(pool, "governance"))
 
 	// Okuma: yönetim + denetçi. Denetçinin denetim görevi (m.41) okuma gerektirir.
 	read := api.Group("")

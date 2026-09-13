@@ -42,7 +42,7 @@ func main() {
 	})
 
 	api := r.Group("/api/v1")
-	api.Use(middleware.AuthMiddleware(), middleware.AuditLog(pool, "package"))
+	api.Use(middleware.AuthMiddleware(pool), middleware.AuditLog(pool, "package"))
 
 	// Sakin yalnızca kendi bağımsız bölümünün kargolarını görür.
 	// Kargo kaydı, kimin ne aldığını gösterir; bu KVKK kapsamında kişisel veridir

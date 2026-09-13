@@ -46,7 +46,7 @@ func main() {
 
 	// Requests (gerçek DB'ye bağlı)
 	requests := r.Group("/api/v1/requests")
-	requests.Use(middleware.AuthMiddleware(), middleware.AuditLog(pool, "request"))
+	requests.Use(middleware.AuthMiddleware(pool), middleware.AuditLog(pool, "request"))
 	{
 		requests.GET("", handlers.ListRequests(requestService))
 		requests.POST("", handlers.CreateRequest(requestService))
@@ -64,7 +64,7 @@ func main() {
 	// yayımlar, onay gerektirmez; ilanı sakin verir ve yönetim onayından geçer.
 	// --------------------------------------------------------------------
 	ann := r.Group("/api/v1/announcements")
-	ann.Use(middleware.AuthMiddleware(), middleware.AuditLog(pool, "announcement"))
+	ann.Use(middleware.AuthMiddleware(pool), middleware.AuditLog(pool, "announcement"))
 	{
 		ann.GET("", func(c *gin.Context) {
 			list, err := announcementRepo.List(c.Request.Context(),
@@ -99,7 +99,7 @@ func main() {
 	}
 
 	annWrite := r.Group("/api/v1/announcements")
-	annWrite.Use(middleware.AuthMiddleware(), middleware.AuditLog(pool, "announcement"),
+	annWrite.Use(middleware.AuthMiddleware(pool), middleware.AuditLog(pool, "announcement"),
 		middleware.RequireRole(middleware.RoleManager, middleware.RoleBoardMember))
 	{
 		annWrite.POST("", func(c *gin.Context) {
@@ -166,7 +166,7 @@ func main() {
 	// söyleyerek.
 	// --------------------------------------------------------------------
 	moved := r.Group("/api/v1")
-	moved.Use(middleware.AuthMiddleware())
+	moved.Use(middleware.AuthMiddleware(pool))
 	{
 		for _, m := range []struct{ path, service string }{
 			{"/surveys", "survey-service"},

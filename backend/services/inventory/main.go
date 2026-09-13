@@ -46,7 +46,7 @@ func main() {
 	})
 
 	api := r.Group("/api/v1")
-	api.Use(middleware.AuthMiddleware(), middleware.AuditLog(pool, "inventory"))
+	api.Use(middleware.AuthMiddleware(pool), middleware.AuditLog(pool, "inventory"))
 
 	// Okuma: yönetim, denetçi ve görevli (malzemeyi kullanan kişi).
 	read := api.Group("")

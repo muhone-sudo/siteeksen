@@ -58,7 +58,7 @@ func main() {
 	})
 
 	api := r.Group("/api/v1")
-	api.Use(middleware.AuthMiddleware(), middleware.AuditLog(pool, "settings"))
+	api.Use(middleware.AuthMiddleware(pool), middleware.AuditLog(pool, "settings"))
 
 	// Okuma: sitedeki herkes. İletişim bilgisi, ofis saatleri ve son ödeme günü
 	// sakinin bilmesi gereken şeylerdir.
