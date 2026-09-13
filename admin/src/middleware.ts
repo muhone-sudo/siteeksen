@@ -15,6 +15,22 @@ import { canAccess, requiredRolesFor } from "@/lib/rbac";
  * (`pkg/middleware.RequireRole`). Burada amaç, kullanıcıyı erişemeyeceği ekrana
  * hiç götürmemek ve yanlışlıkla veri sızdıran bir istemci isteği tetiklememektir.
  */
+
+/**
+ * Yönlendirme döngüsü koruması.
+ *
+ * Hedef yol ile bulunulan yol aynıysa yönlendirme YAPILMAZ; istek olduğu gibi
+ * geçirilir. Böyle bir yönlendirme tarayıcıda ERR_TOO_MANY_REDIRECTS ile
+ * sonuçlanır ve kullanıcı hiçbir sayfayı göremez — hatanın kendisinden daha
+ * kötü bir sonuçtur.
+ */
+function safeRedirect(request: NextRequest, target: URL): NextResponse {
+    if (target.pathname === request.nextUrl.pathname) {
+        return NextResponse.next();
+    }
+    return NextResponse.redirect(target);
+}
+
 export async function middleware(request: NextRequest) {
     const token = await getToken({ req: request });
     const { pathname } = request.nextUrl;
@@ -22,11 +38,11 @@ export async function middleware(request: NextRequest) {
     const isDashboardPage = pathname.startsWith("/dashboard");
 
     if (isAuthPage && token) {
-        return NextResponse.redirect(new URL("/dashboard", request.url));
+        return safeRedirect(request, new URL("/dashboard", request.url));
     }
 
     if (isDashboardPage && !token) {
-        return NextResponse.redirect(new URL("/login", request.url));
+        return safeRedirect(request, new URL("/login", request.url));
     }
 
     if (isDashboardPage && token) {
@@ -36,7 +52,7 @@ export async function middleware(request: NextRequest) {
             const url = new URL("/dashboard/forbidden", request.url);
             url.searchParams.set("from", pathname);
             if (rule) url.searchParams.set("reason", rule.reason);
-            return NextResponse.redirect(url);
+            return safeRedirect(request, url);
         }
     }
 

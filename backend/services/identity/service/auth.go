@@ -45,7 +45,15 @@ func (s *AuthService) Login(ctx context.Context, phone, password string) (*Token
 		return nil, nil, errors.New("geçersiz şifre")
 	}
 
-	tokens, err := s.generateTokens(ctx, user)
+	// Roller bir kez çözülür; hem jetona hem de yanıta AYNI küme yazılır.
+	// Yanıta yazılmadığı sürece panel oturumunda rol bulunmuyordu ve giriş yapan
+	// herkes yetkisiz sayılıyordu.
+	roles, err := s.resolveRoles(ctx, user)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	tokens, err := s.generateTokens(user, roles)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -59,6 +67,8 @@ func (s *AuthService) Login(ctx context.Context, phone, password string) (*Token
 		LastName:            user.LastName,
 		Phone:               user.Phone,
 		Email:               user.Email,
+		ActivePropertyID:    user.ActivePropertyID,
+		Roles:               roles,
 		Properties:          properties,
 		KVKKConsentRequired: user.KVKKConsentAt == nil,
 	}
@@ -82,12 +92,22 @@ func (s *AuthService) RefreshToken(ctx context.Context, refreshToken string) (*T
 		return nil, err
 	}
 
-	return s.generateTokens(ctx, user)
+	roles, err := s.resolveRoles(ctx, user)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.generateTokens(user, roles)
 }
 
 // GetUserByID ID ile kullanıcı getirir
 func (s *AuthService) GetUserByID(ctx context.Context, userID string) (*models.UserResponse, error) {
 	user, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	roles, err := s.resolveRoles(ctx, user)
 	if err != nil {
 		return nil, err
 	}
@@ -100,6 +120,8 @@ func (s *AuthService) GetUserByID(ctx context.Context, userID string) (*models.U
 		LastName:            user.LastName,
 		Phone:               user.Phone,
 		Email:               user.Email,
+		ActivePropertyID:    user.ActivePropertyID,
+		Roles:               roles,
 		Properties:          properties,
 		KVKKConsentRequired: user.KVKKConsentAt == nil,
 	}, nil
@@ -139,23 +161,33 @@ func (s *AuthService) CreateProperty(ctx context.Context, userID string, req mod
 // ile birebir aynı olmak zorundadır.
 const tokenIssuer = "siteeksen"
 
-func (s *AuthService) generateTokens(ctx context.Context, user *models.User) (*TokenPair, error) {
-	now := time.Now()
-	accessExpiry := now.Add(15 * time.Minute)
-	refreshExpiry := now.Add(7 * 24 * time.Hour)
-
-	// Access token
-	// GÜVENLİK (2026-09-13, todo 2.5): Roller artık AKTİF SİTEYE göre hesaplanır.
-	// Önceki sürüm `users.roles` kolonunu olduğu gibi jetona koyuyordu; bu kolon
-	// global olduğu için bir sitede MANAGER olan kişi TÜM sitelerde yönetici
-	// sayılıyordu (gap-analizi B22).
-	//
-	// Rol çözümlemesi başarısız olursa jeton ÜRETİLMEZ. Boş rol listesiyle devam
-	// etmek, yetki kontrollerini sessizce atlatan bir jeton üretmek demektir.
+// resolveRoles kullanıcının AKTİF SİTEDEKİ rollerini çözer.
+//
+// GÜVENLİK (2026-09-13, todo 2.5): Roller AKTİF SİTEYE göre hesaplanır. Önceki
+// sürüm `users.roles` kolonunu olduğu gibi jetona koyuyordu; bu kolon global
+// olduğu için bir sitede MANAGER olan kişi TÜM sitelerde yönetici sayılıyordu
+// (gap-analizi B22).
+//
+// Rol çözümlemesi başarısız olursa hata döner ve jeton ÜRETİLMEZ. Boş rol
+// listesiyle devam etmek, yetki kontrollerini sessizce atlatan bir jeton
+// üretmek demektir.
+func (s *AuthService) resolveRoles(ctx context.Context, user *models.User) ([]string, error) {
 	roles, err := s.userRepo.GetPropertyRoles(ctx, user.ID, user.ActivePropertyID)
 	if err != nil {
 		return nil, fmt.Errorf("kullanıcının site rolleri belirlenemedi: %w", err)
 	}
+	return roles, nil
+}
+
+// generateTokens verilen rol kümesiyle jeton çifti üretir.
+//
+// Roller BİLEREK dışarıdan alınır: çağıran taraf aynı kümeyi hem jetona hem de
+// API yanıtına yazabilsin diye. Aksi halde yanıttaki roller ile jetondaki
+// roller birbirinden ayrışabilirdi.
+func (s *AuthService) generateTokens(user *models.User, roles []string) (*TokenPair, error) {
+	now := time.Now()
+	accessExpiry := now.Add(15 * time.Minute)
+	refreshExpiry := now.Add(7 * 24 * time.Hour)
 
 	// `iss` claim'i Kong'un jwt eklentisi için zorunludur: Kong, jetonun hangi
 	// consumer'a ait olduğunu bu değerden (key_claim_name: iss) çözer.

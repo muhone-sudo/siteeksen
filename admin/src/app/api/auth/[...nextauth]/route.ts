@@ -14,6 +14,25 @@ function maskPhone(phone: string): string {
     return `${phone.slice(0, 5)}*****${phone.slice(-2)}`;
 }
 
+/**
+ * Sunucudan gelen rol listesini oturuma yazılabilir hale getirir.
+ *
+ * Roller `lib/rbac.ts` içinde BÜYÜK HARFLE tanımlıdır (`MANAGER`, `AUDITOR`…);
+ * karşılaştırma birebir eşitlikle yapılır. Bu yüzden gelen değer burada tek bir
+ * biçime indirgenir — aksi halde yalnızca harf büyüklüğü yüzünden yetkili bir
+ * kullanıcı yetkisiz sayılabilir.
+ *
+ * Alan hiç gelmezse boş dizi döner: rol bilinmiyorsa erişim kapalıdır
+ * (fail-closed), `undefined` ile sessizce devam edilmez.
+ */
+function normalizeRoles(value: unknown): string[] {
+    if (!Array.isArray(value)) return [];
+    return value
+        .filter((role): role is string => typeof role === "string")
+        .map((role) => role.trim().toUpperCase())
+        .filter((role) => role.length > 0);
+}
+
 const authOptions: NextAuthOptions = {
     providers: [
         CredentialsProvider({
@@ -49,16 +68,27 @@ const authOptions: NextAuthOptions = {
                     }
 
                     const data = await response.json();
+                    const roles = normalizeRoles(data.user?.roles);
+
+                    // Rolsüz oturum, panelde hiçbir sayfayı açamaz. Bu sessizce
+                    // "yetkiniz yok" ekranına dönüşmesin diye sunucu log'una
+                    // düşürülür (kişisel veri yazılmaz).
+                    if (roles.length === 0) {
+                        console.warn(
+                            `[auth] Giriş başarılı ama sunucu rol döndürmedi — telefon: ${maskPhone(credentials.phone)}. ` +
+                                "Kullanıcının aktif sitesinde tanımlı rolü olmayabilir."
+                        );
+                    }
 
                     return {
                         id: data.user.id,
                         name: `${data.user.first_name} ${data.user.last_name}`,
                         email: data.user.email,
                         phone: data.user.phone,
-                        roles: data.user.roles,
+                        roles,
                         accessToken: data.access_token,
                         refreshToken: data.refresh_token,
-                        propertyId: data.user.active_property_id,
+                        propertyId: data.user.active_property_id ?? "",
                     };
                 } catch (error) {
                     console.error("Auth error:", error);
@@ -72,7 +102,7 @@ const authOptions: NextAuthOptions = {
             if (user) {
                 token.accessToken = (user as any).accessToken;
                 token.refreshToken = (user as any).refreshToken;
-                token.roles = (user as any).roles;
+                token.roles = normalizeRoles((user as any).roles);
                 token.propertyId = (user as any).propertyId;
                 token.phone = (user as any).phone;
             }
@@ -82,7 +112,8 @@ const authOptions: NextAuthOptions = {
             session.accessToken = token.accessToken as string;
             session.refreshToken = token.refreshToken as string;
             session.user.id = token.sub as string;
-            session.user.roles = token.roles as string[];
+            // Eski (rolsüz) jetonlarla açılmış oturumlar için de dizi garantisi.
+            session.user.roles = normalizeRoles(token.roles);
             session.user.propertyId = token.propertyId as string;
             session.user.phone = token.phone as string;
             return session;

@@ -43,6 +43,28 @@ export const MANAGEMENT_AND_AUDIT: Role[] = [...MANAGEMENT, Roles.Auditor];
 export const MANAGEMENT_AND_STAFF: Role[] = [...MANAGEMENT, Roles.Staff];
 
 /**
+ * RBAC'ten MUAF yollar — panele girebilen herkese açıktır.
+ *
+ * NEDEN VAR: `/dashboard/forbidden` yetkisiz kullanıcının YÖNLENDİRİLDİĞİ
+ * sayfadır. Bu sayfanın kendisi de rol kontrolünden geçerse, yetkisiz kullanıcı
+ * forbidden sayfasına girer → kontrol yine başarısız olur → yine forbidden
+ * sayfasına yönlendirilir. Sonuç: tarayıcıda ERR_TOO_MANY_REDIRECTS ve
+ * `?from=/dashboard/forbidden` (sayfa kendini işaret eder).
+ *
+ * Bu sayfa hiçbir iş verisi göstermez — yalnızca kullanıcının kendi rollerini ve
+ * erişemediği sayfanın gerektirdiği rolleri yazar — bu yüzden muafiyet güvenlik
+ * açığı oluşturmaz.
+ */
+export const RBAC_EXEMPT_PREFIXES: string[] = ["/dashboard/forbidden"];
+
+/** Yol RBAC kontrolünden muaf mı? */
+export function isRbacExempt(pathname: string): boolean {
+    return RBAC_EXEMPT_PREFIXES.some(
+        (prefix) => pathname === prefix || pathname.startsWith(prefix + "/")
+    );
+}
+
+/**
  * Yol → erişebilecek roller.
  *
  * En uzun eşleşen ön ek kazanır; listede olmayan `/dashboard` altı yollar
@@ -83,6 +105,9 @@ export const ROUTE_ROLES: { prefix: string; roles: Role[]; reason: string }[] = 
 
 /** Verilen yol için gereken rolleri döndürür (en uzun eşleşen ön ek). */
 export function requiredRolesFor(pathname: string): { roles: Role[]; reason: string } | null {
+    // Muaf yolların rol gereksinimi yoktur (bkz. RBAC_EXEMPT_PREFIXES).
+    if (isRbacExempt(pathname)) return null;
+
     let best: { prefix: string; roles: Role[]; reason: string } | null = null;
     for (const rule of ROUTE_ROLES) {
         if (pathname === rule.prefix || pathname.startsWith(rule.prefix + "/")) {

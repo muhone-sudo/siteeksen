@@ -389,6 +389,22 @@ if [ "$FUP" = "1" ]; then
   echo "$TEN_ROLES" | grep -q 'TENANT' && ok "kiracı jetonunda TENANT rolü var" \
     || bad "kiracı jetonunda TENANT rolü yok"
 
+  # Roller YALNIZCA jetonda değil, API YANITINDA da olmalı.
+  # Yanıtta yokken admin paneli oturumda rol bulamıyor ve giriş yapan herkesi
+  # "yetkiniz yok" sayfasına yönlendiriyordu (sonsuz yönlendirme döngüsü).
+  LOGIN_BODY=$(curl -s -X POST "http://127.0.0.1:${SVCPORT}/api/v1/auth/login" \
+    -H 'Content-Type: application/json' -d '{"phone":"5551234567","password":"Demo123!"}')
+  echo "$LOGIN_BODY" | grep -q '"roles":\[' && ok "login yanıtında roles alanı var" \
+    || bad "login yanıtında roles alanı YOK (panel herkesi yetkisiz sayar): $LOGIN_BODY"
+  echo "$LOGIN_BODY" | grep -q '"MANAGER"' && ok "login yanıtındaki roller site bazlı çözülüyor" \
+    || bad "login yanıtında MANAGER rolü yok"
+  echo "$LOGIN_BODY" | grep -q '"active_property_id":"11111111' \
+    && ok "login yanıtında aktif site kimliği var" || bad "login yanıtında active_property_id yok"
+
+  # /users/me de aynı kümeyi döndürmeli (oturum tazelemede rol kaybolmamalı)
+  ME=$(curl -s "http://127.0.0.1:${SVCPORT}/api/v1/users/me" -H "Authorization: Bearer $MGR")
+  echo "$ME" | grep -q '"MANAGER"' && ok "/users/me rolleri döndürüyor" || bad "/users/me rolsüz: $ME"
+
   # Site geneli borçlu listesi yalnızca yönetime açık olmalı
   SC=$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $MGR" \
     "http://127.0.0.1:${FINPORT}/api/v1/finance/debtors")

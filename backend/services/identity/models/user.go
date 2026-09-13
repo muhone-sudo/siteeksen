@@ -29,13 +29,25 @@ type UserProperty struct {
 	Role         string `json:"role"` // OWNER, TENANT, PROXY
 }
 
-// UserResponse API yanıtı için kullanıcı
+// UserResponse API yanıtı için kullanıcı.
+//
+// `ActivePropertyID` ve `Roles` alanları, istemcinin (admin paneli / mobil) hangi
+// ekranları gösterebileceğine karar verebilmesi için ZORUNLUDUR. Bu alanlar
+// yanıtta yokken panel, oturumda rol bulamadığı için giriş yapan herkesi
+// "yetkiniz yok" sayfasına yönlendiriyordu.
+//
+// Roller AKTİF SİTEYE göre çözülür (bkz. repository.GetPropertyRoles); yani bu
+// alan jetondaki `roles` claim'i ile birebir aynı kümedir. İstemci bu listeye
+// güvenerek YETKİ VERMEZ — yalnızca arayüzü şekillendirir; asıl kontrol
+// sunucudadır (`pkg/middleware.RequireRole`).
 type UserResponse struct {
 	ID                  string         `json:"id"`
 	FirstName           string         `json:"first_name"`
 	LastName            string         `json:"last_name"`
 	Phone               string         `json:"phone"`
 	Email               string         `json:"email"`
+	ActivePropertyID    string         `json:"active_property_id"`
+	Roles               []string       `json:"roles"`
 	Properties          []UserProperty `json:"properties"`
 	KVKKConsentRequired bool           `json:"kvkk_consent_required"`
 }
