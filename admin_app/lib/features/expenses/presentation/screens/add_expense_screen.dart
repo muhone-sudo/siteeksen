@@ -1,6 +1,26 @@
+// Gider ekleme ekranı.
+//
+// NEDEN DEĞİŞTİ (2026-09-13):
+// Üç ayrı sahtelik vardı:
+//   1. Kategori listesi koda gömülüydü (9 sabit kategori, uydurma id'ler 1..9).
+//      Bu id'lerle kayıt atılsaydı sunucuda hiçbir kategoriye denk gelmezdi.
+//   2. "AI ile Tara" düğmesi 2 saniye bekleyip HER SEFERİNDE aynı sahte sonucu
+//      döndürüyordu: "AYEDAŞ Elektrik Dağıtım A.Ş. / 2026-001234 / ₺2.450,75 / %94 güven".
+//      Dosya seçici de gerçek dosya yerine uydurma bir "belge.pdf" ekliyordu.
+//   3. "Kaydet" sunucuya hiçbir istek göndermeden "Gider eklendi" diyordu (`// TODO: API call`).
+//      Yönetici gideri kaydettiğini sanıp hiçbir kayıt oluşmuyordu.
+//
+// Artık kategoriler `getExpenseCategories()` ile gelir, kayıt `createExpense()` ile
+// yapılır ve başarı mesajı yalnızca sunucu 2xx döndüğünde gösterilir. Fatura yükleme
+// ve AI tarama için bağlanmış bir uç olmadığından o bölüm `NotImplementedNotice` oldu.
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+
+import '../../../../core/network/api_client.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/utils/formatters.dart';
+import '../../../../core/widgets/data_state.dart';
 
 class AddExpenseScreen extends StatefulWidget {
   const AddExpenseScreen({super.key});
@@ -16,28 +36,57 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   final _vendorController = TextEditingController();
   final _invoiceNumberController = TextEditingController();
   final _nonInvoicedReasonController = TextEditingController();
-  
+
   String? _selectedCategory;
   DateTime _expenseDate = DateTime.now();
   bool _isInvoiced = true;
   bool _reflectsToAssessment = true;
   String _distributionType = 'EQUAL';
-  
-  List<Map<String, dynamic>> _uploadedFiles = [];
-  Map<String, dynamic>? _aiScanResult;
-  bool _isScanning = false;
 
-  final _categories = [
-    {'id': '1', 'name': 'Bina Temizliği', 'type': 'FIXED', 'reflects': false},
-    {'id': '2', 'name': 'Güvenlik', 'type': 'FIXED', 'reflects': false},
-    {'id': '3', 'name': 'Yönetici Ücreti', 'type': 'FIXED', 'reflects': false},
-    {'id': '4', 'name': 'Ortak Elektrik', 'type': 'VARIABLE', 'reflects': true},
-    {'id': '5', 'name': 'Ortak Su', 'type': 'VARIABLE', 'reflects': true},
-    {'id': '6', 'name': 'Ortak Isınma', 'type': 'VARIABLE', 'reflects': true},
-    {'id': '7', 'name': 'Asansör Bakımı', 'type': 'UNPLANNED', 'reflects': true},
-    {'id': '8', 'name': 'Bahçe Bakımı', 'type': 'VARIABLE', 'reflects': true},
-    {'id': '9', 'name': 'Acil Tamir', 'type': 'UNPLANNED', 'reflects': true},
-  ];
+  bool _loading = true;
+  Object? _error;
+  bool _saving = false;
+
+  /// Sunucudan gelen gerçek gider kategorileri.
+  List<Map<String, dynamic>> _categories = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCategories();
+  }
+
+  @override
+  void dispose() {
+    _descriptionController.dispose();
+    _amountController.dispose();
+    _vendorController.dispose();
+    _invoiceNumberController.dispose();
+    _nonInvoicedReasonController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadCategories() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final rows = await apiClient.getExpenseCategories();
+      if (!mounted) return;
+      setState(() {
+        _categories =
+            rows.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e;
+        _loading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -46,308 +95,256 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         title: const Text('Gider Ekle'),
         actions: [
           TextButton.icon(
-            onPressed: _saveExpense,
-            icon: const Icon(Icons.save),
+            onPressed: (_loading || _error != null || _saving) ? null : _saveExpense,
+            icon: _saving
+                ? const SizedBox(
+                    height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.save),
             label: const Text('Kaydet'),
           ),
         ],
       ),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            // Invoice Upload Section
-            _buildInvoiceUploadSection(),
-            const SizedBox(height: 24),
-            
-            // AI Scan Result
-            if (_aiScanResult != null) _buildAiResultCard(),
-            
-            // Basic Info
-            const Text('Gider Bilgileri', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-            const SizedBox(height: 12),
-            
-            // Category
+      body: _buildBody(),
+    );
+  }
+
+  Widget _buildBody() {
+    if (_loading) return const LoadingView(message: 'Gider kategorileri alınıyor...');
+
+    if (_error != null && isNotImplemented(_error!)) {
+      return ListView(
+        children: const [
+          NotImplementedNotice(
+            title: 'Gider ekleme henüz hazır değil',
+            detail: 'Gider kategorileri sunucudan alınamadığı için yeni gider kaydedilemez.',
+          ),
+        ],
+      );
+    }
+    if (_error != null) {
+      return ErrorStateView(message: toUserMessage(_error!), onRetry: _loadCategories);
+    }
+
+    return Form(
+      key: _formKey,
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          // Fatura yükleme + AI tarama için bağlanmış bir uç yok. Sahte tarama
+          // sonucu üretmek yerine durum açıkça bildiriliyor.
+          const NotImplementedNotice(
+            title: 'Fatura yükleme ve AI tarama henüz hazır değil',
+            detail: 'Gider bilgilerini şimdilik elle girin. Dosya yükleme ucu bağlanmadı.',
+          ),
+          const SizedBox(height: 8),
+
+          const Text('Gider Bilgileri',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 12),
+
+          if (_categories.isEmpty)
+            const EmptyStateView(
+              message: 'Sunucuda tanımlı gider kategorisi yok. Önce kategori tanımlanmalı.',
+            )
+          else
             DropdownButtonFormField<String>(
-              value: _selectedCategory,
+              initialValue: _selectedCategory,
+              isExpanded: true,
               decoration: const InputDecoration(labelText: 'Kategori *'),
-              items: _categories.map((c) => DropdownMenuItem(
-                value: c['id'] as String,
-                child: Row(
-                  children: [
-                    _getCategoryBadge(c['type'] as String),
-                    const SizedBox(width: 8),
-                    Text(c['name'] as String),
-                  ],
-                ),
-              )).toList(),
+              items: _categories.map((c) {
+                final type = _text(c, const ['category_type', 'type']);
+                return DropdownMenuItem(
+                  value: c['id']?.toString(),
+                  child: Row(
+                    children: [
+                      if (type != null) ...[
+                        _categoryBadge(type),
+                        const SizedBox(width: 8),
+                      ],
+                      Expanded(
+                        child: Text(
+                          (c['name'] ?? c['category_name'] ?? '—').toString(),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
               onChanged: (v) {
                 setState(() {
                   _selectedCategory = v;
-                  // Auto-set reflects based on category
-                  final cat = _categories.firstWhere((c) => c['id'] == v);
-                  _reflectsToAssessment = cat['reflects'] as bool;
+                  final cat = _categories.firstWhere(
+                    (c) => c['id']?.toString() == v,
+                    orElse: () => const <String, dynamic>{},
+                  );
+                  // Kategori "aidata yansır mı" bilgisini gerçekten döndürüyorsa uygula;
+                  // döndürmüyorsa kullanıcının seçimi bozulmaz (varsayım yapılmaz).
+                  final reflects = _flag(cat, const ['reflects_to_assessment', 'reflects']);
+                  if (reflects != null) _reflectsToAssessment = reflects;
+                  final distribution = _text(cat, const ['distribution_type']);
+                  if (distribution != null) {
+                    _distributionType = _normalizeDistribution(distribution);
+                  }
                 });
               },
               validator: (v) => v == null ? 'Kategori seçin' : null,
             ),
-            const SizedBox(height: 16),
-            
-            // Description
-            TextFormField(
-              controller: _descriptionController,
-              decoration: const InputDecoration(labelText: 'Açıklama *'),
-              maxLines: 2,
-              validator: (v) => v?.isEmpty ?? true ? 'Açıklama girin' : null,
-            ),
-            const SizedBox(height: 16),
-            
-            // Amount & Date
-            Row(
-              children: [
-                Expanded(
-                  child: TextFormField(
-                    controller: _amountController,
-                    decoration: const InputDecoration(labelText: 'Tutar (₺) *', prefixText: '₺ '),
-                    keyboardType: TextInputType.number,
-                    validator: (v) => v?.isEmpty ?? true ? 'Tutar girin' : null,
+          const SizedBox(height: 16),
+
+          TextFormField(
+            controller: _descriptionController,
+            decoration: const InputDecoration(labelText: 'Açıklama *'),
+            maxLines: 2,
+            validator: (v) => (v?.trim().isEmpty ?? true) ? 'Açıklama girin' : null,
+          ),
+          const SizedBox(height: 16),
+
+          Row(
+            children: [
+              Expanded(
+                child: TextFormField(
+                  controller: _amountController,
+                  decoration: const InputDecoration(labelText: 'Tutar (₺) *', prefixText: '₺ '),
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  validator: (v) {
+                    final parsed = double.tryParse((v ?? '').replaceAll(',', '.'));
+                    if (parsed == null || parsed <= 0) return 'Tutar girin';
+                    return null;
+                  },
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: InkWell(
+                  onTap: _pickDate,
+                  child: InputDecorator(
+                    decoration: const InputDecoration(
+                        labelText: 'Tarih *', suffixIcon: Icon(Icons.calendar_today)),
+                    // Tarih `formatDate` ile yazılır; elle "g.a.y" birleştirme yapılmaz.
+                    child: Text(formatDate(_expenseDate)),
                   ),
                 ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: TextFormField(
-                    decoration: const InputDecoration(labelText: 'Tarih *', suffixIcon: Icon(Icons.calendar_today)),
-                    controller: TextEditingController(text: '${_expenseDate.day}.${_expenseDate.month}.${_expenseDate.year}'),
-                    readOnly: true,
-                    onTap: () async {
-                      final date = await showDatePicker(
-                        context: context,
-                        initialDate: _expenseDate,
-                        firstDate: DateTime(2020),
-                        lastDate: DateTime.now(),
-                      );
-                      if (date != null) setState(() => _expenseDate = date);
-                    },
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-            
-            // Invoice Status
-            Card(
-              child: Column(
-                children: [
-                  SwitchListTile(
-                    title: const Text('Faturalı Gider'),
-                    subtitle: Text(_isInvoiced ? 'Bu gider için fatura mevcut' : 'Faturasız gider (açıklama gerekli)'),
-                    value: _isInvoiced,
-                    onChanged: (v) => setState(() => _isInvoiced = v),
-                  ),
-                  if (!_isInvoiced) ...[
-                    const Divider(height: 1),
-                    Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              const Icon(Icons.warning_amber, color: AppTheme.warningColor, size: 20),
-                              const SizedBox(width: 8),
-                              const Text('Faturasız Gider Uyarısı', style: TextStyle(fontWeight: FontWeight.w600, color: AppTheme.warningColor)),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
-                          const Text(
-                            'Faturasız giderler site sakinlerine "Faturasız" olarak gösterilecek ve onay gerektirebilir.',
-                            style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
-                          ),
-                          const SizedBox(height: 12),
-                          TextFormField(
-                            controller: _nonInvoicedReasonController,
-                            decoration: const InputDecoration(labelText: 'Faturasız olma nedeni *'),
-                            maxLines: 2,
-                            validator: (v) => !_isInvoiced && (v?.isEmpty ?? true) ? 'Neden belirtin' : null,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-            
-            // Assessment reflection
-            Card(
-              child: Column(
-                children: [
-                  SwitchListTile(
-                    title: const Text('Aidata Yansısın'),
-                    subtitle: Text(_reflectsToAssessment ? 'Bu gider aylık aidata eklenecek' : 'Sabit gider - aidata eklenmez'),
-                    value: _reflectsToAssessment,
-                    onChanged: (v) => setState(() => _reflectsToAssessment = v),
-                  ),
-                  if (_reflectsToAssessment) ...[
-                    const Divider(height: 1),
-                    Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('Dağıtım Şekli'),
-                          const SizedBox(height: 8),
-                          SegmentedButton<String>(
-                            segments: const [
-                              ButtonSegment(value: 'EQUAL', label: Text('Eşit')),
-                              ButtonSegment(value: 'AREA', label: Text('m² Bazlı')),
-                              ButtonSegment(value: 'PERSON', label: Text('Kişi Sayısı')),
-                            ],
-                            selected: {_distributionType},
-                            onSelectionChanged: (v) => setState(() => _distributionType = v.first),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-            
-            // Vendor info (if invoiced)
-            if (_isInvoiced) ...[
-              const Text('Firma Bilgileri', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _vendorController,
-                decoration: const InputDecoration(labelText: 'Firma Adı'),
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _invoiceNumberController,
-                decoration: const InputDecoration(labelText: 'Fatura No'),
               ),
             ],
-            
-            const SizedBox(height: 100), // FAB space
-          ],
-        ),
-      ),
-    );
-  }
+          ),
+          const SizedBox(height: 24),
 
-  Widget _buildInvoiceUploadSection() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+          Card(
+            child: Column(
               children: [
-                const Icon(Icons.upload_file, color: AppTheme.primaryColor),
-                const SizedBox(width: 8),
-                const Text('Fatura Yükle', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-                const Spacer(),
-                if (_isScanning)
-                  const SizedBox(
-                    width: 20, height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'PDF, JPG, PNG formatında fatura yükleyebilirsiniz. AI otomatik olarak fatura bilgilerini okuyacak.',
-              style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
-            ),
-            const SizedBox(height: 16),
-            
-            // Upload button
-            OutlinedButton.icon(
-              onPressed: _pickFile,
-              icon: const Icon(Icons.add_photo_alternate),
-              label: const Text('Dosya Seç'),
-              style: OutlinedButton.styleFrom(
-                minimumSize: const Size(double.infinity, 48),
-              ),
-            ),
-            
-            // Uploaded files
-            if (_uploadedFiles.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              ..._uploadedFiles.map((file) => ListTile(
-                leading: Icon(_getFileIcon((file['extension'] as String?) ?? ''), color: AppTheme.primaryColor),
-                title: Text(file['name'] as String, overflow: TextOverflow.ellipsis),
-                subtitle: Text('${file['size']} KB'),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.auto_awesome, color: AppTheme.secondaryColor),
-                      tooltip: 'AI ile Tara',
-                      onPressed: () => _scanWithAI(file),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.delete, color: AppTheme.errorColor),
-                      onPressed: () => setState(() => _uploadedFiles.remove(file)),
-                    ),
-                  ],
+                SwitchListTile(
+                  title: const Text('Faturalı Gider'),
+                  subtitle: Text(_isInvoiced
+                      ? 'Bu gider için fatura mevcut'
+                      : 'Faturasız gider (açıklama gerekli)'),
+                  value: _isInvoiced,
+                  onChanged: (v) => setState(() => _isInvoiced = v),
                 ),
-              )),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAiResultCard() {
-    return Card(
-      color: AppTheme.successColor.withOpacity(0.05),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                const Icon(Icons.auto_awesome, color: AppTheme.successColor),
-                const SizedBox(width: 8),
-                const Text('AI Tarama Sonucu', style: TextStyle(fontWeight: FontWeight.w600, color: AppTheme.successColor)),
-                const Spacer(),
-                Text('${((_aiScanResult!['confidence'] as double) * 100).toInt()}% güven', 
-                  style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
+                if (!_isInvoiced) ...[
+                  const Divider(height: 1),
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Row(
+                          children: [
+                            Icon(Icons.warning_amber, color: AppTheme.warningColor, size: 20),
+                            SizedBox(width: 8),
+                            Text('Faturasız Gider Uyarısı',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    color: AppTheme.warningColor)),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Faturasız giderler site sakinlerine "Faturasız" olarak gösterilecek ve onay gerektirebilir.',
+                          style: TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+                        ),
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: _nonInvoicedReasonController,
+                          decoration:
+                              const InputDecoration(labelText: 'Faturasız olma nedeni *'),
+                          maxLines: 2,
+                          validator: (v) => !_isInvoiced && (v?.trim().isEmpty ?? true)
+                              ? 'Neden belirtin'
+                              : null,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ],
             ),
-            const Divider(),
-            _AiResultRow(label: 'Firma', value: _aiScanResult!['vendor_name'] ?? '-'),
-            _AiResultRow(label: 'Fatura No', value: _aiScanResult!['invoice_number'] ?? '-'),
-            _AiResultRow(label: 'Tarih', value: _aiScanResult!['invoice_date'] ?? '-'),
-            _AiResultRow(label: 'Tutar', value: '₺${_aiScanResult!['total_amount']}'),
-            _AiResultRow(label: 'Kategori Önerisi', value: _aiScanResult!['category_suggestion'] ?? '-'),
+          ),
+          const SizedBox(height: 16),
+
+          Card(
+            child: Column(
+              children: [
+                SwitchListTile(
+                  title: const Text('Aidata Yansısın'),
+                  subtitle: Text(_reflectsToAssessment
+                      ? 'Bu gider aylık aidata eklenecek'
+                      : 'Sabit gider - aidata eklenmez'),
+                  value: _reflectsToAssessment,
+                  onChanged: (v) => setState(() => _reflectsToAssessment = v),
+                ),
+                if (_reflectsToAssessment) ...[
+                  const Divider(height: 1),
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Dağıtım Şekli'),
+                        const SizedBox(height: 8),
+                        SegmentedButton<String>(
+                          segments: const [
+                            ButtonSegment(value: 'EQUAL', label: Text('Eşit')),
+                            ButtonSegment(value: 'AREA_M2', label: Text('m² Bazlı')),
+                            ButtonSegment(value: 'SHARE_RATIO', label: Text('Arsa Payı')),
+                          ],
+                          selected: {_distributionType},
+                          onSelectionChanged: (v) =>
+                              setState(() => _distributionType = v.first),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          if (_isInvoiced) ...[
+            const Text('Firma Bilgileri',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
             const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: _applyAiResult,
-                icon: const Icon(Icons.check),
-                label: const Text('Bilgileri Uygula'),
-              ),
+            TextFormField(
+              controller: _vendorController,
+              decoration: const InputDecoration(labelText: 'Firma Adı'),
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _invoiceNumberController,
+              decoration: const InputDecoration(labelText: 'Fatura No'),
             ),
           ],
-        ),
+          const SizedBox(height: 48),
+        ],
       ),
     );
   }
 
-  Widget _getCategoryBadge(String type) {
+  Widget _categoryBadge(String type) {
     Color color;
     String label;
-    switch (type) {
+    switch (type.toUpperCase()) {
       case 'FIXED':
         color = Colors.grey;
         label = 'Sabit';
@@ -362,107 +359,99 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         break;
       default:
         color = Colors.grey;
-        label = '';
+        label = type;
     }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(4)),
+      decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(4)),
       child: Text(label, style: TextStyle(fontSize: 10, color: color)),
     );
   }
 
-  IconData _getFileIcon(String ext) {
-    switch (ext.toLowerCase()) {
-      case 'pdf': return Icons.picture_as_pdf;
-      case 'jpg':
-      case 'jpeg':
-      case 'png': return Icons.image;
-      default: return Icons.insert_drive_file;
-    }
-  }
-
-  Future<void> _pickFile() async {
-    // Stub: file_picker v1 embedding uyumsuzluğu nedeniyle devre dışı
-    // Gerçek implementasyon için uyumlu bir versiyon gerektiğinde eklenecek
-    final stubFile = <String, dynamic>{'name': 'belge.pdf', 'extension': 'pdf', 'size': 512};
-    setState(() {
-      _uploadedFiles.add(stubFile);
-    });
-    _scanWithAI(stubFile);
-  }
-
-  Future<void> _scanWithAI(Map<String, dynamic> file) async {
-    setState(() => _isScanning = true);
-    
-    // Simulate AI scan delay
-    await Future.delayed(const Duration(seconds: 2));
-    
-    setState(() {
-      _isScanning = false;
-      _aiScanResult = {
-        'vendor_name': 'AYEDAŞ Elektrik Dağıtım A.Ş.',
-        'invoice_number': '2026-001234',
-        'invoice_date': '28.01.2026',
-        'total_amount': 2450.75,
-        'tax_amount': 441.14,
-        'category_suggestion': 'Ortak Elektrik',
-        'confidence': 0.94,
-      };
-    });
-  }
-
-  void _applyAiResult() {
-    if (_aiScanResult == null) return;
-    
-    setState(() {
-      _vendorController.text = _aiScanResult!['vendor_name'] ?? '';
-      _invoiceNumberController.text = _aiScanResult!['invoice_number'] ?? '';
-      _amountController.text = _aiScanResult!['total_amount'].toString();
-      
-      // Find and select category
-      final suggestion = _aiScanResult!['category_suggestion'];
-      final cat = _categories.firstWhere(
-        (c) => c['name'] == suggestion,
-        orElse: () => _categories.last,
-      );
-      _selectedCategory = cat['id'] as String;
-      _reflectsToAssessment = cat['reflects'] as bool;
-    });
-    
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('AI sonuçları uygulandı'), backgroundColor: AppTheme.successColor),
+  Future<void> _pickDate() async {
+    final date = await showDatePicker(
+      context: context,
+      initialDate: _expenseDate,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now(),
     );
+    if (date != null) setState(() => _expenseDate = date);
   }
 
-  void _saveExpense() {
-    if (_formKey.currentState!.validate()) {
-      // TODO: API call
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(_isInvoiced ? 'Gider eklendi' : 'Gider onaya gönderildi'),
-          backgroundColor: AppTheme.successColor,
-        ),
-      );
+  Future<void> _saveExpense() async {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+    if (_selectedCategory == null) {
+      _showMessage('Kategori seçin.', isError: true);
+      return;
+    }
+
+    setState(() => _saving = true);
+    try {
+      await apiClient.createExpense({
+        'category_id': _selectedCategory,
+        'description': _descriptionController.text.trim(),
+        'amount': double.parse(_amountController.text.replaceAll(',', '.')),
+        'expense_date': _expenseDate.toIso8601String(),
+        'is_invoiced': _isInvoiced,
+        'reflects_to_assessment': _reflectsToAssessment,
+        if (_reflectsToAssessment) 'distribution_type': _distributionType,
+        if (_isInvoiced) 'vendor_name': _vendorController.text.trim(),
+        if (_isInvoiced) 'invoice_number': _invoiceNumberController.text.trim(),
+        if (!_isInvoiced)
+          'non_invoiced_reason': _nonInvoicedReasonController.text.trim(),
+      });
+      if (!mounted) return;
+      // Başarı mesajı YALNIZCA sunucu kaydı onayladığında gösterilir.
+      _showMessage(_isInvoiced ? 'Gider eklendi' : 'Gider onaya gönderildi');
       context.pop();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      _showMessage(toUserMessage(e), isError: true);
     }
   }
-}
 
-class _AiResultRow extends StatelessWidget {
-  final String label;
-  final String value;
-  const _AiResultRow({required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        children: [
-          SizedBox(width: 100, child: Text(label, style: const TextStyle(color: AppTheme.textSecondary, fontSize: 13))),
-          Expanded(child: Text(value, style: const TextStyle(fontWeight: FontWeight.w500))),
-        ],
+  void _showMessage(String message, {bool isError = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? AppTheme.errorColor : AppTheme.successColor,
       ),
     );
   }
+}
+
+/// Sunucu dağıtım tipini farklı adlandırabiliyor; SegmentedButton'ın bildiği
+/// değerlere indirgenir, tanınmayan değer varsayılanı bozmaz.
+String _normalizeDistribution(String value) {
+  switch (value.toUpperCase()) {
+    case 'AREA':
+    case 'AREA_M2':
+      return 'AREA_M2';
+    case 'SHARE_RATIO':
+      return 'SHARE_RATIO';
+    default:
+      return 'EQUAL';
+  }
+}
+
+String? _text(Map<String, dynamic> map, List<String> keys) {
+  for (final key in keys) {
+    final v = map[key];
+    if (v is String && v.isNotEmpty) return v;
+  }
+  return null;
+}
+
+bool? _flag(Map<String, dynamic> map, List<String> keys) {
+  for (final key in keys) {
+    final v = map[key];
+    if (v is bool) return v;
+    if (v is String) {
+      if (v.toLowerCase() == 'true') return true;
+      if (v.toLowerCase() == 'false') return false;
+    }
+  }
+  return null;
 }

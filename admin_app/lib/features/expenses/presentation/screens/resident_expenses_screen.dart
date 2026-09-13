@@ -1,304 +1,431 @@
-import 'package:flutter/material.dart';
-import '../../../../core/theme/app_theme.dart';
+// Sakinlerin gördüğü site gideri listesi.
+//
+// NEDEN DEĞİŞTİ (2026-09-13):
+// Ekran beş sahte gider kaydıyla açılıyordu (AYEDAŞ ₺2.450,75 / su ₺1.850 / asansör
+// ₺3.500 / çatı ₺1.800 / temizlik ₺8.000) ve "Bu Ay Sizin Payınız" başlığı altında
+// bu uydurma rakamların toplamını gösteriyordu. Sakine, ödeyeceği tutar diye var
+// olmayan bir rakam göstermek en ağır hata türüdür. Ayrıca "Faturayı Görüntüle"
+// düğmesi her zaman sabit bir "fatura.pdf" açıyordu.
+//
+// Artık liste `apiClient.getExpenses(year:, month:)` ile gelir; pay toplamı gerçek
+// `per_unit_amount` alanlarından hesaplanır. Belge görüntüleyici bağlanmadığı için
+// o bölüm `NotImplementedNotice` gösterir.
 
-/// Sakinlerin gördüğü gider listesi ekranı
-/// Bu ekran mobil uygulamada sakinlere gösterilecek
-class ResidentExpensesScreen extends StatelessWidget {
+import 'package:flutter/material.dart';
+
+import '../../../../core/network/api_client.dart';
+import '../../../../core/theme/app_theme.dart';
+import '../../../../core/utils/formatters.dart';
+import '../../../../core/widgets/data_state.dart';
+
+class ResidentExpensesScreen extends StatefulWidget {
   const ResidentExpensesScreen({super.key});
 
   @override
+  State<ResidentExpensesScreen> createState() => _ResidentExpensesScreenState();
+}
+
+class _ResidentExpensesScreenState extends State<ResidentExpensesScreen> {
+  late int _year;
+  late int _month;
+
+  bool _loading = true;
+  Object? _error;
+  List<Map<String, dynamic>> _expenses = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    final now = DateTime.now();
+    _year = now.year;
+    _month = now.month;
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final rows = await apiClient.getExpenses(year: _year, month: _month);
+      if (!mounted) return;
+      setState(() {
+        _expenses =
+            rows.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e;
+        _loading = false;
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final expenses = [
-      _ResidentExpense(
-        category: 'Ortak Elektrik',
-        description: 'Ocak 2026 elektrik faturası',
-        amount: 2450.75,
-        date: '28.01.2026',
-        perUnitAmount: 19.76,
-        isInvoiced: true,
-        reflectsToAssessment: true,
-        hasDocument: true,
-      ),
-      _ResidentExpense(
-        category: 'Ortak Su',
-        description: 'Ocak 2026 su faturası',
-        amount: 1850.00,
-        date: '25.01.2026',
-        perUnitAmount: 14.92,
-        isInvoiced: true,
-        reflectsToAssessment: true,
-        hasDocument: true,
-      ),
-      _ResidentExpense(
-        category: 'Asansör Bakımı',
-        description: 'Yıllık bakım',
-        amount: 3500.00,
-        date: '15.01.2026',
-        perUnitAmount: 28.23,
-        isInvoiced: true,
-        reflectsToAssessment: true,
-        hasDocument: true,
-      ),
-      _ResidentExpense(
-        category: 'Acil Tamir',
-        description: 'Çatı tamir işlemi',
-        amount: 1800.00,
-        date: '20.01.2026',
-        perUnitAmount: 14.52,
-        isInvoiced: false,
-        nonInvoicedReason: 'Elden ödeme yapılmıştır. Detaylı bilgi için site yönetimine başvurunuz.',
-        reflectsToAssessment: true,
-        hasDocument: false,
-      ),
-      _ResidentExpense(
-        category: 'Bina Temizliği',
-        description: 'Ocak ayı temizlik hizmeti',
-        amount: 8000.00,
-        date: '31.01.2026',
-        perUnitAmount: 0, // Aidata dahil
-        isInvoiced: true,
-        reflectsToAssessment: false,
-        hasDocument: true,
-      ),
-    ];
-
-    final totalReflecting = expenses.where((e) => e.reflectsToAssessment).fold(0.0, (sum, e) => sum + e.perUnitAmount);
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('Site Giderleri'),
         actions: [
-          IconButton(icon: const Icon(Icons.calendar_month), onPressed: () {}),
+          IconButton(
+            icon: const Icon(Icons.calendar_month),
+            tooltip: 'Dönem seç',
+            onPressed: _pickPeriod,
+          ),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
+      body: RefreshIndicator(onRefresh: _load, child: _buildBody()),
+    );
+  }
+
+  Widget _buildBody() {
+    if (_loading) return const LoadingView(message: 'Site giderleri alınıyor...');
+
+    if (_error != null && isNotImplemented(_error!)) {
+      return ListView(
         children: [
-          // Period
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.calendar_today, color: AppTheme.primaryColor),
-              title: const Text('Ocak 2026'),
-              subtitle: const Text('Görüntülenen dönem'),
-              trailing: const Icon(Icons.keyboard_arrow_down),
-            ),
+          _periodCard(),
+          const NotImplementedNotice(
+            title: 'Site giderleri henüz hazır değil',
+            detail: 'Sunucu bu dönem için gider dökümü döndürmüyor.',
           ),
-          const SizedBox(height: 16),
-          
-          // Summary
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [AppTheme.primaryColor, AppTheme.primaryColor.withOpacity(0.8)],
-              ),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Column(
-              children: [
-                const Text('Bu Ay Sizin Payınız', style: TextStyle(color: Colors.white70)),
-                const SizedBox(height: 4),
-                Text('₺${totalReflecting.toStringAsFixed(2)}', style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                const Text('Değişken giderler toplamı', style: TextStyle(color: Colors.white54, fontSize: 12)),
-              ],
-            ),
-          ),
-          const SizedBox(height: 24),
-          
-          // Info about fixed expenses
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.blue.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.blue.withOpacity(0.3)),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.info_outline, color: Colors.blue, size: 20),
-                const SizedBox(width: 8),
-                const Expanded(
-                  child: Text(
-                    'Bina temizliği, güvenlik gibi sabit giderler aylık aidatınıza dahildir.',
-                    style: TextStyle(fontSize: 12, color: Colors.blue),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-          
-          // Expense list
-          const Text('Gider Detayları', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 12),
-          
-          ...expenses.map((expense) => _ExpenseCard(expense: expense)),
         ],
+      );
+    }
+    if (_error != null) {
+      return ErrorStateView(message: toUserMessage(_error!), onRetry: _load);
+    }
+
+    // Payın toplamı yalnızca sunucunun gerçekten döndürdüğü `per_unit_amount`
+    // değerlerinden hesaplanır; alan yoksa toplama katılmaz.
+    double? shareTotal;
+    var hasAnyShare = false;
+    for (final e in _expenses) {
+      if (_flag(e, const ['reflects_to_assessment']) != true) continue;
+      final perUnit = _number(e, const ['per_unit_amount']);
+      if (perUnit == null) continue;
+      hasAnyShare = true;
+      shareTotal = (shareTotal ?? 0) + perUnit;
+    }
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        _periodCard(),
+        const SizedBox(height: 16),
+
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                AppTheme.primaryColor,
+                AppTheme.primaryColor.withValues(alpha: 0.8),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Column(
+            children: [
+              const Text('Bu Ay Sizin Payınız',
+                  style: TextStyle(color: Colors.white70)),
+              const SizedBox(height: 4),
+              Text(
+                hasAnyShare ? formatTry(shareTotal) : '—',
+                style: const TextStyle(
+                    color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                hasAnyShare
+                    ? 'Değişken giderler toplamı'
+                    : 'Bu dönem için daire payı hesaplanmadı',
+                style: const TextStyle(color: Colors.white54, fontSize: 12),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 24),
+
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.blue.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.blue.withValues(alpha: 0.3)),
+          ),
+          child: const Row(
+            children: [
+              Icon(Icons.info_outline, color: Colors.blue, size: 20),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Bina temizliği, güvenlik gibi sabit giderler aylık aidatınıza dahildir.',
+                  style: TextStyle(fontSize: 12, color: Colors.blue),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        const Text('Gider Detayları',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+        const SizedBox(height: 12),
+
+        if (_expenses.isEmpty)
+          EmptyStateView(message: '${_monthName(_month)} $_year için gider kaydı yok.')
+        else
+          ..._expenses.map((e) => _ExpenseCard(expense: e)),
+      ],
+    );
+  }
+
+  Widget _periodCard() {
+    return Card(
+      child: ListTile(
+        leading: const Icon(Icons.calendar_today, color: AppTheme.primaryColor),
+        title: Text('${_monthName(_month)} $_year'),
+        subtitle: const Text('Görüntülenen dönem'),
+        trailing: const Icon(Icons.keyboard_arrow_down),
+        onTap: _pickPeriod,
       ),
     );
+  }
+
+  Future<void> _pickPeriod() async {
+    final selected = await showModalBottomSheet<DateTime>(
+      context: context,
+      builder: (ctx) {
+        final years = [DateTime.now().year - 1, DateTime.now().year, DateTime.now().year + 1];
+        var year = _year;
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) => SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Dönem Seç',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    children: years
+                        .map((y) => ChoiceChip(
+                              label: Text('$y'),
+                              selected: y == year,
+                              onSelected: (_) => setSheetState(() => year = y),
+                            ))
+                        .toList(),
+                  ),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    children: List.generate(12, (i) => i + 1)
+                        .map((m) => ActionChip(
+                              label: Text(_monthName(m)),
+                              onPressed: () => Navigator.pop(ctx, DateTime(year, m)),
+                            ))
+                        .toList(),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+    if (selected != null) {
+      setState(() {
+        _year = selected.year;
+        _month = selected.month;
+      });
+      await _load();
+    }
   }
 }
 
 class _ExpenseCard extends StatelessWidget {
-  final _ResidentExpense expense;
+  final Map<String, dynamic> expense;
   const _ExpenseCard({required this.expense});
 
   @override
   Widget build(BuildContext context) {
+    final category = _text(expense, const ['category_name', 'category']) ?? 'Kategorisiz';
+    final description = _text(expense, const ['description', 'title']) ?? '—';
+    final amount = _number(expense, const ['amount', 'total_amount']);
+    final perUnit = _number(expense, const ['per_unit_amount']);
+    final isInvoiced = _flag(expense, const ['is_invoiced']);
+    final reflects = _flag(expense, const ['reflects_to_assessment']);
+    final documents = _documents(expense);
+
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
-      child: InkWell(
-        onTap: expense.hasDocument ? () => _showDocument(context) : null,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header
-              Row(
-                children: [
-                  CircleAvatar(
-                    radius: 20,
-                    backgroundColor: _getCategoryColor(expense.category).withOpacity(0.1),
-                    child: Icon(_getCategoryIcon(expense.category), color: _getCategoryColor(expense.category), size: 20),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(expense.category, style: const TextStyle(fontWeight: FontWeight.w600)),
-                        Text(expense.description, style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
-                      ],
-                    ),
-                  ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text('₺${expense.amount.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold)),
-                      Text(expense.date, style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
-                    ],
-                  ),
-                ],
-              ),
-              
-              const Divider(height: 24),
-              
-              // Your share
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  if (expense.reflectsToAssessment) ...[
-                    const Text('Sizin Payınız:', style: TextStyle(fontSize: 13)),
-                    Text('₺${expense.perUnitAmount.toStringAsFixed(2)}', 
-                      style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.primaryColor)),
-                  ] else ...[
-                    Row(
-                      children: [
-                        Icon(Icons.check_circle, size: 16, color: AppTheme.successColor),
-                        const SizedBox(width: 4),
-                        Text('Aidatınıza dahil', style: TextStyle(color: AppTheme.successColor, fontSize: 13)),
-                      ],
-                    ),
-                  ],
-                ],
-              ),
-              
-              // Non-invoiced warning
-              if (!expense.isInvoiced) ...[
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: AppTheme.warningColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppTheme.warningColor.withOpacity(0.3)),
-                  ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                CircleAvatar(
+                  radius: 20,
+                  backgroundColor: _categoryColor(category).withValues(alpha: 0.1),
+                  child: Icon(_categoryIcon(category),
+                      color: _categoryColor(category), size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        children: [
-                          Icon(Icons.warning_amber, size: 18, color: AppTheme.warningColor),
-                          const SizedBox(width: 8),
-                          Text('Faturasız Gider', style: TextStyle(fontWeight: FontWeight.w600, color: AppTheme.warningColor)),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        expense.nonInvoicedReason ?? 'Bu gider için resmi fatura bulunmamaktadır.',
-                        style: TextStyle(fontSize: 12, color: AppTheme.warningColor.withOpacity(0.8)),
-                      ),
+                      Text(category, style: const TextStyle(fontWeight: FontWeight.w600)),
+                      Text(description,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              fontSize: 12, color: AppTheme.textSecondary)),
                     ],
                   ),
                 ),
-              ],
-              
-              // View document button
-              if (expense.hasDocument) ...[
-                const SizedBox(height: 12),
-                OutlinedButton.icon(
-                  onPressed: () => _showDocument(context),
-                  icon: const Icon(Icons.visibility, size: 16),
-                  label: const Text('Faturayı Görüntüle'),
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(double.infinity, 36),
-                    textStyle: const TextStyle(fontSize: 12),
-                  ),
+                const SizedBox(width: 8),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(amount == null ? '—' : formatTry(amount),
+                        style: const TextStyle(fontWeight: FontWeight.bold)),
+                    Text(
+                        formatDate(expense['expense_date'] ??
+                            expense['date'] ??
+                            expense['created_at']),
+                        style: const TextStyle(
+                            fontSize: 11, color: AppTheme.textSecondary)),
+                  ],
                 ),
               ],
+            ),
+            const Divider(height: 24),
+
+            // Pay bilgisi yalnızca sunucu gerçekten hesapladıysa gösterilir.
+            if (reflects == true)
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Sizin Payınız:', style: TextStyle(fontSize: 13)),
+                  Text(perUnit == null ? '—' : formatTry(perUnit),
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold, color: AppTheme.primaryColor)),
+                ],
+              )
+            else if (reflects == false)
+              const Row(
+                children: [
+                  Icon(Icons.check_circle, size: 16, color: AppTheme.successColor),
+                  SizedBox(width: 4),
+                  Text('Aidatınıza dahil',
+                      style: TextStyle(color: AppTheme.successColor, fontSize: 13)),
+                ],
+              )
+            else
+              const Text('Aidata yansıma bilgisi yok.',
+                  style: TextStyle(fontSize: 13, color: AppTheme.textSecondary)),
+
+            if (isInvoiced == false) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppTheme.warningColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppTheme.warningColor.withValues(alpha: 0.3)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(Icons.warning_amber, size: 18, color: AppTheme.warningColor),
+                        SizedBox(width: 8),
+                        Text('Faturasız Gider',
+                            style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                color: AppTheme.warningColor)),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      _text(expense, const ['non_invoiced_reason', 'reason']) ??
+                          'Bu gider için resmi fatura bulunmamaktadır.',
+                      style: TextStyle(
+                          fontSize: 12,
+                          color: AppTheme.warningColor.withValues(alpha: 0.8)),
+                    ),
+                  ],
+                ),
+              ),
             ],
-          ),
+
+            if (documents.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: () => _showDocument(context, documents.first),
+                icon: const Icon(Icons.visibility, size: 16),
+                label: const Text('Faturayı Görüntüle'),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 36),
+                  textStyle: const TextStyle(fontSize: 12),
+                ),
+              ),
+            ],
+          ],
         ),
       ),
     );
   }
 
-  void _showDocument(BuildContext context) {
+  void _showDocument(BuildContext context, Map<String, dynamic> document) {
+    final name = _text(document, const ['name', 'file_name']) ?? 'Belge';
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.9,
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.6,
         maxChildSize: 0.95,
-        minChildSize: 0.5,
+        minChildSize: 0.4,
         expand: false,
-        builder: (context, scrollController) => Column(
+        builder: (ctx, scrollController) => Column(
           children: [
-            Container(
+            Padding(
               padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Theme.of(context).scaffoldBackgroundColor,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-              ),
               child: Row(
                 children: [
-                  const Text('Fatura Belgesi', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                  const Spacer(),
-                  IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
+                  Expanded(
+                    child: Text(name,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            fontSize: 18, fontWeight: FontWeight.bold)),
+                  ),
+                  IconButton(
+                      icon: const Icon(Icons.close), onPressed: () => Navigator.pop(ctx)),
                 ],
               ),
             ),
+            // Belge görüntüleyici/indirici bağlanmadı; sahte bir PDF önizlemesi
+            // göstermek yerine durum açıkça bildiriliyor.
             Expanded(
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.picture_as_pdf, size: 80, color: Colors.red.withOpacity(0.5)),
-                    const SizedBox(height: 16),
-                    const Text('fatura.pdf', style: TextStyle(fontWeight: FontWeight.w600)),
-                    const SizedBox(height: 8),
-                    const Text('PDF görüntüleyici burada açılacak', style: TextStyle(color: AppTheme.textSecondary)),
-                    const SizedBox(height: 24),
-                    ElevatedButton.icon(
-                      onPressed: () {},
-                      icon: const Icon(Icons.download),
-                      label: const Text('İndir'),
-                    ),
-                  ],
-                ),
+              child: ListView(
+                controller: scrollController,
+                children: const [
+                  NotImplementedNotice(
+                    title: 'Belge görüntüleme henüz hazır değil',
+                    detail: 'Fatura dosyasını indirme/görüntüleme ucu uygulamaya bağlanmadı.',
+                  ),
+                ],
               ),
             ),
           ],
@@ -306,54 +433,96 @@ class _ExpenseCard extends StatelessWidget {
       ),
     );
   }
+}
 
-  Color _getCategoryColor(String category) {
-    switch (category) {
-      case 'Ortak Elektrik': return Colors.amber;
-      case 'Ortak Su': return Colors.blue;
-      case 'Ortak Isınma': return Colors.deepOrange;
-      case 'Asansör Bakımı': return Colors.purple;
-      case 'Bina Temizliği': return Colors.teal;
-      case 'Güvenlik': return Colors.indigo;
-      case 'Acil Tamir': return Colors.orange;
-      default: return AppTheme.primaryColor;
+List<Map<String, dynamic>> _documents(Map<String, dynamic> expense) {
+  for (final key in const ['invoices', 'documents', 'files', 'attachments']) {
+    final v = expense[key];
+    if (v is List) {
+      return v.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
     }
   }
+  return const [];
+}
 
-  IconData _getCategoryIcon(String category) {
-    switch (category) {
-      case 'Ortak Elektrik': return Icons.bolt;
-      case 'Ortak Su': return Icons.water_drop;
-      case 'Ortak Isınma': return Icons.whatshot;
-      case 'Asansör Bakımı': return Icons.elevator;
-      case 'Bina Temizliği': return Icons.cleaning_services;
-      case 'Güvenlik': return Icons.security;
-      case 'Acil Tamir': return Icons.build;
-      default: return Icons.receipt;
+String _monthName(int month) {
+  const months = [
+    '', 'Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
+    'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık',
+  ];
+  return (month >= 1 && month <= 12) ? months[month] : '—';
+}
+
+double? _number(Map<String, dynamic> map, List<String> keys) {
+  for (final key in keys) {
+    final v = map[key];
+    if (v is num) return v.toDouble();
+    if (v is String) {
+      final parsed = double.tryParse(v);
+      if (parsed != null) return parsed;
     }
+  }
+  return null;
+}
+
+String? _text(Map<String, dynamic> map, List<String> keys) {
+  for (final key in keys) {
+    final v = map[key];
+    if (v is String && v.isNotEmpty) return v;
+  }
+  return null;
+}
+
+bool? _flag(Map<String, dynamic> map, List<String> keys) {
+  for (final key in keys) {
+    final v = map[key];
+    if (v is bool) return v;
+    if (v is String) {
+      if (v.toLowerCase() == 'true') return true;
+      if (v.toLowerCase() == 'false') return false;
+    }
+  }
+  return null;
+}
+
+Color _categoryColor(String category) {
+  switch (category) {
+    case 'Ortak Elektrik':
+      return Colors.amber;
+    case 'Ortak Su':
+      return Colors.blue;
+    case 'Ortak Isınma':
+      return Colors.deepOrange;
+    case 'Asansör Bakımı':
+      return Colors.purple;
+    case 'Bina Temizliği':
+      return Colors.teal;
+    case 'Güvenlik':
+      return Colors.indigo;
+    case 'Acil Tamir':
+      return Colors.orange;
+    default:
+      return AppTheme.primaryColor;
   }
 }
 
-class _ResidentExpense {
-  final String category;
-  final String description;
-  final double amount;
-  final String date;
-  final double perUnitAmount;
-  final bool isInvoiced;
-  final String? nonInvoicedReason;
-  final bool reflectsToAssessment;
-  final bool hasDocument;
-
-  _ResidentExpense({
-    required this.category,
-    required this.description,
-    required this.amount,
-    required this.date,
-    required this.perUnitAmount,
-    required this.isInvoiced,
-    this.nonInvoicedReason,
-    required this.reflectsToAssessment,
-    required this.hasDocument,
-  });
+IconData _categoryIcon(String category) {
+  switch (category) {
+    case 'Ortak Elektrik':
+      return Icons.bolt;
+    case 'Ortak Su':
+      return Icons.water_drop;
+    case 'Ortak Isınma':
+      return Icons.whatshot;
+    case 'Asansör Bakımı':
+      return Icons.elevator;
+    case 'Bina Temizliği':
+      return Icons.cleaning_services;
+    case 'Güvenlik':
+      return Icons.security;
+    case 'Acil Tamir':
+      return Icons.build;
+    default:
+      return Icons.receipt;
+  }
 }

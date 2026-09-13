@@ -1,7 +1,26 @@
-import 'package:flutter/material.dart';
-import '../../../../core/theme/apple_theme.dart';
+// Site ilan panosu yönetimi.
+//
+// NEDEN DEĞİŞTİ (2026-09-13):
+// Ekran beş uydurma ilan (Mehmet Yılmaz'ın bisikleti, Ayşe Demir'in köpeği,
+// Zeynep Kaya'nın kayıp kedisi…) ve dört uydurma sayaç (47 ilan / 38 aktif /
+// 456 görüntüleme / 12 tamamlanan) gösteriyordu. İlanların altında gerçek kişi
+// adı ve daire numarası yazılıydı; bu hem yalan hem de kişisel veri taklidiydi.
+// "Yayınla", "Düzenle", "Kaldır" ve mesaj düğmeleri hiçbir istek göndermiyordu.
+//
+// Artık ilanlar `apiClient.getBulletins()` ile alınıyor, yeni ilan
+// `apiClient.createBulletin()` ile gönderiliyor, kaldırma
+// `apiClient.deleteBulletin()` çağırıyor. Sayaçlar gelen gerçek kayıtlardan
+// hesaplanıyor. Sunucu 501 dönerse `NotImplementedNotice`, başka hata olursa
+// `ErrorStateView` gösterilir — sessizce boş liste gösterilmez.
 
-/// Site İlan Panosu Yönetim Ekranı - Apple Tarzı
+import 'package:flutter/material.dart';
+
+import '../../../../core/network/api_client.dart';
+import '../../../../core/theme/apple_theme.dart';
+import '../../../../core/utils/formatters.dart';
+import '../../../../core/widgets/data_state.dart';
+
+/// Site İlan Panosu Yönetim Ekranı
 class BulletinBoardScreen extends StatefulWidget {
   const BulletinBoardScreen({super.key});
 
@@ -9,105 +28,76 @@ class BulletinBoardScreen extends StatefulWidget {
   State<BulletinBoardScreen> createState() => _BulletinBoardScreenState();
 }
 
-class _BulletinBoardScreenState extends State<BulletinBoardScreen> with SingleTickerProviderStateMixin {
+class _BulletinBoardScreenState extends State<BulletinBoardScreen>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
   String _selectedCategory = 'all';
 
   final List<Map<String, String>> _categories = [
-    {'id': 'all', 'name': 'Tümü', 'icon': 'grid_view'},
-    {'id': 'sale', 'name': 'Satılık', 'icon': 'sell'},
-    {'id': 'rent', 'name': 'Kiralık', 'icon': 'key'},
-    {'id': 'help', 'name': 'Yardımlaşma', 'icon': 'favorite'},
-    {'id': 'service', 'name': 'Hizmet', 'icon': 'handyman'},
-    {'id': 'lost', 'name': 'Kayıp/Bulundu', 'icon': 'search'},
+    {'id': 'all', 'name': 'Tümü'},
+    {'id': 'sale', 'name': 'Satılık'},
+    {'id': 'rent', 'name': 'Kiralık'},
+    {'id': 'help', 'name': 'Yardımlaşma'},
+    {'id': 'service', 'name': 'Hizmet'},
+    {'id': 'lost', 'name': 'Kayıp/Bulundu'},
   ];
 
-  final List<Map<String, dynamic>> _listings = [
-    {
-      'id': '1',
-      'category': 'sale',
-      'title': 'Çocuk Bisikleti - 16 Jant',
-      'description': 'Az kullanılmış, kırmızı renk çocuk bisikleti. 5-7 yaş arası için uygundur.',
-      'price': '1500',
-      'images': ['bike1.jpg'],
-      'author': 'Mehmet Yılmaz',
-      'unit': 'A Blok D.105',
-      'date': '2 saat önce',
-      'views': 24,
-      'isActive': true,
-    },
-    {
-      'id': '2',
-      'category': 'help',
-      'title': 'Hafta sonu köpek bakımı',
-      'description': 'Bu hafta sonu şehir dışına çıkıyoruz. Küçük köpeğimizle ilgilenecek komşu arıyoruz.',
-      'price': null,
-      'images': [],
-      'author': 'Ayşe Demir',
-      'unit': 'B Blok D.203',
-      'date': '5 saat önce',
-      'views': 18,
-      'isActive': true,
-    },
-    {
-      'id': '3',
-      'category': 'service',
-      'title': 'Özel Matematik Dersi',
-      'description': 'İlkokul ve ortaokul öğrencileri için özel matematik dersi verilir. Sitemizdeki çocuklara öncelik.',
-      'price': '250/saat',
-      'images': [],
-      'author': 'Deniz Öğretmen',
-      'unit': 'C Blok D.401',
-      'date': '1 gün önce',
-      'views': 45,
-      'isActive': true,
-    },
-    {
-      'id': '4',
-      'category': 'rent',
-      'title': 'Piknik Seti Kiralık',
-      'description': '6 kişilik piknik masası ve sandalye seti. Günlük veya haftalık kiralanır.',
-      'price': '100/gün',
-      'images': ['picnic.jpg'],
-      'author': 'Ali Vural',
-      'unit': 'A Blok D.302',
-      'date': '2 gün önce',
-      'views': 12,
-      'isActive': true,
-    },
-    {
-      'id': '5',
-      'category': 'lost',
-      'title': 'Siyah Kedi Kayıp',
-      'description': 'Yeşil gözlü siyah kedimiz 3 gündür kayıp. Gören olursa lütfen haber versin.',
-      'price': null,
-      'images': ['cat.jpg'],
-      'author': 'Zeynep Kaya',
-      'unit': 'D Blok D.101',
-      'date': '3 gün önce',
-      'views': 89,
-      'isActive': true,
-      'urgent': true,
-    },
-  ];
-
-  final Map<String, dynamic> _stats = {
-    'totalListings': 47,
-    'activeListings': 38,
-    'weeklyViews': 456,
-    'completedDeals': 12,
-  };
+  bool _loading = true;
+  Object? _error;
+  List<Map<String, dynamic>> _listings = const [];
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(() => setState(() {}));
+    _load();
   }
 
   @override
   void dispose() {
     _tabController.dispose();
     super.dispose();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final rows = await apiClient.getBulletins();
+      if (!mounted) return;
+      setState(() {
+        _listings =
+            rows.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e;
+        _loading = false;
+      });
+    }
+  }
+
+  bool get _hasData => !_loading && _error == null;
+
+  /// Onaylanmış/yayında olan ilan mı? Durum alanı hiç gelmiyorsa yayında sayılır —
+  /// aksi halde tüm ilanlar sessizce "onay bekliyor" sekmesinde kaybolurdu.
+  bool _isPending(Map<String, dynamic> l) {
+    final status = (_text(l, const ['status', 'state']) ?? '').toUpperCase();
+    return status == 'PENDING' || status == 'AWAITING_APPROVAL' || status == 'BEKLIYOR';
+  }
+
+  List<Map<String, dynamic>> get _filteredListings {
+    return _listings.where((l) {
+      if (_tabController.index == 0 && _isPending(l)) return false;
+      if (_tabController.index == 1 && !_isPending(l)) return false;
+      if (_selectedCategory == 'all') return true;
+      return _categoryId(l) == _selectedCategory;
+    }).toList();
   }
 
   @override
@@ -124,19 +114,30 @@ class _BulletinBoardScreenState extends State<BulletinBoardScreen> with SingleTi
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Site İlan Panosu', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w700, letterSpacing: -0.5)),
-                        Text('Komşular arası alışveriş ve yardımlaşma', style: TextStyle(fontSize: 15, color: AppleTheme.secondaryLabel)),
-                      ],
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Site İlan Panosu',
+                              style: TextStyle(
+                                  fontSize: 28,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: -0.5)),
+                          Text('Komşular arası alışveriş ve yardımlaşma',
+                              style: TextStyle(
+                                  fontSize: 15, color: AppleTheme.secondaryLabel)),
+                        ],
+                      ),
                     ),
                     IconButton(
-                      onPressed: () => _showCreateListingSheet(context),
+                      onPressed: _showCreateListingSheet,
                       icon: Container(
                         padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(color: AppleTheme.systemBlue, borderRadius: BorderRadius.circular(8)),
-                        child: const Icon(Icons.add_rounded, color: Colors.white, size: 20),
+                        decoration: BoxDecoration(
+                            color: AppleTheme.systemBlue,
+                            borderRadius: BorderRadius.circular(8)),
+                        child: const Icon(Icons.add_rounded,
+                            color: Colors.white, size: 20),
                       ),
                     ),
                   ],
@@ -144,19 +145,14 @@ class _BulletinBoardScreenState extends State<BulletinBoardScreen> with SingleTi
               ),
             ),
 
-            // Stats Cards
+            // Stats — sabit sayılar yerine yüklenen kayıtlardan hesaplanır.
             SliverToBoxAdapter(
               child: SizedBox(
                 height: 100,
                 child: ListView(
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.symmetric(horizontal: 16),
-                  children: [
-                    _buildStatCard('Toplam İlan', '${_stats['totalListings']}', Icons.article_rounded, AppleTheme.systemBlue),
-                    _buildStatCard('Aktif İlan', '${_stats['activeListings']}', Icons.check_circle_rounded, AppleTheme.systemGreen),
-                    _buildStatCard('Haftalık Görüntüleme', '${_stats['weeklyViews']}', Icons.visibility_rounded, AppleTheme.systemPurple),
-                    _buildStatCard('Tamamlanan', '${_stats['completedDeals']}', Icons.handshake_rounded, AppleTheme.systemOrange),
-                  ],
+                  children: _buildStatCards(),
                 ),
               ),
             ),
@@ -177,15 +173,22 @@ class _BulletinBoardScreenState extends State<BulletinBoardScreen> with SingleTi
                       child: FilterChip(
                         selected: isSelected,
                         label: Text(cat['name']!),
-                        onSelected: (selected) => setState(() => _selectedCategory = cat['id']!),
+                        onSelected: (_) =>
+                            setState(() => _selectedCategory = cat['id']!),
                         backgroundColor: Colors.white,
-                        selectedColor: AppleTheme.systemBlue.withOpacity(0.15),
+                        selectedColor:
+                            AppleTheme.systemBlue.withValues(alpha: 0.15),
                         checkmarkColor: AppleTheme.systemBlue,
                         labelStyle: TextStyle(
-                          color: isSelected ? AppleTheme.systemBlue : AppleTheme.label,
-                          fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                          color:
+                              isSelected ? AppleTheme.systemBlue : AppleTheme.label,
+                          fontWeight:
+                              isSelected ? FontWeight.w600 : FontWeight.w500,
                         ),
-                        side: BorderSide(color: isSelected ? AppleTheme.systemBlue : AppleTheme.systemGray5),
+                        side: BorderSide(
+                            color: isSelected
+                                ? AppleTheme.systemBlue
+                                : AppleTheme.systemGray5),
                       ),
                     );
                   },
@@ -206,7 +209,11 @@ class _BulletinBoardScreenState extends State<BulletinBoardScreen> with SingleTi
                   indicator: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(8),
-                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 4)],
+                    boxShadow: [
+                      BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.08),
+                          blurRadius: 4)
+                    ],
                   ),
                   indicatorPadding: const EdgeInsets.all(4),
                   labelColor: AppleTheme.label,
@@ -220,25 +227,7 @@ class _BulletinBoardScreenState extends State<BulletinBoardScreen> with SingleTi
               ),
             ),
 
-            // Listings Grid
-            SliverPadding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              sliver: SliverGrid(
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  childAspectRatio: 0.75,
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 12,
-                ),
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) {
-                    final listing = _getFilteredListings()[index];
-                    return _buildListingCard(listing);
-                  },
-                  childCount: _getFilteredListings().length,
-                ),
-              ),
-            ),
+            _buildListingsSliver(),
 
             const SliverToBoxAdapter(child: SizedBox(height: 100)),
           ],
@@ -247,9 +236,93 @@ class _BulletinBoardScreenState extends State<BulletinBoardScreen> with SingleTi
     );
   }
 
-  List<Map<String, dynamic>> _getFilteredListings() {
-    if (_selectedCategory == 'all') return _listings;
-    return _listings.where((l) => l['category'] == _selectedCategory).toList();
+  List<Widget> _buildStatCards() {
+    if (!_hasData) {
+      return [
+        _buildStatCard('Toplam İlan', '—', Icons.article_rounded, AppleTheme.systemBlue),
+        _buildStatCard('Aktif İlan', '—', Icons.check_circle_rounded, AppleTheme.systemGreen),
+        _buildStatCard('Görüntüleme', '—', Icons.visibility_rounded, AppleTheme.systemPurple),
+        _buildStatCard('Onay Bekleyen', '—', Icons.pending_rounded, AppleTheme.systemOrange),
+      ];
+    }
+
+    final pending = _listings.where(_isPending).length;
+    final active = _listings.length - pending;
+    // Görüntüleme sayacı sunucudan gelmiyorsa uydurulmaz; "—" gösterilir.
+    final hasViews = _listings.any((l) => _number(l, const ['views', 'view_count']) != null);
+    final views = _listings.fold<double>(
+        0, (sum, l) => sum + (_number(l, const ['views', 'view_count']) ?? 0));
+
+    return [
+      _buildStatCard('Toplam İlan', '${_listings.length}', Icons.article_rounded,
+          AppleTheme.systemBlue),
+      _buildStatCard('Aktif İlan', '$active', Icons.check_circle_rounded,
+          AppleTheme.systemGreen),
+      _buildStatCard('Görüntüleme', hasViews ? formatNumber(views) : '—',
+          Icons.visibility_rounded, AppleTheme.systemPurple),
+      _buildStatCard('Onay Bekleyen', '$pending', Icons.pending_rounded,
+          AppleTheme.systemOrange),
+    ];
+  }
+
+  Widget _buildListingsSliver() {
+    if (_loading) {
+      return const SliverToBoxAdapter(
+        child: SizedBox(height: 220, child: LoadingView(message: 'İlanlar alınıyor...')),
+      );
+    }
+
+    if (_error != null && isNotImplemented(_error!)) {
+      return const SliverToBoxAdapter(
+        child: NotImplementedNotice(
+          title: 'İlan panosu henüz hazır değil',
+          detail:
+              'İlan servisi veri katmanına bağlanmadığı için kayıt döndürmüyor. '
+              'Hazır olduğunda sakinlerin ilanları burada listelenecek.',
+        ),
+      );
+    }
+    if (_error != null) {
+      return SliverToBoxAdapter(
+        child: SizedBox(
+          height: 260,
+          child: ErrorStateView(message: toUserMessage(_error!), onRetry: _load),
+        ),
+      );
+    }
+
+    final items = _filteredListings;
+    if (items.isEmpty) {
+      return SliverToBoxAdapter(
+        child: SizedBox(
+          height: 220,
+          child: EmptyStateView(
+            message: _listings.isEmpty
+                ? 'Henüz ilan yok.'
+                : (_tabController.index == 1
+                    ? 'Onay bekleyen ilan yok.'
+                    : 'Seçili kategoride ilan yok.'),
+            icon: Icons.article_rounded,
+          ),
+        ),
+      );
+    }
+
+    return SliverPadding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      sliver: SliverGrid(
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          childAspectRatio: 0.75,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+        ),
+        delegate: SliverChildBuilderDelegate(
+          (context, index) => _buildListingCard(items[index]),
+          childCount: items.length,
+        ),
+      ),
+    );
   }
 
   Widget _buildStatCard(String title, String value, IconData icon, Color color) {
@@ -266,8 +339,15 @@ class _BulletinBoardScreenState extends State<BulletinBoardScreen> with SingleTi
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(value, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
-              Text(title, style: TextStyle(fontSize: 12, color: AppleTheme.secondaryLabel)),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(value,
+                    style: const TextStyle(
+                        fontSize: 22, fontWeight: FontWeight.w700)),
+              ),
+              Text(title,
+                  style:
+                      TextStyle(fontSize: 12, color: AppleTheme.secondaryLabel)),
             ],
           ),
         ],
@@ -276,48 +356,68 @@ class _BulletinBoardScreenState extends State<BulletinBoardScreen> with SingleTi
   }
 
   Widget _buildListingCard(Map<String, dynamic> listing) {
-    final catInfo = _getCategoryInfo(listing['category']);
-    
+    final catInfo = _getCategoryInfo(_categoryId(listing));
+    final price = _number(listing, const ['price', 'amount']);
+    final views = _number(listing, const ['views', 'view_count']);
+    final createdAt = listing['created_at'] ?? listing['published_at'] ?? listing['date'];
+
     return GestureDetector(
-      onTap: () => _showListingDetail(context, listing),
+      onTap: () => _showListingDetail(listing),
       child: Container(
         decoration: AppleTheme.cardDecoration,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Image/Placeholder
             Container(
               height: 100,
               decoration: BoxDecoration(
-                color: catInfo['color'].withOpacity(0.1),
+                color: (catInfo['color'] as Color).withValues(alpha: 0.1),
                 borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
               ),
               child: Stack(
                 children: [
-                  Center(child: Icon(catInfo['icon'], size: 40, color: catInfo['color'].withOpacity(0.5))),
-                  if (listing['urgent'] == true)
+                  Center(
+                      child: Icon(catInfo['icon'] as IconData,
+                          size: 40,
+                          color: (catInfo['color'] as Color)
+                              .withValues(alpha: 0.5))),
+                  if (_flag(listing, const ['urgent', 'is_urgent']) == true)
                     Positioned(
                       top: 8,
                       right: 8,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(color: AppleTheme.systemRed, borderRadius: BorderRadius.circular(4)),
-                        child: const Text('ACİL', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700)),
+                        padding:
+                            const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                            color: AppleTheme.systemRed,
+                            borderRadius: BorderRadius.circular(4)),
+                        child: const Text('ACİL',
+                            style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700)),
                       ),
                     ),
                   Positioned(
                     top: 8,
                     left: 8,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                      decoration: BoxDecoration(color: catInfo['color'].withOpacity(0.9), borderRadius: BorderRadius.circular(4)),
-                      child: Text(catInfo['name'], style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w600)),
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                      decoration: BoxDecoration(
+                          color: (catInfo['color'] as Color)
+                              .withValues(alpha: 0.9),
+                          borderRadius: BorderRadius.circular(4)),
+                      child: Text(catInfo['name'] as String,
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600)),
                     ),
                   ),
                 ],
               ),
             ),
-            // Content
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.all(12),
@@ -325,25 +425,39 @@ class _BulletinBoardScreenState extends State<BulletinBoardScreen> with SingleTi
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      listing['title'],
-                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                      _text(listing, const ['title', 'subject']) ?? 'Başlıksız ilan',
+                      style: const TextStyle(
+                          fontSize: 14, fontWeight: FontWeight.w600),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 4),
-                    if (listing['price'] != null)
+                    if (price != null)
                       Text(
-                        '₺${listing['price']}',
-                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppleTheme.systemGreen),
+                        formatTry(price),
+                        style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: AppleTheme.systemGreen),
                       ),
                     const Spacer(),
                     Row(
                       children: [
-                        Icon(Icons.visibility_rounded, size: 12, color: AppleTheme.tertiaryLabel),
-                        const SizedBox(width: 4),
-                        Text('${listing['views']}', style: TextStyle(fontSize: 11, color: AppleTheme.tertiaryLabel)),
+                        if (views != null) ...[
+                          Icon(Icons.visibility_rounded,
+                              size: 12, color: AppleTheme.tertiaryLabel),
+                          const SizedBox(width: 4),
+                          Text(formatNumber(views),
+                              style: TextStyle(
+                                  fontSize: 11, color: AppleTheme.tertiaryLabel)),
+                        ],
                         const Spacer(),
-                        Text(listing['date'], style: TextStyle(fontSize: 11, color: AppleTheme.tertiaryLabel)),
+                        Flexible(
+                          child: Text(formatDate(createdAt),
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                  fontSize: 11, color: AppleTheme.tertiaryLabel)),
+                        ),
                       ],
                     ),
                   ],
@@ -356,140 +470,252 @@ class _BulletinBoardScreenState extends State<BulletinBoardScreen> with SingleTi
     );
   }
 
+  String _categoryId(Map<String, dynamic> listing) =>
+      (_text(listing, const ['category', 'category_id', 'type']) ?? 'other')
+          .toLowerCase();
+
   Map<String, dynamic> _getCategoryInfo(String category) {
     switch (category) {
       case 'sale':
-        return {'name': 'Satılık', 'icon': Icons.sell_rounded, 'color': AppleTheme.systemBlue};
+        return {
+          'name': 'Satılık',
+          'icon': Icons.sell_rounded,
+          'color': AppleTheme.systemBlue
+        };
       case 'rent':
-        return {'name': 'Kiralık', 'icon': Icons.key_rounded, 'color': AppleTheme.systemPurple};
+        return {
+          'name': 'Kiralık',
+          'icon': Icons.key_rounded,
+          'color': AppleTheme.systemPurple
+        };
       case 'help':
-        return {'name': 'Yardımlaşma', 'icon': Icons.favorite_rounded, 'color': AppleTheme.systemPink};
+        return {
+          'name': 'Yardımlaşma',
+          'icon': Icons.favorite_rounded,
+          'color': AppleTheme.systemPink
+        };
       case 'service':
-        return {'name': 'Hizmet', 'icon': Icons.handyman_rounded, 'color': AppleTheme.systemOrange};
+        return {
+          'name': 'Hizmet',
+          'icon': Icons.handyman_rounded,
+          'color': AppleTheme.systemOrange
+        };
       case 'lost':
-        return {'name': 'Kayıp/Bulundu', 'icon': Icons.search_rounded, 'color': AppleTheme.systemRed};
+        return {
+          'name': 'Kayıp/Bulundu',
+          'icon': Icons.search_rounded,
+          'color': AppleTheme.systemRed
+        };
       default:
-        return {'name': 'Diğer', 'icon': Icons.article_rounded, 'color': AppleTheme.systemGray};
+        return {
+          'name': 'Diğer',
+          'icon': Icons.article_rounded,
+          'color': AppleTheme.systemGray
+        };
     }
   }
 
-  void _showCreateListingSheet(BuildContext context) {
+  // =============================================
+  // YENİ İLAN
+  // =============================================
+  void _showCreateListingSheet() {
+    final titleController = TextEditingController();
+    final descriptionController = TextEditingController();
+    final priceController = TextEditingController();
+    String category = 'sale';
+    bool saving = false;
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        height: MediaQuery.of(context).size.height * 0.85,
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: Column(
-          children: [
-            Container(
-              width: 36,
-              height: 5,
-              margin: const EdgeInsets.only(top: 12),
-              decoration: BoxDecoration(color: AppleTheme.systemGray4, borderRadius: BorderRadius.circular(2.5)),
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (sheetContext, setSheetState) => Padding(
+          padding:
+              EdgeInsets.only(bottom: MediaQuery.of(sheetContext).viewInsets.bottom),
+          child: Container(
+            height: MediaQuery.of(sheetContext).size.height * 0.85,
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
             ),
-            Padding(
-              padding: const EdgeInsets.all(20),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  TextButton(onPressed: () => Navigator.pop(context), child: const Text('İptal')),
-                  const Text('Yeni İlan', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
-                  TextButton(onPressed: () {}, child: const Text('Yayınla')),
-                ],
-              ),
+            child: Column(
+              children: [
+                Container(
+                  width: 36,
+                  height: 5,
+                  margin: const EdgeInsets.only(top: 12),
+                  decoration: BoxDecoration(
+                      color: AppleTheme.systemGray4,
+                      borderRadius: BorderRadius.circular(2.5)),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      TextButton(
+                          onPressed: () => Navigator.pop(sheetContext),
+                          child: const Text('İptal')),
+                      const Text('Yeni İlan',
+                          style:
+                              TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+                      TextButton(
+                        onPressed: saving
+                            ? null
+                            : () async {
+                                final title = titleController.text.trim();
+                                if (title.isEmpty) {
+                                  ScaffoldMessenger.of(sheetContext).showSnackBar(
+                                    const SnackBar(
+                                        content: Text('Başlık zorunludur.')),
+                                  );
+                                  return;
+                                }
+                                setSheetState(() => saving = true);
+                                final ok = await _submitListing(
+                                  title: title,
+                                  description: descriptionController.text.trim(),
+                                  category: category,
+                                  priceText: priceController.text,
+                                );
+                                if (!sheetContext.mounted) return;
+                                setSheetState(() => saving = false);
+                                if (ok) Navigator.pop(sheetContext);
+                              },
+                        child: saving
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(strokeWidth: 2))
+                            : const Text('Yayınla'),
+                      ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    children: [
+                      const Text('Kategori',
+                          style:
+                              TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: _categories.skip(1).map((cat) {
+                          final id = cat['id']!;
+                          final info = _getCategoryInfo(id);
+                          return ChoiceChip(
+                            label: Text(cat['name']!),
+                            selected: category == id,
+                            avatar: Icon(info['icon'] as IconData, size: 18),
+                            onSelected: (_) => setSheetState(() => category = id),
+                          );
+                        }).toList(),
+                      ),
+                      const SizedBox(height: 24),
+                      TextField(
+                        controller: titleController,
+                        decoration: InputDecoration(
+                          labelText: 'Başlık',
+                          hintText: 'İlan başlığı',
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: descriptionController,
+                        maxLines: 4,
+                        decoration: InputDecoration(
+                          labelText: 'Açıklama',
+                          hintText: 'Detaylı açıklama yazın...',
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      TextField(
+                        controller: priceController,
+                        keyboardType:
+                            const TextInputType.numberWithOptions(decimal: true),
+                        decoration: InputDecoration(
+                          labelText: 'Fiyat (Opsiyonel)',
+                          prefixText: '₺ ',
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      // NOT: Fotoğraf yükleme alanı kaldırıldı — dosya yükleme için
+                      // sunucu ucu yok; görsel eklenebileceği izlenimi verilmemeli.
+                    ],
+                  ),
+                ),
+              ],
             ),
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                children: [
-                  // Category Selection
-                  const Text('Kategori', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: _categories.skip(1).map((cat) {
-                      final info = _getCategoryInfo(cat['id']!);
-                      return ChoiceChip(
-                        label: Text(cat['name']!),
-                        selected: false,
-                        avatar: Icon(info['icon'], size: 18),
-                      );
-                    }).toList(),
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Title
-                  TextField(
-                    decoration: InputDecoration(
-                      labelText: 'Başlık',
-                      hintText: 'İlan başlığı',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Description
-                  TextField(
-                    maxLines: 4,
-                    decoration: InputDecoration(
-                      labelText: 'Açıklama',
-                      hintText: 'Detaylı açıklama yazın...',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Price
-                  TextField(
-                    keyboardType: TextInputType.number,
-                    decoration: InputDecoration(
-                      labelText: 'Fiyat (Opsiyonel)',
-                      prefixText: '₺ ',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Image Upload
-                  Container(
-                    height: 120,
-                    decoration: BoxDecoration(
-                      border: Border.all(color: AppleTheme.systemGray4, style: BorderStyle.solid),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.add_photo_alternate_rounded, size: 40, color: AppleTheme.systemGray2),
-                        const SizedBox(height: 8),
-                        Text('Fotoğraf Ekle', style: TextStyle(color: AppleTheme.systemGray2)),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
+          ),
         ),
       ),
-    );
+    ).whenComplete(() {
+      titleController.dispose();
+      descriptionController.dispose();
+      priceController.dispose();
+    });
   }
 
-  void _showListingDetail(BuildContext context, Map<String, dynamic> listing) {
-    final catInfo = _getCategoryInfo(listing['category']);
-    
+  Future<bool> _submitListing({
+    required String title,
+    required String description,
+    required String category,
+    required String priceText,
+  }) async {
+    final price = double.tryParse(priceText.trim().replaceAll(',', '.'));
+    try {
+      await apiClient.createBulletin({
+        'title': title,
+        'category': category,
+        if (description.isNotEmpty) 'description': description,
+        if (price != null) 'price': price,
+      });
+      if (!mounted) return true;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+            content: const Text('İlan yayınlandı'),
+            backgroundColor: AppleTheme.systemGreen),
+      );
+      await _load();
+      return true;
+    } catch (e) {
+      if (!mounted) return false;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+            content: Text('Yayınlanamadı: ${toUserMessage(e)}'),
+            backgroundColor: AppleTheme.systemRed),
+      );
+      return false;
+    }
+  }
+
+  void _showListingDetail(Map<String, dynamic> listing) {
+    final catInfo = _getCategoryInfo(_categoryId(listing));
+    final price = _number(listing, const ['price', 'amount']);
+    final views = _number(listing, const ['views', 'view_count']);
+    final author = _text(listing, const ['author', 'author_name', 'created_by_name']);
+    final unit = _text(listing, const ['unit', 'unit_no', 'unit_number']);
+    final description = _text(listing, const ['description', 'content', 'body']);
+    final id = _text(listing, const ['id']);
+    final createdAt =
+        listing['created_at'] ?? listing['published_at'] ?? listing['date'];
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        height: MediaQuery.of(context).size.height * 0.85,
+      builder: (sheetContext) => Container(
+        height: MediaQuery.of(sheetContext).size.height * 0.85,
         decoration: const BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -500,116 +726,134 @@ class _BulletinBoardScreenState extends State<BulletinBoardScreen> with SingleTi
               width: 36,
               height: 5,
               margin: const EdgeInsets.only(top: 12),
-              decoration: BoxDecoration(color: AppleTheme.systemGray4, borderRadius: BorderRadius.circular(2.5)),
+              decoration: BoxDecoration(
+                  color: AppleTheme.systemGray4,
+                  borderRadius: BorderRadius.circular(2.5)),
             ),
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.all(20),
                 children: [
-                  // Category Badge
                   Align(
                     alignment: Alignment.centerLeft,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                      decoration: BoxDecoration(color: catInfo['color'].withOpacity(0.15), borderRadius: BorderRadius.circular(6)),
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                      decoration: BoxDecoration(
+                          color: (catInfo['color'] as Color)
+                              .withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(6)),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(catInfo['icon'], size: 16, color: catInfo['color']),
+                          Icon(catInfo['icon'] as IconData,
+                              size: 16, color: catInfo['color'] as Color),
                           const SizedBox(width: 6),
-                          Text(catInfo['name'], style: TextStyle(color: catInfo['color'], fontWeight: FontWeight.w600)),
+                          Text(catInfo['name'] as String,
+                              style: TextStyle(
+                                  color: catInfo['color'] as Color,
+                                  fontWeight: FontWeight.w600)),
                         ],
                       ),
                     ),
                   ),
                   const SizedBox(height: 16),
-
-                  // Title
-                  Text(listing['title'], style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700)),
+                  Text(_text(listing, const ['title', 'subject']) ?? 'Başlıksız ilan',
+                      style: const TextStyle(
+                          fontSize: 24, fontWeight: FontWeight.w700)),
                   const SizedBox(height: 8),
-
-                  // Price
-                  if (listing['price'] != null)
-                    Text('₺${listing['price']}', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w700, color: AppleTheme.systemGreen)),
-                  
+                  if (price != null)
+                    Text(formatTry(price),
+                        style: TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.w700,
+                            color: AppleTheme.systemGreen)),
                   const SizedBox(height: 16),
 
-                  // Author Info
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(color: AppleTheme.systemGray6, borderRadius: BorderRadius.circular(12)),
-                    child: Row(
-                      children: [
-                        CircleAvatar(
-                          radius: 24,
-                          backgroundColor: AppleTheme.systemBlue.withOpacity(0.15),
-                          child: Text(
-                            listing['author'].toString().substring(0, 1),
-                            style: TextStyle(color: AppleTheme.systemBlue, fontWeight: FontWeight.w700),
+                  // İlan sahibi yalnızca sunucu gerçekten gönderdiyse gösterilir.
+                  if (author != null)
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                          color: AppleTheme.systemGray6,
+                          borderRadius: BorderRadius.circular(12)),
+                      child: Row(
+                        children: [
+                          CircleAvatar(
+                            radius: 24,
+                            backgroundColor:
+                                AppleTheme.systemBlue.withValues(alpha: 0.15),
+                            child: Text(
+                              author.substring(0, 1).toUpperCase(),
+                              style: TextStyle(
+                                  color: AppleTheme.systemBlue,
+                                  fontWeight: FontWeight.w700),
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(listing['author'], style: const TextStyle(fontWeight: FontWeight.w600)),
-                              Text(listing['unit'], style: TextStyle(color: AppleTheme.secondaryLabel)),
-                            ],
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(author,
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.w600)),
+                                if (unit != null)
+                                  Text(unit,
+                                      style: TextStyle(
+                                          color: AppleTheme.secondaryLabel)),
+                              ],
+                            ),
                           ),
-                        ),
-                        IconButton(
-                          onPressed: () {},
-                          icon: Icon(Icons.chat_bubble_outline_rounded, color: AppleTheme.systemBlue),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
                   const SizedBox(height: 20),
 
-                  // Description
-                  const Text('Açıklama', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+                  const Text('Açıklama',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
                   const SizedBox(height: 8),
-                  Text(listing['description'], style: TextStyle(color: AppleTheme.secondaryLabel, height: 1.5)),
-                  
-                  const SizedBox(height: 20),
+                  Text(description ?? 'Açıklama girilmemiş.',
+                      style: TextStyle(
+                          color: AppleTheme.secondaryLabel, height: 1.5)),
 
-                  // Stats
+                  const SizedBox(height: 20),
                   Row(
                     children: [
-                      Icon(Icons.visibility_rounded, size: 16, color: AppleTheme.tertiaryLabel),
+                      if (views != null) ...[
+                        Icon(Icons.visibility_rounded,
+                            size: 16, color: AppleTheme.tertiaryLabel),
+                        const SizedBox(width: 4),
+                        Text('${formatNumber(views)} görüntüleme',
+                            style: TextStyle(color: AppleTheme.tertiaryLabel)),
+                        const SizedBox(width: 16),
+                      ],
+                      Icon(Icons.access_time_rounded,
+                          size: 16, color: AppleTheme.tertiaryLabel),
                       const SizedBox(width: 4),
-                      Text('${listing['views']} görüntüleme', style: TextStyle(color: AppleTheme.tertiaryLabel)),
-                      const SizedBox(width: 16),
-                      Icon(Icons.access_time_rounded, size: 16, color: AppleTheme.tertiaryLabel),
-                      const SizedBox(width: 4),
-                      Text(listing['date'], style: TextStyle(color: AppleTheme.tertiaryLabel)),
+                      Flexible(
+                        child: Text(formatDateTime(createdAt),
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(color: AppleTheme.tertiaryLabel)),
+                      ),
                     ],
                   ),
 
                   const SizedBox(height: 32),
 
-                  // Admin Actions
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () {},
-                          icon: const Icon(Icons.edit_rounded),
-                          label: const Text('Düzenle'),
-                        ),
+                  // Yalnızca gerçek bir uç bulunan işlem bırakıldı: kaldırma.
+                  // "Düzenle" ve "Mesaj gönder" düğmeleri karşılıksız olduğu için silindi.
+                  if (id != null)
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: () => _confirmDelete(sheetContext, id, listing),
+                        style: ElevatedButton.styleFrom(
+                            backgroundColor: AppleTheme.systemRed),
+                        icon: const Icon(Icons.delete_rounded),
+                        label: const Text('Kaldır'),
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          onPressed: () {},
-                          style: ElevatedButton.styleFrom(backgroundColor: AppleTheme.systemRed),
-                          icon: const Icon(Icons.delete_rounded),
-                          label: const Text('Kaldır'),
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
                 ],
               ),
             ),
@@ -618,4 +862,78 @@ class _BulletinBoardScreenState extends State<BulletinBoardScreen> with SingleTi
       ),
     );
   }
+
+  Future<void> _confirmDelete(
+      BuildContext sheetContext, String id, Map<String, dynamic> listing) async {
+    final confirmed = await showDialog<bool>(
+      context: sheetContext,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('İlanı Kaldır'),
+        content: Text(
+            '"${_text(listing, const ['title', 'subject']) ?? 'Bu ilan'}" kaldırılsın mı?'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Vazgeç')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            style: ElevatedButton.styleFrom(backgroundColor: AppleTheme.systemRed),
+            child: const Text('Kaldır'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    try {
+      await apiClient.deleteBulletin(id);
+      if (sheetContext.mounted) Navigator.pop(sheetContext);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+            content: const Text('İlan kaldırıldı'),
+            backgroundColor: AppleTheme.systemGreen),
+      );
+      await _load();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+            content: Text('Kaldırılamadı: ${toUserMessage(e)}'),
+            backgroundColor: AppleTheme.systemRed),
+      );
+    }
+  }
+}
+
+String? _text(Map<String, dynamic> map, List<String> keys) {
+  for (final key in keys) {
+    final v = map[key];
+    if (v is String && v.isNotEmpty) return v;
+  }
+  return null;
+}
+
+double? _number(Map<String, dynamic> map, List<String> keys) {
+  for (final key in keys) {
+    final v = map[key];
+    if (v is num) return v.toDouble();
+    if (v is String) {
+      final parsed = double.tryParse(v);
+      if (parsed != null) return parsed;
+    }
+  }
+  return null;
+}
+
+bool? _flag(Map<String, dynamic> map, List<String> keys) {
+  for (final key in keys) {
+    final v = map[key];
+    if (v is bool) return v;
+    if (v is String) {
+      if (v.toLowerCase() == 'true') return true;
+      if (v.toLowerCase() == 'false') return false;
+    }
+  }
+  return null;
 }

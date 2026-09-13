@@ -1,77 +1,158 @@
+// Duyuru listesi ekranı.
+//
+// NE DEĞİŞTİ VE NEDEN (2026-09-13):
+// Liste koda gömülü 3 sahte duyurudan ("Aylık Aidat Hatırlatması", "Asansör
+// Bakımı", "Otopark Düzenlemesi") oluşuyordu ve her kartın altında sabit
+// "85 görüntüleme" yazıyordu. Yönetici, gerçekte yayınlanmış duyuruları göremiyor,
+// üstelik var olmayan bir okunma istatistiğine bakıyordu.
+//
+// Artık liste `GET /announcements` ucundan gelir. Bu uç community servisinde
+// henüz gerçek veri katmanına bağlı DEĞİL ve 501 döner; bu durumda sahte kayıt
+// göstermek yerine `NotImplementedNotice` ile durum açıkça bildirilir. Uç gerçek
+// veriye bağlandığı an ekran hiçbir değişiklik gerektirmeden çalışır.
+//
+// "Görüntülenme" satırı kaldırıldı: sunucu böyle bir alan üretmiyor.
+// "Düzenle" menü öğesi kaldırıldı: uygulamada düzenleme ekranı/rotası yok, menü
+// seçildiğinde sessizce hiçbir şey olmuyordu. Kalan iki işlem (sabitle, sil)
+// gerçek API çağrılarıdır.
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../../../../core/theme/app_theme.dart';
 
-class AnnouncementsScreen extends StatelessWidget {
+import '../../../../core/network/api_client.dart';
+import '../../../../core/theme/app_theme.dart';
+import '../../../../core/utils/formatters.dart';
+import '../../../../core/widgets/data_state.dart';
+
+class AnnouncementsScreen extends StatefulWidget {
   const AnnouncementsScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final announcements = [
-      _Announcement(id: '1', title: 'Aylık Aidat Hatırlatması', content: 'Şubat ayı aidatlarının son ödeme tarihi 15 Şubat\'tır.', date: '01.02.2026', isPinned: true),
-      _Announcement(id: '2', title: 'Asansör Bakımı', content: 'A ve B blok asansörleri 5 Şubat\'ta bakıma alınacaktır.', date: '30.01.2026', isPinned: false),
-      _Announcement(id: '3', title: 'Otopark Düzenlemesi', content: 'Misafir otoparkı yeni düzenleme ile A blok önüne taşınmıştır.', date: '28.01.2026', isPinned: false),
-    ];
+  State<AnnouncementsScreen> createState() => _AnnouncementsScreenState();
+}
 
+class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
+  bool _loading = true;
+  Object? _error;
+  List<Map<String, dynamic>> _announcements = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final data = await apiClient.getAnnouncements();
+      if (!mounted) return;
+      setState(() {
+        _announcements = data
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e;
+        _loading = false;
+      });
+    }
+  }
+
+  Future<void> _togglePin(Map<String, dynamic> item) async {
+    final id = (item['id'] ?? '').toString();
+    if (id.isEmpty) return;
+    final pinned = item['is_pinned'] == true;
+    try {
+      // Sunucu tam kaydı beklediği için mevcut alanlar korunarak gönderilir.
+      await apiClient.updateAnnouncement(id, {
+        'title': item['title'],
+        'content': item['content'],
+        'category': item['category'],
+        'priority': item['priority'],
+        'is_pinned': !pinned,
+      });
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(pinned ? 'Sabitleme kaldırıldı' : 'Duyuru sabitlendi'),
+          backgroundColor: Colors.green,
+        ),
+      );
+      await _load();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('İşlem yapılamadı: ${toUserMessage(e)}'),
+          backgroundColor: AppTheme.errorColor,
+        ),
+      );
+    }
+  }
+
+  Future<void> _delete(Map<String, dynamic> item) async {
+    final id = (item['id'] ?? '').toString();
+    if (id.isEmpty) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Duyuruyu sil'),
+        content: Text(
+            '"${item['title'] ?? ''}" duyurusu silinecek. Onaylıyor musunuz?'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('İptal')),
+          ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Sil')),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    try {
+      await apiClient.deleteAnnouncement(id);
+      if (!mounted) return;
+      // Silindi mesajı yalnızca sunucu isteği kabul ettiyse gösterilir.
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Duyuru silindi'), backgroundColor: Colors.green),
+      );
+      await _load();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Duyuru silinemedi: ${toUserMessage(e)}'),
+          backgroundColor: AppTheme.errorColor,
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Duyurular'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _loading ? null : _load,
+          ),
+        ],
       ),
-      body: ListView.builder(
-        padding: const EdgeInsets.all(16),
-        itemCount: announcements.length,
-        itemBuilder: (context, index) {
-          final item = announcements[index];
-          return Card(
-            margin: const EdgeInsets.only(bottom: 12),
-            child: InkWell(
-              onTap: () {},
-              borderRadius: BorderRadius.circular(12),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        if (item.isPinned) ...[
-                          const Icon(Icons.push_pin, size: 16, color: AppTheme.primaryColor),
-                          const SizedBox(width: 4),
-                        ],
-                        Expanded(
-                          child: Text(item.title, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
-                        ),
-                        PopupMenuButton(
-                          icon: const Icon(Icons.more_vert),
-                          itemBuilder: (context) => [
-                            const PopupMenuItem(value: 'edit', child: Text('Düzenle')),
-                            const PopupMenuItem(value: 'pin', child: Text('Sabitle')),
-                            const PopupMenuItem(value: 'delete', child: Text('Sil', style: TextStyle(color: Colors.red))),
-                          ],
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(item.content, style: const TextStyle(color: AppTheme.textSecondary)),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        const Icon(Icons.calendar_today, size: 14, color: AppTheme.textSecondary),
-                        const SizedBox(width: 4),
-                        Text(item.date, style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
-                        const Spacer(),
-                        const Icon(Icons.visibility, size: 14, color: AppTheme.textSecondary),
-                        const SizedBox(width: 4),
-                        const Text('85 görüntüleme', style: TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
-      ),
+      body: _buildBody(),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => context.go('/announcements/create'),
         icon: const Icon(Icons.add),
@@ -79,13 +160,132 @@ class AnnouncementsScreen extends StatelessWidget {
       ),
     );
   }
-}
 
-class _Announcement {
-  final String id;
-  final String title;
-  final String content;
-  final String date;
-  final bool isPinned;
-  _Announcement({required this.id, required this.title, required this.content, required this.date, required this.isPinned});
+  Widget _buildBody() {
+    if (_loading) {
+      return const LoadingView(message: 'Duyurular alınıyor...');
+    }
+    if (_error != null) {
+      final error = _error!;
+      if (isNotImplemented(error)) {
+        return const SingleChildScrollView(
+          child: NotImplementedNotice(
+            title: 'Duyurular henüz sunucuda hazır değil',
+            detail: 'Duyuru servisi (community.announcements) gerçek veri '
+                'katmanına bağlanmadı; sunucu 501 döndürüyor. Gerçek duyuru '
+                'listesi hazır olduğunda bu ekran otomatik çalışacaktır.',
+          ),
+        );
+      }
+      return ErrorStateView(message: toUserMessage(error), onRetry: _load);
+    }
+    if (_announcements.isEmpty) {
+      return const EmptyStateView(
+        message: 'Henüz yayınlanmış duyuru yok.',
+        icon: Icons.campaign_outlined,
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: ListView.builder(
+        padding: const EdgeInsets.all(16),
+        physics: const AlwaysScrollableScrollPhysics(),
+        itemCount: _announcements.length,
+        itemBuilder: (context, index) {
+          final item = _announcements[index];
+          final title = (item['title'] ?? '').toString();
+          final content = (item['content'] ?? '').toString();
+          final isPinned = item['is_pinned'] == true;
+
+          return Card(
+            margin: const EdgeInsets.only(bottom: 12),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      if (isPinned) ...[
+                        const Icon(Icons.push_pin,
+                            size: 16, color: AppTheme.primaryColor),
+                        const SizedBox(width: 4),
+                      ],
+                      Expanded(
+                        child: Text(
+                          title.isEmpty ? '(başlıksız duyuru)' : title,
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w600, fontSize: 16),
+                        ),
+                      ),
+                      PopupMenuButton<String>(
+                        icon: const Icon(Icons.more_vert),
+                        onSelected: (value) {
+                          if (value == 'pin') _togglePin(item);
+                          if (value == 'delete') _delete(item);
+                        },
+                        itemBuilder: (context) => [
+                          PopupMenuItem(
+                            value: 'pin',
+                            child: Text(isPinned
+                                ? 'Sabitlemeyi kaldır'
+                                : 'Sabitle'),
+                          ),
+                          const PopupMenuItem(
+                            value: 'delete',
+                            child: Text('Sil',
+                                style: TextStyle(color: Colors.red)),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(content.isEmpty ? '—' : content,
+                      style: const TextStyle(color: AppTheme.textSecondary)),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      const Icon(Icons.calendar_today,
+                          size: 14, color: AppTheme.textSecondary),
+                      const SizedBox(width: 4),
+                      Text(formatDate(item['created_at']),
+                          style: const TextStyle(
+                              fontSize: 12, color: AppTheme.textSecondary)),
+                      const Spacer(),
+                      if ((item['category'] ?? '').toString().isNotEmpty)
+                        Text(
+                          _categoryText(item['category'].toString()),
+                          style: const TextStyle(
+                              fontSize: 12, color: AppTheme.textSecondary),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  String _categoryText(String category) {
+    switch (category) {
+      case 'GENERAL':
+      case 'INFO':
+        return 'Genel';
+      case 'PAYMENT':
+        return 'Ödeme';
+      case 'MAINTENANCE':
+        return 'Bakım';
+      case 'MEETING':
+        return 'Toplantı';
+      case 'EMERGENCY':
+        return 'Acil';
+      default:
+        return category;
+    }
+  }
 }

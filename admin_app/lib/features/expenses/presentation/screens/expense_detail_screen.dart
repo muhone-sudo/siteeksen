@@ -1,202 +1,493 @@
-import 'package:flutter/material.dart';
-import '../../../../core/theme/app_theme.dart';
+// Gider detay ekranı.
+//
+// NEDEN DEĞİŞTİ (2026-09-13):
+// Ekran `build()` içinde açıkça "// Mock data" yazan sabit bir map kullanıyordu:
+// AYEDAŞ faturası, "2026-001234" fatura numarası, ₺2.450,75 tutar, "124 daire",
+// "₺19,76 daire başı" ve var olmayan bir "fatura.pdf (245 KB)". Hangi gidere
+// tıklanırsa tıklansın aynı sahte kayıt gösteriliyordu.
+//
+// Artık kayıt `apiClient.getExpense(id)` ile alınır ve yalnızca sunucudan gelen
+// alanlar gösterilir; olmayan alan için "—" yazılır. Düzenle/kopyala/sil ile fatura
+// görüntüleme için doğrulanmış bir uç bulunmadığından bu eylemler sahte başarı
+// mesajı yerine "henüz hazır değil" bilgisi verir.
 
-class ExpenseDetailScreen extends StatelessWidget {
+import 'package:flutter/material.dart';
+
+import '../../../../core/network/api_client.dart';
+import '../../../../core/theme/app_theme.dart';
+import '../../../../core/utils/formatters.dart';
+import '../../../../core/widgets/data_state.dart';
+
+class ExpenseDetailScreen extends StatefulWidget {
   final String expenseId;
   const ExpenseDetailScreen({super.key, required this.expenseId});
 
   @override
-  Widget build(BuildContext context) {
-    // Mock data
-    final expense = {
-      'id': expenseId,
-      'category': 'Ortak Elektrik',
-      'description': 'Ocak 2026 elektrik faturası',
-      'amount': 2450.75,
-      'date': '28.01.2026',
-      'is_invoiced': true,
-      'reflects_to_assessment': true,
-      'status': 'APPROVED',
-      'vendor_name': 'AYEDAŞ Elektrik Dağıtım A.Ş.',
-      'invoice_number': '2026-001234',
-      'distribution_type': 'EQUAL',
-      'per_unit_amount': 19.76,
-      'invoices': [
-        {'id': '1', 'name': 'fatura.pdf', 'type': 'PDF'},
-      ],
-    };
+  State<ExpenseDetailScreen> createState() => _ExpenseDetailScreenState();
+}
 
+class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
+  bool _loading = true;
+  Object? _error;
+  Map<String, dynamic>? _expense;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final data = await apiClient.getExpense(widget.expenseId);
+      if (!mounted) return;
+      setState(() {
+        _expense = data;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e;
+        _loading = false;
+      });
+    }
+  }
+
+  void _notReady(String action) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('$action henüz hazır değil.')),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Gider Detayı'),
         actions: [
-          IconButton(icon: const Icon(Icons.edit), onPressed: () {}),
-          PopupMenuButton(
-            itemBuilder: (context) => [
-              const PopupMenuItem(value: 'duplicate', child: Text('Kopyala')),
-              const PopupMenuItem(value: 'delete', child: Text('Sil', style: TextStyle(color: Colors.red))),
+          IconButton(
+            icon: const Icon(Icons.edit),
+            tooltip: 'Düzenle',
+            onPressed: () => _notReady('Gider düzenleme'),
+          ),
+          PopupMenuButton<String>(
+            onSelected: (value) =>
+                _notReady(value == 'duplicate' ? 'Kopyalama' : 'Silme'),
+            itemBuilder: (context) => const [
+              PopupMenuItem(value: 'duplicate', child: Text('Kopyala')),
+              PopupMenuItem(
+                  value: 'delete',
+                  child: Text('Sil', style: TextStyle(color: Colors.red))),
             ],
           ),
         ],
       ),
-      body: SingleChildScrollView(
+      body: _buildBody(),
+    );
+  }
+
+  Widget _buildBody() {
+    if (_loading) return const LoadingView(message: 'Gider detayı alınıyor...');
+
+    if (_error != null && isNotImplemented(_error!)) {
+      return ListView(
+        children: const [
+          NotImplementedNotice(
+            title: 'Gider detayı henüz hazır değil',
+            detail: 'Gider servisi bu kayıt için veri döndürmüyor.',
+          ),
+        ],
+      );
+    }
+    if (_error != null) {
+      return ErrorStateView(message: toUserMessage(_error!), onRetry: _load);
+    }
+
+    final expense = _expense ?? const <String, dynamic>{};
+    final category = _text(expense, const ['category_name', 'category']) ?? 'Kategorisiz';
+    final description = _text(expense, const ['description', 'title']) ?? '—';
+    final amount = _number(expense, const ['amount', 'total_amount']);
+    final perUnit = _number(expense, const ['per_unit_amount']);
+    final unitCount = _number(expense, const ['unit_count', 'units'])?.toInt();
+    final isInvoiced = _flag(expense, const ['is_invoiced']);
+    final reflects = _flag(expense, const ['reflects_to_assessment']);
+    final status = (_text(expense, const ['status']) ?? '').toUpperCase();
+    final documents = _documents(expense);
+
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: ListView(
         padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header Card
+        children: [
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 24,
+                        backgroundColor: _categoryColor(category).withValues(alpha: 0.1),
+                        child: Icon(_categoryIcon(category), color: _categoryColor(category)),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(category,
+                                style: const TextStyle(
+                                    fontSize: 18, fontWeight: FontWeight.bold)),
+                            Text(description,
+                                style: const TextStyle(color: AppTheme.textSecondary)),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppTheme.primaryColor.withValues(alpha: 0.05),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Toplam Tutar'),
+                        Text(amount == null ? '—' : formatTry(amount),
+                            style: const TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                                color: AppTheme.primaryColor)),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  // Rozetler yalnızca sunucu o alanı gerçekten döndürdüyse çizilir.
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      if (isInvoiced == true)
+                        const _Badge(
+                            icon: Icons.receipt,
+                            label: 'Faturalı',
+                            color: AppTheme.successColor)
+                      else if (isInvoiced == false)
+                        const _Badge(
+                            icon: Icons.warning_amber,
+                            label: 'Faturasız',
+                            color: AppTheme.warningColor),
+                      if (reflects == true)
+                        const _Badge(
+                            icon: Icons.account_balance_wallet,
+                            label: 'Aidata Yansıyor',
+                            color: AppTheme.primaryColor),
+                      if (status.isNotEmpty)
+                        _Badge(
+                          icon: _statusIcon(status),
+                          label: _statusLabel(status),
+                          color: _statusColor(status),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          Card(
+            child: Column(
+              children: [
+                _DetailTile(
+                    icon: Icons.calendar_today,
+                    label: 'Gider Tarihi',
+                    value: formatDate(expense['expense_date'] ??
+                        expense['date'] ??
+                        expense['created_at'])),
+                const Divider(height: 1),
+                _DetailTile(
+                    icon: Icons.business,
+                    label: 'Firma',
+                    value: _text(expense, const ['vendor_name', 'vendor']) ?? '—'),
+                const Divider(height: 1),
+                _DetailTile(
+                    icon: Icons.tag,
+                    label: 'Fatura No',
+                    value: _text(expense, const ['invoice_number', 'invoice_no']) ?? '—'),
+                const Divider(height: 1),
+                _DetailTile(
+                  icon: Icons.pie_chart,
+                  label: 'Dağıtım',
+                  value: _distributionLabel(
+                      _text(expense, const ['distribution_type']), unitCount),
+                ),
+                const Divider(height: 1),
+                _DetailTile(
+                    icon: Icons.home,
+                    label: 'Daire Başı',
+                    value: perUnit == null ? '—' : formatTry(perUnit)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          const Text('Fatura Dosyaları',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 8),
+          if (documents.isEmpty)
+            const EmptyStateView(
+                message: 'Bu gidere eklenmiş fatura dosyası yok.',
+                icon: Icons.description_outlined)
+          else
+            ...documents.map((doc) => Card(
+                  child: ListTile(
+                    leading: const Icon(Icons.description, color: AppTheme.primaryColor, size: 32),
+                    title: Text(_text(doc, const ['name', 'file_name']) ?? 'Belge'),
+                    subtitle: Text(formatDate(doc['created_at'] ?? doc['uploaded_at'])),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.visibility),
+                      tooltip: 'Görüntüle',
+                      // Belge görüntüleme/indirme için bağlanmış bir uç yok.
+                      onPressed: () => _notReady('Belge görüntüleme'),
+                    ),
+                  ),
+                )),
+          const SizedBox(height: 16),
+
+          if (reflects == true) ...[
+            const Text('Aidat Dağılımı',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 8),
             Card(
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        CircleAvatar(
-                          radius: 24,
-                          backgroundColor: Colors.amber.withOpacity(0.1),
-                          child: const Icon(Icons.bolt, color: Colors.amber),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(expense['category'] as String, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                              Text(expense['description'] as String, style: const TextStyle(color: AppTheme.textSecondary)),
-                            ],
-                          ),
-                        ),
-                      ],
+                    _SplitRow(
+                      label: 'Dönem',
+                      value: _periodLabel(expense),
                     ),
-                    const SizedBox(height: 16),
-                    
-                    // Amount
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: AppTheme.primaryColor.withOpacity(0.05),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text('Toplam Tutar'),
-                          Text('₺${expense['amount']}', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppTheme.primaryColor)),
-                        ],
-                      ),
+                    const Divider(),
+                    _SplitRow(
+                      label: 'Dağıtım Tipi',
+                      value: _distributionLabel(
+                          _text(expense, const ['distribution_type']), null),
                     ),
-                    const SizedBox(height: 12),
-                    
-                    // Badges
-                    Wrap(
-                      spacing: 8,
-                      children: [
-                        if (expense['is_invoiced'] == true)
-                          _Badge(icon: Icons.receipt, label: 'Faturalı', color: AppTheme.successColor)
-                        else
-                          _Badge(icon: Icons.warning_amber, label: 'Faturasız', color: AppTheme.warningColor),
-                        
-                        if (expense['reflects_to_assessment'] == true)
-                          _Badge(icon: Icons.account_balance_wallet, label: 'Aidata Yansıyor', color: AppTheme.primaryColor),
-                        
-                        _Badge(icon: Icons.check_circle, label: 'Onaylandı', color: AppTheme.successColor),
-                      ],
+                    const Divider(),
+                    _SplitRow(
+                      label: 'Daire Sayısı',
+                      value: unitCount == null ? '—' : '$unitCount',
+                    ),
+                    const Divider(),
+                    _SplitRow(
+                      label: 'Daire Başı Tutar',
+                      value: perUnit == null ? '—' : formatTry(perUnit),
+                      highlight: true,
                     ),
                   ],
                 ),
               ),
             ),
-            const SizedBox(height: 16),
-            
-            // Details
-            Card(
-              child: Column(
-                children: [
-                  _DetailTile(icon: Icons.calendar_today, label: 'Gider Tarihi', value: expense['date'] as String),
-                  const Divider(height: 1),
-                  _DetailTile(icon: Icons.business, label: 'Firma', value: expense['vendor_name'] as String),
-                  const Divider(height: 1),
-                  _DetailTile(icon: Icons.tag, label: 'Fatura No', value: expense['invoice_number'] as String),
-                  const Divider(height: 1),
-                  _DetailTile(icon: Icons.pie_chart, label: 'Dağıtım', value: 'Eşit (124 daire)'),
-                  const Divider(height: 1),
-                  _DetailTile(icon: Icons.home, label: 'Daire Başı', value: '₺${expense['per_unit_amount']}'),
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-            
-            // Invoices
-            const Text('Fatura Dosyaları', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-            const SizedBox(height: 8),
-            Card(
-              child: ListTile(
-                leading: const Icon(Icons.picture_as_pdf, color: Colors.red, size: 32),
-                title: const Text('fatura.pdf'),
-                subtitle: const Text('28.01.2026 • 245 KB'),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(icon: const Icon(Icons.visibility), onPressed: () {}),
-                    IconButton(icon: const Icon(Icons.download), onPressed: () {}),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            
-            // Assessment Distribution
-            if (expense['reflects_to_assessment'] == true) ...[
-              const Text('Aidat Dağılımı', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-              const SizedBox(height: 8),
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text('Dönem'),
-                          const Text('Şubat 2026', style: TextStyle(fontWeight: FontWeight.w600)),
-                        ],
-                      ),
-                      const Divider(),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text('Dağıtım Tipi'),
-                          const Text('Eşit Dağılım', style: TextStyle(fontWeight: FontWeight.w600)),
-                        ],
-                      ),
-                      const Divider(),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text('Daire Sayısı'),
-                          const Text('124', style: TextStyle(fontWeight: FontWeight.w600)),
-                        ],
-                      ),
-                      const Divider(),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text('Daire Başı Tutar'),
-                          Text('₺${expense['per_unit_amount']}', style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.primaryColor)),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-            
-            const SizedBox(height: 100),
           ],
-        ),
+          const SizedBox(height: 48),
+        ],
       ),
+    );
+  }
+}
+
+List<Map<String, dynamic>> _documents(Map<String, dynamic> expense) {
+  for (final key in const ['invoices', 'documents', 'files', 'attachments']) {
+    final v = expense[key];
+    if (v is List) {
+      return v.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+    }
+  }
+  return const [];
+}
+
+String _periodLabel(Map<String, dynamic> expense) {
+  final period = _text(expense, const ['period']);
+  if (period != null) return period;
+  final year = _number(expense, const ['period_year'])?.toInt();
+  final month = _number(expense, const ['period_month'])?.toInt();
+  if (year == null || month == null) return '—';
+  return '${_monthName(month)} $year';
+}
+
+String _distributionLabel(String? type, int? unitCount) {
+  String base;
+  switch (type?.toUpperCase()) {
+    case 'EQUAL':
+      base = 'Eşit';
+      break;
+    case 'AREA_M2':
+    case 'AREA':
+      base = 'm² Bazlı';
+      break;
+    case 'SHARE_RATIO':
+      base = 'Arsa Payı';
+      break;
+    case 'PERSON':
+      base = 'Kişi Sayısı';
+      break;
+    case null:
+      return '—';
+    default:
+      base = type!;
+  }
+  return unitCount == null ? base : '$base ($unitCount daire)';
+}
+
+String _statusLabel(String status) {
+  switch (status) {
+    case 'APPROVED':
+      return 'Onaylandı';
+    case 'PENDING':
+      return 'Onay Bekliyor';
+    case 'REJECTED':
+      return 'Reddedildi';
+    default:
+      return status;
+  }
+}
+
+Color _statusColor(String status) {
+  switch (status) {
+    case 'APPROVED':
+      return AppTheme.successColor;
+    case 'REJECTED':
+      return AppTheme.errorColor;
+    default:
+      return AppTheme.warningColor;
+  }
+}
+
+IconData _statusIcon(String status) {
+  switch (status) {
+    case 'APPROVED':
+      return Icons.check_circle;
+    case 'REJECTED':
+      return Icons.cancel;
+    default:
+      return Icons.schedule;
+  }
+}
+
+String _monthName(int month) {
+  const months = [
+    '', 'Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
+    'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık',
+  ];
+  return (month >= 1 && month <= 12) ? months[month] : '—';
+}
+
+double? _number(Map<String, dynamic> map, List<String> keys) {
+  for (final key in keys) {
+    final v = map[key];
+    if (v is num) return v.toDouble();
+    if (v is String) {
+      final parsed = double.tryParse(v);
+      if (parsed != null) return parsed;
+    }
+  }
+  return null;
+}
+
+String? _text(Map<String, dynamic> map, List<String> keys) {
+  for (final key in keys) {
+    final v = map[key];
+    if (v is String && v.isNotEmpty) return v;
+  }
+  return null;
+}
+
+/// Üç durumlu okuma: bilinmeyen alan için rozet hiç çizilmez.
+bool? _flag(Map<String, dynamic> map, List<String> keys) {
+  for (final key in keys) {
+    final v = map[key];
+    if (v is bool) return v;
+    if (v is String) {
+      if (v.toLowerCase() == 'true') return true;
+      if (v.toLowerCase() == 'false') return false;
+    }
+  }
+  return null;
+}
+
+Color _categoryColor(String category) {
+  switch (category) {
+    case 'Ortak Elektrik':
+      return Colors.amber;
+    case 'Ortak Su':
+      return Colors.blue;
+    case 'Ortak Isınma':
+      return Colors.deepOrange;
+    case 'Asansör Bakımı':
+      return Colors.purple;
+    case 'Bina Temizliği':
+      return Colors.teal;
+    case 'Güvenlik':
+      return Colors.indigo;
+    case 'Acil Tamir':
+      return Colors.orange;
+    default:
+      return AppTheme.primaryColor;
+  }
+}
+
+IconData _categoryIcon(String category) {
+  switch (category) {
+    case 'Ortak Elektrik':
+      return Icons.bolt;
+    case 'Ortak Su':
+      return Icons.water_drop;
+    case 'Ortak Isınma':
+      return Icons.whatshot;
+    case 'Asansör Bakımı':
+      return Icons.elevator;
+    case 'Bina Temizliği':
+      return Icons.cleaning_services;
+    case 'Güvenlik':
+      return Icons.security;
+    case 'Acil Tamir':
+      return Icons.build;
+    default:
+      return Icons.receipt;
+  }
+}
+
+class _SplitRow extends StatelessWidget {
+  final String label;
+  final String value;
+  final bool highlight;
+  const _SplitRow({required this.label, required this.value, this.highlight = false});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label),
+        Text(
+          value,
+          style: TextStyle(
+            fontWeight: highlight ? FontWeight.bold : FontWeight.w600,
+            color: highlight ? AppTheme.primaryColor : null,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -212,7 +503,7 @@ class _Badge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
@@ -220,7 +511,8 @@ class _Badge extends StatelessWidget {
         children: [
           Icon(icon, size: 14, color: color),
           const SizedBox(width: 4),
-          Text(label, style: TextStyle(fontSize: 12, color: color, fontWeight: FontWeight.w600)),
+          Text(label,
+              style: TextStyle(fontSize: 12, color: color, fontWeight: FontWeight.w600)),
         ],
       ),
     );

@@ -1,8 +1,27 @@
-import 'package:flutter/material.dart';
-import '../../../../core/theme/apple_theme.dart';
-import '../../../../core/widgets/apple_widgets.dart';
+// Sözleşme ve belge yönetimi.
+//
+// NEDEN DEĞİŞTİ (2026-09-13):
+// Ekran iki uydurma firma sözleşmesi (ABC Güvenlik ₺45.000/ay, Asansör Teknik
+// ₺8.500/ay), beş uydurma genel belge ve dört uydurma sakin belgesi (gerçek kişi
+// adı taşıyan "Ahmet Yılmaz – A-12" gibi kayıtlar) gösteriyordu. Üstelik "Yükle" ve
+// "Sil" düğmeleri hiçbir istek göndermeden "Belge başarıyla yüklendi" / "Belge silindi"
+// diyordu; yönetici var olmayan belgeleri kayıtlı sanabilirdi.
+//
+// Artık firma sözleşmeleri `apiClient.getContracts()` ile alınıyor, yeni sözleşme
+// `apiClient.createContract()` ile gönderiliyor ve başarı mesajı yalnızca sunucu
+// isteği kabul ettiğinde gösteriliyor. Belge arşivi (genel/sakin belgeleri) için
+// sunucuda bir uç bulunmadığından o sekmeler uydurma kayıt yerine
+// `NotImplementedNotice` gösterir.
 
-/// Sözleşme ve Belge Yönetim Ekranı - Geliştirilmiş
+import 'package:flutter/material.dart';
+
+import '../../../../core/network/api_client.dart';
+import '../../../../core/theme/apple_theme.dart';
+import '../../../../core/utils/formatters.dart';
+import '../../../../core/widgets/apple_widgets.dart';
+import '../../../../core/widgets/data_state.dart';
+
+/// Sözleşme ve Belge Yönetim Ekranı
 class ContractManagementScreen extends StatefulWidget {
   const ContractManagementScreen({super.key});
 
@@ -10,146 +29,28 @@ class ContractManagementScreen extends StatefulWidget {
   State<ContractManagementScreen> createState() => _ContractManagementScreenState();
 }
 
-class _ContractManagementScreenState extends State<ContractManagementScreen> with SingleTickerProviderStateMixin {
+class _ContractManagementScreenState extends State<ContractManagementScreen>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final TextEditingController _searchController = TextEditingController();
 
-  // Tab kategorileri
+  // Tab kategorileri (görsel tasarım korunuyor).
   final List<Map<String, dynamic>> _tabs = [
     {'name': 'Firma Sözleşmeleri', 'icon': Icons.business_rounded},
     {'name': 'Genel Belgeler', 'icon': Icons.folder_shared_rounded},
     {'name': 'Sakin Belgeleri', 'icon': Icons.person_rounded},
   ];
 
-  // Firma sözleşmeleri (mevcut)
-  final List<Map<String, dynamic>> _contracts = [
-    {
-      'id': 'SZL-2024-001',
-      'title': 'Güvenlik Hizmeti Sözleşmesi',
-      'vendor': 'ABC Güvenlik Ltd.',
-      'type': 'service',
-      'startDate': '2024-01-01',
-      'endDate': '2026-12-31',
-      'monthlyValue': 45000,
-      'status': 'active',
-      'daysRemaining': 334,
-    },
-    {
-      'id': 'SZL-2024-002',
-      'title': 'Asansör Bakım Sözleşmesi',
-      'vendor': 'Asansör Teknik A.Ş.',
-      'type': 'maintenance',
-      'startDate': '2024-03-01',
-      'endDate': '2026-03-01',
-      'monthlyValue': 8500,
-      'status': 'active',
-      'daysRemaining': 28,
-    },
-  ];
-
-  // Genel belgeler (tüm sakinler görebilir)
-  final List<Map<String, dynamic>> _generalDocuments = [
-    {
-      'id': 'DOC-001',
-      'title': 'Site Yönetim Planı',
-      'category': 'resmi',
-      'fileType': 'pdf',
-      'fileSize': '2.4 MB',
-      'uploadDate': '2024-01-15',
-      'uploadedBy': 'Site Yöneticisi',
-      'viewCount': 145,
-    },
-    {
-      'id': 'DOC-002',
-      'title': 'KVKK Aydınlatma Metni',
-      'category': 'yasal',
-      'fileType': 'pdf',
-      'fileSize': '156 KB',
-      'uploadDate': '2024-02-01',
-      'uploadedBy': 'Site Yöneticisi',
-      'viewCount': 89,
-    },
-    {
-      'id': 'DOC-003',
-      'title': 'Site Kuralları ve Yönetmelikleri',
-      'category': 'kurallar',
-      'fileType': 'pdf',
-      'fileSize': '890 KB',
-      'uploadDate': '2024-01-20',
-      'uploadedBy': 'Site Yöneticisi',
-      'viewCount': 234,
-    },
-    {
-      'id': 'DOC-004',
-      'title': 'Ortak Alan Kullanım Talimatları',
-      'category': 'kurallar',
-      'fileType': 'pdf',
-      'fileSize': '1.2 MB',
-      'uploadDate': '2024-03-01',
-      'uploadedBy': 'Site Yöneticisi',
-      'viewCount': 167,
-    },
-    {
-      'id': 'DOC-005',
-      'title': 'Acil Durum Prosedürleri',
-      'category': 'guvenlik',
-      'fileType': 'pdf',
-      'fileSize': '3.1 MB',
-      'uploadDate': '2024-02-15',
-      'uploadedBy': 'Site Yöneticisi',
-      'viewCount': 78,
-    },
-  ];
-
-  // Sakine özel belgeler
-  final List<Map<String, dynamic>> _residentDocuments = [
-    {
-      'id': 'RDOC-001',
-      'title': 'Daire Teslim Tutanağı',
-      'residentName': 'Ahmet Yılmaz',
-      'residentUnit': 'A-12',
-      'category': 'teslim',
-      'fileType': 'pdf',
-      'fileSize': '1.8 MB',
-      'uploadDate': '2023-06-01',
-    },
-    {
-      'id': 'RDOC-002',
-      'title': 'Kira Sözleşmesi',
-      'residentName': 'Mehmet Demir',
-      'residentUnit': 'B-05',
-      'category': 'sozlesme',
-      'fileType': 'pdf',
-      'fileSize': '2.2 MB',
-      'uploadDate': '2024-01-01',
-    },
-    {
-      'id': 'RDOC-003',
-      'title': 'Muvafakatname',
-      'residentName': 'Ayşe Kaya',
-      'residentUnit': 'C-08',
-      'category': 'yetki',
-      'fileType': 'pdf',
-      'fileSize': '450 KB',
-      'uploadDate': '2024-03-15',
-    },
-    {
-      'id': 'RDOC-004',
-      'title': 'Tapu Fotokopisi',
-      'residentName': 'Ali Öztürk',
-      'residentUnit': 'A-03',
-      'category': 'mulkiyet',
-      'fileType': 'pdf',
-      'fileSize': '1.1 MB',
-      'uploadDate': '2023-08-20',
-    },
-  ];
+  bool _loading = true;
+  Object? _error;
+  List<Map<String, dynamic>> _contracts = const [];
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: _tabs.length, vsync: this);
     _tabController.addListener(() => setState(() {}));
+    _load();
   }
 
   @override
@@ -159,8 +60,45 @@ class _ContractManagementScreenState extends State<ContractManagementScreen> wit
     super.dispose();
   }
 
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final rows = await apiClient.getContracts();
+      if (!mounted) return;
+      setState(() {
+        _contracts =
+            rows.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e;
+        _loading = false;
+      });
+    }
+  }
+
+  /// Arama kutusu artık gerçekten süzüyor (önce hiçbir etkisi yoktu).
+  List<Map<String, dynamic>> get _visibleContracts {
+    final q = _searchController.text.trim().toLowerCase();
+    if (q.isEmpty) return _contracts;
+    return _contracts.where((c) {
+      final title = (_contractTitle(c)).toLowerCase();
+      final vendor = (_contractVendor(c) ?? '').toLowerCase();
+      return title.contains(q) || vendor.contains(q);
+    }).toList();
+  }
+
+  bool get _hasContractData => !_loading && _error == null;
+
   @override
   Widget build(BuildContext context) {
+    final onContractsTab = _tabController.index == 0;
+
     return Scaffold(
       backgroundColor: AppleTheme.background,
       body: CustomScrollView(
@@ -171,28 +109,34 @@ class _ContractManagementScreenState extends State<ContractManagementScreen> wit
               bottom: false,
               child: Padding(
                 padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Sözleşme & Belgeler', style: TextStyle(fontSize: 28, fontWeight: FontWeight.w700, letterSpacing: -0.5)),
-                            SizedBox(height: 4),
-                            Text('Tüm belgeleri yönetin', style: TextStyle(fontSize: 15, color: AppleTheme.secondaryLabel)),
-                          ],
-                        ),
-                        ElevatedButton.icon(
-                          onPressed: () => _showUploadSheet(context),
-                          icon: const Icon(Icons.upload_file_rounded, size: 18),
-                          label: const Text('Yükle'),
-                          style: ElevatedButton.styleFrom(backgroundColor: AppleTheme.systemBlue),
-                        ),
-                      ],
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Sözleşme & Belgeler',
+                              style: TextStyle(
+                                  fontSize: 28,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: -0.5)),
+                          SizedBox(height: 4),
+                          Text('Firma sözleşmelerini yönetin',
+                              style: TextStyle(
+                                  fontSize: 15, color: AppleTheme.secondaryLabel)),
+                        ],
+                      ),
                     ),
+                    // Yalnızca gerçek bir uç bulunan sekmede işlem düğmesi gösterilir.
+                    if (onContractsTab)
+                      ElevatedButton.icon(
+                        onPressed: _showCreateContractSheet,
+                        icon: const Icon(Icons.add_rounded, size: 18),
+                        label: const Text('Ekle'),
+                        style: ElevatedButton.styleFrom(
+                            backgroundColor: AppleTheme.systemBlue),
+                      ),
                   ],
                 ),
               ),
@@ -212,49 +156,56 @@ class _ContractManagementScreenState extends State<ContractManagementScreen> wit
                 indicator: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(8),
-                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.08), blurRadius: 4)],
+                  boxShadow: [
+                    BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.08), blurRadius: 4)
+                  ],
                 ),
                 indicatorPadding: const EdgeInsets.all(4),
                 labelColor: AppleTheme.label,
                 unselectedLabelColor: AppleTheme.secondaryLabel,
                 dividerColor: Colors.transparent,
-                tabs: _tabs.map((tab) => Tab(
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(tab['icon'], size: 16),
-                      const SizedBox(width: 6),
-                      Text(tab['name'], style: const TextStyle(fontSize: 13)),
-                    ],
-                  ),
-                )).toList(),
+                tabs: _tabs
+                    .map((tab) => Tab(
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(tab['icon'] as IconData, size: 16),
+                              const SizedBox(width: 6),
+                              Text(tab['name'] as String,
+                                  style: const TextStyle(fontSize: 13)),
+                            ],
+                          ),
+                        ))
+                    .toList(),
               ),
             ),
           ),
 
-          // Stats
-          SliverToBoxAdapter(
-            child: Container(
-              height: 90,
-              margin: const EdgeInsets.only(top: 16),
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                children: _buildStatsForTab(),
+          if (onContractsTab) ...[
+            // Stats — sabit değil, yüklenen gerçek sözleşmelerden hesaplanır.
+            SliverToBoxAdapter(
+              child: Container(
+                height: 90,
+                margin: const EdgeInsets.only(top: 16),
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  children: _buildContractStats(),
+                ),
               ),
             ),
-          ),
 
-          // Search
-          SliverToBoxAdapter(
-            child: AppleSearchBar(
-              controller: _searchController,
-              placeholder: 'Belge ara...',
-              onChanged: (value) => setState(() {}),
+            SliverToBoxAdapter(
+              child: AppleSearchBar(
+                controller: _searchController,
+                placeholder: 'Sözleşme ara...',
+                onChanged: (_) => setState(() {}),
+                onClear: () => setState(() {}),
+              ),
             ),
-          ),
+          ],
 
-          // Content based on tab
           _buildTabContent(),
 
           const SliverToBoxAdapter(child: SizedBox(height: 100)),
@@ -263,29 +214,35 @@ class _ContractManagementScreenState extends State<ContractManagementScreen> wit
     );
   }
 
-  List<Widget> _buildStatsForTab() {
-    switch (_tabController.index) {
-      case 0: // Firma Sözleşmeleri
-        return [
-          _buildMiniStat('Aktif', '${_contracts.length}', Icons.description_rounded, AppleTheme.systemBlue),
-          _buildMiniStat('Yaklaşan', '1', Icons.warning_rounded, AppleTheme.systemOrange),
-          _buildMiniStat('Aylık', '₺85K', Icons.monetization_on_rounded, AppleTheme.systemGreen),
-        ];
-      case 1: // Genel Belgeler
-        return [
-          _buildMiniStat('Toplam', '${_generalDocuments.length}', Icons.folder_rounded, AppleTheme.systemBlue),
-          _buildMiniStat('Görüntüleme', '713', Icons.visibility_rounded, AppleTheme.systemPurple),
-          _buildMiniStat('Boyut', '7.7 MB', Icons.storage_rounded, AppleTheme.systemGreen),
-        ];
-      case 2: // Sakin Belgeleri
-        return [
-          _buildMiniStat('Toplam', '${_residentDocuments.length}', Icons.person_rounded, AppleTheme.systemBlue),
-          _buildMiniStat('Sakin', '4', Icons.people_rounded, AppleTheme.systemOrange),
-          _buildMiniStat('Boyut', '5.5 MB', Icons.storage_rounded, AppleTheme.systemGreen),
-        ];
-      default:
-        return [];
+  List<Widget> _buildContractStats() {
+    if (!_hasContractData) {
+      return [
+        _buildMiniStat('Aktif', '—', Icons.description_rounded, AppleTheme.systemBlue),
+        _buildMiniStat('Yaklaşan', '—', Icons.warning_rounded, AppleTheme.systemOrange),
+        _buildMiniStat(
+            'Aylık', '—', Icons.monetization_on_rounded, AppleTheme.systemGreen),
+      ];
     }
+
+    final active = _contracts.where((c) {
+      final status = (_text(c, const ['status']) ?? 'ACTIVE').toUpperCase();
+      return status == 'ACTIVE' || status == 'AKTIF';
+    }).length;
+    final expiring = _contracts.where((c) {
+      final days = _daysRemaining(c);
+      return days != null && days >= 0 && days < 60;
+    }).length;
+    final monthly = _contracts.fold<double>(
+        0, (sum, c) => sum + (_monthlyAmount(c) ?? 0));
+
+    return [
+      _buildMiniStat(
+          'Aktif', '$active', Icons.description_rounded, AppleTheme.systemBlue),
+      _buildMiniStat(
+          'Yaklaşan', '$expiring', Icons.warning_rounded, AppleTheme.systemOrange),
+      _buildMiniStat('Aylık', formatTry(monthly), Icons.monetization_on_rounded,
+          AppleTheme.systemGreen),
+    ];
   }
 
   Widget _buildTabContent() {
@@ -293,9 +250,25 @@ class _ContractManagementScreenState extends State<ContractManagementScreen> wit
       case 0:
         return _buildContractsList();
       case 1:
-        return _buildGeneralDocumentsList();
+        // Genel belge arşivi için sunucuda uç yok; uydurma belge listesi kaldırıldı.
+        return const SliverToBoxAdapter(
+          child: NotImplementedNotice(
+            title: 'Genel belge arşivi henüz hazır değil',
+            detail:
+                'Site belgelerinin (yönetim planı, KVKK metni, site kuralları) yüklenip '
+                'listeleneceği sunucu ucu bulunmuyor. Hazır olduğunda belgeler burada listelenecek.',
+          ),
+        );
       case 2:
-        return _buildResidentDocumentsList();
+        return const SliverToBoxAdapter(
+          child: NotImplementedNotice(
+            title: 'Sakine özel belgeler henüz hazır değil',
+            detail:
+                'Sakin bazlı belge arşivi (teslim tutanağı, kira sözleşmesi, tapu) için '
+                'sunucu ucu bulunmuyor. Bu sekmede kişisel veri gösterilmeden önce '
+                'yetkilendirme de kurulmalıdır.',
+          ),
+        );
       default:
         return const SliverToBoxAdapter(child: SizedBox());
     }
@@ -305,54 +278,104 @@ class _ContractManagementScreenState extends State<ContractManagementScreen> wit
   // FİRMA SÖZLEŞMELERİ
   // =============================================
   Widget _buildContractsList() {
+    if (_loading) {
+      return const SliverToBoxAdapter(
+        child: SizedBox(
+            height: 220, child: LoadingView(message: 'Sözleşmeler alınıyor...')),
+      );
+    }
+
+    if (_error != null && isNotImplemented(_error!)) {
+      return const SliverToBoxAdapter(
+        child: NotImplementedNotice(
+          title: 'Sözleşme listesi henüz hazır değil',
+          detail:
+              'Sözleşme servisi veri katmanına bağlanmadığı için kayıt döndürmüyor.',
+        ),
+      );
+    }
+    if (_error != null) {
+      return SliverToBoxAdapter(
+        child: SizedBox(
+          height: 260,
+          child: ErrorStateView(message: toUserMessage(_error!), onRetry: _load),
+        ),
+      );
+    }
+
+    final items = _visibleContracts;
+    if (items.isEmpty) {
+      return SliverToBoxAdapter(
+        child: SizedBox(
+          height: 220,
+          child: EmptyStateView(
+            message: _contracts.isEmpty
+                ? 'Kayıtlı firma sözleşmesi yok.'
+                : 'Aramanıza uyan sözleşme yok.',
+            icon: Icons.description_rounded,
+          ),
+        ),
+      );
+    }
+
+    final expiringCount = items.where((c) {
+      final days = _daysRemaining(c);
+      return days != null && days >= 0 && days < 60;
+    }).length;
+
     return SliverList(
       delegate: SliverChildBuilderDelegate(
         (context, index) {
           if (index == 0) {
-            // Yaklaşan uyarı
-            if (_contracts.any((c) => c['daysRemaining'] < 60)) {
-              return Container(
-                margin: const EdgeInsets.all(16),
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: AppleTheme.systemOrange.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppleTheme.systemOrange.withOpacity(0.3)),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.schedule_rounded, color: AppleTheme.systemOrange),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('Yenileme Uyarısı', style: TextStyle(fontWeight: FontWeight.w600, color: AppleTheme.systemOrange)),
-                          Text('1 sözleşmenin bitiş tarihi yaklaşıyor', style: TextStyle(fontSize: 13, color: AppleTheme.secondaryLabel)),
-                        ],
-                      ),
+            if (expiringCount == 0) return const SizedBox();
+            return Container(
+              margin: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: AppleTheme.systemOrange.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                    color: AppleTheme.systemOrange.withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.schedule_rounded, color: AppleTheme.systemOrange),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Yenileme Uyarısı',
+                            style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                color: AppleTheme.systemOrange)),
+                        Text('$expiringCount sözleşmenin bitiş tarihi yaklaşıyor',
+                            style: TextStyle(
+                                fontSize: 13, color: AppleTheme.secondaryLabel)),
+                      ],
                     ),
-                  ],
-                ),
-              );
-            }
-            return const SizedBox();
+                  ),
+                ],
+              ),
+            );
           }
-          final contract = _contracts[index - 1];
-          return _buildContractCard(contract);
+          return _buildContractCard(items[index - 1]);
         },
-        childCount: _contracts.length + 1,
+        childCount: items.length + 1,
       ),
     );
   }
 
   Widget _buildContractCard(Map<String, dynamic> contract) {
-    final isExpiringSoon = contract['daysRemaining'] < 60;
+    final days = _daysRemaining(contract);
+    final isExpiringSoon = days != null && days >= 0 && days < 60;
+    final amount = _monthlyAmount(contract);
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       decoration: AppleTheme.cardDecoration,
       child: InkWell(
-        onTap: () => _showContractDetails(context, contract),
+        onTap: () => _showContractDetails(contract),
         borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -362,162 +385,49 @@ class _ContractManagementScreenState extends State<ContractManagementScreen> wit
               Row(
                 children: [
                   Expanded(
-                    child: Text(contract['title'], style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
+                    child: Text(_contractTitle(contract),
+                        style: const TextStyle(
+                            fontSize: 17, fontWeight: FontWeight.w600)),
                   ),
                   if (isExpiringSoon)
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
-                        color: AppleTheme.systemOrange.withOpacity(0.12),
+                        color: AppleTheme.systemOrange.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: Text('${contract['daysRemaining']} gün', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppleTheme.systemOrange)),
+                      child: Text('$days gün',
+                          style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: AppleTheme.systemOrange)),
                     ),
                 ],
               ),
               const SizedBox(height: 4),
-              Text(contract['vendor'], style: TextStyle(fontSize: 15, color: AppleTheme.secondaryLabel)),
+              Text(_contractVendor(contract) ?? 'Firma belirtilmemiş',
+                  style:
+                      TextStyle(fontSize: 15, color: AppleTheme.secondaryLabel)),
               const SizedBox(height: 8),
               Row(
                 children: [
-                  Icon(Icons.calendar_today_rounded, size: 14, color: AppleTheme.tertiaryLabel),
+                  Icon(Icons.calendar_today_rounded,
+                      size: 14, color: AppleTheme.tertiaryLabel),
                   const SizedBox(width: 4),
-                  Text('${contract['startDate']} - ${contract['endDate']}', style: TextStyle(fontSize: 13, color: AppleTheme.tertiaryLabel)),
-                  const Spacer(),
-                  Text('₺${contract['monthlyValue']}/ay', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  // =============================================
-  // GENEL BELGELER
-  // =============================================
-  Widget _buildGeneralDocumentsList() {
-    final categories = ['Tümü', 'Resmi', 'Yasal', 'Kurallar', 'Güvenlik'];
-    
-    return SliverList(
-      delegate: SliverChildBuilderDelegate(
-        (context, index) {
-          if (index == 0) {
-            // Kategori filtreleri
-            return Container(
-              height: 40,
-              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                itemCount: categories.length,
-                itemBuilder: (context, i) => Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: FilterChip(
-                    label: Text(categories[i]),
-                    selected: i == 0,
-                    onSelected: (selected) {},
-                    backgroundColor: AppleTheme.systemGray6,
-                    selectedColor: AppleTheme.systemBlue.withOpacity(0.2),
-                  ),
-                ),
-              ),
-            );
-          }
-          final doc = _generalDocuments[index - 1];
-          return _buildDocumentCard(doc, isGeneral: true);
-        },
-        childCount: _generalDocuments.length + 1,
-      ),
-    );
-  }
-
-  // =============================================
-  // SAKİN BELGELERİ
-  // =============================================
-  Widget _buildResidentDocumentsList() {
-    return SliverList(
-      delegate: SliverChildBuilderDelegate(
-        (context, index) {
-          if (index == 0) {
-            // Sakin arama/filtreleme ipucu
-            return Container(
-              margin: const EdgeInsets.all(16),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppleTheme.systemBlue.withOpacity(0.08),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.info_outline_rounded, color: AppleTheme.systemBlue, size: 20),
-                  const SizedBox(width: 10),
                   Expanded(
-                    child: Text('Sakine özel belgeler sadece ilgili sakin tarafından görüntülenebilir.', 
-                      style: TextStyle(fontSize: 13, color: AppleTheme.systemBlue)),
+                    child: Text(
+                      '${formatDate(contract['start_date'] ?? contract['startDate'])}'
+                      ' - '
+                      '${formatDate(contract['end_date'] ?? contract['endDate'])}',
+                      style: TextStyle(
+                          fontSize: 13, color: AppleTheme.tertiaryLabel),
+                    ),
                   ),
-                ],
-              ),
-            );
-          }
-          final doc = _residentDocuments[index - 1];
-          return _buildDocumentCard(doc, isGeneral: false);
-        },
-        childCount: _residentDocuments.length + 1,
-      ),
-    );
-  }
-
-  Widget _buildDocumentCard(Map<String, dynamic> doc, {required bool isGeneral}) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      decoration: AppleTheme.cardDecoration,
-      child: InkWell(
-        onTap: () => _showDocumentDetails(context, doc, isGeneral),
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: AppleTheme.systemRed.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(Icons.picture_as_pdf_rounded, color: AppleTheme.systemRed, size: 24),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(doc['title'], style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-                    const SizedBox(height: 4),
-                    if (!isGeneral)
-                      Text('${doc['residentName']} • ${doc['residentUnit']}', 
-                        style: TextStyle(fontSize: 13, color: AppleTheme.systemBlue))
-                    else
-                      Text('${doc['viewCount']} görüntüleme', 
-                        style: TextStyle(fontSize: 13, color: AppleTheme.secondaryLabel)),
-                    Text('${doc['fileSize']} • ${doc['uploadDate']}', 
-                      style: TextStyle(fontSize: 12, color: AppleTheme.tertiaryLabel)),
-                  ],
-                ),
-              ),
-              PopupMenuButton<String>(
-                icon: Icon(Icons.more_vert_rounded, color: AppleTheme.secondaryLabel),
-                onSelected: (value) {
-                  if (value == 'delete') {
-                    _showDeleteConfirm(doc);
-                  }
-                },
-                itemBuilder: (context) => [
-                  const PopupMenuItem(value: 'view', child: Text('Görüntüle')),
-                  const PopupMenuItem(value: 'download', child: Text('İndir')),
-                  const PopupMenuItem(value: 'share', child: Text('Paylaş')),
-                  const PopupMenuItem(value: 'delete', child: Text('Sil', style: TextStyle(color: Colors.red))),
+                  const SizedBox(width: 8),
+                  Text(amount == null ? '—' : '${formatTry(amount)}/ay',
+                      style: const TextStyle(
+                          fontSize: 15, fontWeight: FontWeight.w600)),
                 ],
               ),
             ],
@@ -529,7 +439,7 @@ class _ContractManagementScreenState extends State<ContractManagementScreen> wit
 
   Widget _buildMiniStat(String title, String value, IconData icon, Color color) {
     return Container(
-      width: 110,
+      width: 118,
       margin: const EdgeInsets.only(right: 12),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -543,167 +453,291 @@ class _ContractManagementScreenState extends State<ContractManagementScreen> wit
           Row(
             children: [
               Icon(icon, color: color, size: 16),
-              const Spacer(),
-              Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+              const SizedBox(width: 4),
+              Expanded(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerRight,
+                  child: Text(value,
+                      style: const TextStyle(
+                          fontSize: 18, fontWeight: FontWeight.w700)),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 4),
-          Text(title, style: TextStyle(fontSize: 11, color: AppleTheme.secondaryLabel)),
+          Text(title,
+              style: TextStyle(fontSize: 11, color: AppleTheme.secondaryLabel)),
         ],
       ),
     );
   }
 
   // =============================================
-  // UPLOAD SHEET
+  // YENİ SÖZLEŞME
   // =============================================
-  void _showUploadSheet(BuildContext context) {
-    String selectedType = 'general';
-    String? selectedResident;
+  void _showCreateContractSheet() {
     final titleController = TextEditingController();
-    String selectedCategory = 'resmi';
+    final vendorController = TextEditingController();
+    final amountController = TextEditingController();
+    String selectedType = 'service';
+    DateTime? startDate;
+    DateTime? endDate;
+    bool saving = false;
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setSheetState) => Container(
-          height: MediaQuery.of(context).size.height * 0.85,
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-          ),
-          child: Column(
-            children: [
-              Container(
-                width: 36, height: 5,
-                margin: const EdgeInsets.only(top: 12),
-                decoration: BoxDecoration(color: AppleTheme.systemGray4, borderRadius: BorderRadius.circular(2.5)),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    TextButton(onPressed: () => Navigator.pop(context), child: const Text('İptal')),
-                    const Text('Belge Yükle', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
-                    TextButton(onPressed: () {
-                      Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: const Text('Belge başarıyla yüklendi'), backgroundColor: AppleTheme.systemGreen),
-                      );
-                    }, child: const Text('Yükle')),
-                  ],
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (sheetContext, setSheetState) => Padding(
+          padding: EdgeInsets.only(
+              bottom: MediaQuery.of(sheetContext).viewInsets.bottom),
+          child: Container(
+            height: MediaQuery.of(sheetContext).size.height * 0.85,
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            child: Column(
+              children: [
+                Container(
+                  width: 36,
+                  height: 5,
+                  margin: const EdgeInsets.only(top: 12),
+                  decoration: BoxDecoration(
+                      color: AppleTheme.systemGray4,
+                      borderRadius: BorderRadius.circular(2.5)),
                 ),
-              ),
-              Expanded(
-                child: ListView(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  children: [
-                    // Belge Türü
-                    const Text('Belge Türü', style: TextStyle(fontWeight: FontWeight.w600)),
-                    const SizedBox(height: 8),
-                    SegmentedButton<String>(
-                      segments: const [
-                        ButtonSegment(value: 'general', label: Text('Genel'), icon: Icon(Icons.public_rounded)),
-                        ButtonSegment(value: 'resident', label: Text('Sakine Özel'), icon: Icon(Icons.person_rounded)),
-                      ],
-                      selected: {selectedType},
-                      onSelectionChanged: (Set<String> newSelection) {
-                        setSheetState(() => selectedType = newSelection.first);
-                      },
-                    ),
-                    const SizedBox(height: 20),
-
-                    // Sakin Seçimi (sadece sakine özel için)
-                    if (selectedType == 'resident') ...[
-                      const Text('Sakin Seçimi', style: TextStyle(fontWeight: FontWeight.w600)),
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      TextButton(
+                          onPressed: () => Navigator.pop(sheetContext),
+                          child: const Text('İptal')),
+                      const Text('Yeni Sözleşme',
+                          style: TextStyle(
+                              fontSize: 18, fontWeight: FontWeight.w600)),
+                      TextButton(
+                        onPressed: saving
+                            ? null
+                            : () async {
+                                final title = titleController.text.trim();
+                                final vendor = vendorController.text.trim();
+                                if (title.isEmpty || vendor.isEmpty) {
+                                  ScaffoldMessenger.of(sheetContext).showSnackBar(
+                                    const SnackBar(
+                                        content: Text(
+                                            'Başlık ve firma adı zorunludur.')),
+                                  );
+                                  return;
+                                }
+                                setSheetState(() => saving = true);
+                                final ok = await _submitContract(
+                                  title: title,
+                                  vendor: vendor,
+                                  type: selectedType,
+                                  startDate: startDate,
+                                  endDate: endDate,
+                                  amountText: amountController.text,
+                                );
+                                if (!sheetContext.mounted) return;
+                                setSheetState(() => saving = false);
+                                if (ok) Navigator.pop(sheetContext);
+                              },
+                        child: saving
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2))
+                            : const Text('Kaydet'),
+                      ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    children: [
+                      const Text('Sözleşme Başlığı',
+                          style: TextStyle(fontWeight: FontWeight.w600)),
                       const SizedBox(height: 8),
-                      DropdownButtonFormField<String>(
-                        value: selectedResident,
+                      TextField(
+                        controller: titleController,
                         decoration: InputDecoration(
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                          hintText: 'Sakin seçin...',
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                          hintText: 'Örn. Asansör bakım sözleşmesi',
                         ),
-                        items: const [
-                          DropdownMenuItem(value: 'A-12', child: Text('Ahmet Yılmaz - A-12')),
-                          DropdownMenuItem(value: 'B-05', child: Text('Mehmet Demir - B-05')),
-                          DropdownMenuItem(value: 'C-08', child: Text('Ayşe Kaya - C-08')),
-                          DropdownMenuItem(value: 'A-03', child: Text('Ali Öztürk - A-03')),
-                        ],
-                        onChanged: (value) => setSheetState(() => selectedResident = value),
                       ),
                       const SizedBox(height: 20),
-                    ],
 
-                    // Belge Başlığı
-                    const Text('Belge Başlığı', style: TextStyle(fontWeight: FontWeight.w600)),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: titleController,
-                      decoration: InputDecoration(
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                        hintText: 'Belge başlığını girin...',
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-
-                    // Kategori
-                    const Text('Kategori', style: TextStyle(fontWeight: FontWeight.w600)),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      children: [
-                        ChoiceChip(label: const Text('Resmi'), selected: selectedCategory == 'resmi', onSelected: (s) => setSheetState(() => selectedCategory = 'resmi')),
-                        ChoiceChip(label: const Text('Yasal'), selected: selectedCategory == 'yasal', onSelected: (s) => setSheetState(() => selectedCategory = 'yasal')),
-                        ChoiceChip(label: const Text('Kurallar'), selected: selectedCategory == 'kurallar', onSelected: (s) => setSheetState(() => selectedCategory = 'kurallar')),
-                        ChoiceChip(label: const Text('Sözleşme'), selected: selectedCategory == 'sozlesme', onSelected: (s) => setSheetState(() => selectedCategory = 'sozlesme')),
-                        ChoiceChip(label: const Text('Mülkiyet'), selected: selectedCategory == 'mulkiyet', onSelected: (s) => setSheetState(() => selectedCategory = 'mulkiyet')),
-                      ],
-                    ),
-                    const SizedBox(height: 24),
-
-                    // Dosya Seçim Alanı
-                    Container(
-                      height: 150,
-                      decoration: BoxDecoration(
-                        border: Border.all(color: AppleTheme.systemGray4, style: BorderStyle.solid),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: InkWell(
-                        onTap: () {
-                          // TODO: Dosya seçici aç
-                        },
-                        borderRadius: BorderRadius.circular(12),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.cloud_upload_rounded, size: 48, color: AppleTheme.systemBlue),
-                            const SizedBox(height: 12),
-                            const Text('Dosya seçmek için tıklayın', style: TextStyle(fontWeight: FontWeight.w600)),
-                            const SizedBox(height: 4),
-                            Text('PDF, DOCX, JPG, PNG (Max 10MB)', style: TextStyle(fontSize: 13, color: AppleTheme.secondaryLabel)),
-                          ],
+                      const Text('Firma',
+                          style: TextStyle(fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: vendorController,
+                        decoration: InputDecoration(
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                          hintText: 'Hizmet alınan firmanın unvanı',
                         ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 20),
+
+                      const Text('Tür',
+                          style: TextStyle(fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        children: [
+                          for (final entry in const {
+                            'service': 'Hizmet',
+                            'maintenance': 'Bakım',
+                            'supply': 'Tedarik',
+                            'other': 'Diğer',
+                          }.entries)
+                            ChoiceChip(
+                              label: Text(entry.value),
+                              selected: selectedType == entry.key,
+                              onSelected: (_) =>
+                                  setSheetState(() => selectedType = entry.key),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+
+                      const Text('Süre',
+                          style: TextStyle(fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () async {
+                                final picked = await _pickDate(
+                                    sheetContext, startDate ?? DateTime.now());
+                                if (picked != null) {
+                                  setSheetState(() => startDate = picked);
+                                }
+                              },
+                              child: Text(startDate == null
+                                  ? 'Başlangıç'
+                                  : formatDate(startDate)),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () async {
+                                final picked = await _pickDate(sheetContext,
+                                    endDate ?? startDate ?? DateTime.now());
+                                if (picked != null) {
+                                  setSheetState(() => endDate = picked);
+                                }
+                              },
+                              child: Text(
+                                  endDate == null ? 'Bitiş' : formatDate(endDate)),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 20),
+
+                      const Text('Aylık Tutar',
+                          style: TextStyle(fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: amountController,
+                        keyboardType:
+                            const TextInputType.numberWithOptions(decimal: true),
+                        decoration: InputDecoration(
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                          prefixText: '₺ ',
+                          hintText: '0,00',
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
+    ).whenComplete(() {
+      titleController.dispose();
+      vendorController.dispose();
+      amountController.dispose();
+    });
+  }
+
+  Future<DateTime?> _pickDate(BuildContext ctx, DateTime initial) {
+    return showDatePicker(
+      context: ctx,
+      initialDate: initial,
+      firstDate: DateTime(DateTime.now().year - 5),
+      lastDate: DateTime(DateTime.now().year + 10),
     );
   }
 
-  void _showContractDetails(BuildContext context, Map<String, dynamic> contract) {
+  /// Sunucu isteği kabul ederse `true` döner. Başarı mesajı yalnızca o zaman
+  /// gösterilir — 501/4xx durumunda kullanıcıya gerçek neden söylenir.
+  Future<bool> _submitContract({
+    required String title,
+    required String vendor,
+    required String type,
+    required DateTime? startDate,
+    required DateTime? endDate,
+    required String amountText,
+  }) async {
+    final amount = double.tryParse(amountText.trim().replaceAll(',', '.'));
+    try {
+      await apiClient.createContract({
+        'title': title,
+        'vendor': vendor,
+        'type': type,
+        if (startDate != null)
+          'start_date': startDate.toIso8601String().split('T').first,
+        if (endDate != null)
+          'end_date': endDate.toIso8601String().split('T').first,
+        if (amount != null) 'monthly_amount': amount,
+      });
+      if (!mounted) return true;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+            content: const Text('Sözleşme kaydedildi'),
+            backgroundColor: AppleTheme.systemGreen),
+      );
+      await _load();
+      return true;
+    } catch (e) {
+      if (!mounted) return false;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+            content: Text('Kaydedilemedi: ${toUserMessage(e)}'),
+            backgroundColor: AppleTheme.systemRed),
+      );
+      return false;
+    }
+  }
+
+  void _showContractDetails(Map<String, dynamic> contract) {
+    final days = _daysRemaining(contract);
+    final amount = _monthlyAmount(contract);
+    final contractNo =
+        _text(contract, const ['contract_no', 'contract_number', 'code', 'id']);
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (context) => Container(
+      builder: (sheetContext) => Container(
         decoration: const BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -711,120 +745,46 @@ class _ContractManagementScreenState extends State<ContractManagementScreen> wit
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(width: 36, height: 5, margin: const EdgeInsets.only(top: 12), decoration: BoxDecoration(color: AppleTheme.systemGray4, borderRadius: BorderRadius.circular(2.5))),
+            Container(
+                width: 36,
+                height: 5,
+                margin: const EdgeInsets.only(top: 12),
+                decoration: BoxDecoration(
+                    color: AppleTheme.systemGray4,
+                    borderRadius: BorderRadius.circular(2.5))),
             Padding(
               padding: const EdgeInsets.all(20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(contract['title'], style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
+                  Text(_contractTitle(contract),
+                      style: const TextStyle(
+                          fontSize: 22, fontWeight: FontWeight.w700)),
                   const SizedBox(height: 4),
-                  Text(contract['vendor'], style: TextStyle(fontSize: 15, color: AppleTheme.secondaryLabel)),
+                  Text(_contractVendor(contract) ?? 'Firma belirtilmemiş',
+                      style: TextStyle(
+                          fontSize: 15, color: AppleTheme.secondaryLabel)),
                   const SizedBox(height: 24),
-                  _buildInfoRow(Icons.tag_rounded, 'Sözleşme No', contract['id']),
-                  _buildInfoRow(Icons.play_arrow_rounded, 'Başlangıç', contract['startDate']),
-                  _buildInfoRow(Icons.stop_rounded, 'Bitiş', contract['endDate']),
-                  _buildInfoRow(Icons.monetization_on_rounded, 'Aylık Tutar', '₺${contract['monthlyValue']}'),
-                  _buildInfoRow(Icons.schedule_rounded, 'Kalan Süre', '${contract['daysRemaining']} gün'),
-                  const SizedBox(height: 24),
-                  Row(
-                    children: [
-                      Expanded(child: OutlinedButton.icon(onPressed: () {}, icon: const Icon(Icons.file_download_rounded), label: const Text('PDF İndir'))),
-                      const SizedBox(width: 12),
-                      Expanded(child: ElevatedButton.icon(onPressed: () {}, icon: const Icon(Icons.refresh_rounded), label: const Text('Yenile'))),
-                    ],
-                  ),
+                  if (contractNo != null)
+                    _buildInfoRow(
+                        Icons.tag_rounded, 'Sözleşme No', contractNo),
+                  _buildInfoRow(Icons.play_arrow_rounded, 'Başlangıç',
+                      formatDate(contract['start_date'] ?? contract['startDate'])),
+                  _buildInfoRow(Icons.stop_rounded, 'Bitiş',
+                      formatDate(contract['end_date'] ?? contract['endDate'])),
+                  _buildInfoRow(Icons.monetization_on_rounded, 'Aylık Tutar',
+                      amount == null ? '—' : formatTry(amount)),
+                  if (days != null)
+                    _buildInfoRow(
+                        Icons.schedule_rounded, 'Kalan Süre', '$days gün'),
+                  // NOT: "PDF İndir" / "Yenile" düğmeleri kaldırıldı — karşılığı olan
+                  // bir sunucu ucu yok, hiçbir şey yapmayan düğme bırakılmaz.
                 ],
               ),
             ),
-            SizedBox(height: MediaQuery.of(context).padding.bottom),
+            SizedBox(height: MediaQuery.of(sheetContext).padding.bottom + 12),
           ],
         ),
-      ),
-    );
-  }
-
-  void _showDocumentDetails(BuildContext context, Map<String, dynamic> doc, bool isGeneral) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(width: 36, height: 5, margin: const EdgeInsets.only(top: 12), decoration: BoxDecoration(color: AppleTheme.systemGray4, borderRadius: BorderRadius.circular(2.5))),
-            Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        width: 56, height: 56,
-                        decoration: BoxDecoration(color: AppleTheme.systemRed.withOpacity(0.12), borderRadius: BorderRadius.circular(12)),
-                        child: const Icon(Icons.picture_as_pdf_rounded, color: AppleTheme.systemRed, size: 28),
-                      ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(doc['title'], style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
-                            Text('${doc['fileSize']} • ${doc['fileType'].toString().toUpperCase()}', style: TextStyle(fontSize: 14, color: AppleTheme.secondaryLabel)),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-                  if (!isGeneral) ...[
-                    _buildInfoRow(Icons.person_rounded, 'Sakin', doc['residentName']),
-                    _buildInfoRow(Icons.home_rounded, 'Daire', doc['residentUnit']),
-                  ] else
-                    _buildInfoRow(Icons.visibility_rounded, 'Görüntüleme', '${doc['viewCount']}'),
-                  _buildInfoRow(Icons.calendar_today_rounded, 'Yükleme Tarihi', doc['uploadDate']),
-                  _buildInfoRow(Icons.category_rounded, 'Kategori', doc['category']),
-                  const SizedBox(height: 24),
-                  Row(
-                    children: [
-                      Expanded(child: OutlinedButton.icon(onPressed: () {}, icon: const Icon(Icons.visibility_rounded), label: const Text('Görüntüle'))),
-                      const SizedBox(width: 12),
-                      Expanded(child: ElevatedButton.icon(onPressed: () {}, icon: const Icon(Icons.file_download_rounded), label: const Text('İndir'))),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            SizedBox(height: MediaQuery.of(context).padding.bottom),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showDeleteConfirm(Map<String, dynamic> doc) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Belgeyi Sil'),
-        content: Text('${doc['title']} belgesini silmek istediğinizden emin misiniz?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('İptal')),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Belge silindi')));
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: AppleTheme.systemRed),
-            child: const Text('Sil'),
-          ),
-        ],
       ),
     );
   }
@@ -836,11 +796,57 @@ class _ContractManagementScreenState extends State<ContractManagementScreen> wit
         children: [
           Icon(icon, size: 20, color: AppleTheme.secondaryLabel),
           const SizedBox(width: 12),
-          Text(label, style: TextStyle(fontSize: 15, color: AppleTheme.secondaryLabel)),
+          Text(label,
+              style: TextStyle(fontSize: 15, color: AppleTheme.secondaryLabel)),
           const Spacer(),
-          Text(value, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
+          Flexible(
+            child: Text(value,
+                textAlign: TextAlign.right,
+                style: const TextStyle(
+                    fontSize: 15, fontWeight: FontWeight.w500)),
+          ),
         ],
       ),
     );
   }
+}
+
+String _contractTitle(Map<String, dynamic> c) =>
+    _text(c, const ['title', 'name', 'subject']) ?? 'Başlıksız sözleşme';
+
+String? _contractVendor(Map<String, dynamic> c) =>
+    _text(c, const ['vendor', 'vendor_name', 'company', 'company_name', 'counterparty']);
+
+double? _monthlyAmount(Map<String, dynamic> c) =>
+    _number(c, const ['monthly_amount', 'monthly_value', 'amount', 'monthlyValue']);
+
+/// Kalan gün sunucudan gelen bitiş tarihinden hesaplanır; sabit "334 gün" gibi
+/// uydurma değerler kullanılmaz. Bitiş tarihi yoksa `null` döner.
+int? _daysRemaining(Map<String, dynamic> c) {
+  final raw = c['end_date'] ?? c['endDate'] ?? c['expires_at'];
+  if (raw is! String || raw.isEmpty || raw.startsWith('0001-01-01')) return null;
+  final end = DateTime.tryParse(raw);
+  if (end == null) return null;
+  final now = DateTime.now();
+  return end.difference(DateTime(now.year, now.month, now.day)).inDays;
+}
+
+String? _text(Map<String, dynamic> map, List<String> keys) {
+  for (final key in keys) {
+    final v = map[key];
+    if (v is String && v.isNotEmpty) return v;
+  }
+  return null;
+}
+
+double? _number(Map<String, dynamic> map, List<String> keys) {
+  for (final key in keys) {
+    final v = map[key];
+    if (v is num) return v.toDouble();
+    if (v is String) {
+      final parsed = double.tryParse(v);
+      if (parsed != null) return parsed;
+    }
+  }
+  return null;
 }

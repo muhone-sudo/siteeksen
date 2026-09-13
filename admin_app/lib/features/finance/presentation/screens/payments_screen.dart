@@ -198,13 +198,14 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
               'FAILED': 'Başarısız',
               'REFUNDED': 'İade',
             }.entries)
-              RadioListTile<String?>(
-                value: entry.key,
-                groupValue: _statusFilter,
+              ListTile(
                 title: Text(entry.value),
-                onChanged: (v) {
+                trailing: _statusFilter == entry.key
+                    ? const Icon(Icons.check, color: AppTheme.primaryColor)
+                    : null,
+                onTap: () {
                   Navigator.pop(ctx);
-                  setState(() => _statusFilter = v);
+                  setState(() => _statusFilter = entry.key);
                   _load();
                 },
               ),
