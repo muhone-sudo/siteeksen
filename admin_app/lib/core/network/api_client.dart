@@ -4,9 +4,21 @@ import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class ApiClient {
-  static const String baseUrl = 'https://api.siteeksen.com/v1';
-  // static const String baseUrl = 'http://10.0.2.2:8000/api/v1'; // Local dev
-  
+  /// API taban adresi.
+  ///
+  /// DÜZELTME (2026-09-13): Önceki değer `https://api.siteeksen.com/v1` idi.
+  /// İki ayrı hata vardı:
+  ///   1. Bu alan adı yayında değil — uygulama hiçbir ortamda çalışmıyordu.
+  ///   2. Yol `/v1`; backend ise `/api/v1` bekliyor → her çağrı 404 dönerdi.
+  /// Artık derleme zamanında verilebiliyor:
+  ///   flutter run --dart-define=API_BASE_URL=https://api.example.com/api/v1
+  /// Varsayılan, Android emülatöründen local gateway'e (8888) işaret eder.
+  static const String baseUrl = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: 'http://10.0.2.2:8888/api/v1',
+  );
+
+
   late final Dio _dio;
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
   

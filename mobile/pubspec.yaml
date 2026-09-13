@@ -9,6 +9,8 @@ environment:
   sdk: '>=3.2.0 <4.0.0'
 
 dependencies:
+  flutter_localizations:
+    sdk: flutter
   flutter:
     sdk: flutter
 
@@ -34,7 +36,7 @@ dependencies:
   fl_chart: ^0.66.0
 
   # Utilities
-  intl: ^0.18.1
+  intl: ^0.20.2
   equatable: ^2.0.5
   freezed_annotation: ^2.4.1
   json_annotation: ^4.8.1

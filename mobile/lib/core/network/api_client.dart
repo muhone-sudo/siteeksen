@@ -2,7 +2,18 @@ import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class ApiClient {
-  static const String baseUrl = 'http://localhost:8000/api/v1';
+  /// API taban adresi.
+  ///
+  /// DÜZELTME (2026-09-13): Sabit `http://localhost:8000/api/v1` değeri gerçek bir
+  /// cihazda ya da emülatörde çalışmaz (`localhost` cihazın kendisidir) ve 8000
+  /// portu Kong'a aitti; geliştirmede kullanılan gateway 8888'dedir.
+  /// Artık derleme zamanında verilebiliyor:
+  ///   flutter run --dart-define=API_BASE_URL=https://api.example.com/api/v1
+  /// Varsayılan, Android emülatöründen local gateway'e işaret eder.
+  static const String baseUrl = String.fromEnvironment(
+    'API_BASE_URL',
+    defaultValue: 'http://10.0.2.2:8888/api/v1',
+  );
 
   static const _accessTokenKey = 'access_token';
   static const _refreshTokenKey = 'refresh_token';

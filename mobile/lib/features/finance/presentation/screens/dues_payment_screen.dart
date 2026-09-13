@@ -1,8 +1,27 @@
-import 'package:flutter/material.dart';
-import '../../../../core/theme/apple_theme.dart';
-import '../../../../core/widgets/apple_widgets.dart';
+// Aidat Ödeme Ekranı
+//
+// NEDEN YENİDEN YAZILDI (2026-09-13, todo 0.C.1):
+// Önceki sürüm TAMAMEN SAHTEYDİ:
+//   - Borç tutarı koda gömülüydü (₺1.250,00) — her kullanıcıya aynı rakam gösteriliyordu.
+//   - "Öde" → "Onayla" akışı HİÇBİR AĞ ÇAĞRISI YAPMADAN "Ödeme Başarılı!" diyordu.
+//     Kullanıcı borcunu ödediğini sanıyor, sistemde hiçbir kayıt oluşmuyordu.
+// Para ile ilgili bir ekranda bu, kabul edilebilir en kötü hatadır.
+//
+// Bu sürüm:
+//   - Borcu ve tahakkukları gerçek API'den (`/finance/debt-status`, `/finance/assessments`) alır.
+//   - Veri alınamazsa uydurma rakam göstermez; hatayı ve yeniden deneme seçeneğini gösterir.
+//   - Ödeme isteğini gerçekten gönderir. Sunucu `payment_gateway_ready: false` döndüğü sürece
+//     (ödeme sağlayıcısı entegrasyonu yok — bkz. questions.md S-06) kullanıcıya ödemenin
+//     ALINMADIĞI açıkça söylenir; "başarılı" denmez.
 
-/// Aidat Ödeme Ekranı - Apple Tarzı
+import 'package:flutter/material.dart';
+
+import '../../../../core/network/api_client.dart';
+import '../../../../core/theme/apple_theme.dart';
+import '../../../../core/utils/formatters.dart';
+import '../../../../core/widgets/apple_widgets.dart';
+import '../../../../core/widgets/data_state.dart';
+
 class DuesPaymentScreen extends StatefulWidget {
   const DuesPaymentScreen({super.key});
 
@@ -12,24 +31,58 @@ class DuesPaymentScreen extends StatefulWidget {
 
 class _DuesPaymentScreenState extends State<DuesPaymentScreen> {
   int _selectedPaymentMethod = 0;
-  
-  final Map<String, dynamic> _duesInfo = {
-    'currentDebt': 1250.00,
-    'dueDate': '15 Şubat 2026',
-    'lastPayment': '₺1,100 - 15 Ocak 2026',
-  };
 
-  final List<Map<String, dynamic>> _pendingDues = [
-    {'month': 'Ocak 2026', 'amount': 1100.00, 'status': 'paid'},
-    {'month': 'Şubat 2026', 'amount': 1150.00, 'status': 'pending'},
-    {'month': 'Gecikme Faizi', 'amount': 100.00, 'status': 'late'},
+  bool _loading = true;
+  String? _loadError;
+  bool _submitting = false;
+
+  Map<String, dynamic>? _debtStatus;
+  List<Map<String, dynamic>> _assessments = const [];
+
+  static const _paymentMethods = [
+    (label: 'Kredi/Banka Kartı', code: 'CARD', icon: Icons.credit_card_rounded, color: AppleTheme.systemBlue),
+    (label: 'Havale/EFT', code: 'TRANSFER', icon: Icons.account_balance_rounded, color: AppleTheme.systemGreen),
   ];
 
-  final List<Map<String, dynamic>> _paymentMethods = [
-    {'name': 'Kredi/Banka Kartı', 'icon': Icons.credit_card_rounded, 'color': AppleTheme.systemBlue},
-    {'name': 'Havale/EFT', 'icon': Icons.account_balance_rounded, 'color': AppleTheme.systemGreen},
-    {'name': 'Sanal POS', 'icon': Icons.phone_iphone_rounded, 'color': AppleTheme.systemPurple},
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _loadError = null;
+    });
+    try {
+      final debt = await apiClient.getDebtStatus();
+      final assessments = await apiClient.getAssessments();
+      if (!mounted) return;
+      setState(() {
+        _debtStatus = debt;
+        _assessments = assessments
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList();
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loadError = toUserMessage(e);
+        _loading = false;
+      });
+    }
+  }
+
+  double get _currentBalance =>
+      (_debtStatus?['current_balance'] as num?)?.toDouble() ?? 0;
+
+  /// Ödenmemiş tahakkuklar — ödeme isteğinde bunların kimlikleri gönderilir.
+  List<Map<String, dynamic>> get _payableAssessments => _assessments
+      .where((a) => (a['status'] as String?) != 'PAID')
+      .toList(growable: false);
 
   @override
   Widget build(BuildContext context) {
@@ -40,330 +93,327 @@ class _DuesPaymentScreenState extends State<DuesPaymentScreen> {
         backgroundColor: Colors.white,
         surfaceTintColor: Colors.transparent,
       ),
-      body: CustomScrollView(
-        slivers: [
-          // Total Debt Card
-          SliverToBoxAdapter(
-            child: Container(
-              margin: const EdgeInsets.all(16),
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [AppleTheme.systemRed.withOpacity(0.12), AppleTheme.systemOrange.withOpacity(0.08)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppleTheme.systemRed.withOpacity(0.2)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('Toplam Borç', style: TextStyle(fontSize: 15, color: AppleTheme.secondaryLabel)),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: AppleTheme.systemRed.withOpacity(0.2),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Text('Ödenmemiş', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppleTheme.systemRed)),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    '₺${_duesInfo['currentDebt'].toStringAsFixed(2)}',
-                    style: const TextStyle(fontSize: 40, fontWeight: FontWeight.w700, color: AppleTheme.systemRed, letterSpacing: -1),
-                  ),
-                  const SizedBox(height: 4),
-                  Text('Son ödeme tarihi: ${_duesInfo['dueDate']}', style: TextStyle(fontSize: 14, color: AppleTheme.tertiaryLabel)),
-                ],
-              ),
-            ),
-          ),
+      body: _buildBody(),
+      bottomNavigationBar: _buildPayBar(context),
+    );
+  }
 
-          // Dues Breakdown
-          const SliverToBoxAdapter(
-            child: SectionTitle(title: 'Borç Detayları'),
-          ),
+  Widget _buildBody() {
+    if (_loading) {
+      return const LoadingView(message: 'Borç bilgisi alınıyor…');
+    }
+    if (_loadError != null) {
+      return ErrorStateView(message: _loadError!, onRetry: _load);
+    }
 
-          SliverToBoxAdapter(
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 16),
-              decoration: AppleTheme.cardDecoration,
-              child: Column(
-                children: _pendingDues.asMap().entries.map((entry) {
-                  final due = entry.value;
-                  final isPaid = due['status'] == 'paid';
-                  final isLate = due['status'] == 'late';
-                  
-                  return Column(
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 40,
-                              height: 40,
-                              decoration: BoxDecoration(
-                                color: isPaid 
-                                    ? AppleTheme.systemGreen.withOpacity(0.12)
-                                    : isLate 
-                                        ? AppleTheme.systemRed.withOpacity(0.12)
-                                        : AppleTheme.systemOrange.withOpacity(0.12),
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: Icon(
-                                isPaid ? Icons.check_circle_rounded : isLate ? Icons.warning_rounded : Icons.schedule_rounded,
-                                color: isPaid ? AppleTheme.systemGreen : isLate ? AppleTheme.systemRed : AppleTheme.systemOrange,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(due['month'], style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-                                  Text(
-                                    isPaid ? 'Ödendi' : isLate ? 'Gecikme' : 'Bekliyor',
-                                    style: TextStyle(fontSize: 13, color: AppleTheme.secondaryLabel),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Text(
-                              '₺${(due['amount'] as double).toStringAsFixed(2)}',
-                              style: TextStyle(
-                                fontSize: 17,
-                                fontWeight: FontWeight.w600,
-                                color: isPaid ? AppleTheme.systemGreen : AppleTheme.label,
-                                decoration: isPaid ? TextDecoration.lineThrough : null,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      if (entry.key < _pendingDues.length - 1)
-                        Padding(
-                          padding: const EdgeInsets.only(left: 68),
-                          child: Container(height: 0.5, color: AppleTheme.opaqueSeparator),
-                        ),
-                    ],
-                  );
-                }).toList(),
-              ),
-            ),
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: ListView(
+        padding: const EdgeInsets.only(bottom: 120),
+        children: [
+          _buildBalanceCard(),
+          const SectionTitle(title: 'Borç Detayları'),
+          _buildAssessmentList(),
+          const SectionTitle(title: 'Ödeme Yöntemi'),
+          _buildPaymentMethods(),
+          const NotImplementedNotice(
+            title: 'Ödeme altyapısı henüz bağlanmadı',
+            detail: 'Ödeme sağlayıcısı entegrasyonu tamamlanana kadar bu ekrandan '
+                'tahsilat YAPILAMAZ. Ödeme talebi oluşturulur ama tutar tahsil edilmez.',
           ),
-
-          // Payment Methods
-          const SliverToBoxAdapter(
-            child: SectionTitle(title: 'Ödeme Yöntemi'),
-          ),
-
-          SliverToBoxAdapter(
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 16),
-              decoration: AppleTheme.cardDecoration,
-              child: Column(
-                children: _paymentMethods.asMap().entries.map((entry) {
-                  final method = entry.value;
-                  final isSelected = _selectedPaymentMethod == entry.key;
-                  
-                  return Column(
-                    children: [
-                      InkWell(
-                        onTap: () => setState(() => _selectedPaymentMethod = entry.key),
-                        child: Padding(
-                          padding: const EdgeInsets.all(16),
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 44,
-                                height: 44,
-                                decoration: BoxDecoration(
-                                  color: (method['color'] as Color).withOpacity(0.12),
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                child: Icon(method['icon'] as IconData, color: method['color'] as Color),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Text(method['name'] as String, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
-                              ),
-                              AnimatedContainer(
-                                duration: AppleTheme.fastAnimation,
-                                width: 24,
-                                height: 24,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: isSelected ? AppleTheme.systemBlue : Colors.transparent,
-                                  border: Border.all(
-                                    color: isSelected ? AppleTheme.systemBlue : AppleTheme.systemGray3,
-                                    width: 2,
-                                  ),
-                                ),
-                                child: isSelected
-                                    ? const Icon(Icons.check_rounded, size: 16, color: Colors.white)
-                                    : null,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      if (entry.key < _paymentMethods.length - 1)
-                        Padding(
-                          padding: const EdgeInsets.only(left: 72),
-                          child: Container(height: 0.5, color: AppleTheme.opaqueSeparator),
-                        ),
-                    ],
-                  );
-                }).toList(),
-              ),
-            ),
-          ),
-
-          // Payment History Link
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: TextButton.icon(
-                onPressed: () {},
-                icon: const Icon(Icons.history_rounded),
-                label: const Text('Ödeme Geçmişini Görüntüle'),
-              ),
-            ),
-          ),
-
-          const SliverToBoxAdapter(child: SizedBox(height: 100)),
         ],
       ),
-      bottomNavigationBar: Container(
-        padding: EdgeInsets.fromLTRB(16, 16, 16, MediaQuery.of(context).padding.bottom + 16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -2))],
-        ),
-        child: SizedBox(
-          width: double.infinity,
-          child: ElevatedButton(
-            onPressed: () => _showPaymentConfirmation(context),
-            style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
-            child: Text('₺${_duesInfo['currentDebt'].toStringAsFixed(2)} Öde'),
+    );
+  }
+
+  Widget _buildBalanceCard() {
+    final hasDebt = (_debtStatus?['has_debt'] as bool?) ?? (_currentBalance > 0);
+    final overdueMonths = (_debtStatus?['overdue_months'] as num?)?.toInt() ?? 0;
+    final accent = hasDebt ? AppleTheme.systemRed : AppleTheme.systemGreen;
+
+    return Container(
+      margin: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: accent.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: accent.withValues(alpha: 0.25)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Toplam Borç',
+                  style: TextStyle(fontSize: 15, color: AppleTheme.secondaryLabel)),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  hasDebt ? 'Ödenmemiş' : 'Güncel',
+                  style: TextStyle(
+                      fontSize: 12, fontWeight: FontWeight.w600, color: accent),
+                ),
+              ),
+            ],
           ),
+          const SizedBox(height: 8),
+          Text(
+            formatTry(_currentBalance),
+            style: TextStyle(
+                fontSize: 40,
+                fontWeight: FontWeight.w700,
+                color: accent,
+                letterSpacing: -1),
+          ),
+          if (overdueMonths > 0) ...[
+            const SizedBox(height: 4),
+            Text('$overdueMonths ay gecikmiş ödeme var',
+                style: TextStyle(fontSize: 14, color: AppleTheme.tertiaryLabel)),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAssessmentList() {
+    if (_assessments.isEmpty) {
+      return const EmptyStateView(
+        message: 'Bu yıl için tahakkuk kaydı bulunamadı.',
+        icon: Icons.receipt_long_rounded,
+      );
+    }
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: AppleTheme.cardDecoration,
+      child: Column(
+        children: [
+          for (var i = 0; i < _assessments.length; i++) ...[
+            _assessmentRow(_assessments[i]),
+            if (i < _assessments.length - 1)
+              const Divider(height: 1, indent: 72),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _assessmentRow(Map<String, dynamic> a) {
+    final status = (a['status'] as String?) ?? 'PENDING';
+    final isPaid = status == 'PAID';
+    final isOverdue = status == 'OVERDUE';
+    final color = isPaid
+        ? AppleTheme.systemGreen
+        : isOverdue
+            ? AppleTheme.systemRed
+            : AppleTheme.systemOrange;
+
+    final total = (a['total_amount'] as num?)?.toDouble() ?? 0;
+    final lateFee = (a['late_fee'] as num?)?.toDouble() ?? 0;
+
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(
+              isPaid
+                  ? Icons.check_rounded
+                  : isOverdue
+                      ? Icons.priority_high_rounded
+                      : Icons.schedule_rounded,
+              color: color,
+              size: 20,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(_periodLabel(a),
+                    style: const TextStyle(fontWeight: FontWeight.w600)),
+                if (lateFee > 0)
+                  Text('Gecikme tazminatı dahil: ${formatTry(lateFee)}',
+                      style: TextStyle(
+                          fontSize: 12, color: AppleTheme.tertiaryLabel)),
+              ],
+            ),
+          ),
+          Text(formatTry(total),
+              style: TextStyle(fontWeight: FontWeight.w600, color: color)),
+        ],
+      ),
+    );
+  }
+
+  String _periodLabel(Map<String, dynamic> a) {
+    final period = a['period'] as String?;
+    if (period == null || !period.contains('-')) return period ?? 'Dönem';
+    final parts = period.split('-');
+    final month = int.tryParse(parts[1]) ?? 0;
+    const names = [
+      '', 'Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
+      'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'
+    ];
+    if (month < 1 || month > 12) return period;
+    return '${names[month]} ${parts[0]}';
+  }
+
+  Widget _buildPaymentMethods() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: AppleTheme.cardDecoration,
+      child: Column(
+        children: [
+          for (var i = 0; i < _paymentMethods.length; i++)
+            RadioListTile<int>(
+              value: i,
+              groupValue: _selectedPaymentMethod,
+              onChanged: (v) => setState(() => _selectedPaymentMethod = v ?? 0),
+              title: Text(_paymentMethods[i].label),
+              secondary: Icon(_paymentMethods[i].icon,
+                  color: _paymentMethods[i].color),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget? _buildPayBar(BuildContext context) {
+    if (_loading || _loadError != null) return null;
+
+    final payable = _payableAssessments;
+    final enabled = payable.isNotEmpty && !_submitting;
+
+    return Container(
+      padding: EdgeInsets.fromLTRB(
+          16, 16, 16, MediaQuery.of(context).padding.bottom + 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 10,
+              offset: const Offset(0, -2)),
+        ],
+      ),
+      child: SizedBox(
+        width: double.infinity,
+        child: ElevatedButton(
+          onPressed: enabled ? _confirmAndPay : null,
+          style: ElevatedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 16)),
+          child: _submitting
+              ? const SizedBox(
+                  height: 20,
+                  width: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2))
+              : Text(payable.isEmpty
+                  ? 'Ödenecek tahakkuk yok'
+                  : '${formatTry(_currentBalance)} Öde'),
         ),
       ),
     );
   }
 
-  void _showPaymentConfirmation(BuildContext context) {
-    showModalBottomSheet(
+  Future<void> _confirmAndPay() async {
+    final payable = _payableAssessments;
+    final confirmed = await showDialog<bool>(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      builder: (ctx) => AlertDialog(
+        title: const Text('Ödeme Onayı'),
+        content: Text(
+          '${payable.length} tahakkuk için toplam ${formatTry(_currentBalance)} '
+          'ödeme talebi oluşturulacak.',
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 36,
-              height: 5,
-              margin: const EdgeInsets.only(top: 12),
-              decoration: BoxDecoration(
-                color: AppleTheme.systemGray4,
-                borderRadius: BorderRadius.circular(2.5),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: AppleTheme.systemGreen.withOpacity(0.12),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.credit_card_rounded, size: 48, color: AppleTheme.systemGreen),
-                  ),
-                  const SizedBox(height: 24),
-                  const Text('Ödeme Onayı', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Toplam ₺${_duesInfo['currentDebt'].toStringAsFixed(2)} ödeme yapılacak',
-                    style: TextStyle(fontSize: 15, color: AppleTheme.secondaryLabel),
-                  ),
-                  const SizedBox(height: 24),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: () => Navigator.pop(context),
-                          child: const Text('İptal'),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: () {
-                            Navigator.pop(context);
-                            _showPaymentSuccess(context);
-                          },
-                          child: const Text('Onayla'),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            SizedBox(height: MediaQuery.of(context).padding.bottom),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('İptal')),
+          ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Devam')),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    setState(() => _submitting = true);
+    try {
+      final result = await apiClient.createPayment(
+        assessmentIds: payable.map((a) => a['id'] as String).toList(),
+        paymentMethod: _paymentMethods[_selectedPaymentMethod].code,
+      );
+      if (!mounted) return;
+      setState(() => _submitting = false);
+      _showPaymentResult(result);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _submitting = false);
+      showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Ödeme oluşturulamadı'),
+          content: Text(toUserMessage(e)),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx), child: const Text('Tamam')),
           ],
         ),
-      ),
-    );
+      );
+    }
   }
 
-  void _showPaymentSuccess(BuildContext context) {
-    showDialog(
+  /// Ödeme sonucu diyalogu.
+  ///
+  /// DİKKAT: `payment_gateway_ready` false olduğu sürece burada "Ödeme Başarılı"
+  /// YAZILMAZ. Sunucu yalnızca bir ödeme KAYDI oluşturur; tahsilat yapılmaz.
+  void _showPaymentResult(Map<String, dynamic> result) {
+    final ready = (result['payment_gateway_ready'] as bool?) ?? false;
+    final amount = (result['amount'] as num?)?.toDouble() ?? 0;
+
+    showDialog<void>(
       context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      builder: (ctx) => AlertDialog(
+        title: Text(ready ? 'Ödeme alındı' : 'Ödeme talebi oluşturuldu'),
         content: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppleTheme.systemGreen.withOpacity(0.12),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.check_circle_rounded, size: 64, color: AppleTheme.systemGreen),
-            ),
-            const SizedBox(height: 24),
-            const Text('Ödeme Başarılı!', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
+            Text('Tutar: ${formatTry(amount)}'),
             const SizedBox(height: 8),
             Text(
-              'Ödemeniz başarıyla gerçekleştirildi.',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 15, color: AppleTheme.secondaryLabel),
+              ready
+                  ? 'Ödemeniz tahsil edildi.'
+                  : 'Ödeme sağlayıcısı entegrasyonu henüz tamamlanmadığı için '
+                      'tutar TAHSİL EDİLMEDİ. Kaydınız "beklemede" durumundadır; '
+                      'yönetimle iletişime geçerek ödemenizi tamamlayabilirsiniz.',
+              style: TextStyle(
+                color: ready ? null : AppleTheme.systemOrange,
+                fontWeight: ready ? null : FontWeight.w600,
+              ),
             ),
           ],
         ),
         actions: [
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Tamam'),
-            ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _load();
+            },
+            child: const Text('Tamam'),
           ),
         ],
       ),
