@@ -46,6 +46,7 @@ AST_PID=""
 INV_PID=""
 SRV_PID=""
 IOT_PID=""
+NTF_PID=""
 
 ok()   { echo "  [GEÇTİ]    $1"; PASS=$((PASS+1)); }
 bad()  { echo "  [BAŞARISIZ] $1"; FAIL=$((FAIL+1)); }
@@ -97,6 +98,7 @@ cleanup() {
   kill_tree "$INV_PID"
   kill_tree "$SRV_PID"
   kill_tree "$IOT_PID"
+  kill_tree "$NTF_PID"
   rm -rf /tmp/verify-docs
   docker rm -f "$CNAME" >/dev/null 2>&1
 }
@@ -108,7 +110,7 @@ command -v go     >/dev/null || { echo "go bulunamadı (PATH'e /usr/local/go/bin
 
 # Kalıntı süpürme: yarıda kesilmiş bir çalıştırmadan kalan servisler
 # portları tutuyorsa, testler eski süreçlere çarpar ve sonuç rastgele değişir.
-for _p in 18084 18087 18089 18090 18104 18091 18092 18093 18094 18097 18098 18099 18100 18105 18107 18191; do
+for _p in 18084 18085 18087 18089 18090 18104 18091 18092 18093 18094 18097 18098 18099 18100 18105 18107 18191; do
   free_port "$_p"
 done
 
@@ -121,6 +123,11 @@ if go test ./pkg/authtoken/... -count=1 >/tmp/verify-authtoken.log 2>&1; then
   ok "go test ./pkg/authtoken/... (JWT doğrulama)"
 else
   bad "go test ./pkg/authtoken/..."; tail -15 /tmp/verify-authtoken.log
+fi
+if go test ./pkg/notify/... -count=1 >/tmp/verify-notify.log 2>&1; then
+  ok "go test ./pkg/notify/... (bildirim kuyruğu, kanal seçimi, maskeleme)"
+else
+  bad "go test ./pkg/notify/..."; tail -15 /tmp/verify-notify.log
 fi
 if go test ./services/iot/service/... -count=1 >/tmp/verify-alloc.log 2>&1; then
   ok "go test ./services/iot/service/... (ısı gideri %70/%30 paylaştırma, kuruş kaybı yok)"
@@ -177,7 +184,8 @@ step "3) Şema beklentileri"
 TBL=$($PSQL -t -A -c "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE';")
 [ "$TBL" -ge 60 ] && ok "tablo sayısı: $TBL (>=60)" || bad "tablo sayısı yetersiz: $TBL"
 
-for t in expenses parking_zones reservations bank_accounts employees surveys assets meetings; do
+for t in expenses parking_zones reservations bank_accounts employees surveys assets meetings \
+         documents document_access_logs notifications notification_preferences; do
   EX=$($PSQL -t -A -c "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_name='$t';")
   [ "$EX" = "1" ] && ok "tablo mevcut: $t" || bad "tablo eksik: $t"
 done
@@ -2465,6 +2473,167 @@ else
   bad "iot-service başlamadı"; tail -15 /tmp/verify-iot.log
 fi
 kill_tree "$IOT_PID"
+
+step "24) Bildirim altyapısı — mock'tan gerçeğe (FAZ 5, 13/22 · S-10)"
+# Önceki davranış: "bildirim gönderildi" deyip hiçbir şey yapmıyordu.
+# Yeni sözleşme: bildirim önce veritabanına yazılır; sağlayıcı yoksa PENDING
+# kalır ve hiçbir yerde "gönderildi" DENMEZ.
+NTFPORT=${VERIFY_NTF_PORT:-18085}
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen DB_PASSWORD="$PW" DB_NAME=siteeksen \
+DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${NTFPORT} \
+  go run ./services/notification >/tmp/verify-notification.log 2>&1 &
+NTF_PID=$!
+NUP=0
+for _ in $(seq 1 45); do
+  curl -fsS "http://127.0.0.1:${NTFPORT}/health" >/dev/null 2>&1 && { NUP=1; break; }
+  sleep 1
+done
+
+if [ "$NUP" = "1" ] && [ -n "${MGR:-}" ] && [ -n "${TEN:-}" ]; then
+  ok "notification-service ayağa kalktı"
+  NA="Authorization: Bearer $MGR"
+  NT="Authorization: Bearer $TEN"
+  NJ='Content-Type: application/json'
+  NURL="http://127.0.0.1:${NTFPORT}/api/v1"
+  TENANT_ID='44444444-4444-4444-4444-444444444402'
+
+  # Sağlık ucu hangi kanalların sağlayıcısı olmadığını DÜRÜSTÇE söylemeli
+  NH=$(curl -s "http://127.0.0.1:${NTFPORT}/health")
+  echo "$NH" | grep -q 'channels_without_provider' && ok "sağlayıcısı olmayan kanallar bildiriliyor" \
+    || bad "sağlık ucu sağlayıcı bilgisi vermiyor: $NH"
+  echo "$NH" | grep -q 'GÖNDERİLMEZ' && ok "gönderilmeyeceği açıkça yazılıyor" || bad "dürüstlük notu yok"
+
+  # 1) Uygulama içi bildirim GERÇEKTEN gönderilir (dışarı çıkmaz)
+  N1=$(curl -s -w '\n%{http_code}' -X POST "$NURL/notifications" -H "$NA" -H "$NJ" -d "{
+    \"recipient_user_id\":\"$TENANT_ID\",\"channel\":\"IN_APP\",
+    \"topic\":\"aidat.hatirlatma\",\"subject\":\"Aidat hatirlatmasi\",
+    \"body\":\"Eylul ayi aidatiniz tahakkuk etti.\"}")
+  N1CODE=$(echo "$N1" | tail -1)
+  [ "$N1CODE" = "201" ] && ok "uygulama içi bildirim gönderildi → 201" || bad "uygulama içi → $N1CODE: $N1"
+  echo "$N1" | grep -q '"status":"SENT"' && ok "durumu SENT olarak kaydedildi" || bad "durum: $N1"
+  echo "$N1" | grep -q '"provider":"in_app"' && ok "sağlayıcı kayda geçti" || bad "sağlayıcı yok"
+
+  # 2) SMS: sağlayıcı YOK → PENDING ve 202 (kabul edildi ama gönderilmedi)
+  N2=$(curl -s -w '\n%{http_code}' -X POST "$NURL/notifications" -H "$NA" -H "$NJ" -d "{
+    \"recipient_user_id\":\"$TENANT_ID\",\"channel\":\"SMS\",
+    \"topic\":\"ariza.bildirimi\",\"body\":\"Asansor bakimda.\"}")
+  N2CODE=$(echo "$N2" | tail -1)
+  [ "$N2CODE" = "202" ] && ok "sağlayıcısı olmayan kanal 202 dönüyor (gönderildi DEMİYOR)" \
+    || bad "SMS → $N2CODE (202 bekleniyordu)"
+  echo "$N2" | grep -q '"status":"PENDING"' && ok "SMS bildirimi kuyrukta PENDING kaldı" || bad "durum: $N2"
+  echo "$N2" | grep -q 'GÖNDERİLMEDİ' && ok "gönderilmediği gerekçesiyle bildiriliyor" || bad "gerekçe yok"
+
+  DBS=$($PSQL -t -A -c "SELECT count(*) FROM notifications WHERE status='PENDING';")
+  [ "$DBS" -ge 1 ] && ok "bildirim veritabanına yazıldı (kaybolmadı)" || bad "kayıt yok"
+
+  # 3) TİCARİ İLETİ — onay yoksa GÖNDERİLMEZ (6563 s. Kanun m.6)
+  N3=$(curl -s -w '\n%{http_code}' -X POST "$NURL/notifications" -H "$NA" -H "$NJ" -d "{
+    \"recipient_user_id\":\"$TENANT_ID\",\"channel\":\"IN_APP\",\"category\":\"COMMERCIAL\",
+    \"topic\":\"kampanya\",\"body\":\"Anlasmali spor salonu indirimi!\"}")
+  N3CODE=$(echo "$N3" | tail -1)
+  [ "$N3CODE" = "202" ] && ok "onaysız ticari ileti gönderilmedi → 202" || bad "ticari ileti → $N3CODE"
+  echo "$N3" | grep -q '"status":"SUPPRESSED"' && ok "onaysız ticari ileti SUPPRESSED oldu" || bad "durum: $N3"
+  echo "$N3" | grep -q '6563' && ok "engellemenin hukuki dayanağı kayda geçiyor" || bad "dayanak yok: $N3"
+
+  # Onay verildikten SONRA gönderilebilmeli
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X PUT "$NURL/notification-preferences" -H "$NT" -H "$NJ" \
+    -d '{"channel":"IN_APP","category":"COMMERCIAL","enabled":true,"consent_source":"test-onay-ekrani"}')
+  [ "$SC" = "200" ] && ok "alıcı ticari ileti onayı verebildi" || bad "onay → $SC"
+  CONSENT=$($PSQL -t -A -c "SELECT count(*) FROM notification_preferences
+    WHERE user_id='$TENANT_ID' AND category='COMMERCIAL' AND enabled AND consent_at IS NOT NULL;")
+  [ "$CONSENT" = "1" ] && ok "onayın zamanı ve kaynağı kayda geçti (ispat yükü)" || bad "onay kaydı: $CONSENT"
+
+  N4=$(curl -s -X POST "$NURL/notifications" -H "$NA" -H "$NJ" -d "{
+    \"recipient_user_id\":\"$TENANT_ID\",\"channel\":\"IN_APP\",\"category\":\"COMMERCIAL\",
+    \"topic\":\"kampanya\",\"body\":\"Anlasmali spor salonu indirimi - ikinci deneme\"}")
+  echo "$N4" | grep -q '"status":"SENT"' && ok "onay verildikten sonra ticari ileti gönderilebiliyor" \
+    || bad "onaylı ticari ileti: $N4"
+
+  # 4) Alıcı kanalı kapatırsa işlemsel bildirim de gönderilmez
+  curl -s -o /dev/null -X PUT "$NURL/notification-preferences" -H "$NT" -H "$NJ" \
+    -d '{"channel":"IN_APP","category":"TRANSACTIONAL","enabled":false}'
+  N5=$(curl -s -X POST "$NURL/notifications" -H "$NA" -H "$NJ" -d "{
+    \"recipient_user_id\":\"$TENANT_ID\",\"channel\":\"IN_APP\",
+    \"topic\":\"duyuru\",\"body\":\"Kapali kanal denemesi\"}")
+  echo "$N5" | grep -q '"status":"SUPPRESSED"' && ok "alıcının kapattığı kanala gönderilmiyor" \
+    || bad "kapalı kanal: $N5"
+  echo "$N5" | grep -q 'kanalını kapatmış' && ok "engelleme gerekçesi anlaşılır" || bad "gerekçe metni yok"
+  curl -s -o /dev/null -X PUT "$NURL/notification-preferences" -H "$NT" -H "$NJ" \
+    -d '{"channel":"IN_APP","category":"TRANSACTIONAL","enabled":true}'
+
+  # 5) GENEL KURUL ÇAĞRISI — kanuni uyarı GÖVDEYE eklenmeli (KMK m.29)
+  N6=$(curl -s -X POST "$NURL/notifications" -H "$NA" -H "$NJ" -d "{
+    \"recipient_user_id\":\"$TENANT_ID\",\"channel\":\"IN_APP\",
+    \"topic\":\"assembly.call\",\"body\":\"Genel kurul 1 Ekim 2026 saat 19:00\"}")
+  echo "$N6" | grep -q '"status":"SENT"' && ok "genel kurul bildirimi oluşturuldu" || bad "genel kurul: $N6"
+  GKBODY=$($PSQL -t -A -c "SELECT body FROM notifications WHERE topic='assembly.call' LIMIT 1;")
+  echo "$GKBODY" | grep -q 'kanuni çağrı yerine geçmez' \
+    && ok "genel kurul bildiriminin gövdesine kanuni uyarı eklendi (KMK m.29)" \
+    || bad "kanuni uyarı gövdede yok: $GKBODY"
+
+  # 6) Tekrarlı bildirim engellenir (dedupe)
+  curl -s -o /dev/null -X POST "$NURL/notifications" -H "$NA" -H "$NJ" -d "{
+    \"recipient_user_id\":\"$TENANT_ID\",\"channel\":\"IN_APP\",\"topic\":\"aidat\",
+    \"body\":\"Eylul aidati\",\"dedupe_key\":\"aidat-2026-09-A4\"}"
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$NURL/notifications" -H "$NA" -H "$NJ" -d "{
+    \"recipient_user_id\":\"$TENANT_ID\",\"channel\":\"IN_APP\",\"topic\":\"aidat\",
+    \"body\":\"Eylul aidati\",\"dedupe_key\":\"aidat-2026-09-A4\"}")
+  [ "$SC" = "409" ] && ok "aynı olay iki kez bildirilmiyor → 409" || bad "tekrarlı bildirim → $SC"
+
+  # 7) Adres çözülemezse bildirim OLUŞTURULMAZ (PUSH: cihaz kaydı yok)
+  PU=$(curl -s -w '\n%{http_code}' -X POST "$NURL/notifications" -H "$NA" -H "$NJ" -d "{
+    \"recipient_user_id\":\"$TENANT_ID\",\"channel\":\"PUSH\",\"body\":\"Test\"}")
+  PUCODE=$(echo "$PU" | tail -1)
+  [ "$PUCODE" = "422" ] && ok "cihaz jetonu olmadan push bildirimi oluşturulmuyor → 422" \
+    || bad "push → $PUCODE"
+  echo "$PU" | grep -q 'OLUŞTURULMADI' && ok "kaydın açılmadığı açıkça söyleniyor" || bad "açıklama yok"
+
+  # Başka sitenin kullanıcısına bildirim gönderilemez
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$NURL/notifications" -H "$NA" -H "$NJ" \
+    -d '{"recipient_user_id":"44444444-4444-4444-4444-4444444444ff","channel":"SMS","body":"x"}')
+  [ "$SC" = "404" ] && ok "site dışı kullanıcıya bildirim gönderilemiyor → 404" || bad "yabancı alıcı → $SC"
+
+  # 8) KVKK: alıcı adresi maskelenmeli
+  OUT=$(curl -s "$NURL/notifications/outbox" -H "$NA")
+  echo "$OUT" | grep -q '"recipient_masked"' && ok "alıcı adresi maskelenmiş olarak dönüyor" \
+    || bad "maskeleme yok: $OUT"
+  echo "$OUT" | grep -q '5559876543' && bad "alıcı telefonu tam olarak sızdırılıyor" \
+    || ok "alıcı telefonu tam olarak sızdırılmıyor"
+
+  # 9) Sakin yalnızca kendi bildirimlerini görür, giden kutusunu göremez
+  MY=$(curl -s "$NURL/notifications" -H "$NT")
+  echo "$MY" | grep -q 'Eylul ayi aidatiniz' && ok "sakin kendi bildirimlerini görüyor" || bad "sakin listesi: $MY"
+  SC=$(curl -s -o /dev/null -w '%{http_code}' "$NURL/notifications/outbox" -H "$NT")
+  [ "$SC" = "403" ] && ok "sakin site geneli giden kutusunu göremiyor → 403" || bad "sakin outbox gördü → $SC"
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$NURL/notifications" -H "$NT" -H "$NJ" \
+    -d '{"channel":"IN_APP","body":"x","recipient":"y"}')
+  [ "$SC" = "403" ] && ok "sakin bildirim gönderemiyor → 403" || bad "sakin bildirim gönderdi → $SC"
+
+  # 10) Gönderilmiş bildirim silinemez / durumu değiştirilemez
+  if $PSQL -c "DELETE FROM notifications WHERE status='SENT';" >/dev/null 2>&1; then
+    bad "gönderilmiş bildirim silinebiliyor (haber verildiğinin kanıtı kayboluyor)"
+  else
+    ok "gönderilmiş bildirim silinemiyor (tetikleyici korumalı)"
+  fi
+  if $PSQL -c "UPDATE notifications SET status='PENDING' WHERE status='SENT';" >/dev/null 2>&1; then
+    bad "gönderilmiş bildirimin durumu değiştirilebiliyor"
+  else
+    ok "gönderilmiş bildirimin durumu değiştirilemiyor"
+  fi
+
+  # 11) Özet
+  NSUM=$(curl -s "$NURL/notifications/summary" -H "$NA")
+  echo "$NSUM" | grep -q '"suppressed":' && ok "özet engellenen bildirimleri ayrı sayıyor" || bad "özet: $NSUM"
+  echo "$NSUM" | grep -q 'GÖNDERİLMEMİŞTİR' && ok "bekleyenlerin gönderilmediği özet içinde yazılı" \
+    || bad "özet dürüstlük notu yok"
+
+  # 12) Kimliksiz erişim
+  SC=$(curl -s -o /dev/null -w '%{http_code}' "$NURL/notifications")
+  [ "$SC" = "401" ] && ok "kimliksiz bildirim erişimi engellendi → 401" || bad "kimliksiz erişim → $SC"
+else
+  bad "notification-service başlamadı"; tail -15 /tmp/verify-notification.log
+fi
+kill_tree "$NTF_PID"
 
 step "SONUÇ"
 echo "  Geçen: $PASS   Başarısız: $FAIL"
