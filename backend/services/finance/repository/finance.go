@@ -487,6 +487,101 @@ func (r *FinanceRepository) ListPendingPayments(ctx context.Context, propertyID 
 	return payments, rows.Err()
 }
 
+// OverdueAssessment, gecikme tazminatı hesabı için gereken asgari alanlardır.
+type OverdueAssessment struct {
+	ID             string
+	PrincipalKurus int64
+	OverdueDays    int
+	BaseAmount     float64
+	PaidAmount     float64
+}
+
+// ListOverdueForLateFee, gecikme tazminatı işletilecek tahakkukları getirir.
+//
+// Anapara = ödenmemiş ASIL borçtur; daha önce işletilmiş gecikme tazminatı anaparaya
+// dahil edilmez. Aksi hâlde tazminat üzerinden tazminat (bileşik faiz) işlemiş olurdu;
+// KMK m.20/2 buna dayanak vermez.
+func (r *FinanceRepository) ListOverdueForLateFee(ctx context.Context, propertyID string, asOf time.Time) ([]OverdueAssessment, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT id,
+		       GREATEST(round((base_amount - LEAST(COALESCE(paid_amount,0), base_amount)) * 100), 0)::bigint,
+		       ($2::date - due_date)::int,
+		       base_amount, COALESCE(paid_amount, 0)
+		FROM monthly_assessments
+		WHERE property_id = $1
+		  AND deleted = 0
+		  AND due_date < $2::date
+		  AND total_amount > COALESCE(paid_amount, 0)
+		ORDER BY due_date`, propertyID, asOf)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := []OverdueAssessment{}
+	for rows.Next() {
+		var a OverdueAssessment
+		if err := rows.Scan(&a.ID, &a.PrincipalKurus, &a.OverdueDays, &a.BaseAmount, &a.PaidAmount); err != nil {
+			return nil, err
+		}
+		out = append(out, a)
+	}
+	return out, rows.Err()
+}
+
+// ApplyLateFee, hesaplanan gecikme tazminatını tahakkuka işler ve izini bırakır.
+//
+// ÖNEMLİ: `late_fee` ARTIRILMAZ, YENİDEN YAZILIR. Tazminat (anapara, gün, oran)
+// fonksiyonudur; her çalıştırmada baştan hesaplanır. Artımlı toplama yapılsaydı
+// iş iki kez çalıştığında borç iki katına çıkardı.
+//
+// `late_fee_accruals` tablosundaki (assessment_id, accrued_on) benzersizliği,
+// aynı gün ikinci çalıştırmanın yeni bir iz kaydı üretmesini engeller; hesabın
+// kendisi zaten idempotenttir.
+func (r *FinanceRepository) ApplyLateFee(
+	ctx context.Context,
+	assessmentID string,
+	asOf time.Time,
+	overdueDays int,
+	principalKurus, feeKurus int64,
+	monthlyRate string,
+) error {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+
+	if _, err := tx.Exec(ctx, `
+		UPDATE monthly_assessments
+		SET late_fee = $2::numeric / 100,
+		    total_amount = base_amount + ($2::numeric / 100),
+		    status = CASE
+		        WHEN COALESCE(paid_amount,0) >= base_amount + ($2::numeric / 100) THEN 'PAID'
+		        WHEN COALESCE(paid_amount,0) > 0 THEN 'PARTIAL'
+		        ELSE 'OVERDUE'
+		    END,
+		    updated_at = NOW()
+		WHERE id = $1 AND deleted = 0`, assessmentID, feeKurus); err != nil {
+		return err
+	}
+
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO late_fee_accruals
+			(assessment_id, accrued_on, overdue_days, principal_kurus, monthly_rate, fee_kurus)
+		VALUES ($1, $2::date, $3, $4, $5::numeric, $6)
+		ON CONFLICT (assessment_id, accrued_on) DO UPDATE
+		SET overdue_days = EXCLUDED.overdue_days,
+		    principal_kurus = EXCLUDED.principal_kurus,
+		    monthly_rate = EXCLUDED.monthly_rate,
+		    fee_kurus = EXCLUDED.fee_kurus`,
+		assessmentID, asOf, overdueDays, principalKurus, monthlyRate, feeKurus); err != nil {
+		return err
+	}
+
+	return tx.Commit(ctx)
+}
+
 // GetPaymentHistory ödeme geçmişi
 func (r *FinanceRepository) GetPaymentHistory(ctx context.Context, userID string) ([]models.Payment, error) {
 	query := `

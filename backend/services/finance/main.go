@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/siteeksen/backend/pkg/database"
+	"github.com/siteeksen/backend/pkg/legalparams"
 	"github.com/siteeksen/backend/pkg/middleware"
 	"github.com/siteeksen/backend/services/finance/handlers"
 	"github.com/siteeksen/backend/services/finance/repository"
@@ -23,7 +24,9 @@ func main() {
 
 	// Repository ve Service
 	financeRepo := repository.NewFinanceRepository(pool)
-	financeService := service.NewFinanceService(financeRepo)
+	// Mevzuata bağlı oranlar (gecikme tazminatı vb.) veritabanından okunur; koda gömülmez.
+	params := legalparams.New(pool)
+	financeService := service.NewFinanceService(financeRepo, params)
 
 	// Gin router
 	r := gin.Default()
@@ -80,6 +83,9 @@ func main() {
 			// tahsilatını yönetici onaylar. Onay, tahakkukların paid_amount değerini artırır.
 			mgmtWrite.POST("/payments/:id/confirm", handlers.ConfirmPayment(financeService))
 			mgmtWrite.POST("/payments/:id/reject", handlers.RejectPayment(financeService))
+			// Gecikme tazminatı (KMK m.20/2). İşlem idempotenttir; zamanlanmış görev
+			// ya da yönetici tarafından elle çalıştırılabilir.
+			mgmtWrite.POST("/late-fees/accrue", handlers.AccrueLateFees(financeService))
 		}
 	}
 

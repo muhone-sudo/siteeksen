@@ -407,6 +407,36 @@ if [ "$FUP" = "1" ] && [ -n "${MGR:-}" ]; then
     # Geri al: betik tekrar çalıştırılabilir kalsın
     $PSQL -c "UPDATE monthly_assessments SET paid_amount=0, status='PENDING' WHERE id='$ASSESS';" >/dev/null 2>&1
   fi
+
+  # --- Gecikme tazminatı (KMK m.20/2, aylık %5) ---
+  # Demo tahakkuk: 1.200,00 TL, vade 2026-01-10. as_of 2026-02-09 → tam 30 gün gecikme.
+  # Beklenen tazminat: 120000 kuruş × %5 × 30/30 = 6000 kuruş = 60,00 TL
+  LFR=$(curl -s -X POST "http://127.0.0.1:${FINPORT}/api/v1/finance/late-fees/accrue" \
+    -H "Authorization: Bearer $MGR" -H 'Content-Type: application/json' -d '{"as_of":"2026-02-09"}')
+  echo "$LFR" | grep -q '"monthly_rate":"0.05"' && ok "gecikme tazminatı oranı mevzuattan okundu (%5)" \
+    || bad "gecikme tazminatı oranı beklenmedik: $LFR"
+
+  LFV=$($PSQL -t -A -c "SELECT late_fee::text FROM monthly_assessments WHERE id='$ASSESS';")
+  [ "$LFV" = "60.00" ] && ok "gecikme tazminatı doğru hesaplandı: 30 gün → 60,00 TL" \
+    || bad "gecikme tazminatı $LFV (60.00 bekleniyordu)"
+
+  TOTV=$($PSQL -t -A -c "SELECT total_amount::text FROM monthly_assessments WHERE id='$ASSESS';")
+  [ "$TOTV" = "1260.00" ] && ok "toplam borç anapara + tazminat olarak güncellendi (1.260,00 TL)" \
+    || bad "toplam borç $TOTV (1260.00 bekleniyordu)"
+
+  # İkinci çalıştırma borcu ikiye katlamamalı (idempotency)
+  curl -s -o /dev/null -X POST "http://127.0.0.1:${FINPORT}/api/v1/finance/late-fees/accrue" \
+    -H "Authorization: Bearer $MGR" -H 'Content-Type: application/json' -d '{"as_of":"2026-02-09"}'
+  LFV2=$($PSQL -t -A -c "SELECT late_fee::text FROM monthly_assessments WHERE id='$ASSESS';")
+  [ "$LFV2" = "60.00" ] && ok "gecikme tazminatı ikinci çalıştırmada değişmedi (idempotent)" \
+    || bad "ikinci çalıştırmada tazminat $LFV2 oldu (birikmeli hesap hatası)"
+
+  # Tahakkuk izi bırakılmış olmalı (borçlu itiraz ederse savunulabilir olmalı)
+  ACC=$($PSQL -t -A -c "SELECT count(*) FROM late_fee_accruals WHERE assessment_id='$ASSESS' AND accrued_on='2026-02-09';")
+  [ "$ACC" = "1" ] && ok "gecikme tazminatı tahakkuk izi kaydedildi (gün, oran, anapara)" \
+    || bad "tahakkuk izi yok ($ACC kayıt)"
+
+  $PSQL -c "UPDATE monthly_assessments SET late_fee=0, total_amount=base_amount, status='PENDING' WHERE id='$ASSESS'; DELETE FROM late_fee_accruals WHERE assessment_id='$ASSESS';" >/dev/null 2>&1
 else
   bad "para doğruluğu adımı atlandı (finance servisi ya da jeton yok)"
 fi

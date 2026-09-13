@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/siteeksen/backend/services/finance/models"
@@ -170,6 +171,36 @@ func CreatePayment(svc *service.FinanceService) gin.HandlerFunc {
 		}
 
 		c.JSON(http.StatusOK, result)
+	}
+}
+
+// AccrueLateFees, vadesi geçmiş tahakkuklara gecikme tazminatı işler (KMK m.20/2).
+// `as_of` verilmezse bugün kullanılır; geçmiş bir tarih verilerek yeniden hesaplama yapılabilir.
+func AccrueLateFees(svc *service.FinanceService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var req struct {
+			AsOf string `json:"as_of"`
+		}
+		_ = c.ShouldBindJSON(&req)
+
+		asOf := time.Now()
+		if req.AsOf != "" {
+			parsed, err := time.Parse("2006-01-02", req.AsOf)
+			if err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Tarih biçimi YYYY-AA-GG olmalıdır"})
+				return
+			}
+			asOf = parsed
+		}
+
+		propertyID := c.GetString("property_id")
+		res, err := svc.AccrueLateFees(c.Request.Context(), propertyID, asOf)
+		if err != nil {
+			log.Printf("[finance] gecikme tazminatı işlenemedi (property=%s): %v", propertyID, err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gecikme tazminatı işlenemedi"})
+			return
+		}
+		c.JSON(http.StatusOK, res)
 	}
 }
 

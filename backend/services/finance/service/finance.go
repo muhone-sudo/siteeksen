@@ -3,9 +3,12 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
+	"github.com/siteeksen/backend/pkg/legalparams"
 	"github.com/siteeksen/backend/pkg/middleware"
+	"github.com/siteeksen/backend/pkg/money"
 	"github.com/siteeksen/backend/services/finance/models"
 	"github.com/siteeksen/backend/services/finance/repository"
 )
@@ -13,11 +16,14 @@ import (
 // ErrAssessmentForbidden yönetim dışı kullanıcı tahakkuk oluşturmaya çalışırsa döner
 var ErrAssessmentForbidden = errors.New("bu işlem için yetkiniz yok")
 
-// isFinanceManagement kullanıcının yönetim rolüne sahip olup olmadığını kontrol eder
+// isFinanceManagement kullanıcının yönetim rolüne sahip olup olmadığını kontrol eder.
+// BOARD_MEMBER (yönetim kurulu üyesi) migration 013 ile tanımlandı ve buraya eklendi;
+// aksi hâlde kurul üyesi kendi sitesinin mali özetini göremiyordu.
 func isFinanceManagement(roles []string) bool {
 	for _, role := range roles {
 		switch role {
-		case middleware.RoleManager, middleware.RoleAuditor, middleware.RoleStaff:
+		case middleware.RoleManager, middleware.RoleAuditor,
+			middleware.RoleStaff, middleware.RoleBoardMember:
 			return true
 		}
 	}
@@ -26,12 +32,14 @@ func isFinanceManagement(roles []string) bool {
 
 // FinanceService finans servisi
 type FinanceService struct {
-	repo *repository.FinanceRepository
+	repo   *repository.FinanceRepository
+	params *legalparams.Resolver
 }
 
-// NewFinanceService yeni servis oluşturur
-func NewFinanceService(repo *repository.FinanceRepository) *FinanceService {
-	return &FinanceService{repo: repo}
+// NewFinanceService yeni servis oluşturur.
+// params, mevzuata bağlı oranların (gecikme tazminatı vb.) tek kaynağıdır.
+func NewFinanceService(repo *repository.FinanceRepository, params *legalparams.Resolver) *FinanceService {
+	return &FinanceService{repo: repo, params: params}
 }
 
 // DebtStatusResponse borç durumu yanıtı
@@ -150,6 +158,70 @@ func (s *FinanceService) CreatePayment(ctx context.Context, userID string, asses
 		// açıkça göstermelidir.
 		PaymentGatewayReady: false,
 	}, nil
+}
+
+// LateFeeRunResult, gecikme tazminatı işletme sonucudur.
+type LateFeeRunResult struct {
+	AsOf           string  `json:"as_of"`
+	MonthlyRate    string  `json:"monthly_rate"`
+	LegalBasis     string  `json:"legal_basis"`
+	ProcessedCount int     `json:"processed_count"`
+	TotalFeeKurus  int64   `json:"total_fee_kurus"`
+	TotalFeeTRY    float64 `json:"total_fee_try"`
+	SkippedNotDue  int     `json:"skipped_not_due"`
+}
+
+// AccrueLateFees, vadesi geçmiş tahakkuklara gecikme tazminatı işler (KMK m.20/2).
+//
+// NEDEN VAR: Gecikme tazminatı bugüne kadar HİÇ hesaplanmıyordu. Kanun, ödemede
+// geciken kat malikinin "geciktiği günler için aylık yüzde beş hesabıyla" tazminat
+// ödeyeceğini söyler; bu, yönetimin takdirine bırakılmış bir şey değildir.
+//
+// Oran koda gömülmez; `legal_parameters` (KMK m.20/2, aylık %5) üzerinden okunur ve
+// hesaplama `pkg/money` ile kuruş üzerinden yapılır.
+//
+// İşlem IDEMPOTENTTİR: tazminat (anapara, gün, oran) fonksiyonu olarak her seferinde
+// baştan hesaplanır ve tahakkuka YAZILIR, eklenmez. Aynı gün iki kez çalıştırmak
+// borcu iki katına çıkarmaz.
+func (s *FinanceService) AccrueLateFees(ctx context.Context, propertyID string, asOf time.Time) (*LateFeeRunResult, error) {
+	if asOf.IsZero() {
+		asOf = time.Now()
+	}
+
+	rateParam, err := s.params.Get(ctx, propertyID, legalparams.LateFeeMonthlyRate, asOf)
+	if err != nil {
+		return nil, err
+	}
+
+	items, err := s.repo.ListOverdueForLateFee(ctx, propertyID, asOf)
+	if err != nil {
+		return nil, err
+	}
+
+	res := &LateFeeRunResult{
+		AsOf:        asOf.Format("2006-01-02"),
+		MonthlyRate: rateParam.Numeric.String(),
+		LegalBasis:  rateParam.LegalBasis,
+	}
+
+	for _, it := range items {
+		if it.OverdueDays <= 0 || it.PrincipalKurus <= 0 {
+			res.SkippedNotDue++
+			continue
+		}
+		fee, err := money.LateFee(money.Kurus(it.PrincipalKurus), rateParam.Numeric, it.OverdueDays)
+		if err != nil {
+			return nil, fmt.Errorf("gecikme tazminatı hesaplanamadı (tahakkuk %s): %w", it.ID, err)
+		}
+		if err := s.repo.ApplyLateFee(ctx, it.ID, asOf, it.OverdueDays,
+			it.PrincipalKurus, int64(fee), rateParam.Numeric.String()); err != nil {
+			return nil, fmt.Errorf("gecikme tazminatı işlenemedi (tahakkuk %s): %w", it.ID, err)
+		}
+		res.ProcessedCount++
+		res.TotalFeeKurus += int64(fee)
+	}
+	res.TotalFeeTRY = float64(res.TotalFeeKurus) / 100
+	return res, nil
 }
 
 // ConfirmPayment, yöneticinin bekleyen bir ödemeyi tahsil edilmiş olarak onaylamasıdır.
