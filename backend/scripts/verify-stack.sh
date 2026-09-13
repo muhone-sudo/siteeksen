@@ -34,6 +34,7 @@ STUB_PID=""
 GW_PID=""
 FIN_PID=""
 GOV_PID=""
+EXP_PID=""
 
 ok()   { echo "  [GEÇTİ]    $1"; PASS=$((PASS+1)); }
 bad()  { echo "  [BAŞARISIZ] $1"; FAIL=$((FAIL+1)); }
@@ -45,6 +46,7 @@ cleanup() {
   [ -n "$GW_PID" ] && kill "$GW_PID" 2>/dev/null
   [ -n "$FIN_PID" ] && kill "$FIN_PID" 2>/dev/null
   [ -n "$GOV_PID" ] && kill "$GOV_PID" 2>/dev/null
+  [ -n "$EXP_PID" ] && kill "$EXP_PID" 2>/dev/null
   docker rm -f "$CNAME" >/dev/null 2>&1
 }
 trap cleanup EXIT
@@ -565,6 +567,100 @@ else
   bad "governance-service başlamadı"; tail -10 /tmp/verify-governance.log
 fi
 kill "$GOV_PID" 2>/dev/null
+
+step "12) Gider modülü — mock'tan gerçeğe (FAZ 5, ilk modül)"
+EXPPORT=${VERIFY_EXP_PORT:-18086}
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen DB_PASSWORD="$PW" DB_NAME=siteeksen \
+DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${EXPPORT} \
+  go run ./services/expense >/tmp/verify-expense.log 2>&1 &
+EXP_PID=$!
+EUP=0
+for _ in $(seq 1 45); do
+  curl -fsS "http://127.0.0.1:${EXPPORT}/health" >/dev/null 2>&1 && { EUP=1; break; }
+  sleep 1
+done
+
+if [ "$EUP" = "1" ] && [ -n "${MGR:-}" ]; then
+  ok "expense-service ayağa kalktı"
+  EA="Authorization: Bearer $MGR"
+  EJ='Content-Type: application/json'
+  EURL="http://127.0.0.1:${EXPPORT}/api/v1"
+
+  # Sağlık ucu artık "not_implemented" değil "healthy" demeli
+  curl -s "http://127.0.0.1:${EXPPORT}/health" | grep -q '"persistent":true' \
+    && ok "expense sağlık ucu kalıcı veri katmanı bildiriyor" || bad "expense sağlık ucu yanlış"
+
+  # Gider kalemleri gerçek veritabanından gelmeli (004 seed'i: 10 varsayılan kalem)
+  CATS=$(curl -s "$EURL/expense-categories" -H "$EA")
+  CATID=$(echo "$CATS" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+  [ -n "$CATID" ] && ok "gider kalemleri veritabanından geldi" || bad "gider kalemi alınamadı: $CATS"
+  echo "$CATS" | grep -q 'KMK m.20' && ok "kalemler dağıtım türünün hukuki dayanağını taşıyor" \
+    || bad "hukuki dayanak alanı yok"
+
+  # Arsa payına göre paylaştırılan gider: 24 daire, toplam 10000 arsa payı
+  # 12.000,00 TL → 1.200.000 kuruş; payların toplamı BİREBİR eşit olmalı
+  # Aidata yansıyan ve zemin katı da kapsayan bir kalem seçilir ki 24 birimin
+  # tamamına pay düşsün (kalem bazlı istisnalar ayrı olarak sınanır).
+  SHARECAT=$($PSQL -t -A -c "SELECT id FROM expense_categories
+      WHERE distribution_type='SHARE_RATIO' AND property_id IS NULL
+        AND COALESCE(reflects_to_assessment,true)
+        AND COALESCE(applies_to_ground_floor,true)
+      ORDER BY COALESCE(display_order, sort_order, 0) LIMIT 1;")
+  EXP=$(curl -s -X POST "$EURL/expenses" -H "$EA" -H "$EJ" -d "{
+    \"category_id\":\"$SHARECAT\",\"description\":\"Ortak alan sigorta primi\",
+    \"amount\":12000,\"expense_date\":\"2026-03-15\",\"vendor_name\":\"Test Sigorta\",
+    \"invoice_number\":\"FT-2026-001\"}")
+  EXPID=$(echo "$EXP" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+  [ -n "$EXPID" ] && ok "gider kaydı oluşturuldu ve KALICI" || bad "gider oluşturulamadı: $EXP"
+
+  if [ -n "$EXPID" ]; then
+    DSUM=$($PSQL -t -A -c "SELECT COALESCE(sum(amount),0)::text FROM expense_distributions WHERE expense_id='$EXPID';")
+    [ "$DSUM" = "12000.00" ] && ok "gider dağıtımında kuruş kaybı yok (toplam 12.000,00 TL)" \
+      || bad "dağıtım toplamı $DSUM (12000.00 bekleniyordu)"
+
+    DCNT=$($PSQL -t -A -c "SELECT count(*) FROM expense_distributions WHERE expense_id='$EXPID';")
+    [ "$DCNT" = "24" ] && ok "24 bağımsız bölümün tamamına pay düştü" || bad "$DCNT birime pay düştü"
+
+    # Faturalı gider doğrudan onaylı olmalı
+    ST=$($PSQL -t -A -c "SELECT status FROM expenses WHERE id='$EXPID';")
+    [ "$ST" = "APPROVED" ] && ok "faturalı gider doğrudan onaylı" || bad "faturalı gider durumu $ST"
+  fi
+
+  # Faturasız gider gerekçe olmadan reddedilmeli
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$EURL/expenses" -H "$EA" -H "$EJ" -d "{
+    \"category_id\":\"$SHARECAT\",\"description\":\"Faturasız tamir\",\"amount\":500,
+    \"expense_date\":\"2026-03-16\",\"is_invoiced\":false}")
+  [ "$SC" = "422" ] && ok "faturasız gider gerekçesiz kabul edilmiyor → 422" \
+    || bad "faturasız gider gerekçesiz kabul edildi → $SC"
+
+  # Gerekçeli faturasız gider ONAY BEKLER (doğrudan onaylanmaz)
+  UNINV=$(curl -s -X POST "$EURL/expenses" -H "$EA" -H "$EJ" -d "{
+    \"category_id\":\"$SHARECAT\",\"description\":\"Faturasız acil tamir\",\"amount\":500,
+    \"expense_date\":\"2026-03-16\",\"is_invoiced\":false,
+    \"invoice_reason\":\"Usta fatura kesemedi, tutanak tutuldu\"}")
+  UID2=$(echo "$UNINV" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+  UST=$($PSQL -t -A -c "SELECT status FROM expenses WHERE id='$UID2';")
+  [ "$UST" = "PENDING" ] && ok "faturasız gider onay bekliyor (KMK m.39 hesap verme)" \
+    || bad "faturasız gider durumu $UST (PENDING bekleniyordu)"
+
+  # Onaydan sonra ikinci onay reddedilmeli
+  curl -s -o /dev/null -X POST "$EURL/expenses/$UID2/approve" -H "$EA" -H "$EJ" -d '{}'
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$EURL/expenses/$UID2/approve" -H "$EA" -H "$EJ" -d '{}')
+  [ "$SC" = "409" ] && ok "çift onaylama engellendi → 409" || bad "çift onaylama → $SC"
+
+  # Özet gerçek kayıtlardan üretilmeli
+  SUM=$(curl -s "$EURL/expenses/summary?year=2026&month=3" -H "$EA")
+  echo "$SUM" | grep -q '"total_amount":12500' && ok "dönem özeti gerçek kayıtlardan hesaplandı (12.500,00 TL)" \
+    || bad "dönem özeti beklenmedik: $SUM"
+
+  # Sakin gideri görememeli
+  SC=$(curl -s -o /dev/null -w '%{http_code}' "$EURL/expenses" -H "Authorization: Bearer $TEN")
+  [ "$SC" = "403" ] && ok "sakin site geneli gider listesini göremiyor → 403" \
+    || bad "sakin gider listesini gördü → $SC"
+else
+  bad "expense-service başlamadı"; tail -10 /tmp/verify-expense.log
+fi
+kill "$EXP_PID" 2>/dev/null
 
 step "SONUÇ"
 echo "  Geçen: $PASS   Başarısız: $FAIL"

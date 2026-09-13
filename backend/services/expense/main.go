@@ -1,193 +1,82 @@
+// expense-service — Gider ve fatura yönetimi.
+//
+// DURUM DEĞİŞİKLİĞİ (2026-09-13): Bu servis, sabit JSON döndüren 22 mock servisten
+// biriydi; `pkg/stub` ile dürüstçe 501 döndürmeye çevrilmişti. Bu sürümde GERÇEK
+// veri katmanına bağlandı (FAZ 5'in ilk modülü).
+//
+// Neden ilk bu modül: gider kayıtları hem işletme projesinin (KMK m.37) hem yıllık
+// hesap vermenin (m.39) girdisidir; aidat tahakkuku da bu kalemler üzerinden üretilir.
+//
+// Kapsam:
+//   - Gider kaydı, kalem bazlı sınıflandırma, fatura bilgisi
+//   - Aidata yansıyan giderlerin bağımsız bölümlere KURUŞ hassasiyetinde paylaştırılması
+//     (KMK m.20 dağıtım kuralları; en büyük kalan yöntemi)
+//   - Faturasız giderler için onay akışı (denetlenebilirlik)
+//   - Dönem bazlı özet (faturalı/faturasız ayrımıyla)
 package main
 
 import (
 	"log"
+	"net/http"
 	"os"
-	"time"
-
-	"github.com/siteeksen/backend/pkg/stub"
 
 	"github.com/gin-gonic/gin"
+	"github.com/siteeksen/backend/pkg/database"
+	"github.com/siteeksen/backend/pkg/middleware"
+	"github.com/siteeksen/backend/services/expense/handlers"
+	"github.com/siteeksen/backend/services/expense/repository"
+	"github.com/siteeksen/backend/services/expense/service"
 )
 
-// Models
-type Expense struct {
-	ID                   string    `json:"id"`
-	PropertyID           string    `json:"property_id"`
-	CategoryID           string    `json:"category_id"`
-	CategoryName         string    `json:"category_name,omitempty"`
-	Description          string    `json:"description"`
-	Amount               float64   `json:"amount"`
-	Currency             string    `json:"currency"`
-	ExpenseDate          string    `json:"expense_date"`
-	IsInvoiced           bool      `json:"is_invoiced"`
-	InvoiceReason        string    `json:"invoice_reason,omitempty"`
-	ReflectsToAssessment bool      `json:"reflects_to_assessment"`
-	AssessmentPeriod     string    `json:"assessment_period,omitempty"`
-	DistributionType     string    `json:"distribution_type"`
-	Status               string    `json:"status"`
-	VendorName           string    `json:"vendor_name,omitempty"`
-	InvoiceNumber        string    `json:"invoice_number,omitempty"`
-	InvoiceDate          string    `json:"invoice_date,omitempty"`
-	Notes                string    `json:"notes,omitempty"`
-	Invoices             []Invoice `json:"invoices,omitempty"`
-	CreatedBy            string    `json:"created_by"`
-	CreatedAt            time.Time `json:"created_at"`
-}
-
-type Invoice struct {
-	ID              string                 `json:"id"`
-	ExpenseID       string                 `json:"expense_id"`
-	FileName        string                 `json:"file_name"`
-	FileURL         string                 `json:"file_url"`
-	FileType        string                 `json:"file_type"`
-	FileSize        int64                  `json:"file_size"`
-	AIProcessed     bool                   `json:"ai_processed"`
-	AIExtractedData map[string]interface{} `json:"ai_extracted_data,omitempty"`
-	AIConfidence    float64                `json:"ai_confidence_score,omitempty"`
-	UploadedAt      time.Time              `json:"uploaded_at"`
-}
-
-type ExpenseCategory struct {
-	ID                   string `json:"id"`
-	Name                 string `json:"name"`
-	Description          string `json:"description,omitempty"`
-	Type                 string `json:"type"` // FIXED, VARIABLE, UNPLANNED
-	ReflectsToAssessment bool   `json:"reflects_to_assessment"`
-	DisplayOrder         int    `json:"display_order"`
-}
-
-type AIInvoiceScanRequest struct {
-	FileURL  string `json:"file_url"`
-	FileType string `json:"file_type"`
-}
-
-type AIInvoiceScanResult struct {
-	Success         bool                   `json:"success"`
-	VendorName      string                 `json:"vendor_name,omitempty"`
-	InvoiceNumber   string                 `json:"invoice_number,omitempty"`
-	InvoiceDate     string                 `json:"invoice_date,omitempty"`
-	TotalAmount     float64                `json:"total_amount,omitempty"`
-	Currency        string                 `json:"currency,omitempty"`
-	TaxAmount       float64                `json:"tax_amount,omitempty"`
-	CategorySuggest string                 `json:"category_suggestion,omitempty"`
-	Confidence      float64                `json:"confidence_score"`
-	RawData         map[string]interface{} `json:"raw_data,omitempty"`
-	Error           string                 `json:"error,omitempty"`
-}
-
 func main() {
+	dbConfig := database.NewConfigFromEnv()
+	pool, err := database.Connect(dbConfig)
+	if err != nil {
+		log.Fatalf("Veritabanı bağlantısı başarısız: %v", err)
+	}
+	defer database.Close()
+
+	svc := service.New(repository.New(pool))
+
 	r := gin.Default()
 
-	// Health check
-	r.GET("/health", stub.Health("expense"))
+	r.GET("/health", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"status":     "healthy",
+			"service":    "expense",
+			"persistent": true,
+		})
+	})
 
-	// Expense Categories
-	categories := r.Group("/api/v1/expense-categories")
+	api := r.Group("/api/v1")
+	api.Use(middleware.AuthMiddleware(), middleware.AuditLog(pool, "expense"))
+
+	// Okuma: yönetim + denetçi (KMK m.41 denetim görevi giderleri görmeyi gerektirir).
+	read := api.Group("")
+	read.Use(middleware.RequireRole(
+		middleware.RoleManager, middleware.RoleBoardMember, middleware.RoleAuditor))
 	{
-		categories.GET("", listCategories)
-		categories.POST("", createCategory)
-		categories.PUT("/:id", updateCategory)
+		read.GET("/expense-categories", handlers.ListCategories(svc))
+		read.GET("/expenses", handlers.List(svc))
+		read.GET("/expenses/summary", handlers.Summary(svc))
+		read.GET("/expenses/:id", handlers.Get(svc))
 	}
 
-	// Expenses
-	expenses := r.Group("/api/v1/expenses")
+	// Yazma: yönetici ve kurul üyesi. Denetçi YAZAMAZ (görevler ayrılığı).
+	write := api.Group("")
+	write.Use(middleware.RequireRole(middleware.RoleManager, middleware.RoleBoardMember))
 	{
-		expenses.GET("", listExpenses)
-		expenses.GET("/:id", getExpense)
-		expenses.POST("", createExpense)
-		expenses.PUT("/:id", updateExpense)
-		expenses.DELETE("/:id", deleteExpense)
-		expenses.PATCH("/:id/status", updateExpenseStatus)
-
-		// Invoices
-		expenses.POST("/:id/invoices", uploadInvoice)
-		expenses.DELETE("/:id/invoices/:invoiceId", deleteInvoice)
+		write.POST("/expenses", handlers.Create(svc))
+		write.POST("/expenses/:id/approve", handlers.Approve(svc))
+		write.POST("/expenses/:id/reject", handlers.Reject(svc))
 	}
-
-	// AI Invoice Scanning
-	r.POST("/api/v1/expenses/scan-invoice", scanInvoice)
-
-	// Reports
-	r.GET("/api/v1/expenses/summary", getExpenseSummary)
-	r.GET("/api/v1/expenses/monthly", getMonthlyReport)
-
-	// Resident view (read-only)
-	r.GET("/api/v1/resident/expenses", getResidentExpenses)
 
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8086"
 	}
-
-	log.Printf("Expense Service starting on port %s", port)
+	log.Printf("Expense Service başlatıldı: :%s", port)
 	if err := r.Run(":" + port); err != nil {
 		log.Fatal(err)
 	}
-}
-
-// Category handlers
-func listCategories(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "expense")
-}
-
-func createCategory(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "expense")
-}
-
-func updateCategory(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "expense")
-}
-
-// Expense handlers
-func listExpenses(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "expense")
-}
-
-func getExpense(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "expense")
-}
-
-func createExpense(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "expense")
-}
-
-func updateExpense(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "expense")
-}
-
-func deleteExpense(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "expense")
-}
-
-func updateExpenseStatus(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "expense")
-}
-
-// Invoice handlers
-func uploadInvoice(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "expense")
-}
-
-func deleteInvoice(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "expense")
-}
-
-// AI Invoice Scanning
-func scanInvoice(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "expense")
-}
-
-// Reports
-func getExpenseSummary(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "expense")
-}
-
-func getMonthlyReport(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "expense")
-}
-
-// Resident view
-func getResidentExpenses(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "expense")
 }
