@@ -1,221 +1,120 @@
+// meeting_wizard-service — Toplantı sihirbazı.
+//
+// DURUM (2026-09-14): Bu servis mock'tu ve sabit toplantı kayıtları, uydurma
+// "yapay zekâ özeti", uydurma transkript ve uydurma kararlar döndürüyordu.
+// FAZ 5 kapsamında ele alındı ve şu karara varıldı (19/22 — kapsam kararı):
+//
+// BU SERVİS AYRI BİR VERİ KATMANIYLA GERÇEKLEŞTİRİLMEDİ; uçları governance
+// servisine yönlendirir. Gerekçe:
+//
+//  1. TEKRAR OLURDU. Kat malikleri kurulu toplantısının verisi zaten
+//     governance servisindedir: çağrı, gündem, katılım, vekâletname, oylama ve
+//     KARAR DEFTERİ. Aynı toplantıyı ikinci bir tabloda tutmak, iki ayrı
+//     "gerçek" üretir ve hangisinin karar defterine esas olduğu belirsizleşir.
+//     Karar defteri KMK m.32 uyarınca tek ve noterce onaylı olmak zorundadır.
+//
+//  2. "SİHİRBAZ" BİR ARAYÜZ MESELESİDİR. Yöneticiyi çağrıdan tutanağa
+//     adım adım götürmek, sunucuda yeni bir veri modeli değil, panelde bir akış
+//     gerektirir. Bunun için ayrı bir servis yazmak, arayüz ihtiyacını
+//     mimariye taşımaktır.
+//
+//  3. SES KAYDI VE ÖZETLEME YOKTUR. Transkript ve "yapay zekâ özeti" uçları
+//     ses işleme altyapısı gerektirir; böyle bir altyapı ne kurulu ne de
+//     planlıdır. Ayrıca genel kurulun ses kaydı KVKK m.5-6 kapsamında ayrı bir
+//     hukuki dayanak ve açık rıza sorunu doğurur. Var gibi göstermek yerine
+//     olmadığı söylenir.
+//
+// Tutanak taslağının karar defterine dönüştürülmesi governance servisinin işidir
+// (bkz. tasks/todo.md FAZ 6.6).
 package main
 
 import (
 	"log"
+	"net/http"
 	"os"
-	"time"
-
-	"github.com/siteeksen/backend/pkg/stub"
 
 	"github.com/gin-gonic/gin"
+	"github.com/siteeksen/backend/pkg/middleware"
 )
 
-// AI-Powered Meeting Wizard Service
-// Toplantı transkripsiyon, özet çıkarma, karar takibi
-
-type Meeting struct {
-	ID               string     `json:"id"`
-	PropertyID       string     `json:"property_id"`
-	Title            string     `json:"title"`
-	MeetingType      string     `json:"meeting_type"` // GENERAL_ASSEMBLY, BOARD, COMMITTEE, OTHER
-	ScheduledAt      time.Time  `json:"scheduled_at"`
-	StartedAt        *time.Time `json:"started_at,omitempty"`
-	EndedAt          *time.Time `json:"ended_at,omitempty"`
-	DurationMinutes  int        `json:"duration_minutes,omitempty"`
-	Location         string     `json:"location,omitempty"`
-	Attendees        []Attendee `json:"attendees,omitempty"`
-	AttendeeCount    int        `json:"attendee_count"`
-	Quorum           bool       `json:"quorum"`
-	Status           string     `json:"status"` // SCHEDULED, IN_PROGRESS, COMPLETED, CANCELLED
-	RecordingURL     string     `json:"recording_url,omitempty"`
-	TranscriptStatus string     `json:"transcript_status,omitempty"` // PENDING, PROCESSING, COMPLETED
-	CreatedAt        time.Time  `json:"created_at"`
-}
-
-type Attendee struct {
-	ID         string  `json:"id"`
-	MeetingID  string  `json:"meeting_id"`
-	ResidentID string  `json:"resident_id,omitempty"`
-	Name       string  `json:"name"`
-	UnitNumber string  `json:"unit_number,omitempty"`
-	Role       string  `json:"role,omitempty"`  // CHAIR, SECRETARY, MEMBER
-	Votes      float64 `json:"votes,omitempty"` // m² bazlı oy
-	Attended   bool    `json:"attended"`
-	ProxyFor   string  `json:"proxy_for,omitempty"`
-}
-
-type MeetingTranscript struct {
-	ID            string              `json:"id"`
-	MeetingID     string              `json:"meeting_id"`
-	Segments      []TranscriptSegment `json:"segments"`
-	FullText      string              `json:"full_text,omitempty"`
-	WordCount     int                 `json:"word_count"`
-	Language      string              `json:"language"`
-	AIProcessedAt time.Time           `json:"ai_processed_at"`
-}
-
-type TranscriptSegment struct {
-	StartTime  float64 `json:"start_time"`
-	EndTime    float64 `json:"end_time"`
-	Speaker    string  `json:"speaker,omitempty"`
-	Text       string  `json:"text"`
-	Confidence float64 `json:"confidence"`
-}
-
-type MeetingSummary struct {
-	ID               string       `json:"id"`
-	MeetingID        string       `json:"meeting_id"`
-	ExecutiveSummary string       `json:"executive_summary"`
-	KeyPoints        []string     `json:"key_points"`
-	Decisions        []Decision   `json:"decisions"`
-	ActionItems      []ActionItem `json:"action_items"`
-	NextMeeting      string       `json:"next_meeting,omitempty"`
-	AIConfidence     float64      `json:"ai_confidence"`
-	GeneratedAt      time.Time    `json:"generated_at"`
-}
-
-type Decision struct {
-	ID           string `json:"id"`
-	Title        string `json:"title"`
-	Description  string `json:"description"`
-	Result       string `json:"result"` // APPROVED, REJECTED, DEFERRED
-	VotesFor     int    `json:"votes_for"`
-	VotesAgainst int    `json:"votes_against"`
-	VotesAbstain int    `json:"votes_abstain"`
-}
-
-type ActionItem struct {
-	ID          string `json:"id"`
-	Title       string `json:"title"`
-	Description string `json:"description"`
-	AssignedTo  string `json:"assigned_to,omitempty"`
-	DueDate     string `json:"due_date,omitempty"`
-	Status      string `json:"status"` // PENDING, IN_PROGRESS, COMPLETED
-	Priority    string `json:"priority"`
-}
+// governanceNote, her yanıtta verilen yönlendirmedir.
+const governanceNote = "Kat malikleri kurulu toplantısı governance servisinde " +
+	"yürütülür: çağrı, gündem, katılım, vekâletname, yeter sayı (KMK m.30/31) ve " +
+	"karar defteri (m.32). Bu servis aynı veriyi ikinci kez tutmaz."
 
 func main() {
 	r := gin.Default()
 
-	r.GET("/health", stub.Health("meeting_wizard"))
+	r.GET("/health", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"status": "healthy", "service": "meeting_wizard",
+			"persistent":    false,
+			"module_status": "redirected",
+			"redirect_to":   "governance-service",
+			"scope_note": governanceNote + " Ses kaydı ve otomatik özetleme " +
+				"YOKTUR ve planlı değildir.",
+		})
+	})
 
-	v1 := r.Group("/api/v1")
-	{
-		meetings := v1.Group("/meetings")
-		{
-			meetings.GET("", listMeetings)
-			meetings.GET("/stats", getMeetingStats)
-			meetings.GET("/:id", getMeeting)
-			meetings.POST("", createMeeting)
-			meetings.PUT("/:id", updateMeeting)
-			meetings.DELETE("/:id", deleteMeeting)
-			meetings.POST("/:id/start", startMeeting)
-			meetings.POST("/:id/end", endMeeting)
+	api := r.Group("/api/v1")
+	api.Use(middleware.AuthMiddleware())
 
-			// Attendees
-			meetings.GET("/:id/attendees", getAttendees)
-			meetings.POST("/:id/attendees", addAttendee)
-			meetings.POST("/:id/attendance", recordAttendance)
-
-			// AI Features
-			meetings.POST("/:id/transcribe", transcribeMeeting)
-			meetings.GET("/:id/transcript", getTranscript)
-			meetings.POST("/:id/summarize", generateSummary)
-			meetings.GET("/:id/summary", getSummary)
-			meetings.GET("/:id/decisions", getDecisions)
-			meetings.GET("/:id/action-items", getActionItems)
-			meetings.POST("/:id/generate-minutes", generateMinutes)
-		}
-
-		// Action items across meetings
-		v1.GET("/action-items", listAllActionItems)
-		v1.PUT("/action-items/:id", updateActionItem)
+	// Toplantı uçları: governance'a yönlendirilir.
+	redirect := func(c *gin.Context) {
+		c.JSON(http.StatusNotImplemented, gin.H{
+			"error":   "Bu modül governance servisinde yürütülür",
+			"service": "governance-service",
+			"note":    "İstek İŞLENMEDİ. " + governanceNote,
+			"endpoints": []string{
+				"GET  /api/v1/governance/assemblies",
+				"POST /api/v1/governance/assemblies",
+				"POST /api/v1/governance/assemblies/{id}/attendees",
+				"POST /api/v1/governance/assemblies/{id}/votes",
+				"GET  /api/v1/governance/books",
+			},
+			"legal_basis": "634 s. KMK m.29-32",
+		})
 	}
+
+	// Ses kaydı / özetleme uçları: altyapı yok, var gibi gösterilmez.
+	notAvailable := func(c *gin.Context) {
+		c.JSON(http.StatusNotImplemented, gin.H{
+			"error": "Ses kaydı, transkript ve otomatik özetleme YOKTUR",
+			"note": "İstek İŞLENMEDİ. Ses işleme altyapısı kurulu değildir ve " +
+				"planlı değildir. Ayrıca genel kurulun ses kaydı, KVKK m.5-6 " +
+				"kapsamında ayrı bir hukuki dayanak ve açık rıza sorunu doğurur; " +
+				"bu konu çözülmeden böyle bir özellik yazılmayacaktır.",
+		})
+	}
+
+	meetings := api.Group("/meetings")
+	{
+		meetings.GET("", redirect)
+		meetings.GET("/stats", redirect)
+		meetings.GET("/:id", redirect)
+		meetings.POST("", redirect)
+		meetings.POST("/:id/start", redirect)
+		meetings.POST("/:id/end", redirect)
+		meetings.GET("/:id/attendees", redirect)
+		meetings.POST("/:id/attendees", redirect)
+		meetings.POST("/:id/attendance", redirect)
+		meetings.GET("/:id/decisions", redirect)
+		meetings.GET("/:id/action-items", redirect)
+		meetings.POST("/:id/generate-minutes", redirect)
+
+		meetings.POST("/:id/transcribe", notAvailable)
+		meetings.GET("/:id/transcript", notAvailable)
+		meetings.POST("/:id/summarize", notAvailable)
+		meetings.GET("/:id/summary", notAvailable)
+	}
+	api.GET("/action-items", redirect)
 
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "8095"
+		port = "8095" // kong/kong.yml ile aynı olmalı
 	}
-	log.Printf("Meeting Wizard Service starting on port %s", port)
-	r.Run(":" + port)
-}
-
-func listMeetings(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "meeting_wizard")
-}
-
-func getMeetingStats(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "meeting_wizard")
-}
-
-func getMeeting(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "meeting_wizard")
-}
-
-func createMeeting(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "meeting_wizard")
-}
-
-func updateMeeting(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "meeting_wizard")
-}
-
-func deleteMeeting(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "meeting_wizard")
-}
-
-func startMeeting(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "meeting_wizard")
-}
-
-func endMeeting(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "meeting_wizard")
-}
-
-func getAttendees(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "meeting_wizard")
-}
-
-func addAttendee(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "meeting_wizard")
-}
-
-func recordAttendance(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "meeting_wizard")
-}
-
-func transcribeMeeting(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "meeting_wizard")
-}
-
-func getTranscript(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "meeting_wizard")
-}
-
-func generateSummary(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "meeting_wizard")
-}
-
-func getSummary(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "meeting_wizard")
-}
-
-func getDecisions(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "meeting_wizard")
-}
-
-func getActionItems(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "meeting_wizard")
-}
-
-func generateMinutes(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "meeting_wizard")
-}
-
-func listAllActionItems(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "meeting_wizard")
-}
-
-func updateActionItem(c *gin.Context) { // STUB: gercek veri katmani yok
-	stub.NotImplemented(c, "meeting_wizard")
+	log.Printf("Meeting Wizard Service başlatıldı (governance'a yönlendirir): :%s", port)
+	if err := r.Run(":" + port); err != nil {
+		log.Fatal(err)
+	}
 }

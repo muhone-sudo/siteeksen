@@ -51,6 +51,10 @@ PTR_PID=""
 BUL_PID=""
 SET_PID=""
 ENE_PID=""
+NPS_PID=""
+ESG_PID=""
+BNK_PID=""
+MTG_PID=""
 SMC_PID=""
 COM_PID=""
 
@@ -109,6 +113,10 @@ cleanup() {
   kill_tree "$BUL_PID"
   kill_tree "$SET_PID"
   kill_tree "$ENE_PID"
+  kill_tree "$NPS_PID"
+  kill_tree "$ESG_PID"
+  kill_tree "$BNK_PID"
+  kill_tree "$MTG_PID"
   kill_tree "$SMC_PID"
   kill_tree "$COM_PID"
   rm -rf /tmp/verify-docs
@@ -122,7 +130,7 @@ command -v go     >/dev/null || { echo "go bulunamadı (PATH'e /usr/local/go/bin
 
 # Kalıntı süpürme: yarıda kesilmiş bir çalıştırmadan kalan servisler
 # portları tutuyorsa, testler eski süreçlere çarpar ve sonuç rastgele değişir.
-for _p in 18082 18083 18086 18103 18084 18085 18087 18088 18089 18090 18104 18091 18092 18093 18094 18097 18098 18099 18100 18105 18107 18191; do
+for _p in 18082 18083 18086 18093 18095 18096 18103 18106 18084 18085 18087 18088 18089 18090 18104 18091 18092 18093 18094 18097 18098 18099 18100 18105 18107 18191; do
   free_port "$_p"
 done
 
@@ -135,6 +143,11 @@ if go test ./pkg/authtoken/... -count=1 >/tmp/verify-authtoken.log 2>&1; then
   ok "go test ./pkg/authtoken/... (JWT doğrulama)"
 else
   bad "go test ./pkg/authtoken/..."; tail -15 /tmp/verify-authtoken.log
+fi
+if go test ./services/nps/service/... -count=1 >/tmp/verify-nps.log 2>&1; then
+  ok "go test ./services/nps/service/... (NPS tanımı: 0-6/7-8/9-10)"
+else
+  bad "go test ./services/nps/service/..."; tail -15 /tmp/verify-nps.log
 fi
 if go test ./services/energy_analytics/service/... ./services/smart_collection/service/... \
    -count=1 >/tmp/verify-analytics.log 2>&1; then
@@ -318,7 +331,8 @@ fi
 
 step "7) Dürüstlük: kalıcı olmayan uçlar 501 dönmeli"
 # tasks/dogrulama-politikasi.md §3.5 — kaydetmeyen bir uç 2xx dönemez.
-PORT=${STUB_PORT:-18191} go run ./services/esg >/tmp/verify-stub.log 2>&1 &
+JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${STUB_PORT:-18191} \
+  go run ./services/banking >/tmp/verify-stub.log 2>&1 &
 STUB_PID=$!
 SUP=0
 for _ in $(seq 1 45); do
@@ -326,13 +340,29 @@ for _ in $(seq 1 45); do
   sleep 1
 done
 if [ "$SUP" = "1" ]; then
-  ok "stub servis (esg) ayağa kalktı"
-  SC=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:${STUB_PORT:-18191}/api/v1/esg/carbon-footprint")
-  [ "$SC" = "501" ] && ok "stub GET /esg/carbon-footprint → 501" || bad "stub GET /esg/carbon-footprint → $SC (501 bekleniyordu)"
-  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "http://127.0.0.1:${STUB_PORT:-18191}/api/v1/esg/metrics" \
-    -H 'Content-Type: application/json' -d '{"metric":"test"}')
-  [ "$SC" = "501" ] && ok "stub POST /esg/metrics → 501 (veri kaydedilmiyor)" || bad "stub POST /esg/metrics → $SC (501 bekleniyordu)"
-  HDR=$(curl -s -D- -o /dev/null "http://127.0.0.1:${STUB_PORT:-18191}/api/v1/esg/carbon-footprint" | grep -ci 'X-SiteEksen-Not-Implemented: true')
+  ok "stub servis (banking) ayağa kalktı"
+
+  # Kimliksiz istek 401 almalı: 501'i kimliksiz servis etmek, olmayan bir
+  # modülün varlığını dışarıya doğrulamak olurdu.
+  SC=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:${STUB_PORT:-18191}/api/v1/bank-accounts")
+  [ "$SC" = "401" ] && ok "stub uçları da kimlik doğrulaması arkasında → 401" \
+    || bad "stub ucu kimliksiz erişilebiliyor → $SC"
+
+  # Kimlikli istek 501 dönmeli: uç var ama KAYDETMİYOR.
+  STUBTOK=$(curl -s -X POST "http://127.0.0.1:${SVCPORT}/api/v1/auth/login" \
+    -H 'Content-Type: application/json' -d '{"phone":"5551234567","password":"Demo123!"}' \
+    | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+  STUBAUTH="Authorization: Bearer $STUBTOK"
+
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -H "$STUBAUTH" \
+    "http://127.0.0.1:${STUB_PORT:-18191}/api/v1/bank-accounts")
+  [ "$SC" = "501" ] && ok "stub GET /bank-accounts → 501" || bad "stub GET /bank-accounts → $SC (501 bekleniyordu)"
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST -H "$STUBAUTH" \
+    "http://127.0.0.1:${STUB_PORT:-18191}/api/v1/bank-accounts" \
+    -H 'Content-Type: application/json' -d '{"bank":"test"}')
+  [ "$SC" = "501" ] && ok "stub POST /bank-accounts → 501 (veri kaydedilmiyor)" || bad "stub POST /bank-accounts → $SC (501 bekleniyordu)"
+  HDR=$(curl -s -D- -o /dev/null -H "$STUBAUTH" \
+    "http://127.0.0.1:${STUB_PORT:-18191}/api/v1/bank-accounts" | grep -ci 'X-SiteEksen-Not-Implemented: true')
   [ "$HDR" -ge 1 ] && ok "stub yanıtında X-SiteEksen-Not-Implemented başlığı var" || bad "stub başlığı eksik"
 else
   bad "stub servis başlamadı"
@@ -3245,6 +3275,168 @@ else
 fi
 kill_tree "$ENE_PID"
 kill_tree "$SMC_PID"
+
+step "29) NPS, ESG, banka ve toplantı sihirbazı (FAZ 5, 19-22/22)"
+# NPS ve ESG gerçeğe çevrildi. Banka (S-07 kullanıcı kararı) ve toplantı
+# sihirbazı (governance ile tekrar olurdu) bilinçli olarak 501 döndürür —
+# ama artık NEDEN olduğunu söyleyerek.
+NPSPORT=${VERIFY_NPS_PORT:-18096}
+ESGPORT=${VERIFY_ESG_PORT:-18093}
+BNKPORT=${VERIFY_BNK_PORT:-18106}
+MTGPORT=${VERIFY_MTG_PORT:-18095}
+COMMON_ENV="DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen DB_NAME=siteeksen DB_SSLMODE=disable"
+
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen DB_PASSWORD="$PW" DB_NAME=siteeksen \
+DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${NPSPORT} \
+  go run ./services/nps >/tmp/verify-nps-svc.log 2>&1 &
+NPS_PID=$!
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen DB_PASSWORD="$PW" DB_NAME=siteeksen \
+DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${ESGPORT} \
+  go run ./services/esg >/tmp/verify-esg.log 2>&1 &
+ESG_PID=$!
+JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${BNKPORT} \
+  go run ./services/banking >/tmp/verify-bnk.log 2>&1 &
+BNK_PID=$!
+JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${MTGPORT} \
+  go run ./services/meeting_wizard >/tmp/verify-mtg.log 2>&1 &
+MTG_PID=$!
+
+ALLUP=1
+for PORTX in ${NPSPORT} ${ESGPORT} ${BNKPORT} ${MTGPORT}; do
+  UPX=0
+  for _ in $(seq 1 45); do
+    curl -fsS "http://127.0.0.1:${PORTX}/health" >/dev/null 2>&1 && { UPX=1; break; }
+    sleep 1
+  done
+  [ "$UPX" = "1" ] || ALLUP=0
+done
+
+if [ "$ALLUP" = "1" ] && [ -n "${MGR:-}" ] && [ -n "${TEN:-}" ]; then
+  ok "nps, esg, banking ve meeting_wizard servisleri ayağa kalktı"
+  NA2="Authorization: Bearer $MGR"
+  NT2="Authorization: Bearer $TEN"
+  NJ2='Content-Type: application/json'
+
+  # --- NPS ---
+  NURL2="http://127.0.0.1:${NPSPORT}/api/v1"
+  N1=$(curl -s -X POST "$NURL2/nps" -H "$NA2" -H "$NJ2" \
+    -d '{"title":"2026 yili site memnuniyeti","description":"Yonetim hizmetinden memnun musunuz?"}')
+  N1ID=$(echo "$N1" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+  [ -n "$N1ID" ] && ok "memnuniyet anketi açıldı ve KALICI" || bad "NPS anketi: $N1"
+  OPTC2=$($PSQL -t -A -c "SELECT count(*) FROM survey_options WHERE survey_id='$N1ID';")
+  [ "$OPTC2" = "11" ] && ok "0-10 arası on bir seçenek oluşturuldu" || bad "seçenek sayısı: $OPTC2"
+
+  # Yanıt yokken skor uydurulmamalı
+  R0=$(curl -s "$NURL2/nps/$N1ID" -H "$NA2")
+  echo "$R0" | grep -q 'result_note' && ok "yanıt yokken NPS skoru uydurulmuyor" || bad "boş skor: $R0"
+  echo "$R0" | grep -q '"nps_score"' && bad "yanıtsız skor üretildi" || ok "yanıtsız skor alanı yok"
+
+  # Yanıt ver
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$NURL2/nps/$N1ID/respond" -H "$NT2" -H "$NJ2" \
+    -d '{"score":9,"comment":"Temizlik cok iyi"}')
+  [ "$SC" = "201" ] && ok "sakin memnuniyet yanıtı verebildi" || bad "yanıt → $SC"
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$NURL2/nps/$N1ID/respond" -H "$NT2" -H "$NJ2" \
+    -d '{"score":5}')
+  [ "$SC" = "409" ] && ok "aynı kişi ikinci kez yanıtlayamıyor → 409" || bad "çift yanıt → $SC"
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$NURL2/nps/$N1ID/respond" -H "$NA2" -H "$NJ2" \
+    -d '{"score":11}')
+  [ "$SC" = "422" ] && ok "ölçek dışı puan reddedildi → 422" || bad "ölçek dışı puan → $SC"
+
+  # Yönetici 10 verirse: 2 yanıt, ikisi de tavsiye eden → NPS 100
+  curl -s -o /dev/null -X POST "$NURL2/nps/$N1ID/respond" -H "$NA2" -H "$NJ2" -d '{"score":10}'
+  R1=$(curl -s "$NURL2/nps/$N1ID" -H "$NA2")
+  echo "$R1" | grep -q '"nps_score":100' && ok "NPS tanıma göre hesaplandı (2 tavsiye eden → 100)" \
+    || bad "NPS skoru: $R1"
+  echo "$R1" | grep -q '"reliable":false' && ok "küçük örneklem güvenilmez işaretlendi" \
+    || bad "örneklem uyarısı yok"
+  echo "$R1" | grep -q 'Kararsızlar' && ok "hesap yöntemi açıkça bildiriliyor" || bad "yöntem açıklaması yok"
+
+  # Yorumlar anonim
+  CM3=$(curl -s "$NURL2/nps/$N1ID/comments" -H "$NA2")
+  echo "$CM3" | grep -q 'Temizlik cok iyi' && ok "açık uçlu yorum kaydedildi" || bad "yorum: $CM3"
+  echo "$CM3" | grep -q 'Mehmet' && bad "anonim ankette yorum sahibi sızdı" || ok "yorum sahibi gizli"
+  echo "$CM3" | grep -q 'ANONİMDİR' && ok "anonimlik yanıtta belirtiliyor" || bad "anonimlik notu yok"
+
+  # Sonuçlar sakine kapalı
+  SC=$(curl -s -o /dev/null -w '%{http_code}' "$NURL2/nps/$N1ID" -H "$NT2")
+  [ "$SC" = "403" ] && ok "sakin NPS sonuçlarını göremiyor → 403" || bad "sakin sonuç gördü → $SC"
+
+  # --- ESG ---
+  EURL2="http://127.0.0.1:${ESGPORT}/api/v1/esg"
+  # Katsayısız istek reddedilmeli
+  CF0=$(curl -s -w '\n%{http_code}' -X POST "$EURL2/carbon-footprint" -H "$NA2" -H "$NJ2" \
+    -d '{"from":"2026-01-01","to":"2026-03-01"}')
+  CF0CODE=$(echo "$CF0" | tail -1)
+  [ "$CF0CODE" = "422" ] && ok "emisyon katsayısı olmadan karbon hesabı yapılmıyor → 422" \
+    || bad "katsayısız hesap → $CF0CODE"
+  echo "$CF0" | grep -q 'factor_sources' && ok "katsayının nereden alınacağı söyleniyor" || bad "kaynak listesi yok"
+  echo "$CF0" | grep -q 'uydurmadır' && ok "katsayı gömmemenin gerekçesi açıklanıyor" || bad "gerekçe yok"
+
+  # Katsayı verilince gerçek hesap
+  CF1=$(curl -s -X POST "$EURL2/carbon-footprint" -H "$NA2" -H "$NJ2" -d '{
+    "from":"2026-01-01","to":"2026-03-01",
+    "emission_factors":{"HEAT":0.2,"WATER_COLD":0.35},
+    "emission_factor_source":"Test amacli ornek katsayi"}')
+  echo "$CF1" | grep -q '"total_co2e_kg"' && ok "karbon ayak izi gerçek tüketimden hesaplandı" \
+    || bad "karbon hesabı: $CF1"
+  echo "$CF1" | grep -q 'emission_factor_source' && ok "katsayının kaynağı sonuçla birlikte dönüyor" \
+    || bad "kaynak dönmüyor"
+  echo "$CF1" | grep -q 'toplam karbon ayak izi değildir' \
+    && ok "hesabın kapsam sınırı dürüstçe bildiriliyor" || bad "kapsam notu yok"
+
+  # Bileşik skor üretilmemeli
+  SS=$(curl -s -w '\n%{http_code}' "$EURL2/sustainability-score" -H "$NA2")
+  SSCODE=$(echo "$SS" | tail -1)
+  [ "$SSCODE" = "501" ] && ok "uydurma sürdürülebilirlik skoru üretilmiyor → 501" || bad "skor → $SSCODE"
+  echo "$SS" | grep -q 'ölçüyormuş gibi' && ok "skorun neden üretilmediği açıklanıyor" || bad "açıklama yok"
+
+  # --- BANKA: S-07 kararıyla ertelenmiş ---
+  BURL2="http://127.0.0.1:${BNKPORT}/api/v1"
+  BH=$(curl -s "http://127.0.0.1:${BNKPORT}/health")
+  echo "$BH" | grep -q 'deferred_by_decision' && ok "banka modülü 'karar gereği ertelenmiş' olarak bildiriliyor" \
+    || bad "banka durum bilgisi: $BH"
+  echo "$BH" | grep -q 'S-07' && ok "kararın kaynağı belirtiliyor" || bad "karar kaynağı yok"
+  BA2=$(curl -s -w '\n%{http_code}' "$BURL2/bank-accounts" -H "$NA2")
+  BACODE=$(echo "$BA2" | tail -1)
+  [ "$BACODE" = "501" ] && ok "banka uçları 501 dönüyor (uydurma bakiye yok)" || bad "banka → $BACODE"
+  echo "$BA2" | grep -q 'blockers' && ok "neyin eksik olduğu tek tek yazılıyor" || bad "engel listesi yok"
+  echo "$BA2" | grep -q '"balance"' && bad "uydurma bakiye döndürülüyor" || ok "bakiye uydurulmuyor"
+
+  # --- TOPLANTI SİHİRBAZI: governance'a yönlendirme ---
+  MURL2="http://127.0.0.1:${MTGPORT}/api/v1"
+  MH2=$(curl -s "http://127.0.0.1:${MTGPORT}/health")
+  echo "$MH2" | grep -q 'redirected' && ok "toplantı sihirbazı 'yönlendirildi' olarak bildiriliyor" \
+    || bad "sihirbaz durumu: $MH2"
+  MG=$(curl -s -w '\n%{http_code}' "$MURL2/meetings" -H "$NA2")
+  MGCODE=$(echo "$MG" | tail -1)
+  [ "$MGCODE" = "501" ] && ok "toplantı uçları 501 dönüyor" || bad "toplantı → $MGCODE"
+  echo "$MG" | grep -q 'governance-service' && ok "doğru servise yönlendiriliyor" || bad "yönlendirme yok"
+  echo "$MG" | grep -q 'KMK m.29-32' && ok "hukuki dayanak belirtiliyor" || bad "dayanak yok"
+
+  # Ses kaydı/özet: altyapı yok, var gibi gösterilmiyor
+  TS=$(curl -s -w '\n%{http_code}' "$MURL2/meetings/00000000-0000-0000-0000-000000000001/transcript" -H "$NA2")
+  TSCODE=$(echo "$TS" | tail -1)
+  [ "$TSCODE" = "501" ] && ok "transkript ucu 501 dönüyor" || bad "transkript → $TSCODE"
+  echo "$TS" | grep -q 'KVKK' && ok "ses kaydının KVKK sorunu olduğu belirtiliyor" || bad "KVKK notu yok"
+  echo "$TS" | grep -q 'transcript_text\|summary' && bad "uydurma transkript/özet döndürülüyor" \
+    || ok "uydurma transkript/özet yok"
+
+  # Kimliksiz erişim hepsinde engelli
+  for U in "http://127.0.0.1:${NPSPORT}/api/v1/nps" "http://127.0.0.1:${ESGPORT}/api/v1/esg/consumption" \
+           "${BURL2}/bank-accounts" "${MURL2}/meetings"; do
+    SC=$(curl -s -o /dev/null -w '%{http_code}' "$U")
+    [ "$SC" = "401" ] || bad "kimliksiz erişim açık: $U → $SC"
+  done
+  ok "dört servisin tamamında kimliksiz erişim engelli → 401"
+else
+  bad "son grup servisler başlamadı"
+  tail -8 /tmp/verify-nps-svc.log; tail -8 /tmp/verify-esg.log
+  tail -8 /tmp/verify-bnk.log; tail -8 /tmp/verify-mtg.log
+fi
+kill_tree "$NPS_PID"
+kill_tree "$ESG_PID"
+kill_tree "$BNK_PID"
+kill_tree "$MTG_PID"
 
 step "SONUÇ"
 echo "  Geçen: $PASS   Başarısız: $FAIL"
