@@ -5,7 +5,51 @@ Bu dosya, ilerlemek için **kullanıcı kararı** gereken veya **dışarıdan bi
 Kural: Her soru için bir **"Cevap gelmezse uygulanacak varsayılan"** yazılıdır. Böylece cevap beklenirken iş durmaz;
 cevap geldiğinde varsayılan gözden geçirilir. Cevaplanan sorular `> **CEVAP (tarih):**` satırıyla işaretlenir.
 
-Son güncelleme: 2026-09-08
+Son güncelleme: 2026-09-13
+
+---
+
+## DURUM: 18 sorunun tamamı yanıtlandı ve uygulandı (2026-09-13)
+
+Kullanıcı S-01…S-18'in tamamını yanıtladı. **Bloklayıcı kalmadı.** Uygulanma özeti:
+
+| # | Karar | Uygulanma durumu |
+|---|---|---|
+| S-01 / S-01b | WSL kullan, ne gerekiyorsa kur | ✔ Go 1.24.7 + Flutter 3.47.4 kuruldu; `verify-stack.sh` 102/102, `verify-mobile.sh` 8/8 |
+| S-02 | Finans şeması dondurması **iptal**, ne gerekiyorsa yap | ✔ `012` (mevzuat parametreleri), `013` (site bazlı roller), `014` (yönetişim) yazıldı |
+| S-03 | 22 mock servisin **hepsini tamamla** | ◐ Ara adım tamam: hepsi dürüstçe **501** döndürüyor. Gerçeğe çevirme FAZ 5'te sürecek |
+| S-04 | Her iki KVKK modelini de destekle | ◐ Veri modeli site bazlı ve tenant'a hazır; hukuki metinler "taslak" işaretli (hukuk onayı bekliyor) |
+| S-05 | Mevzuatı araştır, parametre yap, değiştirilebilir bırak | ✔ 26 parametre yürürlük tarihli ve dayanağıyla `legal_parameters`'ta; `pkg/legalparams` |
+| S-06 | Ödeme: sağlayıcı bağımsız arayüz, test modu görünsün | ✔ `payment_gateway_ready:false` + arayüzlerde açık uyarı + yönetici onay akışı |
+| S-07 | Banka entegrasyonu **sonraki sürüme** | ✔ Yapılmadı (karar gereği) |
+| S-08 | e-Fatura **sonraki sürüme** | ✔ Yapılmadı (karar gereği) |
+| S-09 | Oracle / Cloudflare / AWS uyumlu depolama | ✗ **Sıradaki iş** |
+| S-10 | Sağlayıcı bağımsız bildirim + `log` adaptörü | ✗ **Sıradaki iş** |
+| S-11 | AI yalnızca backend'den, anahtar yokken kapalı | ◐ AI kodu hiçbir yerden import edilmiyor; uydurma AI yanıtları kaldırıldı |
+| S-12 | Çok siteli yönetim şirketini destekle | ✔ Veri modeli hazır (`property_roles` site bazlı); portföy ekranları P2 |
+| S-13 | Blok bazlı gider ayrımını destekle | ✔ Şema destekliyor (`blocks`, birim bazlı dağıtım) |
+| S-14 | SaaS abonelik P2 | ✔ Uydurma "Pro Plan" ekranı kaldırıldı |
+| S-15 | Çok dile hazır altyapı | ◐ Mobilde `intl` + `flutter_localizations` devrede; metinler hâlâ koda gömülü |
+| S-16 | Önce Android iç test | ✔ CI'da iki uygulama da `analyze` + `test` çalıştırıyor |
+| S-17 | Madde başına commit, bölüm sonunda push | ◐ Commit'ler atılıyor; **push için kimlik bilgisi gerekiyor** (aşağıya bakın) |
+| S-18 | `tasks/` tek kaynak | ✔ Kök dosyalar işaretçi |
+
+### ⚠ Kullanıcıdan gereken tek şey: git push yetkisi
+
+`git push origin main` şu hatayı veriyor:
+
+```
+fatal: could not read Username for 'https://github.com': terminal prompts disabled
+```
+
+Bu ortamda kayıtlı bir GitHub kimlik bilgisi yok ve `gh` CLI kurulu değil. Commit'ler
+**yerel olarak atıldı ve kaybolmadı**; yalnızca uzak depoya gönderilemedi.
+
+Çözüm seçenekleri (biri yeterli):
+
+1. `gh auth login` ile GitHub CLI oturumu açmak
+2. Git credential manager'a kişisel erişim jetonu (PAT) kaydetmek
+3. Uzak adresi SSH'a çevirmek: `git remote set-url origin git@github.com:muhone-sudo/siteeksen.git`
 
 ---
 

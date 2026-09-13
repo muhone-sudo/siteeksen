@@ -12,6 +12,171 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-09-13 — FAZ 0/1/2/4/6: Dürüstlük tamamlandı, güvenlik ve yönetişim katmanı (DOĞRULANMIŞ)
+
+> **Toplu kanıt:**
+> `bash backend/scripts/verify-stack.sh` → **102 kontrol, 0 başarısız**
+> `bash backend/scripts/verify-mobile.sh` → **8 kontrol, 0 başarısız**
+> `cd admin && npx tsc --noEmit && npm run lint && npm run build` → hepsi temiz
+>
+> `tasks/questions.md`'deki 18 sorunun tamamı kullanıcı tarafından yanıtlandı ve
+> yanıtlar bu turda uygulandı.
+
+#### Dürüstlük (FAZ 0) — tamamlandı
+
+- **22 mock servisin TÜM uçları `501 Not Implemented` döndürüyor** *(0.B.1)*
+  Yalnızca yazma değil, okuma uçları da uydurma veri döndürüyordu. Ortak sözleşme
+  `pkg/stub`: gövdede modül adı + "istek İŞLENMEDİ" uyarısı,
+  `X-SiteEksen-Not-Implemented: true` başlığı. Sağlık ucu artık `"healthy"` değil
+  `"not_implemented"` diyor.
+  **Kanıt:** çalışan servise `GET`/`POST /api/v1/vehicles` → 501; kaynaklarda uydurma
+  isim taraması → 0 satır.
+- **Community'nin 4 auth'suz modülü kapatıldı** *(0.B.4)* — duyuru/anket/ilan/rezervasyon
+  uçları **token'sız** POST/DELETE kabul ediyordu (herkes duyuru silebilirdi).
+  `AuthMiddleware` arkasına alındı ve 501'e çevrildi.
+- **Gateway'deki uydurma mali rapor üretimi kaldırıldı** *(2.2)* — `/reports/generate`
+  içi tamamen sabit (uydurma daire, sakin adı, tutar) **indirilebilir PDF/Excel**
+  üretiyordu. **Kanıt:** `POST /api/v1/reports/generate` → 501.
+- **Dashboard özetindeki uydurma sabitler kaldırıldı** *(2.3)* — kaynaklara ulaşılamazsa
+  `156 sakin / 245.000 TL / %94` sabitleri dönüyordu. Artık ulaşılamayan alan hiç
+  dönmez, `unavailable[]` ile nedeni bildirilir.
+- **Mobil (sakin) uygulamasında sahte ödeme akışı kaldırıldı** *(0.C.1)* — borç koda
+  gömülüydü (₺1.250) ve "Öde → Onayla" **hiçbir ağ çağrısı yapmadan** "Ödeme Başarılı!"
+  diyordu. Artık gerçek API; `payment_gateway_ready:false` iken tahsilatın
+  YAPILMADIĞI açıkça söyleniyor.
+- **Mobil: çalışmayan "Çıkış Yap" düzeltildi** — onay diyaloğu gösterip
+  `// TODO: Logout işlemi` diyerek hiçbir şey yapmıyordu; ortak cihazda doğrudan
+  güvenlik sorunu. Artık jetonlar gerçekten siliniyor.
+- **Yönetici mobil uygulamasındaki 20 mock ekran gerçek API'ye bağlandı** — sözleşme,
+  ilan panosu, enerji, anket, akıllı tahsilat, genel kurul, devriye, demirbaş, stok,
+  API anahtarları, raporlar, kargo, rezervasyon, dashboard, talepler, duyurular,
+  sayaçlar, finans ve gider ekranları.
+- **`api_settings` ekranındaki yanlış güvenlik güvencesi kaldırıldı** *(0.C.5)* —
+  "bilgiler şifrelenmiş saklanır, her değişiklik kayıt altındadır" deniyordu; ekranın
+  tamamı mock'tu ve `pkg/encryption` hiçbir yerden import edilmiyor.
+- **Admin panelde kalan uydurma veriler temizlendi** — ana sayfa (sabit istatistikler,
+  12 aylık uydurma grafik, var olmayan kişilere ait "son ödemeler"), talepler (yalnızca
+  yerel state'i değiştiren durum güncellemesi), sayaçlar (sunucuya hiç istek göndermeyen
+  "Okumaları Kaydet"), ayarlar (sahte yöneticiler, iyzico/Firebase/SMTP için yanlış
+  "Bağlı" rozetleri, uydurma "Pro Plan ₺299/ay" ve 3 ödenmiş fatura).
+- **Hukuki metinler gerçeğe uyarlandı** *(0.D)* — KVKK güvenlik bölümü yeniden yazıldı
+  (uygulanan/uygulanmayan ayrımı), zorunlu "toplama yöntemi ve hukuki sebep" bölümü
+  eklendi, üç metne "TASLAK — yayına hazır değil" uyarısı kondu.
+
+#### Kurulabilirlik ve altyapı (FAZ 1) — tamamlandı
+
+- **Migration çalıştırıcı** *(1.5)* — `backend/cmd/migrate`: `schema_migrations` sürüm
+  tablosu, PostgreSQL **advisory lock**, **SHA-256 sağlama denetimi** (uygulanmış bir
+  migration sonradan değiştirilmişse durur), migration başına transaction,
+  `-status` / `-dry-run`. Docker imajı ve compose servisi eklendi.
+  **Kanıt:** sağlama bozulduğunda çalıştırıcı hata verip çıkış kodu 1 döndürdü.
+- **Tüm migration'lar idempotent** *(1.4)* — 001/003/005'te 140+ ifadeye
+  `IF NOT EXISTS`, 004'teki trigger'a `DROP TRIGGER IF EXISTS`, 002'ye tam koruma.
+  **Kanıt:** 14 migration dosyasının tamamı temiz kurulumdan sonra yeniden uygulandı, hata yok.
+- **`003`'ün `DROP TABLE audit_logs` komutu kaldırıldı** *(1.13)* — migration her
+  tekrarlandığında **KVKK denetim izinin tamamı siliniyordu**.
+  **Kanıt:** tabloya kayıt atılıp 003 yeniden uygulandı; kayıt yerinde.
+- **Seed verisi tutarlı** *(1.8)* — `total_units=24` deniyor ama 6 birim vardı; arsa payı
+  toplamı 10000 yerine 2480'di. Bu, **arsa payına göre dağıtımı test edilemez** kılıyordu.
+  Artık 24 bağımsız bölüm ve arsa payı toplamı tam **10000**.
+- **Seed `initdb` dışına taşındı** *(1.7b)* — `SEED_DEMO_DATA=false` ile üretimde bilinen
+  şifreli demo hesaplar açılmıyor.
+- **13 servisin varsayılan portu** kanonik tabloya eşitlendi; 4 çakışma giderildi *(1.10)*.
+- **`firebase-credentials.json` bind mount'u kaldırıldı** *(1.11)* — dosya yok; Docker
+  eksik yolu dizin olarak yaratıp `docker-compose up`'ı kırıyordu.
+- **CI gerçek kapı** *(1.12)* — Go 1.21 → **1.24**; `go build/vet/gofmt/test -race`;
+  admin'de `|| true` kaldırıldı; Trivy `exit-code: 1` + **sır taraması**; mobil matris;
+  `verify-stack` işi. `.eslintrc.json` eklendi (yoktu, `npm run lint` CI'da takılıyordu).
+
+#### Güvenlik (FAZ 2)
+
+- **Gateway'e kimlik doğrulaması eklendi** *(2.1)* — 25 servise yönlendiren gateway
+  **hiçbir jeton doğrulaması yapmıyordu**; maaş, TCKN, IBAN ve **API anahtarları**
+  token'sız erişilebiliyordu. `pkg/authtoken` (tek kaynak) + fail-closed `JWT_SECRET`.
+  İstemciden gelen `X-User-*`/`X-Property-Id`/`X-Tenant-Id` başlıkları **siliniyor**.
+  CORS joker `*` yerine allowlist. Her isteğe `X-Request-Id`.
+  **Kanıt:** token'sız → 401, geçersiz jeton → 401, `/auth/login` açık, geçerli jeton → 200.
+- **Kong'a jwt eklentisi** — 25 rotada; consumer anahtarı Kong env vault'tan; joker CORS
+  kökenleri kaldırıldı. Jetonlara `iss: "siteeksen"` claim'i eklendi.
+- **Aktif site seçiminde sahiplik doğrulaması** *(2.4)* — `POST /users/me/active-property`
+  gelen `property_id`'yi hiç doğrulamıyordu; herhangi bir kullanıcı tek istekle
+  **başka bir sitenin verisine geçebiliyordu**. Artık `resident_units` bağı aranıyor.
+  **Kanıt:** yabancı siteye geçiş → 403, kendi sitesine → 200.
+- **Roller site bazlı** *(2.5)* — `users.roles` global olduğu için bir sitede MANAGER olan
+  kişi **tüm sitelerde** yöneticiydi. `migrations/013` ile `property_roles` tablosu
+  (atama izi, geçerlilik dönemi, karar referansı — KMK m.34). Jeton rolleri aktif siteye
+  göre üç kaynaktan birleştiriliyor.
+  **Kanıt:** kiracı jetonunda MANAGER yok, TENANT var; yönetici jetonunda MANAGER var.
+- **Servis düzeyinde RBAC** *(2.9)* — site geneli borçlu/ödeme listeleri ve tahakkuk
+  oluşturma yalnızca yönetim rollerine açık; denetçi okur, yazamaz.
+  **Kanıt:** yönetici `/finance/debtors` → 200, kiracı → **403**; yetkisiz deneme denetim
+  izine `DENIED` olarak yazıldı.
+- **Panelde RBAC** *(0.A.10)* — panelde hiçbir erişim kontrolü yoktu; adres çubuğuna
+  yazarak maaş bordrosuna ve API anahtarlarına girilebiliyordu. `src/lib/rbac.ts`
+  (yol → rol, hukuki gerekçeleriyle), `middleware.ts` yol kontrolü, menü süzme,
+  `/dashboard/forbidden` açıklama sayfası.
+
+#### Para doğruluğu (FAZ 4)
+
+- **Ödeme artık borçtan düşüyor** *(4.2)* — `monthly_assessments.paid_amount` hiç
+  güncellenmiyordu; ödemesini yapan sakin **sonsuza dek borçlu** kalıyordu.
+  Yönetici onay akışı (havale/EFT/nakit gerçeği): tek transaction, `FOR UPDATE`,
+  yalnızca `PENDING` onaylanabilir, başka siteye ait ödeme 403.
+  **Kanıt:** onay öncesi borç değişmiyor; onay sonrası `0,00 → 1.200,00` ve `PAID`;
+  çift onay → **409**; `has_debt:false`.
+- **Kuruş hassasiyetli para aritmetiği** *(4.3/4.4)* — `pkg/money`: para tam sayı kuruş;
+  dağıtımda **en büyük kalan** yöntemi → payların toplamı tutara **birebir** eşit.
+  **Kanıt:** 2000 rastgele senaryoda kuruş kaybı yok; 9 birim testi.
+- **Gecikme tazminatı tahakkuku** *(KMK m.20/2)* — hiç hesaplanmıyordu.
+  `POST /finance/late-fees/accrue`; oran mevzuat tablosundan; anapara = ödenmemiş
+  **asıl** borç (tazminat üzerinden tazminat işlenmiyor); **idempotent**.
+  **Kanıt:** 30 gün gecikme → **60,00 TL**, toplam **1.260,00 TL**; ikinci çalıştırmada
+  değişmiyor; `late_fee_accruals` tablosuna gün/oran/anapara izi yazılıyor.
+
+#### Mevzuat parametreleri (S-05)
+
+- **`migrations/012` + `pkg/legalparams`** — 26 parametre yürürlük tarihli ve **hukuki
+  dayanağıyla** veritabanında. Kanunla sabit parametrelerin (gecikme tazminatı, nisaplar,
+  vekâlet sınırları) site bazında değiştirilmesi **veritabanı tetikleyicisiyle** engellendi.
+  Bulunamayan parametre için **sessiz varsayılan yok** — hata döner.
+- Araştırma ile teyit edilen değerler: gecikme tazminatı aylık **%5** (m.20/2, yönetim
+  planıyla değiştirilemez); ısıtma **%70 tüketim + %30 alan** (RG 14.04.2008); vekâlet
+  toplam oyun **%5**'i, **40 ve altı** bağımsız bölümde kişi başı **2**; malikin oyu tüm
+  oyların **1/3**'ünü aşamaz (m.31); merkezi→ferdi ısıtma geçişi **2000 m²** ve üzeri
+  binalarda **oybirliği** (m.42 / 5627 s. Kanun).
+
+#### Yönetişim katmanı (FAZ 6) — yeni servis
+
+- **`migrations/014` + `services/governance` (port 8107)** — 634 s. Kanunun zorunlu
+  kıldığı ve veri modeli **hiç olmayan** süreçler:
+  - **İşletme projesi (m.37):** kalem bazlı bütçe, birim payları kuruş cinsinden ve
+    kalem dökümlü; tebliğ → 7 günlük itiraz süresi → kesinleşme (İİK m.68 belgesi).
+    Tebliğsiz ya da süre dolmadan kesinleştirme **409** ile reddediliyor.
+  - **Genel kurul (m.29-33):** 15 günlük çağrı süresi zorunlu; nisap **sayı VE arsa payı**
+    bakımından; "yarıdan fazla" tam yarıyı kapsamıyor; ikinci toplantıda yeter sayı
+    aranmıyor; vekâlet sınırları uygulanıyor; 4/5, oybirliği ve salt çoğunluk ayrı ayrı
+    hesaplanıyor (**14 birim testi**).
+  - **Defterler (m.32/36):** kayıtlar **ekle-only** ve **SHA-256 hash zincirli**;
+    UPDATE/DELETE veritabanı tetikleyicisiyle engelli; `/verify` ucu zinciri doğruluyor.
+  - **İcra/dava (m.22, İİK m.68):** borç tahakkuklardan hesaplanıyor; dayanak belge
+    yoksa uyarı.
+  **Kanıt:** 336.000 TL'lik bütçenin payları **33.600.000 kuruş** olarak birebir tutuyor;
+  12/24 katılımda nisap sağlanmıyor, 13/24'te sağlanıyor; defter kaydı değiştirilemiyor.
+
+#### Doğrulama ortamı
+
+- **Flutter 3.47.4 WSL'e kuruldu** *(S-01b)* → mobil işler artık `[D1]` değil, çalıştırılarak
+  doğrulanabiliyor. İki uygulamanın da **derlenmeyen** `widget_test.dart`'ı (şablondan kalan,
+  var olmayan `MyApp` sınıfını çağıran sayaç testi) gerçek duman testleriyle değiştirildi.
+- **`backend/scripts/verify-mobile.sh`** eklendi.
+- **Para/tarih biçimlendirme** `intl` ile doğru TR biçimine geçti (elle biçimlendirme
+  `12.450.00` gibi yanlış çıktı üretiyordu).
+- **API taban adresleri düzeltildi** — sakin `localhost:8000`, yönetici ise yayında olmayan
+  `api.siteeksen.com/v1` (yol da yanlıştı → her çağrı 404) kullanıyordu. Artık
+  `--dart-define=API_BASE_URL`.
+
+---
+
 ### 2026-09-12 — FAZ 0/1/3/4: Dürüstlük onarımı + kurulabilirlik (DOĞRULANMIŞ)
 
 > **Bu turdaki her madde çalıştırılarak doğrulandı.** Doğrulama artık WSL üzerinden yapılıyor

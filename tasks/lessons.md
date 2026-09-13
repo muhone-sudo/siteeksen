@@ -135,3 +135,87 @@ Format:
 - **Neden oldu:** Sistem ayarlarını ve metadata'yı tam kontrol etmeden varsayımda bulundum.
 - **Kural:** Asla model isimleri, sistem ayarları veya teknik metotlar hakkında varsayım yapma. Sadece doğrulanmış verileri kullan, emin değilsen varsaymak yerine kullanıcıya sor.
 
+
+---
+
+# 2026-09-13 turunda öğrenilenler
+
+## 1. Finans şeması dondurması KALDIRILDI
+
+- **Ne oldu:** Yukarıdaki "Faz 2 (Finans) — migration ERTELE" talimatı, kullanıcı
+  tarafından 2026-09-13'te **açıkça iptal edildi**: *"Yukarıdaki durumdaki süreç iptal.
+  Yapılması gereken ne varsa yap."* (questions.md S-02)
+- **Kural:** Finans/muhasebe alanında migration yazmak artık serbesttir. Ancak her şema
+  değişikliği idempotent olmalı ve `verify-stack.sh` ile doğrulanmalıdır.
+- **Sonuç:** `012` (mevzuat parametreleri), `013` (site bazlı roller), `014` (yönetişim)
+  migration'ları bu izinle yazıldı. Biriktirme listesindeki `dues_decisions` ve `incomes`
+  ihtiyacı, `operating_budgets` + `operating_budget_items` ile büyük ölçüde karşılandı.
+
+## 2. Doğrulama betiği her genişletildiğinde yeni hata buluyor
+
+- **Ne oldu:** `verify-stack.sh` 42 → 102 kontrole çıkarıldı. Eklenen her yeni kontrol
+  ortalama bir hata buldu: 002'nin idempotent olmaması, 004'teki trigger, 003'ten DROP
+  kaldırılınca ortaya çıkan eski kolonlar, finans uçlarının iki farklı yanıt biçimi…
+- **Neden önemli:** Bu hataların hiçbiri **kod okuyarak** bulunamazdı. Statik denetim
+  (2026-09-09) 97 mantık hatası buldu ama bunların hiçbirini yakalayamamıştı.
+- **Kural:** Bir davranış hakkında iddia varsa, o iddiayı sınayan bir kontrol yazılır.
+  "Şuna dikkat ettim" yeterli değildir; betiğe eklenmeyen kontrol yok sayılır.
+
+## 3. Bir yalanı kaldırmak, başka bir yalanı açığa çıkarabilir
+
+- **Ne oldu:** `003`'teki `DROP TABLE audit_logs` kaldırıldı (denetim izini siliyordu).
+  Bunun üzerine `001`'in eski tablosu hayatta kaldı ve `resource_type NOT NULL` kısıtı
+  `pkg/audit`'in INSERT'ünü kırdı — yani denetim izi yine yazmaz hâle geldi.
+- **Kural:** Bir düzeltmenin yan etkisi, düzeltmeyi anlamsız kılabilir. Düzeltmeden
+  sonra **aynı davranışı** sınayan kontrol yeniden çalıştırılmalıdır; "düzelttim"
+  demek yetmez.
+
+## 4. "Bağlı" yazan bir rozet, olmayan bir entegrasyonu var gösterir
+
+- **Ne oldu:** Panel ayarlarında iyzico, Firebase ve SMTP "Bağlı" görünüyordu; üçü de
+  koda hiç bağlanmamıştı. Yönetici tahsilatın çalıştığını sanabilirdi.
+- **Kural:** Durum rozetleri (bağlı/aktif/başarılı) **yalnızca** gerçek bir kontrolün
+  sonucundan üretilir. Sabit değerden rozet basmak, sahte başarı mesajıyla aynı şeydir.
+
+## 5. Mevzuat oranları koda gömülmez
+
+- **Ne oldu:** Gecikme tazminatı (%5), ısıtma paylaşımı (%70/%30), nisaplar ve vekâlet
+  sınırları hiçbir yerde tanımlı değildi; kodlansalardı mevzuat değişiminde yeniden
+  dağıtım gerekirdi ve geçmiş dönemlerin hangi oranla hesaplandığı kaybolurdu.
+- **Kural:** Hukuki sonuç doğuran her sayısal değer, **yürürlük tarihli** ve **hukuki
+  dayanaklı** olarak veritabanında tutulur. Kanunla sabit olanlar (gecikme tazminatı,
+  nisaplar) site bazında değiştirilemez — bu, veritabanı tetikleyicisiyle garanti altına
+  alınır, arayüz kontrolüne bırakılmaz.
+
+## 6. Para dağıtımında "her payı ayrı yuvarla" sessiz bir hatadır
+
+- **Ne oldu:** Bir gideri dairelere paylaştırırken her payı ayrı yuvarlamak, payların
+  toplamının gidere eşit olmamasına yol açar. Kat mülkiyetinde toplanan avans ile gider
+  **birebir** örtüşmelidir.
+- **Kural:** Dağıtım **en büyük kalan** (largest remainder) yöntemiyle ve tam sayı kuruş
+  üzerinden yapılır. Dağıtım ayrıca **belirlenimci** olmalıdır: aynı dönem yeniden
+  hesaplandığında daireler arasında kuruş yer değiştirmemelidir.
+
+## 7. Gecikme tazminatı artımlı toplanmaz
+
+- **Ne oldu:** Tazminatı her çalıştırmada mevcut değere **eklemek**, işi iki kez
+  çalıştırınca borcu ikiye katlar.
+- **Kural:** Tazminat (anapara, gün, oran) fonksiyonudur; her seferinde baştan hesaplanır
+  ve **yazılır**. Ayrıca tazminat üzerinden tazminat işlenmez (bileşik faiz; KMK m.20/2
+  buna dayanak vermez).
+
+## 8. Alt görev (subagent) kullanırken yarım iş riski
+
+- **Ne oldu:** Beş alt görevden ikisi kota sınırına takılıp yarıda kesildi. Şans eseri
+  yazdıkları kod derleniyordu; aksi hâlde depo kırık kalırdı.
+- **Kural:** Alt göreve verilen iş, **dosya bazında bölünür** ve her alt göreve
+  "bitirme şartı: `analyze`/`build` temiz" denir. Alt görev bittikten sonra ana ajan
+  **kendi** doğrulamasını çalıştırır; alt görevin raporuna güvenilmez.
+
+## 9. Panel/mobil ile sunucu arasındaki sözleşme farkı sessiz hataya yol açar
+
+- **Ne oldu:** Finance servisi bazı liste uçlarında düz dizi, bazılarında
+  `{"data": [...]}` döndürüyordu. İstemciler tek biçim bekliyordu; sunucu çalışsa bile
+  ekran "beklenmeyen hata" gösteriyordu.
+- **Kural:** Liste uçları **tek sözleşme** kullanır (`{"data": [...]}`). İstemci tarafında
+  ayrıca toleranslı bir yardımcı bulunur; böylece sürüm farkında ekran kırılmaz.

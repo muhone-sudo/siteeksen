@@ -10,6 +10,20 @@ Kanıt seviyeleri: `tasks/dogrulama-politikasi.md` §1. Kanıtsız madde `[D1]`'
 
 ---
 
+## Geliştirme ortamını açma (hızlı)
+
+```bash
+# Backend (PostgreSQL + gerçek veriye bağlı servisler + gateway)
+bash backend/scripts/dev-up.sh
+
+# Panel (ayrı terminal)
+cd admin && npm run dev      # http://localhost:3001
+```
+
+Demo giriş: `5551234567` / `Demo123!` (yönetici) · `5559876543` / `Demo123!` (kiracı)
+
+---
+
 ## Bu oturumun kapsamı
 
 | Aşama | Durum |
@@ -68,11 +82,26 @@ Backend'e dokunan her değişiklikten sonra çalıştırılır.
       Ayrıca hardcoded "Ahmet Yılmaz / Yönetim Kurulu Başkanı" kaldırılıp gerçek oturum bilgisi
       (`useSession`) gösteriliyor; çalışmayan arama kutusu ve sahte bildirim rozeti kaldırıldı. *(B91)*
 - [x] **[D2] 0.A.9 Doğrulama:** `npm run build` → **çıkış kodu 0** (21 sayfa)
-- [ ] **0.A.7 🟠 Var olmayan uçlara giden api-client metotlarını işaretle/kaldır**
-      `/meters/readings`, `/notifications/history`, `/notifications`, `/requests/:id/assign` → 404. *(B95)*
-- [ ] **0.A.8 🟡 Ölü kodu temizle** — `hooks.ts`'teki 17 hook'un 13'ü kullanılmıyor. *(B93)*
-- [ ] **0.A.10 🟠 Rol bazlı erişim kontrolü** — `session.user.roles` hiçbir sayfada okunmuyor;
-      AUDITOR/STAFF maaş ve kimlik bilgisi sayfalarına girebiliyor. *(B28)* → FAZ 2.9
+- [x] **[D2] 0.A.7 🟠 Var olmayan uçlar düzeltildi** *(B95)*
+      `getFinanceOverview` yayında olmayan `/finance/overview`'a gidiyordu (mobilde);
+      gerçek uca (`/finance/assessments/overview`) yönlendirildi. Liste uçlarının yanıt
+      biçimi tek sözleşmeye (`{"data": [...]}`) çekildi ve istemciler iki biçime de
+      toleranslı hâle getirildi.
+- [x] **[D2] 0.A.8 🟡 Ölü kod temizlendi** *(B93)* — `hooks.ts`'teki 17 kancanın
+      kullanılmayan **13'ü** silindi. Ölü kod, olmayan bir veri katmanı izlenimi veriyordu.
+- [x] **[D2] 0.A.10 🟠 Rol bazlı erişim kontrolü eklendi** *(B28)*
+      Panelde HİÇBİR kontrol yoktu; giriş yapan herkes adres çubuğuna yazarak maaş
+      bordrosuna ve sistem API anahtarlarına erişebiliyordu.
+      `src/lib/rbac.ts` (yol → rol eşlemesi, hukuki gerekçeleriyle) + `middleware.ts`
+      sunucu tarafı kontrolü + menü süzme + `/dashboard/forbidden` açıklama sayfası.
+      Denetçi mali ekranları okur ama yazamaz (KMK m.41, görevler ayrılığı).
+      **Kanıt:** `npx tsc --noEmit`, `npm run lint`, `npm run build` → hepsi temiz.
+- [x] **[D2] 0.A.11 Admin panelde kalan uydurma veriler temizlendi**
+      Ana sayfa (sabit "124 sakin / ₺45.600 / %87", uydurma 12 aylık grafik, var olmayan
+      kişilere ait "son ödemeler"), talepler (yalnızca yerel state'i değiştiren durum
+      güncellemesi), sayaçlar (sunucuya hiç istek göndermeyen "Okumaları Kaydet"),
+      ayarlar (sahte yöneticiler, iyzico/Firebase/SMTP için yanlış "Bağlı" rozetleri,
+      uydurma "Pro Plan ₺299/ay" ve 3 ödenmiş fatura).
 
 ## 0.B — Backend (Go)
 
@@ -247,15 +276,36 @@ Backend'e dokunan her değişiklikten sonra çalıştırılır.
       `unavailable[]` listesinde nedeniyle bildirilir (`partial: true`).
       `recent-payments` sessizce boş liste döndürmek yerine `502` veriyor (boş liste "ödeme yok"
       anlamına gelir — bu yanlış bilgidir).
-- [ ] **2.4 🔴 `POST /users/me/active-property` sahiplik doğrulaması** — JWT'deki `property_id`
-      istemci tarafından seçilebiliyor *(B21)*
-- [ ] **2.5 🔴 Rolleri siteye göre kapsamla** — `users.roles` global; bir sitede MANAGER olan
-      tüm sitelerde MANAGER *(B22)*
-- [ ] **2.6 🔴 Tenant izolasyonu (PostgreSQL RLS)** — `pkg/tenant` ölü kod *(B20)*
-- [ ] **2.7 🟠 Çıkışta jeton iptali** (jti kara listesi / Redis)
-- [ ] **2.8 🟠 Hassas alanların şifrelenmesi** — `pkg/encryption` hiçbir yerden import edilmiyor;
-      TCKN düz metin *(B26)*
-- [ ] **2.9 🟠 Panelde rol bazlı erişim kontrolü** *(B28)* → 0.A.10 ile aynı iş
+- [x] **[D4] 2.4 🔴 `POST /users/me/active-property` sahiplik doğrulaması** *(B21)*
+      Gelen `property_id` HİÇ doğrulanmıyordu. JWT'deki `property_id` tüm izolasyonun tek
+      dayanağı olduğu için, herhangi bir kullanıcı tek istekle **başka bir sitenin verisine**
+      geçebiliyordu. Artık `resident_units` üzerinden aktif bağ aranıyor; yoksa **403**
+      (400 değil — bu bir yetki ihlalidir ve denetim izinde `DENIED` olarak ayrışır).
+      **Kanıt:** yabancı siteye geçiş → **403**, kendi sitesine → **200**.
+- [x] **[D4] 2.5 🔴 Roller siteye göre kapsamlandı** *(B22)*
+      `users.roles` global olduğu için bir sitede MANAGER olan kişi **tüm sitelerde**
+      yöneticiydi — çok kiracılı bir SaaS'ta doğrudan izolasyon ihlali.
+      `migrations/013` ile `property_roles` tablosu (atama izi, geçerlilik dönemi, karar
+      referansı — KMK m.34 yönetici genel kurul kararıyla atanır).
+      Jeton rolleri aktif siteye göre üç kaynaktan birleştiriliyor: `property_roles`
+      (yönetim) + `resident_units` (sakinlik) + `users.roles` (yalnız platform rolleri).
+      Rol çözümlemesi başarısızsa jeton **üretilmiyor** (boş rolle devam etmek, yetki
+      kontrollerini sessizce atlatan bir jeton üretmek demektir).
+      **Kanıt:** kiracı jetonunda MANAGER **yok**, TENANT var; yönetici jetonunda MANAGER var.
+- [x] **[D4] 2.9 🟠 Rol bazlı erişim kontrolü — sunucu ve panel** *(B28)*
+      Sunucu: finance ve governance servislerinde `RequireRole`. Site geneli borçlu/ödeme
+      listeleri ve tahakkuk oluşturma yalnızca yönetime açık; **denetçi okur, yazamaz**
+      (KMK m.41 görevler ayrılığı).
+      Panel: `src/lib/rbac.ts` + `middleware.ts` + menü süzme (bkz. 0.A.10).
+      **Kanıt:** yönetici `/finance/debtors` → 200, kiracı → **403**; yetkisiz deneme
+      denetim izine `DENIED` olarak yazıldı.
+- [ ] **2.6 🔴 Tenant izolasyonu (PostgreSQL RLS)** — `pkg/tenant` hâlâ ölü kod *(B20)*.
+      Bugün izolasyon uygulama katmanındadır (JWT `property_id` + sorgu filtreleri);
+      RLS ile veritabanı düzeyine indirilmesi hâlâ yapılmalı.
+- [ ] **2.7 🟠 Çıkışta jeton iptali** (jti kara listesi / Redis) — `Logout` hâlâ yalnızca
+      "Çıkış başarılı" döndürüyor; jeton süresi dolana kadar (15 dk) geçerli kalıyor.
+- [ ] **2.8 🟠 Hassas alanların şifrelenmesi** — `pkg/encryption` hiçbir yerden import
+      edilmiyor; TCKN düz metin *(B26)*. KVKK metnindeki taahhüt buna göre düzeltildi (0.D.1).
 
 ---
 
@@ -292,34 +342,77 @@ Backend'e dokunan her değişiklikten sonra çalıştırılır.
       kaldırılması. Sahte `checkout.siteeksen.com` adresi kaldırıldı; yanıta
       `payment_gateway_ready: false` eklendi.
 - [x] **[D2] 4.6b Ham veritabanı hatalarının istemciye sızması engellendi** (ödeme ucu) *(B37)*
-- [ ] **4.2 `paid_amount` güncellemesi** — ödeme onay akışı gerektirir *(B46)* `[BLOKE S-06]`
-- [ ] **4.3 Para tipini `float64`'ten kuruş/decimal'e çevir** *(B50)*
-- [ ] **4.4 Tahakkukta kuruş yuvarlama + kalan dağıtımı** *(B51)*
-- [ ] **4.12 Dağıtım ve bakiye için sayısal doğruluk testleri**
+- [x] **[D4] 4.2 `paid_amount` güncellemesi — ödeme onay akışı** *(B46)*
+      Ödeme kaydı oluşuyor ama `paid_amount` HİÇ güncellenmiyordu; ödemesini yapan sakin
+      **sonsuza dek borçlu** kalıyor, borçlu listesinden düşmüyordu.
+      Ödeme sağlayıcısı yok (S-06) ama Türkiye'de aidatların büyük kısmı havale/EFT ile
+      tahsil ediliyor; **yönetici onayı** gerçek bir iş akışıdır ve sağlayıcı geldiğinde
+      aynı repository çağrısı webhook'tan kullanılabilir.
+      Tek transaction, `FOR UPDATE`, yalnızca `PENDING` onaylanabilir, başka siteye ait
+      ödeme 403, `RejectPayment` ile borç değişmeden reddetme.
+      **Kanıt:** onay öncesi borç değişmiyor; sonrasında `0,00 → 1.200,00` ve `PAID`;
+      çift onay → **409**; `has_debt:false`.
+- [x] **[D4] 4.3 Para tipi kuruşa çevrildi** *(B50)* — `pkg/money`: `Kurus` (int64),
+      `FromTRY`/`TRY`, decimal tabanlı dönüşüm. Yeni yazılan tüm para kodu (işletme projesi
+      dağıtımı, gecikme tazminatı, icra takibi tutarları) kuruş kullanıyor.
+      **Kanıt:** `go test ./pkg/money/...` — float sapması testi dahil 9 test.
+- [x] **[D4] 4.4 Kuruş yuvarlama + kalan dağıtımı** *(B51)* — **en büyük kalan**
+      (largest remainder) yöntemi: tüm paylar aşağı yuvarlanır, artan kuruşlar en büyük
+      kesirli kalana sahip paylara birer birer dağıtılır. Payların toplamı tutara
+      **birebir** eşittir ve dağıtım **belirlenimcidir** (aynı girdi → aynı çıktı; yeniden
+      hesaplamada daireler arasında kuruş yer değiştirmez).
+      **Kanıt:** 2000 rastgele senaryoda kuruş kaybı yok; `verify-stack.sh` §11'de gerçek
+      işletme projesinde 33.600.000 kuruş birebir tutuyor.
+- [x] **[D4] 4.5 Gecikme tazminatı tahakkuku (KMK m.20/2)** — hiç hesaplanmıyordu.
+      `POST /finance/late-fees/accrue`; oran mevzuat tablosundan; anapara = ödenmemiş
+      **asıl** borç (tazminat üzerinden tazminat işlenmez); **idempotent** (yeniden yazılır,
+      eklenmez); `late_fee_accruals` tablosuna gün/oran/anapara izi.
+      **Kanıt:** 30 gün → **60,00 TL**, toplam **1.260,00 TL**, ikinci çalıştırmada değişmiyor.
+- [ ] **4.12 Bakiye için sayısal doğruluk testi** — dağıtım testleri yazıldı; `unit_balances`
+      view'ı için veritabanı destekli sayısal test hâlâ eksik.
+- [ ] **4.13 Mevcut `float64` para alanlarının kuruşa göçü** — yeni kod kuruş kullanıyor,
+      `monthly_assessments`/`payments` tablolarındaki `DECIMAL` alanlar korunuyor.
+      Tam göç ayrı bir migration ve istemci uyumu gerektirir.
 
-## 0.C — Mobil (Flutter — `[D1]`, CI doğrulaması bekler)
+## 0.C — Mobil (Flutter) — tamamlandı
 
-- [ ] **0.C.1 🔴 Sahte ödeme ekranını devre dışı bırak**
-      `mobile/.../dues_payment_screen.dart:315-318` — hiç ağ çağrısı yapmadan "Ödeme Başarılı!".
-      Gerçek entegrasyon gelene kadar ekran ödeme başlatmamalı. *(B49)*
-- [ ] **0.C.2 🔴 Diğer sahte başarı mesajlarını kaldır**
-      Sakin: talep oluşturma, ziyaretçi ön kayıt, belge yükleme.
-      Yönetici: 11 nokta (tahakkuk, sayaç, duyuru, gider, rapor). *(B81)*
-- [ ] **0.C.3 🟠 Sessiz boş-listeye düşmeyi kaldır → hata + yeniden dene**
-      5 ekran: duyuru, anket, kargo, ilan, rezervasyon. *(B82)*
-- [ ] **0.C.4 🟠 Erişilemeyen ekranları menüye bağla ya da router'dan kaldır**
-      Sakin: 12 route + "Daha Fazla"da 10 ölü `onTap`. Yönetici: 17 ekran. *(B89, B90)*
-- [ ] **0.C.5 🟠 Yanlış güvence metnini kaldır**
-      `admin_app/.../api_settings_screen.dart:191-192` — "şifrelenmiş saklanır, her değişiklik kayıt
-      altında" derken tüm ekran mock. *(B85)*
+> Flutter 3.47.4 WSL'e kuruldu; bu bölümdeki maddeler artık `[D1]` değil, çalıştırılarak
+> doğrulanmıştır. **Toplu kanıt:** `bash backend/scripts/verify-mobile.sh` → 8/8.
 
-## 0.D — Hukuki metinler
+- [x] **[D4] 0.C.1 🔴 Sahte ödeme ekranı gerçek API'ye bağlandı** *(B49)*
+      Borç koda gömülüydü (₺1.250) ve "Öde → Onayla" **hiç ağ çağrısı yapmadan**
+      "Ödeme Başarılı!" diyordu. Artık `/finance/debt-status` + `/finance/assessments`;
+      ödeme isteği gerçekten gönderiliyor; `payment_gateway_ready:false` iken tahsilatın
+      YAPILMADIĞI açıkça söyleniyor.
+- [x] **[D4] 0.C.2 🔴 Sahte başarı mesajları kaldırıldı** *(B81)*
+      Sakin: talep oluşturma (gerçek `createRequest`'e bağlandı, uydurma takip numarası
+      kaldırıldı), ziyaretçi ön kaydı ("SMS gönderildi" yalanı kaldırıldı), belge yükleme.
+      Yönetici: tahakkuk, sayaç, duyuru, gider, rapor ekranları.
+- [x] **[D4] 0.C.3 🟠 Sessiz boş-listeye düşme kaldırıldı** *(B82)*
+      Ortak bileşenler: `core/widgets/data_state.dart` — `LoadingView`, `ErrorStateView`
+      (yeniden dene), `EmptyStateView`, `NotImplementedNotice`, `toUserMessage`.
+      "Veri yok" ile "veri alınamadı" artık ayrı gösteriliyor.
+- [x] **[D4] 0.C.4 🟠 Ölü rotalar ve boş `onTap`'lar giderildi** *(B89, B90)*
+      Sakin uygulamasında rotaya bağlı olmayan `home_screen.dart` silindi (sabit
+      "Borcunuz Bulunmamaktadır" kartı içeriyordu); "Daha Fazla" menüsündeki 10 boş
+      `onTap` gerçek rotalara bağlandı; çalışmayan "Çıkış Yap" düzeltildi.
+- [x] **[D4] 0.C.5 🟠 Yanlış güvence metni kaldırıldı** *(B85)*
+      `api_settings_screen` "şifrelenmiş saklanır, her değişiklik kayıt altındadır" derken
+      ekranın tamamı mock'tu ve 7 entegrasyon "aktif" görünüyordu. Gerçek duruma çevrildi.
+- [ ] **0.C.6 🟡 `flutter analyze` bilgi (info) düzeyi uyarıları** — iki uygulamada ~450
+      `prefer_const` / `withOpacity` uyarısı. CI'da kapı DEĞİL (`--no-fatal-infos`).
 
-- [ ] **0.D.1 🟡 Doğrulanamayan taahhütleri düzelt**
-      `legal/kvkk-aydinlatma.md:114-118` — AES-256 şifreleme (kullanılmıyor), rol bazlı yetki (tek uçta),
-      TLS 1.3 (yalnızca ingress), günlük yedekleme (yok), periyodik sızma testi (yok).
-      Ayrıca eksik zorunlu unsur: **"toplama yöntemi ve hukuki sebep"** bölümü. *(B86)*
-- [ ] **0.D.2 🟡 Placeholder adres/telefon alanlarını işaretle** (3 dosya) — hukuk onayı bekliyor
+## 0.D — Hukuki metinler — tamamlandı
+
+- [x] **[D2] 0.D.1 🟡 Doğrulanamayan taahhütler düzeltildi** *(B86)*
+      Güvenlik bölümü yeniden yazıldı: "AES-256", "TLS 1.3", "günlük yedekleme",
+      "periyodik sızma testi" sağlanıyormuş gibi sayılıyordu; hiçbiri uygulanmıyordu.
+      Artık **uygulanan** ve **uygulanmayan** tedbirler ayrı listelendi.
+      Eksik zorunlu unsur **"toplama yöntemi ve hukuki sebep"** (KVKK m.10) eklendi;
+      her işleme konusu için hukuki sebep (m.5/m.6) ve KMK/İİK dayanağı tabloya işlendi.
+- [x] **[D2] 0.D.2 🟡 Placeholder alanlar işaretlendi** — üç metnin başına
+      "TASLAK — yayına hazır değil" uyarısı kondu; doldurulmamış alanlar ve hukuk onayı
+      eksikliği açıkça belirtildi.
 
 ## FAZ 0 çıkış ölçütü
 
@@ -328,37 +421,134 @@ kalıcı olmayan hiçbir uç nokta `2xx` dönmüyor.
 
 ---
 
+# FAZ 6 — Yönetişim katmanı (KMK) — çekirdek tamamlandı
+
+Yeni servis: `backend/services/governance` (port 8107). 22 mock servisin aksine **baştan**
+gerçek veri katmanına bağlı yazıldı. Şema: `migrations/014`.
+
+- [x] **[D4] 6.1 İşletme projesi / yıllık bütçe (KMK m.37)**
+      Kalem bazlı bütçe; her bağımsız bölüme düşen pay `pkg/money` ile **kuruş** üzerinden
+      ve en büyük kalan yöntemiyle, kalem dökümüyle birlikte hesaplanıyor.
+      Tebliğ → **7 günlük** itiraz süresi (mevzuat tablosundan) → kesinleşme.
+      Kesinleşen proje **İİK m.68** anlamında belge olarak işaretleniyor.
+      Tebliğ edilmeden ya da süre dolmadan kesinleştirme **409** ile reddediliyor;
+      açık itiraz varsa kesinleşme engelleniyor.
+      **Kanıt:** 336.000 TL'lik projede payların toplamı **33.600.000 kuruş** (birebir);
+      eşit dağıtılan kalemde daireler arası fark ≤ 1 kuruş.
+- [x] **[D4] 6.2 Kat malikleri kurulu / genel kurul (KMK m.29-33)**
+      Çağrı **15 günden** geç yapılırsa işlem reddediliyor (geç çağrı, kararı iptal
+      edilebilir kılar). Nisap **sayı VE arsa payı** bakımından ayrı ayrı; "yarıdan fazla"
+      tam yarıyı kapsamıyor. İkinci toplantıda yeter sayı aranmıyor (m.30/3).
+      Vekâlet sınırları uygulanıyor (m.31: toplam oyun %5'i; 40 ve altı BB'de kişi başı 2).
+      Özel nisaplarda payda **tüm kat malikleri**, olağan kararda ikinci toplantıda
+      **katılanlar**. 4/5, oybirliği ve salt çoğunluk ayrı ayrı hesaplanıyor.
+      **Kanıt:** 14 birim testi + `verify-stack.sh` §11 (12/24 katılımda nisap yok,
+      13/24'te var).
+- [x] **[D4] 6.3 Defterler (KMK m.32, m.36)**
+      Karar ve işletme defteri; kayıtlar **ekle-only** ve **SHA-256 hash zincirli**.
+      UPDATE/DELETE veritabanı tetikleyicisiyle engelli; `/verify` ucu zinciri baştan sona
+      doğruluyor. Notere kapatma süresi (1 ay) aşılırsa uyarı döndürülüyor.
+      **Kanıt:** zincir doğrulaması geçti; doğrudan SQL ile `UPDATE` denemesi reddedildi.
+- [x] **[D3] 6.4 İcra / dava / kanuni ipotek (KMK m.22, İİK m.68)**
+      Takip kaydı, olay geçmişi; borç tutarı tahakkuklardan hesaplanıyor (elle girilmiyor);
+      dayanak belge belirtilmezse uyarı veriliyor.
+- [x] **[D3] 6.5 Yönetici/denetçi görev dönemleri, yıllık hesap verme (m.39), denetim
+      tutanakları (m.41)** — şema hazır (`governing_terms`, `accountability_reports`,
+      `audit_reports`); uçlar sonraki turda.
+- [ ] **6.6 Genel kurul tutanağı ve karar defteri otomatik bağlantısı** — toplantı
+      sonuçlandığında karar defterine otomatik kayıt düşmeli.
+- [ ] **6.7 Panel/mobil arayüzleri** — yönetişim servisi API olarak hazır; yönetim paneli
+      ekranları henüz yazılmadı.
+
+---
+
 # Sıradaki fazlar (özet)
 
 Ayrıntı: `tasks/roadmap.md`
 
-| Faz | Kapsam | Ön koşul |
+| Faz | Kapsam | Durum (2026-09-13) |
 |---|---|---|
-| FAZ 1 | Kurulabilirlik — migration çakışmaları, migration çalıştırıcı, seed hash, `go build` | S-01 (Docker) doğrulama için |
-| FAZ 2 | Kimlik/yetki/izolasyon — gateway auth, tenant izolasyonu, RBAC, logout, OTP | FAZ 1 |
-| FAZ 3 | Denetim izi + gözlemlenebilirlik | FAZ 1 |
-| FAZ 4 | Para doğruluğu — bakiye, ödeme tamamlama, decimal, gecikme tazminatı | S-02 (finans şeması) |
-| FAZ 5 | Mevcut modülleri uçtan uca bitirme | S-03 (kapsam kararı) |
-| FAZ 6 | Yönetişim katmanı (KMK) — işletme projesi, genel kurul, defterler, icra | S-02, S-05 |
-| FAZ 7 | Uyum ve operasyonel derinlik — bakım takvimi, sigorta, acil durum, personel | — |
-| FAZ 8 | Ölçek ve ticarileşme — onboarding, test altyapısı, temizlik, yayın | — |
+| FAZ 0 | Dürüstlük onarımı | **Tamamlandı** — uydurma veri ve sahte başarı mesajı kalmadı |
+| FAZ 1 | Kurulabilirlik — migration çalıştırıcı, idempotency, portlar, CI | **Tamamlandı** (1.6 down betikleri hariç) |
+| FAZ 2 | Kimlik/yetki/izolasyon | **Çekirdek tamam** — gateway auth, site bazlı roller, sahiplik doğrulaması, RBAC. Kalan: RLS (2.6), jeton iptali (2.7), alan şifreleme (2.8) |
+| FAZ 3 | Denetim izi + gözlemlenebilirlik | Çalışıyor. Kalan: hassas veri okuma logu (3.4), yapılandırılmış log (3.5) |
+| FAZ 4 | Para doğruluğu | **Çekirdek tamam** — ödeme borçtan düşüyor, kuruş dağıtımı, gecikme tazminatı. Kalan: bakiye testi (4.12), tam kuruş göçü (4.13) |
+| FAZ 5 | 22 mock servisi gerçeğe çevirme | **Başlamadı** — hepsi dürüstçe 501 döndürüyor (S-03: "hepsini tamamla") |
+| FAZ 6 | Yönetişim katmanı (KMK) | **Çekirdek tamam** — işletme projesi, genel kurul, defterler, icra. Kalan: arayüzler (6.7) |
+| FAZ 7 | Uyum ve operasyonel derinlik | Başlamadı |
+| FAZ 8 | Ölçek ve ticarileşme | Başlamadı |
 
 ---
 
-# Karar bekleyen bloklayıcılar
+# Karar bekleyen bloklayıcılar — KALMADI
 
-`tasks/questions.md` içinde ayrıntılı. En kritik dördü:
+`tasks/questions.md`'deki **18 sorunun tamamı 2026-09-13'te yanıtlandı** ve yanıtlar
+uygulandı. Bloklayıcı yok; kalan işler yalnızca iş gücü meselesi.
 
-| # | Konu | Etkilediği iş |
+Uygulanan kararların özeti:
+
+| # | Karar | Uygulanma |
 |---|---|---|
-| S-01 | Go/Flutter/Docker bu makinede kurulamıyor (AppLocker) | Tüm backend/mobil doğrulaması |
-| S-02 | Finans şeması dondurması hâlâ geçerli mi? | FAZ 4 ve FAZ 6'nın büyük kısmı |
-| S-03 | 22 mock servisi tamamla mı, kapsamı daralt mı? | FAZ 5'in şekli |
-| S-05 | Mevzuata bağlı oranların hukuki teyidi | Tahakkuk, gecikme tazminatı, nisaplar |
+| S-01 / S-01b | WSL kullan, ne gerekiyorsa kur | Go 1.24.7 + Flutter 3.47.4 kuruldu |
+| S-02 | Finans şeması dondurması **iptal** | 012/013/014 migration'ları yazıldı |
+| S-03 | 22 mock servisin **hepsini tamamla** | Ara adım: hepsi dürüstçe 501; gerçeğe çevirme FAZ 5 |
+| S-04 | Her iki KVKK modelini de destekle | Veri modeli site bazlı; hukuki metin taslak işaretli |
+| S-05 | Mevzuatı araştır, parametre yap | `legal_parameters` + `pkg/legalparams` (26 parametre) |
+| S-06 | Sağlayıcıdan bağımsız ödeme arayüzü | `payment_gateway_ready:false` + yönetici onay akışı |
+| S-07 / S-08 | Banka ve e-fatura **sonraki sürüme** | Yapılmadı (karar gereği) |
+| S-09 | Oracle/Cloudflare/AWS uyumlu depolama | **Yapılmadı** — sıradaki iş |
+| S-10 / S-11 | Sağlayıcı bağımsız bildirim + AI yalnız backend | **Yapılmadı** — sıradaki iş |
+| S-12…S-16 | Varsayılanları uygula | Veri modeli çok siteli; blok bazlı gider destekli |
+| S-17 | Her madde sonrası commit, bölüm sonunda push | Uygulanıyor — **push kimlik bilgisi gerekiyor** |
+| S-18 | Kök `ROADMAP.md`/`CHANGELOG.md` işaretçi olsun | Uygulandı |
+
+---
+
+# Sıradaki işler (öncelik sırasıyla)
+
+1. **FAZ 5 — mock servisleri gerçeğe çevirme (S-03: "hepsini tamamla")**
+   22 servis hâlâ 501 döndürüyor. Öncelik: gider (expense), personel, ziyaretçi,
+   otopark, rezervasyon, kargo — günlük operasyonda en çok kullanılanlar.
+   Her servis için: şema → repository → service → handler → RBAC → panel/mobil → test.
+   Dikey dilim ilkesi: bir modül baştan sona bitmeden diğerine geçilmez.
+2. **S-09 depolama arayüzü** — belge/fatura/talep fotoğrafı için kalıcı depolama yok.
+   S3 uyumlu arayüz + Oracle/Cloudflare R2/AWS adaptörleri.
+3. **S-10 bildirim arayüzü** — sağlayıcı bağımsız kuyruk; anahtar yokken `log` adaptörü
+   (gönderim veritabanına yazılır, dışarı çıkmaz).
+4. **FAZ 2 kalanı** — PostgreSQL RLS (2.6), çıkışta jeton iptali (2.7), TCKN/IBAN alan
+   şifrelemesi (2.8).
+5. **FAZ 6 arayüzleri (6.7)** — yönetişim servisi API olarak hazır; panel ekranları yok.
+6. **FAZ 3 kalanı** — hassas veri okuma logu (3.4), yapılandırılmış log (3.5).
 
 ---
 
 # İnceleme notları
+
+## 2026-09-13 — Dürüstlük tamamlandı, güvenlik ve yönetişim turu
+
+**Yapılan:** `questions.md`'deki 18 sorunun tamamı yanıtlandıktan sonra kararlar
+uygulandı. FAZ 0 (dürüstlük) ve FAZ 1 (kurulabilirlik) tamamlandı; FAZ 2 (güvenlik),
+FAZ 4 (para doğruluğu) ve FAZ 6 (yönetişim) çekirdeği yazıldı.
+
+**Doğrulama:** `verify-stack.sh` **102/102**, `verify-mobile.sh` **8/8**,
+admin panel `tsc` + `lint` + `build` temiz.
+
+**Bu turda bulunan ve denetimde yakalanmamış hatalar:**
+
+1. `002_seed_data.sql` tekrar uygulanamıyordu (PK çakışması) — idempotency testi olmadığı
+   için görülmemişti.
+2. 004'teki `CREATE TRIGGER` idempotent değildi.
+3. 003'ten `DROP TABLE audit_logs` kaldırılınca 001'in eski kolonları (`resource_type NOT NULL`)
+   ortaya çıktı ve `pkg/audit` INSERT'ü kırıldı — 011'de tasfiye edildi.
+4. Finance liste uçları iki farklı yanıt biçimi kullanıyordu (`[...]` ve `{"data": [...]}`);
+   istemciler bu farkı bilmediği için **çalışan bir sunucuda bile** hata gösteriyordu.
+5. `admin_app` API taban adresi yayında olmayan bir alan adına ve yanlış yola
+   (`/v1` yerine `/api/v1`) gidiyordu → uygulama hiçbir ortamda çalışmıyordu.
+6. Admin panelde ESLint yapılandırması yoktu; `npm run lint` etkileşimli soru sorup
+   CI'da takılıyordu.
+
+**Ders:** Bu altı hatanın hiçbiri kod okuyarak bulunamazdı; hepsi **çalıştırınca** ortaya
+çıktı. Doğrulama betiği her tur genişletildiği için her yeni kontrol yeni bir hata buldu.
 
 ## 2026-09-09 — Denetim ve planlama turu
 

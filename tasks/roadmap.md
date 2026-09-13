@@ -63,7 +63,10 @@ Gerçek hale getirilmeyecek modüller **arayüzden kaldırılır** ya da açık 
 
 # FAZLAR
 
-## FAZ 0 — Dürüstlük Onarımı `[sürüyor]`
+## FAZ 0 — Dürüstlük Onarımı `[TAMAMLANDI — 2026-09-13]`
+
+> Uydurma veri ve sahte başarı mesajı kalmadı. Kalıcı olmayan hiçbir uç 2xx dönmüyor.
+> **Kanıt:** `verify-stack.sh` §7, `verify-mobile.sh` dürüstlük kontrolleri.
 
 **Amaç:** Sistemin kullanıcıya yalan söylemesini durdurmak. Hiçbir yeni özellik yok; yalnızca
 "yapıldı" diyen ama yapmayan davranışların kaldırılması. Bu faz, güvenin ön koşulu.
@@ -84,7 +87,11 @@ Gerçek hale getirilmeyecek modüller **arayüzden kaldırılır** ya da açık 
 
 **Çıkış ölçütü:** Arayüzde, gerçekten yapılmayan hiçbir işlem için başarı mesajı gösterilmiyor.
 
-## FAZ 1 — Kurulabilirlik
+## FAZ 1 — Kurulabilirlik `[TAMAMLANDI — 2026-09-13]`
+
+> Sürüm takipli migration çalıştırıcı, tam idempotency, port/CI/compose düzeltmeleri.
+> Kalan tek madde: geri alma (down) betikleri (1.6).
+> **Kanıt:** `verify-stack.sh` §2 ve §4.
 
 **Amaç:** Temiz bir makinede `docker compose down -v && up` ile sistemin ayağa kalkması.
 Bugün bu mümkün değil; mevcut ortam elle müdahalelerin toplamı ve kaybolursa geri getirilemez.
@@ -108,7 +115,12 @@ Bugün bu mümkün değil; mevcut ortam elle müdahalelerin toplamı ve kaybolur
 **Çıkış ölçütü:** Temiz makinede `docker compose up` → tüm migration'lar uygulanır, demo kullanıcıyla giriş yapılır.
 **Kanıt gereksinimi:** `[D4]` için Docker gerekli → `questions.md` S-01.
 
-## FAZ 2 — Kimlik, Yetki ve İzolasyon
+## FAZ 2 — Kimlik, Yetki ve İzolasyon `[ÇEKİRDEK TAMAM — 2026-09-13]`
+
+> Gateway/Kong kimlik doğrulaması, site bazlı roller, aktif site sahiplik doğrulaması,
+> sunucu ve panel RBAC tamamlandı. **Kalan:** PostgreSQL RLS (2.6), çıkışta jeton
+> iptali (2.7), alan düzeyi şifreleme (2.8).
+> **Kanıt:** `verify-stack.sh` §8 ve §9.
 
 **Amaç:** Hassas verinin internete açık olmaması ve bir sitenin verisinin diğerine sızmaması.
 
@@ -137,7 +149,10 @@ Bugün bu mümkün değil; mevcut ortam elle müdahalelerin toplamı ve kaybolur
 **Çıkış ölçütü:** Kimliksiz hiçbir uç nokta kalmaz; bir tenant'ın token'ıyla diğerinin verisine erişim
 denemesi otomatik testte başarısız olur.
 
-## FAZ 3 — Denetim İzi ve Gözlemlenebilirlik
+## FAZ 3 — Denetim İzi ve Gözlemlenebilirlik `[çekirdek çalışıyor]`
+
+> Denetim izi yazıyor; `request_id` üretiliyor. **Kalan:** hassas veri okuma logu (3.4),
+> yapılandırılmış log (3.5).
 
 | # | İş | Durum | Kanıt / not |
 |---|---|---|---|
@@ -149,7 +164,12 @@ denemesi otomatik testte başarısız olur.
 | 3.6 | Sağlık kontrolü, metrik, hata takibi (mobil çökme raporu dahil) | `[D0]` | M-10 |
 | 3.7 | Yedekleme + **geri yükleme provası** | `[D0]` | M-12 |
 
-## FAZ 4 — Para Doğruluğu `[kısmen BLOKE — S-02]`
+## FAZ 4 — Para Doğruluğu `[ÇEKİRDEK TAMAM — 2026-09-13]`
+
+> S-02 dondurması kullanıcı tarafından kaldırıldı. Bakiye düzeltildi, ödeme borçtan
+> düşüyor, para kuruş cinsinden ve dağıtımda kuruş kaybı yok, gecikme tazminatı
+> (KMK m.20/2) hesaplanıyor. **Kalan:** bakiye sayısal testi (4.12), tam kuruş göçü (4.13).
+> **Kanıt:** `verify-stack.sh` §5b, §10, §11.
 
 **Amaç:** Gösterilen her tutarın doğru olması. Bugün bakiye kullanıcı sayısıyla çarpılıyor ve
 ödeme hiçbir zaman tamamlanmıyor.
@@ -168,7 +188,12 @@ denemesi otomatik testte başarısız olur.
 | 4.10 | Mobil ödeme ekranını gerçek API'ye bağla ya da kaldır | `[D0]` | B49 |
 | 4.11 | Ödeme sağlayıcısı adaptörü (port/adapter, sandbox-stub ile) | `[BLOKE]` S-06 | C.4 |
 
-## FAZ 5 — Mevcut Modülleri Uçtan Uca Bitirme
+## FAZ 5 — Mevcut Modülleri Uçtan Uca Bitirme `[SIRADAKİ ANA İŞ]`
+
+> S-03 kararı: **hepsini tamamla**. Ara adım tamam — 22 servisin tamamı dürüstçe 501
+> döndürüyor ve arayüzler bunu açıkça gösteriyor. Şimdi modül modül gerçeğe çevrilecek.
+> Öncelik: gider, personel, ziyaretçi, otopark, rezervasyon, kargo.
+> Dikey dilim ilkesi: şema → repository → service → handler → RBAC → panel/mobil → test.
 
 Sıra, değer/çaba oranına göre. Her dilim `tasks/dogrulama-politikasi.md` §2 "Bitti" tanımına uyar.
 
@@ -188,7 +213,16 @@ Sıra, değer/çaba oranına göre. Her dilim `tasks/dogrulama-politikasi.md` §
 | 5.12 | **Dosya depolama** — S3 uyumlu, imzalı indirme, belge modülünü bağla | `[BLOKE]` S-09 | M-04; tüm belge/fotoğraf özellikleri buna bağlı |
 | 5.13 | Kalan `[MOCK]` modüller: ziyaretçi, otopark, rezervasyon, personel, kargo, varlık, sözleşme, envanter, anket, ilan | `[D0]` | S-03 kararına göre: gerçekleştir ya da arayüzden kaldır |
 
-## FAZ 6 — Yönetişim Katmanı (KMK) — **ürünü rakipten ayıracak katman**
+## FAZ 6 — Yönetişim Katmanı (KMK) `[ÇEKİRDEK TAMAM — 2026-09-13]`
+
+> Yeni servis: `backend/services/governance` (port 8107), şema `migrations/014`.
+> İşletme projesi (m.37), genel kurul (m.29-33), defterler (m.32/36) ve icra takibi
+> (m.22, İİK m.68) çalışıyor. **Kalan:** panel/mobil arayüzleri (6.7), tutanak→defter
+> otomatik bağlantısı (6.6).
+> **Kanıt:** `verify-stack.sh` §11 + 14 nisap birim testi.
+>
+> **Ürünü rakipten ayıracak katman budur:** rakip ürünlerin çoğunda nisap hesabı,
+> vekâlet sınırı denetimi ve değiştirilemez karar defteri yoktur.
 
 Bugün tamamen yok. Aidatın yasal dayanağı ve icra gücü buradan doğar.
 

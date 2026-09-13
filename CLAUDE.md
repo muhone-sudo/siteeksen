@@ -105,23 +105,51 @@ Bu dosyalar okunduktan sonra ilgili kaynak dosyalara geç.
 **SiteEksen** — Türkiye kat mülkiyeti kanununa uyumlu site yönetim platformu. Go mikroservis backend,
 Next.js admin paneli, iki Flutter mobil uygulaması (sakin + yönetici) içerir.
 
-### Kritik Mimari Notlar — GERÇEK DURUM (2026-09-09 denetimi)
+### Kritik Mimari Notlar — GERÇEK DURUM (2026-09-13 itibarıyla)
 
-> Aşağıdaki notlar kod denetimiyle doğrulanmıştır. Bu bölümdeki hiçbir ifade "olması gerekeni" değil,
-> **bugün gerçekte olanı** anlatır. Ayrıntı ve `dosya:satır` kanıtı: `tasks/audit-raporu.md`.
+> Aşağıdaki notlar **çalıştırılarak** doğrulanmıştır. Bu bölümdeki hiçbir ifade "olması gerekeni"
+> değil, **bugün gerçekte olanı** anlatır.
+> Toplu kanıt: `bash backend/scripts/verify-stack.sh` → **102/102**,
+> `bash backend/scripts/verify-mobile.sh` → **8/8**.
+> Tarihçe ve `dosya:satır` kanıtı: `tasks/audit-raporu.md`, `tasks/changelog.md`.
 
-- **Yalnızca 3 servis gerçek:** 25 servisten `identity`, `finance` ve `community` PostgreSQL'e bağlıdır.
-  Kalan **22 servis sabit JSON döndürür** ve yazma isteklerine `2xx` dönüp veriyi **hiçbir yere kaydetmez**.
-  Bir modül üzerinde çalışırken önce o servisin gerçek mi mock mu olduğunu `tasks/gap-analizi.md` Bölüm A'dan doğrula.
+**Hızlı başlangıç**
+
+```bash
+bash backend/scripts/dev-up.sh     # PostgreSQL + gerçek servisler + gateway
+cd admin && npm run dev            # http://localhost:3001
+# Demo: 5551234567 / Demo123! (yönetici) · 5559876543 / Demo123! (kiracı)
+```
+
+- **4 servis gerçek veri katmanına bağlıdır:** `identity`, `finance`, `community` ve yeni
+  `governance` (KMK yönetişim süreçleri). Kalan **22 servis bilerek `501 Not Implemented`
+  döndürür** — artık uydurma veri döndürmez ve yazma isteğine `2xx` vermez (`pkg/stub`).
+  Bir modüle başlamadan önce durumunu `tasks/gap-analizi.md` Bölüm A'dan doğrula.
+- **Para hesapları `pkg/money` üzerinden, tam sayı KURUŞ ile yapılır.** Dağıtımda en büyük
+  kalan yöntemi kullanılır; payların toplamı tutara birebir eşittir. Yeni para kodu
+  `float64` kullanmaz.
+- **Mevzuata bağlı hiçbir oran koda gömülmez.** Gecikme tazminatı, ısıtma paylaşımı,
+  nisaplar ve vekâlet sınırları `legal_parameters` tablosundadır (`pkg/legalparams`);
+  yürürlük tarihli ve hukuki dayanaklıdır. Kanunla sabit olanlar site bazında
+  değiştirilemez (veritabanı tetikleyicisi).
+- **Roller SİTE BAZLIDIR.** `users.roles` yalnızca platform rolleri içindir; site rolleri
+  `property_roles`, sakinlik rolleri `resident_units` tablosundadır. Jeton rolleri aktif
+  siteye göre üretilir.
+- **Migration'lar `cmd/migrate` ile uygulanır** (sürüm tablosu, advisory lock, SHA-256
+  sağlama, transaction). `docker-entrypoint-initdb.d` kullanılmaz. Uygulanmış bir
+  migration dosyası **düzenlenmez** — çalıştırıcı sağlama uyuşmazlığında durur.
 - ~~**Veritabanı temiz makinede KURULAMIYOR**~~ → **DÜZELTİLDİ (2026-09-12).** `004`/`005`'teki tablo
   çakışmaları ve `005`'teki geçersiz UUID giderildi. Sıfırdan kurulum artık çalışıyor: 11 migration,
   61 tablo. **Kanıt:** `bash backend/scripts/verify-stack.sh` → 42/42 kontrol geçti.
 - ~~**Demo kullanıcı girişi çalışmıyor**~~ → **DÜZELTİLDİ (2026-09-12).** Seed'deki bozuk bcrypt hash
   yeniden üretildi. Demo giriş: **`5551234567` / `Demo123!`** (ikinci hesap: `5559876543`).
   **Kanıt:** gerçek identity-service'e `POST /auth/login` → HTTP 200 + JWT; yanlış şifre → 401.
-- **Gateway gerçek bir reverse proxy'dir** (25 servise yönlendirir) **ama kimlik doğrulaması yoktur.**
-  Kong'da da JWT plugin'i yoktur → maaş, TCKN, IBAN ve **API anahtarları** token'sız erişilebilir.
-  Gateway'in `/dashboard/*` ve `/reports/*` uçları hâlâ uydurma veri döndürür.
+- ~~**Gateway'de kimlik doğrulaması yok**~~ → **DÜZELTİLDİ (2026-09-13).** `/api/v1/auth/*` ve
+  `/health` dışındaki her yol geçerli JWT ister; `JWT_SECRET` yoksa fail-closed.
+  İstemciden gelen `X-User-*`/`X-Property-Id`/`X-Tenant-Id` başlıkları **silinir**.
+  CORS allowlist'e alındı; her isteğe `X-Request-Id` verilir. Kong'da 25 rotada `jwt`
+  eklentisi var. Gateway'in uydurma `/dashboard/*` ve `/reports/*` yanıtları kaldırıldı.
+  **Kanıt:** `verify-stack.sh` §8.
 - ~~**`go build ./...` BAŞARISIZ**~~ → **DÜZELTİLDİ (2026-09-12).** Ölü `backend/api/` dizini kaldırıldı
   (kırık import + `X-User-Role` başlığına güvenen sahte yetki kontrolü içeriyordu); ayrıca
   `pkg/integrations/sms` ve `pkg/integrations/whatsapp` paketlerindeki derleme hataları giderildi.
@@ -131,23 +159,28 @@ Next.js admin paneli, iki Flutter mobil uygulaması (sakin + yönetici) içerir.
   kaldırıldı); `pkg/audit` yeniden yazıldı; `pkg/middleware` artık hatayı yutmuyor ve 403'leri `DENIED`
   olarak ayırıyor. **Kanıt:** `go test ./pkg/audit/...` gerçek veritabanına karşı geçiyor + uçtan uca
   istekte `audit_logs`'a kayıt yazıldığı doğrulandı.
-- **Multi-tenancy fiilen yoktur:** `pkg/tenant` (294 satır) hiçbir yere bağlı değildir — `X-Tenant-ID`
-  yaklaşımı geri alınmıştır. İzolasyonun tek dayanağı JWT'deki `property_id`'dir ve bu değer
-  `POST /users/me/active-property` sahiplik doğrulaması yapmadığı için **istemci tarafından değiştirilebilir**.
-  Roller ayrıca siteye göre değil **globaldir**.
-- **Para hesaplarında kritik hatalar:** `GetUnitBalance` kartezyen join nedeniyle bakiyeyi kullanıcı
-  sayısıyla çarpar; ödeme akışı `monthly_assessments.paid_amount`'ı **hiç güncellemez** (ödeyen sakin
-  sonsuza dek borçlu kalır). Doğru bakiye hesabı `unit_balances` view'ında (`001:422`) hazırdır.
-- **Ödeme, Firebase, Kafka, MongoDB, AI entegrasyonları YOKTUR.** `pkg/payment` (iyzico),
-  `pkg/notification` (FCM), `pkg/ai`, `pkg/integrations/*` (~3.900 satır) yazılmış ama **hiçbir yerden
-  import edilmez**. `go.mod`'da MongoDB sürücüsü ve Kafka kütüphanesi bile yoktur.
-  AI fatura tarama kullanıcıya her seferinde sabit "AYEDAŞ 2.450,75 TL" döndürür.
-- **Ölü şema:** 61 tablonun 47'si (%77) hiçbir kod tarafından kullanılmaz; `005_new_modules.sql`'in
-  45 KB'ının tamamı ölüdür.
-- **Admin panel API hedefi:** `NEXT_PUBLIC_API_URL` env yoksa `http://localhost:8000/api/v1` (Kong).
-  Docker'da gateway'e (8888) yönlendirilmiştir. `.env.example` ise 8000 der → **3 farklı değer** vardır.
-- **Mobil uygulamalar üretimde çalışmaz:** sakin uygulamasının release APK'sında INTERNET izni yok;
-  `ios/` klasörü yok; yönetici uygulamasının taban adresi `/v1` (backend `/api/v1` bekler) → her çağrı 404.
+- **İzolasyon uygulama katmanındadır, veritabanı katmanında DEĞİL.** `pkg/tenant` hâlâ ölü kod.
+  Bugün izolasyon JWT'deki `property_id` + sorgu filtreleriyle sağlanır; bu claim artık
+  **istemci tarafından değiştirilemez** (sahiplik doğrulaması eklendi) ve roller **site
+  bazlıdır**. PostgreSQL RLS'e geçiş hâlâ yapılacak (todo 2.6).
+- ~~**Para hesaplarında kritik hatalar**~~ → **DÜZELTİLDİ.** Bakiye kartezyen join'i giderildi
+  (2026-09-12); ödeme artık `paid_amount`'ı günceller ve borcu düşürür (yönetici onay akışı,
+  2026-09-13); gecikme tazminatı KMK m.20/2'ye göre hesaplanır.
+  **Kanıt:** `verify-stack.sh` §10.
+- **Ödeme sağlayıcısı, Firebase, Kafka, MongoDB ve AI entegrasyonları hâlâ YOKTUR.**
+  `pkg/payment` (iyzico), `pkg/notification` (FCM), `pkg/ai`, `pkg/integrations/*` yazılmış
+  ama **hiçbir yerden import edilmez**. Fark: artık bunlar **var gibi gösterilmiyor** —
+  ödeme yanıtı `payment_gateway_ready:false` döndürüyor, panel/mobil "bağlı değil" diyor,
+  uydurma AI yanıtları kaldırıldı.
+- **Ölü şema büyük ölçüde duruyor:** `005_new_modules.sql`'in tabloları hâlâ kod tarafından
+  kullanılmıyor (ilgili servisler 501). FAZ 5'te modül modül gerçeğe çevrilecek.
+  Yeni eklenen `012`/`013`/`014` tablolarının **tamamı kullanılıyor**.
+- **Admin panel API hedefi:** `NEXT_PUBLIC_API_URL` (yerel geliştirme:
+  `http://localhost:8888/api/v1`). `admin/.env.local` `dev-up.sh` ile birlikte kullanılır.
+- **Mobil taban adresleri düzeltildi:** her iki uygulama da
+  `--dart-define=API_BASE_URL` ile yapılandırılabilir; varsayılan Android emülatöründen
+  local gateway'e gider. **Kalan sorun:** sakin uygulamasının release APK'sında INTERNET
+  izni yok ve `ios/` klasörü yok (todo FAZ 8).
 
 ### Doğrulama ortamı — WSL kullan
 
@@ -162,19 +195,22 @@ dosya açılmasını engeller; bu yüzden Windows'ta Go/Docker kurulamaz. **WSL'
 | Docker 27.5 | WSL'de çalışıyor | `docker info` OK |
 | PostgreSQL istemcisi 16 | WSL'de kurulu | `psql` |
 | Node 22 / npm | Hem Windows hem WSL | `admin/node_modules` Windows'ta kurulu |
-| Flutter | **Kurulu değil** | Mobil doğrulaması için kurulmalı |
+| Flutter 3.47.4 | **WSL'de kurulu** (`~/flutter`) | `export PATH=$PATH:$HOME/flutter/bin` |
 
 Repo yolu WSL'de: `/mnt/c/Users/md064615/Documents/Projeler/proje99`
 
-**Doğrulama betiği:** `bash backend/scripts/verify-stack.sh`
-Sıfırdan PostgreSQL kurar, 11 migration'ı uygular, şemayı denetler, idempotency sınar,
-`pkg/audit` testini gerçek veritabanına karşı çalıştırır ve identity-service'i ayağa kaldırıp
-gerçek HTTP istekleriyle giriş/yetki/denetim izi akışlarını doğrular (42 kontrol).
-**Backend'e dokunan her değişiklikten sonra çalıştırılmalıdır.**
+**Doğrulama betikleri**
+
+| Betik | Kapsam | Ne zaman |
+|---|---|---|
+| `bash backend/scripts/verify-stack.sh` | **102 kontrol** — sıfırdan PostgreSQL, `cmd/migrate` ile 14 migration, şema denetimi, tam idempotency, `pkg/audit`+`pkg/legalparams`+`pkg/money`+nisap testleri, identity/gateway/finance/governance uçtan uca (giriş, yetki, 501 dürüstlüğü, ödeme→borç düşümü, gecikme tazminatı, nisap, defter zinciri) | **Backend'e dokunan her değişiklikten sonra** |
+| `bash backend/scripts/verify-mobile.sh` | **8 kontrol** — iki Flutter uygulaması için `pub get` + `analyze` + `test` ve arayüzde uydurma veri taraması | Mobil değişikliklerden sonra |
+| `cd admin && npx tsc --noEmit && npm run lint && npm run build` | Panel | Panel değişikliklerinden sonra |
+| `bash backend/scripts/dev-up.sh` | Geliştirme ortamını ayağa kaldırır | Elle deneme için |
 
 Kural: Bir madde ancak çalıştığı **kanıtlandıktan** sonra tamamlandı işaretlenir
-(`tasks/dogrulama-politikasi.md`). Doğrulama artık mümkün olduğu için "doğrulanamadı" mazereti
-yalnızca Flutter tarafı için geçerlidir.
+(`tasks/dogrulama-politikasi.md`). Go, Flutter, Docker ve PostgreSQL kurulu olduğu için
+**"doğrulanamadı" mazereti artık yoktur.**
 
 ## Commands
 
@@ -239,7 +275,8 @@ Active services and their ports:
 | community | 8083 | Requests, bulletin |
 | iot | 8084 | Sensors (also uses MongoDB) |
 | notification | 8085 | Firebase push, Kafka consumer |
-| gateway | 8888 | Custom dev gateway (`cmd/gateway/`) |
+| governance | 8107 | KMK yönetişim: işletme projesi, genel kurul, defterler, icra (**gerçek DB**) |
+| gateway | 8888 | Custom dev gateway (`cmd/gateway/`) — kimlik doğrulama kapısı |
 
 Many more services exist in `backend/services/` (parking, personnel, visitor, energy_analytics, reservation, contract, document, etc.) but are not yet wired into docker-compose.
 
@@ -301,15 +338,20 @@ Bildirilen ortak yığın: Riverpod, go_router, Dio, flutter_secure_storage.
 Kalıcı çözüm için önerilen yaklaşım PostgreSQL satır düzeyi güvenliğidir (RLS) — bkz. `tasks/roadmap.md` §U.1.
 
 ### Security — **beyan ile gerçek arasındaki fark**
-| Beyan | Gerçek |
+| Konu | Durum (2026-09-13) |
 |---|---|
-| JWT 15 dk / 7 gün | **Doğru** (`identity/service/auth.go:138-140`) |
-| KVKK audit log aktif | **Çalışmıyor** — kolon adları şemayla uyuşmuyor, hata yutuluyor, tablo boş |
-| TCKN/telefon AES-256-GCM ile şifreli | **Şifrelenmiyor** — `pkg/encryption` hiçbir yerden import edilmiyor; TCKN düz metin JSON olarak, üstelik kimliksiz uçlardan servis ediliyor |
-| Rol bazlı yetkilendirme | `RequireRole` **tek** endpoint'te bağlı; panelde hiç yok; yönetici mobilde fail-open |
-| — | `JWT_SECRET` boşsa **boş anahtarla** token doğrulanıyor; compose'da bilinen bir default var |
-| — | Gateway ve Kong'da **kimlik doğrulama yok**; CORS her yerde `*` |
-| — | Giriş şifresi düz metin olarak sunucu log'una yazılıyor (`admin/src/app/api/auth/[...nextauth]/route.ts:17`) |
+| JWT 15 dk / 7 gün | **Doğru** |
+| `JWT_SECRET` boşsa davranış | **Fail-closed** — istek reddedilir; boş anahtarla doğrulama yapılmaz |
+| Gateway / Kong kimlik doğrulama | **Var** — gateway'de `/auth/*` dışı her yol JWT ister; Kong'da 25 rotada `jwt` eklentisi |
+| CORS | **Allowlist** (`CORS_ALLOWED_ORIGINS`); joker `*` kalmadı |
+| KVKK denetim izi | **Çalışıyor** — kullanıcı, IP, işlem, kaynak, durum kodu yazılıyor; 403'ler `DENIED` |
+| Rol bazlı yetkilendirme | **Site bazlı roller** + finance/governance'ta `RequireRole` + panelde `middleware.ts` ve menü süzme |
+| Aktif site seçimi | **Sahiplik doğrulanıyor** — başkasının sitesine geçiş 403 |
+| Giriş şifresi loglanması | **Kaldırıldı** — yalnızca maskelenmiş telefon ve HTTP durumu loglanıyor |
+| İstemci kimlik başlıkları | Gateway `X-User-*` / `X-Property-Id` / `X-Tenant-Id` başlıklarını **siler** |
+| TCKN/telefon şifreleme | **HÂLÂ YOK** — `pkg/encryption` import edilmiyor; TCKN düz metin (todo 2.8) |
+| Tenant izolasyonu (RLS) | **HÂLÂ YOK** — izolasyon uygulama katmanında (todo 2.6) |
+| Çıkışta jeton iptali | **HÂLÂ YOK** — jeton süresi dolana kadar (15 dk) geçerli (todo 2.7) |
 
-Bu maddeler `tasks/roadmap.md` FAZ 2'de ele alınır. `legal/kvkk-aydinlatma.md` içindeki güvenlik
-taahhütleri bugünkü gerçekle çelişmektedir (FAZ 0.D).
+`legal/kvkk-aydinlatma.md` 2026-09-13'te **gerçek duruma göre** düzeltildi: uygulanan ve
+uygulanmayan tedbirler ayrı listelenmiştir; karşılığı olmayan taahhüt kalmamıştır.
