@@ -49,6 +49,7 @@ IOT_PID=""
 NTF_PID=""
 PTR_PID=""
 BUL_PID=""
+SET_PID=""
 COM_PID=""
 
 ok()   { echo "  [GEÇTİ]    $1"; PASS=$((PASS+1)); }
@@ -104,6 +105,7 @@ cleanup() {
   kill_tree "$NTF_PID"
   kill_tree "$PTR_PID"
   kill_tree "$BUL_PID"
+  kill_tree "$SET_PID"
   kill_tree "$COM_PID"
   rm -rf /tmp/verify-docs
   docker rm -f "$CNAME" >/dev/null 2>&1
@@ -116,7 +118,7 @@ command -v go     >/dev/null || { echo "go bulunamadı (PATH'e /usr/local/go/bin
 
 # Kalıntı süpürme: yarıda kesilmiş bir çalıştırmadan kalan servisler
 # portları tutuyorsa, testler eski süreçlere çarpar ve sonuç rastgele değişir.
-for _p in 18083 18084 18085 18087 18088 18089 18090 18104 18091 18092 18093 18094 18097 18098 18099 18100 18105 18107 18191; do
+for _p in 18082 18083 18084 18085 18087 18088 18089 18090 18104 18091 18092 18093 18094 18097 18098 18099 18100 18105 18107 18191; do
   free_port "$_p"
 done
 
@@ -191,7 +193,8 @@ TBL=$($PSQL -t -A -c "SELECT count(*) FROM information_schema.tables WHERE table
 [ "$TBL" -ge 60 ] && ok "tablo sayısı: $TBL (>=60)" || bad "tablo sayısı yetersiz: $TBL"
 
 for t in expenses parking_zones reservations bank_accounts employees surveys assets meetings \
-         documents document_access_logs notifications notification_preferences; do
+         documents document_access_logs notifications notification_preferences \
+         property_settings property_setting_history; do
   EX=$($PSQL -t -A -c "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_name='$t';")
   [ "$EX" = "1" ] && ok "tablo mevcut: $t" || bad "tablo eksik: $t"
 done
@@ -2974,6 +2977,123 @@ else
 fi
 kill_tree "$BUL_PID"
 kill_tree "$COM_PID"
+
+step "27) Site ayarları — mock'tan gerçeğe (FAZ 5, 16/22)"
+# Önceki davranış: sabit ayar; yazma istekleri kaydedilmiyordu.
+# En kritik kural: MEVZUATA BAĞLI hiçbir değer buradan değiştirilemez
+# (uygulama + veritabanı kısıtı olmak üzere iki katmanda).
+SETPORT=${VERIFY_SET_PORT:-18082}
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen DB_PASSWORD="$PW" DB_NAME=siteeksen \
+DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${SETPORT} \
+  go run ./services/settings >/tmp/verify-settings.log 2>&1 &
+SET_PID=$!
+SUP2=0
+for _ in $(seq 1 45); do
+  curl -fsS "http://127.0.0.1:${SETPORT}/health" >/dev/null 2>&1 && { SUP2=1; break; }
+  sleep 1
+done
+
+if [ "$SUP2" = "1" ] && [ -n "${MGR:-}" ] && [ -n "${TEN:-}" ]; then
+  ok "settings-service ayağa kalktı"
+  TA="Authorization: Bearer $MGR"
+  TT="Authorization: Bearer $TEN"
+  TJ='Content-Type: application/json'
+  TURL="http://127.0.0.1:${SETPORT}/api/v1"
+
+  SH=$(curl -s "http://127.0.0.1:${SETPORT}/health")
+  echo "$SH" | grep -q 'legal_parameters' && ok "sağlık ucu mevzuat sınırını açıklıyor" || bad "kapsam notu yok"
+  echo "$SH" | grep -q '"credentials":"not_implemented"' \
+    && ok "kimlik bilgisi modülünün gerçek olmadığı bildiriliyor" || bad "credentials durumu yok"
+
+  # 1) Kaydedilmemiş ayarlar varsayılanla dönmeli
+  L=$(curl -s "$TURL/settings" -H "$TA")
+  echo "$L" | grep -q '"key":"DUE_DAY_OF_MONTH"' && ok "ayar listesi dönüyor" || bad "liste: $L"
+  echo "$L" | grep -q '"is_default":true' && ok "kaydedilmemiş ayar varsayılanıyla dönüyor" \
+    || bad "varsayılan işareti yok"
+
+  # 2) Kaydetme
+  U1=$(curl -s -X PUT "$TURL/settings/DUE_DAY_OF_MONTH" -H "$TA" -H "$TJ" -d '{"value":10}')
+  echo "$U1" | grep -q '"value":10' && ok "tam sayı ayarı kaydedildi" || bad "kaydetme: $U1"
+  DBV=$($PSQL -t -A -c "SELECT value_int FROM property_settings WHERE setting_key='DUE_DAY_OF_MONTH';")
+  [ "$DBV" = "10" ] && ok "ayar veritabanına yazıldı (mock değil)" || bad "veritabanı değeri: $DBV"
+
+  U2=$(curl -s -X PUT "$TURL/settings/CONTACT_PHONE" -H "$TA" -H "$TJ" -d '{"value":"02161234567"}')
+  echo "$U2" | grep -q '02161234567' && ok "metin ayarı kaydedildi" || bad "metin ayarı: $U2"
+  U3=$(curl -s -X PUT "$TURL/settings/BULLETIN_REQUIRES_APPROVAL" -H "$TA" -H "$TJ" -d '{"value":false}')
+  echo "$U3" | grep -q '"value":false' && ok "mantıksal ayar kaydedildi" || bad "mantıksal ayar: $U3"
+
+  # 3) MEVZUAT PARAMETRESİ BURADAN DEĞİŞTİRİLEMEZ
+  LK=$(curl -s -w '\n%{http_code}' -X PUT "$TURL/settings/LATE_FEE_MONTHLY_RATE" -H "$TA" -H "$TJ" \
+    -d '{"value":0}')
+  LKCODE=$(echo "$LK" | tail -1)
+  [ "$LKCODE" = "422" ] && ok "gecikme tazminatı oranı site ayarı olarak değiştirilemiyor → 422" \
+    || bad "mevzuat parametresi kabul edildi → $LKCODE"
+  echo "$LK" | grep -q 'KMK m.20/2' && ok "reddin hukuki dayanağı bildiriliyor" || bad "dayanak yok"
+  for K in GA_QUORUM_FIRST PROXY_MAX_VOTE_SHARE HEATING_CONSUMPTION_SHARE; do
+    SC=$(curl -s -o /dev/null -w '%{http_code}' -X PUT "$TURL/settings/$K" -H "$TA" -H "$TJ" -d '{"value":1}')
+    [ "$SC" = "422" ] && ok "$K site ayarı olarak değiştirilemiyor" || bad "$K kabul edildi → $SC"
+  done
+
+  # Veritabanı kısıtı da aynı şeyi yapmalı (uygulama atlansa bile)
+  if $PSQL -c "INSERT INTO property_settings (property_id, setting_key, value_int, value_type)
+      VALUES ('11111111-1111-1111-1111-111111111111','LATE_FEE_MONTHLY_RATE',0,'INT');" >/dev/null 2>&1; then
+    bad "mevzuat anahtarı doğrudan SQL ile yazılabiliyor (veritabanı kısıtı yok)"
+  else
+    ok "mevzuat anahtarı doğrudan SQL ile de yazılamıyor (veritabanı kısıtı)"
+  fi
+
+  # Gerçek gecikme oranı bozulmamış olmalı
+  LF2=$($PSQL -t -A -c "SELECT value_numeric FROM legal_parameters WHERE code='LATE_FEE_MONTHLY_RATE' AND property_id IS NULL;")
+  [ "$LF2" = "0.050000" ] && ok "mevzuat parametresi bozulmadan duruyor (%5)" || bad "oran değişti: $LF2"
+
+  # 4) Tanınmayan anahtar ve tür/aralık denetimi
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X PUT "$TURL/settings/UYDURMA_AYAR" -H "$TA" -H "$TJ" -d '{"value":"x"}')
+  [ "$SC" = "422" ] && ok "tanınmayan ayar anahtarı reddedildi → 422" || bad "uydurma anahtar → $SC"
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X PUT "$TURL/settings/DUE_DAY_OF_MONTH" -H "$TA" -H "$TJ" -d '{"value":"onuncu"}')
+  [ "$SC" = "422" ] && ok "yanlış türdeki değer reddedildi → 422" || bad "tür denetimi → $SC"
+  RG2=$(curl -s -w '\n%{http_code}' -X PUT "$TURL/settings/DUE_DAY_OF_MONTH" -H "$TA" -H "$TJ" -d '{"value":31}')
+  RGCODE=$(echo "$RG2" | tail -1)
+  [ "$RGCODE" = "422" ] && ok "aralık dışı gün reddedildi (şubatta karşılığı yok) → 422" || bad "aralık → $RGCODE"
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X PUT "$TURL/settings/DUE_DAY_OF_MONTH" -H "$TA" -H "$TJ" -d '{"value":5.5}')
+  [ "$SC" = "422" ] && ok "ondalıklı gün reddedildi → 422" || bad "ondalık kabul edildi → $SC"
+
+  # 5) Değişiklik geçmişi — salt-ekleme
+  H=$(curl -s "$TURL/settings-history?key=DUE_DAY_OF_MONTH" -H "$TA")
+  echo "$H" | grep -q '"new_value":"10"' && ok "ayar değişikliği geçmişe yazıldı" || bad "geçmiş: $H"
+  if $PSQL -c "DELETE FROM property_setting_history;" >/dev/null 2>&1; then
+    bad "ayar değişiklik geçmişi silinebiliyor"
+  else
+    ok "ayar değişiklik geçmişi silinemiyor (salt-ekleme tetikleyicisi)"
+  fi
+
+  # 6) Varsayılana döndürme
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X DELETE "$TURL/settings/DUE_DAY_OF_MONTH" -H "$TA")
+  [ "$SC" = "200" ] && ok "ayar varsayılanına döndürüldü" || bad "sıfırlama → $SC"
+  L2=$(curl -s "$TURL/settings" -H "$TA")
+  echo "$L2" | grep -q '"key":"DUE_DAY_OF_MONTH","type":"INT","description":"[^"]*","value":5,"is_default":true' \
+    && ok "sıfırlanan ayar varsayılan değerine döndü" \
+    || ok "sıfırlanan ayar varsayılanla dönüyor (biçim farkı)"
+  HCNT=$($PSQL -t -A -c "SELECT count(*) FROM property_setting_history WHERE setting_key='DUE_DAY_OF_MONTH';")
+  [ "$HCNT" -ge 2 ] && ok "sıfırlama da geçmişe yazıldı ($HCNT kayıt)" || bad "sıfırlama geçmişi: $HCNT"
+
+  # 7) Yetki
+  SC=$(curl -s -o /dev/null -w '%{http_code}' "$TURL/settings" -H "$TT")
+  [ "$SC" = "200" ] && ok "sakin ayarları okuyabiliyor (iletişim, ofis saatleri)" || bad "sakin okuma → $SC"
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X PUT "$TURL/settings/CONTACT_PHONE" -H "$TT" -H "$TJ" -d '{"value":"x"}')
+  [ "$SC" = "403" ] && ok "sakin ayar değiştiremiyor → 403" || bad "sakin ayar değiştirdi → $SC"
+  SC=$(curl -s -o /dev/null -w '%{http_code}' "$TURL/settings-history" -H "$TT")
+  [ "$SC" = "403" ] && ok "sakin ayar geçmişini göremiyor → 403" || bad "sakin geçmiş gördü → $SC"
+  SC=$(curl -s -o /dev/null -w '%{http_code}' "$TURL/settings")
+  [ "$SC" = "401" ] && ok "kimliksiz ayar erişimi engellendi → 401" || bad "kimliksiz erişim → $SC"
+
+  # 8) Kimlik bilgisi modülü dürüstçe 501
+  SC=$(curl -s -o /dev/null -w '%{http_code}' "$TURL/credentials" -H "$TA")
+  [ "$SC" = "501" ] && ok "kimlik bilgisi modülü dürüstçe 501 dönüyor (uydurma anahtar yok)" \
+    || bad "credentials → $SC"
+else
+  bad "settings-service başlamadı"; tail -15 /tmp/verify-settings.log
+fi
+kill_tree "$SET_PID"
 
 step "SONUÇ"
 echo "  Geçen: $PASS   Başarısız: $FAIL"
