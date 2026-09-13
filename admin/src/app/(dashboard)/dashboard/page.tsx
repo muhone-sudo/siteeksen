@@ -1,309 +1,289 @@
-import {
-    Users,
-    Receipt,
-    TrendingUp,
-    AlertCircle,
-    ArrowUpRight,
-    ArrowDownRight,
-} from "lucide-react";
+"use client";
+
+/**
+ * Yönetim Paneli Ana Sayfası
+ *
+ * NEDEN YENİDEN YAZILDI (2026-09-13):
+ * Sayfanın TAMAMI uydurmaydı ve yöneticinin ilk gördüğü ekran olduğu için en
+ * yanıltıcı yerdi:
+ *   - "124 sakin", "₺45.600 tahsilat", "%87 tahsilat oranı", "7 açık talep"
+ *     koda gömülüydü; hangi siteye girilirse girilsin aynı rakamlar çıkıyordu.
+ *   - 12 aylık tahsilat grafiği ve tüketim dağılımı pastası tamamen uyduruktu.
+ *   - "Son Ödemeler" bölümünde var olmayan kişiler ve tutarlar listeleniyordu.
+ *   - Trend okları ("+12%", "-2%") hiçbir hesaba dayanmıyordu.
+ *
+ * Artık tüm veriler gateway'in toplu uçlarından gelir. Ulaşılamayan kaynak için
+ * UYDURMA DEĞER GÖSTERİLMEZ: kart "—" gösterir ve hangi kaynağa ulaşılamadığı
+ * ayrıca bildirilir. Trend/karşılaştırma verisi sunucu üretmediği için tamamen
+ * kaldırılmıştır — uydurmak yerine göstermemek doğrudur.
+ */
+
+import { useCallback, useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
+import { Users, Receipt, TrendingUp, AlertCircle, Home } from "lucide-react";
+import { apiClient } from "@/lib/api-client";
+import { ErrorState, LoadingState, toUserMessage } from "@/components/ui/data-state";
+
+interface DashboardStats {
+    totalResidents?: number;
+    totalUnits?: number;
+    pendingRequests?: number;
+    monthlyIncome?: number;
+    collectionRate?: number;
+}
+
+interface Unavailable {
+    source: string;
+    reason: string;
+}
+
+interface PaymentRow {
+    id?: string;
+    name?: string;
+    unit?: string;
+    amount?: number;
+    created_at?: string;
+    status?: string;
+}
+
+interface RequestRow {
+    id?: string;
+    title?: string;
+    ticket_number?: string;
+    unit?: string;
+    status?: string;
+    created_at?: string;
+}
+
+const TRY = new Intl.NumberFormat("tr-TR", {
+    style: "currency",
+    currency: "TRY",
+    maximumFractionDigits: 0,
+});
 
 export default function DashboardPage() {
+    const { data: session, status } = useSession();
+
+    const [stats, setStats] = useState<DashboardStats | null>(null);
+    const [unavailable, setUnavailable] = useState<Unavailable[]>([]);
+    const [payments, setPayments] = useState<PaymentRow[] | null>(null);
+    const [paymentsError, setPaymentsError] = useState<string | null>(null);
+    const [requests, setRequests] = useState<RequestRow[] | null>(null);
+    const [requestsError, setRequestsError] = useState<string | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+
+    const load = useCallback(async () => {
+        setLoading(true);
+        setError(null);
+        setPaymentsError(null);
+        setRequestsError(null);
+
+        try {
+            const res = await apiClient.getDashboardStats();
+            setStats(res?.data ?? null);
+            setUnavailable(Array.isArray(res?.unavailable) ? res.unavailable : []);
+        } catch (e) {
+            setError(toUserMessage(e, "Özet veriler alınamadı"));
+            setLoading(false);
+            return;
+        }
+
+        // Bu iki bölüm bağımsız yüklenir; biri başarısız olursa diğeri görünmeye devam eder.
+        try {
+            const p = await apiClient.getRecentPayments();
+            setPayments(Array.isArray(p?.data) ? p.data : []);
+        } catch (e) {
+            setPaymentsError(toUserMessage(e, "Son ödemeler alınamadı"));
+        }
+        try {
+            const r = await apiClient.getRecentRequests();
+            setRequests(Array.isArray(r?.data) ? r.data : []);
+        } catch (e) {
+            setRequestsError(toUserMessage(e, "Son talepler alınamadı"));
+        }
+
+        setLoading(false);
+    }, []);
+
+    useEffect(() => {
+        if (status !== "authenticated") return;
+        if (session?.accessToken) {
+            apiClient.setToken(session.accessToken, session.refreshToken);
+        }
+        void load();
+    }, [status, session, load]);
+
+    if (loading) return <LoadingState />;
+    if (error) return <ErrorState message={error} onRetry={load} />;
+
+    // Değer yoksa "0" değil "—": bilinmeyen ile sıfır aynı şey değildir.
+    const num = (v: number | undefined) => (v === undefined || v === null ? "—" : String(v));
+    const money = (v: number | undefined) => (v === undefined || v === null ? "—" : TRY.format(v));
+    const pct = (v: number | undefined) => (v === undefined || v === null ? "—" : `%${Math.round(v)}`);
+
     return (
         <div className="space-y-6">
-            {/* Page Header */}
             <div>
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                    Dashboard
-                </h1>
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Panel</h1>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                    Güneş Sitesi genel durumu
+                    Aktif sitenin genel durumu
                 </p>
             </div>
 
-            {/* Stats Grid */}
+            {unavailable.length > 0 && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                    <p className="font-medium">Bazı özet veriler alınamadı</p>
+                    <ul className="mt-1 list-inside list-disc">
+                        {unavailable.map((u) => (
+                            <li key={u.source}>
+                                {u.source}: {u.reason}
+                            </li>
+                        ))}
+                    </ul>
+                    <p className="mt-2 text-xs">
+                        Eksik kalan kartlarda uydurma değer gösterilmez; “—” işareti görürsünüz.
+                    </p>
+                </div>
+            )}
+
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                <StatCard
-                    title="Toplam Sakin"
-                    value="124"
-                    change="+3"
-                    trend="up"
-                    icon={Users}
-                />
-                <StatCard
-                    title="Bu Ay Tahsilat"
-                    value="₺45.600"
-                    change="+12%"
-                    trend="up"
-                    icon={Receipt}
-                />
-                <StatCard
-                    title="Tahsilat Oranı"
-                    value="%87"
-                    change="-2%"
-                    trend="down"
-                    icon={TrendingUp}
-                />
-                <StatCard
-                    title="Açık Talepler"
-                    value="7"
-                    change="+2"
-                    trend="up"
-                    icon={AlertCircle}
-                    trendColor="red"
-                />
+                <StatCard title="Toplam Sakin" value={num(stats?.totalResidents)} icon={Users} />
+                <StatCard title="Bağımsız Bölüm" value={num(stats?.totalUnits)} icon={Home} />
+                <StatCard title="Tahsilat Oranı" value={pct(stats?.collectionRate)} icon={TrendingUp} />
+                <StatCard title="Açık Talepler" value={num(stats?.pendingRequests)} icon={AlertCircle} />
             </div>
 
-            {/* Charts Row */}
-            <div className="grid gap-6 lg:grid-cols-2">
-                {/* Collection Chart - Bar Chart */}
-                <div className="rounded-xl bg-white p-6 shadow-sm dark:bg-gray-800">
-                    <h3 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">
-                        Aylık Tahsilat
-                    </h3>
-                    <div className="h-64 flex items-end gap-2 pt-4">
-                        {[
-                            { month: 'Oca', value: 35, amount: '₺35K' },
-                            { month: 'Şub', value: 42, amount: '₺42K' },
-                            { month: 'Mar', value: 38, amount: '₺38K' },
-                            { month: 'Nis', value: 45, amount: '₺45K' },
-                            { month: 'May', value: 52, amount: '₺52K' },
-                            { month: 'Haz', value: 48, amount: '₺48K' },
-                            { month: 'Tem', value: 55, amount: '₺55K' },
-                            { month: 'Ağu', value: 46, amount: '₺46K' },
-                            { month: 'Eyl', value: 50, amount: '₺50K' },
-                            { month: 'Eki', value: 58, amount: '₺58K' },
-                            { month: 'Kas', value: 62, amount: '₺62K' },
-                            { month: 'Ara', value: 70, amount: '₺70K' },
-                        ].map((item, idx) => (
-                            <div key={idx} className="flex-1 flex flex-col items-center gap-1">
-                                <div className="text-xs text-gray-500">{item.amount}</div>
-                                <div
-                                    className="w-full bg-gradient-to-t from-blue-500 to-blue-400 rounded-t-md transition-all hover:from-blue-600 hover:to-blue-500"
-                                    style={{ height: `${item.value * 2.5}px` }}
-                                />
-                                <div className="text-xs text-gray-500">{item.month}</div>
-                            </div>
-                        ))}
-                    </div>
-                </div>
+            <div className="grid gap-4 md:grid-cols-2">
+                <StatCard title="Dönem Tahsilatı" value={money(stats?.monthlyIncome)} icon={Receipt} />
+            </div>
 
-                {/* Consumption Chart - Pie Chart */}
-                <div className="rounded-xl bg-white p-6 shadow-sm dark:bg-gray-800">
-                    <h3 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">
-                        Tüketim Dağılımı
-                    </h3>
-                    <div className="h-64 flex items-center justify-center gap-8">
-                        {/* Pie Chart */}
-                        <div className="relative w-40 h-40">
-                            <div
-                                className="absolute inset-0 rounded-full"
-                                style={{
-                                    background: `conic-gradient(
-                                        #3b82f6 0deg 126deg,
-                                        #10b981 126deg 216deg,
-                                        #f59e0b 216deg 288deg,
-                                        #ef4444 288deg 360deg
-                                    )`
-                                }}
-                            />
-                            <div className="absolute inset-6 bg-white dark:bg-gray-800 rounded-full flex items-center justify-center">
-                                <span className="text-sm font-semibold text-gray-700">100%</span>
-                            </div>
-                        </div>
-                        {/* Legend */}
-                        <div className="space-y-3">
-                            {[
-                                { label: 'Elektrik', value: '35%', color: 'bg-blue-500' },
-                                { label: 'Su', value: '25%', color: 'bg-green-500' },
-                                { label: 'Doğalgaz', value: '20%', color: 'bg-yellow-500' },
-                                { label: 'Ortak Gider', value: '20%', color: 'bg-red-500' },
-                            ].map((item, idx) => (
-                                <div key={idx} className="flex items-center gap-2">
-                                    <div className={`w-3 h-3 rounded-full ${item.color}`} />
-                                    <span className="text-sm text-gray-600">{item.label}</span>
-                                    <span className="text-sm font-semibold text-gray-900">{item.value}</span>
+            <div className="grid gap-6 lg:grid-cols-2">
+                <Panel title="Son Ödemeler" href="/dashboard/accounting">
+                    {paymentsError ? (
+                        <ErrorState message={paymentsError} onRetry={load} />
+                    ) : payments === null ? (
+                        <LoadingState />
+                    ) : payments.length === 0 ? (
+                        <p className="text-sm text-gray-500">Kayıtlı ödeme yok.</p>
+                    ) : (
+                        <div className="space-y-4">
+                            {payments.slice(0, 5).map((p, i) => (
+                                <div key={p.id ?? i} className="flex items-center justify-between">
+                                    <div className="flex items-center gap-3">
+                                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-100 text-green-600 dark:bg-green-900/20">
+                                            ₺
+                                        </div>
+                                        <div>
+                                            {/* Sunucu isim döndürmezse UYDURULMAZ; kimlik gösterilir. */}
+                                            <p className="font-medium text-gray-900 dark:text-white">
+                                                {p.name || p.unit || p.id || "—"}
+                                            </p>
+                                            <p className="text-sm text-gray-500">{p.unit ?? ""}</p>
+                                        </div>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="font-medium text-gray-900 dark:text-white">
+                                            {p.amount === undefined ? "—" : TRY.format(p.amount)}
+                                        </p>
+                                        <p className="text-sm text-gray-500">{formatDate(p.created_at)}</p>
+                                    </div>
                                 </div>
                             ))}
                         </div>
-                    </div>
-                </div>
-            </div>
+                    )}
+                </Panel>
 
-            {/* Recent Activity */}
-            <div className="grid gap-6 lg:grid-cols-2">
-                {/* Recent Payments */}
-                <div className="rounded-xl bg-white p-6 shadow-sm dark:bg-gray-800">
-                    <div className="mb-4 flex items-center justify-between">
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                            Son Ödemeler
-                        </h3>
-                        <a href="/dashboard/assessments" className="text-sm text-primary hover:underline">
-                            Tümünü Gör
-                        </a>
-                    </div>
-                    <div className="space-y-4">
-                        <PaymentItem
-                            name="Mehmet Demir"
-                            unit="A-4"
-                            amount="₺1.200"
-                            time="2 saat önce"
-                        />
-                        <PaymentItem
-                            name="Ayşe Yıldız"
-                            unit="B-7"
-                            amount="₺1.150"
-                            time="5 saat önce"
-                        />
-                        <PaymentItem
-                            name="Ali Kaya"
-                            unit="A-12"
-                            amount="₺2.300"
-                            time="1 gün önce"
-                        />
-                    </div>
-                </div>
-
-                {/* Recent Requests */}
-                <div className="rounded-xl bg-white p-6 shadow-sm dark:bg-gray-800">
-                    <div className="mb-4 flex items-center justify-between">
-                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                            Son Talepler
-                        </h3>
-                        <a href="/dashboard/requests" className="text-sm text-primary hover:underline">
-                            Tümünü Gör
-                        </a>
-                    </div>
-                    <div className="space-y-4">
-                        <RequestItem
-                            title="Asansör arızası"
-                            unit="Ortak Alan"
-                            status="open"
-                            time="1 saat önce"
-                        />
-                        <RequestItem
-                            title="Merdiven aydınlatma"
-                            unit="A Blok"
-                            status="in_progress"
-                            time="4 saat önce"
-                        />
-                        <RequestItem
-                            title="Bahçe sulama"
-                            unit="Ortak Alan"
-                            status="resolved"
-                            time="1 gün önce"
-                        />
-                    </div>
-                </div>
+                <Panel title="Son Talepler" href="/dashboard/requests">
+                    {requestsError ? (
+                        <ErrorState message={requestsError} onRetry={load} />
+                    ) : requests === null ? (
+                        <LoadingState />
+                    ) : requests.length === 0 ? (
+                        <p className="text-sm text-gray-500">Açık talep yok.</p>
+                    ) : (
+                        <div className="space-y-4">
+                            {requests.slice(0, 5).map((r, i) => (
+                                <div key={r.id ?? i} className="flex items-center justify-between">
+                                    <div>
+                                        <p className="font-medium text-gray-900 dark:text-white">
+                                            {r.title || r.ticket_number || "Talep"}
+                                        </p>
+                                        <p className="text-sm text-gray-500">
+                                            {[r.unit, formatDate(r.created_at)].filter(Boolean).join(" • ")}
+                                        </p>
+                                    </div>
+                                    <StatusBadge status={r.status} />
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </Panel>
             </div>
         </div>
     );
 }
 
+function formatDate(value?: string) {
+    if (!value) return "";
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return "";
+    return d.toLocaleDateString("tr-TR", { day: "numeric", month: "long", year: "numeric" });
+}
+
 function StatCard({
     title,
     value,
-    change,
-    trend,
     icon: Icon,
-    trendColor = "default",
 }: {
     title: string;
     value: string;
-    change: string;
-    trend: "up" | "down";
     icon: React.ElementType;
-    trendColor?: "default" | "red";
 }) {
-    const isUp = trend === "up";
-    const colorClass =
-        trendColor === "red"
-            ? "text-red-500"
-            : isUp
-                ? "text-green-500"
-                : "text-red-500";
-
     return (
         <div className="rounded-xl bg-white p-6 shadow-sm dark:bg-gray-800">
-            <div className="flex items-center justify-between">
-                <div className="rounded-lg bg-primary/10 p-3">
-                    <Icon className="h-6 w-6 text-primary" />
-                </div>
-                <div className={`flex items-center gap-1 text-sm ${colorClass}`}>
-                    {isUp ? (
-                        <ArrowUpRight className="h-4 w-4" />
-                    ) : (
-                        <ArrowDownRight className="h-4 w-4" />
-                    )}
-                    {change}
-                </div>
+            <div className="rounded-lg bg-primary/10 p-3 w-fit">
+                <Icon className="h-6 w-6 text-primary" />
             </div>
             <div className="mt-4">
-                <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                    {value}
-                </p>
+                <p className="text-2xl font-bold text-gray-900 dark:text-white">{value}</p>
                 <p className="text-sm text-gray-500 dark:text-gray-400">{title}</p>
             </div>
         </div>
     );
 }
 
-function PaymentItem({
-    name,
-    unit,
-    amount,
-    time,
+function Panel({
+    title,
+    href,
+    children,
 }: {
-    name: string;
-    unit: string;
-    amount: string;
-    time: string;
+    title: string;
+    href: string;
+    children: React.ReactNode;
 }) {
     return (
-        <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-green-100 text-green-600 dark:bg-green-900/20">
-                    ₺
-                </div>
-                <div>
-                    <p className="font-medium text-gray-900 dark:text-white">{name}</p>
-                    <p className="text-sm text-gray-500">{unit}</p>
-                </div>
+        <div className="rounded-xl bg-white p-6 shadow-sm dark:bg-gray-800">
+            <div className="mb-4 flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{title}</h3>
+                <a href={href} className="text-sm text-primary hover:underline">
+                    Tümünü Gör
+                </a>
             </div>
-            <div className="text-right">
-                <p className="font-medium text-gray-900 dark:text-white">{amount}</p>
-                <p className="text-sm text-gray-500">{time}</p>
-            </div>
+            {children}
         </div>
     );
 }
 
-function RequestItem({
-    title,
-    unit,
-    status,
-    time,
-}: {
-    title: string;
-    unit: string;
-    status: "open" | "in_progress" | "resolved";
-    time: string;
-}) {
-    const statusConfig = {
-        open: { label: "Açık", color: "bg-yellow-100 text-yellow-700" },
-        in_progress: { label: "İşlemde", color: "bg-blue-100 text-blue-700" },
-        resolved: { label: "Çözüldü", color: "bg-green-100 text-green-700" },
+function StatusBadge({ status }: { status?: string }) {
+    const map: Record<string, { label: string; color: string }> = {
+        OPEN: { label: "Açık", color: "bg-yellow-100 text-yellow-700" },
+        IN_PROGRESS: { label: "İşlemde", color: "bg-blue-100 text-blue-700" },
+        RESOLVED: { label: "Çözüldü", color: "bg-green-100 text-green-700" },
+        CLOSED: { label: "Kapandı", color: "bg-gray-100 text-gray-700" },
     };
-    const config = statusConfig[status];
-
+    const cfg = map[status ?? ""] ?? { label: status ?? "—", color: "bg-gray-100 text-gray-700" };
     return (
-        <div className="flex items-center justify-between">
-            <div>
-                <p className="font-medium text-gray-900 dark:text-white">{title}</p>
-                <p className="text-sm text-gray-500">{unit} • {time}</p>
-            </div>
-            <span className={`rounded-full px-3 py-1 text-xs font-medium ${config.color}`}>
-                {config.label}
-            </span>
-        </div>
+        <span className={`rounded-full px-3 py-1 text-xs font-medium ${cfg.color}`}>{cfg.label}</span>
     );
 }

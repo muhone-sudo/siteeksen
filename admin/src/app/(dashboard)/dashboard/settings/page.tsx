@@ -15,19 +15,24 @@ interface UserData {
 export default function SettingsPage() {
     const [activeTab, setActiveTab] = useState('general');
     const [isUserModalOpen, setIsUserModalOpen] = useState(false);
-    const [users, setUsers] = useState<UserData[]>([
-        { id: 1, name: 'Ahmet Yılmaz', role: 'Yönetim Kurulu Başkanı', email: 'ahmet@email.com', deleted: 0 },
-        { id: 2, name: 'Mehmet Demir', role: 'Muhasebeci', email: 'mehmet@email.com', deleted: 0 },
-        { id: 3, name: 'Ayşe Kaya', role: 'Site Görevlisi', email: 'ayse@email.com', deleted: 0 },
-    ]);
+    // DÜZELTME (2026-09-13): Burada üç sahte yönetim kullanıcısı ("Ahmet Yılmaz /
+    // Yönetim Kurulu Başkanı" vb.) koda gömülüydü. Yönetici, sitede tanımlı
+    // yetkilileri gördüğünü sanıyordu. Kullanıcı/rol yönetimi için sunucuda bir uç
+    // bulunmadığından liste BOŞ başlar ve sekmede durum açıkça bildirilir.
+    // Site bazlı roller backend'de `property_roles` tablosunda tutulur (migration 013);
+    // panel arayüzü bu tabloya bağlanana kadar buradan yönetim yapılamaz.
+    const [users, setUsers] = useState<UserData[]>([]);
     const [newUser, setNewUser] = useState({ name: '', email: '', role: 'Site Görevlisi' });
     const [editingUserId, setEditingUserId] = useState<number | null>(null);
     const [deleteUserId, setDeleteUserId] = useState<number | null>(null);
+    // DÜZELTME (2026-09-13): Bu alanlar "Güneş Sitesi / Atatürk Mah. ..." gibi
+    // uydurma değerlerle doluydu ve hangi siteye girilirse girilsin aynı görünüyordu.
+    // Site ayarlarını okuyan/yazan bir sunucu ucu olmadığı için alanlar BOŞ başlar.
     const [generalSettings, setGeneralSettings] = useState({
-        siteName: 'Güneş Sitesi',
-        address: 'Atatürk Mah. Cumhuriyet Cad. No:123',
-        email: 'yonetim@gunessitesi.com',
-        phone: '+90 212 555 0123',
+        siteName: '',
+        address: '',
+        email: '',
+        phone: '',
         timezone: 'Europe/Istanbul (UTC+3)',
     });
     const [notificationSettings, setNotificationSettings] = useState([
@@ -254,13 +259,21 @@ export default function SettingsPage() {
                         <div className="space-y-6">
                             <h2 className="text-lg font-semibold">Entegrasyonlar</h2>
 
+                            {/*
+                              DÜZELTME (2026-09-13): Bu liste iyzico, Firebase ve SMTP'yi
+                              "Bağlı" gösteriyordu. Denetimde bu entegrasyonların HİÇBİRİNİN
+                              koda bağlanmadığı tespit edildi (pkg/payment, pkg/notification
+                              ve pkg/integrations hiçbir yerden import edilmiyor).
+                              "Bağlı" yazan bir ödeme entegrasyonu, yöneticinin tahsilatın
+                              çalıştığını sanmasına yol açar. Tüm durumlar gerçeğe çekildi.
+                            */}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 {[
-                                    { name: 'SMS (Netgsm) - Yakında', status: 'coming_soon', icon: '📱' },
-                                    { name: 'Ödeme (Iyzico)', status: 'connected', icon: '💳' },
-                                    { name: 'Push (Firebase)', status: 'connected', icon: '🔔' },
-                                    { name: 'E-posta (SMTP)', status: 'connected', icon: '📧' },
-                                    { name: 'AI Vision (OpenAI) - Coming Soon', status: 'coming_soon', icon: '🧠' },
+                                    { name: 'SMS (Netgsm)', status: 'not_connected', icon: '📱' },
+                                    { name: 'Ödeme (iyzico)', status: 'not_connected', icon: '💳' },
+                                    { name: 'Push bildirim (Firebase)', status: 'not_connected', icon: '🔔' },
+                                    { name: 'E-posta (SMTP)', status: 'not_connected', icon: '📧' },
+                                    { name: 'Görsel işleme (OpenAI)', status: 'not_connected', icon: '🧠' },
                                 ].map((integration, idx) => (
                                     <div key={idx} className="p-4 border rounded-lg">
                                         <div className="flex items-center justify-between">
@@ -270,11 +283,9 @@ export default function SettingsPage() {
                                             </div>
                                             <span className={`px-2 py-1 rounded-full text-xs ${integration.status === 'connected'
                                                 ? 'bg-green-100 text-green-700'
-                                                : integration.status === 'coming_soon'
-                                                ? 'bg-gray-100 text-gray-700'
-                                                : 'bg-yellow-100 text-yellow-700'
+                                                : 'bg-gray-100 text-gray-700'
                                                 }`}>
-                                                {integration.status === 'connected' ? 'Bağlı' : integration.status === 'coming_soon' ? 'Yakında' : 'Bekliyor'}
+                                                {integration.status === 'connected' ? 'Bağlı' : 'Bağlı değil'}
                                             </span>
                                         </div>
                                     </div>
@@ -285,28 +296,15 @@ export default function SettingsPage() {
 
                     {activeTab === 'billing' && (
                         <div className="space-y-6">
-                            <h2 className="text-lg font-semibold">Fatura Bilgileri</h2>
+                            <h2 className="text-lg font-semibold">Abonelik ve Fatura</h2>
 
-                            <div className="p-4 bg-blue-50 rounded-lg">
-                                <p className="text-sm text-blue-600">Mevcut Plan</p>
-                                <p className="text-xl font-bold text-blue-700">Pro Plan</p>
-                                <p className="text-sm text-blue-600 mt-1">₺299/ay • 200 daire kapasitesi</p>
-                            </div>
-
-                            <div className="space-y-2">
-                                <h3 className="font-medium">Son Faturalar</h3>
-                                {[
-                                    { date: '01.02.2026', amount: '₺299', status: 'Ödendi' },
-                                    { date: '01.01.2026', amount: '₺299', status: 'Ödendi' },
-                                    { date: '01.12.2025', amount: '₺299', status: 'Ödendi' },
-                                ].map((invoice, idx) => (
-                                    <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                                        <span>{invoice.date}</span>
-                                        <span className="font-medium">{invoice.amount}</span>
-                                        <span className="text-green-600 text-sm">{invoice.status}</span>
-                                    </div>
-                                ))}
-                            </div>
+                            {/*
+                              DÜZELTME (2026-09-13): Burada "Pro Plan ₺299/ay" ve ödenmiş
+                              görünen üç fatura koda gömülüydü. Ne abonelik modülü ne de
+                              faturalandırma vardır; kullanıcıya var olmayan bir ödeme
+                              geçmişi göstermek kabul edilemez.
+                            */}
+                            <NotImplementedNotice detail="SaaS abonelik ve faturalandırma modülü henüz geliştirilmedi. Bu bölümde gösterilecek gerçek bir plan ya da fatura kaydı bulunmuyor." />
                         </div>
                     )}
                 </div>

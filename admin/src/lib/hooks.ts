@@ -1,53 +1,20 @@
+/**
+ * TanStack Query kancaları.
+ *
+ * TEMİZLİK (2026-09-13, todo 0.A.8 / gap-analizi B93):
+ * Bu dosyada 17 kanca vardı ve bunların 13'ü HİÇBİR yerden çağrılmıyordu.
+ * Ölü kod, olmayan bir veri katmanı izlenimi verir: yeni geliştirici "veri
+ * TanStack Query ile yönetiliyor" sanıp yanlış yerde arar. Kullanılmayanlar
+ * kaldırıldı.
+ *
+ * KURAL: Buraya yalnızca GERÇEKTEN kullanılan kancalar eklenir. Bir ekran
+ * doğrudan `apiClient` çağırıyorsa, "ileride lazım olur" diye kanca yazılmaz.
+ */
+
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import apiClient from "@/lib/api-client";
 
-// ============ DASHBOARD ============
-export function useDashboardStats() {
-    return useQuery({
-        queryKey: ["dashboard", "stats"],
-        queryFn: () => apiClient.getDashboardStats(),
-    });
-}
-
-export function useRecentPayments(limit = 5) {
-    return useQuery({
-        queryKey: ["dashboard", "recent-payments", limit],
-        queryFn: () => apiClient.getRecentPayments(limit),
-    });
-}
-
-export function useRecentRequests(limit = 5) {
-    return useQuery({
-        queryKey: ["dashboard", "recent-requests", limit],
-        queryFn: () => apiClient.getRecentRequests(limit),
-    });
-}
-
-// ============ RESIDENTS ============
-export function useResidents(params?: { search?: string; block?: string; role?: string }) {
-    return useQuery({
-        queryKey: ["residents", params],
-        queryFn: () => apiClient.getResidents(params),
-    });
-}
-
-export function useCreateResident() {
-    const queryClient = useQueryClient();
-    return useMutation({
-        mutationFn: apiClient.createResident,
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["residents"] });
-        },
-    });
-}
-
-// ============ ASSESSMENTS ============
-export function useAssessments(params?: { year?: number }) {
-    return useQuery({
-        queryKey: ["assessments", params],
-        queryFn: () => apiClient.getAssessments(params),
-    });
-}
+// ============ TAHAKKUK / MALİ ============
 
 export function useCreateAssessment() {
     const queryClient = useQueryClient();
@@ -55,6 +22,8 @@ export function useCreateAssessment() {
         mutationFn: apiClient.createAssessment,
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["assessments"] });
+            queryClient.invalidateQueries({ queryKey: ["assessment-overview"] });
+            queryClient.invalidateQueries({ queryKey: ["debtors"] });
         },
     });
 }
@@ -77,68 +46,5 @@ export function useDebtors() {
     return useQuery({
         queryKey: ["debtors"],
         queryFn: () => apiClient.getDebtors(),
-    });
-}
-
-// ============ METERS ============
-export function useMeters(params?: { type?: string }) {
-    return useQuery({
-        queryKey: ["meters", params],
-        queryFn: () => apiClient.getMeters(params),
-    });
-}
-
-export function useSubmitMeterReadings() {
-    const queryClient = useQueryClient();
-    return useMutation({
-        mutationFn: apiClient.submitMeterReadings,
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["meters"] });
-        },
-    });
-}
-
-// ============ ANNOUNCEMENTS ============
-export function useAnnouncements(params?: { category?: string }) {
-    return useQuery({
-        queryKey: ["announcements", params],
-        queryFn: () => apiClient.getAnnouncements(params),
-    });
-}
-
-export function useCreateAnnouncement() {
-    const queryClient = useQueryClient();
-    return useMutation({
-        mutationFn: apiClient.createAnnouncement,
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["announcements"] });
-        },
-    });
-}
-
-// ============ REQUESTS ============
-export function useRequests(params?: { status?: string }) {
-    return useQuery({
-        queryKey: ["requests", params],
-        queryFn: () => apiClient.getRequests(params),
-    });
-}
-
-export function useUpdateRequestStatus() {
-    const queryClient = useQueryClient();
-    return useMutation({
-        mutationFn: ({ id, status, comment }: { id: string; status: string; comment?: string }) =>
-            apiClient.updateRequestStatus(id, status, comment),
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["requests"] });
-        },
-    });
-}
-
-// ============ REPORTS ============
-export function useGenerateReport() {
-    return useMutation({
-        mutationFn: ({ type, params }: { type: string; params: Record<string, unknown> }) =>
-            apiClient.generateReport(type, params),
     });
 }

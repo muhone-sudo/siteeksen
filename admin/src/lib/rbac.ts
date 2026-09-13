@@ -1,0 +1,113 @@
+/**
+ * Rol bazlı erişim kontrolü (RBAC).
+ *
+ * NEDEN VAR (tasks/gap-analizi.md B28, todo 0.A.10 / 2.9):
+ *
+ * Panelde hiçbir erişim kontrolü yoktu: `session.user.roles` hiçbir sayfada
+ * okunmuyordu. Giriş yapan HERKES — bir kiracı dahil — personel maaş bordrosunu,
+ * sakinlerin kimlik bilgilerini ve sistem API anahtarlarını görebiliyordu.
+ *
+ * Kontrol iki katmanda uygulanır:
+ *   1. `middleware.ts` — sunucu tarafında yönlendirme (adres çubuğuna elle yazarak
+ *      erişim denemesi engellenir).
+ *   2. `Sidebar` ve sayfa bileşenleri — kullanıcıya yetkisi olmayan menüyü hiç
+ *      göstermemek için.
+ *
+ * ÖNEMLİ: Bu katman bir KOLAYLIKTIR, güvenlik sınırı DEĞİLDİR. Asıl yetki kontrolü
+ * sunucudadır (`pkg/middleware.RequireRole`). Panel kontrolü yalnızca kullanıcıyı
+ * erişemeyeceği ekranlara götürmemek içindir.
+ *
+ * Roller AKTİF SİTEYE göre çözümlenir (backend migration 013 + identity servisi).
+ */
+
+export const Roles = {
+    SuperAdmin: "SUPER_ADMIN",
+    Manager: "MANAGER",
+    BoardMember: "BOARD_MEMBER",
+    Auditor: "AUDITOR",
+    Staff: "STAFF",
+    Resident: "RESIDENT",
+    Owner: "OWNER",
+    Tenant: "TENANT",
+} as const;
+
+export type Role = (typeof Roles)[keyof typeof Roles];
+
+/** Yönetim yetkisi taşıyan roller. */
+export const MANAGEMENT: Role[] = [Roles.SuperAdmin, Roles.Manager, Roles.BoardMember];
+
+/** Yönetim + denetçi (denetçi okur, yazamaz — KMK m.41). */
+export const MANAGEMENT_AND_AUDIT: Role[] = [...MANAGEMENT, Roles.Auditor];
+
+/** Yönetim + görevli personel (operasyonel ekranlar). */
+export const MANAGEMENT_AND_STAFF: Role[] = [...MANAGEMENT, Roles.Staff];
+
+/**
+ * Yol → erişebilecek roller.
+ *
+ * En uzun eşleşen ön ek kazanır; listede olmayan `/dashboard` altı yollar
+ * varsayılan olarak yönetim + denetçiye açıktır (fail-closed: sakine kapalı).
+ */
+export const ROUTE_ROLES: { prefix: string; roles: Role[]; reason: string }[] = [
+    // Sistem API anahtarları: yalnızca yönetici. Kurul üyesi bile göremez —
+    // anahtar sızması tüm entegrasyonları etkiler.
+    { prefix: "/dashboard/credentials", roles: [Roles.SuperAdmin, Roles.Manager],
+      reason: "Sistem entegrasyon anahtarları" },
+
+    // Personel: maaş, TCKN, SGK bilgisi içerir (KVKK özel önem).
+    { prefix: "/dashboard/personnel", roles: MANAGEMENT,
+      reason: "Personel özlük ve maaş bilgileri" },
+
+    // Mali ekranlar: denetçi de görebilmeli (KMK m.41 denetim görevi).
+    { prefix: "/dashboard/accounting", roles: MANAGEMENT_AND_AUDIT, reason: "Mali kayıtlar" },
+    { prefix: "/dashboard/expenses", roles: MANAGEMENT_AND_AUDIT, reason: "Gider kayıtları" },
+    { prefix: "/dashboard/assessments", roles: MANAGEMENT_AND_AUDIT, reason: "Tahakkuk kayıtları" },
+    { prefix: "/dashboard/reports", roles: MANAGEMENT_AND_AUDIT, reason: "Mali raporlar" },
+
+    // Sakin listesi kimlik ve iletişim bilgisi içerir.
+    { prefix: "/dashboard/residents", roles: MANAGEMENT_AND_STAFF, reason: "Sakin kimlik bilgileri" },
+
+    // Operasyonel ekranlar: görevli personel de kullanır.
+    { prefix: "/dashboard/meters", roles: MANAGEMENT_AND_STAFF, reason: "Sayaç okuma" },
+    { prefix: "/dashboard/parking", roles: MANAGEMENT_AND_STAFF, reason: "Otopark yönetimi" },
+    { prefix: "/dashboard/visitors", roles: MANAGEMENT_AND_STAFF, reason: "Ziyaretçi kayıtları" },
+    { prefix: "/dashboard/reservations", roles: MANAGEMENT_AND_STAFF, reason: "Rezervasyon yönetimi" },
+    { prefix: "/dashboard/requests", roles: MANAGEMENT_AND_STAFF, reason: "Talep yönetimi" },
+    { prefix: "/dashboard/announcements", roles: MANAGEMENT_AND_STAFF, reason: "Duyuru yönetimi" },
+    { prefix: "/dashboard/notifications", roles: MANAGEMENT, reason: "Toplu bildirim gönderimi" },
+    { prefix: "/dashboard/settings", roles: MANAGEMENT, reason: "Site ayarları" },
+
+    // Ana sayfa: panele girebilen herkes.
+    { prefix: "/dashboard", roles: [...MANAGEMENT_AND_AUDIT, Roles.Staff], reason: "Yönetim paneli" },
+];
+
+/** Verilen yol için gereken rolleri döndürür (en uzun eşleşen ön ek). */
+export function requiredRolesFor(pathname: string): { roles: Role[]; reason: string } | null {
+    let best: { prefix: string; roles: Role[]; reason: string } | null = null;
+    for (const rule of ROUTE_ROLES) {
+        if (pathname === rule.prefix || pathname.startsWith(rule.prefix + "/")) {
+            if (!best || rule.prefix.length > best.prefix.length) best = rule;
+        }
+    }
+    return best ? { roles: best.roles, reason: best.reason } : null;
+}
+
+/** Kullanıcının verilen yola erişip erişemeyeceğini söyler. */
+export function canAccess(pathname: string, roles: string[] | undefined | null): boolean {
+    const rule = requiredRolesFor(pathname);
+    if (!rule) return true; // Panel dışı yollar bu katmanın konusu değil
+    if (!roles || roles.length === 0) return false; // Rolü bilinmiyorsa kapalı (fail-closed)
+    return rule.roles.some((r) => roles.includes(r));
+}
+
+/** Kullanıcı yönetim yetkisine sahip mi? (yazma işlemleri için) */
+export function isManagement(roles: string[] | undefined | null): boolean {
+    if (!roles) return false;
+    return MANAGEMENT.some((r) => roles.includes(r));
+}
+
+/** Kullanıcı yalnızca denetçi mi? (okuyabilir, yazamaz) */
+export function isAuditorOnly(roles: string[] | undefined | null): boolean {
+    if (!roles) return false;
+    return roles.includes(Roles.Auditor) && !isManagement(roles);
+}

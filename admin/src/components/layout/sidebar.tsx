@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { apiClient } from "@/lib/api-client";
+import { canAccess } from "@/lib/rbac";
 
 const navigation = [
     { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -144,7 +145,16 @@ export function Sidebar() {
 
                 {/* Navigation */}
                 <nav className="flex-1 space-y-1 px-3 py-4">
-                    {navigation.map((item) => {
+                    {/*
+                      RBAC (2026-09-13, todo 0.A.10): Menü, kullanıcının AKTİF SİTEDEKİ
+                      rollerine göre süzülür. Önceki sürümde herkes tüm menüyü görüyor,
+                      tıklayınca maaş ve API anahtarı ekranlarına girebiliyordu.
+                      Bu süzme yalnızca kullanıcı deneyimi içindir; asıl kontrol
+                      middleware.ts ve sunucudadır.
+                    */}
+                    {navigation
+                        .filter((item) => canAccess(item.href, session?.user?.roles))
+                        .map((item) => {
                         const isActive = pathname === item.href;
                         return (
                             <Link
@@ -164,8 +174,9 @@ export function Sidebar() {
                     })}
                 </nav>
 
-                {/* Settings */}
+                {/* Settings — yalnızca yönetim rollerine açık */}
                 <div className="border-t border-gray-200 dark:border-gray-700 p-4">
+                    {canAccess("/dashboard/settings", session?.user?.roles) && (
                     <Link
                         href="/dashboard/settings"
                         className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
@@ -173,6 +184,7 @@ export function Sidebar() {
                         <Settings className="h-5 w-5" />
                         Ayarlar
                     </Link>
+                    )}
                 </div>
             </div>
 
