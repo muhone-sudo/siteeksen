@@ -552,17 +552,29 @@ içinde kendi adımı. Bir modül baştan sona bitmeden diğerine geçilmez (dik
 FAZ 5 ve FAZ 2'nin çekirdeği bittiği için öncelik arayüzlere ve RLS'in
 yaygınlaştırılmasına kayıyor.
 
-1. **RLS'i kalan tablolara yay (2.6 devamı).** Bugün 7 tabloda açık; 82 tabloda
-   kapalı. Sıralama, tabloyu kullanan servis sayısına göre yapılmalı:
-   önce tek servisin kullandığı tablolar (parking, visitor, inventory, asset,
-   patrol, bulletin, survey), sonra çok servisli olanlar (units, properties,
-   monthly_assessments). Her dilim için ilgili servis `pkg/dbscope` kullanımına
-   geçirilmeli, sonra migration yazılmalı — sıra tersine dönerse uygulama bozulur.
+1. **RLS'i kalan tablolara yay (2.6 devamı).** İki dilim tamamlandı:
+   bugün **26 tabloda açık, 63 tabloda kapalı**.
+   - 1. dilim (migration 020): personel, belge, bildirim — 7 tablo.
+   - 2. dilim (migration 021): otopark, ziyaretçi, stok, demirbaş, devriye,
+     ilan panosu, anket — 19 tablo. Sekiz servisin deposu `pkg/dbscope`
+     kullanımına geçirildi (nps, anket tablolarını paylaştığı için aynı
+     dilimde geçirilmek ZORUNDAYDI).
+   - **Sırada 3. dilim:** yine tek servisli olan `facilities`/`reservations`
+     (reservation), `packages` (package), `contracts` (contract),
+     `expenses`/`expense_categories` (expense), `meters`/`meter_readings` (iot).
+   - **En son:** çok servisli tablolar (`units`, `properties`,
+     `monthly_assessments`, `users`). Bunlar için önce TÜM tüketici servisler
+     kapsamlı sorguya geçmeli; sıra tersine dönerse uygulama bozulur.
 2. **FAZ 6.7 — yönetişim arayüzleri.** Governance servisi API olarak hazır ama
    panelde ekranı yok: işletme projesi, genel kurul, karar defteri.
-3. **Modülleri bildirim altyapısına bağlama.** `pkg/notify` hazır; kargo,
-   rezervasyon, anket, duyuru ve stok modülleri hâlâ "bildirim gönderilmedi"
-   notu düşüyor. İlgili yerlerde `Enqueue` çağrılmalı.
+3. ~~**Modülleri bildirim altyapısına bağlama.**~~ **TAMAMLANDI (2026-09-14).**
+   Duyuru, rezervasyon onay/red, kargo, anket yayını, ziyaretçi girişi ve
+   düşük stok uyarısı uygulama içi bildirim üretiyor. Alıcı kümesi
+   `pkg/notify/audience.go`'da tek yerde.
+   **Kalan:** devriye aksaması, sözleşme ihbar penceresi ve gecikmiş aidat
+   için bildirim yok. Bunlar bir olay anına değil ZAMAN geçmesine bağlı
+   olduğu için zamanlanmış bir iş (scheduler) gerektiriyor; böyle bir altyapı
+   henüz yok ve ayrı planlanmalı.
 4. **Panel ve mobil arayüzler.** 20 gerçek modülün çoğunun panelde karşılığı yok.
 5. **FAZ 3 kalanı** — hassas veri okuma logu belge ve personel için yapıldı
    (`document_access_logs`, `PII_REVEAL`); sakin uçlarına da genişletilecek.

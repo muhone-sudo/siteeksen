@@ -12,6 +12,84 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-09-14 (üçüncü tur) — RLS İKİNCİ DİLİM + BİLDİRİM BAĞLANTISI (DOĞRULANMIŞ)
+
+> **Toplu kanıt:** `bash backend/scripts/verify-stack.sh` → **769 kontrol, 0 başarısız**
+
+#### 2.6 devamı — Satır düzeyi güvenlik ikinci dilimi (migration 021)
+
+RLS 7 tablodan **26 tabloya** çıkarıldı. Eklenenler yine yalnızca TEK servisin
+kullandığı tablolar: otopark (3), ziyaretçi (1), stok (3), demirbaş (3),
+devriye (3), ilan panosu (3), anket (3).
+
+- Önce sekiz servisin deposu `pkg/dbscope` kullanımına geçirildi (86 sorgu),
+  SONRA migration yazıldı. Ters sıra uygulamayı bozardı: RLS açıkken kapsamsız
+  sorgu boş liste döner.
+- **nps-service aynı dilimde geçirilmek ZORUNDAYDI:** ayrı tablo açmaz, anket
+  tablolarını kullanır. Yalnızca survey geçirilseydi RLS açıldığı an NPS
+  çalışmaz hâle gelirdi.
+- `property_id` taşımayan altı alt tablo (movements, maintenance, comments,
+  messages, options, votes) ebeveyn üzerinden `EXISTS` ile korunuyor. RLS bu
+  alt sorguyu HER SATIR için çalıştırdığından ebeveyn anahtarlarına indeks
+  eklendi — indekssiz kalsaydı koruma "yavaş olduğu için kapatılan" bir şeye
+  dönerdi.
+
+**Çalışırken bulunan iki gerçek sorun:**
+
+1. `asset_categories` ve `inventory_categories`, `property_id IS NULL` olan
+   ORTAK kategoriler taşıyor (005 tohum verisi: "Asansör", "Temizlik
+   Malzemeleri"…) ve depo bunları bilerek okuyor. Katı politika bu satırları
+   HER siteden gizliyordu — kimse hata almazdı, kategoriler sessizce
+   kaybolurdu. OKUMA global satırlara açıldı, YAZMA katı bırakıldı: uygulama
+   kendi başına global kategori üretemez (üretebilseydi tek hatalı istek o
+   satırı platformdaki her siteye görünür kılardı).
+2. Doğrulamanın "kapsamsız sorgu SIFIR satır döndürmeli" ölçüsü kategori
+   tabloları için yanlıştı. Ölçü "hiç satır dönmesin" değil **"hiçbir SİTE
+   VERİSİ dönmesin"** olarak düzeltildi; muafiyetin sessizce genişlememesi
+   için ortak satır sayısı tohum verisine sabitlendi.
+
+Kalan 63 tablo bilerek kapalı ve doğrulama bu sayıyı raporluyor.
+
+#### Bildirim — altı modül gerçekten bildirim gönderiyor
+
+Önceki durum: `pkg/notify` yazılmıştı ama **hiçbir modül onu çağırmıyordu**.
+Modüller "BİLDİRİM GÖNDERİLMEDİ; altyapı bağlı değildir" notu düşüyordu; not
+dürüsttü ama iş yarım kalmıştı.
+
+| Modül | Olay | Alıcı |
+|---|---|---|
+| community | duyuru yayımlandı | sitenin aktif sakinleri |
+| reservation | onay / red | YALNIZCA rezervasyonu yapan sakin |
+| package | kargo kaydedildi | YALNIZCA ilgili dairenin sakinleri |
+| survey | anket yayına alındı | sitenin aktif sakinleri |
+| visitor | ziyaretçi giriş yaptı | ilgili dairenin sakinleri |
+| inventory | stok asgarinin altına düştü | YALNIZCA yönetim rolleri |
+
+- Yeni `pkg/notify/audience.go`: alıcı kümesi TEK yerde. Beş modül aynı sorguyu
+  ayrı ayrı yazsaydı, birinde `is_active` filtresi unutulduğunda siteden
+  taşınmış birine bildirim gider ve kimse fark etmezdi. İki daireli malik
+  duyuruyu bir kez alır.
+- `Broadcast` sayaçlarla döner ve sonuç API yanıtına konur. **"Gönderildi"
+  sözcüğü yalnızca gerçekten gönderilen kayıt varsa geçer**; sağlayıcısız
+  kanalda "kuyrukta bekliyor (GÖNDERİLMEDİ)" yazar.
+- Kayıt/durum tutarlılığı: kargo `NOTIFIED`'a, ziyaretçi `resident_notified_at`
+  alanına ancak bildirim GERÇEKTEN oluştuysa geçer. Aksi hâlde kayıt, kargo
+  kaybolduğunda "sakinin haberi vardı" diyen yanıltıcı bir delile dönüşürdü.
+- Kişisel veri sınırları: kargo bildirimi takip numarası/gönderici TAŞIMAZ
+  (kilit ekranında görünür); rezervasyon kararı tüm siteye duyurulmaz; stok
+  uyarısı sakinlere gitmez (6698 m.4 ölçülülük); ziyaretçiye SMS/QR
+  GÖNDERİLMEZ (sağlayıcı yok + 6563 s. Kanun onay şartı).
+- **Kanuni sınır:** anket bildirimi genel kurul ÇAĞRISI DEĞİLDİR (634 s. KMK
+  m.29 çağrıyı taahhütlü mektup/imza karşılığına bağlar). Gövdeye uyarı
+  eklenir ve konu `assembly.call` olarak İŞARETLENMEZ; doğrulama bunu sınar.
+
+Doğrulamadaki eski "bildirim gönderilmedi diyor mu?" iddiaları, **"bildirim
+GERÇEKTEN oluştu mu, DOĞRU kişiye mi?"** kontrolleriyle değiştirildi:
+veritabanındaki kayıt sayısı, alıcı kümesi, gövde içeriği ve kayıt durumu
+ayrı ayrı sınanıyor.
+
+---
+
 ### 2026-09-14 (ikinci tur) — FAZ 2 GÜVENLİK TAMAMLANDI (DOĞRULANMIŞ)
 
 > **Toplu kanıt:** `bash backend/scripts/verify-stack.sh` → **714 kontrol, 0 başarısız**

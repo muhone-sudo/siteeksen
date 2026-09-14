@@ -109,7 +109,7 @@ Next.js admin paneli, iki Flutter mobil uygulaması (sakin + yönetici) içerir.
 
 > Aşağıdaki notlar **çalıştırılarak** doğrulanmıştır. Bu bölümdeki hiçbir ifade "olması gerekeni"
 > değil, **bugün gerçekte olanı** anlatır.
-> Toplu kanıt: `bash backend/scripts/verify-stack.sh` → **714/714**,
+> Toplu kanıt: `bash backend/scripts/verify-stack.sh` → **769/769**,
 > `bash backend/scripts/verify-mobile.sh` → **8/8**.
 > Tarihçe ve `dosya:satır` kanıtı: `tasks/audit-raporu.md`, `tasks/changelog.md`.
 
@@ -139,6 +139,13 @@ cd admin && npm run dev            # http://localhost:3001
   Bu, RLS'in çalışmasının ÖN KOŞULUDUR: PostgreSQL'de RLS süper kullanıcıyı
   `FORCE ROW LEVEL SECURITY` ile bile bağlamaz. `rls_effective` görünümü
   bağlantının RLS'e tabi olup olmadığını söyler.
+- **Modüller artık gerçekten bildirim gönderiyor.** Altı modül `pkg/notify`
+  üzerinden uygulama içi bildirim üretir. Alıcı kümesi (sakinler / daire
+  sakinleri / yönetim) `pkg/notify/audience.go`'da tek yerde tanımlıdır:
+  beş modül aynı sorguyu ayrı yazsaydı, birinde `is_active` filtresi
+  unutulduğunda siteden taşınmış birine bildirim giderdi. Yanıtlar
+  sayaçlarla döner; "gönderildi" sözcüğü yalnızca gerçekten gönderilen
+  kayıt varsa geçer, sağlayıcısız kanallar "kuyrukta bekliyor" der.
 - **"Yapay zekâ" iddiası kaldırıldı.** Enerji analizi, tahsilat riski ve karbon
   ayak izi GERÇEK hesaplar yapar ama YZ kullanmaz: formüller kodda yazılıdır,
   her sonuç gerekçesiyle döner. `ai_model_version`, `predictions`,
@@ -229,7 +236,7 @@ Repo yolu WSL'de: `/mnt/c/Users/md064615/Documents/Projeler/proje99`
 
 | Betik | Kapsam | Ne zaman |
 |---|---|---|
-| `bash backend/scripts/verify-stack.sh` | **714 kontrol** — sıfırdan PostgreSQL, `cmd/migrate` ile 20 migration, şema denetimi, tam idempotency, `pkg/audit`+`pkg/legalparams`+`pkg/money`+`pkg/storage`+nisap testleri, ve uçtan uca: identity (giriş, roller), gateway (kimlik doğrulama), finance (ödeme→borç, gecikme tazminatı), governance (işletme projesi, nisap, defter zinciri), 501 dürüstlüğü ve 20 modülün uçtan uca sınanması (gider, personel, ziyaretçi, otopark, rezervasyon, kargo, sözleşme, belge, demirbaş, stok, anket, sayaç/ısı payı, bildirim, devriye, duyuru, ilan, ayarlar, enerji, tahsilat riski, NPS/ESG) | **Backend'e dokunan her değişiklikten sonra** |
+| `bash backend/scripts/verify-stack.sh` | **769 kontrol** — sıfırdan PostgreSQL, `cmd/migrate` ile 21 migration, şema denetimi, tam idempotency, `pkg/audit`+`pkg/legalparams`+`pkg/money`+`pkg/storage`+nisap testleri, ve uçtan uca: identity (giriş, roller), gateway (kimlik doğrulama), finance (ödeme→borç, gecikme tazminatı), governance (işletme projesi, nisap, defter zinciri), 501 dürüstlüğü ve 20 modülün uçtan uca sınanması (gider, personel, ziyaretçi, otopark, rezervasyon, kargo, sözleşme, belge, demirbaş, stok, anket, sayaç/ısı payı, bildirim, devriye, duyuru, ilan, ayarlar, enerji, tahsilat riski, NPS/ESG) | **Backend'e dokunan her değişiklikten sonra** |
 | `bash backend/scripts/verify-mobile.sh` | **8 kontrol** — iki Flutter uygulaması için `pub get` + `analyze` + `test` ve arayüzde uydurma veri taraması | Mobil değişikliklerden sonra |
 | `cd admin && npx tsc --noEmit && npm run lint && npm run build` | Panel | Panel değişikliklerinden sonra |
 | `bash backend/scripts/dev-up.sh` | Geliştirme ortamını ayağa kaldırır | Elle deneme için |
@@ -394,12 +401,13 @@ Kalıcı çözüm için önerilen yaklaşım PostgreSQL satır düzeyi güvenli�
 | Rol bazlı yetkilendirme | **Site bazlı roller** + gerçek servislerin hepsinde `RequireRole` + panelde `middleware.ts` ve menü süzme. Roller giriş yanıtında da döner (2026-09-13 düzeltmesi; yoksa panel herkesi yetkisiz sayıyordu). |
 | Belge erişim kaydı | **Var** — `document_access_logs`, salt-ekleme (tetikleyici korumalı), KVKK m.12 |
 | Ticari elektronik ileti | **Onaysız gönderilmez** — 6563 s. Kanun m.6; onay zamanı ve kaynağı saklanır |
+| Modül bildirimleri | **Bağlı (2026-09-14)** — duyuru, rezervasyon kararı, kargo, anket, ziyaretçi girişi ve düşük stok uygulama içi bildirim üretir. Alıcı kümesi `pkg/notify/audience.go`'da TEK yerde. Kargo bildirimi takip numarası taşımaz; stok uyarısı sakinlere gitmez; anket bildirimi genel kurul çağrısı olarak işaretlenmez (KMK m.29) |
 | Ayarların mevzuatı ezmesi | **Engellendi** — uygulama + veritabanı CHECK kısıtı (migration 017) |
 | Aktif site seçimi | **Sahiplik doğrulanıyor** — başkasının sitesine geçiş 403 |
 | Giriş şifresi loglanması | **Kaldırıldı** — yalnızca maskelenmiş telefon ve HTTP durumu loglanıyor |
 | İstemci kimlik başlıkları | Gateway `X-User-*` / `X-Property-Id` / `X-Tenant-Id` başlıklarını **siler** |
 | TCKN/IBAN şifreleme | **VAR** — AES-256-GCM; arama için HMAC blind index (düz SHA-256 değil). Anahtar yoksa personel servisi açılmaz. Varsayılan MASKELİ; maskesiz erişim ayrı `PII_REVEAL` denetim kaydı üretir |
-| Tenant izolasyonu (RLS) | **BİRİNCİ DİLİM AÇIK** — 7 tabloda satır düzeyi güvenlik (personel, belge, bildirim). Uygulama artık süper kullanıcıyla DEĞİL, yetkisi sınırlı `siteeksen_app` rolüyle bağlanır; RLS ancak böyle çalışır. Kalan tablolar bilerek açık (todo 2.6) |
+| Tenant izolasyonu (RLS) | **26 TABLODA AÇIK** — personel, belge, bildirim (1. dilim) + otopark, ziyaretçi, stok, demirbaş, devriye, ilan panosu, anket (2. dilim). Uygulama süper kullanıcıyla DEĞİL, yetkisi sınırlı `siteeksen_app` rolüyle bağlanır; RLS ancak böyle çalışır. **63 tablo hâlâ kapalı** (çok servisli tablolar) ve bu sayı doğrulamada raporlanıyor (todo 2.6) |
 | Çıkışta jeton iptali | **VAR** — `revoked_tokens` + toplu iptal. Çıkışta erişim VE yenileme jetonu iptal edilir; iptal tüm servislerde geçerlidir |
 
 `legal/kvkk-aydinlatma.md` 2026-09-13'te **gerçek duruma göre** düzeltildi: uygulanan ve

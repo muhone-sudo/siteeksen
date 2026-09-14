@@ -395,3 +395,78 @@ Bu yüzden TCKN algoritmik sağlaması ve IBAN mod-97 doğrulaması, şifrelemen
 
 **Kural:** Bir alanı şifrelemeden önce, o alana yanlış değer yazılmasını
 engelleyecek doğrulamayı ekle.
+
+---
+
+## 2026-09-14 — RLS yaygınlaştırma ve bildirim bağlantısı dersleri
+
+### Ders 24 — Korumayı açmadan önce, korunacak verinin ŞEKLİNE bak
+
+`asset_categories` ve `inventory_categories` tablolarına "site kimliği eşitse
+gör" politikası yazıldı. Mantıklı görünüyordu ve migration temiz uygulandı.
+Ama bu tablolarda `property_id IS NULL` olan ORTAK satırlar vardı (tohum
+verisi) ve depo katmanı onları bilerek okuyordu.
+
+Sonuç: politika, her siteden 14 kategoriyi sessizce sildi. Hiç kimse hata
+almazdı; kategoriler bir gün "kaybolmuş" olurdu ve sebebi aylar sonra
+aranırdı.
+
+**Kural:** Bir tabloya RLS açmadan önce o tablonun satırlarının TÜMÜNÜN aynı
+şekilde sahiplendiğini doğrula. Ortak/global satır varsa politika bunu ayrıca
+karşılamalı — ve YAZMA tarafı ortak satır üretmeye izin VERMEMELİ.
+
+### Ders 25 — Yanlış ölçü, doğru koruma üzerinde de alarm verir
+
+Doğrulama "kapsamsız sorgu sıfır satır döndürmeli" diyordu. Kategori
+tablolarında koruma doğru çalışıyordu ama ortak satırlar döndüğü için kontrol
+başarısız oldu. İlk refleks korumayı gevşetmekti; doğrusu ÖLÇÜYÜ düzeltmekti:
+"hiç satır dönmesin" değil, **"hiçbir SİTE VERİSİ dönmesin."**
+
+Muafiyet eklerken ikinci bir kontrol de eklendi: ortak satır sayısı tohum
+verisine sabitlendi. Böylece muafiyet sessizce genişleyemez.
+
+**Kural:** Bir kontrol beklenmedik şekilde başarısız olduğunda, önce kontrolün
+DOĞRU ŞEYİ ölçüp ölçmediğine bak. Ölçüyü gevşeterek geçirmek yerine
+keskinleştir; muafiyet açtıysan, muafiyetin sınırını da ölç.
+
+### Ders 26 — Paylaşılan tabloyu kullanan HER servis aynı anda geçmelidir
+
+RLS'i anket tablolarına açarken survey-service `pkg/dbscope`'a geçirildi.
+nps-service ayrı tablo açmaz; aynı anket tablolarını kullanır. Yalnızca survey
+geçirilseydi, migration uygulandığı an NPS sessizce boş liste döndürmeye
+başlardı — çökme yok, hata yok, sadece "veri yok".
+
+Bu, koddan değil, "bu tabloya kim dokunuyor?" sorusunu tabloya göre taramaktan
+çıktı.
+
+**Kural:** Bir tabloya RLS açmadan önce o tablonun adını TÜM serviste ara.
+Tüketici sayısı birden fazlaysa hepsi aynı dilimde geçirilmeli ya da tablo
+sonraki dilime bırakılmalı.
+
+### Ders 27 — "Altyapı hazır" ile "modül kullanıyor" aynı şey değildir
+
+`pkg/notify` günler önce yazıldı, testleri geçti, sağlık ucunda göründü.
+Ama hiçbir modül onu ÇAĞIRMIYORDU: altı modül hâlâ "bildirim gönderilmedi"
+notu düşüyordu. Altyapı "tamamlandı" sayılmıştı çünkü kendi başına çalışıyordu.
+
+Bir altyapı paketinin bitmiş sayılması için en az bir gerçek çağıranı olmalı;
+yoksa yazılanın işe yarayıp yaramadığı bilinmez. Nitekim bağlanırken üç şey
+eksik çıktı: alıcı çözümleme yardımcısı yoktu, `Decide`/`Publish`/`CheckIn`
+bildirimin ihtiyacı olan bilgiyi döndürmüyordu ve toplu gönderimde dedupe
+anahtarı ikinci alıcıyı sessizce düşürüyordu.
+
+**Kural:** Paylaşılan bir paketi "tamamlandı" işaretleme; onu KULLANAN ilk
+gerçek akış çalışana kadar bekle. Kullanım, tasarımdaki boşlukları tek başına
+tasarımdan daha hızlı gösterir.
+
+### Ders 28 — Durum alanını, olay GERÇEKLEŞTİĞİNDE değiştir
+
+Kargo kaydının durumunu bildirim denenir denenmez `NOTIFIED` yapmak kolaydı.
+Ama bildirim oluşmadıysa bu kayıt, kargo kaybolduğunda "sakinin haberi vardı"
+diyen yanıltıcı bir delile dönüşürdü — ve bu, sorumluluğun tartışıldığı yerde
+gerçeği tersine çevirirdi.
+
+Aynısı ziyaretçi kaydındaki `resident_notified_at` için de geçerli.
+
+**Kural:** Bir olayı belgeleyen alanı, olay GERÇEKTEN gerçekleştiğinde doldur.
+Denemeyi belgelemek istiyorsan ayrı bir alan kullan; ikisini karıştırma.
