@@ -9,6 +9,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/siteeksen/backend/pkg/dbscope"
 )
 
 var (
@@ -114,7 +115,7 @@ func (r *Repository) List(ctx context.Context, propertyID string, f ListFilter) 
 	if len(f.AllowedVisibilities) == 0 {
 		return []Document{}, nil
 	}
-	rows, err := r.pool.Query(ctx, documentSelect+`
+	rows, err := r.scope(propertyID).Query(ctx, documentSelect+`
 		WHERE d.property_id = $1
 		  AND d.visibility = ANY($2)
 		  AND ($3 = '' OR d.category = $3)
@@ -147,7 +148,7 @@ func (r *Repository) Get(ctx context.Context, propertyID, id string, allowed []s
 	if len(allowed) == 0 {
 		return nil, ErrNotFound
 	}
-	d, err := scanDocument(r.pool.QueryRow(ctx, documentSelect+`
+	d, err := scanDocument(r.scope(propertyID).QueryRow(ctx, documentSelect+`
 		WHERE d.property_id = $1 AND d.id = $2 AND d.visibility = ANY($3)`,
 		propertyID, id, allowed))
 	if err == pgx.ErrNoRows {
@@ -198,7 +199,7 @@ func (r *Repository) Create(ctx context.Context, propertyID, uploadedBy string, 
 	version := 1
 	if in.ReplacesID != "" {
 		var prev int
-		err := r.pool.QueryRow(ctx,
+		err := r.scope(propertyID).QueryRow(ctx,
 			`SELECT version FROM documents WHERE id = $1 AND property_id = $2`,
 			in.ReplacesID, propertyID).Scan(&prev)
 		if err == pgx.ErrNoRows {
@@ -211,7 +212,7 @@ func (r *Repository) Create(ctx context.Context, propertyID, uploadedBy string, 
 	}
 
 	var id string
-	err := r.pool.QueryRow(ctx, `
+	err := r.scope(propertyID).QueryRow(ctx, `
 		INSERT INTO documents
 			(property_id, category, title, description, storage_backend, storage_key,
 			 file_name, content_type, size_bytes, sha256, visibility,
@@ -233,7 +234,7 @@ func (r *Repository) Create(ctx context.Context, propertyID, uploadedBy string, 
 
 // Archive, belgeyi arşivden çıkarır. Kayıt SİLİNMEZ; gerekçesi kayda geçer.
 func (r *Repository) Archive(ctx context.Context, propertyID, id, userID, reason string) error {
-	tag, err := r.pool.Exec(ctx, `
+	tag, err := r.scope(propertyID).Exec(ctx, `
 		UPDATE documents
 		SET archived_at = now(), archived_by = NULLIF($3,'')::uuid,
 		    archive_reason = $4, is_current = false, updated_at = now()
@@ -253,7 +254,7 @@ func (r *Repository) Archive(ctx context.Context, propertyID, id, userID, reason
 // Hata YUTULMAZ: erişim kaydı yazılamıyorsa bu, denetim izinin eksik kalması
 // demektir ve çağıran bunu bilmek zorundadır.
 func (r *Repository) LogAccess(ctx context.Context, propertyID, documentID, userID, action, ip, agent string) error {
-	_, err := r.pool.Exec(ctx, `
+	_, err := r.scope(propertyID).Exec(ctx, `
 		INSERT INTO document_access_logs
 			(document_id, property_id, user_id, action, ip_address, user_agent)
 		VALUES ($1,$2,NULLIF($3,'')::uuid,$4,NULLIF($5,'')::inet,NULLIF($6,''))`,
@@ -271,7 +272,7 @@ type AccessEntry struct {
 
 // AccessLog, belgeye kimin eriştiğini döner (yalnızca yönetim/denetçi).
 func (r *Repository) AccessLog(ctx context.Context, propertyID, documentID string) ([]AccessEntry, error) {
-	rows, err := r.pool.Query(ctx, `
+	rows, err := r.scope(propertyID).Query(ctx, `
 		SELECT COALESCE(u.first_name || ' ' || u.last_name, ''), l.action,
 		       COALESCE(host(l.ip_address),''), l.accessed_at
 		FROM document_access_logs l
@@ -310,7 +311,7 @@ func (r *Repository) Summary(ctx context.Context, propertyID string, allowed []s
 	if len(allowed) == 0 {
 		return s, nil
 	}
-	rows, err := r.pool.Query(ctx, `
+	rows, err := r.scope(propertyID).Query(ctx, `
 		SELECT category, count(*), COALESCE(SUM(size_bytes),0),
 		       count(*) FILTER (WHERE archived_at IS NOT NULL),
 		       count(*) FILTER (WHERE retention_until IS NOT NULL
@@ -347,4 +348,15 @@ func contains(list []string, v string) bool {
 		}
 	}
 	return false
+}
+
+// scope, veritabanı erişimini SİTE KAPSAMINA bağlar (FAZ 2.6).
+//
+// documents / document_access_logs tablolarında RLS açıktır (migration 020).
+//
+// Kapsam, PostgreSQL satır düzeyi güvenliği tarafından okunur: sorguda
+// `WHERE property_id` filtresi unutulsa bile başka sitenin satırları DÖNMEZ.
+// Bu, uygulama katmanındaki filtrenin yerine geçmez — onu YEDEKLER.
+func (r *Repository) scope(propertyID string) *dbscope.Scoped {
+	return dbscope.For(r.pool, propertyID)
 }

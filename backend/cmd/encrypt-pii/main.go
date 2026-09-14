@@ -64,14 +64,70 @@ func main() {
 	}
 }
 
+// run, tüm siteleri tek tek dolaşır.
+//
+// `employees` tablosunda satır düzeyi güvenliği açıktır (migration 020): kapsam
+// ayarlanmadan hiçbir satır görünmez. Bu araç, "her şeyi gör" gibi bir kapı
+// açmak yerine her site için kapsamı ayrı ayrı ayarlar — böyle bir kapı,
+// uygulamadaki tek satırlık bir hatayla tüm izolasyonu devre dışı bırakabilirdi.
 func run(ctx context.Context, pool *pgxpool.Pool, vault *pii.Vault, dryRun bool) error {
-	rows, err := pool.Query(ctx, `
+	propRows, err := pool.Query(ctx, `SELECT id::text FROM properties ORDER BY created_at`)
+	if err != nil {
+		return err
+	}
+	var properties []string
+	for propRows.Next() {
+		var id string
+		if err := propRows.Scan(&id); err != nil {
+			propRows.Close()
+			return err
+		}
+		properties = append(properties, id)
+	}
+	propRows.Close()
+	if err := propRows.Err(); err != nil {
+		return err
+	}
+	fmt.Printf("%d site taranacak.\n", len(properties))
+
+	var totalEncrypted, totalSkipped int
+	for _, propertyID := range properties {
+		enc, skip, err := runForProperty(ctx, pool, vault, propertyID, dryRun)
+		if err != nil {
+			return fmt.Errorf("site %s: %w", propertyID, err)
+		}
+		totalEncrypted += enc
+		totalSkipped += skip
+	}
+
+	fmt.Printf("\nToplam %d kayıt şifrelendi, %d kayıt atlandı.\n", totalEncrypted, totalSkipped)
+	if totalSkipped > 0 {
+		fmt.Println("ATLANAN kayıtlar DÜZ METİN olarak duruyor. Doğrulamadan geçmeyen " +
+			"değerler elle düzeltilip komut yeniden çalıştırılmalıdır.")
+	}
+	return reportStatus(ctx, pool, properties)
+}
+
+// runForProperty, tek bir sitenin kayıtlarını kapsam içinde işler.
+func runForProperty(ctx context.Context, pool *pgxpool.Pool, vault *pii.Vault, propertyID string, dryRun bool) (int, int, error) {
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		return 0, 0, err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+
+	if _, err := tx.Exec(ctx, `SELECT set_config('app.property_id', $1, true)`,
+		propertyID); err != nil {
+		return 0, 0, err
+	}
+
+	rows, err := tx.Query(ctx, `
 		SELECT id::text, COALESCE(tc_number,''), COALESCE(bank_iban,'')
 		FROM employees
 		WHERE tc_number IS NOT NULL OR bank_iban IS NOT NULL
 		ORDER BY created_at`)
 	if err != nil {
-		return err
+		return 0, 0, err
 	}
 
 	type row struct{ id, tc, iban string }
@@ -80,23 +136,22 @@ func run(ctx context.Context, pool *pgxpool.Pool, vault *pii.Vault, dryRun bool)
 		var r row
 		if err := rows.Scan(&r.id, &r.tc, &r.iban); err != nil {
 			rows.Close()
-			return err
+			return 0, 0, err
 		}
 		pending = append(pending, r)
 	}
 	rows.Close()
 	if err := rows.Err(); err != nil {
-		return err
+		return 0, 0, err
 	}
 
 	if len(pending) == 0 {
-		fmt.Println("Şifrelenecek düz metin kayıt yok.")
-		return reportStatus(ctx, pool)
+		return 0, 0, nil
 	}
-	fmt.Printf("%d kayıtta düz metin kişisel veri bulundu.\n", len(pending))
+	fmt.Printf("Site %s: %d kayıtta düz metin kişisel veri bulundu.\n", propertyID, len(pending))
 	if dryRun {
-		fmt.Println("(-dry-run) Hiçbir şey yazılmadı.")
-		return reportStatus(ctx, pool)
+		fmt.Println("  (-dry-run) Hiçbir şey yazılmadı.")
+		return 0, 0, nil
 	}
 
 	var encrypted, skipped int
@@ -114,7 +169,7 @@ func run(ctx context.Context, pool *pgxpool.Pool, vault *pii.Vault, dryRun bool)
 			}
 			ct, err := vault.Encrypt(r.tc)
 			if err != nil {
-				return fmt.Errorf("%s: TCKN şifrelenemedi: %w", r.id, err)
+				return 0, 0, fmt.Errorf("%s: TCKN şifrelenemedi: %w", r.id, err)
 			}
 			idx := vault.BlindIndex(r.tc)
 			tcEnc, tcIdx = &ct, &idx
@@ -129,7 +184,7 @@ func run(ctx context.Context, pool *pgxpool.Pool, vault *pii.Vault, dryRun bool)
 			}
 			ct, err := vault.Encrypt(r.iban)
 			if err != nil {
-				return fmt.Errorf("%s: IBAN şifrelenemedi: %w", r.id, err)
+				return 0, 0, fmt.Errorf("%s: IBAN şifrelenemedi: %w", r.id, err)
 			}
 			idx := vault.BlindIndex(r.iban)
 			l4 := pii.Last4(r.iban)
@@ -138,7 +193,7 @@ func run(ctx context.Context, pool *pgxpool.Pool, vault *pii.Vault, dryRun bool)
 
 		// Şifreli değeri yazmak ve düz metni silmek AYNI işlemde olmalıdır:
 		// arada bir kesinti olursa ya şifresiz kalır ya da veri kaybolur.
-		if _, err := pool.Exec(ctx, `
+		if _, err := tx.Exec(ctx, `
 			UPDATE employees
 			SET tc_number_encrypted = COALESCE($2, tc_number_encrypted),
 			    tc_number_index     = COALESCE($3, tc_number_index),
@@ -151,32 +206,54 @@ func run(ctx context.Context, pool *pgxpool.Pool, vault *pii.Vault, dryRun bool)
 			    updated_at = now()
 			WHERE id = $1::uuid`,
 			r.id, tcEnc, tcIdx, ibanEnc, ibanIdx, ibanLast4); err != nil {
-			return fmt.Errorf("%s: yazılamadı: %w", r.id, err)
+			return 0, 0, fmt.Errorf("%s: yazılamadı: %w", r.id, err)
 		}
 		encrypted++
 	}
 
-	fmt.Printf("\n%d kayıt şifrelendi, %d kayıt atlandı.\n", encrypted, skipped)
-	if skipped > 0 {
-		fmt.Println("ATLANAN kayıtlar DÜZ METİN olarak duruyor. Doğrulamadan geçmeyen " +
-			"değerler elle düzeltilip komut yeniden çalıştırılmalıdır.")
+	if err := tx.Commit(ctx); err != nil {
+		return 0, 0, err
 	}
-	return reportStatus(ctx, pool)
+	return encrypted, skipped, nil
 }
 
 // reportStatus, taşımanın gerçekten tamamlanıp tamamlanmadığını gösterir.
-func reportStatus(ctx context.Context, pool *pgxpool.Pool) error {
+//
+// Görünüm de RLS'e tabidir; bu yüzden site site sorgulanır ve toplanır.
+func reportStatus(ctx context.Context, pool *pgxpool.Pool, properties []string) error {
 	var total, plainTC, encTC, plainIBAN, encIBAN int
-	if err := pool.QueryRow(ctx, `
-		SELECT total_rows, plaintext_tc, encrypted_tc, plaintext_iban, encrypted_iban
-		FROM pii_encryption_status WHERE table_name = 'employees'`).
-		Scan(&total, &plainTC, &encTC, &plainIBAN, &encIBAN); err != nil {
-		return err
+	for _, propertyID := range properties {
+		tx, err := pool.Begin(ctx)
+		if err != nil {
+			return err
+		}
+		if _, err := tx.Exec(ctx, `SELECT set_config('app.property_id', $1, true)`,
+			propertyID); err != nil {
+			_ = tx.Rollback(ctx)
+			return err
+		}
+		var t, pt, et, pi, ei int
+		err = tx.QueryRow(ctx, `
+			SELECT total_rows, plaintext_tc, encrypted_tc, plaintext_iban, encrypted_iban
+			FROM pii_encryption_status WHERE table_name = 'employees'`).
+			Scan(&t, &pt, &et, &pi, &ei)
+		_ = tx.Commit(ctx)
+		if err != nil {
+			return err
+		}
+		total += t
+		plainTC += pt
+		encTC += et
+		plainIBAN += pi
+		encIBAN += ei
 	}
+
 	fmt.Printf("\nDurum (employees): toplam %d | TCKN düz %d / şifreli %d | "+
 		"IBAN düz %d / şifreli %d\n", total, plainTC, encTC, plainIBAN, encIBAN)
 	if plainTC > 0 || plainIBAN > 0 {
 		fmt.Println("UYARI: hâlâ düz metin kişisel veri var; taşıma TAMAMLANMADI.")
+	} else {
+		fmt.Println("Şifrelenecek düz metin kayıt yok.")
 	}
 	return nil
 }

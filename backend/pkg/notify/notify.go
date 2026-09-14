@@ -30,6 +30,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/siteeksen/backend/pkg/dbscope"
 )
 
 // Kanallar.
@@ -176,7 +177,7 @@ func (n *Notifier) Enqueue(ctx context.Context, m Message) (*Result, error) {
 
 	providerMsgID, sendErr := sender.Send(ctx, m)
 	if sendErr != nil {
-		if _, err := n.pool.Exec(ctx, `
+		if _, err := n.scope(m.PropertyID).Exec(ctx, `
 			UPDATE notifications
 			SET status = 'FAILED', attempts = attempts + 1, last_error = $2, provider = $3
 			WHERE id = $1`, id, sendErr.Error(), sender.Name()); err != nil {
@@ -186,7 +187,7 @@ func (n *Notifier) Enqueue(ctx context.Context, m Message) (*Result, error) {
 			Reason: sendErr.Error()}, nil
 	}
 
-	if _, err := n.pool.Exec(ctx, `
+	if _, err := n.scope(m.PropertyID).Exec(ctx, `
 		UPDATE notifications
 		SET status = 'SENT', sent_at = now(), attempts = attempts + 1,
 		    provider = $2, provider_message_id = NULLIF($3,'')
@@ -247,7 +248,7 @@ func (n *Notifier) suppressReason(ctx context.Context, m Message) (string, error
 
 	var enabled *bool
 	var consentAt *time.Time
-	err := n.pool.QueryRow(ctx, `
+	err := n.scope(m.PropertyID).QueryRow(ctx, `
 		SELECT enabled, consent_at FROM notification_preferences
 		WHERE user_id = $1 AND channel = $2 AND category = $3
 		  AND (property_id = $4 OR property_id IS NULL)
@@ -278,7 +279,7 @@ func (n *Notifier) insert(ctx context.Context, m Message, status, reason string)
 		payload = map[string]any{}
 	}
 	var id string
-	err := n.pool.QueryRow(ctx, `
+	err := n.scope(m.PropertyID).QueryRow(ctx, `
 		INSERT INTO notifications
 			(property_id, recipient_user_id, recipient_address, channel, category,
 			 topic, subject, body, payload, dedupe_key, status, suppress_reason, created_by)
@@ -300,4 +301,14 @@ func (n *Notifier) senderFor(channel string) Sender {
 		}
 	}
 	return nil
+}
+
+// scope, bildirim tablolarına SİTE KAPSAMLI erişim verir (FAZ 2.6).
+//
+// `notifications` ve `notification_preferences` tablolarında satır düzeyi
+// güvenliği açıktır (migration 020): kapsam ayarlanmadan ne okuma ne yazma
+// mümkündür. Bu, bir sitenin bildiriminin yanlışlıkla başka siteye yazılmasını
+// veritabanı düzeyinde engeller.
+func (n *Notifier) scope(propertyID string) *dbscope.Scoped {
+	return dbscope.For(n.pool, propertyID)
 }

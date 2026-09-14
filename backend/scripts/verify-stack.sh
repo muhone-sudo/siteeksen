@@ -63,6 +63,26 @@ MTG_PID=""
 SMC_PID=""
 COM_PID=""
 
+
+# qscoped, satır düzeyi güvenliği AÇIK tablolarda sorgu çalıştırır.
+#
+# RLS açık tablolarda kapsam (app.property_id) ayarlanmadan sorgu SIFIR satır
+# döndürür — bu, korumanın çalıştığının işaretidir. Doğrulama sorguları da
+# uygulamanın yaptığı gibi kapsamı ayarlamak zorundadır.
+DEMO_PROPERTY='11111111-1111-1111-1111-111111111111'
+# RLS'e tabi tablolarda sorgu, UYGULAMA ROLÜYLE ve kapsam ayarlanarak çalışır.
+# Süper kullanıcıyla çalıştırmak politikaları atlar ve doğrulamayı anlamsız kılar.
+qscoped() {
+  PGPASSWORD="$APPPW" psql -h 127.0.0.1 -p "${DBPORT}" -U siteeksen_app -d siteeksen \
+    -t -A -c "SET LOCAL app.property_id = '${2:-$DEMO_PROPERTY}'; $1" 2>/dev/null | tail -1
+}
+
+# qapp, kapsam AYARLAMADAN uygulama rolüyle sorgu çalıştırır (RLS sınamaları için).
+qapp() {
+  PGPASSWORD="$APPPW" psql -h 127.0.0.1 -p "${DBPORT}" -U siteeksen_app -d siteeksen \
+    -t -A -c "$1" 2>/dev/null | tail -1
+}
+
 ok()   { echo "  [GEÇTİ]    $1"; PASS=$((PASS+1)); }
 bad()  { echo "  [BAŞARISIZ] $1"; FAIL=$((FAIL+1)); }
 step() { echo ""; echo "=== $1 ==="; }
@@ -216,6 +236,18 @@ else
   echo "Migration zinciri kırık — sonraki adımlar atlanıyor"; exit 1
 fi
 
+# Uygulama rolüne parola ve giriş yetkisi ver.
+#
+# RLS SÜPER KULLANICIYI BAĞLAMAZ; uygulama süper kullanıcıyla bağlandığı sürece
+# politikalar hiç devreye girmez. Bu yüzden servisler `siteeksen_app` rolüyle
+# bağlanır. Parola migration dosyasına yazılamaz (sürüm deposuna girerdi),
+# kurulum adımında verilir — burada yapılan da budur.
+APPPW="verify-app-$(head -c 12 /dev/urandom | base64 | tr -d '/+=')"
+$PSQL -c "ALTER ROLE siteeksen_app LOGIN PASSWORD '$APPPW';" >/dev/null 2>&1 \
+  && ok "uygulama rolü (siteeksen_app) giriş yetkisi aldı" \
+  || bad "uygulama rolü hazırlanamadı"
+APPPSQL="psql -h 127.0.0.1 -p ${DBPORT} -U siteeksen_app -d siteeksen -v ON_ERROR_STOP=1 -q"
+
 # Sürüm tablosu gerçekten dolduruldu mu?
 SM=$($PSQL -t -A -c "SELECT count(*) FROM schema_migrations;")
 MIGFILES=$(ls "$MIG_DIR"/*.sql | wc -l)
@@ -304,7 +336,7 @@ HS=$($PSQL -t -A -c "SELECT sum(value_numeric) FROM legal_parameters WHERE code 
 [ "$HS" = "1.000000" ] && ok "ısıtma gider payları toplamı 1 (%70 + %30)" || bad "ısıtma payları toplamı $HS"
 
 step "6) identity-service uçtan uca"
-DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen DB_PASSWORD="$PW" DB_NAME=siteeksen \
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_app DB_PASSWORD="$APPPW" DB_NAME=siteeksen \
 DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${SVCPORT} \
   go run ./services/identity >/tmp/verify-identity.log 2>&1 &
 SVC_PID=$!
@@ -343,7 +375,7 @@ fi
 
 step "7) Dürüstlük: kalıcı olmayan uçlar 501 dönmeli"
 # tasks/dogrulama-politikasi.md §3.5 — kaydetmeyen bir uç 2xx dönemez.
-DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen DB_PASSWORD="$PW" DB_NAME=siteeksen \
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_app DB_PASSWORD="$APPPW" DB_NAME=siteeksen \
 DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${STUB_PORT:-18191} \
   go run ./services/banking >/tmp/verify-stub.log 2>&1 &
 STUB_PID=$!
@@ -442,7 +474,7 @@ KC=${KC:-0}; KW=${KW:-0}
 
 step "9) Yetkilendirme: site bazlı roller ve sahiplik doğrulaması (FAZ 2.4/2.5/2.9)"
 FINPORT=${VERIFY_FIN_PORT:-18092}
-DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen DB_PASSWORD="$PW" DB_NAME=siteeksen \
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_app DB_PASSWORD="$APPPW" DB_NAME=siteeksen \
 DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${FINPORT} \
   go run ./services/finance >/tmp/verify-finance.log 2>&1 &
 FIN_PID=$!
@@ -622,7 +654,7 @@ fi
 
 step "11) Yönetişim: işletme projesi, genel kurul, defter (FAZ 6)"
 GOVPORT=${VERIFY_GOV_PORT:-18107}
-DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen DB_PASSWORD="$PW" DB_NAME=siteeksen \
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_app DB_PASSWORD="$APPPW" DB_NAME=siteeksen \
 DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${GOVPORT} \
   go run ./services/governance >/tmp/verify-governance.log 2>&1 &
 GOV_PID=$!
@@ -730,7 +762,7 @@ kill_tree "$GOV_PID"
 
 step "12) Gider modülü — mock'tan gerçeğe (FAZ 5, ilk modül)"
 EXPPORT=${VERIFY_EXP_PORT:-18086}
-DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen DB_PASSWORD="$PW" DB_NAME=siteeksen \
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_app DB_PASSWORD="$APPPW" DB_NAME=siteeksen \
 DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${EXPPORT} \
   go run ./services/expense >/tmp/verify-expense.log 2>&1 &
 EXP_PID=$!
@@ -824,7 +856,7 @@ kill_tree "$EXP_PID"
 
 step "13) Personel modülü — mock'tan gerçeğe (FAZ 5, 2. modül)"
 PERPORT=${VERIFY_PER_PORT:-18100}
-DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen DB_PASSWORD="$PW" DB_NAME=siteeksen \
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_app DB_PASSWORD="$APPPW" DB_NAME=siteeksen \
 DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${PERPORT} \
 PII_ENCRYPTION_KEY="$PIIKEY" \
   go run ./services/personnel >/tmp/verify-personnel.log 2>&1 &
@@ -850,7 +882,7 @@ if [ "$PUP" = "1" ] && [ -n "${MGR:-}" ]; then
   [ -n "$EMPID" ] && ok "personel kaydı oluşturuldu ve KALICI" || bad "personel oluşturulamadı: $EMP"
 
   # Varsayılan yıllık izin 14 gün olmalı (4857 s. İş Kanunu m.53)
-  AL=$($PSQL -t -A -c "SELECT annual_leave_days FROM employees WHERE id='$EMPID';")
+  AL=$(qscoped "SELECT annual_leave_days FROM employees WHERE id='$EMPID';")
   [ "$AL" = "14" ] && ok "varsayılan yıllık izin 14 gün (İş K. m.53)" || bad "yıllık izin $AL gün"
 
   # KVKK: liste yanıtında TCKN ve IBAN MASKELİ olmalı
@@ -875,7 +907,7 @@ if [ "$PUP" = "1" ] && [ -n "${MGR:-}" ]; then
   [ -n "$LVID" ] && ok "izin talebi oluşturuldu" || bad "izin talebi oluşturulamadı: $LV"
 
   # Gün sayısı sunucuda hesaplanmalı (1-5 Temmuz dahil = 5 gün)
-  LD=$($PSQL -t -A -c "SELECT days::int FROM employee_leaves WHERE id='$LVID';")
+  LD=$(qscoped "SELECT days::int FROM employee_leaves WHERE id='$LVID';")
   [ "$LD" = "5" ] && ok "izin gün sayısı sunucuda hesaplandı (5 gün)" || bad "izin günü $LD"
 
   # Çakışan izin reddedilmeli
@@ -885,7 +917,7 @@ if [ "$PUP" = "1" ] && [ -n "${MGR:-}" ]; then
   [ "$SC" = "409" ] && ok "çakışan izin talebi reddedildi → 409" || bad "çakışan izin kabul edildi → $SC"
 
   curl -s -o /dev/null -X POST "$PURL/leaves/$LVID/approve" -H "$PA" -H "$PJ" -d '{}'
-  REM=$($PSQL -t -A -c "SELECT remaining_leave_days FROM employees WHERE id='$EMPID';")
+  REM=$(qscoped "SELECT remaining_leave_days FROM employees WHERE id='$EMPID';")
   [ "$REM" = "9" ] && ok "onaydan sonra izin bakiyesi düştü (14 → 9)" || bad "izin bakiyesi $REM (9 bekleniyordu)"
 
   SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$PURL/leaves/$LVID/approve" -H "$PA" -H "$PJ" -d '{}')
@@ -894,8 +926,8 @@ if [ "$PUP" = "1" ] && [ -n "${MGR:-}" ]; then
   # İşten ayrılışta kayıt SİLİNMEMELİ
   curl -s -o /dev/null -X POST "$PURL/employees/$EMPID/terminate" -H "$PA" -H "$PJ" \
     -d '{"reason":"İstifa","end_date":"2026-08-31"}'
-  STILL=$($PSQL -t -A -c "SELECT count(*) FROM employees WHERE id='$EMPID';")
-  ACT=$($PSQL -t -A -c "SELECT is_active FROM employees WHERE id='$EMPID';")
+  STILL=$(qscoped "SELECT count(*) FROM employees WHERE id='$EMPID';")
+  ACT=$(qscoped "SELECT is_active FROM employees WHERE id='$EMPID';")
   [ "$STILL" = "1" ] && [ "$ACT" = "f" ] && ok "işten ayrılışta özlük kaydı silinmiyor, pasife alınıyor" \
     || bad "özlük kaydı silindi ya da pasife alınmadı (count=$STILL active=$ACT)"
 else
@@ -905,7 +937,7 @@ kill_tree "$PER_PID"
 
 step "14) Ziyaretçi modülü — mock'tan gerçeğe (FAZ 5, 3. modül)"
 VISPORT=${VERIFY_VIS_PORT:-18105}
-DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen DB_PASSWORD="$PW" DB_NAME=siteeksen \
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_app DB_PASSWORD="$APPPW" DB_NAME=siteeksen \
 DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${VISPORT} \
   go run ./services/visitor >/tmp/verify-visitor.log 2>&1 &
 VIS_PID=$!
@@ -989,7 +1021,7 @@ kill_tree "$VIS_PID"
 
 step "15) Otopark modülü — mock'tan gerçeğe (FAZ 5, 4. modül)"
 PRKPORT=${VERIFY_PRK_PORT:-18098}
-DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen DB_PASSWORD="$PW" DB_NAME=siteeksen \
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_app DB_PASSWORD="$APPPW" DB_NAME=siteeksen \
 DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${PRKPORT} \
   go run ./services/parking >/tmp/verify-parking.log 2>&1 &
 PRK_PID=$!
@@ -1085,7 +1117,7 @@ step "16) Rezervasyon modülü — mock'tan gerçeğe (FAZ 5, 5. modül)"
 # Önceki davranış: sabit tesis listesi + 201 dönüp hiçbir yere kaydetmeyen POST.
 # En kritik eksik ÇAKIŞMA DENETİMİYDİ: iki sakin aynı saati "ayırttığını" sanıyordu.
 RESPORT=${VERIFY_RES_PORT:-18091}
-DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen DB_PASSWORD="$PW" DB_NAME=siteeksen \
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_app DB_PASSWORD="$APPPW" DB_NAME=siteeksen \
 DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${RESPORT} \
   go run ./services/reservation >/tmp/verify-reservation.log 2>&1 &
 RES_PID=$!
@@ -1254,7 +1286,7 @@ step "17) Kargo modülü — mock'tan gerçeğe (FAZ 5, 6. modül)"
 # Önceki davranış: sabit kargo listesi; teslim alma/teslim etme kaydedilmiyordu ve
 # yanıt "sakine bildirim gönderildi" diyordu — bildirim altyapısı hiç yoktu.
 PKGPORT=${VERIFY_PKG_PORT:-18097}
-DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen DB_PASSWORD="$PW" DB_NAME=siteeksen \
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_app DB_PASSWORD="$APPPW" DB_NAME=siteeksen \
 DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${PKGPORT} \
   go run ./services/package >/tmp/verify-package.log 2>&1 &
 PKG_PID=$!
@@ -1396,7 +1428,7 @@ step "18) Sözleşme modülü — mock'tan gerçeğe (FAZ 5, 7. modül)"
 # Kritik iş kuralı: kendiliğinden yenilenen sözleşmede ihbar süresi kaçırılırsa
 # site habersiz yeni bir mali yüke bağlanır → notice_due işaretlenmeli, yenileme ELLE olmalı.
 CTRPORT=${VERIFY_CTR_PORT:-18094}
-DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen DB_PASSWORD="$PW" DB_NAME=siteeksen \
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_app DB_PASSWORD="$APPPW" DB_NAME=siteeksen \
 DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${CTRPORT} \
   go run ./services/contract >/tmp/verify-contract.log 2>&1 &
 CTR_PID=$!
@@ -1560,7 +1592,7 @@ step "19) Belge arşivi + dosya depolama — mock'tan gerçeğe (FAZ 5, 8/22 · 
 DOCPORT=${VERIFY_DOC_PORT:-18093}
 DOCDIR=/tmp/verify-docs
 rm -rf "$DOCDIR"; mkdir -p "$DOCDIR"
-DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen DB_PASSWORD="$PW" DB_NAME=siteeksen \
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_app DB_PASSWORD="$APPPW" DB_NAME=siteeksen \
 DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${DOCPORT} \
 STORAGE_BACKEND=local STORAGE_LOCAL_DIR="$DOCDIR" \
   go run ./services/document >/tmp/verify-document.log 2>&1 &
@@ -1640,7 +1672,7 @@ if [ "$DUP" = "1" ] && [ -n "${MGR:-}" ] && [ -n "${TEN:-}" ]; then
     || bad "ek belgeler oluşturulamadı"
 
   # Görünürlük belirtilmediğinde EN DAR kademe uygulanmalı
-  VIS3=$($PSQL -t -A -c "SELECT visibility FROM documents WHERE id='$D3ID';")
+  VIS3=$(qscoped "SELECT visibility FROM documents WHERE id='$D3ID';")
   [ "$VIS3" = "MANAGEMENT" ] && ok "görünürlük belirtilmediğinde en dar kademe uygulanıyor" \
     || bad "varsayılan görünürlük geniş: $VIS3"
 
@@ -1693,17 +1725,17 @@ if [ "$DUP" = "1" ] && [ -n "${MGR:-}" ] && [ -n "${TEN:-}" ]; then
     [ "$SC" = "403" ] && ok "sakin erişim kayıtlarını göremiyor → 403" || bad "sakin erişim kaydı gördü → $SC"
 
     # Reddedilen erişim de kayda geçmeli
-    DEN=$($PSQL -t -A -c "SELECT count(*) FROM document_access_logs WHERE action='DENIED';")
+    DEN=$(qscoped "SELECT count(*) FROM document_access_logs WHERE action='DENIED';")
     [ "$DEN" -ge 1 ] && ok "reddedilen belge erişimi de kayda geçiyor ($DEN kayıt)" \
       || bad "DENIED belge erişim kaydı yok"
 
     # Erişim kayıtları salt-ekleme olmalı
-    if $PSQL -c "UPDATE document_access_logs SET action='VIEW' WHERE id=(SELECT min(id) FROM document_access_logs);" >/dev/null 2>&1; then
+    if $PSQL -c "SET LOCAL app.property_id = '$DEMO_PROPERTY'; UPDATE document_access_logs SET action='VIEW' WHERE id=(SELECT min(id) FROM document_access_logs);" >/dev/null 2>&1; then
       bad "erişim kayıtları değiştirilebiliyor (kanıt değeri yok)"
     else
       ok "erişim kayıtları değiştirilemiyor (salt-ekleme tetikleyicisi)"
     fi
-    if $PSQL -c "DELETE FROM document_access_logs WHERE id=(SELECT min(id) FROM document_access_logs);" >/dev/null 2>&1; then
+    if $PSQL -c "SET LOCAL app.property_id = '$DEMO_PROPERTY'; DELETE FROM document_access_logs WHERE id=(SELECT min(id) FROM document_access_logs);" >/dev/null 2>&1; then
       bad "erişim kayıtları silinebiliyor"
     else
       ok "erişim kayıtları silinemiyor"
@@ -1722,9 +1754,9 @@ if [ "$DUP" = "1" ] && [ -n "${MGR:-}" ] && [ -n "${TEN:-}" ]; then
     -F "category=MANAGEMENT_PLAN" -F "title=Yonetim plani" -F "visibility=RESIDENTS" \
     -F "replaces_id=$V1ID")
   echo "$V2" | grep -q '"id"' && ok "yeni sürüm yüklendi" || bad "sürüm yüklenemedi: $V2"
-  VOLD=$($PSQL -t -A -c "SELECT is_current FROM documents WHERE id='$V1ID';")
+  VOLD=$(qscoped "SELECT is_current FROM documents WHERE id='$V1ID';")
   [ "$VOLD" = "f" ] && ok "eski sürüm güncel olmaktan çıktı (silinmedi)" || bad "eski sürüm durumu: $VOLD"
-  VNEW=$($PSQL -t -A -c "SELECT version FROM documents WHERE replaces_id='$V1ID';")
+  VNEW=$(qscoped "SELECT version FROM documents WHERE replaces_id='$V1ID';")
   [ "$VNEW" = "2" ] && ok "sürüm numarası otomatik arttı" || bad "sürüm numarası: $VNEW"
   DEFL=$(curl -s "$DURL/documents?category=MANAGEMENT_PLAN" -H "$DA")
   [ "$(echo "$DEFL" | grep -o '"version"' | wc -l)" = "1" ] \
@@ -1737,7 +1769,7 @@ if [ "$DUP" = "1" ] && [ -n "${MGR:-}" ] && [ -n "${TEN:-}" ]; then
 
   # Üst veri yazılamayan yükleme depoda öksüz dosya bırakmamalı
   ORPHAN=$(find "$DOCDIR" -type f ! -name '*.meta.json' | wc -l)
-  DBCOUNT=$($PSQL -t -A -c "SELECT count(*) FROM documents;")
+  DBCOUNT=$(qscoped "SELECT count(*) FROM documents;")
   [ "$ORPHAN" = "$DBCOUNT" ] && ok "depodaki dosya sayısı kayıt sayısıyla eşit ($ORPHAN) — öksüz dosya yok" \
     || bad "depo ile kayıt uyuşmuyor: $ORPHAN dosya, $DBCOUNT kayıt"
 
@@ -1750,7 +1782,7 @@ if [ "$DUP" = "1" ] && [ -n "${MGR:-}" ] && [ -n "${TEN:-}" ]; then
     SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$DURL/documents/$D2ID/archive" \
       -H "$DA" -H 'Content-Type: application/json' -d '{"reason":"Yanlis donem yuklendi"}')
     [ "$SC" = "200" ] && ok "belge arşivden çıkarıldı → 200" || bad "arşivleme → $SC"
-    ARC=$($PSQL -t -A -c "SELECT count(*) FROM documents WHERE id='$D2ID' AND archived_at IS NOT NULL;")
+    ARC=$(qscoped "SELECT count(*) FROM documents WHERE id='$D2ID' AND archived_at IS NOT NULL;")
     [ "$ARC" = "1" ] && ok "arşiv kaydı korunuyor (belge silinmiyor)" || bad "arşiv kaydı: $ARC"
     AL2=$(curl -s "$DURL/documents" -H "$DA")
     echo "$AL2" | grep -q 'Karar tutanagi' && bad "arşivlenen belge varsayılan listede görünüyor" \
@@ -1773,7 +1805,7 @@ step "20) Demirbaş modülü — mock'tan gerçeğe (FAZ 5, 9/22)"
 # Kritik nokta: amortisman DEFTERDE SAKLANMAZ, her okumada hesaplanır — saklanan
 # değer zamanla sessizce yanlışa döner ve devir/bütçe konuşmasını bozar.
 ASTPORT=${VERIFY_AST_PORT:-18087}
-DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen DB_PASSWORD="$PW" DB_NAME=siteeksen \
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_app DB_PASSWORD="$APPPW" DB_NAME=siteeksen \
 DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${ASTPORT} \
   go run ./services/asset >/tmp/verify-asset.log 2>&1 &
 AST_PID=$!
@@ -1960,7 +1992,7 @@ step "21) Stok modülü — mock'tan gerçeğe (FAZ 5, 10/22)"
 # AYNI transaction'da ve satır kilitlenerek yapılmalı — yoksa eşzamanlı iki çıkış
 # depoda olmayan malzemeyi kayıtta bırakır.
 INVPORT=${VERIFY_INV_PORT:-18089}
-DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen DB_PASSWORD="$PW" DB_NAME=siteeksen \
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_app DB_PASSWORD="$APPPW" DB_NAME=siteeksen \
 DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${INVPORT} \
   go run ./services/inventory >/tmp/verify-inventory.log 2>&1 &
 INV_PID=$!
@@ -2131,7 +2163,7 @@ step "22) Anket/oylama modülü — mock'tan gerçeğe (FAZ 5, 11/22)"
 # En kritik kural: bu servisten alınan sonuç GENEL KURUL KARARI DEĞİLDİR
 # (KMK m.29-32); GENERAL_ASSEMBLY türü bilerek reddedilir.
 SRVPORT=${VERIFY_SRV_PORT:-18104}
-DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen DB_PASSWORD="$PW" DB_NAME=siteeksen \
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_app DB_PASSWORD="$APPPW" DB_NAME=siteeksen \
 DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${SRVPORT} \
   go run ./services/survey >/tmp/verify-survey.log 2>&1 &
 SRV_PID=$!
@@ -2322,7 +2354,7 @@ step "23) Sayaç ve ısı gideri paylaştırma — mock'tan gerçeğe (FAZ 5, 12
 # Mevzuat: merkezi ısıtma gideri %70 tüketim + %30 kullanım alanı
 # (RG 14.04.2008/26847). Oranlar KODA GÖMÜLÜ DEĞİL, legal_parameters'tan okunur.
 IOTPORT=${VERIFY_IOT_PORT:-18084}
-DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen DB_PASSWORD="$PW" DB_NAME=siteeksen \
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_app DB_PASSWORD="$APPPW" DB_NAME=siteeksen \
 DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${IOTPORT} \
   go run ./services/iot >/tmp/verify-iot.log 2>&1 &
 IOT_PID=$!
@@ -2542,7 +2574,7 @@ step "24) Bildirim altyapısı — mock'tan gerçeğe (FAZ 5, 13/22 · S-10)"
 # Yeni sözleşme: bildirim önce veritabanına yazılır; sağlayıcı yoksa PENDING
 # kalır ve hiçbir yerde "gönderildi" DENMEZ.
 NTFPORT=${VERIFY_NTF_PORT:-18085}
-DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen DB_PASSWORD="$PW" DB_NAME=siteeksen \
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_app DB_PASSWORD="$APPPW" DB_NAME=siteeksen \
 DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${NTFPORT} \
   go run ./services/notification >/tmp/verify-notification.log 2>&1 &
 NTF_PID=$!
@@ -2586,7 +2618,7 @@ if [ "$NUP" = "1" ] && [ -n "${MGR:-}" ] && [ -n "${TEN:-}" ]; then
   echo "$N2" | grep -q '"status":"PENDING"' && ok "SMS bildirimi kuyrukta PENDING kaldı" || bad "durum: $N2"
   echo "$N2" | grep -q 'GÖNDERİLMEDİ' && ok "gönderilmediği gerekçesiyle bildiriliyor" || bad "gerekçe yok"
 
-  DBS=$($PSQL -t -A -c "SELECT count(*) FROM notifications WHERE status='PENDING';")
+  DBS=$(qscoped "SELECT count(*) FROM notifications WHERE status='PENDING';")
   [ "$DBS" -ge 1 ] && ok "bildirim veritabanına yazıldı (kaybolmadı)" || bad "kayıt yok"
 
   # 3) TİCARİ İLETİ — onay yoksa GÖNDERİLMEZ (6563 s. Kanun m.6)
@@ -2602,7 +2634,7 @@ if [ "$NUP" = "1" ] && [ -n "${MGR:-}" ] && [ -n "${TEN:-}" ]; then
   SC=$(curl -s -o /dev/null -w '%{http_code}' -X PUT "$NURL/notification-preferences" -H "$NT" -H "$NJ" \
     -d '{"channel":"IN_APP","category":"COMMERCIAL","enabled":true,"consent_source":"test-onay-ekrani"}')
   [ "$SC" = "200" ] && ok "alıcı ticari ileti onayı verebildi" || bad "onay → $SC"
-  CONSENT=$($PSQL -t -A -c "SELECT count(*) FROM notification_preferences
+  CONSENT=$(qscoped "SELECT count(*) FROM notification_preferences
     WHERE user_id='$TENANT_ID' AND category='COMMERCIAL' AND enabled AND consent_at IS NOT NULL;")
   [ "$CONSENT" = "1" ] && ok "onayın zamanı ve kaynağı kayda geçti (ispat yükü)" || bad "onay kaydı: $CONSENT"
 
@@ -2629,7 +2661,7 @@ if [ "$NUP" = "1" ] && [ -n "${MGR:-}" ] && [ -n "${TEN:-}" ]; then
     \"recipient_user_id\":\"$TENANT_ID\",\"channel\":\"IN_APP\",
     \"topic\":\"assembly.call\",\"body\":\"Genel kurul 1 Ekim 2026 saat 19:00\"}")
   echo "$N6" | grep -q '"status":"SENT"' && ok "genel kurul bildirimi oluşturuldu" || bad "genel kurul: $N6"
-  GKBODY=$($PSQL -t -A -c "SELECT body FROM notifications WHERE topic='assembly.call' LIMIT 1;")
+  GKBODY=$(qscoped "SELECT body FROM notifications WHERE topic='assembly.call' LIMIT 1;")
   echo "$GKBODY" | grep -q 'kanuni çağrı yerine geçmez' \
     && ok "genel kurul bildiriminin gövdesine kanuni uyarı eklendi (KMK m.29)" \
     || bad "kanuni uyarı gövdede yok: $GKBODY"
@@ -2673,12 +2705,12 @@ if [ "$NUP" = "1" ] && [ -n "${MGR:-}" ] && [ -n "${TEN:-}" ]; then
   [ "$SC" = "403" ] && ok "sakin bildirim gönderemiyor → 403" || bad "sakin bildirim gönderdi → $SC"
 
   # 10) Gönderilmiş bildirim silinemez / durumu değiştirilemez
-  if $PSQL -c "DELETE FROM notifications WHERE status='SENT';" >/dev/null 2>&1; then
+  if $PSQL -c "SET LOCAL app.property_id = '$DEMO_PROPERTY'; DELETE FROM notifications WHERE status='SENT';" >/dev/null 2>&1; then
     bad "gönderilmiş bildirim silinebiliyor (haber verildiğinin kanıtı kayboluyor)"
   else
     ok "gönderilmiş bildirim silinemiyor (tetikleyici korumalı)"
   fi
-  if $PSQL -c "UPDATE notifications SET status='PENDING' WHERE status='SENT';" >/dev/null 2>&1; then
+  if $PSQL -c "SET LOCAL app.property_id = '$DEMO_PROPERTY'; UPDATE notifications SET status='PENDING' WHERE status='SENT';" >/dev/null 2>&1; then
     bad "gönderilmiş bildirimin durumu değiştirilebiliyor"
   else
     ok "gönderilmiş bildirimin durumu değiştirilemiyor"
@@ -2704,7 +2736,7 @@ step "25) Devriye (tur kontrol) modülü — mock'tan gerçeğe (FAZ 5, 14/22)"
 # İki kritik kural: (1) zaman SUNUCUDAN gelir, (2) tur durumu istemciden
 # alınmaz, okutulan noktalardan HESAPLANIR.
 PTRPORT=${VERIFY_PTR_PORT:-18099}
-DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen DB_PASSWORD="$PW" DB_NAME=siteeksen \
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_app DB_PASSWORD="$APPPW" DB_NAME=siteeksen \
 DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${PTRPORT} \
   go run ./services/patrol >/tmp/verify-patrol.log 2>&1 &
 PTR_PID=$!
@@ -2857,11 +2889,11 @@ step "26) Duyuru ve ilan panosu — mock'tan gerçeğe (FAZ 5, 15/22)"
 # onayından geçer.
 COMPORT=${VERIFY_COM_PORT:-18083}
 BULPORT=${VERIFY_BUL_PORT:-18088}
-DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen DB_PASSWORD="$PW" DB_NAME=siteeksen \
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_app DB_PASSWORD="$APPPW" DB_NAME=siteeksen \
 DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${COMPORT} \
   go run ./services/community >/tmp/verify-community.log 2>&1 &
 COM_PID=$!
-DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen DB_PASSWORD="$PW" DB_NAME=siteeksen \
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_app DB_PASSWORD="$APPPW" DB_NAME=siteeksen \
 DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${BULPORT} \
   go run ./services/bulletin >/tmp/verify-bulletin.log 2>&1 &
 BUL_PID=$!
@@ -3037,7 +3069,7 @@ step "27) Site ayarları — mock'tan gerçeğe (FAZ 5, 16/22)"
 # En kritik kural: MEVZUATA BAĞLI hiçbir değer buradan değiştirilemez
 # (uygulama + veritabanı kısıtı olmak üzere iki katmanda).
 SETPORT=${VERIFY_SET_PORT:-18082}
-DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen DB_PASSWORD="$PW" DB_NAME=siteeksen \
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_app DB_PASSWORD="$APPPW" DB_NAME=siteeksen \
 DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${SETPORT} \
   go run ./services/settings >/tmp/verify-settings.log 2>&1 &
 SET_PID=$!
@@ -3155,11 +3187,11 @@ step "28) Enerji analizi ve tahsilat riski — mock'tan gerçeğe (FAZ 5, 17-18/
 # açıklanabilir istatistik ve kurallar.
 ENEPORT=${VERIFY_ENE_PORT:-18086}
 SMCPORT=${VERIFY_SMC_PORT:-18103}
-DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen DB_PASSWORD="$PW" DB_NAME=siteeksen \
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_app DB_PASSWORD="$APPPW" DB_NAME=siteeksen \
 DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${ENEPORT} \
   go run ./services/energy_analytics >/tmp/verify-energy.log 2>&1 &
 ENE_PID=$!
-DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen DB_PASSWORD="$PW" DB_NAME=siteeksen \
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_app DB_PASSWORD="$APPPW" DB_NAME=siteeksen \
 DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${SMCPORT} \
   go run ./services/smart_collection >/tmp/verify-smc.log 2>&1 &
 SMC_PID=$!
@@ -3300,19 +3332,19 @@ BNKPORT=${VERIFY_BNK_PORT:-18106}
 MTGPORT=${VERIFY_MTG_PORT:-18095}
 COMMON_ENV="DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen DB_NAME=siteeksen DB_SSLMODE=disable"
 
-DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen DB_PASSWORD="$PW" DB_NAME=siteeksen \
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_app DB_PASSWORD="$APPPW" DB_NAME=siteeksen \
 DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${NPSPORT} \
   go run ./services/nps >/tmp/verify-nps-svc.log 2>&1 &
 NPS_PID=$!
-DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen DB_PASSWORD="$PW" DB_NAME=siteeksen \
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_app DB_PASSWORD="$APPPW" DB_NAME=siteeksen \
 DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${ESGPORT} \
   go run ./services/esg >/tmp/verify-esg.log 2>&1 &
 ESG_PID=$!
-DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen DB_PASSWORD="$PW" DB_NAME=siteeksen \
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_app DB_PASSWORD="$APPPW" DB_NAME=siteeksen \
 DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${BNKPORT} \
   go run ./services/banking >/tmp/verify-bnk.log 2>&1 &
 BNK_PID=$!
-DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen DB_PASSWORD="$PW" DB_NAME=siteeksen \
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_app DB_PASSWORD="$APPPW" DB_NAME=siteeksen \
 DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${MTGPORT} \
   go run ./services/meeting_wizard >/tmp/verify-mtg.log 2>&1 &
 MTG_PID=$!
@@ -3555,7 +3587,7 @@ step "31) Kişisel veri şifrelemesi — TCKN ve IBAN (FAZ 2.8)"
 # KVKK m.12/1: veri sorumlusu uygun güvenlik düzeyini sağlamakla yükümlüdür.
 # Personel servisi 13. adımda kapatılmıştı; şifreleme sınaması için yeniden açılır.
 PER2PORT=${VERIFY_PER2_PORT:-18198}
-DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen DB_PASSWORD="$PW" DB_NAME=siteeksen \
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_app DB_PASSWORD="$APPPW" DB_NAME=siteeksen \
 DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${PER2PORT} \
 PII_ENCRYPTION_KEY="$PIIKEY" \
   go run ./services/personnel >/tmp/verify-personnel2.log 2>&1 &
@@ -3582,24 +3614,24 @@ if [ "$PUP2" = "1" ] && [ -n "${MGR:-}" ]; then
 
   if [ -n "$E1ID" ]; then
     # 2) VERİTABANINDA DÜZ METİN OLMAMALI — bu adımın can alıcı kontrolü
-    PLAIN=$($PSQL -t -A -c "SELECT COALESCE(tc_number,'')||'|'||COALESCE(bank_iban,'')
+    PLAIN=$(qscoped "SELECT COALESCE(tc_number,'')||'|'||COALESCE(bank_iban,'')
       FROM employees WHERE id='$E1ID';")
     [ "$PLAIN" = "|" ] && ok "TCKN ve IBAN veritabanına DÜZ METİN yazılmadı" \
       || bad "düz metin kişisel veri var: $PLAIN"
 
-    ENC=$($PSQL -t -A -c "SELECT length(COALESCE(tc_number_encrypted,''))
+    ENC=$(qscoped "SELECT length(COALESCE(tc_number_encrypted,''))
       FROM employees WHERE id='$E1ID';")
     [ "$ENC" -gt 20 ] && ok "TCKN şifreli kolonda saklanıyor ($ENC karakter)" \
       || bad "şifreli TCKN yok: $ENC"
 
     # Şifreli metin, düz metni İÇERMEMELİ
-    LEAK=$($PSQL -t -A -c "SELECT count(*) FROM employees
+    LEAK=$(qscoped "SELECT count(*) FROM employees
       WHERE id='$E1ID' AND (tc_number_encrypted LIKE '%10000000146%'
                          OR bank_iban_encrypted LIKE '%3300061005%');")
     [ "$LEAK" = "0" ] && ok "şifreli değer düz metni içermiyor" || bad "şifreli alan sızdırıyor"
 
     # 3) Arama anahtarı (blind index) üretilmiş olmalı ve düz özet OLMAMALI
-    IDX=$($PSQL -t -A -c "SELECT tc_number_index FROM employees WHERE id='$E1ID';")
+    IDX=$(qscoped "SELECT tc_number_index FROM employees WHERE id='$E1ID';")
     [ ${#IDX} -eq 64 ] && ok "TCKN arama anahtarı üretildi (64 karakter HMAC)" \
       || bad "arama anahtarı yok: $IDX"
     # Düz SHA-256 olsaydı kaba kuvvetle çözülebilirdi: aynı TCKN'nin bilinen
@@ -3609,7 +3641,7 @@ if [ "$PUP2" = "1" ] && [ -n "${MGR:-}" ]; then
       || bad "arama anahtarı düz SHA-256; kaba kuvvetle çözülebilir"
 
     # 4) Son dört hane gösterim için ayrı saklanıyor
-    L4=$($PSQL -t -A -c "SELECT bank_iban_last4 FROM employees WHERE id='$E1ID';")
+    L4=$(qscoped "SELECT bank_iban_last4 FROM employees WHERE id='$E1ID';")
     [ "$L4" = "1326" ] && ok "IBAN son dört hanesi gösterim için ayrı saklanıyor" || bad "son 4 hane: $L4"
 
     # 5) API yanıtı VARSAYILAN OLARAK MASKELİ dönmeli
@@ -3672,13 +3704,13 @@ if [ "$PUP2" = "1" ] && [ -n "${MGR:-}" ]; then
     || bad "aynı TCKN iki kez kaydedildi → $DUPCODE"
 
   # 9) Şifreleme durumu görünümü: düz metin kalmamalı
-  STATUS=$($PSQL -t -A -c "SELECT plaintext_tc || '/' || plaintext_iban
+  STATUS=$(qscoped "SELECT plaintext_tc || '/' || plaintext_iban
     FROM pii_encryption_status WHERE table_name='employees';")
   [ "$STATUS" = "0/0" ] && ok "şifreleme durumu görünümü: düz metin kayıt yok" \
     || bad "hâlâ düz metin kayıt var: $STATUS"
 
   # 10) Anahtarsız servis AÇILMAMALI (fail-closed)
-  DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen DB_PASSWORD="$PW" DB_NAME=siteeksen \
+  DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_app DB_PASSWORD="$APPPW" DB_NAME=siteeksen \
   DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=18199 \
     go run ./services/personnel >/tmp/verify-pii-nokey.log 2>&1
   NOKEY=$?
@@ -3702,7 +3734,105 @@ else
   bad "personnel servisi ayakta değil; kişisel veri şifrelemesi sınanamadı"
   tail -10 /tmp/verify-personnel2.log
 fi
-kill_tree "$PER2_PID"
+# NOT: personel servisi burada KAPATILMAZ; 32. adım (RLS) aynı servisi kullanır.
+# Temizlik `cleanup` tuzağı tarafından yapılır.
+
+step "32) Satır düzeyi güvenlik (RLS) — birinci dilim (FAZ 2.6)"
+# Önceki davranış: izolasyon YALNIZCA uygulama katmanındaydı. Her sorguya elle
+# WHERE property_id yazılıyordu; tek bir sorguda unutulsa başka sitenin verisi
+# sızardı ve bunu yakalayan hiçbir şey yoktu.
+
+# 1) RLS gerçekten açık ve ZORLANIYOR mu?
+#    FORCE olmadan tablo sahibi politikaları atlar ve RLS fiilen çalışmaz.
+for T in employees employee_leaves payroll documents document_access_logs \
+         notifications notification_preferences; do
+  ROW=$($PSQL -t -A -c "SELECT rls_enabled || '/' || rls_forced || '/' || policy_count
+    FROM rls_enabled_tables WHERE table_name='$T';")
+  case "$ROW" in
+    true/true/*|t/t/*) ok "RLS açık ve zorlanıyor: $T ($ROW)" ;;
+    *)                 bad "RLS eksik: $T ($ROW)" ;;
+  esac
+done
+
+# 2) KAPSAM AYARLANMADAN satır dönmemeli — bu adımın can alıcı kontrolü
+NOSCOPE=$(qapp "SELECT count(*) FROM employees;")
+[ "$NOSCOPE" = "0" ] && ok "kapsam ayarlanmadan employees SIFIR satır dönüyor" \
+  || bad "kapsamsız sorgu $NOSCOPE satır döndürdü (RLS çalışmıyor)"
+NOSCOPE=$(qapp "SELECT count(*) FROM documents;")
+[ "$NOSCOPE" = "0" ] && ok "kapsam ayarlanmadan documents SIFIR satır dönüyor" \
+  || bad "kapsamsız documents sorgusu $NOSCOPE satır döndürdü"
+NOSCOPE=$(qapp "SELECT count(*) FROM notifications;")
+[ "$NOSCOPE" = "0" ] && ok "kapsam ayarlanmadan notifications SIFIR satır dönüyor" \
+  || bad "kapsamsız notifications sorgusu $NOSCOPE satır döndürdü"
+
+# 3) DOĞRU kapsamda satırlar görünmeli
+WITHSCOPE=$(qscoped "SELECT count(*) FROM employees;")
+[ "$WITHSCOPE" -ge 1 ] && ok "doğru kapsamda employees satırları görünüyor ($WITHSCOPE)" \
+  || bad "doğru kapsamda da satır yok: $WITHSCOPE"
+
+# 4) BAŞKA SİTENİN kapsamında bu satırlar GÖRÜNMEMELİ
+OTHERPROP='99999999-9999-9999-9999-999999999999'
+$PSQL -c "INSERT INTO properties (id, name, address, city, district, total_units, total_share_ratio)
+  VALUES ('$OTHERPROP','RLS Test Sitesi','X','Ist','Kadikoy',1,1)
+  ON CONFLICT (id) DO NOTHING;" >/dev/null 2>&1
+CROSS=$(qscoped "SELECT count(*) FROM employees;" "$OTHERPROP")
+[ "$CROSS" = "0" ] && ok "başka sitenin kapsamında personel GÖRÜNMÜYOR (çapraz erişim kapalı)" \
+  || bad "çapraz site erişimi açık: $CROSS satır"
+CROSS=$(qscoped "SELECT count(*) FROM documents;" "$OTHERPROP")
+[ "$CROSS" = "0" ] && ok "başka sitenin kapsamında belge görünmüyor" || bad "belge sızdı: $CROSS"
+
+# 5) FİLTRESİZ sorgu bile sızdırmamalı — RLS'in asıl varlık sebebi
+#    (uygulama katmanındaki WHERE property_id unutulsa ne olurdu?)
+LEAK=$(qscoped "SELECT count(*) FROM employees WHERE 1=1;" "$OTHERPROP")
+[ "$LEAK" = "0" ] && ok "WHERE property_id olmadan da başka sitenin verisi dönmüyor" \
+  || bad "filtresiz sorgu $LEAK satır sızdırdı"
+
+# 6) YAZMA da kapsam dışına taşamamalı (WITH CHECK)
+if PGPASSWORD="$APPPW" psql -h 127.0.0.1 -p "${DBPORT}" -U siteeksen_app -d siteeksen \
+  -v ON_ERROR_STOP=1 -q -c "SET LOCAL app.property_id = '$OTHERPROP';
+  INSERT INTO documents (property_id, category, title, storage_backend, storage_key,
+    file_name, content_type, size_bytes, sha256, visibility)
+  VALUES ('$DEMO_PROPERTY','OTHER','RLS ihlali','local','x/y','a.txt','text/plain',1,
+    repeat('a',64),'MANAGEMENT');" >/dev/null 2>&1; then
+  bad "başka sitenin kapsamındayken demo siteye kayıt YAZILABİLDİ (WITH CHECK yok)"
+else
+  ok "kapsam dışına yazma engellendi (WITH CHECK)"
+fi
+
+# 7) Kapsam geçersizse fail-closed olmalı (uydurma bir değer tüm veriyi açmamalı)
+BADSCOPE=$(qscoped "SELECT count(*) FROM employees;" "gecersiz-uuid")
+[ "$BADSCOPE" = "0" ] && ok "geçersiz kapsam değerinde hiçbir satır dönmüyor (fail-closed)" \
+  || bad "geçersiz kapsamda $BADSCOPE satır döndü"
+
+# 8) Uygulama katmanı RLS ile birlikte hâlâ çalışıyor olmalı
+#    (servisler kapsamlı sorguya geçtiği için istekler normal sonuç vermeli)
+if [ -n "${MGR:-}" ] && [ "$PUP2" = "1" ]; then
+  SC=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:${PER2PORT}/api/v1/employees" \
+    -H "Authorization: Bearer $MGR")
+  [ "$SC" = "200" ] && ok "personel servisi RLS açıkken normal çalışıyor → 200" \
+    || bad "RLS servisi bozdu → $SC"
+  LIST=$(curl -s "http://127.0.0.1:${PER2PORT}/api/v1/employees" -H "Authorization: Bearer $MGR")
+  echo "$LIST" | grep -q 'Sifreli' && ok "kapsamlı sorgu doğru sitenin verisini döndürüyor" \
+    || bad "kapsamlı sorgu veri döndürmedi: $LIST"
+fi
+
+# 8b) Süper kullanıcıyla bağlananın RLS'i ATLADIĞI açıkça raporlanmalı
+SUPERNOTE=$($PSQL -t -A -c "SELECT note FROM rls_effective;")
+echo "$SUPERNOTE" | grep -q 'süper kullanıcı' \
+  && ok "süper kullanıcı bağlantısında RLS'in atlandığı açıkça uyarılıyor" \
+  || bad "süper kullanıcı uyarısı yok: $SUPERNOTE"
+APPNOTE=$(qapp "SELECT rls_effective FROM rls_effective;")
+[ "$APPNOTE" = "t" ] || [ "$APPNOTE" = "true" ] \
+  && ok "uygulama rolü için RLS geçerli" || bad "uygulama rolünde RLS geçersiz: $APPNOTE"
+
+# 9) Kapsam DIŞINDAKİ tablolar bilerek RLS'siz — bu durum dürüstçe raporlanmalı
+RLSCOUNT=$($PSQL -t -A -c "SELECT count(*) FROM rls_enabled_tables;")
+[ "$RLSCOUNT" = "7" ] && ok "RLS birinci dilimi tam olarak 7 tabloda açık" \
+  || bad "beklenmedik RLS tablo sayısı: $RLSCOUNT"
+NOTRLS=$($PSQL -t -A -c "SELECT count(*) FROM information_schema.tables t
+  WHERE t.table_schema='public' AND t.table_type='BASE TABLE'
+    AND t.table_name NOT IN (SELECT table_name FROM rls_enabled_tables);")
+ok "RLS henüz açılmamış tablo sayısı: $NOTRLS (bilerek — ilgili servisler kapsamlı sorguya geçtikçe eklenecek)"
 
 step "SONUÇ"
 echo "  Geçen: $PASS   Başarısız: $FAIL"

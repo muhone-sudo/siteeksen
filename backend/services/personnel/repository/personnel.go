@@ -10,6 +10,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/siteeksen/backend/pkg/dbscope"
 	"github.com/siteeksen/backend/pkg/pii"
 	"github.com/siteeksen/backend/services/personnel/models"
 )
@@ -93,7 +94,7 @@ func (r *Repository) scanEmployee(row pgx.Row) (*models.Employee, error) {
 
 // ListEmployees, sitedeki personeli getirir.
 func (r *Repository) ListEmployees(ctx context.Context, propertyID string, activeOnly bool) ([]models.Employee, error) {
-	rows, err := r.pool.Query(ctx, employeeSelect+`
+	rows, err := r.scope(propertyID).Query(ctx, employeeSelect+`
 		WHERE property_id = $1 AND ($2 = false OR COALESCE(is_active,true))
 		ORDER BY is_active DESC, last_name, first_name`, propertyID, activeOnly)
 	if err != nil {
@@ -114,7 +115,7 @@ func (r *Repository) ListEmployees(ctx context.Context, propertyID string, activ
 
 // GetEmployee, tek personeli getirir.
 func (r *Repository) GetEmployee(ctx context.Context, propertyID, id string) (*models.Employee, error) {
-	e, err := r.scanEmployee(r.pool.QueryRow(ctx, employeeSelect+`
+	e, err := r.scanEmployee(r.scope(propertyID).QueryRow(ctx, employeeSelect+`
 		WHERE id = $1 AND property_id = $2`, id, propertyID))
 	if err == pgx.ErrNoRows {
 		return nil, ErrNotFound
@@ -158,7 +159,7 @@ func (r *Repository) CreateEmployee(ctx context.Context, propertyID string, in m
 	}
 
 	var id string
-	err := r.pool.QueryRow(ctx, `
+	err := r.scope(propertyID).QueryRow(ctx, `
 		INSERT INTO employees
 			(property_id, employee_number, first_name, last_name, phone, email,
 			 position, department, hire_date, contract_type, gross_salary, net_salary,
@@ -184,7 +185,7 @@ func (r *Repository) CreateEmployee(ctx context.Context, propertyID string, in m
 // TerminateEmployee, işten ayrılışı işler. Kayıt SİLİNMEZ — özlük kayıtları
 // İş Kanunu ve SGK mevzuatı gereği saklanmak zorundadır.
 func (r *Repository) TerminateEmployee(ctx context.Context, propertyID, id, reason string, endDate time.Time) error {
-	tag, err := r.pool.Exec(ctx, `
+	tag, err := r.scope(propertyID).Exec(ctx, `
 		UPDATE employees
 		SET is_active = false, end_date = $3, termination_reason = NULLIF($4,''), updated_at = now()
 		WHERE id = $1 AND property_id = $2 AND COALESCE(is_active,true)`,
@@ -202,7 +203,7 @@ func (r *Repository) TerminateEmployee(ctx context.Context, propertyID, id, reas
 func (r *Repository) Summary(ctx context.Context, propertyID string) (*models.Summary, error) {
 	s := &models.Summary{}
 	var cost *float64
-	err := r.pool.QueryRow(ctx, `
+	err := r.scope(propertyID).QueryRow(ctx, `
 		SELECT count(*) FILTER (WHERE COALESCE(is_active,true)),
 		       count(*) FILTER (WHERE NOT COALESCE(is_active,true)),
 		       sum(gross_salary) FILTER (WHERE COALESCE(is_active,true))::float8
@@ -213,7 +214,7 @@ func (r *Repository) Summary(ctx context.Context, propertyID string) (*models.Su
 	}
 	s.MonthlySalaryCost = cost
 
-	if err := r.pool.QueryRow(ctx, `
+	if err := r.scope(propertyID).QueryRow(ctx, `
 		SELECT count(*) FROM employee_leaves l
 		JOIN employees e ON e.id = l.employee_id
 		WHERE e.property_id = $1 AND l.status = 'PENDING'`, propertyID).
@@ -221,7 +222,7 @@ func (r *Repository) Summary(ctx context.Context, propertyID string) (*models.Su
 		return nil, err
 	}
 
-	rows, err := r.pool.Query(ctx, `
+	rows, err := r.scope(propertyID).Query(ctx, `
 		SELECT position, count(*)
 		FROM employees WHERE property_id = $1 AND COALESCE(is_active,true)
 		GROUP BY position ORDER BY count(*) DESC`, propertyID)
@@ -254,7 +255,7 @@ JOIN employees e ON e.id = l.employee_id`
 
 // ListLeaves, sitenin izin taleplerini getirir.
 func (r *Repository) ListLeaves(ctx context.Context, propertyID, status string) ([]models.Leave, error) {
-	rows, err := r.pool.Query(ctx, leaveSelect+`
+	rows, err := r.scope(propertyID).Query(ctx, leaveSelect+`
 		WHERE e.property_id = $1 AND ($2 = '' OR l.status = $2)
 		ORDER BY l.created_at DESC`, propertyID, status)
 	if err != nil {
@@ -280,7 +281,7 @@ func (r *Repository) ListLeaves(ctx context.Context, propertyID, status string) 
 // ÇAKIŞMA DENETİMİ: Aynı personelin onaylı izniyle çakışan yeni talep reddedilir.
 // Çakışan izinler bordroda çift kesinti/çift hak kaybına yol açar.
 func (r *Repository) CreateLeave(ctx context.Context, propertyID string, in models.CreateLeaveInput, start, end time.Time, days float64) (string, error) {
-	tx, err := r.pool.Begin(ctx)
+	tx, err := r.scope(propertyID).Begin(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -329,7 +330,7 @@ func (r *Repository) CreateLeave(ctx context.Context, propertyID string, in mode
 // Onay durumunda yıllık izin bakiyesi tek transaction içinde düşülür; aksi hâlde
 // bakiye ile kullanılan izin birbirini tutmaz.
 func (r *Repository) DecideLeave(ctx context.Context, propertyID, leaveID, status, userID, reason string) error {
-	tx, err := r.pool.Begin(ctx)
+	tx, err := r.scope(propertyID).Begin(ctx)
 	if err != nil {
 		return err
 	}
@@ -371,4 +372,15 @@ func (r *Repository) DecideLeave(ctx context.Context, propertyID, leaveID, statu
 	}
 
 	return tx.Commit(ctx)
+}
+
+// scope, veritabanı erişimini SİTE KAPSAMINA bağlar (FAZ 2.6).
+//
+// employees / employee_leaves / payroll tablolarında RLS açıktır (migration 020).
+//
+// Kapsam, PostgreSQL satır düzeyi güvenliği tarafından okunur: sorguda
+// `WHERE property_id` filtresi unutulsa bile başka sitenin satırları DÖNMEZ.
+// Bu, uygulama katmanındaki filtrenin yerine geçmez — onu YEDEKLER.
+func (r *Repository) scope(propertyID string) *dbscope.Scoped {
+	return dbscope.For(r.pool, propertyID)
 }

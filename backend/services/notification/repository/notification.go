@@ -9,6 +9,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/siteeksen/backend/pkg/dbscope"
 )
 
 var (
@@ -103,7 +104,7 @@ func clampLimit(limit int) int {
 
 // ListForUser, kullanıcının kendi bildirimlerini döner.
 func (r *Repository) ListForUser(ctx context.Context, propertyID, userID, status string, limit int) ([]Notification, error) {
-	rows, err := r.pool.Query(ctx, notificationSelect+`
+	rows, err := r.scope(propertyID).Query(ctx, notificationSelect+`
 		WHERE n.property_id = $1 AND n.recipient_user_id = $2
 		  AND ($3 = '' OR n.status = $3)
 		ORDER BY n.created_at DESC
@@ -117,7 +118,7 @@ func (r *Repository) ListForUser(ctx context.Context, propertyID, userID, status
 
 // ListAll, site genelindeki giden kutusunu döner (yalnızca yönetim).
 func (r *Repository) ListAll(ctx context.Context, propertyID, status, channel string, limit int) ([]Notification, error) {
-	rows, err := r.pool.Query(ctx, notificationSelect+`
+	rows, err := r.scope(propertyID).Query(ctx, notificationSelect+`
 		WHERE n.property_id = $1
 		  AND ($2 = '' OR n.status = $2)
 		  AND ($3 = '' OR n.channel = $3)
@@ -153,7 +154,7 @@ func (r *Repository) RecipientAddress(ctx context.Context, propertyID, userID, c
 	}
 
 	var phone, email *string
-	err := r.pool.QueryRow(ctx, `
+	err := r.scope(propertyID).QueryRow(ctx, `
 		SELECT u.phone, u.email
 		FROM users u
 		WHERE u.id = $1
@@ -194,7 +195,7 @@ func (r *Repository) RecipientAddress(ctx context.Context, propertyID, userID, c
 
 // Preferences, kullanıcının kayıtlı tercihlerini döner.
 func (r *Repository) Preferences(ctx context.Context, propertyID, userID string) ([]Preference, error) {
-	rows, err := r.pool.Query(ctx, `
+	rows, err := r.scope(propertyID).Query(ctx, `
 		SELECT channel, category, enabled, consent_at, COALESCE(consent_source,'')
 		FROM notification_preferences
 		WHERE user_id = $1 AND (property_id = $2 OR property_id IS NULL)
@@ -231,7 +232,7 @@ func (r *Repository) SetPreference(ctx context.Context, propertyID, userID, chan
 		consentSource = "kullanici-tercih-ekrani"
 	}
 
-	_, err := r.pool.Exec(ctx, `
+	_, err := r.scope(propertyID).Exec(ctx, `
 		INSERT INTO notification_preferences
 			(user_id, property_id, channel, category, enabled, consent_at, consent_source)
 		VALUES ($1::uuid,$2::uuid,$3::varchar,$4::varchar,$5::boolean,
@@ -263,7 +264,7 @@ type Summary struct {
 // Summary, durum ve kanal dağılımını verir.
 func (r *Repository) Summary(ctx context.Context, propertyID string) (*Summary, error) {
 	s := &Summary{ByChannel: map[string]int{}}
-	if err := r.pool.QueryRow(ctx, `
+	if err := r.scope(propertyID).QueryRow(ctx, `
 		SELECT count(*),
 		       count(*) FILTER (WHERE status = 'PENDING'),
 		       count(*) FILTER (WHERE status = 'SENT'),
@@ -274,7 +275,7 @@ func (r *Repository) Summary(ctx context.Context, propertyID string) (*Summary, 
 		return nil, err
 	}
 
-	rows, err := r.pool.Query(ctx, `
+	rows, err := r.scope(propertyID).Query(ctx, `
 		SELECT channel, count(*) FROM notifications
 		WHERE property_id = $1 GROUP BY channel`, propertyID)
 	if err != nil {
@@ -307,4 +308,15 @@ func contains(list []string, v string) bool {
 		}
 	}
 	return false
+}
+
+// scope, veritabanı erişimini SİTE KAPSAMINA bağlar (FAZ 2.6).
+//
+// notifications / notification_preferences tablolarında RLS açıktır (migration 020).
+//
+// Kapsam, PostgreSQL satır düzeyi güvenliği tarafından okunur: sorguda
+// `WHERE property_id` filtresi unutulsa bile başka sitenin satırları DÖNMEZ.
+// Bu, uygulama katmanındaki filtrenin yerine geçmez — onu YEDEKLER.
+func (r *Repository) scope(propertyID string) *dbscope.Scoped {
+	return dbscope.For(r.pool, propertyID)
 }
