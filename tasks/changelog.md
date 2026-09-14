@@ -12,6 +12,61 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-09-14 (ikinci tur) — FAZ 2 GÜVENLİK TAMAMLANDI (DOĞRULANMIŞ)
+
+> **Toplu kanıt:** `bash backend/scripts/verify-stack.sh` → **714 kontrol, 0 başarısız**
+> Dev ortamı: 24 servis + gateway + panel ayakta, hepsi `/health` → 200.
+
+#### 2.7 — Çıkış artık gerçekten çıkış
+
+Önceki durum: "Çıkış yap" yalnızca `{"message":"Çıkış başarılı"}` yazıyor ve
+HİÇBİR ŞEY yapmıyordu. Jeton süresi dolana kadar geçerliydi: erişim jetonu
+15 dakika, **yenileme jetonu 7 GÜN**. Ortak bilgisayardan çıkan sakinin oturumu
+fiilen kapanmıyordu.
+
+- migration 018: `revoked_tokens` (jti reddetme listesi) + `user_token_invalidation`
+- `POST /auth/logout` erişim VE yenileme jetonunu iptal eder; yenileme jetonu
+  gönderilmediyse yanıt bunu UYARI olarak söyler
+- `POST /users/me/logout-all` — tüm cihazlardan çıkış (geçmişe dönük)
+- Yenileme akışında iptal denetimi: olmasaydı çıkış hiçbir işe yaramazdı
+- `AuthMiddleware()` → `AuthMiddleware(pool)`: imza değişikliği bilinçli, eksik
+  kalan her çağrı yerini DERLEME HATASI yapar (26 çağrı yeri güncellendi)
+
+#### 2.8 — TCKN ve IBAN şifreli
+
+Önceki durum: düz metin. `pkg/encryption` yazılmış ama import edilmiyordu.
+
+- `pkg/pii`: AES-256-GCM; aynı değer her seferinde farklı şifreli metin üretir
+- Arama anahtarı **HMAC-SHA256**, düz SHA-256 değil: TCKN'nin değer uzayı
+  ~10^10'dur ve anahtarsız özet kaba kuvvetle geri çevrilebilir. Doğrulamada
+  anahtarın düz SHA-256 ile eşleşmediği ayrıca sınanıyor.
+- TCKN algoritmik sağlama ve IBAN mod-97 doğrulaması: şifreli alandaki yazım
+  hatası sonradan gözle bulunamaz
+- Aynı TCKN ile ikinci aktif personel açılamaz (kısmi tekil indeks)
+- `cmd/encrypt-pii`: mevcut düz metni şifreler ve düz metin kolonu NULL'lar
+- Varsayılan MASKELİ; maskesiz erişim `?reveal=true` ister ve ayrı `PII_REVEAL`
+  denetim kaydı üretir. Kayıt tutulamıyorsa veri AÇILMAZ.
+
+#### 2.6 — Satır düzeyi güvenlik (birinci dilim)
+
+**Çalışırken bulunan kritik nokta:** PostgreSQL'de RLS SÜPER KULLANICIYI
+BAĞLAMAZ — `FORCE ROW LEVEL SECURITY` bile. Uygulama süper kullanıcıyla
+bağlandığı sürece politikalar tanımlıdır ama hiç devreye girmez. İlk denemede
+tam olarak bu görüldü: politikalar açıkken kapsamsız sorgu satır döndürdü.
+
+- migration 020, yetkisi sınırlı `siteeksen_app` rolünü oluşturur; servisler
+  artık onunla bağlanır. Rolün DDL yetkisi yoktur. Parola migration'a yazılmaz.
+- `pkg/dbscope`: her isteği `SET LOCAL app.property_id` ayarlanmış transaction
+  içinde çalıştırır. Oturum düzeyinde ayarlamak BİLEREK yapılmadı: havuzdan
+  alınan bağlantı geri döndüğünde değişken başka sitenin isteğine sızardı.
+- RLS 7 tabloda açık (personel, belge, bildirim) — hepsi TEK servis tarafından
+  kullanılan tablolar. 82 tablo bilerek kapalı; doğrulama bunu sayarak raporluyor.
+- Doğrulanan: kapsamsız sorgu SIFIR satır; çapraz site erişimi kapalı;
+  `WHERE property_id` olmadan yazılmış sorgu bile sızdırmıyor; kapsam dışına
+  yazma engelli (WITH CHECK); geçersiz kapsamda hiçbir satır yok.
+
+---
+
 ### 2026-09-14 — FAZ 5 TAMAMLANDI: 22 mock servisin tamamı ele alındı (DOĞRULANMIŞ)
 
 > **Toplu kanıt:** `bash backend/scripts/verify-stack.sh` → **646 kontrol, 0 başarısız**

@@ -109,14 +109,14 @@ Next.js admin paneli, iki Flutter mobil uygulaması (sakin + yönetici) içerir.
 
 > Aşağıdaki notlar **çalıştırılarak** doğrulanmıştır. Bu bölümdeki hiçbir ifade "olması gerekeni"
 > değil, **bugün gerçekte olanı** anlatır.
-> Toplu kanıt: `bash backend/scripts/verify-stack.sh` → **646/646**,
+> Toplu kanıt: `bash backend/scripts/verify-stack.sh` → **714/714**,
 > `bash backend/scripts/verify-mobile.sh` → **8/8**.
 > Tarihçe ve `dosya:satır` kanıtı: `tasks/audit-raporu.md`, `tasks/changelog.md`.
 
 **Hızlı başlangıç**
 
 ```bash
-bash backend/scripts/dev-up.sh     # PostgreSQL + 24 servis + gateway
+bash backend/scripts/dev-up.sh     # PostgreSQL + 24 servis + gateway (RLS'li app rolüyle)
 cd admin && npm run dev            # http://localhost:3001
 # Demo: 5551234567 / Demo123! (yönetici) · 5559876543 / Demo123! (kiracı)
 ```
@@ -134,6 +134,11 @@ cd admin && npm run dev            # http://localhost:3001
   `meeting_wizard` (governance ile tekrar olurdu; oraya yönlendirir).
   Ayrıca `iot`'un sensör uçları ve `settings`'in kimlik bilgisi modülü gerçek
   değildir ve bunu açıkça bildirir.
+- **Uygulama artık veritabanına SÜPER KULLANICIYLA BAĞLANMIYOR.** `siteeksen_app`
+  rolünün DDL yetkisi yoktur ve satır düzeyi güvenlik politikalarına tabidir.
+  Bu, RLS'in çalışmasının ÖN KOŞULUDUR: PostgreSQL'de RLS süper kullanıcıyı
+  `FORCE ROW LEVEL SECURITY` ile bile bağlamaz. `rls_effective` görünümü
+  bağlantının RLS'e tabi olup olmadığını söyler.
 - **"Yapay zekâ" iddiası kaldırıldı.** Enerji analizi, tahsilat riski ve karbon
   ayak izi GERÇEK hesaplar yapar ama YZ kullanmaz: formüller kodda yazılıdır,
   her sonuç gerekçesiyle döner. `ai_model_version`, `predictions`,
@@ -224,7 +229,7 @@ Repo yolu WSL'de: `/mnt/c/Users/md064615/Documents/Projeler/proje99`
 
 | Betik | Kapsam | Ne zaman |
 |---|---|---|
-| `bash backend/scripts/verify-stack.sh` | **646 kontrol** — sıfırdan PostgreSQL, `cmd/migrate` ile 17 migration, şema denetimi, tam idempotency, `pkg/audit`+`pkg/legalparams`+`pkg/money`+`pkg/storage`+nisap testleri, ve uçtan uca: identity (giriş, roller), gateway (kimlik doğrulama), finance (ödeme→borç, gecikme tazminatı), governance (işletme projesi, nisap, defter zinciri), 501 dürüstlüğü ve 20 modülün uçtan uca sınanması (gider, personel, ziyaretçi, otopark, rezervasyon, kargo, sözleşme, belge, demirbaş, stok, anket, sayaç/ısı payı, bildirim, devriye, duyuru, ilan, ayarlar, enerji, tahsilat riski, NPS/ESG) | **Backend'e dokunan her değişiklikten sonra** |
+| `bash backend/scripts/verify-stack.sh` | **714 kontrol** — sıfırdan PostgreSQL, `cmd/migrate` ile 20 migration, şema denetimi, tam idempotency, `pkg/audit`+`pkg/legalparams`+`pkg/money`+`pkg/storage`+nisap testleri, ve uçtan uca: identity (giriş, roller), gateway (kimlik doğrulama), finance (ödeme→borç, gecikme tazminatı), governance (işletme projesi, nisap, defter zinciri), 501 dürüstlüğü ve 20 modülün uçtan uca sınanması (gider, personel, ziyaretçi, otopark, rezervasyon, kargo, sözleşme, belge, demirbaş, stok, anket, sayaç/ısı payı, bildirim, devriye, duyuru, ilan, ayarlar, enerji, tahsilat riski, NPS/ESG) | **Backend'e dokunan her değişiklikten sonra** |
 | `bash backend/scripts/verify-mobile.sh` | **8 kontrol** — iki Flutter uygulaması için `pub get` + `analyze` + `test` ve arayüzde uydurma veri taraması | Mobil değişikliklerden sonra |
 | `cd admin && npx tsc --noEmit && npm run lint && npm run build` | Panel | Panel değişikliklerinden sonra |
 | `bash backend/scripts/dev-up.sh` | Geliştirme ortamını ayağa kaldırır | Elle deneme için |
@@ -393,9 +398,9 @@ Kalıcı çözüm için önerilen yaklaşım PostgreSQL satır düzeyi güvenli�
 | Aktif site seçimi | **Sahiplik doğrulanıyor** — başkasının sitesine geçiş 403 |
 | Giriş şifresi loglanması | **Kaldırıldı** — yalnızca maskelenmiş telefon ve HTTP durumu loglanıyor |
 | İstemci kimlik başlıkları | Gateway `X-User-*` / `X-Property-Id` / `X-Tenant-Id` başlıklarını **siler** |
-| TCKN/telefon şifreleme | **HÂLÂ YOK** — `pkg/encryption` import edilmiyor; TCKN düz metin (todo 2.8) |
-| Tenant izolasyonu (RLS) | **HÂLÂ YOK** — izolasyon uygulama katmanında (todo 2.6) |
-| Çıkışta jeton iptali | **HÂLÂ YOK** — jeton süresi dolana kadar (15 dk) geçerli (todo 2.7) |
+| TCKN/IBAN şifreleme | **VAR** — AES-256-GCM; arama için HMAC blind index (düz SHA-256 değil). Anahtar yoksa personel servisi açılmaz. Varsayılan MASKELİ; maskesiz erişim ayrı `PII_REVEAL` denetim kaydı üretir |
+| Tenant izolasyonu (RLS) | **BİRİNCİ DİLİM AÇIK** — 7 tabloda satır düzeyi güvenlik (personel, belge, bildirim). Uygulama artık süper kullanıcıyla DEĞİL, yetkisi sınırlı `siteeksen_app` rolüyle bağlanır; RLS ancak böyle çalışır. Kalan tablolar bilerek açık (todo 2.6) |
+| Çıkışta jeton iptali | **VAR** — `revoked_tokens` + toplu iptal. Çıkışta erişim VE yenileme jetonu iptal edilir; iptal tüm servislerde geçerlidir |
 
 `legal/kvkk-aydinlatma.md` 2026-09-13'te **gerçek duruma göre** düzeltildi: uygulanan ve
 uygulanmayan tedbirler ayrı listelenmiştir; karşılığı olmayan taahhüt kalmamıştır.

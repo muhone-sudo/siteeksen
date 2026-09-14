@@ -340,3 +340,58 @@ sıra kurulamıyordu. Kontrol, ölçmek istediği şeyi (kayıp güncelleme) do�
 **Kural:** Bir kontrol başarısız olduğunda önce "bu kontrol doğru şeyi mi
 ölçüyor?" diye sor. Yanlış alarm veren kontrol, zamanla görmezden gelinir ve
 gerçek hatayı da gizler.
+
+---
+
+## 2026-09-14 — FAZ 2 güvenlik dersleri
+
+### Ders 20 — Güvenlik özelliğinin ÇALIŞTIĞINI görmeden "eklendi" deme
+
+RLS politikaları yazıldı, `FORCE ROW LEVEL SECURITY` açıldı, migration temiz
+uygulandı. Her şey "yapılmış" görünüyordu. Doğrulama çalıştırıldığında
+kapsamsız sorgu hâlâ satır döndürdü: PostgreSQL'de RLS **süper kullanıcıyı
+hiç bağlamaz** ve uygulama süper kullanıcıyla bağlanıyordu.
+
+Kod incelemesiyle bulunamayacak bir şeydi; yalnızca "koruma gerçekten
+çalışıyor mu?" diye SORAN bir kontrol buldu.
+
+**Kural:** Bir güvenlik önleminin doğrulaması, önlemin VAR OLDUĞUNU değil
+KORUDUĞUNU sınamalıdır. "Politika tanımlı mı?" yanlış soru; "kapsamsız sorgu
+sıfır satır mı döndürüyor?" doğru soru.
+
+### Ders 21 — İmza değiştir, genel değişken kullanma
+
+Jeton iptali denetimini `AuthMiddleware`'e eklerken iki yol vardı: paket
+düzeyinde bir "kurulmuşsa denetle" değişkeni (çağrı yerleri değişmez) ya da
+imzaya parametre eklemek (26 dosya değişir).
+
+Genel değişken seçilseydi, kurulumu unutulan bir servis iptal edilmiş jetonu
+SESSİZCE kabul ederdi — ve bu, ancak bir güvenlik olayında fark edilirdi.
+
+**Kural:** Unutulduğunda sessizce güvensiz hâle gelen bir bağımlılık, imzada
+yer almalıdır. Derleyicinin yakalayabileceği hatayı çalışma zamanına bırakma.
+
+### Ders 22 — Yarım açılmış koruma, kapalı korumadan kötüdür
+
+RLS'i tüm tablolara açmak cazipti ("2.6 tamamlandı" yazabilmek için). Ama
+`units` ve `properties` tablolarını on servis okuyor; hepsi kapsamlı sorguya
+geçmeden RLS açmak uygulamayı çalışmaz hâle getirirdi.
+
+Seçilen yol: yalnızca TEK servisin kullandığı tablolarda açmak ve kalan 82
+tablonun kapalı olduğunu doğrulamada SAYARAK raporlamak.
+
+**Kural:** Bir korumayı kısmen açacaksan, hangi kısmın korunduğunu ve hangisinin
+korunmadığını ölçülebilir biçimde raporla. "Kısmen yapıldı" ancak sınırı
+yazılıysa dürüst bir cevaptır.
+
+### Ders 23 — Şifreli alan, doğrulamayı ZORUNLU kılar
+
+Düz metin bir TCKN kolonundaki yazım hatası gözle görülür. Şifreli bir
+kolondaki hata görünmez: veri çözülene kadar kimse fark etmez, çözüldüğünde de
+"acaba baştan mı yanlıştı?" sorusunun cevabı yoktur.
+
+Bu yüzden TCKN algoritmik sağlaması ve IBAN mod-97 doğrulaması, şifrelemenin
+ÖN KOŞULU olarak eklendi — şifrelemenin kendisi kadar önemli.
+
+**Kural:** Bir alanı şifrelemeden önce, o alana yanlış değer yazılmasını
+engelleyecek doğrulamayı ekle.

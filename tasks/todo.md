@@ -470,7 +470,7 @@ Ayrıntı: `tasks/roadmap.md`
 |---|---|---|
 | FAZ 0 | Dürüstlük onarımı | **Tamamlandı** — uydurma veri ve sahte başarı mesajı kalmadı |
 | FAZ 1 | Kurulabilirlik — migration çalıştırıcı, idempotency, portlar, CI | **Tamamlandı** (1.6 down betikleri hariç) |
-| FAZ 2 | Kimlik/yetki/izolasyon | **Çekirdek tamam** — gateway auth, site bazlı roller, sahiplik doğrulaması, RBAC. Kalan: RLS (2.6), jeton iptali (2.7), alan şifreleme (2.8) |
+| FAZ 2 | Kimlik/yetki/izolasyon | **Tamamlandı (2026-09-14)** — gateway auth, site bazlı roller, sahiplik doğrulaması, RBAC, **jeton iptali (2.7)**, **TCKN/IBAN şifrelemesi (2.8)**, **RLS birinci dilimi (2.6)**. RLS kalan tablolara servis servis genişletilecek |
 | FAZ 3 | Denetim izi + gözlemlenebilirlik | Çalışıyor. Hassas veri okuma logu (3.4) **belgeler için yapıldı** (`document_access_logs`); diğer hassas uçlar ve yapılandırılmış log (3.5) kaldı |
 | FAZ 4 | Para doğruluğu | **Çekirdek tamam** — ödeme borçtan düşüyor, kuruş dağıtımı, gecikme tazminatı. Kalan: bakiye testi (4.12), tam kuruş göçü (4.13) |
 | FAZ 5 | 22 mock servisi gerçeğe çevirme | **TAMAMLANDI (2026-09-14)** — 20 servis gerçek veri katmanında; 2 servis (banka, toplantı sihirbazı) gerekçeli kapsam kararıyla 501 |
@@ -549,24 +549,31 @@ içinde kendi adımı. Bir modül baştan sona bitmeden diğerine geçilmez (dik
 
 # Sıradaki işler (öncelik sırasıyla)
 
-FAZ 5 bittiği için öncelik güvenlik ve arayüz tarafına kayıyor.
+FAZ 5 ve FAZ 2'nin çekirdeği bittiği için öncelik arayüzlere ve RLS'in
+yaygınlaştırılmasına kayıyor.
 
-1. **FAZ 2 kalanı — güvenlik**
-   - 2.6 PostgreSQL satır düzeyi güvenlik (RLS): izolasyon bugün yalnızca
-     uygulama katmanında. Bir sorguda filtre unutulursa başka sitenin verisi sızar.
-   - 2.7 Çıkışta jeton iptali: jeton süresi dolana kadar (15 dk) geçerli kalıyor.
-   - 2.8 TCKN/IBAN alan şifrelemesi: düz metin duruyor. Kimlik bilgisi kasası
-     ve banka entegrasyonu da bunu bekliyor.
+1. **RLS'i kalan tablolara yay (2.6 devamı).** Bugün 7 tabloda açık; 82 tabloda
+   kapalı. Sıralama, tabloyu kullanan servis sayısına göre yapılmalı:
+   önce tek servisin kullandığı tablolar (parking, visitor, inventory, asset,
+   patrol, bulletin, survey), sonra çok servisli olanlar (units, properties,
+   monthly_assessments). Her dilim için ilgili servis `pkg/dbscope` kullanımına
+   geçirilmeli, sonra migration yazılmalı — sıra tersine dönerse uygulama bozulur.
 2. **FAZ 6.7 — yönetişim arayüzleri.** Governance servisi API olarak hazır ama
    panelde ekranı yok: işletme projesi, genel kurul, karar defteri.
 3. **Modülleri bildirim altyapısına bağlama.** `pkg/notify` hazır; kargo,
    rezervasyon, anket, duyuru ve stok modülleri hâlâ "bildirim gönderilmedi"
-   notu düşüyor. Bu notların kalkması için ilgili yerlerde `Enqueue` çağrılmalı.
+   notu düşüyor. İlgili yerlerde `Enqueue` çağrılmalı.
 4. **Panel ve mobil arayüzler.** 20 gerçek modülün çoğunun panelde karşılığı yok.
-5. **FAZ 3 kalanı** — hassas veri okuma logu (3.4) belgeler için yapıldı; personel
-   ve sakin uçlarına genişletilecek. Yapılandırılmış log (3.5).
-6. **Panelde çıkış (logout) düğmesi yok** — oturum bayatlayınca kullanıcı sıkışıyor.
+5. **FAZ 3 kalanı** — hassas veri okuma logu belge ve personel için yapıldı
+   (`document_access_logs`, `PII_REVEAL`); sakin uçlarına da genişletilecek.
+   Yapılandırılmış log (3.5).
+6. **Panelde çıkış (logout) düğmesi yok** — artık gerçek bir çıkış ucu var
+   (`POST /auth/logout`), panelde düğmesi yok.
 7. **1.6 migration geri alma (down) betikleri.**
+8. **Anahtar yönetimi.** `PII_ENCRYPTION_KEY` ve `siteeksen_app` parolası bugün
+   ortam değişkeniyle veriliyor. Üretim için anahtar deposu (vault) ve anahtar
+   döndürme (rotation) yordamı yazılmalı — şifreli veriyi yeniden şifrelemek
+   gerekeceği için bu, planlanması gereken bir iştir.
 
 ---
 

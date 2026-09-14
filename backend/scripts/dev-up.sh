@@ -73,9 +73,24 @@ echo "=== Migration ==="
 export DATABASE_URL="postgres://siteeksen:${PW}@127.0.0.1:${DBPORT}/siteeksen?sslmode=disable"
 go run ./cmd/migrate | sed 's/^/  /'
 
-export DB_HOST=127.0.0.1 DB_PORT=$DBPORT DB_USER=siteeksen DB_PASSWORD="$PW"
+echo "=== Uygulama rolü ==="
+# Satır düzeyi güvenliği (RLS) SÜPER KULLANICIYI BAĞLAMAZ. Servisler bu yüzden
+# yetkisi sınırlı `siteeksen_app` rolüyle bağlanır; aksi hâlde RLS politikaları
+# tanımlı olur ama hiç devreye girmez.
+APPPW=${DEV_APP_PASSWORD:-devapppw}
+PGPASSWORD="$PW" psql -h 127.0.0.1 -p "$DBPORT" -U siteeksen -d siteeksen -q \
+  -c "ALTER ROLE siteeksen_app LOGIN PASSWORD '$APPPW';" >/dev/null 2>&1 \
+  && echo "  siteeksen_app hazır (RLS bu rolde geçerli)" \
+  || echo "  UYARI: uygulama rolü hazırlanamadı; RLS devrede OLMAYABİLİR"
+
+export DB_HOST=127.0.0.1 DB_PORT=$DBPORT DB_USER=siteeksen_app DB_PASSWORD="$APPPW"
 export DB_NAME=siteeksen DB_SSLMODE=disable
 export GIN_MODE=release
+
+# Kişisel veri şifreleme anahtarı (FAZ 2.8). Personel servisi bu anahtar
+# olmadan AÇILMAZ. Geliştirme için sabit bir anahtar üretilir; ÜRETİMDE bu
+# değer gizli yönetiminden gelir ve ASLA depoya yazılmaz.
+export PII_ENCRYPTION_KEY=${PII_ENCRYPTION_KEY:-$(head -c 32 /dev/zero | base64 -w0)}
 
 # Dosya depolama (S-09). Geliştirmede yerel dosya sistemi kullanılır;
 # üretimde STORAGE_BACKEND=s3 ve S3_* değişkenleri verilir.
@@ -179,6 +194,8 @@ echo ""
 echo "  Bilerek yazılmayanlar        : banka entegrasyonu (S-07 kararı),"
 echo "                                 toplantı sihirbazı (governance ile tekrar)"
 echo "  Dosya depolama               : ${STORAGE_BACKEND} (${STORAGE_LOCAL_DIR})"
+echo "  Veritabanı rolü              : siteeksen_app (RLS geçerli, DDL yetkisi yok)"
+echo "  Kişisel veri                 : TCKN/IBAN şifreli (PII_ENCRYPTION_KEY)"
 echo "======================================================================"
 echo ""
 echo "Durdurmak için Ctrl+C."
