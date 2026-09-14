@@ -23,8 +23,10 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/siteeksen/backend/pkg/database"
 	"github.com/siteeksen/backend/pkg/middleware"
+	"github.com/siteeksen/backend/pkg/notify"
 	"github.com/siteeksen/backend/services/inventory/repository"
 )
 
@@ -37,6 +39,8 @@ func main() {
 	defer database.Close()
 
 	repo := repository.New(pool)
+
+	notifier := notify.FromEnvOrNil(pool)
 
 	r := gin.Default()
 	r.GET("/health", func(c *gin.Context) {
@@ -148,8 +152,7 @@ func main() {
 			resp := gin.H{"movement": res}
 			if res.BelowMinimum {
 				resp["warning"] = "Stok asgari seviyenin altına düştü."
-				resp["warning_note"] = "Uyarı OTOMATİK BİLDİRİM OLARAK GÖNDERİLMEDİ; " +
-					"bildirim altyapısı henüz bağlı değildir."
+				resp["notification"] = notifyLowStock(c, notifier, pool, c.Param("id"), res)
 			}
 			c.JSON(http.StatusCreated, resp)
 		})
@@ -267,4 +270,55 @@ func fail(c *gin.Context, err error, op string) {
 		log.Printf("[inventory] %s başarısız: %v", op, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "İşlem tamamlanamadı"})
 	}
+}
+
+// notifyLowStock, asgari seviyenin altına düşen stoğu YÖNETİME bildirir.
+//
+// Neden sakinlere değil: depo stoğu sakinleri ilgilendirmez. Site genelinde
+// "temizlik malzemesi azaldı" bildirimi göndermek, bildirimlerin tamamının
+// kapatılmasına yol açar ve gerçekten önemli olanların da okunmamasına
+// sebep olur.
+//
+// Neden hareket başına bir kez: dedupe anahtarı HAREKET kimliğidir. Kalem
+// kimliği kullanılsaydı ilk uyarıdan sonra stok daha da düştüğünde ikinci
+// uyarı SESSİZCE düşerdi; tarih kullanılsaydı gün içindeki ikinci düşüş
+// görünmezdi. Hareket kimliği, her gerçek olayı bir kez bildirir.
+func notifyLowStock(c *gin.Context, n *notify.Notifier, pool *pgxpool.Pool,
+	itemID string, res *repository.MovementResult) *notify.BroadcastResult {
+	if n == nil {
+		return &notify.BroadcastResult{
+			Note: "Bildirim altyapısı kurulu değil; uyarı bildirimi oluşturulmadı."}
+	}
+
+	propertyID := c.GetString("property_id")
+	recipients, err := notify.Managers(c.Request.Context(), pool, propertyID)
+	if err != nil {
+		log.Printf("[inventory] yönetim alıcıları alınamadı: %v", err)
+		return &notify.BroadcastResult{
+			Note: "Yönetim listesi okunamadı; uyarı bildirimi oluşturulmadı."}
+	}
+
+	unit := ""
+	if res.ItemUnit != "" {
+		unit = " " + res.ItemUnit
+	}
+	body := res.ItemName + " stoğu asgari seviyenin altına düştü.\n" +
+		"Mevcut: " + res.NewStock + unit + " · Asgari: " + res.MinimumStock + unit
+
+	return n.Broadcast(c.Request.Context(), notify.Message{
+		PropertyID: propertyID,
+		Channel:    notify.ChannelInApp,
+		Category:   notify.CategoryTransactional,
+		Topic:      "inventory.low_stock",
+		Subject:    "Stok uyarısı: " + res.ItemName,
+		Body:       body,
+		Payload: map[string]any{
+			"item_id":       itemID,
+			"movement_id":   res.MovementID,
+			"current_stock": res.NewStock,
+			"minimum_stock": res.MinimumStock,
+		},
+		DedupeKey: "inventory.low_stock:" + res.MovementID,
+		CreatedBy: c.GetString("user_id"),
+	}, recipients)
 }

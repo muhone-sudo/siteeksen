@@ -11,8 +11,11 @@
 //   - bağımsız bölüm başına haftalık rezervasyon kotası
 //   - ücret hesabı kuruş üzerinden (pkg/money)
 //
-// Not: Ücret TAHSİL EDİLMEZ; ödeme sağlayıcısı entegrasyonu yoktur. Hatırlatma
-// bildirimi de GÖNDERİLMEZ; bildirim altyapısı henüz bağlı değildir.
+// Not: Ücret TAHSİL EDİLMEZ; ödeme sağlayıcısı entegrasyonu yoktur.
+//
+// Bildirim (2026-09-14): onay ve red kararları artık sakine UYGULAMA İÇİ
+// bildirim olarak iletilir (pkg/notify). SMS/push sağlayıcısı olmadığı için
+// o kanallar kullanılmaz; kayıt kuyrukta bekler ve yanıt bunu açıkça söyler.
 package main
 
 import (
@@ -28,6 +31,7 @@ import (
 	"github.com/siteeksen/backend/pkg/database"
 	"github.com/siteeksen/backend/pkg/middleware"
 	"github.com/siteeksen/backend/pkg/money"
+	"github.com/siteeksen/backend/pkg/notify"
 	"github.com/siteeksen/backend/services/reservation/repository"
 )
 
@@ -55,6 +59,11 @@ func main() {
 	defer database.Close()
 
 	repo := repository.New(pool)
+
+	// Bildirim altyapısı. Uygulama içi kanal her zaman çalışır; dış
+	// kanallar için sağlayıcı yoksa kayıt kuyrukta kalır ve yanıtta
+	// "gönderilmedi" yazar. Sessiz başarısızlık üretilmez.
+	notifier := notify.FromEnvOrNil(pool)
 
 	r := gin.Default()
 	r.GET("/health", func(c *gin.Context) {
@@ -248,14 +257,15 @@ func main() {
 	ops.Use(middleware.RequireRole(middleware.RoleManager, middleware.RoleBoardMember))
 	{
 		ops.POST("/reservations/:id/approve", func(c *gin.Context) {
-			if err := repo.Decide(c.Request.Context(), c.GetString("property_id"),
-				c.Param("id"), "APPROVED", c.GetString("user_id"), ""); err != nil {
+			info, err := repo.Decide(c.Request.Context(), c.GetString("property_id"),
+				c.Param("id"), "APPROVED", c.GetString("user_id"), "")
+			if err != nil {
 				fail(c, err, "onay")
 				return
 			}
 			c.JSON(http.StatusOK, gin.H{
-				"message": "Rezervasyon onaylandı",
-				"note":    "Sakine bildirim GÖNDERİLMEDİ; bildirim altyapısı bağlı değildir.",
+				"message":      "Rezervasyon onaylandı",
+				"notification": notifyDecision(c, notifier, info, "APPROVED", ""),
 			})
 		})
 
@@ -268,14 +278,15 @@ func main() {
 				c.JSON(http.StatusBadRequest, gin.H{"error": "Red gerekçesi zorunludur"})
 				return
 			}
-			if err := repo.Decide(c.Request.Context(), c.GetString("property_id"),
-				c.Param("id"), "REJECTED", c.GetString("user_id"), in.Reason); err != nil {
+			info, err := repo.Decide(c.Request.Context(), c.GetString("property_id"),
+				c.Param("id"), "REJECTED", c.GetString("user_id"), in.Reason)
+			if err != nil {
 				fail(c, err, "red")
 				return
 			}
 			c.JSON(http.StatusOK, gin.H{
-				"message": "Rezervasyon reddedildi",
-				"note":    "Sakine bildirim GÖNDERİLMEDİ; bildirim altyapısı bağlı değildir.",
+				"message":      "Rezervasyon reddedildi",
+				"notification": notifyDecision(c, notifier, info, "REJECTED", in.Reason),
 			})
 		})
 	}
@@ -432,4 +443,51 @@ func fail(c *gin.Context, err error, op string) {
 		log.Printf("[reservation] %s başarısız: %v", op, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "İşlem tamamlanamadı"})
 	}
+}
+
+// notifyDecision, onay/red kararını rezervasyonu YAPAN sakine bildirir.
+//
+// Neden yalnızca sahibine: rezervasyon kararı o kişiyi ilgilendirir. Tüm
+// siteye duyurmak, kimin ne zaman havuzu kullandığını herkese açmak olurdu
+// (6698 s. Kanun m.4 — veri işleme amaçla sınırlı olmalıdır).
+//
+// Red gerekçesi bildirimin GÖVDESİNE yazılır: sakin, itiraz edebilmek için
+// gerekçeyi görmelidir. Yalnızca "reddedildi" demek, kararı sorgulanamaz
+// kılardı.
+func notifyDecision(c *gin.Context, n *notify.Notifier, info *repository.DecisionInfo,
+	status, reason string) *notify.BroadcastResult {
+	if n == nil {
+		return &notify.BroadcastResult{
+			Note: "Bildirim altyapısı kurulu değil; bildirim oluşturulmadı."}
+	}
+	if info == nil || info.ResidentID == "" {
+		return &notify.BroadcastResult{
+			Note: "Rezervasyon sahibi çözülemedi; bildirim oluşturulmadı."}
+	}
+
+	when := info.StartTime.Format("02.01.2006 15:04") + "-" + info.EndTime.Format("15:04")
+	subject := "Rezervasyonunuz onaylandı"
+	body := info.FacilityName + " için " + when + " rezervasyonunuz ONAYLANDI."
+	if status == "REJECTED" {
+		subject = "Rezervasyonunuz reddedildi"
+		body = info.FacilityName + " için " + when + " rezervasyonunuz REDDEDİLDİ.\n" +
+			"Gerekçe: " + reason
+	}
+
+	return n.Broadcast(c.Request.Context(), notify.Message{
+		PropertyID: c.GetString("property_id"),
+		Channel:    notify.ChannelInApp,
+		Category:   notify.CategoryTransactional,
+		Topic:      "reservation.decision",
+		Subject:    subject,
+		Body:       body,
+		Payload: map[string]any{
+			"reservation_id": c.Param("id"),
+			"status":         status,
+			"facility":       info.FacilityName,
+		},
+		// Aynı karar iki kez bildirime dönüşmesin.
+		DedupeKey: "reservation:" + c.Param("id") + ":" + status,
+		CreatedBy: c.GetString("user_id"),
+	}, []notify.Recipient{{UserID: info.ResidentID}})
 }

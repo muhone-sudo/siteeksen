@@ -28,8 +28,10 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/siteeksen/backend/pkg/database"
 	"github.com/siteeksen/backend/pkg/middleware"
+	"github.com/siteeksen/backend/pkg/notify"
 	"github.com/siteeksen/backend/services/survey/repository"
 )
 
@@ -48,6 +50,8 @@ func main() {
 	defer database.Close()
 
 	repo := repository.New(pool)
+
+	notifier := notify.FromEnvOrNil(pool)
 
 	r := gin.Default()
 	r.GET("/health", func(c *gin.Context) {
@@ -172,15 +176,16 @@ func main() {
 		})
 
 		write.POST("/surveys/:id/publish", func(c *gin.Context) {
-			if err := repo.Publish(c.Request.Context(),
-				c.GetString("property_id"), c.Param("id")); err != nil {
+			pub, err := repo.Publish(c.Request.Context(),
+				c.GetString("property_id"), c.Param("id"))
+			if err != nil {
 				fail(c, err, "yayınlama")
 				return
 			}
 			c.JSON(http.StatusOK, gin.H{
-				"status": "ACTIVE",
-				"note": "Sakinlere BİLDİRİM GÖNDERİLMEDİ; bildirim altyapısı henüz " +
-					"bağlı değildir.",
+				"status":       "ACTIVE",
+				"notification": notifySurveyPublished(c, notifier, pool, pub),
+				"legal_notice": legalNotice,
 			})
 		})
 
@@ -293,4 +298,60 @@ func fail(c *gin.Context, err error, op string) {
 		log.Printf("[survey] %s başarısız: %v", op, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "İşlem tamamlanamadı"})
 	}
+}
+
+// notifySurveyPublished, yayına alınan anketi sitenin sakinlerine duyurur.
+//
+// Neden tüm sakinler: anket/oylama katılım içindir; katılacak kişinin haberi
+// olmaması, düşük katılımı "ilgisizlik" gibi göstermek olur.
+//
+// KANUNİ SINIR: buradan gönderilen bildirim, genel kurul ÇAĞRISI DEĞİLDİR.
+// 634 s. KMK m.29 çağrının taahhütlü mektupla ya da imza karşılığı
+// yapılmasını arar. Bu yüzden gövdeye, sonucun karar yerine geçmediği
+// uyarısı eklenir ve konu `assembly.call` OLARAK İŞARETLENMEZ — o konu
+// yalnızca yönetişim modülünün gerçek çağrı hatırlatmaları içindir.
+func notifySurveyPublished(c *gin.Context, n *notify.Notifier, pool *pgxpool.Pool,
+	pub *repository.PublishedSurvey) *notify.BroadcastResult {
+	if n == nil {
+		return &notify.BroadcastResult{
+			Note: "Bildirim altyapısı kurulu değil; bildirim oluşturulmadı."}
+	}
+	if pub == nil {
+		return &notify.BroadcastResult{Note: "Anket bilgisi çözülemedi; bildirim oluşturulmadı."}
+	}
+
+	propertyID := c.GetString("property_id")
+	recipients, err := notify.Residents(c.Request.Context(), pool, propertyID)
+	if err != nil {
+		log.Printf("[survey] anket bildirimi alıcıları alınamadı: %v", err)
+		return &notify.BroadcastResult{
+			Note: "Alıcı listesi okunamadı; bildirim oluşturulmadı. Anket yayında."}
+	}
+
+	kind := "Anket"
+	if pub.Type == "VOTE" {
+		kind = "Oylama"
+	} else if pub.Type == "POLL" {
+		kind = "Hızlı anket"
+	}
+	body := kind + " katılımınıza açıldı: " + pub.Title
+	if pub.EndsAt != nil {
+		body += "\nSon katılım: " + pub.EndsAt.Format("02.01.2006 15:04")
+	}
+	body += "\n\n" + legalNotice
+
+	return n.Broadcast(c.Request.Context(), notify.Message{
+		PropertyID: propertyID,
+		Channel:    notify.ChannelInApp,
+		Category:   notify.CategoryTransactional,
+		Topic:      "survey.published",
+		Subject:    kind + ": " + pub.Title,
+		Body:       body,
+		Payload: map[string]any{
+			"survey_id":   c.Param("id"),
+			"survey_type": pub.Type,
+		},
+		DedupeKey: "survey.published:" + c.Param("id"),
+		CreatedBy: c.GetString("user_id"),
+	}, recipients)
 }

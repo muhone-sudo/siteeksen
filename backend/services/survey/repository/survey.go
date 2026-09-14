@@ -372,25 +372,38 @@ func countEligible(ctx context.Context, q pgx.Tx, propertyID, sType string) (int
 }
 
 // Publish, taslağı yayına alır.
-func (r *Repository) Publish(ctx context.Context, propertyID, id string) error {
+func (r *Repository) Publish(ctx context.Context, propertyID, id string) (*PublishedSurvey, error) {
 	var optionCount int
 	if err := r.scope(propertyID).QueryRow(ctx,
 		`SELECT count(*) FROM survey_options WHERE survey_id = $1`, id).Scan(&optionCount); err != nil {
-		return err
+		return nil, err
 	}
 	if optionCount < 2 {
-		return ErrNeedsTwoOptions
+		return nil, ErrNeedsTwoOptions
 	}
-	tag, err := r.scope(propertyID).Exec(ctx, `
+	// Yayına alırken bildirim için gereken bilgiyi AYNI sorguda alıyoruz;
+	// ikinci bir SELECT, aradaki sürede anket kapatılırsa artık geçerli
+	// olmayan bir duruma göre bildirim üretirdi.
+	var out PublishedSurvey
+	err := r.scope(propertyID).QueryRow(ctx, `
 		UPDATE surveys SET status = 'ACTIVE', updated_at = now()
-		WHERE id = $1 AND property_id = $2 AND status = 'DRAFT'`, id, propertyID)
+		WHERE id = $1 AND property_id = $2 AND status = 'DRAFT'
+		RETURNING title, survey_type, ends_at`, id, propertyID).Scan(
+		&out.Title, &out.Type, &out.EndsAt)
+	if err == pgx.ErrNoRows {
+		return nil, ErrBadState
+	}
 	if err != nil {
-		return err
+		return nil, err
 	}
-	if tag.RowsAffected() == 0 {
-		return ErrBadState
-	}
-	return nil
+	return &out, nil
+}
+
+// PublishedSurvey, yayına alınan anketin bildirimde kullanılan bilgisidir.
+type PublishedSurvey struct {
+	Title  string
+	Type   string
+	EndsAt *time.Time
 }
 
 // Close, oylamayı sonlandırır.

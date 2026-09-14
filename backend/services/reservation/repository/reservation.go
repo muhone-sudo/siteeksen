@@ -294,20 +294,42 @@ func (r *Repository) Create(
 }
 
 // Decide, rezervasyonu onaylar veya reddeder (yönetim).
-func (r *Repository) Decide(ctx context.Context, propertyID, id, status, userID, reason string) error {
-	tag, err := r.pool.Exec(ctx, `
-		UPDATE reservations
-		SET status = $3, reviewed_by = NULLIF($4,'')::uuid, reviewed_at = now(),
-		    rejection_reason = NULLIF($5,''), updated_at = now()
-		WHERE id = $1 AND property_id = $2 AND status = 'PENDING'`,
-		id, propertyID, status, userID, reason)
+func (r *Repository) Decide(ctx context.Context, propertyID, id, status, userID, reason string) (*DecisionInfo, error) {
+	// Güncelleme ile bildirim için gereken bilgiyi TEK sorguda alıyoruz.
+	// İki ayrı sorgu yazılsaydı, aradaki sürede rezervasyon iptal edilebilir
+	// ve bildirim artık geçerli olmayan bir duruma göre üretilirdi.
+	var info DecisionInfo
+	err := r.pool.QueryRow(ctx, `
+		WITH upd AS (
+			UPDATE reservations
+			SET status = $3, reviewed_by = NULLIF($4,'')::uuid, reviewed_at = now(),
+			    rejection_reason = NULLIF($5,''), updated_at = now()
+			WHERE id = $1 AND property_id = $2 AND status = 'PENDING'
+			RETURNING id, resident_id, facility_id, start_time, end_time
+		)
+		SELECT upd.resident_id::text, COALESCE(f.name,''), upd.start_time, upd.end_time
+		FROM upd LEFT JOIN facilities f ON f.id = upd.facility_id`,
+		id, propertyID, status, userID, reason).Scan(
+		&info.ResidentID, &info.FacilityName, &info.StartTime, &info.EndTime)
+	if err == pgx.ErrNoRows {
+		return nil, ErrBadState
+	}
 	if err != nil {
-		return err
+		return nil, err
 	}
-	if tag.RowsAffected() == 0 {
-		return ErrBadState
-	}
-	return nil
+	return &info, nil
+}
+
+// DecisionInfo, onay/red sonrası bildirim üretmek için gereken en az bilgidir.
+//
+// Neden repo döndürüyor: bildirimi kimin alacağını ve hangi tesis/saat için
+// olduğunu yalnızca veritabanı bilir. Bu bilgiyi çağırana taşımamak,
+// bildirimi ya imkânsız ya da ikinci bir sorguya bağımlı kılardı.
+type DecisionInfo struct {
+	ResidentID   string
+	FacilityName string
+	StartTime    time.Time
+	EndTime      time.Time
 }
 
 // Cancel, rezervasyonu iptal eder. residentID doluysa yalnızca sahibi iptal edebilir.

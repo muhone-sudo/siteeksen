@@ -3,6 +3,10 @@
 // DURUM DEĞİŞİKLİĞİ (2026-09-13): Bu servis mock'tu; sabit kargo listesi döndürüyor
 // ve teslim alma/teslim etme isteklerine 2xx dönüp hiçbir yere kaydetmiyordu.
 // Ayrıca "sakine bildirim gönderildi" diyordu — bildirim altyapısı hiç yoktu.
+//
+// 2026-09-14: bildirim altyapısı bağlandı. Kargo kaydedildiğinde İLGİLİ
+// DAİRENİN sakinlerine uygulama içi bildirim düşer ve kayıt ancak bildirim
+// GERÇEKTEN oluşturulduysa "haber verildi" olarak işaretlenir.
 // Artık gerçek veri katmanına bağlıdır (FAZ 5 — 6/22).
 //
 // Dürüstlük notları:
@@ -19,8 +23,10 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/siteeksen/backend/pkg/database"
 	"github.com/siteeksen/backend/pkg/middleware"
+	"github.com/siteeksen/backend/pkg/notify"
 	"github.com/siteeksen/backend/services/package/repository"
 )
 
@@ -33,6 +39,10 @@ func main() {
 	defer database.Close()
 
 	repo := repository.New(pool)
+
+	// Uygulama içi bildirim her zaman çalışır (kayıt veritabanındadır).
+	// SMS/push sağlayıcısı olmadığı sürece o kanallar kullanılmaz.
+	notifier := notify.FromEnvOrNil(pool)
 
 	r := gin.Default()
 	r.GET("/health", func(c *gin.Context) {
@@ -117,13 +127,18 @@ func main() {
 				fail(c, err, "kargo kaydı")
 				return
 			}
+			// Kargo kaydedildi; şimdi DAİRENİN sakinlerine haber veriliyor.
+			// Kayıt, ancak bildirim GERÇEKTEN oluşturulduysa "haber verildi"
+			// durumuna geçer — bildirim üretilmeden durumu değiştirmek,
+			// sakinin haberi olduğunu varsaymak olurdu.
+			res, status := notifyPackage(c, notifier, repo, pool, id, in)
 			c.JSON(http.StatusCreated, gin.H{
 				"id":                id,
-				"status":            "RECEIVED",
-				"notification_sent": false,
-				"note": "Kargo kaydedildi. Sakine OTOMATİK BİLDİRİM GÖNDERİLMEDİ; " +
-					"bildirim altyapısı henüz bağlı değildir. Haber verildiğinde " +
-					"POST /packages/{id}/notify ile kayda geçirin.",
+				"status":            status,
+				"notification_sent": res != nil && res.Sent > 0,
+				"notification":      res,
+				"note": "Kapıda teslim edilemeyen kargo için elle haber verildiyse " +
+					"POST /packages/{id}/notify ile ayrıca kayda geçirin.",
 			})
 		})
 
@@ -227,4 +242,65 @@ func fail(c *gin.Context, err error, op string) {
 		log.Printf("[package] %s başarısız: %v", op, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "İşlem tamamlanamadı"})
 	}
+}
+
+// notifyPackage, kargoyu İLGİLİ DAİRENİN sakinlerine bildirir.
+//
+// Neden yalnızca o daire: bir dairenin kargosu diğer sakinleri ilgilendirmez.
+// Tüm siteye göndermek, kimin ne aldığını herkese duyurmak olurdu (6698 s.
+// Kanun m.4 — veri işleme amaçla sınırlı ve ölçülü olmalıdır).
+//
+// Gövdeye gönderici/içerik YAZILMAZ: kargo içeriği kişisel veridir ve bildirim
+// ekranı kilit ekranında görünebilir. "Kargonuz var" demek yeterlidir.
+//
+// Dönen ikinci değer, kaydın GÜNCEL durumudur. Bildirim oluşturulamadıysa
+// durum RECEIVED kalır; "NOTIFIED" yazmak sakinin haberi olduğunu iddia etmek
+// olurdu ve kargo kaybolduğunda bu kayıt yanıltıcı delil hâline gelirdi.
+func notifyPackage(c *gin.Context, n *notify.Notifier, repo *repository.Repository,
+	pool *pgxpool.Pool, packageID string, in repository.CreateInput) (*notify.BroadcastResult, string) {
+	if n == nil {
+		return &notify.BroadcastResult{
+			Note: "Bildirim altyapısı kurulu değil; bildirim oluşturulmadı."}, "RECEIVED"
+	}
+
+	propertyID := c.GetString("property_id")
+	recipients, err := notify.UnitResidents(c.Request.Context(), pool, propertyID, in.UnitID)
+	if err != nil {
+		log.Printf("[package] kargo bildirimi alıcıları alınamadı: %v", err)
+		return &notify.BroadcastResult{
+			Note: "Daire sakinleri okunamadı; bildirim oluşturulmadı."}, "RECEIVED"
+	}
+
+	body := "Adınıza bir kargo teslim alındı."
+	if in.StorageLocation != "" {
+		body += " Teslim yeri: " + in.StorageLocation + "."
+	}
+
+	res := n.Broadcast(c.Request.Context(), notify.Message{
+		PropertyID: propertyID,
+		Channel:    notify.ChannelInApp,
+		Category:   notify.CategoryTransactional,
+		Topic:      "package.received",
+		Subject:    "Kargonuz var",
+		Body:       body,
+		Payload: map[string]any{
+			"package_id": packageID,
+			"unit_id":    in.UnitID,
+			"carrier":    in.Carrier,
+		},
+		DedupeKey: "package:" + packageID,
+		CreatedBy: c.GetString("user_id"),
+	}, recipients)
+
+	if res.Sent == 0 {
+		return res, "RECEIVED"
+	}
+	if _, err := repo.MarkNotified(c.Request.Context(), propertyID, packageID, "IN_APP"); err != nil {
+		// Bildirim oluştu ama kayıt güncellenemedi. Durumu NOTIFIED yazmak
+		// yanlış olurdu; hata da yutulmaz.
+		log.Printf("[package] bildirim oluştu fakat kayıt güncellenemedi: %v", err)
+		res.Note += " (Uyarı: bildirim oluşturuldu fakat kargo kaydı NOTIFIED olarak işaretlenemedi.)"
+		return res, "RECEIVED"
+	}
+	return res, "NOTIFIED"
 }

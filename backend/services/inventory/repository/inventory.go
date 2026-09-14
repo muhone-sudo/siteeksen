@@ -281,6 +281,12 @@ type MovementResult struct {
 	NewStock      string   `json:"new_stock"`
 	UnitPrice     *float64 `json:"unit_price,omitempty"`
 	BelowMinimum  bool     `json:"below_minimum"`
+	// ItemName ve MinimumStock, asgari stok uyarısının ANLAŞILIR olması
+	// içindir: "stok azaldı" diyen ama hangi malzeme olduğunu söylemeyen
+	// bir uyarı, alıcıyı kayıtlara bakmaya zorlar ve okunmaz hâle gelir.
+	ItemName     string `json:"item_name"`
+	ItemUnit     string `json:"item_unit,omitempty"`
+	MinimumStock string `json:"minimum_stock"`
 }
 
 // RecordMovement, stok hareketini kaydeder ve stoğu AYNI TRANSACTION içinde,
@@ -326,12 +332,14 @@ func (r *Repository) RecordMovement(ctx context.Context, propertyID, itemID, use
 	var current, minimum decimal.Decimal
 	var unitPrice *float64
 	var isActive bool
-	var curStr, minStr string
+	var curStr, minStr, itemName, itemUnit string
 	if err := tx.QueryRow(ctx, `
 		SELECT COALESCE(current_stock,0)::text, COALESCE(minimum_stock,0)::text,
-		       unit_price::float8, COALESCE(is_active,true)
+		       unit_price::float8, COALESCE(is_active,true),
+		       name, COALESCE(unit,'')
 		FROM inventory_items WHERE id = $1 AND property_id = $2 FOR UPDATE`,
-		itemID, propertyID).Scan(&curStr, &minStr, &unitPrice, &isActive); err != nil {
+		itemID, propertyID).Scan(&curStr, &minStr, &unitPrice, &isActive,
+		&itemName, &itemUnit); err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, ErrNotFound
 		}
@@ -420,6 +428,9 @@ func (r *Repository) RecordMovement(ctx context.Context, propertyID, itemID, use
 		NewStock:      newStock.String(),
 		UnitPrice:     newUnitPrice,
 		BelowMinimum:  newStock.LessThanOrEqual(minimum),
+		ItemName:      itemName,
+		ItemUnit:      itemUnit,
+		MinimumStock:  minimum.String(),
 	}, nil
 }
 

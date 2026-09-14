@@ -965,9 +965,12 @@ if [ "$VUP" = "1" ] && [ -n "${MGR:-}" ] && [ -n "${TEN:-}" ]; then
   V1ID=$(echo "$V1" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
   [ -n "$V1ID" ] && ok "ziyaretçi ön kaydı oluşturuldu ve KALICI" || bad "ziyaretçi kaydı yok: $V1"
 
-  # Sahte "SMS/QR gönderildi" iddiası olmamalı
-  echo "$V1" | grep -q 'henüz devrede değildir' \
-    && ok "bildirim gönderilmediği dürüstçe bildiriliyor" || bad "bildirim durumu belirtilmemiş"
+  # ZİYARETÇİYE (site dışı kişiye) SMS/QR gönderildiği iddia EDİLMEMELİ:
+  # SMS sağlayıcısı yok ve site dışı numaraya ileti 6563 s. Kanun kapsamında
+  # ayrıca onay ister.
+  echo "$V1" | grep -q 'SMS/QR GÖNDERİLMEZ' \
+    && ok "ziyaretçiye SMS/QR gönderilmediği dürüstçe bildiriliyor" \
+    || bad "ziyaretçi bildirim durumu belirtilmemiş: $V1"
 
   # Kiracı kendi dairesine ziyaretçi kaydeder
   V2=$(curl -s -X POST "$VURL/visitors" -H "$VT" -H "$VJ" -d "{
@@ -993,8 +996,35 @@ if [ "$VUP" = "1" ] && [ -n "${MGR:-}" ] && [ -n "${TEN:-}" ]; then
     || ok "kimlik numarası sakine maskeli/gizli"
 
   # Giriş/çıkış akışı ve çift giriş koruması
+  CIN=$(curl -s -X POST "$VURL/visitors/$V1ID/check-in" -H "$VA" -H "$VJ" -d '{}')
+  echo "$CIN" | grep -q 'Ziyaretçi girişi kaydedildi' && ok "ziyaretçi girişi kaydedildi" \
+    || bad "giriş: $CIN"
+
+  # BİLDİRİM: giriş anında ilgili DAİRENİN sakinine haber verilmeli.
+  # Ölçü "yanıt bildirim diyor mu" değil, veritabanında KAYIT VAR MI.
+  echo "$CIN" | grep -q '"sent":1' \
+    && ok "ziyaretçi girişinde daireye bildirim OLUŞTURULDU" \
+    || bad "giriş bildirimi oluşmadı: $CIN"
+  VN=$(qscoped "SELECT count(*) FROM notifications
+    WHERE topic='visitor.checkin' AND payload->>'visitor_id'='$V1ID';")
+  [ "${VN:-0}" -ge 1 ] && ok "giriş bildirimi veritabanında ($VN kayıt)" \
+    || bad "giriş bildirimi veritabanında yok"
+  # Bildirim, dairenin sakinine gitmeli — herkese değil.
+  VNU=$(qscoped "SELECT count(*) FROM notifications n
+    WHERE n.topic='visitor.checkin' AND n.payload->>'visitor_id'='$V1ID'
+      AND NOT EXISTS (SELECT 1 FROM resident_units ru
+                       WHERE ru.resident_id = n.recipient_user_id
+                         AND ru.unit_id = '$MGRUNIT');")
+  [ "$VNU" = "0" ] && ok "giriş bildirimi yalnızca ilgili dairenin sakinine gitti" \
+    || bad "$VNU bildirim ilgisiz kişiye gitmiş"
+  # Kayıt, bildirim GERÇEKTEN oluştuğu için işaretlenmeli.
+  VMARK=$(qscoped "SELECT (resident_notified_at IS NOT NULL) || '/' || COALESCE(notification_method,'')
+    FROM visitors WHERE id='$V1ID';")
+  [ "$VMARK" = "t/IN_APP" ] || [ "$VMARK" = "true/IN_APP" ] \
+    && ok "ziyaretçi kaydına haber verildiği işlendi ($VMARK)" \
+    || bad "ziyaretçi kaydı işaretlenmemiş: $VMARK"
+
   SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$VURL/visitors/$V1ID/check-in" -H "$VA" -H "$VJ" -d '{}')
-  [ "$SC" = "200" ] && ok "ziyaretçi girişi kaydedildi" || bad "giriş → $SC"
   SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$VURL/visitors/$V1ID/check-in" -H "$VA" -H "$VJ" -d '{}')
   [ "$SC" = "409" ] && ok "çift giriş engellendi → 409" || bad "çift giriş → $SC"
 
@@ -1274,6 +1304,49 @@ if [ "$RUP" = "1" ] && [ -n "${MGR:-}" ] && [ -n "${TEN:-}" ]; then
   SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$RURL/reservations/$FAC/approve" -H "$RT" -H "$RJ" -d '{}')
   [ "$SC" = "403" ] && ok "sakin rezervasyon onaylayamıyor → 403" || bad "sakin onayladı → $SC"
 
+  # 14b) Onay/red kararı, rezervasyonu YAPAN sakine bildirilmeli.
+  #
+  #      Onay bekleyen bir kayıt gerekli. Testte oluşan rezervasyonlar
+  #      doğrudan onaylandığı için kaydın durumu SQL ile PENDING'e alınıyor;
+  #      karar ve bildirim akışı API üzerinden çalıştırılıyor. Kontrolü
+  #      "uygun kayıt yoksa atla" diye geçmek, bildirimin hiç çalışmadığı bir
+  #      durumu da sessizce GEÇMİŞ gösterirdi.
+  if [ -n "$MID" ]; then
+    $PSQL -c "UPDATE reservations SET status='PENDING', reviewed_by=NULL, reviewed_at=NULL
+      WHERE id='$MID';" >/dev/null 2>&1
+    APPR=$(curl -s -X POST "$RURL/reservations/$MID/approve" -H "$RA" -H "$RJ" -d '{}')
+    echo "$APPR" | grep -q 'Rezervasyon onaylandı' && ok "rezervasyon onaylandı" \
+      || bad "onay: $APPR"
+    echo "$APPR" | grep -q '"sent":1' \
+      && ok "onay kararı sakine bildirim olarak oluşturuldu" || bad "onay bildirimi yok: $APPR"
+    RN=$(qscoped "SELECT count(*) FROM notifications
+      WHERE topic='reservation.decision' AND payload->>'reservation_id'='$MID';")
+    [ "${RN:-0}" = "1" ] && ok "onay bildirimi veritabanında tek kayıt" \
+      || bad "onay bildirimi sayısı: $RN"
+    # Bildirim YALNIZCA rezervasyon sahibine gitmeli; havuzu kimin ne zaman
+    # kullandığı tüm siteye duyurulacak bir bilgi değildir.
+    RNW=$(qscoped "SELECT count(*) FROM notifications n
+      WHERE n.topic='reservation.decision' AND n.payload->>'reservation_id'='$MID'
+        AND n.recipient_user_id <> (SELECT resident_id FROM reservations WHERE id='$MID');")
+    [ "$RNW" = "0" ] && ok "onay bildirimi yalnızca rezervasyon sahibine gitti" \
+      || bad "$RNW bildirim ilgisiz kişiye gitmiş"
+
+    # Red gerekçesi bildirimin GÖVDESİNDE olmalı: sakin itiraz edebilmek için
+    # gerekçeyi görmelidir.
+    $PSQL -c "UPDATE reservations SET status='PENDING', reviewed_by=NULL, reviewed_at=NULL
+      WHERE id='$MID';" >/dev/null 2>&1
+    REJ=$(curl -s -X POST "$RURL/reservations/$MID/reject" -H "$RA" -H "$RJ" \
+      -d '{"reason":"Ayni saatte bakim var"}')
+    echo "$REJ" | grep -q 'Rezervasyon reddedildi' && ok "rezervasyon reddedildi" || bad "red: $REJ"
+    RBODY=$(qscoped "SELECT body FROM notifications
+      WHERE topic='reservation.decision' AND payload->>'status'='REJECTED'
+        AND payload->>'reservation_id'='$MID' LIMIT 1;")
+    echo "$RBODY" | grep -q 'Ayni saatte bakim var' \
+      && ok "red gerekçesi bildirim gövdesinde" || bad "red gerekçesi bildirimde yok: $RBODY"
+  else
+    bad "onay bekleyen rezervasyon hazırlanamadı — bildirim kontrolü çalıştırılamadı"
+  fi
+
   # 15) Kimliksiz erişim engelli
   SC=$(curl -s -o /dev/null -w '%{http_code}' "$RURL/facilities")
   [ "$SC" = "401" ] && ok "kimliksiz tesis listesi erişimi engellendi → 401" || bad "kimliksiz erişim → $SC"
@@ -1317,11 +1390,32 @@ if [ "$KUP2" = "1" ] && [ -n "${MGR:-}" ] && [ -n "${TEN:-}" ]; then
     [ "$DBC" = "1" ] && ok "kargo veritabanında (mock değil)" || bad "kayıt veritabanında yok"
   fi
 
-  # 2) Bildirim dürüstlüğü: gönderilmediği açıkça söylenmeli
-  echo "$P1" | grep -q '"notification_sent":false' \
-    && ok "bildirim gönderilmediği alan olarak bildiriliyor" || bad "notification_sent alanı yok"
-  echo "$P1" | grep -q 'OTOMATİK BİLDİRİM GÖNDERİLMEDİ' \
-    && ok "bildirim gönderilmediği dürüstçe açıklanıyor" || bad "bildirim iddiası dürüst değil: $P1"
+  # 2) BİLDİRİM: kargo kaydedilince ilgili dairenin sakinine haber verilmeli.
+  echo "$P1" | grep -q '"notification_sent":true' \
+    && ok "kargo bildirimi oluşturuldu ve alan olarak bildiriliyor" \
+    || bad "notification_sent true değil: $P1"
+  echo "$P1" | grep -q '"status":"NOTIFIED"' \
+    && ok "bildirim oluştuğu için kargo durumu NOTIFIED" || bad "durum NOTIFIED değil: $P1"
+  if [ -n "$P1ID" ]; then
+    PN=$(qscoped "SELECT count(*) FROM notifications
+      WHERE topic='package.received' AND payload->>'package_id'='$P1ID';")
+    [ "${PN:-0}" -ge 1 ] && ok "kargo bildirimi veritabanında ($PN kayıt)" \
+      || bad "kargo bildirimi veritabanında yok"
+    # KİŞİSEL VERİ: gövdede gönderici/içerik YAZMAMALI (kilit ekranında görünür).
+    PBODY=$(qscoped "SELECT body FROM notifications
+      WHERE topic='package.received' AND payload->>'package_id'='$P1ID' LIMIT 1;")
+    echo "$PBODY" | grep -qi 'AR123456' \
+      && bad "kargo bildiriminde takip numarası sızdı: $PBODY" \
+      || ok "kargo bildirimi içerik/takip bilgisi taşımıyor"
+    # Yalnızca ilgili dairenin sakinine gitmeli.
+    PNU=$(qscoped "SELECT count(*) FROM notifications n
+      WHERE n.topic='package.received' AND n.payload->>'package_id'='$P1ID'
+        AND NOT EXISTS (SELECT 1 FROM resident_units ru
+                         WHERE ru.resident_id = n.recipient_user_id
+                           AND ru.unit_id = '$UNIT_MGR');")
+    [ "$PNU" = "0" ] && ok "kargo bildirimi yalnızca ilgili daireye gitti" \
+      || bad "$PNU kargo bildirimi ilgisiz kişiye gitmiş"
+  fi
 
   # 3) Başka sitenin bağımsız bölümüne kargo kaydedilemez
   SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$PURL/packages" -H "$PA" -H "$PJ" \
@@ -1358,11 +1452,14 @@ if [ "$KUP2" = "1" ] && [ -n "${MGR:-}" ] && [ -n "${TEN:-}" ]; then
     N1=$(curl -s -X POST "$PURL/packages/$P1ID/notify" -H "$PA" -H "$PJ" -d '{"method":"PHONE"}')
     echo "$N1" | grep -q '"status":"NOTIFIED"' && ok "haber verildi kaydı işlendi" || bad "notify: $N1"
     echo "$N1" | grep -q 'SMS/push bildirim GÖNDERMEZ' \
-      && ok "sistemin bildirim göndermediği açıkça yazılıyor" || bad "notify dürüstlük notu yok"
+      && ok "elle haber verme kaydının SMS/push göndermediği açıkça yazılıyor" \
+      || bad "notify dürüstlük notu yok"
 
     # İkinci haber verme hatırlatma sayacını artırmalı
+    # Kayıt zaten uygulama içi bildirimle NOTIFIED olduğundan, elle yapılan
+    # her haber verme bir HATIRLATMA sayılır: ilki 1, ikincisi 2.
     N2=$(curl -s -X POST "$PURL/packages/$P1ID/notify" -H "$PA" -H "$PJ" -d '{"method":"DOORBELL"}')
-    echo "$N2" | grep -q '"reminder_count":1' && ok "hatırlatma sayacı artıyor" || bad "sayaç: $N2"
+    echo "$N2" | grep -q '"reminder_count":2' && ok "hatırlatma sayacı artıyor" || bad "sayaç: $N2"
   fi
 
   # 8) Teslim — kime teslim edildiği zorunlu
@@ -2117,8 +2214,20 @@ if [ "$IUP" = "1" ] && [ -n "${MGR:-}" ] && [ -n "${TEN:-}" ]; then
       -d '{"movement_type":"OUT","quantity":"60","reference_type":"USAGE"}')
     echo "$M5" | grep -q '"below_minimum":true' && ok "asgari seviyenin altına düşüş bildiriliyor" \
       || bad "asgari seviye uyarısı yok: $M5"
-    echo "$M5" | grep -q 'BİLDİRİM OLARAK GÖNDERİLMEDİ' \
-      && ok "uyarının bildirim olarak gönderilmediği dürüstçe söyleniyor" || bad "bildirim dürüstlük notu yok"
+    # BİLDİRİM: asgari seviye uyarısı YÖNETİME gider, sakinlere değil.
+    echo "$M5" | grep -q '"notification"' \
+      && ok "asgari seviye uyarısı bildirim olarak raporlanıyor" || bad "bildirim raporu yok: $M5"
+    LN=$(qscoped "SELECT count(*) FROM notifications WHERE topic='inventory.low_stock';")
+    [ "${LN:-0}" -ge 1 ] && ok "stok uyarısı bildirimi veritabanında ($LN kayıt)" \
+      || bad "stok uyarısı bildirimi yok"
+    # Sakinlere GİTMEMELİ: depo stoğu sakinleri ilgilendirmez.
+    LNR=$(qscoped "SELECT count(*) FROM notifications n
+      WHERE n.topic='inventory.low_stock'
+        AND NOT EXISTS (SELECT 1 FROM property_roles pr
+                         WHERE pr.user_id = n.recipient_user_id
+                           AND pr.property_id = '$DEMO_PROPERTY' AND pr.is_active);")
+    [ "$LNR" = "0" ] && ok "stok uyarısı yalnızca yönetim rollerine gitti" \
+      || bad "$LNR stok uyarısı sakine gitmiş"
     LOW=$(curl -s "$IURL/inventory?below_minimum=true" -H "$IA")
     echo "$LOW" | grep -q 'Camasir suyu' && ok "asgari seviye altı süzgeci çalışıyor" || bad "süzgeç: $LOW"
   fi
@@ -2224,8 +2333,33 @@ if [ "$SUP" = "1" ] && [ -n "${MGR:-}" ] && [ -n "${TEN:-}" ]; then
     [ "$SC" = "409" ] && ok "yayınlanmamış ankete oy verilemiyor → 409" || bad "taslağa oy verildi → $SC"
 
     # 5) Yayına al
-    SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$SURL/surveys/$S1ID/publish" -H "$SA" -H "$SJ" -d '{}')
+    #    Yanıt gövdesi de saklanır: bildirim sonucu oradan okunur. İkinci bir
+    #    publish çağrısı yapmak yanlış olurdu — anket artık taslak değildir.
+    PUBOUT=$(curl -s -w '\n%{http_code}' -X POST "$SURL/surveys/$S1ID/publish" -H "$SA" -H "$SJ" -d '{}')
+    SC=$(echo "$PUBOUT" | tail -1)
+    PUBRES=$(echo "$PUBOUT" | head -n -1)
     [ "$SC" = "200" ] && ok "anket yayına alındı" || bad "yayınlama → $SC"
+
+    # BİLDİRİM: anket yayına alınınca sakinlere haber verilmeli.
+    # Ölçü, yanıttaki metin değil, veritabanındaki KAYITTIR.
+    echo "$PUBRES" | grep -q '"sent":' \
+      && ok "anket yayınında bildirim sonucu raporlanıyor" || bad "bildirim raporu yok: $PUBRES"
+    SN=$(qscoped "SELECT count(*) FROM notifications
+      WHERE topic='survey.published' AND payload->>'survey_id'='$S1ID';")
+    [ "${SN:-0}" -ge 1 ] && ok "anket bildirimi veritabanında ($SN kayıt)" \
+      || bad "anket bildirimi veritabanında yok"
+    # KANUNİ SINIR: anket bildirimi genel kurul ÇAĞRISI olarak işaretlenmemeli
+    # (634 s. KMK m.29 çağrıyı taahhütlü mektup/imza karşılığına bağlar).
+    SGA=$(qscoped "SELECT count(*) FROM notifications
+      WHERE topic='assembly.call' AND payload->>'survey_id'='$S1ID';")
+    [ "$SGA" = "0" ] && ok "anket bildirimi genel kurul çağrısı olarak işaretlenmiyor" \
+      || bad "anket bildirimi çağrı gibi işaretlenmiş"
+    # Gövdede, sonucun karar yerine geçmediği uyarısı bulunmalı.
+    SBODY=$(qscoped "SELECT body FROM notifications
+      WHERE topic='survey.published' AND payload->>'survey_id'='$S1ID' LIMIT 1;")
+    echo "$SBODY" | grep -q 'GENEL KURUL KARARI DEĞİLDİR' \
+      && ok "anket bildiriminin gövdesinde kanuni uyarı var" \
+      || bad "anket bildiriminde kanuni uyarı yok: $SBODY"
 
     # 6) Oy verme — sonuç OYLARDAN hesaplanmalı
     V1=$(curl -s -X POST "$SURL/surveys/$S1ID/vote" -H "$ST_" -H "$SJ" \
@@ -2927,6 +3061,21 @@ if [ "$CUP" = "1" ] && [ "$BUP" = "1" ] && [ -n "${MGR:-}" ] && [ -n "${TEN:-}" 
     "category":"MAINTENANCE","priority":"HIGH","is_pinned":true}')
   A1ID=$(echo "$A1" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
   [ -n "$A1ID" ] && ok "duyuru yayımlandı ve KALICI" || bad "duyuru: $A1"
+  # BİLDİRİM: duyuru yayımlanınca sakinlere uygulama içi bildirim düşmeli.
+  echo "$A1" | grep -q '"sent":' \
+    && ok "duyuru bildirimi sonucu raporlanıyor" || bad "duyuru bildirim raporu yok: $A1"
+  AN=$(qscoped "SELECT count(*) FROM notifications
+    WHERE topic='announcement' AND payload->>'announcement_id'='$A1ID';")
+  [ "${AN:-0}" -ge 1 ] && ok "duyuru bildirimi veritabanında ($AN kayıt)" \
+    || bad "duyuru bildirimi veritabanında yok"
+  # Aynı kişiye iki kez düşmemeli: iki daireli malik duyuruyu iki kez almaz.
+  ADUP=$(qscoped "SELECT count(*) FROM (
+    SELECT recipient_user_id FROM notifications
+    WHERE topic='announcement' AND payload->>'announcement_id'='$A1ID'
+    GROUP BY recipient_user_id HAVING count(*) > 1) d;")
+  [ "$ADUP" = "0" ] && ok "duyuru bildirimi kişi başına tek kayıt" \
+    || bad "$ADUP kişiye duyuru birden çok kez gitti"
+
   DBA=$($PSQL -t -A -c "SELECT count(*) FROM announcements WHERE id='$A1ID';")
   [ "$DBA" = "1" ] && ok "duyuru veritabanında (mock değil)" || bad "kayıt yok"
 

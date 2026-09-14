@@ -18,8 +18,10 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/siteeksen/backend/pkg/database"
 	"github.com/siteeksen/backend/pkg/middleware"
+	"github.com/siteeksen/backend/pkg/notify"
 	"github.com/siteeksen/backend/services/visitor/models"
 	"github.com/siteeksen/backend/services/visitor/repository"
 )
@@ -33,6 +35,8 @@ func main() {
 	defer database.Close()
 
 	repo := repository.New(pool)
+
+	notifier := notify.FromEnvOrNil(pool)
 
 	r := gin.Default()
 	r.GET("/health", func(c *gin.Context) {
@@ -115,9 +119,12 @@ func main() {
 		c.JSON(http.StatusCreated, gin.H{
 			"id":     id,
 			"status": models.StatusExpected,
-			// Bildirim altyapısı henüz yok; kullanıcıya SMS/QR gönderildiği İDDİA EDİLMEZ.
-			"note": "Kayıt oluşturuldu. Ziyaretçiye otomatik bildirim (SMS/QR) gönderimi " +
-				"henüz devrede değildir; görevliye bilgi veriniz.",
+			// ZİYARETÇİYE (site dışı kişiye) SMS/QR gönderimi yoktur: SMS
+			// sağlayıcısı sözleşmesi bulunmuyor ve site dışı bir numaraya
+			// ileti göndermek 6563 s. Kanun kapsamında ayrıca onay ister.
+			// SAKİNE haber verme, ziyaretçi giriş yaptığında yapılır.
+			"note": "Kayıt oluşturuldu. Ziyaretçiye SMS/QR GÖNDERİLMEZ. Ziyaretçi " +
+				"giriş yaptığında ilgili daireye uygulama içi bildirim düşer.",
 		})
 	})
 
@@ -127,13 +134,16 @@ func main() {
 		middleware.RoleManager, middleware.RoleBoardMember, middleware.RoleStaff))
 	{
 		guard.POST("/visitors/:id/check-in", func(c *gin.Context) {
-			err := repo.CheckIn(c.Request.Context(), c.GetString("property_id"),
+			info, err := repo.CheckIn(c.Request.Context(), c.GetString("property_id"),
 				c.Param("id"), c.GetString("user_id"))
 			if err != nil {
 				mapStateError(c, err)
 				return
 			}
-			c.JSON(http.StatusOK, gin.H{"message": "Ziyaretçi girişi kaydedildi"})
+			c.JSON(http.StatusOK, gin.H{
+				"message":      "Ziyaretçi girişi kaydedildi",
+				"notification": notifyCheckIn(c, notifier, repo, pool, info),
+			})
 		})
 		guard.POST("/visitors/:id/check-out", func(c *gin.Context) {
 			err := repo.CheckOut(c.Request.Context(), c.GetString("property_id"),
@@ -204,4 +214,68 @@ func mapStateError(c *gin.Context, err error) {
 		log.Printf("[visitor] durum değişikliği başarısız: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "İşlem tamamlanamadı"})
 	}
+}
+
+// notifyCheckIn, ziyaretçi giriş yaptığında ilgili daireye haber verir.
+//
+// Neden giriş anında: sakinin bilmesi gereken an, ziyaretçinin KAPIDA
+// olduğu andır. Kayıt açıldığında haber vermek (ziyaret saatler sonra
+// olabilir) ne güvenlik ne de kolaylık sağlar.
+//
+// Neden dairenin TÜM sakinleri: kaydı güvenlik görevlisi açmış olabilir;
+// yalnızca kaydı açana haber vermek, asıl ziyaret edilen kişiyi atlardı.
+// Daire bilgisi yoksa (yönetim ofisi ziyareti) kaydı açan kişiye düşer.
+func notifyCheckIn(c *gin.Context, n *notify.Notifier, repo *repository.Repository,
+	pool *pgxpool.Pool, info *repository.CheckInInfo) *notify.BroadcastResult {
+	if n == nil {
+		return &notify.BroadcastResult{
+			Note: "Bildirim altyapısı kurulu değil; bildirim oluşturulmadı."}
+	}
+	if info == nil {
+		return &notify.BroadcastResult{Note: "Ziyaretçi bilgisi çözülemedi; bildirim oluşturulmadı."}
+	}
+
+	propertyID := c.GetString("property_id")
+	var recipients []notify.Recipient
+	if info.UnitID != "" {
+		rs, err := notify.UnitResidents(c.Request.Context(), pool, propertyID, info.UnitID)
+		if err != nil {
+			log.Printf("[visitor] daire sakinleri alınamadı: %v", err)
+			return &notify.BroadcastResult{
+				Note: "Daire sakinleri okunamadı; bildirim oluşturulmadı. Giriş kaydedildi."}
+		}
+		recipients = rs
+	}
+	if len(recipients) == 0 && info.CreatedBy != "" {
+		recipients = []notify.Recipient{{UserID: info.CreatedBy}}
+	}
+
+	who := info.VisitorName
+	if info.Company != "" {
+		who += " (" + info.Company + ")"
+	}
+
+	res := n.Broadcast(c.Request.Context(), notify.Message{
+		PropertyID: propertyID,
+		Channel:    notify.ChannelInApp,
+		Category:   notify.CategoryTransactional,
+		Topic:      "visitor.checkin",
+		Subject:    "Ziyaretçiniz giriş yaptı",
+		Body:       who + " adlı ziyaretçi siteye giriş yaptı.",
+		Payload: map[string]any{
+			"visitor_id": c.Param("id"),
+			"unit_id":    info.UnitID,
+		},
+		DedupeKey: "visitor.checkin:" + c.Param("id"),
+		CreatedBy: c.GetString("user_id"),
+	}, recipients)
+
+	if res.Sent > 0 {
+		if err := repo.MarkResidentNotified(c.Request.Context(), propertyID,
+			c.Param("id"), "IN_APP"); err != nil {
+			log.Printf("[visitor] bildirim oluştu fakat kayıt işaretlenemedi: %v", err)
+			res.Note += " (Uyarı: bildirim oluşturuldu fakat ziyaretçi kaydına işlenemedi.)"
+		}
+	}
+	return res
 }

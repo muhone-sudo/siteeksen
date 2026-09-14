@@ -7,8 +7,10 @@ import (
 	"os"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/siteeksen/backend/pkg/database"
 	"github.com/siteeksen/backend/pkg/middleware"
+	"github.com/siteeksen/backend/pkg/notify"
 	"github.com/siteeksen/backend/services/community/handlers"
 	"github.com/siteeksen/backend/services/community/repository"
 	"github.com/siteeksen/backend/services/community/service"
@@ -26,6 +28,13 @@ func main() {
 	requestRepo := repository.NewRequestRepository(pool)
 	requestService := service.NewRequestService(requestRepo)
 	announcementRepo := repository.NewAnnouncementRepository(pool)
+
+	// Bildirim: duyuru yayımlandığında sakinlere uygulama içi bildirim
+	// düşer. Uygulama içi kanalın sağlayıcısı her zaman etkindir (kayıt
+	// zaten veritabanındadır), bu yüzden burada "gönderildi" demek
+	// gerçeği yansıtır. SMS/e-posta sağlayıcısı yoksa o kanallar
+	// kullanılmaz — sahte bir gönderim iddiası üretilmez.
+	notifier := notify.FromEnvOrNil(pool)
 
 	r := gin.Default()
 
@@ -117,11 +126,12 @@ func main() {
 				failAnnouncement(c, err, "oluşturma")
 				return
 			}
-			c.JSON(http.StatusCreated, gin.H{
-				"id": id,
-				"note": "Duyuru yayımlandı. Sakinlere BİLDİRİM GÖNDERİLMEDİ; bildirim " +
-					"istenirse notification servisinden ayrıca kuyruğa alınmalıdır.",
-			})
+			// Duyuru YAYIMLANDI. Bildirim ikincil bir iştir: başarısız
+			// olursa duyuru geri alınmaz, ama sonucu gizlenmez de.
+			// Yöneticinin "sakinlere ulaştı mı?" sorusunun cevabı yanıtta yazar.
+			propertyID := c.GetString("property_id")
+			notice := notifyAnnouncement(c, notifier, pool, propertyID, id, in)
+			c.JSON(http.StatusCreated, gin.H{"id": id, "notification": notice})
 		})
 
 		annWrite.POST("/:id/pin", func(c *gin.Context) {
@@ -227,4 +237,47 @@ func failAnnouncement(c *gin.Context, err error, op string) {
 		log.Printf("[community/announcement] %s başarısız: %v", op, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "İşlem tamamlanamadı"})
 	}
+}
+
+// notifyAnnouncement, yayımlanan duyuruyu sitenin aktif sakinlerine
+// uygulama içi bildirim olarak kuyruğa alır.
+//
+// Neden yanıtın içinde raporlanıyor: bildirimi sessizce denemek, "duyuru
+// yayımlandı" yazıp kimseye ulaşmamak demektir. Yönetici, kaç kişiye
+// ulaşıldığını ve ulaşılamayanların NEDEN ulaşılamadığını görmelidir.
+//
+// Neden duyuru geri alınmıyor: duyurunun kendisi kalıcı kayıttır ve panoda
+// görünür. Bildirim gönderilemedi diye duyuruyu silmek, asıl işi ikincil
+// işin başarısına bağlamak olurdu.
+func notifyAnnouncement(c *gin.Context, n *notify.Notifier, pool *pgxpool.Pool,
+	propertyID, announcementID string, in repository.CreateAnnouncementInput) *notify.BroadcastResult {
+	if n == nil {
+		return &notify.BroadcastResult{
+			Note: "Bildirim altyapısı kurulu değil; hiçbir bildirim oluşturulmadı."}
+	}
+
+	recipients, err := notify.Residents(c.Request.Context(), pool, propertyID)
+	if err != nil {
+		// Hata YUTULMAZ: yönetici duyurunun sessiz kaldığını bilmelidir.
+		log.Printf("[community] duyuru bildirimi alıcı listesi alınamadı: %v", err)
+		return &notify.BroadcastResult{
+			Note: "Alıcı listesi okunamadı; bildirim oluşturulmadı. Duyuru panoda yayımlandı."}
+	}
+
+	return n.Broadcast(c.Request.Context(), notify.Message{
+		PropertyID: propertyID,
+		Channel:    notify.ChannelInApp,
+		Category:   notify.CategoryTransactional,
+		Topic:      "announcement",
+		Subject:    in.Title,
+		Body:       in.Content,
+		Payload: map[string]any{
+			"announcement_id": announcementID,
+			"category":        in.Category,
+			"priority":        in.Priority,
+		},
+		// Aynı duyuru iki kez bildirime dönüşmesin.
+		DedupeKey: "announcement:" + announcementID,
+		CreatedBy: c.GetString("user_id"),
+	}, recipients)
 }

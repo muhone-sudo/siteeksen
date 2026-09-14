@@ -126,20 +126,53 @@ func (r *Repository) Create(ctx context.Context, propertyID, userID string, in m
 // Yalnızca EXPECTED durumundaki kayıt giriş yapabilir; çift giriş engellenir.
 // Aksi hâlde aynı ziyaretçi "içeride" iki kez sayılır ve mevcut ziyaretçi
 // listesi güvenilmez hâle gelir.
-func (r *Repository) CheckIn(ctx context.Context, propertyID, id, userID string) error {
-	tag, err := r.scope(propertyID).Exec(ctx, `
+func (r *Repository) CheckIn(ctx context.Context, propertyID, id, userID string) (*CheckInInfo, error) {
+	// Giriş kaydı ile bildirim için gereken bilgiyi TEK sorguda alıyoruz.
+	// Ayrı bir SELECT, aradaki sürede kaydın değişmesi hâlinde artık
+	// geçerli olmayan bir duruma göre bildirim üretirdi.
+	var info CheckInInfo
+	err := r.scope(propertyID).QueryRow(ctx, `
 		UPDATE visitors
 		SET status = 'CHECKED_IN', checked_in_at = now(),
 		    checked_in_by = NULLIF($3,'')::uuid, updated_at = now()
-		WHERE id = $1 AND property_id = $2 AND status = 'EXPECTED'`,
-		id, propertyID, userID)
+		WHERE id = $1 AND property_id = $2 AND status = 'EXPECTED'
+		RETURNING visitor_name, COALESCE(unit_id::text,''), COALESCE(created_by::text,''),
+		          COALESCE(visitor_company,'')`,
+		id, propertyID, userID).Scan(
+		&info.VisitorName, &info.UnitID, &info.CreatedBy, &info.Company)
+	if err == pgx.ErrNoRows {
+		return nil, ErrBadState
+	}
 	if err != nil {
-		return err
+		return nil, err
 	}
-	if tag.RowsAffected() == 0 {
-		return ErrBadState
-	}
-	return nil
+	return &info, nil
+}
+
+// CheckInInfo, giriş sonrası bildirim üretmek için gereken en az bilgidir.
+//
+// CreatedBy bilerek taşınır: ziyaretçi bir bağımsız bölüme bağlı değilse
+// (ör. yönetim ofisine gelen ziyaretçi) haber verilecek tek kişi, kaydı
+// açan kişidir. Bu alan olmasaydı o durumda kimseye haber verilemezdi.
+type CheckInInfo struct {
+	VisitorName string
+	UnitID      string
+	CreatedBy   string
+	Company     string
+}
+
+// MarkResidentNotified, sakine haber verildiğini kayda geçirir.
+//
+// Yalnızca bildirim GERÇEKTEN oluşturulduğunda çağrılır. Bu alanı bildirim
+// üretilmeden doldurmak, ziyaretçi kaydını sonradan "sakinin haberi vardı"
+// diyen yanıltıcı bir belgeye dönüştürürdü.
+func (r *Repository) MarkResidentNotified(ctx context.Context, propertyID, id, method string) error {
+	_, err := r.scope(propertyID).Exec(ctx, `
+		UPDATE visitors
+		SET resident_notified_at = COALESCE(resident_notified_at, now()),
+		    notification_method = $3, updated_at = now()
+		WHERE id = $1 AND property_id = $2`, id, propertyID, method)
+	return err
 }
 
 // CheckOut, ziyaretçinin çıkışını kaydeder.
