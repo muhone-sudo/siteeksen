@@ -3981,7 +3981,7 @@ SLICE1=$($PSQL -t -A -c "SELECT count(*) FROM rls_enabled_tables
 [ "$SLICE1" = "7" ] && ok "RLS birinci diliminin 7 tablosunun tamamı açık" \
   || bad "birinci dilimde eksik tablo var: $SLICE1/7"
 
-step "33) Satır düzeyi güvenlik (RLS) — ikinci dilim (FAZ 2.6 devamı)"
+step "33) Satır düzeyi güvenlik (RLS) — ikinci ve üçüncü dilim (FAZ 2.6 devamı)"
 # İkinci dilim, yine TEK SERVİSİN kullandığı tabloları kapsar: otopark,
 # ziyaretçi, stok, demirbaş, devriye, ilan panosu ve anket.
 #
@@ -3995,7 +3995,8 @@ SLICE2_TABLES="vehicles parking_zones parking_logs visitors
   asset_categories assets asset_maintenance
   patrol_checkpoints patrol_routes patrol_logs
   bulletin_posts bulletin_comments bulletin_messages
-  surveys survey_options survey_votes"
+  surveys survey_options survey_votes
+  facilities reservations packages contracts"
 
 # 1) Her tabloda RLS açık VE zorlanıyor olmalı (FORCE olmadan sahip atlar)
 S2MISS=0
@@ -4007,8 +4008,8 @@ for T in $SLICE2_TABLES; do
     *) S2MISS=$((S2MISS+1)); echo "     eksik: $T ($ROW)" ;;
   esac
 done
-[ "$S2MISS" = "0" ] && ok "ikinci dilimin 19 tablosunda RLS açık, zorlanıyor ve politikası var" \
-  || bad "$S2MISS tabloda RLS eksik"
+[ "$S2MISS" = "0" ] && ok "ikinci+üçüncü dilimin 23 tablosunda RLS açık, zorlanıyor ve politikası var" \
+  || bad "$S2MISS tabloda RLS eksik (ikinci+üçüncü dilim)"
 
 # 2) KAPSAM AYARLANMADAN hiçbir SİTE VERİSİ dönmemeli — asıl kontrol.
 #
@@ -4026,7 +4027,7 @@ for T in $SLICE2_TABLES; do
   esac
   [ "$N" = "0" ] || { S2LEAK=$((S2LEAK+1)); echo "     sızdırdı: $T -> $N satır"; }
 done
-[ "$S2LEAK" = "0" ] && ok "kapsamsız sorgu 19 tablonun hiçbirinden SİTE VERİSİ döndürmüyor" \
+[ "$S2LEAK" = "0" ] && ok "kapsamsız sorgu 23 tablonun hiçbirinden SİTE VERİSİ döndürmüyor" \
   || bad "$S2LEAK tablo kapsamsız sorguda site verisi döndürdü"
 
 # 2b) Ortak satır sayısı TOHUM VERİSİYLE birebir aynı olmalı.
@@ -4054,7 +4055,7 @@ for T in $SLICE2_TABLES; do
   N=$(qscoped "SELECT count(*) FROM $T;" "$OTHERPROP")
   [ "$N" = "0" ] || { S2CROSS=$((S2CROSS+1)); echo "     çapraz sızıntı: $T -> $N"; }
 done
-[ "$S2CROSS" = "0" ] && ok "başka sitenin kapsamında 17 tablonun hiçbiri satır göstermiyor" \
+[ "$S2CROSS" = "0" ] && ok "başka sitenin kapsamında 21 tablonun hiçbiri satır göstermiyor" \
   || bad "$S2CROSS tabloda çapraz site erişimi var"
 
 # 3b) Kategori tabloları: ORTAK satırlar her sitede görünmeli, SİTEYE ÖZEL
@@ -4087,7 +4088,8 @@ fi
 #    Görünmezlerse RLS veriyi yalnızca gizlemiyor, uygulamayı da bozuyor demektir.
 for T in vehicles visitors inventory_items inventory_movements assets \
          patrol_checkpoints patrol_routes patrol_logs bulletin_posts \
-         surveys survey_options survey_votes; do
+         surveys survey_options survey_votes \
+         facilities reservations packages contracts; do
   N=$(qscoped "SELECT count(*) FROM $T;")
   [ "${N:-0}" -ge 1 ] && ok "doğru kapsamda $T görünüyor ($N satır)" \
     || bad "doğru kapsamda $T BOŞ — RLS uygulamayı bozdu"
@@ -4147,8 +4149,18 @@ done
 
 # 10) Toplam durum — dürüstçe raporlanır
 RLSCOUNT=$($PSQL -t -A -c "SELECT count(*) FROM rls_enabled_tables;")
-[ "$RLSCOUNT" = "26" ] && ok "RLS toplam 26 tabloda açık (7 birinci + 19 ikinci dilim)" \
-  || bad "beklenmedik RLS tablo sayısı: $RLSCOUNT (beklenen 26)"
+[ "$RLSCOUNT" = "30" ] && ok "RLS toplam 30 tabloda açık (7 + 19 + 4 dilim)" \
+  || bad "beklenmedik RLS tablo sayısı: $RLSCOUNT (beklenen 30)"
+
+# 10b) DİLİME ALINMAYANLAR: çok servisli tablolar HÂLÂ kapalı olmalı.
+#      Bunları yanlışlıkla açmak, henüz kapsamlı sorguya geçmemiş
+#      finance-service'i sessizce boş veriye düşürürdü — aidat ve ısı payı
+#      hesapları "sıfır" dönerdi ve bu, hata vermeden yanlış sonuç üretmektir.
+for T in expense_categories meters meter_readings units properties; do
+  N=$($PSQL -t -A -c "SELECT count(*) FROM rls_enabled_tables WHERE table_name='$T';")
+  [ "$N" = "0" ] && ok "$T bilerek RLS dışında (çok servisli; finance henüz geçmedi)" \
+    || bad "$T erken açılmış — çok servisli tabloya RLS açmak uygulamayı bozar"
+done
 NOTRLS=$($PSQL -t -A -c "SELECT count(*) FROM information_schema.tables t
   WHERE t.table_schema='public' AND t.table_type='BASE TABLE'
     AND t.table_name NOT IN (SELECT table_name FROM rls_enabled_tables);")

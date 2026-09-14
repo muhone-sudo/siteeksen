@@ -9,6 +9,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/siteeksen/backend/pkg/dbscope"
 )
 
 var (
@@ -108,7 +110,7 @@ func scanContract(row pgx.Row) (*Contract, error) {
 //
 //	expiringDays > 0 ise yalnızca o kadar gün içinde bitecek AKTİF sözleşmeler döner.
 func (r *Repository) List(ctx context.Context, propertyID, contractType, status string, expiringDays int) ([]Contract, error) {
-	rows, err := r.pool.Query(ctx, contractSelect+`
+	rows, err := r.scope(propertyID).Query(ctx, contractSelect+`
 		WHERE property_id = $1
 		  AND ($2 = '' OR contract_type = $2)
 		  AND ($3 = '' OR status = $3)
@@ -134,7 +136,7 @@ func (r *Repository) List(ctx context.Context, propertyID, contractType, status 
 
 // Get, tek sözleşmeyi getirir.
 func (r *Repository) Get(ctx context.Context, propertyID, id string) (*Contract, error) {
-	c, err := scanContract(r.pool.QueryRow(ctx,
+	c, err := scanContract(r.scope(propertyID).QueryRow(ctx,
 		contractSelect+` WHERE property_id = $1 AND id = $2`, propertyID, id))
 	if err == pgx.ErrNoRows {
 		return nil, ErrNotFound
@@ -211,7 +213,7 @@ func (r *Repository) Create(ctx context.Context, propertyID, createdBy string, i
 	}
 
 	var id string
-	err = r.pool.QueryRow(ctx, `
+	err = r.scope(propertyID).QueryRow(ctx, `
 		INSERT INTO contracts
 			(property_id, contract_type, title, description, contract_number,
 			 party_name, party_type, party_tax_id, party_address, party_phone,
@@ -243,7 +245,7 @@ func (r *Repository) Create(ctx context.Context, propertyID, createdBy string, i
 // Uzatma, mevcut bitiş tarihine yenileme süresi eklenerek yapılır — "bugünden
 // itibaren" uzatmak, arada geçen süreyi sözleşmesiz bırakır ve dönem takibini bozar.
 func (r *Repository) Renew(ctx context.Context, propertyID, id string) (*Contract, error) {
-	tx, err := r.pool.Begin(ctx)
+	tx, err := r.scope(propertyID).Begin(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -302,7 +304,7 @@ func (r *Repository) Renew(ctx context.Context, propertyID, id string) (*Contrac
 
 // Terminate, sözleşmeyi fesheder. Gerekçe zorunludur.
 func (r *Repository) Terminate(ctx context.Context, propertyID, id, reason string) error {
-	tag, err := r.pool.Exec(ctx, `
+	tag, err := r.scope(propertyID).Exec(ctx, `
 		UPDATE contracts
 		SET status = 'TERMINATED', termination_reason = $3,
 		    terminated_at = CURRENT_DATE, updated_at = now()
@@ -324,7 +326,7 @@ func (r *Repository) Terminate(ctx context.Context, propertyID, id, reason strin
 // dolmaz, yenilenir. Yenilemeyi sistemin kendiliğinden yapması, sitenin haberi
 // olmadan mali yükümlülük doğurur; bu yüzden yenileme elle onaylanır.
 func (r *Repository) ExpireDue(ctx context.Context, propertyID string) (int64, error) {
-	tag, err := r.pool.Exec(ctx, `
+	tag, err := r.scope(propertyID).Exec(ctx, `
 		UPDATE contracts
 		SET status = 'EXPIRED', updated_at = now()
 		WHERE property_id = $1 AND status = 'ACTIVE'
@@ -355,7 +357,7 @@ type Summary struct {
 // gider tahmininin bilinen kısmını oluşturur.
 func (r *Repository) Summary(ctx context.Context, propertyID string) (*Summary, error) {
 	var s Summary
-	err := r.pool.QueryRow(ctx, `
+	err := r.scope(propertyID).QueryRow(ctx, `
 		SELECT
 		  count(*) FILTER (WHERE status = 'ACTIVE'),
 		  count(*) FILTER (WHERE status = 'EXPIRED'),
@@ -406,4 +408,15 @@ func parseOptionalDate(s string) (*time.Time, error) {
 		return nil, err
 	}
 	return &t, nil
+}
+
+// scope, veritabanı erişimini SİTE KAPSAMINA bağlar (FAZ 2.6).
+//
+// contracts tablolarında RLS açıktır (migration 022).
+//
+// Kapsam, PostgreSQL satır düzeyi güvenliği tarafından okunur: sorguda
+// `WHERE property_id` filtresi unutulsa bile başka sitenin satırları DÖNMEZ.
+// Bu, uygulama katmanındaki filtrenin yerine geçmez — onu YEDEKLER.
+func (r *Repository) scope(propertyID string) *dbscope.Scoped {
+	return dbscope.For(r.pool, propertyID)
 }

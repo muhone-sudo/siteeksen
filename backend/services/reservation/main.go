@@ -188,7 +188,7 @@ func main() {
 
 		// Haftalık kota — tesis ayarı (max_reservations_per_unit) bağımsız bölüm başınadır.
 		if f.MaxReservationsPerUnit > 0 {
-			n, cerr := repo.WeeklyCount(c.Request.Context(), f.ID, unitID, start)
+			n, cerr := repo.WeeklyCount(c.Request.Context(), c.GetString("property_id"), f.ID, unitID, start)
 			if cerr != nil {
 				fail(c, cerr, "kota denetimi")
 				return

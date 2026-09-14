@@ -8,6 +8,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/siteeksen/backend/pkg/dbscope"
 )
 
 var (
@@ -77,7 +79,7 @@ func New(pool *pgxpool.Pool) *Repository { return &Repository{pool: pool} }
 
 // ListFacilities, sitedeki tesisleri getirir.
 func (r *Repository) ListFacilities(ctx context.Context, propertyID string) ([]Facility, error) {
-	rows, err := r.pool.Query(ctx, `
+	rows, err := r.scope(propertyID).Query(ctx, `
 		SELECT id, name, COALESCE(description,''), COALESCE(category,''), capacity,
 		       COALESCE(is_paid,false), hourly_fee::float8, daily_fee::float8, deposit_amount::float8,
 		       to_char(COALESCE(available_from, TIME '08:00'), 'HH24:MI'),
@@ -128,7 +130,7 @@ func (r *Repository) GetFacility(ctx context.Context, propertyID, id string) (*F
 // ResidentUnit, kullanıcının bu sitedeki aktif bağımsız bölümünü verir.
 func (r *Repository) ResidentUnit(ctx context.Context, propertyID, userID string) (string, error) {
 	var unitID string
-	err := r.pool.QueryRow(ctx, `
+	err := r.scope(propertyID).QueryRow(ctx, `
 		SELECT ru.unit_id::text
 		FROM resident_units ru
 		JOIN units u ON u.id = ru.unit_id
@@ -167,7 +169,7 @@ func scanReservation(row pgx.Row) (*Reservation, error) {
 
 // List, rezervasyonları getirir. residentUserID doluysa yalnızca o kişininkiler.
 func (r *Repository) List(ctx context.Context, propertyID, residentUserID, status, facilityID string) ([]Reservation, error) {
-	rows, err := r.pool.Query(ctx, reservationSelect+`
+	rows, err := r.scope(propertyID).Query(ctx, reservationSelect+`
 		WHERE r.property_id = $1
 		  AND ($2 = '' OR r.resident_id = NULLIF($2,'')::uuid)
 		  AND ($3 = '' OR r.status = $3)
@@ -192,7 +194,7 @@ func (r *Repository) List(ctx context.Context, propertyID, residentUserID, statu
 
 // Slots, bir tesisin belirli gündeki DOLU aralıklarını verir.
 func (r *Repository) Slots(ctx context.Context, propertyID, facilityID string, day time.Time) ([]Reservation, error) {
-	rows, err := r.pool.Query(ctx, reservationSelect+`
+	rows, err := r.scope(propertyID).Query(ctx, reservationSelect+`
 		WHERE r.property_id = $1 AND r.facility_id = $2
 		  AND r.status IN ('PENDING','APPROVED')
 		  AND r.start_time::date = $3::date
@@ -214,9 +216,14 @@ func (r *Repository) Slots(ctx context.Context, propertyID, facilityID string, d
 }
 
 // WeeklyCount, bir bağımsız bölümün ilgili tesiste o haftaki rezervasyon sayısını verir.
-func (r *Repository) WeeklyCount(ctx context.Context, facilityID, unitID string, start time.Time) (int, error) {
+//
+// Sorguda `property_id` filtresi YOKTUR ve bu bilinçlidir: tesis ve bağımsız
+// bölüm zaten tek bir siteye aittir. Yine de kapsam parametresi alınır, çünkü
+// satır düzeyi güvenliği bu sayımı siteye bağlar — başka sitede aynı kimlikle
+// bir kayıt bulunsa bile sayıma girmez.
+func (r *Repository) WeeklyCount(ctx context.Context, propertyID, facilityID, unitID string, start time.Time) (int, error) {
 	var n int
-	err := r.pool.QueryRow(ctx, `
+	err := r.scope(propertyID).QueryRow(ctx, `
 		SELECT count(*) FROM reservations
 		WHERE facility_id = $1 AND unit_id = $2
 		  AND status IN ('PENDING','APPROVED')
@@ -242,7 +249,7 @@ func (r *Repository) Create(
 	purpose, status string,
 	totalFee float64,
 ) (string, error) {
-	tx, err := r.pool.Begin(ctx)
+	tx, err := r.scope(propertyID).Begin(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -299,7 +306,7 @@ func (r *Repository) Decide(ctx context.Context, propertyID, id, status, userID,
 	// İki ayrı sorgu yazılsaydı, aradaki sürede rezervasyon iptal edilebilir
 	// ve bildirim artık geçerli olmayan bir duruma göre üretilirdi.
 	var info DecisionInfo
-	err := r.pool.QueryRow(ctx, `
+	err := r.scope(propertyID).QueryRow(ctx, `
 		WITH upd AS (
 			UPDATE reservations
 			SET status = $3, reviewed_by = NULLIF($4,'')::uuid, reviewed_at = now(),
@@ -334,7 +341,7 @@ type DecisionInfo struct {
 
 // Cancel, rezervasyonu iptal eder. residentID doluysa yalnızca sahibi iptal edebilir.
 func (r *Repository) Cancel(ctx context.Context, propertyID, id, residentID, reason string) error {
-	tag, err := r.pool.Exec(ctx, `
+	tag, err := r.scope(propertyID).Exec(ctx, `
 		UPDATE reservations
 		SET status = 'CANCELLED', cancelled_at = now(),
 		    cancelled_by = NULLIF($3,'')::uuid, cancellation_reason = NULLIF($4,''),
@@ -350,4 +357,15 @@ func (r *Repository) Cancel(ctx context.Context, propertyID, id, residentID, rea
 		return ErrBadState
 	}
 	return nil
+}
+
+// scope, veritabanı erişimini SİTE KAPSAMINA bağlar (FAZ 2.6).
+//
+// facilities, reservations tablolarında RLS açıktır (migration 022).
+//
+// Kapsam, PostgreSQL satır düzeyi güvenliği tarafından okunur: sorguda
+// `WHERE property_id` filtresi unutulsa bile başka sitenin satırları DÖNMEZ.
+// Bu, uygulama katmanındaki filtrenin yerine geçmez — onu YEDEKLER.
+func (r *Repository) scope(propertyID string) *dbscope.Scoped {
+	return dbscope.For(r.pool, propertyID)
 }

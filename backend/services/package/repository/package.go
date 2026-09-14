@@ -9,6 +9,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/siteeksen/backend/pkg/dbscope"
 )
 
 var (
@@ -91,7 +93,7 @@ func scanPackage(row pgx.Row) (*Package, error) {
 //	unitScope dolu ise yalnızca o bağımsız bölümün paketleri döner (sakin görünümü).
 //	pending true ise yalnızca teslim edilmemiş paketler döner.
 func (r *Repository) List(ctx context.Context, propertyID, unitScope, status string, pending bool) ([]Package, error) {
-	rows, err := r.pool.Query(ctx, packageSelect+`
+	rows, err := r.scope(propertyID).Query(ctx, packageSelect+`
 		WHERE p.property_id = $1
 		  AND ($2 = '' OR p.unit_id = NULLIF($2,'')::uuid)
 		  AND ($3 = '' OR p.status = $3)
@@ -116,7 +118,7 @@ func (r *Repository) List(ctx context.Context, propertyID, unitScope, status str
 
 // Get, tek paketi getirir. unitScope dolu ise başka bölümün paketi görünmez.
 func (r *Repository) Get(ctx context.Context, propertyID, id, unitScope string) (*Package, error) {
-	p, err := scanPackage(r.pool.QueryRow(ctx, packageSelect+`
+	p, err := scanPackage(r.scope(propertyID).QueryRow(ctx, packageSelect+`
 		WHERE p.property_id = $1 AND p.id = $2
 		  AND ($3 = '' OR p.unit_id = NULLIF($3,'')::uuid)`, propertyID, id, unitScope))
 	if err == pgx.ErrNoRows {
@@ -128,7 +130,7 @@ func (r *Repository) Get(ctx context.Context, propertyID, id, unitScope string) 
 // ResidentUnit, kullanıcının bu sitedeki aktif bağımsız bölümünü verir.
 func (r *Repository) ResidentUnit(ctx context.Context, propertyID, userID string) (string, error) {
 	var unitID string
-	err := r.pool.QueryRow(ctx, `
+	err := r.scope(propertyID).QueryRow(ctx, `
 		SELECT ru.unit_id::text
 		FROM resident_units ru
 		JOIN units u ON u.id = ru.unit_id
@@ -161,7 +163,7 @@ func (r *Repository) Create(ctx context.Context, propertyID, receivedBy string, 
 	// Bağımsız bölümün gerçekten bu siteye ait olduğu doğrulanır; aksi hâlde
 	// başka sitenin kapısına kargo kaydı düşebilir.
 	var ok bool
-	if err := r.pool.QueryRow(ctx,
+	if err := r.scope(propertyID).QueryRow(ctx,
 		`SELECT EXISTS(SELECT 1 FROM units WHERE id = $1 AND property_id = $2)`,
 		in.UnitID, propertyID).Scan(&ok); err != nil {
 		return "", err
@@ -178,7 +180,7 @@ func (r *Repository) Create(ctx context.Context, propertyID, receivedBy string, 
 	}
 
 	var id string
-	err := r.pool.QueryRow(ctx, `
+	err := r.scope(propertyID).QueryRow(ctx, `
 		INSERT INTO packages
 			(property_id, unit_id, recipient_name, recipient_phone, carrier,
 			 tracking_number, package_type, description, received_by,
@@ -197,7 +199,7 @@ func (r *Repository) Create(ctx context.Context, propertyID, receivedBy string, 
 // Teslim, yalnızca teslim edilmemiş paketlerde yapılabilir; aksi hâlde aynı paket
 // iki kez "teslim edildi" görünür ve kaybolan kargonun izi kaybolur.
 func (r *Repository) Deliver(ctx context.Context, propertyID, id, deliveredBy, toName string) error {
-	tag, err := r.pool.Exec(ctx, `
+	tag, err := r.scope(propertyID).Exec(ctx, `
 		UPDATE packages
 		SET status = 'DELIVERED', delivered_at = now(),
 		    delivered_by = NULLIF($3,'')::uuid, delivered_to_name = $4
@@ -214,7 +216,7 @@ func (r *Repository) Deliver(ctx context.Context, propertyID, id, deliveredBy, t
 
 // Return, paketi kargo firmasına iade eder. Gerekçe zorunludur.
 func (r *Repository) Return(ctx context.Context, propertyID, id, reason string) error {
-	tag, err := r.pool.Exec(ctx, `
+	tag, err := r.scope(propertyID).Exec(ctx, `
 		UPDATE packages
 		SET status = 'RETURNED',
 		    notes = COALESCE(notes || E'\n', '') || 'İade: ' || $3
@@ -236,7 +238,7 @@ func (r *Repository) Return(ctx context.Context, propertyID, id, reason string) 
 // kayda geçirmesi içindir. Sistem kendiliğinden bildirim GÖNDERMEZ.
 func (r *Repository) MarkNotified(ctx context.Context, propertyID, id, method string) (int, error) {
 	var reminders int
-	err := r.pool.QueryRow(ctx, `
+	err := r.scope(propertyID).QueryRow(ctx, `
 		UPDATE packages
 		SET status = CASE WHEN status = 'RECEIVED' THEN 'NOTIFIED' ELSE status END,
 		    notification_sent = true,
@@ -265,7 +267,7 @@ type Summary struct {
 // Summary, site genelinde paket sayımlarını verir.
 func (r *Repository) Summary(ctx context.Context, propertyID string) (*Summary, error) {
 	var s Summary
-	err := r.pool.QueryRow(ctx, `
+	err := r.scope(propertyID).QueryRow(ctx, `
 		SELECT
 		  count(*) FILTER (WHERE status IN ('RECEIVED','NOTIFIED')),
 		  count(*) FILTER (WHERE status = 'DELIVERED'),
@@ -280,4 +282,15 @@ func (r *Repository) Summary(ctx context.Context, propertyID string) (*Summary, 
 		return nil, err
 	}
 	return &s, nil
+}
+
+// scope, veritabanı erişimini SİTE KAPSAMINA bağlar (FAZ 2.6).
+//
+// packages tablolarında RLS açıktır (migration 022).
+//
+// Kapsam, PostgreSQL satır düzeyi güvenliği tarafından okunur: sorguda
+// `WHERE property_id` filtresi unutulsa bile başka sitenin satırları DÖNMEZ.
+// Bu, uygulama katmanındaki filtrenin yerine geçmez — onu YEDEKLER.
+func (r *Repository) scope(propertyID string) *dbscope.Scoped {
+	return dbscope.For(r.pool, propertyID)
 }
