@@ -11,6 +11,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/siteeksen/backend/pkg/dbscope"
 )
 
 var (
@@ -107,7 +109,7 @@ func New(pool *pgxpool.Pool) *Repository { return &Repository{pool: pool} }
 
 // ListCheckpoints, sitedeki kontrol noktalarını getirir.
 func (r *Repository) ListCheckpoints(ctx context.Context, propertyID string, includeInactive bool) ([]Checkpoint, error) {
-	rows, err := r.pool.Query(ctx, `
+	rows, err := r.scope(propertyID).Query(ctx, `
 		SELECT id, name, COALESCE(description,''), COALESCE(location,''),
 		       COALESCE(building,''), COALESCE(floor,''),
 		       COALESCE(nfc_tag_id,''), COALESCE(qr_code,''),
@@ -135,7 +137,7 @@ func (r *Repository) ListCheckpoints(ctx context.Context, propertyID string, inc
 // CreateCheckpoint, kontrol noktası tanımlar.
 func (r *Repository) CreateCheckpoint(ctx context.Context, propertyID, name, description, location, building, floor, nfc, qr string, order int) (string, error) {
 	var id string
-	err := r.pool.QueryRow(ctx, `
+	err := r.scope(propertyID).QueryRow(ctx, `
 		INSERT INTO patrol_checkpoints
 			(property_id, name, description, location, building, floor,
 			 nfc_tag_id, qr_code, display_order, is_active)
@@ -166,7 +168,7 @@ func (r *Repository) CreateRoute(ctx context.Context, propertyID, name, descript
 		ids = append(ids, cp.CheckpointID)
 	}
 	var valid int
-	if err := r.pool.QueryRow(ctx, `
+	if err := r.scope(propertyID).QueryRow(ctx, `
 		SELECT count(*) FROM patrol_checkpoints
 		WHERE property_id = $1 AND id = ANY($2::uuid[])`, propertyID, ids).Scan(&valid); err != nil {
 		return "", err
@@ -182,7 +184,7 @@ func (r *Repository) CreateRoute(ctx context.Context, propertyID, name, descript
 	}
 
 	var id string
-	err = r.pool.QueryRow(ctx, `
+	err = r.scope(propertyID).QueryRow(ctx, `
 		INSERT INTO patrol_routes
 			(property_id, name, description, checkpoints, checkpoint_count,
 			 expected_duration_minutes, tolerance_minutes, is_active)
@@ -195,7 +197,7 @@ func (r *Repository) CreateRoute(ctx context.Context, propertyID, name, descript
 
 // ListRoutes, güzergâhları getirir.
 func (r *Repository) ListRoutes(ctx context.Context, propertyID string, includeInactive bool) ([]Route, error) {
-	rows, err := r.pool.Query(ctx, `
+	rows, err := r.scope(propertyID).Query(ctx, `
 		SELECT id, name, COALESCE(description,''), checkpoints,
 		       COALESCE(expected_duration_minutes,30), COALESCE(tolerance_minutes,10),
 		       COALESCE(is_active,true)
@@ -253,7 +255,7 @@ func (r *Repository) getRoute(ctx context.Context, q pgx.Tx, propertyID, routeID
 // Bir görevlinin aynı anda yalnızca bir açık turu olabilir; aksi hâlde iki tur
 // iç içe geçer ve hangi noktanın hangi tura ait olduğu belirsizleşir.
 func (r *Repository) StartPatrol(ctx context.Context, propertyID, routeID, guardID string) (*Patrol, error) {
-	tx, err := r.pool.Begin(ctx)
+	tx, err := r.scope(propertyID).Begin(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -315,7 +317,7 @@ type ScanResult struct {
 // Okutma zamanı SUNUCUDAN yazılır. Aynı nokta aynı turda iki kez okutulamaz —
 // tek noktada durup "tur tamamlandı" göstermeyi engeller.
 func (r *Repository) ScanCheckpoint(ctx context.Context, propertyID, patrolID, checkpointID, guardID, note string) (*ScanResult, error) {
-	tx, err := r.pool.Begin(ctx)
+	tx, err := r.scope(propertyID).Begin(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -415,7 +417,7 @@ func (r *Repository) ReportIssue(ctx context.Context, propertyID, patrolID, guar
 		sev = "MEDIUM"
 	}
 
-	tx, err := r.pool.Begin(ctx)
+	tx, err := r.scope(propertyID).Begin(ctx)
 	if err != nil {
 		return err
 	}
@@ -481,7 +483,7 @@ type CompleteResult struct {
 // "çok hızlı" olarak işaretlenir. Bu bir hata değil, DENETİM İŞARETİDİR:
 // 30 dakikalık bir tur 3 dakikada bitmişse noktalar gerçekten gezilmemiş olabilir.
 func (r *Repository) CompletePatrol(ctx context.Context, propertyID, patrolID, guardID, notes string) (*CompleteResult, error) {
-	tx, err := r.pool.Begin(ctx)
+	tx, err := r.scope(propertyID).Begin(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -588,7 +590,7 @@ func (r *Repository) ListPatrols(ctx context.Context, propertyID, guardID, statu
 	if limit <= 0 || limit > 500 {
 		limit = 100
 	}
-	rows, err := r.pool.Query(ctx, `
+	rows, err := r.scope(propertyID).Query(ctx, `
 		SELECT l.id, COALESCE(l.route_id::text,''), COALESCE(rt.name,''),
 		       l.guard_id::text, COALESCE(u.first_name || ' ' || u.last_name,''),
 		       l.started_at, l.completed_at, l.expected_duration_minutes,
@@ -642,7 +644,7 @@ type Summary struct {
 // Summary, son 7 günün devriye durumunu verir.
 func (r *Repository) Summary(ctx context.Context, propertyID string) (*Summary, error) {
 	var s Summary
-	err := r.pool.QueryRow(ctx, `
+	err := r.scope(propertyID).QueryRow(ctx, `
 		SELECT count(*),
 		       count(*) FILTER (WHERE status = 'COMPLETED'),
 		       count(*) FILTER (WHERE status = 'INCOMPLETE'),
@@ -670,4 +672,15 @@ func contains(list []string, v string) bool {
 		}
 	}
 	return false
+}
+
+// scope, veritabanı erişimini SİTE KAPSAMINA bağlar (FAZ 2.6).
+//
+// patrol_checkpoints, patrol_routes, patrol_logs tablolarında RLS açıktır (migration 021).
+//
+// Kapsam, PostgreSQL satır düzeyi güvenliği tarafından okunur: sorguda
+// `WHERE property_id` filtresi unutulsa bile başka sitenin satırları DÖNMEZ.
+// Bu, uygulama katmanındaki filtrenin yerine geçmez — onu YEDEKLER.
+func (r *Repository) scope(propertyID string) *dbscope.Scoped {
+	return dbscope.For(r.pool, propertyID)
 }

@@ -9,7 +9,9 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/shopspring/decimal"
+	"github.com/siteeksen/backend/pkg/dbscope"
 )
 
 var (
@@ -125,7 +127,7 @@ func participation(votes, eligible int) string {
 
 // List, anketleri getirir. includeDrafts yalnızca yönetim için true olmalıdır.
 func (r *Repository) List(ctx context.Context, propertyID, userID, status string, includeDrafts bool) ([]Survey, error) {
-	rows, err := r.pool.Query(ctx, surveySelect+`
+	rows, err := r.scope(propertyID).Query(ctx, surveySelect+`
 		WHERE s.property_id = $1
 		  AND ($3 = '' OR s.status = $3)
 		  AND ($4 OR s.status <> 'DRAFT')
@@ -150,7 +152,7 @@ func (r *Repository) List(ctx context.Context, propertyID, userID, status string
 // Get, tek anketi seçenekleriyle birlikte getirir.
 // withResults false ise sayımlar doldurulmaz (sonuçlar henüz açık değil).
 func (r *Repository) Get(ctx context.Context, propertyID, id, userID string, withResults bool) (*Survey, error) {
-	s, err := scanSurvey(r.pool.QueryRow(ctx,
+	s, err := scanSurvey(r.scope(propertyID).QueryRow(ctx,
 		surveySelect+` WHERE s.property_id = $1 AND s.id = $3`, propertyID, userID, id))
 	if err == pgx.ErrNoRows {
 		return nil, ErrNotFound
@@ -159,7 +161,7 @@ func (r *Repository) Get(ctx context.Context, propertyID, id, userID string, wit
 		return nil, err
 	}
 
-	opts, err := r.options(ctx, id, withResults, s.IsWeighted)
+	opts, err := r.options(ctx, propertyID, id, withResults, s.IsWeighted)
 	if err != nil {
 		return nil, err
 	}
@@ -168,8 +170,8 @@ func (r *Repository) Get(ctx context.Context, propertyID, id, userID string, wit
 }
 
 // options, seçenekleri ve (istenirse) OYLARDAN HESAPLANAN sayımları döner.
-func (r *Repository) options(ctx context.Context, surveyID string, withResults, weighted bool) ([]Option, error) {
-	rows, err := r.pool.Query(ctx, `
+func (r *Repository) options(ctx context.Context, propertyID, surveyID string, withResults, weighted bool) ([]Option, error) {
+	rows, err := r.scope(propertyID).Query(ctx, `
 		SELECT o.id, o.option_text, COALESCE(o.description,''), COALESCE(o.display_order,0),
 		       (SELECT count(*) FROM survey_votes v WHERE v.option_id = o.id),
 		       COALESCE((SELECT sum(v.weight) FROM survey_votes v WHERE v.option_id = o.id),0)::text
@@ -306,7 +308,7 @@ func (r *Repository) Create(ctx context.Context, propertyID, userID string, in C
 		comments = *in.AllowComments
 	}
 
-	tx, err := r.pool.Begin(ctx)
+	tx, err := r.scope(propertyID).Begin(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -372,14 +374,14 @@ func countEligible(ctx context.Context, q pgx.Tx, propertyID, sType string) (int
 // Publish, taslağı yayına alır.
 func (r *Repository) Publish(ctx context.Context, propertyID, id string) error {
 	var optionCount int
-	if err := r.pool.QueryRow(ctx,
+	if err := r.scope(propertyID).QueryRow(ctx,
 		`SELECT count(*) FROM survey_options WHERE survey_id = $1`, id).Scan(&optionCount); err != nil {
 		return err
 	}
 	if optionCount < 2 {
 		return ErrNeedsTwoOptions
 	}
-	tag, err := r.pool.Exec(ctx, `
+	tag, err := r.scope(propertyID).Exec(ctx, `
 		UPDATE surveys SET status = 'ACTIVE', updated_at = now()
 		WHERE id = $1 AND property_id = $2 AND status = 'DRAFT'`, id, propertyID)
 	if err != nil {
@@ -393,7 +395,7 @@ func (r *Repository) Publish(ctx context.Context, propertyID, id string) error {
 
 // Close, oylamayı sonlandırır.
 func (r *Repository) Close(ctx context.Context, propertyID, id string) error {
-	tag, err := r.pool.Exec(ctx, `
+	tag, err := r.scope(propertyID).Exec(ctx, `
 		UPDATE surveys SET status = 'ENDED', ends_at = COALESCE(ends_at, now()), updated_at = now()
 		WHERE id = $1 AND property_id = $2 AND status = 'ACTIVE'`, id, propertyID)
 	if err != nil {
@@ -407,7 +409,7 @@ func (r *Repository) Close(ctx context.Context, propertyID, id string) error {
 
 // Cancel, oylamayı iptal eder. Oylar silinmez.
 func (r *Repository) Cancel(ctx context.Context, propertyID, id, reason string) error {
-	tag, err := r.pool.Exec(ctx, `
+	tag, err := r.scope(propertyID).Exec(ctx, `
 		UPDATE surveys
 		SET status = 'CANCELLED',
 		    description = COALESCE(description || E'\n', '') || 'İPTAL: ' || $3,
@@ -441,7 +443,7 @@ type VoteResult struct {
 // paylaşım ölçüsü arsa payıdır (m.20); metrekareyle ağırlıklandırma hukuki
 // dayanaktan yoksundur. Ağırlıksız oylamada ağırlık 1'dir (KMK m.31/1).
 func (r *Repository) Vote(ctx context.Context, propertyID, surveyID, optionID, userID, comment string) (*VoteResult, error) {
-	tx, err := r.pool.Begin(ctx)
+	tx, err := r.scope(propertyID).Begin(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -540,7 +542,7 @@ func (r *Repository) Vote(ctx context.Context, propertyID, surveyID, optionID, u
 // Anonim ankette isim DÖNDÜRÜLMEZ.
 func (r *Repository) Comments(ctx context.Context, propertyID, surveyID string) ([]Comment, error) {
 	var anonymous bool
-	if err := r.pool.QueryRow(ctx,
+	if err := r.scope(propertyID).QueryRow(ctx,
 		`SELECT COALESCE(is_anonymous,true) FROM surveys WHERE id = $1 AND property_id = $2`,
 		surveyID, propertyID).Scan(&anonymous); err != nil {
 		if err == pgx.ErrNoRows {
@@ -549,7 +551,7 @@ func (r *Repository) Comments(ctx context.Context, propertyID, surveyID string) 
 		return nil, err
 	}
 
-	rows, err := r.pool.Query(ctx, `
+	rows, err := r.scope(propertyID).Query(ctx, `
 		SELECT CASE WHEN $3 THEN '' ELSE COALESCE(u.first_name || ' ' || u.last_name,'') END,
 		       v.comment, v.voted_at
 		FROM survey_votes v
@@ -581,4 +583,15 @@ func contains(list []string, v string) bool {
 		}
 	}
 	return false
+}
+
+// scope, veritabanı erişimini SİTE KAPSAMINA bağlar (FAZ 2.6).
+//
+// surveys, survey_options, survey_votes tablolarında RLS açıktır (migration 021).
+//
+// Kapsam, PostgreSQL satır düzeyi güvenliği tarafından okunur: sorguda
+// `WHERE property_id` filtresi unutulsa bile başka sitenin satırları DÖNMEZ.
+// Bu, uygulama katmanındaki filtrenin yerine geçmez — onu YEDEKLER.
+func (r *Repository) scope(propertyID string) *dbscope.Scoped {
+	return dbscope.For(r.pool, propertyID)
 }

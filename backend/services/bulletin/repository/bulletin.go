@@ -9,6 +9,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/siteeksen/backend/pkg/dbscope"
 )
 
 var (
@@ -100,7 +102,7 @@ func scanPost(row pgx.Row) (*Post, error) {
 // Sakin YALNIZCA yayımlanmış ilanları ve kendi ilanlarını görür. Yönetim
 // bekleyen ve reddedilenleri de görür (onaylaması gerekir).
 func (r *Repository) List(ctx context.Context, propertyID, userID, category, status string, isManagement, mineOnly bool) ([]Post, error) {
-	rows, err := r.pool.Query(ctx, postSelect+`
+	rows, err := r.scope(propertyID).Query(ctx, postSelect+`
 		WHERE p.property_id = $1
 		  AND ($3 = '' OR p.category = $3)
 		  AND ($4 = '' OR p.status = $4)
@@ -133,7 +135,7 @@ func (r *Repository) List(ctx context.Context, propertyID, userID, category, sta
 // Sayaç yalnızca BAŞKASININ ilanında artar: kendi ilanını açan sakin
 // görüntülenme sayısını şişiremesin diye.
 func (r *Repository) Get(ctx context.Context, propertyID, id, userID string, isManagement bool) (*Post, error) {
-	p, err := scanPost(r.pool.QueryRow(ctx, postSelect+`
+	p, err := scanPost(r.scope(propertyID).QueryRow(ctx, postSelect+`
 		WHERE p.property_id = $1 AND p.id = $3`, propertyID, userID, id))
 	if err == pgx.ErrNoRows {
 		return nil, ErrNotFound
@@ -147,7 +149,7 @@ func (r *Repository) Get(ctx context.Context, propertyID, id, userID string, isM
 	}
 
 	if !p.IsMine {
-		if _, err := r.pool.Exec(ctx,
+		if _, err := r.scope(propertyID).Exec(ctx,
 			`UPDATE bulletin_posts SET view_count = COALESCE(view_count,0) + 1 WHERE id = $1`,
 			id); err != nil {
 			return nil, err
@@ -176,7 +178,7 @@ func (r *Repository) Create(ctx context.Context, propertyID, userID string, in C
 	}
 
 	var unitID string
-	err := r.pool.QueryRow(ctx, `
+	err := r.scope(propertyID).QueryRow(ctx, `
 		SELECT ru.unit_id::text
 		FROM resident_units ru
 		JOIN units u ON u.id = ru.unit_id
@@ -205,7 +207,7 @@ func (r *Repository) Create(ctx context.Context, propertyID, userID string, in C
 	}
 
 	var id string
-	err = r.pool.QueryRow(ctx, `
+	err = r.scope(propertyID).QueryRow(ctx, `
 		INSERT INTO bulletin_posts
 			(property_id, unit_id, author_id, category, title, content,
 			 price, price_negotiable, is_anonymous, status, expires_at)
@@ -225,7 +227,7 @@ func (r *Repository) Review(ctx context.Context, propertyID, id, reviewerID, sta
 		// Gerekçesiz ret, sakinin ilanı düzeltmesini imkânsız kılar.
 		return ErrBadState
 	}
-	tag, err := r.pool.Exec(ctx, `
+	tag, err := r.scope(propertyID).Exec(ctx, `
 		UPDATE bulletin_posts
 		SET status = $3, reviewed_by = NULLIF($4,'')::uuid, reviewed_at = now(),
 		    rejection_reason = NULLIF($5,''), updated_at = now()
@@ -246,7 +248,7 @@ func (r *Repository) Close(ctx context.Context, propertyID, id, userID string, i
 	if isManagement {
 		owner = ""
 	}
-	tag, err := r.pool.Exec(ctx, `
+	tag, err := r.scope(propertyID).Exec(ctx, `
 		UPDATE bulletin_posts
 		SET status = 'CLOSED', updated_at = now()
 		WHERE id = $1 AND property_id = $2
@@ -264,7 +266,7 @@ func (r *Repository) Close(ctx context.Context, propertyID, id, userID string, i
 
 // Comments, ilanın yorumlarını getirir. Silinen yorumlar gösterilmez.
 func (r *Repository) Comments(ctx context.Context, propertyID, postID, userID string) ([]Comment, error) {
-	rows, err := r.pool.Query(ctx, `
+	rows, err := r.scope(propertyID).Query(ctx, `
 		SELECT c.id,
 		       CASE WHEN COALESCE(c.is_anonymous,false) AND c.author_id <> NULLIF($3,'')::uuid
 		            THEN '' ELSE COALESCE(u.first_name || ' ' || u.last_name,'') END,
@@ -295,7 +297,7 @@ func (r *Repository) Comments(ctx context.Context, propertyID, postID, userID st
 // AddComment, yoruma ekler. Yalnızca YAYIMLANMIŞ ilana yorum yapılabilir.
 func (r *Repository) AddComment(ctx context.Context, propertyID, postID, userID, content string, anonymous bool) (string, error) {
 	var status string
-	err := r.pool.QueryRow(ctx,
+	err := r.scope(propertyID).QueryRow(ctx,
 		`SELECT status FROM bulletin_posts WHERE id = $1 AND property_id = $2`,
 		postID, propertyID).Scan(&status)
 	if err == pgx.ErrNoRows {
@@ -309,7 +311,7 @@ func (r *Repository) AddComment(ctx context.Context, propertyID, postID, userID,
 	}
 
 	var id string
-	err = r.pool.QueryRow(ctx, `
+	err = r.scope(propertyID).QueryRow(ctx, `
 		INSERT INTO bulletin_comments (post_id, author_id, content, is_anonymous)
 		VALUES ($1,$2,$3,$4) RETURNING id`,
 		postID, userID, strings.TrimSpace(content), anonymous).Scan(&id)
@@ -323,7 +325,7 @@ func (r *Repository) DeleteComment(ctx context.Context, propertyID, commentID, u
 	if isManagement {
 		owner = ""
 	}
-	tag, err := r.pool.Exec(ctx, `
+	tag, err := r.scope(propertyID).Exec(ctx, `
 		UPDATE bulletin_comments c
 		SET is_deleted = true, deleted_at = now(), deleted_by = NULLIF($4,'')::uuid
 		FROM bulletin_posts p
@@ -342,7 +344,7 @@ func (r *Repository) DeleteComment(ctx context.Context, propertyID, commentID, u
 
 // ExpirePosts, süresi dolmuş yayımlanmış ilanları EXPIRED yapar (idempotent).
 func (r *Repository) ExpirePosts(ctx context.Context, propertyID string) (int64, error) {
-	tag, err := r.pool.Exec(ctx, `
+	tag, err := r.scope(propertyID).Exec(ctx, `
 		UPDATE bulletin_posts
 		SET status = 'EXPIRED', updated_at = now()
 		WHERE property_id = $1 AND status = 'APPROVED'
@@ -366,7 +368,7 @@ type Summary struct {
 // Summary, ilan panosunun durumunu verir.
 func (r *Repository) Summary(ctx context.Context, propertyID string) (*Summary, error) {
 	s := &Summary{ByCategory: map[string]int{}}
-	if err := r.pool.QueryRow(ctx, `
+	if err := r.scope(propertyID).QueryRow(ctx, `
 		SELECT count(*) FILTER (WHERE status = 'PENDING'),
 		       count(*) FILTER (WHERE status = 'APPROVED'),
 		       count(*) FILTER (WHERE status = 'REJECTED'),
@@ -377,7 +379,7 @@ func (r *Repository) Summary(ctx context.Context, propertyID string) (*Summary, 
 		return nil, err
 	}
 
-	rows, err := r.pool.Query(ctx, `
+	rows, err := r.scope(propertyID).Query(ctx, `
 		SELECT category, count(*) FROM bulletin_posts
 		WHERE property_id = $1 AND status = 'APPROVED' GROUP BY category`, propertyID)
 	if err != nil {
@@ -402,4 +404,15 @@ func contains(list []string, v string) bool {
 		}
 	}
 	return false
+}
+
+// scope, veritabanı erişimini SİTE KAPSAMINA bağlar (FAZ 2.6).
+//
+// bulletin_posts, bulletin_comments tablolarında RLS açıktır (migration 021).
+//
+// Kapsam, PostgreSQL satır düzeyi güvenliği tarafından okunur: sorguda
+// `WHERE property_id` filtresi unutulsa bile başka sitenin satırları DÖNMEZ.
+// Bu, uygulama katmanındaki filtrenin yerine geçmez — onu YEDEKLER.
+func (r *Repository) scope(propertyID string) *dbscope.Scoped {
+	return dbscope.For(r.pool, propertyID)
 }

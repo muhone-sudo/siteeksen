@@ -9,7 +9,9 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
 	"github.com/shopspring/decimal"
+	"github.com/siteeksen/backend/pkg/dbscope"
 )
 
 var (
@@ -95,7 +97,7 @@ type Category struct {
 
 // ListCategories, siteye ait ve global kategorileri döner.
 func (r *Repository) ListCategories(ctx context.Context, propertyID string) ([]Category, error) {
-	rows, err := r.pool.Query(ctx, `
+	rows, err := r.scope(propertyID).Query(ctx, `
 		SELECT c.id, c.name,
 		       (SELECT count(*) FROM inventory_items i
 		         WHERE i.category_id = c.id AND i.property_id = $1)
@@ -121,7 +123,7 @@ func (r *Repository) ListCategories(ctx context.Context, propertyID string) ([]C
 // CreateCategory, siteye özel kategori ekler.
 func (r *Repository) CreateCategory(ctx context.Context, propertyID, name, description string) (string, error) {
 	var id string
-	err := r.pool.QueryRow(ctx, `
+	err := r.scope(propertyID).QueryRow(ctx, `
 		INSERT INTO inventory_categories (property_id, name, description)
 		VALUES ($1,$2,NULLIF($3,'')) RETURNING id`, propertyID, name, description).Scan(&id)
 	return id, err
@@ -167,7 +169,7 @@ type ListFilter struct {
 
 // List, stok kalemlerini getirir.
 func (r *Repository) List(ctx context.Context, propertyID string, f ListFilter) ([]Item, error) {
-	rows, err := r.pool.Query(ctx, itemSelect+`
+	rows, err := r.scope(propertyID).Query(ctx, itemSelect+`
 		WHERE i.property_id = $1
 		  AND ($2 = '' OR i.category_id = NULLIF($2,'')::uuid)
 		  AND ($3 = '' OR i.name ILIKE '%' || $3 || '%' OR i.sku ILIKE '%' || $3 || '%')
@@ -194,7 +196,7 @@ func (r *Repository) List(ctx context.Context, propertyID string, f ListFilter) 
 
 // Get, tek stok kalemini getirir.
 func (r *Repository) Get(ctx context.Context, propertyID, id string) (*Item, error) {
-	it, err := scanItem(r.pool.QueryRow(ctx,
+	it, err := scanItem(r.scope(propertyID).QueryRow(ctx,
 		itemSelect+` WHERE i.property_id = $1 AND i.id = $2`, propertyID, id))
 	if err == pgx.ErrNoRows {
 		return nil, ErrNotFound
@@ -228,7 +230,7 @@ func (r *Repository) CreateItem(ctx context.Context, propertyID string, in Creat
 	}
 	if in.CategoryID != "" {
 		var ok bool
-		if err := r.pool.QueryRow(ctx, `
+		if err := r.scope(propertyID).QueryRow(ctx, `
 			SELECT EXISTS(SELECT 1 FROM inventory_categories
 			              WHERE id = $1 AND (property_id = $2 OR property_id IS NULL))`,
 			in.CategoryID, propertyID).Scan(&ok); err != nil {
@@ -249,7 +251,7 @@ func (r *Repository) CreateItem(ctx context.Context, propertyID string, in Creat
 	}
 
 	var id string
-	err = r.pool.QueryRow(ctx, `
+	err = r.scope(propertyID).QueryRow(ctx, `
 		INSERT INTO inventory_items
 			(property_id, category_id, name, description, sku, unit,
 			 current_stock, minimum_stock, reorder_point, warehouse, location, notes, is_active)
@@ -315,7 +317,7 @@ func (r *Repository) RecordMovement(ctx context.Context, propertyID, itemID, use
 		return nil, ErrReasonRequired
 	}
 
-	tx, err := r.pool.Begin(ctx)
+	tx, err := r.scope(propertyID).Begin(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -426,7 +428,7 @@ func (r *Repository) Movements(ctx context.Context, propertyID, itemID string, l
 	if limit <= 0 || limit > 500 {
 		limit = 200
 	}
-	rows, err := r.pool.Query(ctx, `
+	rows, err := r.scope(propertyID).Query(ctx, `
 		SELECT m.id, m.item_id, i.name, i.unit, m.movement_type,
 		       m.quantity::text, COALESCE(m.previous_stock,0)::text, COALESCE(m.new_stock,0)::text,
 		       m.unit_price::float8, m.total_price::float8,
@@ -460,7 +462,7 @@ func (r *Repository) Movements(ctx context.Context, propertyID, itemID string, l
 
 // Deactivate, kalemi pasife alır. Kayıt ve hareket geçmişi silinmez.
 func (r *Repository) Deactivate(ctx context.Context, propertyID, id, reason string) error {
-	tag, err := r.pool.Exec(ctx, `
+	tag, err := r.scope(propertyID).Exec(ctx, `
 		UPDATE inventory_items
 		SET is_active = false,
 		    notes = COALESCE(notes || E'\n', '') || 'Pasife alındı (' || CURRENT_DATE || '): ' || $3,
@@ -492,7 +494,7 @@ type Summary struct {
 // işletme projesinde (KMK m.37) sarf malzeme kaleminin gerçekleşen kısmıdır.
 func (r *Repository) Summary(ctx context.Context, propertyID string) (*Summary, error) {
 	var s Summary
-	if err := r.pool.QueryRow(ctx, `
+	if err := r.scope(propertyID).QueryRow(ctx, `
 		SELECT count(*) FILTER (WHERE is_active),
 		       count(*) FILTER (WHERE is_active AND COALESCE(current_stock,0) <= COALESCE(minimum_stock,0)),
 		       count(*) FILTER (WHERE is_active AND COALESCE(current_stock,0) <= 0),
@@ -503,7 +505,7 @@ func (r *Repository) Summary(ctx context.Context, propertyID string) (*Summary, 
 		return nil, err
 	}
 
-	if err := r.pool.QueryRow(ctx, `
+	if err := r.scope(propertyID).QueryRow(ctx, `
 		SELECT
 		  COALESCE(SUM(m.total_price) FILTER (
 		    WHERE m.movement_type = 'IN'
@@ -550,4 +552,15 @@ func parseQuantity(s string, allowZero bool) (decimal.Decimal, error) {
 		return decimal.Zero, ErrInvalidQuantity
 	}
 	return q, nil
+}
+
+// scope, veritabanı erişimini SİTE KAPSAMINA bağlar (FAZ 2.6).
+//
+// inventory_items, inventory_categories, inventory_movements tablolarında RLS açıktır (migration 021).
+//
+// Kapsam, PostgreSQL satır düzeyi güvenliği tarafından okunur: sorguda
+// `WHERE property_id` filtresi unutulsa bile başka sitenin satırları DÖNMEZ.
+// Bu, uygulama katmanındaki filtrenin yerine geçmez — onu YEDEKLER.
+func (r *Repository) scope(propertyID string) *dbscope.Scoped {
+	return dbscope.For(r.pool, propertyID)
 }

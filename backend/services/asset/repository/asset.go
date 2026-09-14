@@ -9,6 +9,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/siteeksen/backend/pkg/dbscope"
 )
 
 var (
@@ -114,7 +116,7 @@ func New(pool *pgxpool.Pool) *Repository { return &Repository{pool: pool} }
 
 // ListCategories, siteye ait ve global kategorileri döner.
 func (r *Repository) ListCategories(ctx context.Context, propertyID string) ([]Category, error) {
-	rows, err := r.pool.Query(ctx, `
+	rows, err := r.scope(propertyID).Query(ctx, `
 		SELECT c.id, c.name, COALESCE(c.description,''),
 		       COALESCE(c.depreciation_years,5), (c.property_id IS NULL),
 		       (SELECT count(*) FROM assets a WHERE a.category_id = c.id AND a.property_id = $1)
@@ -144,7 +146,7 @@ func (r *Repository) CreateCategory(ctx context.Context, propertyID, name, descr
 		years = 5
 	}
 	var id string
-	err := r.pool.QueryRow(ctx, `
+	err := r.scope(propertyID).QueryRow(ctx, `
 		INSERT INTO asset_categories (property_id, name, description, depreciation_years)
 		VALUES ($1,$2,NULLIF($3,''),$4) RETURNING id`,
 		propertyID, name, description, years).Scan(&id)
@@ -200,7 +202,7 @@ type ListFilter struct {
 
 // List, demirbaşları getirir.
 func (r *Repository) List(ctx context.Context, propertyID string, f ListFilter) ([]Asset, error) {
-	rows, err := r.pool.Query(ctx, assetSelect+`
+	rows, err := r.scope(propertyID).Query(ctx, assetSelect+`
 		WHERE a.property_id = $1
 		  AND ($2 = '' OR a.category_id = NULLIF($2,'')::uuid)
 		  AND ($3 = '' OR a.status = $3)
@@ -233,7 +235,7 @@ func (r *Repository) List(ctx context.Context, propertyID string, f ListFilter) 
 
 // Get, tek demirbaşı getirir.
 func (r *Repository) Get(ctx context.Context, propertyID, id string) (*Asset, error) {
-	a, err := scanAsset(r.pool.QueryRow(ctx,
+	a, err := scanAsset(r.scope(propertyID).QueryRow(ctx,
 		assetSelect+` WHERE a.property_id = $1 AND a.id = $2`, propertyID, id))
 	if err == pgx.ErrNoRows {
 		return nil, ErrNotFound
@@ -274,7 +276,7 @@ type CreateInput struct {
 func (r *Repository) Create(ctx context.Context, propertyID string, in CreateInput) (string, error) {
 	if in.CategoryID != "" {
 		var ok bool
-		if err := r.pool.QueryRow(ctx, `
+		if err := r.scope(propertyID).QueryRow(ctx, `
 			SELECT EXISTS(SELECT 1 FROM asset_categories
 			              WHERE id = $1 AND (property_id = $2 OR property_id IS NULL))`,
 			in.CategoryID, propertyID).Scan(&ok); err != nil {
@@ -323,7 +325,7 @@ func (r *Repository) Create(ctx context.Context, propertyID string, in CreateInp
 	}
 
 	var id string
-	err = r.pool.QueryRow(ctx, `
+	err = r.scope(propertyID).QueryRow(ctx, `
 		INSERT INTO assets
 			(property_id, category_id, name, description, asset_code, serial_number,
 			 location, building, floor, room,
@@ -352,7 +354,7 @@ func (r *Repository) Create(ctx context.Context, propertyID string, in CreateInp
 
 // Assign, demirbaşı bir kişiye/birime zimmetler. Boş ad zimmeti kaldırır.
 func (r *Repository) Assign(ctx context.Context, propertyID, id, assignee string) error {
-	tag, err := r.pool.Exec(ctx, `
+	tag, err := r.scope(propertyID).Exec(ctx, `
 		UPDATE assets
 		SET assigned_to = NULLIF($3,''),
 		    assigned_at = CASE WHEN $3 = '' THEN NULL ELSE CURRENT_DATE END,
@@ -381,7 +383,7 @@ func (r *Repository) Dispose(ctx context.Context, propertyID, id, reason, decisi
 	if !contains(Conditions, condition) {
 		return ErrBadState
 	}
-	tag, err := r.pool.Exec(ctx, `
+	tag, err := r.scope(propertyID).Exec(ctx, `
 		UPDATE assets
 		SET status = 'DISPOSED', condition = $5,
 		    assigned_to = NULL, assigned_at = NULL,
@@ -433,7 +435,7 @@ func (r *Repository) RecordMaintenance(ctx context.Context, propertyID, assetID 
 		performed = &now
 	}
 
-	tx, err := r.pool.Begin(ctx)
+	tx, err := r.scope(propertyID).Begin(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -499,7 +501,7 @@ func (r *Repository) RecordMaintenance(ctx context.Context, propertyID, assetID 
 
 // MaintenanceHistory, demirbaşın bakım geçmişini döner.
 func (r *Repository) MaintenanceHistory(ctx context.Context, propertyID, assetID string) ([]Maintenance, error) {
-	rows, err := r.pool.Query(ctx, `
+	rows, err := r.scope(propertyID).Query(ctx, `
 		SELECT m.id, m.asset_id, a.name, m.maintenance_type, m.description,
 		       COALESCE(m.labor_cost,0)::float8, COALESCE(m.parts_cost,0)::float8,
 		       COALESCE(m.total_cost,0)::float8,
@@ -550,7 +552,7 @@ type Summary struct {
 func (r *Repository) Summary(ctx context.Context, propertyID string) (*Summary, error) {
 	s := &Summary{ByCondition: map[string]int{}}
 
-	err := r.pool.QueryRow(ctx, `
+	err := r.scope(propertyID).QueryRow(ctx, `
 		SELECT
 		  count(*),
 		  count(*) FILTER (WHERE status <> 'DISPOSED'),
@@ -567,7 +569,7 @@ func (r *Repository) Summary(ctx context.Context, propertyID string) (*Summary, 
 		return nil, err
 	}
 
-	rows, err := r.pool.Query(ctx, `
+	rows, err := r.scope(propertyID).Query(ctx, `
 		SELECT condition, count(*) FROM assets
 		WHERE property_id = $1 AND status <> 'DISPOSED' GROUP BY condition`, propertyID)
 	if err != nil {
@@ -586,7 +588,7 @@ func (r *Repository) Summary(ctx context.Context, propertyID string) (*Summary, 
 		return nil, err
 	}
 
-	if err := r.pool.QueryRow(ctx, `
+	if err := r.scope(propertyID).QueryRow(ctx, `
 		SELECT COALESCE(SUM(m.total_cost),0)::float8
 		FROM asset_maintenance m
 		JOIN assets a ON a.id = m.asset_id
@@ -617,4 +619,15 @@ func parseOptionalDate(s string) (*time.Time, error) {
 		return nil, ErrInvalidDate
 	}
 	return &t, nil
+}
+
+// scope, veritabanı erişimini SİTE KAPSAMINA bağlar (FAZ 2.6).
+//
+// assets, asset_categories, asset_maintenance tablolarında RLS açıktır (migration 021).
+//
+// Kapsam, PostgreSQL satır düzeyi güvenliği tarafından okunur: sorguda
+// `WHERE property_id` filtresi unutulsa bile başka sitenin satırları DÖNMEZ.
+// Bu, uygulama katmanındaki filtrenin yerine geçmez — onu YEDEKLER.
+func (r *Repository) scope(propertyID string) *dbscope.Scoped {
+	return dbscope.For(r.pool, propertyID)
 }

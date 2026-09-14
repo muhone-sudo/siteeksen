@@ -3825,14 +3825,185 @@ APPNOTE=$(qapp "SELECT rls_effective FROM rls_effective;")
 [ "$APPNOTE" = "t" ] || [ "$APPNOTE" = "true" ] \
   && ok "uygulama rolü için RLS geçerli" || bad "uygulama rolünde RLS geçersiz: $APPNOTE"
 
-# 9) Kapsam DIŞINDAKİ tablolar bilerek RLS'siz — bu durum dürüstçe raporlanmalı
+# 9) Birinci dilimin YEDİ tablosunun tamamı açık olmalı (toplam sayım 33. adımda)
+SLICE1=$($PSQL -t -A -c "SELECT count(*) FROM rls_enabled_tables
+  WHERE table_name IN ('employees','employee_leaves','payroll','documents',
+                       'document_access_logs','notifications','notification_preferences');")
+[ "$SLICE1" = "7" ] && ok "RLS birinci diliminin 7 tablosunun tamamı açık" \
+  || bad "birinci dilimde eksik tablo var: $SLICE1/7"
+
+step "33) Satır düzeyi güvenlik (RLS) — ikinci dilim (FAZ 2.6 devamı)"
+# İkinci dilim, yine TEK SERVİSİN kullandığı tabloları kapsar: otopark,
+# ziyaretçi, stok, demirbaş, devriye, ilan panosu ve anket.
+#
+# ÖNEMLİ: bu tabloların RLS'i migration sırasında (2. adım) açılır; yani
+# 14-26. adımlardaki uçtan uca akışlar ZATEN RLS altında çalışmıştır. Depo
+# katmanı kapsamlı sorguya geçmemiş olsaydı o adımlar boş liste döndürür ve
+# çökerdi. Aşağıdaki kontroller bunun üzerine izolasyonu doğrudan ölçer.
+
+SLICE2_TABLES="vehicles parking_zones parking_logs visitors
+  inventory_categories inventory_items inventory_movements
+  asset_categories assets asset_maintenance
+  patrol_checkpoints patrol_routes patrol_logs
+  bulletin_posts bulletin_comments bulletin_messages
+  surveys survey_options survey_votes"
+
+# 1) Her tabloda RLS açık VE zorlanıyor olmalı (FORCE olmadan sahip atlar)
+S2MISS=0
+for T in $SLICE2_TABLES; do
+  ROW=$($PSQL -t -A -c "SELECT rls_enabled || '/' || rls_forced || '/' || policy_count
+    FROM rls_enabled_tables WHERE table_name='$T';")
+  case "$ROW" in
+    true/true/1|t/t/1) : ;;
+    *) S2MISS=$((S2MISS+1)); echo "     eksik: $T ($ROW)" ;;
+  esac
+done
+[ "$S2MISS" = "0" ] && ok "ikinci dilimin 19 tablosunda RLS açık, zorlanıyor ve politikası var" \
+  || bad "$S2MISS tabloda RLS eksik"
+
+# 2) KAPSAM AYARLANMADAN hiçbir SİTE VERİSİ dönmemeli — asıl kontrol.
+#
+#    Ölçü "hiç satır dönmesin" değil, "hiçbir siteye ait satır dönmesin"dir.
+#    Kategori tablolarındaki ORTAK satırlar (property_id IS NULL) bir sitenin
+#    verisi değildir ve kapsamsız da görünürler; onları sızıntı saymak, ölçüyü
+#    yanlış yere koymak olurdu. Aşağıdaki koşul her iki durumu da doğru ölçer.
+S2LEAK=0
+for T in $SLICE2_TABLES; do
+  case "$T" in
+    asset_categories|inventory_categories)
+      N=$(qapp "SELECT count(*) FROM $T WHERE property_id IS NOT NULL;") ;;
+    *)
+      N=$(qapp "SELECT count(*) FROM $T;") ;;
+  esac
+  [ "$N" = "0" ] || { S2LEAK=$((S2LEAK+1)); echo "     sızdırdı: $T -> $N satır"; }
+done
+[ "$S2LEAK" = "0" ] && ok "kapsamsız sorgu 19 tablonun hiçbirinden SİTE VERİSİ döndürmüyor" \
+  || bad "$S2LEAK tablo kapsamsız sorguda site verisi döndürdü"
+
+# 2b) Ortak satır sayısı TOHUM VERİSİYLE birebir aynı olmalı.
+#
+#     Yukarıdaki muafiyet, "property_id NULL ise site verisi değildir"
+#     varsayımına dayanır. Uygulama sonradan NULL property_id'li bir satır
+#     üretebilseydi, o satır tüm platforma açılır ve muafiyet bunu GİZLERDİ.
+#     Sayıyı sabitlemek, muafiyetin sessizce genişlemesini imkânsız kılar.
+for PAIR in "asset_categories:8" "inventory_categories:6"; do
+  T="${PAIR%%:*}"; EXP="${PAIR##*:}"
+  GN=$($PSQL -t -A -c "SELECT count(*) FROM $T WHERE property_id IS NULL;")
+  [ "$GN" = "$EXP" ] && ok "$T: ortak kategori sayısı tohum verisiyle aynı ($GN)" \
+    || bad "$T: ortak kategori sayısı değişmiş ($GN, beklenen $EXP)"
+done
+
+# 3) BAŞKA SİTENİN kapsamında da hiçbir satır görünmemeli (çapraz erişim)
+#
+#    Kategori tabloları bu döngünün DIŞINDADIR ve aşağıda ayrıca sınanır:
+#    onlarda `property_id IS NULL` olan ORTAK satırlar vardır ve bunlar her
+#    kapsamda görünür (bilerek). Ayrıca 20. adım, çapraz erişim sınaması için
+#    OTHERPROP'a gerçek bir kategori yazar; onu "sızıntı" saymak yanlış olurdu.
+S2CROSS=0
+for T in $SLICE2_TABLES; do
+  case "$T" in asset_categories|inventory_categories) continue ;; esac
+  N=$(qscoped "SELECT count(*) FROM $T;" "$OTHERPROP")
+  [ "$N" = "0" ] || { S2CROSS=$((S2CROSS+1)); echo "     çapraz sızıntı: $T -> $N"; }
+done
+[ "$S2CROSS" = "0" ] && ok "başka sitenin kapsamında 17 tablonun hiçbiri satır göstermiyor" \
+  || bad "$S2CROSS tabloda çapraz site erişimi var"
+
+# 3b) Kategori tabloları: ORTAK satırlar her sitede görünmeli, SİTEYE ÖZEL
+#     satırlar yalnızca kendi sitesinde. Katı bir politika ortak kategorileri
+#     sessizce yok ederdi — kimse hata almaz, kategoriler kaybolurdu.
+for T in asset_categories inventory_categories; do
+  GLOBAL_DEMO=$(qscoped "SELECT count(*) FROM $T WHERE property_id IS NULL;")
+  GLOBAL_OTHER=$(qscoped "SELECT count(*) FROM $T WHERE property_id IS NULL;" "$OTHERPROP")
+  [ "${GLOBAL_DEMO:-0}" -ge 1 ] && [ "$GLOBAL_DEMO" = "$GLOBAL_OTHER" ] \
+    && ok "$T: ortak kategoriler her iki sitede de görünüyor ($GLOBAL_DEMO)" \
+    || bad "$T: ortak kategoriler kayboldu (demo=$GLOBAL_DEMO diğer=$GLOBAL_OTHER)"
+  OWN_OTHER=$(qscoped "SELECT count(*) FROM $T WHERE property_id='$DEMO_PROPERTY';" "$OTHERPROP")
+  [ "$OWN_OTHER" = "0" ] \
+    && ok "$T: demo sitenin kendi kategorileri başka siteden görünmüyor" \
+    || bad "$T: siteye özel kategori sızdı ($OWN_OTHER)"
+done
+
+# 3c) Uygulama KENDİ BAŞINA ortak (global) kategori ÜRETEMEMELİ.
+#     Üretebilseydi tek bir hatalı istek, o satırı platformdaki HER siteye
+#     görünür kılardı. Ortak satırlar yalnızca migration ile eklenir.
+if PGPASSWORD="$APPPW" psql -h 127.0.0.1 -p "${DBPORT}" -U siteeksen_app -d siteeksen \
+  -v ON_ERROR_STOP=1 -q -c "SET LOCAL app.property_id = '$DEMO_PROPERTY';
+  INSERT INTO asset_categories (property_id, name) VALUES (NULL,'Kacak global');" >/dev/null 2>&1; then
+  bad "uygulama rolü GLOBAL kategori yazabildi (WITH CHECK gevşek)"
+else
+  ok "uygulama rolü global kategori yazamıyor (WITH CHECK katı)"
+fi
+
+# 4) DOĞRU kapsamda, önceki adımların yazdığı veriler görünmeli.
+#    Görünmezlerse RLS veriyi yalnızca gizlemiyor, uygulamayı da bozuyor demektir.
+for T in vehicles visitors inventory_items inventory_movements assets \
+         patrol_checkpoints patrol_routes patrol_logs bulletin_posts \
+         surveys survey_options survey_votes; do
+  N=$(qscoped "SELECT count(*) FROM $T;")
+  [ "${N:-0}" -ge 1 ] && ok "doğru kapsamda $T görünüyor ($N satır)" \
+    || bad "doğru kapsamda $T BOŞ — RLS uygulamayı bozdu"
+done
+
+# 5) ALT TABLO izolasyonu: property_id taşımayan tablolar ebeveyn üzerinden
+#    korunur. Ebeveyn politikası atlanabilseydi burada satır görünürdü.
+for T in inventory_movements survey_options survey_votes bulletin_comments asset_maintenance; do
+  N=$(qapp "SELECT count(*) FROM $T;")
+  [ "$N" = "0" ] && ok "alt tablo $T kapsamsız sorguda boş (ebeveyn üzerinden korunuyor)" \
+    || bad "alt tablo $T kapsamsız sorguda $N satır döndürdü"
+done
+
+# 6) YAZMA kapsam dışına taşamamalı — ebeveyni property_id taşıyan tablo
+if PGPASSWORD="$APPPW" psql -h 127.0.0.1 -p "${DBPORT}" -U siteeksen_app -d siteeksen \
+  -v ON_ERROR_STOP=1 -q -c "SET LOCAL app.property_id = '$OTHERPROP';
+  INSERT INTO vehicles (property_id, plate_number, brand, model)
+  VALUES ('$DEMO_PROPERTY','34RLS001','X','Y');" >/dev/null 2>&1; then
+  bad "başka sitenin kapsamındayken demo siteye araç YAZILABİLDİ (WITH CHECK yok)"
+else
+  ok "kapsam dışına araç yazma engellendi (WITH CHECK)"
+fi
+
+# 7) ALT TABLOYA yazma da engellenmeli: başka sitenin kapsamındayken demo
+#    sitenin anketine seçenek eklenememeli. Bu, alt tablo politikasının
+#    yalnızca OKUMADA değil YAZMADA da çalıştığını gösterir.
+DEMOSURVEY=$(qscoped "SELECT id FROM surveys LIMIT 1;")
+if [ -n "$DEMOSURVEY" ]; then
+  if PGPASSWORD="$APPPW" psql -h 127.0.0.1 -p "${DBPORT}" -U siteeksen_app -d siteeksen \
+    -v ON_ERROR_STOP=1 -q -c "SET LOCAL app.property_id = '$OTHERPROP';
+    INSERT INTO survey_options (survey_id, option_text, display_order)
+    VALUES ('$DEMOSURVEY','RLS ihlali',99);" >/dev/null 2>&1; then
+    bad "başka sitenin kapsamındayken demo sitenin anketine seçenek EKLENDİ"
+  else
+    ok "alt tabloya kapsam dışı yazma engellendi (WITH CHECK ebeveyn üzerinden)"
+  fi
+else
+  bad "demo sitede anket bulunamadı — 7. kontrol çalıştırılamadı"
+fi
+
+# 8) Geçersiz kapsamda fail-closed
+BADS=$(qscoped "SELECT count(*) FROM surveys;" "gecersiz-uuid")
+[ "$BADS" = "0" ] && ok "geçersiz kapsamda anket tablosu boş (fail-closed)" \
+  || bad "geçersiz kapsamda $BADS anket döndü"
+
+# 9) Alt tablo aramaları indeksli olmalı — RLS her satırda EXISTS çalıştırır.
+#    İndekssiz kalırsa koruma "yavaş olduğu için kapatılan" bir şeye dönüşür.
+IDXMISS=0
+for I in idx_inventory_movements_item idx_asset_maintenance_asset \
+         idx_bulletin_comments_post idx_bulletin_messages_post \
+         idx_survey_options_survey idx_survey_votes_survey; do
+  N=$($PSQL -t -A -c "SELECT count(*) FROM pg_indexes WHERE schemaname='public' AND indexname='$I';")
+  [ "$N" = "1" ] || { IDXMISS=$((IDXMISS+1)); echo "     eksik indeks: $I"; }
+done
+[ "$IDXMISS" = "0" ] && ok "alt tablo ebeveyn indekslerinin tamamı var (RLS alt sorgusu için)" \
+  || bad "$IDXMISS indeks eksik"
+
+# 10) Toplam durum — dürüstçe raporlanır
 RLSCOUNT=$($PSQL -t -A -c "SELECT count(*) FROM rls_enabled_tables;")
-[ "$RLSCOUNT" = "7" ] && ok "RLS birinci dilimi tam olarak 7 tabloda açık" \
-  || bad "beklenmedik RLS tablo sayısı: $RLSCOUNT"
+[ "$RLSCOUNT" = "26" ] && ok "RLS toplam 26 tabloda açık (7 birinci + 19 ikinci dilim)" \
+  || bad "beklenmedik RLS tablo sayısı: $RLSCOUNT (beklenen 26)"
 NOTRLS=$($PSQL -t -A -c "SELECT count(*) FROM information_schema.tables t
   WHERE t.table_schema='public' AND t.table_type='BASE TABLE'
     AND t.table_name NOT IN (SELECT table_name FROM rls_enabled_tables);")
-ok "RLS henüz açılmamış tablo sayısı: $NOTRLS (bilerek — ilgili servisler kapsamlı sorguya geçtikçe eklenecek)"
+ok "RLS henüz açılmamış tablo sayısı: $NOTRLS (bilerek — çok servisli tablolar sırada)"
 
 step "SONUÇ"
 echo "  Geçen: $PASS   Başarısız: $FAIL"

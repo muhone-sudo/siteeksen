@@ -15,6 +15,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/siteeksen/backend/pkg/dbscope"
 )
 
 var (
@@ -56,7 +58,7 @@ func New(pool *pgxpool.Pool) *Repository { return &Repository{pool: pool} }
 
 // Create, 0-10 seçenekli anonim memnuniyet anketi açar.
 func (r *Repository) Create(ctx context.Context, propertyID, userID, title, description string, endsAt *time.Time) (string, error) {
-	tx, err := r.pool.Begin(ctx)
+	tx, err := r.scope(propertyID).Begin(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -121,7 +123,7 @@ func scanSurvey(row pgx.Row) (*Survey, error) {
 
 // List, memnuniyet anketlerini getirir.
 func (r *Repository) List(ctx context.Context, propertyID, userID string) ([]Survey, error) {
-	rows, err := r.pool.Query(ctx, surveySelect+`
+	rows, err := r.scope(propertyID).Query(ctx, surveySelect+`
 		WHERE s.property_id = $1 AND s.title LIKE $3 || '%'
 		ORDER BY s.starts_at DESC
 		LIMIT 100`, propertyID, userID, topicPrefix)
@@ -143,7 +145,7 @@ func (r *Repository) List(ctx context.Context, propertyID, userID string) ([]Sur
 
 // Get, tek anketi getirir.
 func (r *Repository) Get(ctx context.Context, propertyID, id, userID string) (*Survey, error) {
-	s, err := scanSurvey(r.pool.QueryRow(ctx, surveySelect+`
+	s, err := scanSurvey(r.scope(propertyID).QueryRow(ctx, surveySelect+`
 		WHERE s.property_id = $1 AND s.id = $3 AND s.title LIKE $4 || '%'`,
 		propertyID, userID, id, topicPrefix))
 	if err == pgx.ErrNoRows {
@@ -158,7 +160,7 @@ func (r *Repository) Respond(ctx context.Context, propertyID, surveyID, userID s
 		return ErrInvalidScore
 	}
 
-	tx, err := r.pool.Begin(ctx)
+	tx, err := r.scope(propertyID).Begin(ctx)
 	if err != nil {
 		return err
 	}
@@ -219,7 +221,7 @@ func (r *Repository) Respond(ctx context.Context, propertyID, surveyID, userID s
 // Puan, seçeneğin display_order değerinden okunur: metin değişse bile puan
 // bozulmaz.
 func (r *Repository) Scores(ctx context.Context, propertyID, surveyID string) ([]int, error) {
-	rows, err := r.pool.Query(ctx, `
+	rows, err := r.scope(propertyID).Query(ctx, `
 		SELECT o.display_order
 		FROM survey_votes v
 		JOIN survey_options o ON o.id = v.option_id
@@ -247,7 +249,7 @@ func (r *Repository) Scores(ctx context.Context, propertyID, surveyID string) ([
 // birlikte gösterilir çünkü "3 verdim çünkü asansör sürekli bozuk" bilgisi
 // yönetim için asıl değerli olan şeydir.
 func (r *Repository) Comments(ctx context.Context, propertyID, surveyID string) ([]Comment, error) {
-	rows, err := r.pool.Query(ctx, `
+	rows, err := r.scope(propertyID).Query(ctx, `
 		SELECT o.display_order, v.comment, v.voted_at
 		FROM survey_votes v
 		JOIN survey_options o ON o.id = v.option_id
@@ -277,7 +279,7 @@ func (r *Repository) Comments(ctx context.Context, propertyID, surveyID string) 
 
 // Close, anketi sonlandırır.
 func (r *Repository) Close(ctx context.Context, propertyID, id string) error {
-	tag, err := r.pool.Exec(ctx, `
+	tag, err := r.scope(propertyID).Exec(ctx, `
 		UPDATE surveys SET status = 'ENDED', ends_at = COALESCE(ends_at, now()), updated_at = now()
 		WHERE id = $1 AND property_id = $2 AND status = 'ACTIVE' AND title LIKE $3 || '%'`,
 		id, propertyID, topicPrefix)
@@ -288,4 +290,12 @@ func (r *Repository) Close(ctx context.Context, propertyID, id string) error {
 		return ErrBadState
 	}
 	return nil
+}
+
+// scope, veritabanı erişimini SİTE KAPSAMINA bağlar (FAZ 2.6).
+//
+// NPS anket tablolarını kullanır; bu tablolarda RLS açıktır (migration 021).
+// Kapsam olmadan sorgu HİÇBİR satır döndürmez — bu bilinçlidir.
+func (r *Repository) scope(propertyID string) *dbscope.Scoped {
+	return dbscope.For(r.pool, propertyID)
 }

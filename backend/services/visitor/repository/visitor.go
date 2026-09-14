@@ -8,6 +8,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/siteeksen/backend/pkg/dbscope"
 	"github.com/siteeksen/backend/services/visitor/models"
 )
 
@@ -53,7 +55,7 @@ func scanVisitor(row pgx.Row) (*models.Visitor, error) {
 // residentUserID boş değilse sonuçlar YALNIZCA o sakinin bağımsız bölümleriyle
 // sınırlanır. Bir sakinin komşusunun ziyaretçilerini görmesi mahremiyet ihlalidir.
 func (r *Repository) List(ctx context.Context, propertyID, status, residentUserID string, inside bool) ([]models.Visitor, error) {
-	rows, err := r.pool.Query(ctx, visitorSelect+`
+	rows, err := r.scope(propertyID).Query(ctx, visitorSelect+`
 		WHERE v.property_id = $1
 		  AND ($2 = '' OR v.status = $2)
 		  AND ($3 = false OR v.status = 'CHECKED_IN')
@@ -80,7 +82,7 @@ func (r *Repository) List(ctx context.Context, propertyID, status, residentUserI
 
 // Get, tek ziyaretçi kaydını getirir.
 func (r *Repository) Get(ctx context.Context, propertyID, id string) (*models.Visitor, error) {
-	v, err := scanVisitor(r.pool.QueryRow(ctx, visitorSelect+`
+	v, err := scanVisitor(r.scope(propertyID).QueryRow(ctx, visitorSelect+`
 		WHERE v.id = $1 AND v.property_id = $2`, id, propertyID))
 	if err == pgx.ErrNoRows {
 		return nil, ErrNotFound
@@ -93,7 +95,7 @@ func (r *Repository) Create(ctx context.Context, propertyID, userID string, in m
 	// Bağımsız bölüm verilmişse bu siteye ait olmalı.
 	if in.UnitID != "" {
 		var ok bool
-		if err := r.pool.QueryRow(ctx,
+		if err := r.scope(propertyID).QueryRow(ctx,
 			`SELECT EXISTS(SELECT 1 FROM units WHERE id = $1 AND property_id = $2 AND deleted = 0)`,
 			in.UnitID, propertyID).Scan(&ok); err != nil {
 			return "", err
@@ -104,7 +106,7 @@ func (r *Repository) Create(ctx context.Context, propertyID, userID string, in m
 	}
 
 	var id string
-	err := r.pool.QueryRow(ctx, `
+	err := r.scope(propertyID).QueryRow(ctx, `
 		INSERT INTO visitors
 			(property_id, unit_id, visitor_name, visitor_phone, visitor_id_number,
 			 visitor_company, vehicle_plate, purpose, visit_reason, expected_at,
@@ -125,7 +127,7 @@ func (r *Repository) Create(ctx context.Context, propertyID, userID string, in m
 // Aksi hâlde aynı ziyaretçi "içeride" iki kez sayılır ve mevcut ziyaretçi
 // listesi güvenilmez hâle gelir.
 func (r *Repository) CheckIn(ctx context.Context, propertyID, id, userID string) error {
-	tag, err := r.pool.Exec(ctx, `
+	tag, err := r.scope(propertyID).Exec(ctx, `
 		UPDATE visitors
 		SET status = 'CHECKED_IN', checked_in_at = now(),
 		    checked_in_by = NULLIF($3,'')::uuid, updated_at = now()
@@ -142,7 +144,7 @@ func (r *Repository) CheckIn(ctx context.Context, propertyID, id, userID string)
 
 // CheckOut, ziyaretçinin çıkışını kaydeder.
 func (r *Repository) CheckOut(ctx context.Context, propertyID, id, userID string) error {
-	tag, err := r.pool.Exec(ctx, `
+	tag, err := r.scope(propertyID).Exec(ctx, `
 		UPDATE visitors
 		SET status = 'CHECKED_OUT', checked_out_at = now(),
 		    checked_out_by = NULLIF($3,'')::uuid, updated_at = now()
@@ -159,7 +161,7 @@ func (r *Repository) CheckOut(ctx context.Context, propertyID, id, userID string
 
 // Cancel, gelmemiş ziyaretçi kaydını iptal eder.
 func (r *Repository) Cancel(ctx context.Context, propertyID, id string) error {
-	tag, err := r.pool.Exec(ctx, `
+	tag, err := r.scope(propertyID).Exec(ctx, `
 		UPDATE visitors SET status = 'CANCELLED', updated_at = now()
 		WHERE id = $1 AND property_id = $2 AND status = 'EXPECTED'`, id, propertyID)
 	if err != nil {
@@ -174,7 +176,7 @@ func (r *Repository) Cancel(ctx context.Context, propertyID, id string) error {
 // Summary, günlük ziyaretçi özetini verir.
 func (r *Repository) Summary(ctx context.Context, propertyID string) (*models.Summary, error) {
 	var s models.Summary
-	err := r.pool.QueryRow(ctx, `
+	err := r.scope(propertyID).QueryRow(ctx, `
 		SELECT count(*) FILTER (WHERE status = 'CHECKED_IN'),
 		       count(*) FILTER (WHERE status = 'EXPECTED' AND expected_at::date = CURRENT_DATE),
 		       count(*) FILTER (WHERE checked_in_at::date = CURRENT_DATE),
@@ -185,4 +187,15 @@ func (r *Repository) Summary(ctx context.Context, propertyID string) (*models.Su
 		return nil, err
 	}
 	return &s, nil
+}
+
+// scope, veritabanı erişimini SİTE KAPSAMINA bağlar (FAZ 2.6).
+//
+// visitors tablolarında RLS açıktır (migration 021).
+//
+// Kapsam, PostgreSQL satır düzeyi güvenliği tarafından okunur: sorguda
+// `WHERE property_id` filtresi unutulsa bile başka sitenin satırları DÖNMEZ.
+// Bu, uygulama katmanındaki filtrenin yerine geçmez — onu YEDEKLER.
+func (r *Repository) scope(propertyID string) *dbscope.Scoped {
+	return dbscope.For(r.pool, propertyID)
 }

@@ -9,6 +9,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/siteeksen/backend/pkg/dbscope"
 )
 
 var (
@@ -115,7 +117,7 @@ func scanVehicle(row pgx.Row) (*Vehicle, error) {
 // ListVehicles, sitedeki araçları getirir.
 // residentUserID doluysa yalnızca o sakinin araçları döner.
 func (r *Repository) ListVehicles(ctx context.Context, propertyID, residentUserID string) ([]Vehicle, error) {
-	rows, err := r.pool.Query(ctx, vehicleSelect+`
+	rows, err := r.scope(propertyID).Query(ctx, vehicleSelect+`
 		WHERE v.property_id = $1
 		  AND ($2 = '' OR v.unit_id IN (
 		        SELECT ru.unit_id FROM resident_units ru
@@ -139,7 +141,7 @@ func (r *Repository) ListVehicles(ctx context.Context, propertyID, residentUserI
 
 // FindByPlate, normalleştirilmiş plakayla araç arar.
 func (r *Repository) FindByPlate(ctx context.Context, propertyID, plate string) (*Vehicle, error) {
-	v, err := scanVehicle(r.pool.QueryRow(ctx, vehicleSelect+`
+	v, err := scanVehicle(r.scope(propertyID).QueryRow(ctx, vehicleSelect+`
 		WHERE v.property_id = $1
 		  AND regexp_replace(upper(COALESCE(v.plate, v.plate_number, '')), '[^A-Z0-9]', '', 'g') = $2
 		  AND COALESCE(v.is_active,true)
@@ -159,7 +161,7 @@ func (r *Repository) CreateVehicle(ctx context.Context, propertyID string, v Veh
 
 	if v.UnitID != "" {
 		var ok bool
-		if err := r.pool.QueryRow(ctx,
+		if err := r.scope(propertyID).QueryRow(ctx,
 			`SELECT EXISTS(SELECT 1 FROM units WHERE id = $1 AND property_id = $2 AND deleted = 0)`,
 			v.UnitID, propertyID).Scan(&ok); err != nil {
 			return "", err
@@ -178,7 +180,7 @@ func (r *Repository) CreateVehicle(ctx context.Context, propertyID string, v Veh
 	var id string
 	// `plate_number` 001'den gelen kolon; NOT NULL kısıtı 005'te kaldırıldı ama
 	// eski okuyucular için aynı değerle doldurulur (tek kaynak: `plate`).
-	err := r.pool.QueryRow(ctx, `
+	err := r.scope(propertyID).QueryRow(ctx, `
 		INSERT INTO vehicles
 			(property_id, unit_id, owner_type, owner_name, plate, plate_number,
 			 brand, model, color, vehicle_type, parking_spot, is_active)
@@ -193,7 +195,7 @@ func (r *Repository) CreateVehicle(ctx context.Context, propertyID string, v Veh
 
 // DeactivateVehicle, aracı pasife alır (kayıt silinmez — geçmiş loglar bağlıdır).
 func (r *Repository) DeactivateVehicle(ctx context.Context, propertyID, id string) error {
-	tag, err := r.pool.Exec(ctx,
+	tag, err := r.scope(propertyID).Exec(ctx,
 		`UPDATE vehicles SET is_active = false, updated_at = now()
 		 WHERE id = $1 AND property_id = $2 AND COALESCE(is_active,true)`, id, propertyID)
 	if err != nil {
@@ -211,7 +213,7 @@ func (r *Repository) DeactivateVehicle(ctx context.Context, propertyID, id strin
 // doluluk açık giriş kayıtlarından sayılır. Aksi hâlde ekranda "15 boş yer var"
 // yazarken otopark dolu olabilir.
 func (r *Repository) ListZones(ctx context.Context, propertyID string) ([]Zone, error) {
-	rows, err := r.pool.Query(ctx, `
+	rows, err := r.scope(propertyID).Query(ctx, `
 		SELECT z.id, z.name, COALESCE(z.location,''), COALESCE(z.capacity,0),
 		       (SELECT count(*) FROM parking_logs l
 		          WHERE l.parking_zone_id = z.id AND l.exit_at IS NULL)::int,
@@ -243,7 +245,7 @@ func (r *Repository) ListZones(ctx context.Context, propertyID string) ([]Zone, 
 
 // ZoneFeeInfo, ücret hesabı için bölge bilgisini getirir.
 func (r *Repository) ZoneFeeInfo(ctx context.Context, propertyID, zoneID string) (isPaid bool, hourly, daily *float64, capacity, occupied int, err error) {
-	err = r.pool.QueryRow(ctx, `
+	err = r.scope(propertyID).QueryRow(ctx, `
 		SELECT COALESCE(z.is_paid,false), z.hourly_fee::float8, z.daily_fee::float8,
 		       COALESCE(z.capacity,0),
 		       (SELECT count(*) FROM parking_logs l WHERE l.parking_zone_id = z.id AND l.exit_at IS NULL)::int
@@ -260,7 +262,7 @@ func (r *Repository) ZoneFeeInfo(ctx context.Context, propertyID, zoneID string)
 // Aynı plaka için açık bir giriş varsa yeni giriş REDDEDİLİR; aksi hâlde araç
 // otoparkta iki kez sayılır ve doluluk bilgisi bozulur.
 func (r *Repository) RecordEntry(ctx context.Context, propertyID, zoneID, plate, gate, method string) (string, bool, error) {
-	tx, err := r.pool.Begin(ctx)
+	tx, err := r.scope(propertyID).Begin(ctx)
 	if err != nil {
 		return "", false, err
 	}
@@ -313,7 +315,7 @@ func (r *Repository) RecordEntry(ctx context.Context, propertyID, zoneID, plate,
 func (r *Repository) OpenLog(ctx context.Context, propertyID, id string) (entryAt time.Time, zoneID string, isResident bool, err error) {
 	var zone *string
 	var vehicle *string
-	err = r.pool.QueryRow(ctx, `
+	err = r.scope(propertyID).QueryRow(ctx, `
 		SELECT entry_at, parking_zone_id::text, vehicle_id::text
 		FROM parking_logs WHERE id = $1 AND property_id = $2 AND exit_at IS NULL`,
 		id, propertyID).Scan(&entryAt, &zone, &vehicle)
@@ -328,7 +330,7 @@ func (r *Repository) OpenLog(ctx context.Context, propertyID, id string) (entryA
 
 // RecordExit, çıkışı ve hesaplanan ücreti yazar.
 func (r *Repository) RecordExit(ctx context.Context, propertyID, id, gate string, durationMinutes int, feeTRY float64) error {
-	tag, err := r.pool.Exec(ctx, `
+	tag, err := r.scope(propertyID).Exec(ctx, `
 		UPDATE parking_logs
 		SET exit_at = now(), exit_gate = NULLIF($3,''),
 		    duration_minutes = $4,
@@ -349,7 +351,7 @@ func (r *Repository) RecordExit(ctx context.Context, propertyID, id, gate string
 
 // ListLogs, otopark hareketlerini getirir. `inside` true ise yalnızca içeridekiler.
 func (r *Repository) ListLogs(ctx context.Context, propertyID string, inside bool) ([]Log, error) {
-	rows, err := r.pool.Query(ctx, `
+	rows, err := r.scope(propertyID).Query(ctx, `
 		SELECT l.id, COALESCE(l.parking_zone_id::text,''), COALESCE(z.name,''),
 		       COALESCE(l.vehicle_id::text,''), l.plate, l.entry_at,
 		       COALESCE(l.entry_gate,''), COALESCE(l.entry_method,''),
@@ -391,4 +393,15 @@ func strOrEmpty(p *string) string {
 		return ""
 	}
 	return *p
+}
+
+// scope, veritabanı erişimini SİTE KAPSAMINA bağlar (FAZ 2.6).
+//
+// vehicles, parking_zones, parking_logs tablolarında RLS açıktır (migration 021).
+//
+// Kapsam, PostgreSQL satır düzeyi güvenliği tarafından okunur: sorguda
+// `WHERE property_id` filtresi unutulsa bile başka sitenin satırları DÖNMEZ.
+// Bu, uygulama katmanındaki filtrenin yerine geçmez — onu YEDEKLER.
+func (r *Repository) scope(propertyID string) *dbscope.Scoped {
+	return dbscope.For(r.pool, propertyID)
 }
