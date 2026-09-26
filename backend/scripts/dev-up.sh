@@ -44,7 +44,7 @@ stop_all() {
   pkill -f 'exe/reservation|exe/package|exe/contract|exe/document' 2>/dev/null
   pkill -f 'exe/iot|exe/asset|exe/bulletin|exe/inventory|exe/survey' 2>/dev/null
   pkill -f 'exe/patrol|exe/settings|exe/nps|exe/esg' 2>/dev/null
-  pkill -f 'exe/energy_analytics|exe/smart_collection' 2>/dev/null
+  pkill -f 'exe/energy_analytics|exe/smart_collection|exe/scheduler' 2>/dev/null
   docker rm -f "$CNAME" >/dev/null 2>&1
   echo "Durduruldu."
 }
@@ -133,6 +133,8 @@ start collection   8103 ./services/smart_collection
 start survey       8104 ./services/survey
 start visitor      8105 ./services/visitor
 start governance   8107 ./services/governance
+# Zamana bağlı bildirimler (gecikmiş aidat, sözleşme ihbarı, açık devriye).
+SCHEDULER_INTERVAL=${SCHEDULER_INTERVAL:-5m} start scheduler 8110 ./cmd/scheduler
 
 # Gateway yalnızca gerçek servislere yönlendirir; diğerleri ayakta değilse
 # 502 döner (uydurma veri DÖNMEZ).

@@ -21,6 +21,8 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strconv"
+	"strings"
 
 	"github.com/shopspring/decimal"
 )
@@ -56,6 +58,28 @@ func (k Kurus) TRY() decimal.Decimal {
 // String, "1.234,56" değil, makine okunur "1234.56" üretir (JSON/loglar için).
 func (k Kurus) String() string {
 	return k.TRY().StringFixed(2)
+}
+
+// Display, insana gösterilecek biçimdir: "1.234,56 TL" (binlik nokta, ondalık
+// virgül). Bildirim metinlerinde kullanılır; hesapta ya da JSON'da kullanılmaz.
+func (k Kurus) Display() string {
+	neg := k < 0
+	if neg {
+		k = -k
+	}
+	whole := strconv.FormatInt(int64(k)/100, 10)
+	var b strings.Builder
+	for i, r := range whole {
+		if i > 0 && (len(whole)-i)%3 == 0 {
+			b.WriteByte('.')
+		}
+		b.WriteRune(r)
+	}
+	s := fmt.Sprintf("%s,%02d TL", b.String(), int64(k)%100)
+	if neg {
+		return "-" + s
+	}
+	return s
 }
 
 // Share, bir dağıtım payıdır.

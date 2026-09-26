@@ -55,6 +55,11 @@ SERVICES = [
     ("governance",       8107, "governance-service",       "app", "KMK yönetişim"),
 ]
 
+# Zamanlanmış bildirim işçisi (cmd/scheduler). Gateway'e bağlı DEĞİLDİR; yalnızca
+# /health sunar. Tek kopya yeterlidir (çok kopyada advisory lock turu tek kopyaya
+# bırakır, dedupe anahtarı çift bildirimi zaten engeller).
+SCHEDULER_PORT = 8110
+
 # Gateway'in beklediği ortam değişkeni adları (cmd/gateway/main.go)
 GATEWAY_ENV = {
     "identity": "IDENTITY_SERVICE_URL", "finance": "FINANCE_SERVICE_URL",
@@ -213,6 +218,18 @@ def compose():
         out += ["    depends_on: *after-migrate",
                 "    restart: unless-stopped",
                 ""]
+
+    out += ["  # Zamana bağlı bildirimler: gecikmiş aidat, sözleşme ihbarı, açık kalan devriye.",
+            "  scheduler:",
+            "    build:",
+            "      context: ./backend",
+            "      dockerfile: cmd/scheduler/Dockerfile",
+            "    environment:",
+            "      <<: *app-env",
+            "      SCHEDULER_INTERVAL: ${SCHEDULER_INTERVAL:-15m}",
+            "    depends_on: *after-migrate",
+            "    restart: unless-stopped",
+            ""]
 
     out += ["  # Tek giriş kapısı: kimlik doğrulama, istemci kimlik başlıklarının",
             "  # silinmesi, CORS allowlist, istek kimliği.",
@@ -438,6 +455,17 @@ def k8s():
         replicas = 1 if directory in ("banking", "meeting_wizard") else 2
         out += k8s_deployment(name, f"{img}/{name}:latest", port, env, replicas, note)
 
+    senv = []
+    senv += k8s_env_secret("DB_HOST", "db-admin", "host")
+    senv += k8s_env_value("DB_PORT", "5432")
+    senv += k8s_env_value("DB_NAME", "siteeksen")
+    senv += k8s_env_value("DB_SSLMODE", "require")
+    senv += k8s_env_value("DB_USER", "siteeksen_app")
+    senv += k8s_env_secret("DB_PASSWORD", "db-app", "password")
+    senv += k8s_env_value("SCHEDULER_INTERVAL", "15m")
+    out += k8s_deployment("scheduler", f"{img}/scheduler:latest", SCHEDULER_PORT, senv, 1,
+                          "Zamanlanmış bildirimler — gateway'e bağlı değil, tek kopya")
+
     genv = []
     for directory, port, name, _, _ in SERVICES:
         genv += k8s_env_value(GATEWAY_ENV[directory], f"http://{name}")
@@ -534,6 +562,9 @@ def ci_matrix():
               "          - name: migrate",
               "            context: ./backend",
               "            dockerfile: cmd/migrate/Dockerfile",
+              "          - name: scheduler",
+              "            context: ./backend",
+              "            dockerfile: cmd/scheduler/Dockerfile",
               "          - name: admin-panel",
               "            context: ./admin",
               "            dockerfile: Dockerfile",
@@ -546,7 +577,8 @@ def ci_rollout():
              f"          # {HEADER}"]
     for _, _, name, _, _ in SERVICES:
         lines.append(f"          kubectl rollout status deployment/{name} --timeout=300s")
-    lines += ["          kubectl rollout status deployment/gateway --timeout=300s",
+    lines += ["          kubectl rollout status deployment/scheduler --timeout=300s",
+              "          kubectl rollout status deployment/gateway --timeout=300s",
               "          kubectl rollout status deployment/admin-panel --timeout=300s",
               "          # END gen-deploy: rollout"]
     return "\n".join(lines)
@@ -566,6 +598,7 @@ def targets():
         files[f"backend/services/{directory}/Dockerfile"] = dockerfile(
             directory, port, name, f"./services/{directory}")
     files["backend/cmd/gateway/Dockerfile"] = dockerfile("gateway", 8888, "gateway", "./cmd/gateway")
+    files["backend/cmd/scheduler/Dockerfile"] = dockerfile("scheduler", SCHEDULER_PORT, "scheduler", "./cmd/scheduler")
     files["docker-compose.yml"] = compose()
     files["k8s/migrate-job.yaml"] = k8s_migrate_job()
     files["k8s/deployments.yaml"] = k8s()

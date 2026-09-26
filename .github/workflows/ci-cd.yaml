@@ -291,6 +291,9 @@ jobs:
           - name: migrate
             context: ./backend
             dockerfile: cmd/migrate/Dockerfile
+          - name: scheduler
+            context: ./backend
+            dockerfile: cmd/scheduler/Dockerfile
           - name: admin-panel
             context: ./admin
             dockerfile: Dockerfile
@@ -403,6 +406,7 @@ jobs:
           kubectl rollout status deployment/visitor-service --timeout=300s
           kubectl rollout status deployment/banking-service --timeout=300s
           kubectl rollout status deployment/governance-service --timeout=300s
+          kubectl rollout status deployment/scheduler --timeout=300s
           kubectl rollout status deployment/gateway --timeout=300s
           kubectl rollout status deployment/admin-panel --timeout=300s
           # END gen-deploy: rollout

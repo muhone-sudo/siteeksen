@@ -573,14 +573,21 @@ yaygınlaştırılmasına kayıyor.
    `pkg/notify/audience.go`'da tek yerde.
    **Kalan:** devriye aksaması, sözleşme ihbar penceresi ve gecikmiş aidat
    için bildirim yok. Bunlar bir olay anına değil ZAMAN geçmesine bağlı
-   olduğu için zamanlanmış bir iş (scheduler) gerektiriyor; böyle bir altyapı
-   henüz yok ve ayrı planlanmalı.
+   olduğu için zamanlanmış bir iş (scheduler) gerektiriyor.
+   **TAMAMLANDI (2026-09-26) — `cmd/scheduler` (migration 028).** Gecikmiş aidat
+   (daireye ayda en fazla bir), sözleşme ihbar son günü / süresi dolmuş ACTIVE
+   sözleşme, süresini aşan açık devriye; eksik/çok hızlı tur olay bildirimi.
+   Tekrar yok (`dedupe_key`), çok kopyada advisory lock, `-once` kipi, `/health`.
+   **Kanıt:** `verify-stack.sh` adım 40 (15 kontrol) — iki site yalıtımı, ikinci
+   turda sıfır yeni kayıt. **Bilinçli sınır:** planlı tur saatleri
+   (`patrol_routes.schedule_times`) API'de tanımlanamıyor; "hiç başlatılmamış
+   planlı tur" ölçülemez ve uydurulmaz.
 4. **Panel ve mobil arayüzler.** 20 gerçek modülün çoğunun panelde karşılığı yok.
 5. **FAZ 3 kalanı** — hassas veri okuma logu belge ve personel için yapıldı
    (`document_access_logs`, `PII_REVEAL`); sakin uçlarına da genişletilecek.
    Yapılandırılmış log (3.5).
-6. **Panelde çıkış (logout) düğmesi yok** — artık gerçek bir çıkış ucu var
-   (`POST /auth/logout`), panelde düğmesi yok.
+6. ~~**Panelde çıkış (logout) düğmesi yok**~~ **TAMAMLANDI** — başlık menüsünde
+   çıkış düğmesi erişim ve yenileme jetonunu iptal eder; şifre değiştirme de var.
 7. **1.6 migration geri alma (down) betikleri.**
 8. **Anahtar yönetimi.** `PII_ENCRYPTION_KEY` ve `siteeksen_app` parolası bugün
    ortam değişkeniyle veriliyor. Üretim için anahtar deposu (vault) ve anahtar

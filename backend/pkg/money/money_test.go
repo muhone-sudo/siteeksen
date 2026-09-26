@@ -243,6 +243,23 @@ func TestKurusDonusum(t *testing.T) {
 	}
 }
 
+func TestKurusDisplay(t *testing.T) {
+	cases := map[Kurus]string{
+		0:          "0,00 TL",
+		5:          "0,05 TL",
+		100:        "1,00 TL",
+		99999:      "999,99 TL",
+		123456:     "1.234,56 TL",
+		100000000:  "1.000.000,00 TL",
+		-123456789: "-1.234.567,89 TL",
+	}
+	for k, want := range cases {
+		if got := k.Display(); got != want {
+			t.Errorf("Display(%d) = %q, beklenen %q", k, got, want)
+		}
+	}
+}
+
 // float64 ile kuruş aritmetiğinin neden bırakıldığını belgeleyen test.
 // 0.1 + 0.2 != 0.3 olduğu için float toplamları kuruş hassasiyetinde sapar;
 // Kurus (tam sayı) toplamları sapmaz.

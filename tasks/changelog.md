@@ -12,6 +12,23 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-09-26 — ZAMANLANMIŞ BİLDİRİMLER (DOĞRULANMIŞ)
+
+> **Kanıt:** `bash backend/scripts/verify-stack.sh` → **965 kontrol, 0 başarısız** (yeni adım 40: 15 kontrol).
+
+- **Eksik:** gecikmiş aidat, sözleşme ihbar süresi ve açık kalan devriye için
+  kimse bildirim üretmiyordu (zamana bağlı, olay yok).
+- `cmd/scheduler`: her aktif siteyi kendi kapsamıyla tarar (migration 028:
+  `scheduler_property_ids()` yalnızca kimlik döner). Aynı bildirim iki kez
+  üretilmez (`dedupe_key`); çok kopyada advisory lock; `-once` ve `/health`.
+- Gecikmiş aidat: daireye ayda en fazla bir hatırlatma, kısmi ödeme düşülmüş
+  kalan (`money.Kurus.Display` → "1.334,56 TL"); taşınmış sakine gitmez.
+- Sözleşme: ihbar son günü 14 gün içinde ya da geçmiş → yönetim (otomatik
+  yenileme ayrımıyla); süresi dolduğu hâlde ACTIVE → yönetim.
+- Devriye: süre + tolerans aşılmış açık tur → yönetim (saat Türkiye saatiyle);
+  eksik ya da çok hızlı kapanan tur → yönetime anında olay bildirimi.
+- Dağıtım: compose, k8s (tek kopya), CI imajı ve rollout `gen-deploy.py`'dan.
+
 ### 2026-09-26 — HESAP ETKİNLEŞTİRME, ŞİFRE DEĞİŞTİRME, GİRİŞ KİLİDİ (DOĞRULANMIŞ)
 
 > **Kanıt:** `bash backend/scripts/verify-stack.sh` → **948 kontrol, 0 başarısız** (yeni adım 39: 25 kontrol).

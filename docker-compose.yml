@@ -345,6 +345,17 @@ services:
     depends_on: *after-migrate
     restart: unless-stopped
 
+  # Zamana bağlı bildirimler: gecikmiş aidat, sözleşme ihbarı, açık kalan devriye.
+  scheduler:
+    build:
+      context: ./backend
+      dockerfile: cmd/scheduler/Dockerfile
+    environment:
+      <<: *app-env
+      SCHEDULER_INTERVAL: ${SCHEDULER_INTERVAL:-15m}
+    depends_on: *after-migrate
+    restart: unless-stopped
+
   # Tek giriş kapısı: kimlik doğrulama, istemci kimlik başlıklarının
   # silinmesi, CORS allowlist, istek kimliği.
   gateway:

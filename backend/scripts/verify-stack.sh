@@ -3030,6 +3030,13 @@ if [ "$PUP" = "1" ] && [ -n "${MGR:-}" ] && [ -n "${TEN:-}" ]; then
     echo "$C1" | grep -q 'fiilen gezilmemiş olabilir' && ok "denetim uyarısı anlaşılır" || bad "uyarı metni yok"
     DBST=$($PSQL -t -A -c "SELECT status FROM patrol_logs WHERE id='$P1ID';")
     [ "$DBST" = "INCOMPLETE" ] && ok "durum veritabanına da INCOMPLETE yazıldı" || bad "veritabanı durumu: $DBST"
+    # Eksik tur yönetime anında bildirilir (sakinlere değil)
+    NPI=$($PSQL -t -A -c "SELECT count(*) FROM notifications WHERE dedupe_key LIKE 'patrol.issue:$P1ID:%';")
+    NPR=$($PSQL -t -A -c "SELECT count(*) FROM notifications n WHERE n.dedupe_key LIKE 'patrol.issue:$P1ID:%'
+      AND NOT EXISTS (SELECT 1 FROM property_roles pr WHERE pr.user_id = n.recipient_user_id
+                      AND pr.property_id = n.property_id AND pr.role IN ('MANAGER','BOARD_MEMBER','AUDITOR'));")
+    [ "${NPI:-0}" -ge 1 ] && [ "$NPR" = "0" ] && ok "eksik tur yönetime bildirildi ($NPI alıcı, hepsi yönetim)" \
+      || bad "eksik tur bildirimi: $NPI kayıt, yönetim dışı $NPR"
 
     # Kapanmış tura okutma yapılamaz
     SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$PURL2/patrols/$P1ID/scan" -H "$RA" -H "$RJ2" \
@@ -5108,6 +5115,141 @@ SC=$(code -X POST "$ID39/auth/login" -H "$J" -d '{"phone":"5559876543","password
 echo "$CR" | grep -q activation_code && bad "var olan hesaba kod üretildi: $CR" \
   || { [ "$SC" = "200" ] && ok "var olan hesap ikinci daireye bağlanınca kod üretilmiyor, şifresi bozulmuyor" \
        || bad "var olan hesap bozuldu: giriş $SC"; }
+
+step "40) Zamanlanmış bildirimler — gecikmiş aidat, sözleşme ihbarı, açık devriye (migration 028)"
+# Önceden bu bildirimleri kimse üretmiyordu: bir olaya değil zamanın geçmesine
+# bağlılar. cmd/scheduler her siteyi kendi kapsamıyla tarar; tekrar çalışınca
+# aynı bildirimi ikinci kez üretmez.
+MGRID=$($PSQL -t -A -c "SELECT id FROM users WHERE phone LIKE '%5551234567' LIMIT 1;")
+U40='40404040-0000-0000-0000-0000000000a1'
+R40='40404040-0000-0000-0000-000000000001'
+R40OLD='40404040-0000-0000-0000-000000000002'
+$PSQL -c "
+  INSERT INTO users (id, first_name, last_name, phone, password_hash, roles) VALUES
+    ('$R40','Borclu','Malik','+905554040001','x',ARRAY['RESIDENT']),
+    ('$R40OLD','Tasinmis','Kiraci','+905554040002','x',ARRAY['RESIDENT'])
+    ON CONFLICT (id) DO NOTHING;
+  INSERT INTO units (id, property_id, block, floor, door_number, share_ratio)
+    VALUES ('$U40','$DEMO_PROPERTY','S',4,'40',1) ON CONFLICT (id) DO NOTHING;
+  INSERT INTO resident_units (resident_id, unit_id, role, start_date, is_active) VALUES
+    ('$R40','$U40','OWNER',CURRENT_DATE - 400, true);
+  INSERT INTO resident_units (resident_id, unit_id, role, start_date, end_date, is_active) VALUES
+    ('$R40OLD','$U40','TENANT',CURRENT_DATE - 400, CURRENT_DATE - 30, false);
+  INSERT INTO monthly_assessments (property_id, unit_id, period_year, period_month,
+      base_amount, total_amount, paid_amount, due_date) VALUES
+    ('$DEMO_PROPERTY','$U40',2020,1,1234.56,1234.56,0,CURRENT_DATE - 60),
+    ('$DEMO_PROPERTY','$U40',2020,2,150,150,50,CURRENT_DATE - 30);" >/dev/null
+CN=$($PSQL -t -A -c "INSERT INTO contracts (property_id, contract_type, title, party_name, start_date, end_date,
+    status, auto_renew, renewal_notice_days) VALUES ('$DEMO_PROPERTY','SERVICE','Asansor bakim','Asansor AS',
+    CURRENT_DATE - 345, CURRENT_DATE + 20, 'ACTIVE', true, 30) RETURNING id;" | head -1)
+CF=$($PSQL -t -A -c "INSERT INTO contracts (property_id, contract_type, title, party_name, start_date, end_date,
+    status, auto_renew, renewal_notice_days) VALUES ('$DEMO_PROPERTY','SERVICE','Uzak sozlesme','Uzak AS',
+    CURRENT_DATE - 10, CURRENT_DATE + 100, 'ACTIVE', false, 30) RETURNING id;" | head -1)
+CE=$($PSQL -t -A -c "INSERT INTO contracts (property_id, contract_type, title, party_name, start_date, end_date,
+    status, auto_renew) VALUES ('$DEMO_PROPERTY','OTHER','Kapatilmamis','Eski AS',
+    CURRENT_DATE - 370, CURRENT_DATE - 5, 'ACTIVE', false) RETURNING id;" | head -1)
+CO=$($PSQL -t -A -c "INSERT INTO contracts (property_id, contract_type, title, party_name, start_date, end_date,
+    status, auto_renew, renewal_notice_days) VALUES ('$OTHERPROP','SERVICE','Diger site temizlik','Temiz AS',
+    CURRENT_DATE - 355, CURRENT_DATE + 10, 'ACTIVE', false, 30) RETURNING id;" | head -1)
+PO=$($PSQL -t -A -c "INSERT INTO patrol_logs (property_id, guard_id, started_at, expected_duration_minutes, status)
+    VALUES ('$DEMO_PROPERTY','$MGRID', now() - interval '3 hours', 30, 'IN_PROGRESS') RETURNING id;" | head -1)
+PY=$($PSQL -t -A -c "INSERT INTO patrol_logs (property_id, guard_id, started_at, expected_duration_minutes, status)
+    VALUES ('$DEMO_PROPERTY','$MGRID', now() - interval '5 minutes', 30, 'IN_PROGRESS') RETURNING id;" | head -1)
+
+N=$(qapp "SELECT count(*) FROM scheduler_property_ids();")
+P=$(qapp "SELECT count(*) FROM properties;")
+[ "${N:-0}" -ge 2 ] && [ "$P" = "0" ] && ok "uygulama rolü site KİMLİKLERİNİ alabiliyor ($N) ama properties tablosu kapsamsız hâlâ kapalı" \
+  || bad "site listesi: fonksiyon $N, properties $P"
+
+sched_once() { # $1 = çıktı dosyası
+  DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_app DB_PASSWORD="$APPPW" DB_NAME=siteeksen \
+  DB_SSLMODE=disable go run ./cmd/scheduler -once >"$1" 2>/tmp/verify-sched.err
+}
+if sched_once /tmp/verify-sched1.json; then
+  ok "zamanlayıcı tek tur başarıyla çalıştı: $(python3 -c "import json;print(json.load(open('/tmp/verify-sched1.json'))['note'])")"
+else
+  bad "zamanlayıcı turu başarısız"; tail -5 /tmp/verify-sched.err; head -40 /tmp/verify-sched1.json
+fi
+
+# Gecikmiş aidat: borçlu daireye TEK bildirim, doğru toplam, taşınmış sakine yok
+BODY=$($PSQL -t -A -c "SELECT body FROM notifications WHERE topic='dues.overdue' AND recipient_user_id='$R40';")
+NB=$($PSQL -t -A -c "SELECT count(*) FROM notifications WHERE topic='dues.overdue' AND recipient_user_id='$R40';")
+[ "$NB" = "1" ] && echo "$BODY" | grep -q "2 dönem" && echo "$BODY" | grep -q "1.334,56 TL" \
+  && ok "borçlu daireye tek bildirim: 2 dönem, kalan 1.334,56 TL (kısmi ödeme düşülmüş)" \
+  || bad "aidat bildirimi ($NB): $BODY"
+NB=$($PSQL -t -A -c "SELECT count(*) FROM notifications WHERE recipient_user_id='$R40OLD';")
+[ "$NB" = "0" ] && ok "daireden taşınmış eski kiracıya aidat bildirimi GİTMEDİ" || bad "taşınmış sakine $NB bildirim"
+KEY=$($PSQL -t -A -c "SELECT dedupe_key FROM notifications WHERE topic='dues.overdue' AND recipient_user_id='$R40';")
+echo "$KEY" | grep -Eq "^dues.overdue:$U40:[0-9]{4}-[0-9]{2}:$R40$" && ok "aidat hatırlatması daire+ay anahtarlı (ayda en fazla bir)" \
+  || bad "aidat dedupe anahtarı: $KEY"
+
+# Sözleşme: ihbar son günü geçmiş → yönetim; uzak sözleşme → yok; süresi dolmuş ACTIVE → yönetim
+NMGR=$($PSQL -t -A -c "SELECT count(*) FROM notifications WHERE payload->>'contract_id'='$CN' AND topic='contract.notice';")
+NOUT=$($PSQL -t -A -c "SELECT count(*) FROM notifications n WHERE payload->>'contract_id'='$CN'
+  AND NOT EXISTS (SELECT 1 FROM property_roles pr WHERE pr.user_id=n.recipient_user_id AND pr.property_id='$DEMO_PROPERTY'
+                  AND pr.role IN ('MANAGER','BOARD_MEMBER','AUDITOR'));")
+CBODY=$($PSQL -t -A -c "SELECT body FROM notifications WHERE payload->>'contract_id'='$CN' LIMIT 1;")
+[ "${NMGR:-0}" -ge 1 ] && [ "$NOUT" = "0" ] && echo "$CBODY" | grep -q "10 gün geçti" && echo "$CBODY" | grep -q "kendiliğinden yenilenir" \
+  && ok "ihbar son günü geçen sözleşme yönetime bildirildi ($NMGR alıcı; 'son gün … 10 gün geçti', otomatik yenileme uyarısı)" \
+  || bad "ihbar bildirimi: $NMGR alıcı, yönetim dışı $NOUT — $CBODY"
+N=$($PSQL -t -A -c "SELECT count(*) FROM notifications WHERE payload->>'contract_id'='$CF';")
+[ "$N" = "0" ] && ok "ihbar penceresine girmemiş sözleşme için bildirim yok" || bad "uzak sözleşmeye $N bildirim"
+N=$($PSQL -t -A -c "SELECT count(*) FROM notifications WHERE payload->>'contract_id'='$CE' AND topic='contract.expired';")
+[ "${N:-0}" -ge 1 ] && ok "süresi dolduğu hâlde AKTİF kalan sözleşme yönetime bildirildi" || bad "süresi dolmuş sözleşme bildirimi: $N"
+
+# Site yalıtımı: diğer sitenin sözleşmesi YALNIZCA o sitenin yönetimine
+ROW=$($PSQL -t -A -c "SELECT count(*), count(*) FILTER (WHERE property_id <> '$OTHERPROP'),
+    count(*) FILTER (WHERE recipient_user_id = '44444444-4444-4444-4444-444444444404'),
+    count(*) FILTER (WHERE NOT EXISTS (SELECT 1 FROM property_roles pr WHERE pr.user_id=n.recipient_user_id
+                                        AND pr.property_id='$OTHERPROP'))
+  FROM notifications n WHERE payload->>'contract_id'='$CO';")
+IFS='|' read -r NT NWRONG NMINE NFOREIGN <<<"$ROW"
+[ "${NT:-0}" -ge 1 ] && [ "$NWRONG" = "0" ] && [ "$NMINE" = "1" ] && [ "$NFOREIGN" = "0" ] \
+  && ok "diğer sitenin sözleşmesi yalnızca o sitenin yöneticisine bildirildi ($NT alıcı)" \
+  || bad "site yalıtımı: toplam $NT, yanlış site $NWRONG, o sitenin yöneticisi $NMINE, yabancı alıcı $NFOREIGN"
+
+# Devriye: süresi aşılan açık tur → yönetim; yeni başlamış tur → yok
+N=$($PSQL -t -A -c "SELECT count(*) FROM notifications WHERE payload->>'patrol_id'='$PO' AND topic='patrol.overdue';")
+[ "${N:-0}" -ge 1 ] && ok "beklenen süre + toleransı aşan açık devriye yönetime bildirildi" || bad "açık devriye bildirimi: $N"
+N=$($PSQL -t -A -c "SELECT count(*) FROM notifications WHERE payload->>'patrol_id'='$PY';")
+[ "$N" = "0" ] && ok "süresi içindeki devriye için bildirim yok" || bad "yeni başlamış tura $N bildirim"
+N=$($PSQL -t -A -c "SELECT count(*) FROM notifications n JOIN patrol_logs l ON l.id::text = n.payload->>'patrol_id'
+  WHERE n.topic = 'patrol.overdue' AND l.id = '$PO'
+    AND n.body LIKE '%' || to_char(l.started_at AT TIME ZONE 'Europe/Istanbul', 'HH24:MI') || ' saatinde%';")
+[ "${N:-0}" -ge 1 ] && ok "devriye saati Türkiye saatiyle yazılıyor (kap UTC olsa da)" || bad "devriye saati yanlış saat diliminde"
+
+# Tekrar çalıştırma: YENİ kayıt yok, hepsi 'daha önce oluşturuldu'
+BEFORE=$($PSQL -t -A -c "SELECT count(*) FROM notifications WHERE topic IN ('dues.overdue','contract.notice','contract.expired','patrol.overdue');")
+sched_once /tmp/verify-sched2.json; RC=$?
+AFTER=$($PSQL -t -A -c "SELECT count(*) FROM notifications WHERE topic IN ('dues.overdue','contract.notice','contract.expired','patrol.overdue');")
+CREATED=$(python3 -c "import json;r=json.load(open('/tmp/verify-sched2.json'));print(sum(j['sent']+j['pending']+j['suppressed'] for j in r['jobs']), sum(j['duplicate'] for j in r['jobs']))")
+[ "$RC" = "0" ] && [ "$BEFORE" = "$AFTER" ] && [ "${CREATED%% *}" = "0" ] && [ "${CREATED##* }" -ge 1 ] \
+  && ok "ikinci tur yeni bildirim üretmedi ($AFTER kayıt sabit; ${CREATED##* } tanesi 'daha önce oluşturuldu')" \
+  || bad "ikinci tur: çıkış $RC, kayıt $BEFORE → $AFTER, oluşan/atlanan $CREATED"
+
+# Kilit: başka kopya turu tutuyorsa bu kopya atlar
+LOCKKEY=$((16#5E17E45C4ED))
+$PSQL -c "SELECT pg_advisory_lock($LOCKKEY); SELECT pg_sleep(20);" >/dev/null 2>&1 &
+LOCK_PID=$!
+for _ in $(seq 1 20); do
+  [ "$($PSQL -t -A -c "SELECT count(*) FROM pg_locks WHERE locktype='advisory' AND granted;")" -ge 1 ] && break; sleep 0.5
+done
+sched_once /tmp/verify-sched3.json
+grep -q '"skipped"' /tmp/verify-sched3.json && ok "başka kopya çalışırken tur atlanıyor (advisory lock)" \
+  || bad "kilit tutulurken tur yine çalıştı: $(head -c 300 /tmp/verify-sched3.json)"
+kill_tree "$LOCK_PID"
+$PSQL -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE query LIKE '%pg_sleep(20)%' AND pid <> pg_backend_pid();" >/dev/null 2>&1
+
+# Sürekli kip: sağlık ucu son turun raporunu gösterir
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_app DB_PASSWORD="$APPPW" DB_NAME=siteeksen \
+DB_SSLMODE=disable PORT=18610 SCHEDULER_INTERVAL=1m go run ./cmd/scheduler >/tmp/verify-sched-loop.log 2>&1 &
+SCHED_PID=$!
+HOK=0
+for _ in $(seq 1 60); do
+  curl -fsS http://127.0.0.1:18610/health 2>/dev/null | grep -q '"jobs"' && { HOK=1; break; }; sleep 1
+done
+[ "$HOK" = "1" ] && ok "sürekli kipte /health son turun raporunu gösteriyor" || bad "zamanlayıcı sağlık ucu: $(tail -3 /tmp/verify-sched-loop.log)"
+kill_tree "$SCHED_PID"
 
 step "SONUÇ"
 echo "  Geçen: $PASS   Başarısız: $FAIL"

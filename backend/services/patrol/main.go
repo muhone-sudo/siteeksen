@@ -27,10 +27,13 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/siteeksen/backend/pkg/database"
 	"github.com/siteeksen/backend/pkg/middleware"
+	"github.com/siteeksen/backend/pkg/notify"
 	"github.com/siteeksen/backend/services/patrol/repository"
 )
 
@@ -43,6 +46,7 @@ func main() {
 	defer database.Close()
 
 	repo := repository.New(pool)
+	notifier := notify.FromEnvOrNil(pool)
 
 	r := gin.Default()
 	// Biçimi bozuk kimlik 500 değil 404 döner (pkg/middleware/params.go).
@@ -197,6 +201,9 @@ func main() {
 				resp["note"] = "Tur EKSİK olarak kapatıldı: zorunlu noktalardan bazıları " +
 					"okutulmadı. Durum istemciden alınmaz, kayıttan hesaplanır."
 			}
+			if res.Status == "INCOMPLETE" || res.TooFast {
+				resp["notification"] = notifyPatrolIssue(c, notifier, pool, c.Param("id"), res)
+			}
 			c.JSON(http.StatusOK, resp)
 		})
 	}
@@ -314,4 +321,47 @@ func fail(c *gin.Context, err error, op string) {
 		log.Printf("[patrol] %s başarısız: %v", op, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "İşlem tamamlanamadı"})
 	}
+}
+
+// notifyPatrolIssue, eksik ya da beklenenden çok kısa süren turu YÖNETİME bildirir.
+//
+// Güvenlik hizmeti ortak giderdir; verilmeyen hizmetin bedeli istenemez (KMK
+// m.20). Yönetim bunu aylık raporda değil, tur kapandığı anda öğrenmelidir.
+// Dedupe anahtarı tur kimliğidir: aynı tur iki kez bildirilmez.
+func notifyPatrolIssue(c *gin.Context, n *notify.Notifier, pool *pgxpool.Pool,
+	patrolID string, res *repository.CompleteResult) *notify.BroadcastResult {
+	if n == nil {
+		return &notify.BroadcastResult{Note: "Bildirim altyapısı kurulu değil; yönetime bildirim oluşturulmadı."}
+	}
+	propertyID := c.GetString("property_id")
+	recipients, err := notify.Managers(c.Request.Context(), pool, propertyID)
+	if err != nil {
+		log.Printf("[patrol] yönetim alıcıları alınamadı: %v", err)
+		return &notify.BroadcastResult{Note: "Yönetim listesi okunamadı; bildirim oluşturulmadı."}
+	}
+	subject, body := "Devriye turu eksik kapandı", ""
+	if res.Status == "INCOMPLETE" {
+		body = "Okutulmayan zorunlu noktalar: " + strings.Join(res.MissedCheckpoints, ", ") + ". "
+	} else {
+		subject = "Devriye turu beklenenden kısa sürdü"
+	}
+	body += "Okutulan nokta: " + strconv.Itoa(res.CheckpointsVisited) + "/" + strconv.Itoa(res.CheckpointsExpected) +
+		" · Süre: " + strconv.Itoa(res.ActualMinutes) + " dk (beklenen " + strconv.Itoa(res.ExpectedMinutes) + " dk)."
+	if res.Warning != "" {
+		body += "\n" + res.Warning
+	}
+	return n.Broadcast(c.Request.Context(), notify.Message{
+		PropertyID: propertyID,
+		Channel:    notify.ChannelInApp,
+		Category:   notify.CategoryTransactional,
+		Topic:      "patrol.issue",
+		Subject:    subject,
+		Body:       body,
+		Payload: map[string]any{
+			"patrol_id": patrolID, "status": res.Status, "too_fast": res.TooFast,
+			"missed_checkpoints": res.MissedCheckpoints,
+		},
+		DedupeKey: "patrol.issue:" + patrolID,
+		CreatedBy: c.GetString("user_id"),
+	}, recipients)
 }
