@@ -87,6 +87,12 @@ func RefreshToken(svc *service.AuthService) gin.HandlerFunc {
 
 		tokens, err := svc.RefreshToken(c.Request.Context(), req.RefreshToken)
 		switch {
+		case errors.Is(err, service.ErrTokenReused):
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"error": "Oturumunuz güvenlik nedeniyle kapatıldı; lütfen yeniden giriş yapın",
+				"note":  "Bu yenileme jetonu daha önce kullanılmıştı. Jetonunuz başka bir cihaza geçmiş olabilir; bütün oturumlar kapatıldı. Şüpheleniyorsanız şifrenizi değiştirin.",
+			})
+			return
 		case errors.Is(err, service.ErrInvalidToken), errors.Is(err, service.ErrTokenRevoked):
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Geçersiz refresh token"})
 			return

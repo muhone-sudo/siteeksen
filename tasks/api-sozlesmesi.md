@@ -31,7 +31,7 @@
 | Uç | Rol | Gövde / Sorgu | Yanıt |
 |---|---|---|---|
 | `POST /auth/login` | açık | `phone`*, `password`* (0xxx/10 hane → +90) | `{access_token, refresh_token, expires_in, user:{id,first_name,last_name,phone,email,active_property_id,roles[],properties[],kvkk_consent_required}}` · 401 yanlış/pasif hesap |
-| `POST /auth/refresh` | açık | `refresh_token`* | `{access_token, refresh_token, expires_in}` · 401 |
+| `POST /auth/refresh` | açık | `refresh_token`* | `{access_token, refresh_token, expires_in}` · 401. **Jeton tek kullanımlık:** yanıttaki YENİ `refresh_token` saklanmalı. Aynı jeton 30 sn sonra yeniden sunulursa bütün oturumlar kapanır (401 + `note`) |
 | `POST /auth/logout` | jeton | `refresh_token` (verin — yoksa 7 gün geçerli kalır) | `{message, access_token_revoked, refresh_token_revoked, warning?}` |
 | `GET /users/me` | herkes | — | kullanıcı nesnesi |
 | `GET /users/me/properties` | herkes | — | **düz dizi** `[{property_id,property_name,unit_id,unit_name,role}]` |

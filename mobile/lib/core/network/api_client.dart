@@ -62,7 +62,16 @@ class ApiClient {
     ));
   }
 
-  Future<bool> _tryRefreshToken() async {
+  /// Aynı anda gelen 401'ler TEK yenileme isteği paylaşır: yenileme jetonu
+  /// tek kullanımlıktır ve sunucu, tüketilmiş jetonun sonradan yeniden
+  /// sunulmasını çalınma işareti sayıp bütün oturumları kapatır.
+  Future<bool>? _refreshing;
+
+  Future<bool> _tryRefreshToken() {
+    return _refreshing ??= _doRefresh().whenComplete(() => _refreshing = null);
+  }
+
+  Future<bool> _doRefresh() async {
     try {
       final refresh = await _storage.read(key: _refreshTokenKey);
       if (refresh == null) return false;
@@ -75,6 +84,12 @@ class ApiClient {
       if (accessToken == null) return false;
       await _persistTokens(accessToken, refreshToken);
       return true;
+    } on DioException catch (e) {
+      // Sunucu jetonu reddettiyse oturum bitmiştir: bozuk oturum saklanmaz.
+      if (e.response?.statusCode == 401) {
+        await clearToken();
+      }
+      return false;
     } catch (_) {
       return false;
     }

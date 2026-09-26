@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -109,6 +110,15 @@ func (s *AuthService) Login(ctx context.Context, phone, password string) (*Token
 // ErrTokenRevoked, iptal edilmiş bir jetonla yenileme denendiğinde döner.
 var ErrTokenRevoked = errors.New("jeton iptal edilmiş; yeniden giriş yapılmalı")
 
+// ErrTokenReused, tüketilmiş yenileme jetonu yeniden sunulduğunda döner. Bu
+// durumda kullanıcının BÜTÜN oturumları kapatılmıştır.
+var ErrTokenReused = errors.New("yenileme jetonu daha önce kullanılmış; güvenlik için bütün oturumlar kapatıldı")
+
+// refreshReuseGrace, aynı jetonun eşzamanlı ikinci kullanımına (iki sekme,
+// ağ yeniden denemesi) tanınan süredir. Bu süreden sonra tekrar kullanım
+// çalınma işareti sayılır.
+const refreshReuseGrace = 30 * time.Second
+
 // ErrInvalidCredentials, telefon ya da şifre yanlış, hesap yok, pasif ya da
 // geçici olarak kilitli. Hepsi BİLEREK aynı hatadır: hangisi olduğunu söylemek
 // hesap varlığını sızdırır.
@@ -143,20 +153,47 @@ func (s *AuthService) RefreshToken(ctx context.Context, refreshToken string) (*T
 
 	// Çıkışta iptal edilen bir yenileme jetonu, denetlenmezse 7 GÜN boyunca yeni
 	// erişim jetonu üretmeye devam eder — yani "çıkış yap" hiçbir işe yaramaz.
-	if s.revocations != nil {
-		var issuedAt time.Time
-		if claims.IssuedAt != nil {
-			issuedAt = claims.IssuedAt.Time
+	// Ayrıca jeton TEK KULLANIMLIKTIR (rotation): kullanılınca tükenir.
+	if s.revocations == nil {
+		// Fail-closed: iptal ve tek kullanım denetimi olmadan yenileme yapılmaz.
+		return nil, ErrRevocationUnavailable
+	}
+	if claims.ID == "" {
+		return nil, ErrInvalidToken
+	}
+	var issuedAt time.Time
+	if claims.IssuedAt != nil {
+		issuedAt = claims.IssuedAt.Time
+	}
+	var expiresAt time.Time
+	if claims.ExpiresAt != nil {
+		expiresAt = claims.ExpiresAt.Time
+	}
+	use, rerr := s.revocations.ClaimRefresh(ctx, claims.ID, claims.Subject, expiresAt, refreshReuseGrace)
+	if rerr != nil {
+		// Fail-closed: denetim yapılamıyorsa jeton kabul edilmez. Aksi hâlde
+		// iptal mekanizması, veritabanını yoran bir saldırganca kapatılabilirdi.
+		return nil, fmt.Errorf("%w: %v", ErrRevocationUnavailable, rerr)
+	}
+	switch use {
+	case revocation.RefreshRevoked:
+		return nil, ErrTokenRevoked
+	case revocation.RefreshReused:
+		// Meşru istemci yeni jetonu çoktan aldı; eski jetonu sunan kişi
+		// büyük olasılıkla onu ele geçirmiştir. Hangisinin saldırgan olduğu
+		// bilinemediği için kullanıcının BÜTÜN oturumları kapatılır.
+		if err := s.revocations.RevokeAll(ctx, claims.Subject, "REFRESH_REUSE"); err != nil {
+			return nil, fmt.Errorf("%w: %v", ErrRevocationUnavailable, err)
 		}
-		revoked, _, rerr := s.revocations.IsRevoked(ctx, claims.ID, claims.Subject, issuedAt)
-		if rerr != nil {
-			// Fail-closed: denetim yapılamıyorsa jeton kabul edilmez. Aksi hâlde
-			// iptal mekanizması, veritabanını yoran bir saldırganca kapatılabilirdi.
-			return nil, fmt.Errorf("%w: %v", ErrRevocationUnavailable, rerr)
-		}
-		if revoked {
-			return nil, ErrTokenRevoked
-		}
+		log.Printf("[identity] GÜVENLİK: tüketilmiş yenileme jetonu yeniden kullanıldı; kullanıcının bütün oturumları kapatıldı (jti=%s)", claims.ID)
+		return nil, ErrTokenReused
+	}
+	invalidated, rerr := s.revocations.UserInvalidated(ctx, claims.Subject, issuedAt)
+	if rerr != nil {
+		return nil, fmt.Errorf("%w: %v", ErrRevocationUnavailable, rerr)
+	}
+	if invalidated {
+		return nil, ErrTokenRevoked
 	}
 
 	user, err := s.userRepo.GetByID(ctx, claims.Subject)
@@ -278,7 +315,7 @@ func (s *AuthService) generateTokens(user *models.User, roles []string) (*TokenP
 		// exp tam saniye kalır; Kong'un jwt eklentisi ve istemciler tam sayı bekler.
 		"iat": jwt.NewNumericDate(now),
 		"exp": accessExpiry.Unix(),
-		"jti":         uuid.New().String(),
+		"jti": uuid.New().String(),
 	}
 	accessToken := jwt.NewWithClaims(jwt.SigningMethodHS256, accessClaims)
 	accessTokenString, err := accessToken.SignedString(s.jwtSecret)

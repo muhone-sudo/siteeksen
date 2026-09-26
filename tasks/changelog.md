@@ -12,6 +12,19 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-09-26 — YENİLEME JETONU TEK KULLANIMLIK + TEKRAR KULLANIM TESPİTİ (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **976 kontrol, 0 başarısız** (§30'a 6 kontrol); `verify-mobile.sh` → 8/8.
+
+- **Açık:** yenileme jetonu 7 gün boyunca sınırsız kullanılabiliyordu; çalınan
+  jeton fark edilmeden 7 gün erişim üretebilirdi.
+- Her yenilemede jeton tükenir (`revoked_tokens`, ROTATED). 30 sn içindeki ikinci
+  kullanım eşzamanlı istek sayılır; sonrası çalınma işaretidir → kullanıcının
+  BÜTÜN oturumları kapanır (`REFRESH_REUSE`), yanıt nedenini söyler.
+- **Hata (yönetici mobil):** yenilemede yeni yenileme jetonu atılıyordu; yenileme
+  sonrası 401'de döngü koruması yoktu. İki mobil uygulamada eşzamanlı 401'ler tek
+  yenileme isteğini paylaşır; reddedilen oturum cihazdan silinir.
+
 ### 2026-09-26 — GENEL KURUL KARARI → KARAR DEFTERİ (FAZ 6.6, DOĞRULANMIŞ)
 
 > **Kanıt:** `bash backend/scripts/verify-stack.sh` → **970 kontrol, 0 başarısız**.

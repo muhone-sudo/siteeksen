@@ -126,6 +126,89 @@ func (c *Checker) RevokeAll(ctx context.Context, userID, reason string) error {
 	return err
 }
 
+// RefreshUse, bir yenileme jetonunun bu kullanımının ne olduğudur.
+type RefreshUse int
+
+const (
+	// RefreshFresh: jetonun ilk kullanımı. Yeni çift verilir, jeton tükenir.
+	RefreshFresh RefreshUse = iota
+	// RefreshGrace: jeton az önce (tolerans süresi içinde) kullanılmış. Aynı
+	// istemcinin eşzamanlı iki isteğidir (iki sekme, yeniden deneme); yeni
+	// çift verilir, oturum kapatılmaz.
+	RefreshGrace
+	// RefreshReused: tüketilmiş jeton tolerans süresinden SONRA yeniden
+	// kullanıldı. Meşru istemci yeni jetonu çoktan almıştır; eski jetonu
+	// sunan büyük olasılıkla onu ele geçirmiş biridir.
+	RefreshReused
+	// RefreshRevoked: jeton çıkış vb. ile iptal edilmiş.
+	RefreshRevoked
+)
+
+// ClaimRefresh, yenileme jetonunu TEK KULLANIMLIK yapar (rotation).
+//
+// NEDEN (2026-09-26): yenileme jetonu 7 gün boyunca sınırsız kullanılabiliyordu.
+// Çalınan bir jeton, sahibi fark etmeden 7 gün yeni erişim jetonu üretebilirdi
+// ve bu hiçbir yerde görünmezdi. Artık her yenilemede jeton tükenir; tükenmiş
+// jetonun sonradan yeniden sunulması çalınma işareti sayılır (çağıran kullanıcının
+// bütün oturumlarını kapatır).
+//
+// Eşzamanlılık: iki istek aynı jetonu aynı anda sunarsa biri kaydı yazar,
+// diğeri yazamaz; ikincisi tolerans içinde sayılır (RefreshGrace).
+func (c *Checker) ClaimRefresh(ctx context.Context, jti, userID string, expiresAt time.Time, grace time.Duration) (RefreshUse, error) {
+	if c == nil || c.pool == nil {
+		return RefreshRevoked, ErrNotConfigured
+	}
+	if jti == "" {
+		return RefreshRevoked, nil
+	}
+	var inserted bool
+	var reason *string
+	var recent *bool
+	err := c.pool.QueryRow(ctx, `
+		WITH ins AS (
+			INSERT INTO revoked_tokens (jti, user_id, token_type, expires_at, reason)
+			VALUES ($1::uuid, NULLIF($2,'')::uuid, 'REFRESH', $3, 'ROTATED')
+			ON CONFLICT (jti) DO NOTHING
+			RETURNING 1)
+		SELECT EXISTS (SELECT 1 FROM ins),
+		       (SELECT reason FROM revoked_tokens WHERE jti = $1::uuid),
+		       (SELECT revoked_at > now() - make_interval(secs => $4) FROM revoked_tokens WHERE jti = $1::uuid)`,
+		jti, userID, expiresAt, grace.Seconds()).Scan(&inserted, &reason, &recent)
+	if err != nil {
+		return RefreshRevoked, err
+	}
+	switch {
+	case inserted:
+		return RefreshFresh, nil
+	case reason == nil:
+		// Çakışan kaydı eşzamanlı bir istek yazdı ve bu sorgunun anlık
+		// görüntüsünde henüz görünmüyor: aynı anda gelen iki istektir.
+		return RefreshGrace, nil
+	case *reason != "ROTATED":
+		return RefreshRevoked, nil
+	case recent != nil && *recent:
+		return RefreshGrace, nil
+	default:
+		return RefreshReused, nil
+	}
+}
+
+// UserInvalidated, kullanıcının toplu iptalinin (tüm cihazlardan çıkış, şifre
+// değişikliği) bu jetonu kapsayıp kapsamadığını söyler.
+func (c *Checker) UserInvalidated(ctx context.Context, userID string, issuedAt time.Time) (bool, error) {
+	if c == nil || c.pool == nil {
+		return false, ErrNotConfigured
+	}
+	var before *time.Time
+	err := c.pool.QueryRow(ctx, `
+		SELECT (SELECT invalidate_before FROM user_token_invalidation WHERE user_id = NULLIF($1,'')::uuid)`,
+		userID).Scan(&before)
+	if err != nil {
+		return false, err
+	}
+	return before != nil && !issuedAt.IsZero() && issuedAt.Before(*before), nil
+}
+
 // Purge, süresi dolmuş iptal kayıtlarını siler ve silinen sayıyı döner.
 //
 // Zamanlanmış görev altyapısı yoktur; bu yüzden çıkış işleminde çağrılır

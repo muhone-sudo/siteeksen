@@ -3777,6 +3777,42 @@ if [ -n "${SVCPORT:-}" ]; then
   [ "$SC" = "200" ] && ok "toplu iptalden sonra açılan yeni oturum çalışıyor → 200" \
     || bad "yeni oturum da reddedildi → $SC (iptal geçmişe dönük olmalı)"
 
+  # YENİLEME JETONU TEK KULLANIMLIK (rotation) + tekrar kullanım tespiti
+  sleep 1
+  RL=$(curl -s -X POST "$IURL2/auth/login" -H 'Content-Type: application/json' \
+    -d '{"phone":"5559876543","password":"Demo123!"}')
+  REF1=$(echo "$RL" | sed -n 's/.*"refresh_token":"\([^"]*\)".*/\1/p')
+  R2=$(curl -s -X POST "$IURL2/auth/refresh" -H 'Content-Type: application/json' -d "{\"refresh_token\":\"$REF1\"}")
+  REF2=$(echo "$R2" | sed -n 's/.*"refresh_token":"\([^"]*\)".*/\1/p')
+  ACC2=$(echo "$R2" | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+  [ -n "$REF2" ] && [ "$REF2" != "$REF1" ] && ok "yenileme yeni bir yenileme jetonu veriyor (döndürme)" \
+    || bad "yenileme yanıtı: $R2"
+  RJTI=$(echo "$REF1" | cut -d. -f2 | tr '_-' '/+' | base64 -d 2>/dev/null | grep -o '"jti":"[^"]*"' | cut -d'"' -f4)
+  RS=$($PSQL -t -A -c "SELECT reason FROM revoked_tokens WHERE jti='$RJTI';")
+  [ "$RS" = "ROTATED" ] && ok "kullanılan yenileme jetonu tükendi (ROTATED)" || bad "eski jeton durumu: '$RS'"
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$IURL2/auth/refresh" -H 'Content-Type: application/json' \
+    -d "{\"refresh_token\":\"$REF1\"}")
+  [ "$SC" = "200" ] && ok "aynı jetonun 30 sn içindeki ikinci kullanımı (eşzamanlı sekme) oturumu düşürmüyor → 200" \
+    || bad "tolerans içi ikinci kullanım → $SC"
+  # Tolerans dolmuş gibi: jetonun tükenme anını geriye al
+  $PSQL -c "UPDATE revoked_tokens SET revoked_at = now() - interval '5 minutes' WHERE jti='$RJTI';" >/dev/null
+  RR=$(curl -s -w '\n%{http_code}' -X POST "$IURL2/auth/refresh" -H 'Content-Type: application/json' \
+    -d "{\"refresh_token\":\"$REF1\"}")
+  [ "$(echo "$RR" | tail -1)" = "401" ] && echo "$RR" | grep -q 'güvenlik' \
+    && ok "tükenmiş jetonun sonradan yeniden kullanımı reddedildi → 401 (çalınma işareti)" \
+    || bad "tekrar kullanım: $RR"
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$IURL2/auth/refresh" -H 'Content-Type: application/json' \
+    -d "{\"refresh_token\":\"$REF2\"}")
+  SC2=$(curl -s -o /dev/null -w '%{http_code}' "$IURL2/users/me" -H "Authorization: Bearer $ACC2")
+  WHY=$($PSQL -t -A -c "SELECT reason FROM user_token_invalidation u JOIN users x ON x.id=u.user_id WHERE x.phone LIKE '%5559876543';")
+  [ "$SC" = "401" ] && [ "$SC2" = "401" ] && [ "$WHY" = "REFRESH_REUSE" ] \
+    && ok "tekrar kullanım tespitinde kullanıcının BÜTÜN oturumları kapandı (yeni jeton da 401)" \
+    || bad "tekrar kullanım sonrası: yeni yenileme $SC, erişim $SC2, gerekçe '$WHY'"
+  sleep 1
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$IURL2/auth/login" -H 'Content-Type: application/json' \
+    -d '{"phone":"5559876543","password":"Demo123!"}')
+  [ "$SC" = "200" ] && ok "ardından yeniden giriş yapılabiliyor → 200" || bad "yeniden giriş → $SC"
+
   # Kimliksiz çıkış isteği hata vermemeli ama 'başarılı' da dememeli
   LO2=$(curl -s -X POST "$IURL2/auth/logout" -H 'Content-Type: application/json' -d '{}')
   echo "$LO2" | grep -q 'Geçerli bir oturum bulunamadı' \
