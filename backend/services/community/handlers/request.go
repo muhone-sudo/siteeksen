@@ -65,7 +65,7 @@ func UpdateRequestStatus(svc *service.RequestService) gin.HandlerFunc {
 			return
 		}
 
-		req, err := svc.UpdateStatus(c.Request.Context(), c.Param("id"), getRoles(c), input.Status)
+		req, err := svc.UpdateStatus(c.Request.Context(), c.GetString("property_id"), c.Param("id"), getRoles(c), input.Status)
 		switch {
 		case errors.Is(err, service.ErrForbidden):
 			c.JSON(http.StatusForbidden, gin.H{"error": "Bu işlem için yetkiniz yok"})
@@ -91,7 +91,7 @@ func ConfirmRequestResolution(svc *service.RequestService) gin.HandlerFunc {
 		}
 
 		userID := c.GetString("user_id")
-		req, err := svc.ConfirmResolution(c.Request.Context(), c.Param("id"), userID, input.Approved)
+		req, err := svc.ConfirmResolution(c.Request.Context(), c.GetString("property_id"), c.Param("id"), userID, input.Approved)
 		switch {
 		case errors.Is(err, service.ErrForbidden):
 			c.JSON(http.StatusForbidden, gin.H{"error": "Bu talep size ait değil"})

@@ -8,6 +8,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/siteeksen/backend/pkg/dbscope"
 	"github.com/siteeksen/backend/services/expense/models"
 )
 
@@ -33,7 +35,7 @@ func New(pool *pgxpool.Pool) *Repository { return &Repository{pool: pool} }
 
 // ListUnits, sitedeki bağımsız bölümleri getirir.
 func (r *Repository) ListUnits(ctx context.Context, propertyID string) ([]Unit, error) {
-	rows, err := r.pool.Query(ctx, `
+	rows, err := r.scope(propertyID).Query(ctx, `
 		SELECT id,
 		       COALESCE(block,'') || '-' || COALESCE(door_number,''),
 		       COALESCE(share_ratio,0)::float8,
@@ -65,7 +67,7 @@ func (r *Repository) ListUnits(ctx context.Context, propertyID string) ([]Unit, 
 
 // ListCategories, siteye ait ve global (şablon) gider kalemlerini getirir.
 func (r *Repository) ListCategories(ctx context.Context, propertyID string) ([]models.Category, error) {
-	rows, err := r.pool.Query(ctx, `
+	rows, err := r.scope(propertyID).Query(ctx, `
 		SELECT id, COALESCE(property_id::text,''), name, COALESCE(description,''),
 		       COALESCE(type,''), distribution_type,
 		       COALESCE(reflects_to_assessment, true),
@@ -114,7 +116,7 @@ func legalBasisFor(distributionType string) string {
 // GetCategory, kalemi getirir ve siteye uygunluğunu doğrular.
 func (r *Repository) GetCategory(ctx context.Context, propertyID, categoryID string) (*models.Category, error) {
 	var c models.Category
-	err := r.pool.QueryRow(ctx, `
+	err := r.scope(propertyID).QueryRow(ctx, `
 		SELECT id, COALESCE(property_id::text,''), name, COALESCE(description,''),
 		       COALESCE(type,''), distribution_type,
 		       COALESCE(reflects_to_assessment, true),
@@ -150,7 +152,7 @@ func (r *Repository) Create(
 	distributionType string,
 	distributions []models.Distribution,
 ) (string, error) {
-	tx, err := r.pool.Begin(ctx)
+	tx, err := r.scope(propertyID).Begin(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -222,7 +224,7 @@ func scanExpense(row pgx.Row) (*models.Expense, error) {
 
 // List, filtrelenmiş gider listesini getirir.
 func (r *Repository) List(ctx context.Context, propertyID string, year, month int, status, categoryID string) ([]models.Expense, error) {
-	rows, err := r.pool.Query(ctx, expenseSelect+`
+	rows, err := r.scope(propertyID).Query(ctx, expenseSelect+`
 		WHERE e.property_id = $1
 		  AND ($2 = 0 OR EXTRACT(YEAR FROM e.expense_date) = $2)
 		  AND ($3 = 0 OR EXTRACT(MONTH FROM e.expense_date) = $3)
@@ -248,7 +250,7 @@ func (r *Repository) List(ctx context.Context, propertyID string, year, month in
 
 // Get, tek gideri dağıtım detayıyla getirir.
 func (r *Repository) Get(ctx context.Context, propertyID, id string) (*models.Expense, error) {
-	e, err := scanExpense(r.pool.QueryRow(ctx, expenseSelect+`
+	e, err := scanExpense(r.scope(propertyID).QueryRow(ctx, expenseSelect+`
 		WHERE e.id = $1 AND e.property_id = $2`, id, propertyID))
 	if err == pgx.ErrNoRows {
 		return nil, ErrNotFound
@@ -257,7 +259,7 @@ func (r *Repository) Get(ctx context.Context, propertyID, id string) (*models.Ex
 		return nil, err
 	}
 
-	rows, err := r.pool.Query(ctx, `
+	rows, err := r.scope(propertyID).Query(ctx, `
 		SELECT d.unit_id, COALESCE(u.block,'') || '-' || COALESCE(u.door_number,''),
 		       d.amount, COALESCE(d.is_paid,false)
 		FROM expense_distributions d
@@ -284,7 +286,7 @@ func (r *Repository) Get(ctx context.Context, propertyID, id string) (*models.Ex
 
 // SetStatus, faturasız giderin onay/ret işlemini yapar.
 func (r *Repository) SetStatus(ctx context.Context, propertyID, id, status, userID, reason string) error {
-	tag, err := r.pool.Exec(ctx, `
+	tag, err := r.scope(propertyID).Exec(ctx, `
 		UPDATE expenses
 		SET status = $3,
 		    approved_by = NULLIF($4,'')::uuid,
@@ -306,7 +308,7 @@ func (r *Repository) SetStatus(ctx context.Context, propertyID, id, status, user
 func (r *Repository) Summary(ctx context.Context, propertyID string, year, month int) (*models.Summary, error) {
 	s := &models.Summary{PeriodYear: year, PeriodMonth: month}
 
-	err := r.pool.QueryRow(ctx, `
+	err := r.scope(propertyID).QueryRow(ctx, `
 		SELECT COALESCE(sum(amount),0)::float8,
 		       COALESCE(sum(amount) FILTER (WHERE is_invoiced),0)::float8,
 		       COALESCE(sum(amount) FILTER (WHERE NOT is_invoiced),0)::float8,
@@ -322,7 +324,7 @@ func (r *Repository) Summary(ctx context.Context, propertyID string, year, month
 		return nil, err
 	}
 
-	rows, err := r.pool.Query(ctx, `
+	rows, err := r.scope(propertyID).Query(ctx, `
 		SELECT e.category_id, COALESCE(c.name,''), COALESCE(sum(e.amount),0)::float8, count(*)
 		FROM expenses e
 		LEFT JOIN expense_categories c ON c.id = e.category_id
@@ -346,4 +348,13 @@ func (r *Repository) Summary(ctx context.Context, propertyID string, year, month
 		s.ByCategory = append(s.ByCategory, t)
 	}
 	return s, rows.Err()
+}
+
+// scope, veritabanı erişimini SİTE KAPSAMINA bağlar (FAZ 2.6).
+//
+// `expenses` ve `expense_distributions` tablolarında RLS açıktır
+// (migration 023). `expense_categories` HENÜZ DEĞİL: onu finance-service de
+// okuyor ve iki servis aynı dilimde geçirilmeden açmak yanlış olurdu.
+func (r *Repository) scope(propertyID string) *dbscope.Scoped {
+	return dbscope.For(r.pool, propertyID)
 }

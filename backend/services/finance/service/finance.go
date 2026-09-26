@@ -54,17 +54,17 @@ type DebtStatusResponse struct {
 
 // GetDebtStatus anlık borç durumu hesaplar
 func (s *FinanceService) GetDebtStatus(ctx context.Context, userID, propertyID string) (*DebtStatusResponse, error) {
-	balance, err := s.repo.GetUnitBalance(ctx, userID)
+	balance, err := s.repo.GetUnitBalance(ctx, propertyID, userID)
 	if err != nil {
 		return nil, err
 	}
 
-	overdueInfo, err := s.repo.GetOverdueInfo(ctx, userID)
+	overdueInfo, err := s.repo.GetOverdueInfo(ctx, propertyID, userID)
 	if err != nil {
 		return nil, err
 	}
 
-	nextDue, err := s.repo.GetNextDueAssessment(ctx, userID)
+	nextDue, err := s.repo.GetNextDueAssessment(ctx, propertyID, userID)
 	if err != nil {
 		// Gelecek ay için tahakkuk yoksa sıfır döndür
 		nextDue = &models.Assessment{}
@@ -81,11 +81,11 @@ func (s *FinanceService) GetDebtStatus(ctx context.Context, userID, propertyID s
 }
 
 // GetAssessments aidat listesi getirir
-func (s *FinanceService) GetAssessments(ctx context.Context, userID string, year int) ([]models.AssessmentSummary, error) {
+func (s *FinanceService) GetAssessments(ctx context.Context, propertyID, userID string, year int) ([]models.AssessmentSummary, error) {
 	if year == 0 {
 		year = time.Now().Year()
 	}
-	return s.repo.GetAssessments(ctx, userID, year)
+	return s.repo.GetAssessments(ctx, propertyID, userID, year)
 }
 
 // ListAssessmentOverview site genelinde dönem bazlı tahakkuk/tahsilat özetini getirir (yalnızca yönetim rolleri)
@@ -100,8 +100,8 @@ func (s *FinanceService) ListAssessmentOverview(ctx context.Context, propertyID 
 }
 
 // GetAssessmentDetails aidat detayı getirir
-func (s *FinanceService) GetAssessmentDetails(ctx context.Context, assessmentID string) (*models.AssessmentDetail, error) {
-	return s.repo.GetAssessmentDetails(ctx, assessmentID)
+func (s *FinanceService) GetAssessmentDetails(ctx context.Context, propertyID, assessmentID string) (*models.AssessmentDetail, error) {
+	return s.repo.GetAssessmentDetails(ctx, propertyID, assessmentID)
 }
 
 // ListExpenseCategories sitenin gider kalemlerini getirir (yalnızca yönetim rolleri —
@@ -144,8 +144,8 @@ type PaymentResult struct {
 // (`https://checkout.siteeksen.com/pay/...`) yönlendiren sahte bir "checkout URL" döndürüyordu;
 // bu, istemciye ödemenin başlatıldığı izlenimi veriyordu. Ödeme sağlayıcısı entegrasyonu
 // yazılana kadar (tasks/questions.md S-06) sahte adres döndürülmez.
-func (s *FinanceService) CreatePayment(ctx context.Context, userID string, assessmentIDs []string, method, cardToken string) (*PaymentResult, error) {
-	paymentID, totalAmount, err := s.repo.CreatePayment(ctx, userID, assessmentIDs, method)
+func (s *FinanceService) CreatePayment(ctx context.Context, propertyID, userID string, assessmentIDs []string, method, cardToken string) (*PaymentResult, error) {
+	paymentID, totalAmount, err := s.repo.CreatePayment(ctx, propertyID, userID, assessmentIDs, method)
 	if err != nil {
 		return nil, err
 	}
@@ -213,7 +213,7 @@ func (s *FinanceService) AccrueLateFees(ctx context.Context, propertyID string, 
 		if err != nil {
 			return nil, fmt.Errorf("gecikme tazminatı hesaplanamadı (tahakkuk %s): %w", it.ID, err)
 		}
-		if err := s.repo.ApplyLateFee(ctx, it.ID, asOf, it.OverdueDays,
+		if err := s.repo.ApplyLateFee(ctx, propertyID, it.ID, asOf, it.OverdueDays,
 			it.PrincipalKurus, int64(fee), rateParam.Numeric.String()); err != nil {
 			return nil, fmt.Errorf("gecikme tazminatı işlenemedi (tahakkuk %s): %w", it.ID, err)
 		}
@@ -251,7 +251,7 @@ func (s *FinanceService) GetPaymentHistory(ctx context.Context, userID, property
 	if isFinanceManagement(roles) {
 		return s.repo.ListPropertyPayments(ctx, propertyID)
 	}
-	return s.repo.GetPaymentHistory(ctx, userID)
+	return s.repo.GetPaymentHistory(ctx, propertyID, userID)
 }
 
 // ListDebtors sitede borcu olan sakinlerin özetini getirir (yalnızca yönetim rolleri)
@@ -270,8 +270,8 @@ type ConsumptionSummary struct {
 }
 
 // GetConsumptionSummary tüketim özeti getirir
-func (s *FinanceService) GetConsumptionSummary(ctx context.Context, userID, meterType string) (*ConsumptionSummary, error) {
-	data, err := s.repo.GetConsumptionData(ctx, userID, meterType, 6)
+func (s *FinanceService) GetConsumptionSummary(ctx context.Context, propertyID, userID, meterType string) (*ConsumptionSummary, error) {
+	data, err := s.repo.GetConsumptionData(ctx, propertyID, userID, meterType, 6)
 	if err != nil {
 		return nil, err
 	}

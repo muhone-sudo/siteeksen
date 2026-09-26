@@ -56,9 +56,10 @@ func GetDebtStatus(svc *service.FinanceService) gin.HandlerFunc {
 func GetAssessments(svc *service.FinanceService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		userID := c.GetString("user_id")
+		propertyID := c.GetString("property_id")
 		year, _ := strconv.Atoi(c.DefaultQuery("year", "0"))
 
-		assessments, err := svc.GetAssessments(c.Request.Context(), userID, year)
+		assessments, err := svc.GetAssessments(c.Request.Context(), propertyID, userID, year)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Aidatlar alınamadı"})
 			return
@@ -89,8 +90,9 @@ func GetAssessmentOverview(svc *service.FinanceService) gin.HandlerFunc {
 func GetAssessmentDetails(svc *service.FinanceService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		assessmentID := c.Param("id")
+		propertyID := c.GetString("property_id")
 
-		details, err := svc.GetAssessmentDetails(c.Request.Context(), assessmentID)
+		details, err := svc.GetAssessmentDetails(c.Request.Context(), propertyID, assessmentID)
 		if err != nil {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Aidat bulunamadı"})
 			return
@@ -149,7 +151,7 @@ func CreatePayment(svc *service.FinanceService) gin.HandlerFunc {
 		}
 
 		userID := c.GetString("user_id")
-		result, err := svc.CreatePayment(c.Request.Context(), userID, req.AssessmentIDs, req.PaymentMethod, req.CardToken)
+		result, err := svc.CreatePayment(c.Request.Context(), c.GetString("property_id"), userID, req.AssessmentIDs, req.PaymentMethod, req.CardToken)
 		if err != nil {
 			// Hata eşlemesi (2026-09-09): Önceki sürüm her hatayı `err.Error()` ile ham metin
 			// olarak döndürüyordu; bu, PostgreSQL hata mesajlarıyla tablo/sütun/kısıt adlarını
@@ -308,7 +310,7 @@ func GetConsumptionSummary(svc *service.FinanceService) gin.HandlerFunc {
 		userID := c.GetString("user_id")
 		meterType := c.DefaultQuery("meter_type", "HEAT")
 
-		summary, err := svc.GetConsumptionSummary(c.Request.Context(), userID, meterType)
+		summary, err := svc.GetConsumptionSummary(c.Request.Context(), c.GetString("property_id"), userID, meterType)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Tüketim verisi alınamadı"})
 			return

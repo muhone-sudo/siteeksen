@@ -4147,18 +4147,242 @@ done
 [ "$IDXMISS" = "0" ] && ok "alt tablo ebeveyn indekslerinin tamamı var (RLS alt sorgusu için)" \
   || bad "$IDXMISS indeks eksik"
 
-# 10) Toplam durum — dürüstçe raporlanır
-RLSCOUNT=$($PSQL -t -A -c "SELECT count(*) FROM rls_enabled_tables;")
-[ "$RLSCOUNT" = "30" ] && ok "RLS toplam 30 tabloda açık (7 + 19 + 4 dilim)" \
-  || bad "beklenmedik RLS tablo sayısı: $RLSCOUNT (beklenen 30)"
+step "34) Satır düzeyi güvenlik (RLS) — dördüncü dilim: finance, gider, talep/duyuru (FAZ 2.6)"
+# Bu dilimin tabloları da migration sırasında açılır; 9-12. ve 26. adımlardaki
+# ödeme, gecikme tazminatı, gider ve duyuru akışları ZATEN RLS altında çalıştı.
+# Burada izolasyon doğrudan ölçülür ve bu dilimde bulunan iki çapraz site
+# hatasının kapandığı uçtan uca gösterilir.
+SLICE4_TABLES="payments payment_assessments late_fee_accruals assessment_details
+  consumption_invoices expenses expense_distributions
+  requests announcements announcement_reads"
 
-# 10b) DİLİME ALINMAYANLAR: çok servisli tablolar HÂLÂ kapalı olmalı.
-#      Bunları yanlışlıkla açmak, henüz kapsamlı sorguya geçmemiş
-#      finance-service'i sessizce boş veriye düşürürdü — aidat ve ısı payı
-#      hesapları "sıfır" dönerdi ve bu, hata vermeden yanlış sonuç üretmektir.
-for T in expense_categories meters meter_readings units properties; do
+# 1) RLS açık, zorlanıyor, politikası var
+S4MISS=0
+for T in $SLICE4_TABLES; do
+  ROW=$($PSQL -t -A -c "SELECT rls_enabled || '/' || rls_forced || '/' || policy_count
+    FROM rls_enabled_tables WHERE table_name='$T';")
+  case "$ROW" in
+    true/true/1|t/t/1) : ;;
+    *) S4MISS=$((S4MISS+1)); echo "     eksik: $T ($ROW)" ;;
+  esac
+done
+[ "$S4MISS" = "0" ] && ok "dördüncü dilimin 10 tablosunda RLS açık, zorlanıyor ve politikası var" \
+  || bad "$S4MISS tabloda RLS eksik (dördüncü dilim)"
+
+# 2) Ödemenin sitesi artık doğrudan kayıtlı olmalı. Boş kalan ödeme RLS altında
+#    görünmez olurdu — yani sessizce kaybolurdu.
+PNULL=$($PSQL -t -A -c "SELECT count(*) FROM payments WHERE property_id IS NULL;")
+PALL=$($PSQL -t -A -c "SELECT count(*) FROM payments;")
+[ "${PALL:-0}" -ge 1 ] && [ "$PNULL" = "0" ] \
+  && ok "tüm ödemelerin sitesi kayıtlı ($PALL ödeme, boş property_id yok)" \
+  || bad "ödeme site bilgisi eksik (toplam=$PALL boş=$PNULL)"
+PMIS=$($PSQL -t -A -c "SELECT count(*) FROM payments p
+  JOIN payment_assessments pa ON pa.payment_id = p.id
+  JOIN monthly_assessments ma ON ma.id = pa.assessment_id
+  WHERE ma.property_id <> p.property_id;")
+[ "$PMIS" = "0" ] && ok "ödemenin sitesi bağlı tahakkukların sitesiyle tutarlı" \
+  || bad "$PMIS ödeme satırı başka sitenin tahakkukuna bağlı"
+
+# 3) Test satırları: bu iki tabloya hiçbir akış henüz yazmıyor. Süper
+#    kullanıcıyla demo siteye bir satır eklenir; politika ebeveyn üzerinden
+#    doğru kapsamda göstermeli, başka kapsamda gizlemelidir.
+$PSQL -c "INSERT INTO assessment_details (assessment_id, amount, calculation_basis)
+  VALUES ('66666666-6666-6666-6666-666666666601', 1.00, 'RLS testi');
+  INSERT INTO consumption_invoices (unit_id, total_amount)
+  VALUES ((SELECT id FROM units WHERE property_id='$DEMO_PROPERTY' LIMIT 1), 1.00);" >/dev/null 2>&1
+
+# 4) Kapsamsız sorgu hiçbir tablodan satır döndürmemeli
+S4LEAK=0
+for T in $SLICE4_TABLES; do
+  N=$(qapp "SELECT count(*) FROM $T;")
+  [ "$N" = "0" ] || { S4LEAK=$((S4LEAK+1)); echo "     sızdırdı: $T -> $N satır"; }
+done
+[ "$S4LEAK" = "0" ] && ok "kapsamsız sorgu 10 tablonun hiçbirinden satır döndürmüyor" \
+  || bad "$S4LEAK tablo kapsamsız sorguda satır döndürdü"
+
+# 5) Başka sitenin kapsamında hiçbir satır görünmemeli
+S4CROSS=0
+for T in $SLICE4_TABLES; do
+  N=$(qscoped "SELECT count(*) FROM $T;" "$OTHERPROP")
+  [ "$N" = "0" ] || { S4CROSS=$((S4CROSS+1)); echo "     çapraz sızıntı: $T -> $N"; }
+done
+[ "$S4CROSS" = "0" ] && ok "başka sitenin kapsamında 10 tablonun hiçbiri satır göstermiyor" \
+  || bad "$S4CROSS tabloda çapraz site erişimi var"
+
+# 6) Doğru kapsamda önceki adımların verisi görünmeli
+for T in payments payment_assessments assessment_details consumption_invoices \
+         expenses expense_distributions announcements; do
+  N=$(qscoped "SELECT count(*) FROM $T;")
+  [ "${N:-0}" -ge 1 ] && ok "doğru kapsamda $T görünüyor ($N satır)" \
+    || bad "doğru kapsamda $T BOŞ — RLS uygulamayı bozdu"
+done
+
+# 7) Yazma kapsam dışına taşamamalı
+DEMOPAY=$(qscoped "SELECT id FROM payments LIMIT 1;")
+if PGPASSWORD="$APPPW" psql -h 127.0.0.1 -p "${DBPORT}" -U siteeksen_app -d siteeksen \
+  -v ON_ERROR_STOP=1 -q -c "SET LOCAL app.property_id = '$OTHERPROP';
+  INSERT INTO payment_assessments (payment_id, assessment_id, amount)
+  VALUES ('$DEMOPAY','66666666-6666-6666-6666-666666666601',1);" >/dev/null 2>&1; then
+  bad "başka sitenin kapsamındayken demo ödemeye tahakkuk BAĞLANABİLDİ"
+else
+  ok "ödeme alt tablosuna kapsam dışı yazma engellendi (WITH CHECK ebeveyn üzerinden)"
+fi
+if PGPASSWORD="$APPPW" psql -h 127.0.0.1 -p "${DBPORT}" -U siteeksen_app -d siteeksen \
+  -v ON_ERROR_STOP=1 -q -c "SET LOCAL app.property_id = '$DEMO_PROPERTY';
+  INSERT INTO payments (user_id, amount, payment_method) VALUES (NULL, 1, 'CASH');" >/dev/null 2>&1; then
+  bad "sitesiz ödeme yazılabildi (görünmez kayıt üretilebiliyor)"
+else
+  ok "sitesiz ödeme yazılamıyor (görünmez kayıt üretilemez)"
+fi
+
+# 8) İndeksler
+IDXMISS=0
+for I in idx_payments_property idx_assessment_details_assessment idx_consumption_invoices_unit; do
+  N=$($PSQL -t -A -c "SELECT count(*) FROM pg_indexes WHERE schemaname='public' AND indexname='$I';")
+  [ "$N" = "1" ] || { IDXMISS=$((IDXMISS+1)); echo "     eksik indeks: $I"; }
+done
+[ "$IDXMISS" = "0" ] && ok "dördüncü dilim politika indeksleri var" || bad "$IDXMISS indeks eksik"
+
+# 9) UÇTAN UCA — ÇAPRAZ SİTE HATASI 1: ödeme.
+#    Önceki davranış: iki sitede dairesi olan sakin, A sitesi aktifken B'nin
+#    tahakkukunu ödemeye bağlayabiliyordu (sorguda site filtresi yoktu).
+MGRID=$($PSQL -t -A -c "SELECT id FROM users WHERE phone LIKE '%5551234567' LIMIT 1;")
+$PSQL -c "INSERT INTO units (id, property_id, block, floor, door_number, share_ratio)
+    VALUES ('99999999-0000-0000-0000-000000000001','$OTHERPROP','Z',1,'1',1)
+    ON CONFLICT (id) DO NOTHING;
+  INSERT INTO resident_units (resident_id, unit_id, role, start_date)
+    VALUES ('$MGRID','99999999-0000-0000-0000-000000000001','OWNER',CURRENT_DATE)
+    ON CONFLICT DO NOTHING;
+  INSERT INTO monthly_assessments (id, property_id, unit_id, period_year, period_month,
+      base_amount, total_amount, due_date)
+    VALUES ('99999999-0000-0000-0000-0000000000a1','$OTHERPROP',
+      '99999999-0000-0000-0000-000000000001',2026,1,500,500,'2026-01-31')
+    ON CONFLICT (id) DO NOTHING;" >/dev/null 2>&1
+XPAY=$(curl -s -o /tmp/verify-xpay.json -w '%{http_code}' -X POST \
+  "http://127.0.0.1:${FINPORT}/api/v1/finance/payments" \
+  -H "Authorization: Bearer $MGR" -H 'Content-Type: application/json' \
+  -d '{"assessment_ids":["99999999-0000-0000-0000-0000000000a1"],"payment_method":"BANK_TRANSFER"}')
+XPN=$($PSQL -t -A -c "SELECT count(*) FROM payment_assessments
+  WHERE assessment_id='99999999-0000-0000-0000-0000000000a1';")
+[ "$XPAY" = "400" ] && [ "$XPN" = "0" ] \
+  && ok "aktif site dışındaki tahakkuk ödemeye bağlanamıyor → 400, kayıt yok" \
+  || bad "başka sitenin tahakkuku ödendi: HTTP $XPAY, bağlı kayıt $XPN ($(cat /tmp/verify-xpay.json))"
+$PSQL -c "DELETE FROM resident_units WHERE unit_id='99999999-0000-0000-0000-000000000001';" >/dev/null 2>&1
+
+# 10) UÇTAN UCA — ÇAPRAZ SİTE HATASI 2: talep (arıza/istek).
+#     Önceki davranış: talep durumunu güncelleme yalnızca ROLÜ denetliyordu.
+#     A sitesinin yöneticisi, B sitesindeki talebin kimliğini bildiği takdirde
+#     onu iş akışında ilerletebiliyordu.
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_app DB_PASSWORD="$APPPW" DB_NAME=siteeksen \
+DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${COMPORT} \
+  go run ./services/community >/tmp/verify-community2.log 2>&1 &
+COM_PID=$!
+CUP=0
+for _ in $(seq 1 45); do
+  curl -fsS "http://127.0.0.1:${COMPORT}/health" >/dev/null 2>&1 && { CUP=1; break; }
+  sleep 1
+done
+if [ "$CUP" = "1" ]; then
+  CURL2="http://127.0.0.1:${COMPORT}/api/v1"
+  # Yalnızca DİĞER sitede yönetici olan bir hesap
+  $PSQL -c "INSERT INTO users (id, first_name, last_name, phone, email, password_hash,
+      active_property_id, roles)
+    VALUES ('44444444-4444-4444-4444-444444444404','Diger','Yonetici','+905550000004','diger@example.com',
+      (SELECT password_hash FROM users WHERE id='$MGRID'), '$OTHERPROP', ARRAY['RESIDENT'])
+    ON CONFLICT (id) DO NOTHING;
+    INSERT INTO property_roles (user_id, property_id, role)
+    VALUES ('44444444-4444-4444-4444-444444444404','$OTHERPROP','MANAGER');" >/dev/null 2>&1
+  XMGR=$(curl -s -X POST "http://127.0.0.1:${SVCPORT}/api/v1/auth/login" \
+    -H 'Content-Type: application/json' -d '{"phone":"5550000004","password":"Demo123!"}' \
+    | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+  XR=$(echo "$XMGR" | cut -d. -f2 | tr '_-' '/+' | base64 -d 2>/dev/null)
+  echo "$XR" | grep -q 'MANAGER' && echo "$XR" | grep -q "$OTHERPROP" \
+    && ok "diğer sitenin yöneticisi girişi (MANAGER, aktif site: diğer site)" \
+    || bad "diğer site yöneticisi jetonu beklenen gibi değil: $XR"
+
+  # Kiracının 9. adımdaki jetonu 30. adımda (toplu oturum iptali) iptal edildi;
+  # yeni oturum açılır.
+  TEN=$(curl -s -X POST "http://127.0.0.1:${SVCPORT}/api/v1/auth/login" \
+    -H 'Content-Type: application/json' -d '{"phone":"5559876543","password":"Demo123!"}' \
+    | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+
+  # Geçersiz kimlik "bulunamadı" olmalı, sunucu hatası değil
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X PATCH "$CURL2/requests/gecersiz-kimlik/status" \
+    -H "Authorization: Bearer $MGR" -H 'Content-Type: application/json' -d '{"status":"IN_PROGRESS"}')
+  [ "$SC" = "404" ] && ok "geçersiz talep kimliği → 404 (500 değil)" || bad "geçersiz talep kimliği → $SC"
+
+  # Kiracı demo sitede talep açar (RLS altında INSERT)
+  RQ=$(curl -s -X POST "$CURL2/requests" -H "Authorization: Bearer $TEN" \
+    -H 'Content-Type: application/json' \
+    -d '{"title":"Asansor arizasi","description":"B blok asansoru calismiyor","priority":"HIGH"}')
+  RQID=$(echo "$RQ" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+  [ -n "$RQID" ] && ok "sakin talep açtı (RLS altında yazma çalışıyor)" || bad "talep açılamadı: $RQ"
+  # Kimlik boşsa aşağıdaki "görmüyor" kontrolleri boş dizgeyle anlamsızca eşleşirdi
+  RQID=${RQID:-00000000-0000-0000-0000-000000000000}
+
+  # Kiracı kendi talebini listede görür
+  RL=$(curl -s "$CURL2/requests" -H "Authorization: Bearer $TEN")
+  echo "$RL" | grep -q "$RQID" && ok "sakin kendi talebini listede görüyor" \
+    || bad "sakin kendi talebini göremiyor: $RL"
+
+  # Diğer sitenin yöneticisi: listede görmemeli, durumu değiştirememeli
+  XL=$(curl -s "$CURL2/requests" -H "Authorization: Bearer $XMGR")
+  echo "$XL" | grep -q "$RQID" && bad "diğer sitenin yöneticisi talebi listede görüyor" \
+    || ok "diğer sitenin yöneticisi talebi listede görmüyor"
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X PATCH "$CURL2/requests/$RQID/status" \
+    -H "Authorization: Bearer $XMGR" -H 'Content-Type: application/json' -d '{"status":"IN_PROGRESS"}')
+  RST=$($PSQL -t -A -c "SELECT status FROM requests WHERE id='$RQID';")
+  [ "$SC" = "404" ] && [ "$RST" = "OPEN" ] \
+    && ok "diğer sitenin yöneticisi talebi ilerletemiyor → 404, durum OPEN kaldı" \
+    || bad "ÇAPRAZ SİTE: diğer site yöneticisi talebi değiştirdi → $SC, durum $RST"
+
+  # Kendi sitesinin yöneticisi ilerletebilmeli (koruma işi bozmamalı)
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X PATCH "$CURL2/requests/$RQID/status" \
+    -H "Authorization: Bearer $MGR" -H 'Content-Type: application/json' -d '{"status":"IN_PROGRESS"}')
+  RST=$($PSQL -t -A -c "SELECT status FROM requests WHERE id='$RQID';")
+  [ "$SC" = "200" ] && [ "$RST" = "IN_PROGRESS" ] \
+    && ok "kendi sitesinin yöneticisi talebi ilerletti → 200, IN_PROGRESS" \
+    || bad "yönetici kendi talebini ilerletemedi → $SC, durum $RST"
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X PATCH "$CURL2/requests/$RQID/status" \
+    -H "Authorization: Bearer $MGR" -H 'Content-Type: application/json' -d '{"status":"RESOLVED"}')
+  [ "$SC" = "200" ] && ok "talep çözüldü olarak işaretlendi → 200" || bad "RESOLVED geçişi → $SC"
+
+  # Çözüm onayı da site kapsamında: diğer site kapsamındaki jetonla onaylanamaz
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$CURL2/requests/$RQID/confirm-resolution" \
+    -H "Authorization: Bearer $XMGR" -H 'Content-Type: application/json' -d '{"approved":true}')
+  [ "$SC" = "404" ] && ok "diğer site kapsamından çözüm onayı → 404" \
+    || bad "diğer site kapsamından çözüm onayı → $SC"
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$CURL2/requests/$RQID/confirm-resolution" \
+    -H "Authorization: Bearer $TEN" -H 'Content-Type: application/json' -d '{"approved":true}')
+  RST=$($PSQL -t -A -c "SELECT status FROM requests WHERE id='$RQID';")
+  [ "$SC" = "200" ] && [ "$RST" = "CLOSED" ] && ok "sakin çözümü onayladı → CLOSED" \
+    || bad "sakin onayı → $SC, durum $RST"
+
+  # Duyuru okundu kaydı RLS altında yazılabilmeli (alt tablo WITH CHECK)
+  ANNID=$(qscoped "SELECT id FROM announcements ORDER BY created_at DESC LIMIT 1;")
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$CURL2/announcements/$ANNID/read" \
+    -H "Authorization: Bearer $TEN")
+  AR=$(qscoped "SELECT count(*) FROM announcement_reads WHERE announcement_id='$ANNID';")
+  [ "$SC" = "200" ] && [ "${AR:-0}" -ge 1 ] && ok "duyuru okundu kaydı RLS altında yazıldı" \
+    || bad "duyuru okundu kaydı → $SC, kayıt $AR"
+  XAR=$(qscoped "SELECT count(*) FROM announcement_reads;" "$OTHERPROP")
+  [ "$XAR" = "0" ] && ok "okundu kayıtları başka siteden görünmüyor" || bad "okundu kaydı sızdı: $XAR"
+else
+  bad "community-service (2. başlatma) ayağa kalkmadı"; tail -10 /tmp/verify-community2.log
+fi
+kill_tree "$COM_PID"
+
+# 11) Toplam durum — dürüstçe raporlanır
+RLSCOUNT=$($PSQL -t -A -c "SELECT count(*) FROM rls_enabled_tables;")
+[ "$RLSCOUNT" = "40" ] && ok "RLS toplam 40 tabloda açık (7 + 19 + 4 + 10 dilim)" \
+  || bad "beklenmedik RLS tablo sayısı: $RLSCOUNT (beklenen 40)"
+
+# 11b) DİLİME ALINMAYANLAR: çok servisli tablolar HÂLÂ kapalı olmalı.
+#      Bir servis kapsamlı sorguya geçmeden tabloyu açmak o servisi sessizce
+#      boş veriye düşürür — hata vermeden yanlış sonuç üretmek demektir.
+for T in expense_categories monthly_assessments meters meter_readings units properties; do
   N=$($PSQL -t -A -c "SELECT count(*) FROM rls_enabled_tables WHERE table_name='$T';")
-  [ "$N" = "0" ] && ok "$T bilerek RLS dışında (çok servisli; finance henüz geçmedi)" \
+  [ "$N" = "0" ] && ok "$T bilerek RLS dışında (çok servisli; tüm tüketicileri henüz geçmedi)" \
     || bad "$T erken açılmış — çok servisli tabloya RLS açmak uygulamayı bozar"
 done
 NOTRLS=$($PSQL -t -A -c "SELECT count(*) FROM information_schema.tables t

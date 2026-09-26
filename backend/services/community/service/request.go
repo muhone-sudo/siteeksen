@@ -43,7 +43,7 @@ func (s *RequestService) List(ctx context.Context, userID, propertyID string, ro
 	if isManagement(roles) {
 		return s.repo.ListByProperty(ctx, propertyID, status)
 	}
-	return s.repo.ListByResident(ctx, userID, status)
+	return s.repo.ListByResident(ctx, propertyID, userID, status)
 }
 
 // Create sakin adına yeni talep oluşturur
@@ -60,12 +60,15 @@ var allowedStatusTransitions = map[string]string{
 }
 
 // UpdateStatus yönetici talebi OPEN -> IN_PROGRESS -> RESOLVED akışında ilerletir
-func (s *RequestService) UpdateStatus(ctx context.Context, requestID string, roles []string, newStatus string) (*models.Request, error) {
+func (s *RequestService) UpdateStatus(ctx context.Context, propertyID, requestID string, roles []string, newStatus string) (*models.Request, error) {
 	if !isManagement(roles) {
 		return nil, ErrForbidden
 	}
 
-	req, err := s.repo.GetByID(ctx, requestID)
+	// GÜVENLİK: talep, isteği yapanın AKTİF SİTESİNE ait olmalı. Yalnızca rol
+	// denetlemek yetmez — yönetici olmak, BAŞKA sitenin talebine dokunma
+	// yetkisi vermez. Kapsam dışı bir kimlik burada "bulunamadı" döner.
+	req, err := s.repo.GetByID(ctx, propertyID, requestID)
 	if err != nil {
 		return nil, err
 	}
@@ -74,13 +77,13 @@ func (s *RequestService) UpdateStatus(ctx context.Context, requestID string, rol
 		return nil, ErrInvalidTransition
 	}
 
-	return s.repo.UpdateStatus(ctx, requestID, newStatus)
+	return s.repo.UpdateStatus(ctx, propertyID, requestID, newStatus)
 }
 
 // ConfirmResolution sakinin "sorunum çözüldü" onayını ya da reddini kaydeder.
 // Onay: CLOSED + user_confirmed_at. Red: IN_PROGRESS'e geri döner, resolved_at temizlenir.
-func (s *RequestService) ConfirmResolution(ctx context.Context, requestID, residentID string, approved bool) (*models.Request, error) {
-	req, err := s.repo.GetByID(ctx, requestID)
+func (s *RequestService) ConfirmResolution(ctx context.Context, propertyID, requestID, residentID string, approved bool) (*models.Request, error) {
+	req, err := s.repo.GetByID(ctx, propertyID, requestID)
 	if err != nil {
 		return nil, err
 	}
@@ -92,5 +95,5 @@ func (s *RequestService) ConfirmResolution(ctx context.Context, requestID, resid
 		return nil, ErrInvalidTransition
 	}
 
-	return s.repo.ConfirmResolution(ctx, requestID, approved)
+	return s.repo.ConfirmResolution(ctx, propertyID, requestID, approved)
 }

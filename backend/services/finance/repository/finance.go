@@ -10,6 +10,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/siteeksen/backend/pkg/dbscope"
 	"github.com/siteeksen/backend/services/finance/models"
 )
 
@@ -63,7 +65,7 @@ func NewFinanceRepository(pool *pgxpool.Pool) *FinanceRepository {
 //
 // Hesap, 001_initial_schema.sql'de tanımlı ve doğru yazılmış olan `unit_balances`
 // view'ı üzerinden yapılır (tek doğruluk kaynağı).
-func (r *FinanceRepository) GetUnitBalance(ctx context.Context, userID string) (float64, error) {
+func (r *FinanceRepository) GetUnitBalance(ctx context.Context, propertyID, userID string) (float64, error) {
 	query := `
 		SELECT COALESCE(SUM(ub.balance), 0) AS balance
 		FROM unit_balances ub
@@ -74,12 +76,12 @@ func (r *FinanceRepository) GetUnitBalance(ctx context.Context, userID string) (
 		)
 	`
 	var balance float64
-	err := r.pool.QueryRow(ctx, query, userID).Scan(&balance)
+	err := r.scope(propertyID).QueryRow(ctx, query, userID).Scan(&balance)
 	return balance, err
 }
 
 // GetOverdueInfo gecikmiş borç bilgisi
-func (r *FinanceRepository) GetOverdueInfo(ctx context.Context, userID string) (*models.OverdueInfo, error) {
+func (r *FinanceRepository) GetOverdueInfo(ctx context.Context, propertyID, userID string) (*models.OverdueInfo, error) {
 	query := `
 		SELECT COALESCE(SUM(total_amount - paid_amount), 0), COUNT(*)
 		FROM monthly_assessments ma
@@ -91,12 +93,12 @@ func (r *FinanceRepository) GetOverdueInfo(ctx context.Context, userID string) (
 		  AND ma.deleted = 0
 	`
 	info := &models.OverdueInfo{}
-	err := r.pool.QueryRow(ctx, query, userID).Scan(&info.Amount, &info.Months)
+	err := r.scope(propertyID).QueryRow(ctx, query, userID).Scan(&info.Amount, &info.Months)
 	return info, err
 }
 
 // GetNextDueAssessment sonraki vadeli aidat
-func (r *FinanceRepository) GetNextDueAssessment(ctx context.Context, userID string) (*models.Assessment, error) {
+func (r *FinanceRepository) GetNextDueAssessment(ctx context.Context, propertyID, userID string) (*models.Assessment, error) {
 	query := `
 		SELECT ma.id, ma.total_amount, ma.due_date
 		FROM monthly_assessments ma
@@ -110,12 +112,12 @@ func (r *FinanceRepository) GetNextDueAssessment(ctx context.Context, userID str
 		LIMIT 1
 	`
 	a := &models.Assessment{}
-	err := r.pool.QueryRow(ctx, query, userID).Scan(&a.ID, &a.TotalAmount, &a.DueDate)
+	err := r.scope(propertyID).QueryRow(ctx, query, userID).Scan(&a.ID, &a.TotalAmount, &a.DueDate)
 	return a, err
 }
 
 // GetAssessments yıllık aidat listesi
-func (r *FinanceRepository) GetAssessments(ctx context.Context, userID string, year int) ([]models.AssessmentSummary, error) {
+func (r *FinanceRepository) GetAssessments(ctx context.Context, propertyID, userID string, year int) ([]models.AssessmentSummary, error) {
 	query := `
 		SELECT ma.id, 
 			   TO_CHAR(MAKE_DATE(ma.period_year, ma.period_month, 1), 'YYYY-MM'),
@@ -129,7 +131,7 @@ func (r *FinanceRepository) GetAssessments(ctx context.Context, userID string, y
 		  AND ma.deleted = 0
 		ORDER BY ma.period_month DESC
 	`
-	rows, err := r.pool.Query(ctx, query, userID, year)
+	rows, err := r.scope(propertyID).Query(ctx, query, userID, year)
 	if err != nil {
 		return nil, err
 	}
@@ -156,7 +158,7 @@ func (r *FinanceRepository) ListAssessmentPeriods(ctx context.Context, propertyI
 		GROUP BY ma.period_year, ma.period_month
 		ORDER BY ma.period_month DESC
 	`
-	rows, err := r.pool.Query(ctx, query, propertyID, year)
+	rows, err := r.scope(propertyID).Query(ctx, query, propertyID, year)
 	if err != nil {
 		return nil, err
 	}
@@ -182,7 +184,7 @@ func (r *FinanceRepository) ListAssessmentPeriods(ctx context.Context, propertyI
 }
 
 // GetAssessmentDetails aidat detayı
-func (r *FinanceRepository) GetAssessmentDetails(ctx context.Context, assessmentID string) (*models.AssessmentDetail, error) {
+func (r *FinanceRepository) GetAssessmentDetails(ctx context.Context, propertyID, assessmentID string) (*models.AssessmentDetail, error) {
 	// Ana aidat bilgisi
 	query := `
 		SELECT id, property_id, unit_id, period_year, period_month, 
@@ -190,7 +192,7 @@ func (r *FinanceRepository) GetAssessmentDetails(ctx context.Context, assessment
 		FROM monthly_assessments WHERE id = $1 AND deleted = 0
 	`
 	detail := &models.AssessmentDetail{}
-	err := r.pool.QueryRow(ctx, query, assessmentID).Scan(
+	err := r.scope(propertyID).QueryRow(ctx, query, assessmentID).Scan(
 		&detail.ID, &detail.PropertyID, &detail.UnitID, &detail.PeriodYear, &detail.PeriodMonth,
 		&detail.BaseAmount, &detail.LateFee, &detail.TotalAmount, &detail.DueDate, &detail.Status, &detail.CreatedAt,
 	)
@@ -205,7 +207,7 @@ func (r *FinanceRepository) GetAssessmentDetails(ctx context.Context, assessment
 		JOIN expense_categories ec ON ad.expense_category_id = ec.id
 		WHERE ad.assessment_id = $1
 	`
-	rows, err := r.pool.Query(ctx, detailQuery, assessmentID)
+	rows, err := r.scope(propertyID).Query(ctx, detailQuery, assessmentID)
 	if err != nil {
 		return nil, err
 	}
@@ -229,7 +231,7 @@ func (r *FinanceRepository) GetAssessmentDetails(ctx context.Context, assessment
 //
 //  1. TRANSACTION YOKTU: `payments` satırı yazılıp `payment_assessments` yazılamazsa yarım
 //     kayıt kalıyordu.
-//  2. HATA YUTULUYORDU: `r.pool.Exec(ctx, linkQuery, ...)` dönüş değeri hiç atanmıyordu →
+//  2. HATA YUTULUYORDU: `r.scope(propertyID).Exec(ctx, linkQuery, ...)` dönüş değeri hiç atanmıyordu →
 //     yabancı anahtar ihlali veya mükerrer birincil anahtar hatası sessizce kayboluyordu.
 //  3. `payment_assessments.amount` HİÇ YAZILMIYORDU (sütun mevcut) → hangi tahakkuğa ne kadar
 //     düştüğü kayıtsızdı, mutabakat yapılamıyordu.
@@ -247,7 +249,7 @@ func (r *FinanceRepository) GetAssessmentDetails(ctx context.Context, assessment
 // (tasks/gap-analizi.md B46), sessiz bir hata değildir.
 func (r *FinanceRepository) CreatePayment(
 	ctx context.Context,
-	userID string,
+	propertyID, userID string,
 	assessmentIDs []string,
 	method string,
 ) (string, float64, error) {
@@ -255,23 +257,28 @@ func (r *FinanceRepository) CreatePayment(
 		return "", 0, ErrNoPayableAssessment
 	}
 
-	tx, err := r.pool.Begin(ctx)
+	tx, err := r.scope(propertyID).Begin(ctx)
 	if err != nil {
 		return "", 0, err
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck // commit başarılıysa no-op
 
-	// Yalnızca çağıran kullanıcıya ait, silinmemiş ve ödenecek bakiyesi olan tahakkukları al.
-	// FOR UPDATE: tutar hesaplandıktan sonra commit'e kadar satırlar kilitli kalır.
+	// Yalnızca çağıran kullanıcıya ait, AKTİF SİTEDEKİ, silinmemiş ve ödenecek bakiyesi olan
+	// tahakkukları al. FOR UPDATE: tutar hesaplandıktan sonra commit'e kadar satırlar kilitli kalır.
+	//
+	// `ma.property_id = $3` (2026-09-26): önceden yoktu. İki sitede dairesi olan bir sakin, A
+	// sitesi aktifken B'nin tahakkuklarını tek ödemeye bağlayabiliyordu; ödeme hangi sitenin
+	// yöneticisine düşeceği belirsiz bir kayıt olarak kalıyordu.
 	rows, err := tx.Query(ctx, `
 		SELECT ma.id, (ma.total_amount - COALESCE(ma.paid_amount, 0)) AS remaining, ma.unit_id
 		FROM monthly_assessments ma
 		JOIN resident_units ru ON ru.unit_id = ma.unit_id AND ru.is_active = true
 		WHERE ma.id = ANY($1)
 		  AND ru.resident_id = $2
+		  AND ma.property_id = $3
 		  AND ma.deleted = 0
 		FOR UPDATE OF ma
-	`, assessmentIDs, userID)
+	`, assessmentIDs, userID, propertyID)
 	if err != nil {
 		return "", 0, err
 	}
@@ -325,9 +332,9 @@ func (r *FinanceRepository) CreatePayment(
 
 	paymentID := uuid.New().String()
 	if _, err := tx.Exec(ctx, `
-		INSERT INTO payments (id, user_id, unit_id, amount, payment_method, status, created_at)
-		VALUES ($1, $2, $3, $4, $5, 'PENDING', NOW())
-	`, paymentID, userID, unitID, total, method); err != nil {
+		INSERT INTO payments (id, property_id, user_id, unit_id, amount, payment_method, status, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, 'PENDING', NOW())
+	`, paymentID, propertyID, userID, unitID, total, method); err != nil {
 		return "", 0, err
 	}
 
@@ -370,7 +377,7 @@ func (r *FinanceRepository) ConfirmPayment(
 	ctx context.Context,
 	paymentID, propertyID, reference string,
 ) error {
-	tx, err := r.pool.Begin(ctx)
+	tx, err := r.scope(propertyID).Begin(ctx)
 	if err != nil {
 		return err
 	}
@@ -437,7 +444,7 @@ func (r *FinanceRepository) ConfirmPayment(
 // RejectPayment, bekleyen bir ödemeyi başarısız olarak işaretler.
 // Tahakkuklar değişmez; borç olduğu gibi kalır.
 func (r *FinanceRepository) RejectPayment(ctx context.Context, paymentID, propertyID string) error {
-	tag, err := r.pool.Exec(ctx, `
+	tag, err := r.scope(propertyID).Exec(ctx, `
 		UPDATE payments p
 		SET status = 'FAILED', completed_at = NOW()
 		WHERE p.id = $1
@@ -458,7 +465,7 @@ func (r *FinanceRepository) RejectPayment(ctx context.Context, paymentID, proper
 
 // ListPendingPayments, yöneticinin onay bekleyen ödemelerini getirir.
 func (r *FinanceRepository) ListPendingPayments(ctx context.Context, propertyID string) ([]models.PropertyPayment, error) {
-	rows, err := r.pool.Query(ctx, `
+	rows, err := r.scope(propertyID).Query(ctx, `
 		SELECT DISTINCT p.id,
 		       COALESCE(u.first_name || ' ' || u.last_name, ''),
 		       COALESCE(un.block || '-' || un.door_number, ''),
@@ -502,7 +509,7 @@ type OverdueAssessment struct {
 // dahil edilmez. Aksi hâlde tazminat üzerinden tazminat (bileşik faiz) işlemiş olurdu;
 // KMK m.20/2 buna dayanak vermez.
 func (r *FinanceRepository) ListOverdueForLateFee(ctx context.Context, propertyID string, asOf time.Time) ([]OverdueAssessment, error) {
-	rows, err := r.pool.Query(ctx, `
+	rows, err := r.scope(propertyID).Query(ctx, `
 		SELECT id,
 		       GREATEST(round((base_amount - LEAST(COALESCE(paid_amount,0), base_amount)) * 100), 0)::bigint,
 		       ($2::date - due_date)::int,
@@ -540,13 +547,13 @@ func (r *FinanceRepository) ListOverdueForLateFee(ctx context.Context, propertyI
 // kendisi zaten idempotenttir.
 func (r *FinanceRepository) ApplyLateFee(
 	ctx context.Context,
-	assessmentID string,
+	propertyID, assessmentID string,
 	asOf time.Time,
 	overdueDays int,
 	principalKurus, feeKurus int64,
 	monthlyRate string,
 ) error {
-	tx, err := r.pool.Begin(ctx)
+	tx, err := r.scope(propertyID).Begin(ctx)
 	if err != nil {
 		return err
 	}
@@ -583,7 +590,7 @@ func (r *FinanceRepository) ApplyLateFee(
 }
 
 // GetPaymentHistory ödeme geçmişi
-func (r *FinanceRepository) GetPaymentHistory(ctx context.Context, userID string) ([]models.Payment, error) {
+func (r *FinanceRepository) GetPaymentHistory(ctx context.Context, propertyID, userID string) ([]models.Payment, error) {
 	query := `
 		SELECT id, user_id, amount, payment_method, status, transaction_id, created_at, completed_at
 		FROM payments
@@ -591,7 +598,7 @@ func (r *FinanceRepository) GetPaymentHistory(ctx context.Context, userID string
 		ORDER BY created_at DESC
 		LIMIT 50
 	`
-	rows, err := r.pool.Query(ctx, query, userID)
+	rows, err := r.scope(propertyID).Query(ctx, query, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -629,7 +636,7 @@ func (r *FinanceRepository) ListDebtors(ctx context.Context, propertyID string) 
 		GROUP BY u.id, u.first_name, u.last_name, un.block, un.door_number
 		ORDER BY amount DESC
 	`
-	rows, err := r.pool.Query(ctx, query, propertyID)
+	rows, err := r.scope(propertyID).Query(ctx, query, propertyID)
 	if err != nil {
 		return nil, err
 	}
@@ -670,7 +677,7 @@ func (r *FinanceRepository) ListPropertyPayments(ctx context.Context, propertyID
 		ORDER BY p.created_at DESC
 		LIMIT 50
 	`
-	rows, err := r.pool.Query(ctx, query, propertyID)
+	rows, err := r.scope(propertyID).Query(ctx, query, propertyID)
 	if err != nil {
 		return nil, err
 	}
@@ -698,7 +705,7 @@ func (r *FinanceRepository) ListPropertyPayments(ctx context.Context, propertyID
 }
 
 // GetConsumptionData tüketim verisi (grafik için)
-func (r *FinanceRepository) GetConsumptionData(ctx context.Context, userID, meterType string, months int) ([]models.ConsumptionData, error) {
+func (r *FinanceRepository) GetConsumptionData(ctx context.Context, propertyID, userID, meterType string, months int) ([]models.ConsumptionData, error) {
 	query := `
 		SELECT TO_CHAR(ci.period_start, 'YYYY-MM'), ci.consumption_amount, ci.total_amount, ci.status
 		FROM consumption_invoices ci
@@ -710,7 +717,7 @@ func (r *FinanceRepository) GetConsumptionData(ctx context.Context, userID, mete
 		ORDER BY ci.period_start DESC
 		LIMIT $3
 	`
-	rows, err := r.pool.Query(ctx, query, userID, meterType, months)
+	rows, err := r.scope(propertyID).Query(ctx, query, userID, meterType, months)
 	if err != nil {
 		return nil, err
 	}
@@ -761,7 +768,7 @@ func (r *FinanceRepository) CreateAssessment(ctx context.Context, propertyID str
 		return nil, errors.New("geçersiz vade tarihi formatı (YYYY-MM-DD bekleniyor)")
 	}
 
-	tx, err := r.pool.Begin(ctx)
+	tx, err := r.scope(propertyID).Begin(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -905,7 +912,7 @@ func (r *FinanceRepository) CreateAssessment(ctx context.Context, propertyID str
 
 // ListExpenseCategories sitenin gider kalemlerini sıralı şekilde listeler
 func (r *FinanceRepository) ListExpenseCategories(ctx context.Context, propertyID string) ([]models.ExpenseCategory, error) {
-	rows, err := r.pool.Query(ctx, `
+	rows, err := r.scope(propertyID).Query(ctx, `
 		SELECT id, property_id, name, distribution_type, applies_to_commercial, applies_to_ground_floor,
 		       COALESCE(custom_formula::text, ''), is_active
 		FROM expense_categories
@@ -927,4 +934,18 @@ func (r *FinanceRepository) ListExpenseCategories(ctx context.Context, propertyI
 		categories = append(categories, ec)
 	}
 	return categories, nil
+}
+
+// scope, veritabanı erişimini SİTE KAPSAMINA bağlar (FAZ 2.6).
+//
+// finance-service, sakin uçlarında sorguyu kullanıcı kimliğiyle daraltıyordu
+// (`WHERE resident_id = $1`). Bu, doğru sonucu veriyordu ama izolasyonu
+// TAMAMEN uygulama katmanına bırakıyordu: tek bir sorguda filtre unutulsa
+// başka sitenin aidatı görünürdü ve bunu yakalayan hiçbir şey yoktu.
+//
+// Kapsam, satır düzeyi güvenliği tarafından okunur. Sakin uçlarına da kapsam
+// verilmesinin sebebi budur; kullanıcı kimliği zaten tek siteye işaret etse
+// bile, koruma o varsayıma DEĞİL veritabanına dayanmalıdır.
+func (r *FinanceRepository) scope(propertyID string) *dbscope.Scoped {
+	return dbscope.For(r.pool, propertyID)
 }

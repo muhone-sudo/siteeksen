@@ -4,8 +4,11 @@ import (
 	"context"
 	"errors"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/siteeksen/backend/pkg/dbscope"
 	"github.com/siteeksen/backend/services/community/models"
 )
 
@@ -45,7 +48,7 @@ func scanRequest(row pgx.Row) (*models.Request, error) {
 }
 
 // ListByResident sakinin kendi taleplerini getirir
-func (r *RequestRepository) ListByResident(ctx context.Context, residentID, status string) ([]*models.Request, error) {
+func (r *RequestRepository) ListByResident(ctx context.Context, propertyID, residentID, status string) ([]*models.Request, error) {
 	query := `SELECT ` + requestColumns + ` FROM requests WHERE resident_id = $1`
 	args := []interface{}{residentID}
 	if status != "" {
@@ -53,7 +56,7 @@ func (r *RequestRepository) ListByResident(ctx context.Context, residentID, stat
 		args = append(args, status)
 	}
 	query += ` ORDER BY created_at DESC`
-	return r.list(ctx, query, args...)
+	return r.list(ctx, propertyID, query, args...)
 }
 
 // ListByProperty bir sitedeki tüm talepleri getirir (yönetim görünümü)
@@ -65,11 +68,11 @@ func (r *RequestRepository) ListByProperty(ctx context.Context, propertyID, stat
 		args = append(args, status)
 	}
 	query += ` ORDER BY created_at DESC`
-	return r.list(ctx, query, args...)
+	return r.list(ctx, propertyID, query, args...)
 }
 
-func (r *RequestRepository) list(ctx context.Context, query string, args ...interface{}) ([]*models.Request, error) {
-	rows, err := r.pool.Query(ctx, query, args...)
+func (r *RequestRepository) list(ctx context.Context, propertyID, query string, args ...interface{}) ([]*models.Request, error) {
+	rows, err := r.scope(propertyID).Query(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -86,10 +89,21 @@ func (r *RequestRepository) list(ctx context.Context, query string, args ...inte
 	return requests, rows.Err()
 }
 
-// GetByID ID'ye göre talep getirir
-func (r *RequestRepository) GetByID(ctx context.Context, id string) (*models.Request, error) {
-	query := `SELECT ` + requestColumns + ` FROM requests WHERE id = $1`
-	req, err := scanRequest(r.pool.QueryRow(ctx, query, id))
+// GetByID ID'ye göre talep getirir.
+//
+// GÜVENLİK (2026-09-14): sorguya `property_id` filtresi EKLENDİ. Önceden
+// yalnızca kimliğe bakılıyordu; A sitesinin yöneticisi, B sitesindeki bir
+// talebin kimliğini bildiği takdirde onu okuyabiliyor ve UpdateStatus ile
+// ilerletebiliyordu. Filtre uygulama katmanında; satır düzeyi güvenliği de
+// aynı sonucu veritabanında zorlar (migration 023).
+func (r *RequestRepository) GetByID(ctx context.Context, propertyID, id string) (*models.Request, error) {
+	// Biçimi geçersiz kimlik veritabanına gitmez: PostgreSQL onu tür hatası
+	// olarak reddeder ve istemci "bulunamadı" yerine 500 görürdü.
+	if _, err := uuid.Parse(id); err != nil {
+		return nil, ErrRequestNotFound
+	}
+	query := `SELECT ` + requestColumns + ` FROM requests WHERE id = $1 AND property_id = $2`
+	req, err := scanRequest(r.scope(propertyID).QueryRow(ctx, query, id, propertyID))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrRequestNotFound
 	}
@@ -107,7 +121,7 @@ func (r *RequestRepository) Create(ctx context.Context, propertyID, residentID, 
 		RETURNING ` + requestColumns
 
 	priority := input.Priority
-	row := r.pool.QueryRow(ctx, query,
+	row := r.scope(propertyID).QueryRow(ctx, query,
 		propertyID, residentID, input.CategoryID, ticketNumber, input.Title, input.Description,
 		input.Location, priority, input.Photos,
 	)
@@ -115,16 +129,16 @@ func (r *RequestRepository) Create(ctx context.Context, propertyID, residentID, 
 }
 
 // UpdateStatus yönetici tarafından talep durumunu günceller (OPEN -> IN_PROGRESS -> RESOLVED)
-func (r *RequestRepository) UpdateStatus(ctx context.Context, id, status string) (*models.Request, error) {
+func (r *RequestRepository) UpdateStatus(ctx context.Context, propertyID, id, status string) (*models.Request, error) {
 	var query string
 	switch status {
 	case models.StatusResolved:
-		query = `UPDATE requests SET status = $2, resolved_at = NOW(), updated_at = NOW() WHERE id = $1 RETURNING ` + requestColumns
+		query = `UPDATE requests SET status = $2, resolved_at = NOW(), updated_at = NOW() WHERE id = $1 AND property_id = $3 RETURNING ` + requestColumns
 	default:
-		query = `UPDATE requests SET status = $2, updated_at = NOW() WHERE id = $1 RETURNING ` + requestColumns
+		query = `UPDATE requests SET status = $2, updated_at = NOW() WHERE id = $1 AND property_id = $3 RETURNING ` + requestColumns
 	}
 
-	row := r.pool.QueryRow(ctx, query, id, status)
+	row := r.scope(propertyID).QueryRow(ctx, query, id, status, propertyID)
 	req, err := scanRequest(row)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrRequestNotFound
@@ -133,26 +147,36 @@ func (r *RequestRepository) UpdateStatus(ctx context.Context, id, status string)
 }
 
 // ConfirmResolution sakin onayı: onaylarsa CLOSED + user_confirmed_at, reddederse IN_PROGRESS'e döner
-func (r *RequestRepository) ConfirmResolution(ctx context.Context, id string, approved bool) (*models.Request, error) {
+func (r *RequestRepository) ConfirmResolution(ctx context.Context, propertyID, id string, approved bool) (*models.Request, error) {
 	var query string
 	if approved {
 		query = `
 			UPDATE requests
 			SET status = 'CLOSED', user_confirmed_at = NOW(), closed_at = NOW(), updated_at = NOW()
-			WHERE id = $1
+			WHERE id = $1 AND property_id = $2
 			RETURNING ` + requestColumns
 	} else {
 		query = `
 			UPDATE requests
 			SET status = 'IN_PROGRESS', resolved_at = NULL, updated_at = NOW()
-			WHERE id = $1
+			WHERE id = $1 AND property_id = $2
 			RETURNING ` + requestColumns
 	}
 
-	row := r.pool.QueryRow(ctx, query, id)
+	row := r.scope(propertyID).QueryRow(ctx, query, id, propertyID)
 	req, err := scanRequest(row)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrRequestNotFound
 	}
 	return req, err
+}
+
+// scope, veritabanı erişimini SİTE KAPSAMINA bağlar (FAZ 2.6).
+//
+// `requests` tablosunda RLS açıktır (migration 023). Uygulama katmanındaki
+// `property_id` filtresinin yerine geçmez; onu YEDEKLER. Bu modülde yedeğin
+// değeri somuttur: filtre üç sorguda hiç yoktu ve bunu yakalayan bir şey
+// yoktu.
+func (r *RequestRepository) scope(propertyID string) *dbscope.Scoped {
+	return dbscope.For(r.pool, propertyID)
 }

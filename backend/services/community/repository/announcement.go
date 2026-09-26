@@ -8,6 +8,8 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/siteeksen/backend/pkg/dbscope"
 )
 
 var (
@@ -74,7 +76,7 @@ LEFT JOIN users u ON u.id = a.created_by`
 // duyurusunun listede durması, sakinin güncel duyuruyu gözden kaçırmasına
 // yol açar. Yönetim isterse tümünü görebilir.
 func (r *AnnouncementRepository) List(ctx context.Context, propertyID, userID string, isManagement, includeExpired bool, category string) ([]Announcement, error) {
-	rows, err := r.pool.Query(ctx, announcementSelect+`
+	rows, err := r.scope(propertyID).Query(ctx, announcementSelect+`
 		WHERE a.property_id = $1
 		  AND ($4 = '' OR a.category = $4)
 		  AND ($5 OR a.expires_at IS NULL OR a.expires_at > now())
@@ -103,7 +105,7 @@ func (r *AnnouncementRepository) List(ctx context.Context, propertyID, userID st
 // Get, tek duyuruyu getirir.
 func (r *AnnouncementRepository) Get(ctx context.Context, propertyID, id, userID string, isManagement bool) (*Announcement, error) {
 	var a Announcement
-	err := r.pool.QueryRow(ctx, announcementSelect+`
+	err := r.scope(propertyID).QueryRow(ctx, announcementSelect+`
 		WHERE a.property_id = $1 AND a.id = $4`,
 		propertyID, userID, isManagement, id).
 		Scan(&a.ID, &a.Title, &a.Content, &a.Category, &a.Priority,
@@ -152,7 +154,7 @@ func (r *AnnouncementRepository) Create(ctx context.Context, propertyID, userID 
 	}
 
 	var id string
-	err := r.pool.QueryRow(ctx, `
+	err := r.scope(propertyID).QueryRow(ctx, `
 		INSERT INTO announcements
 			(property_id, title, content, category, priority, is_pinned,
 			 published_at, expires_at, created_by)
@@ -168,7 +170,7 @@ func (r *AnnouncementRepository) Create(ctx context.Context, propertyID, userID 
 // Okundu bilgisi, acil bir duyurunun (örn. su kesintisi) kimlere ulaştığının
 // tek kanıtıdır; bu yüzden ayrı tabloda tutulur ve silinmez.
 func (r *AnnouncementRepository) MarkRead(ctx context.Context, propertyID, id, userID string) error {
-	tag, err := r.pool.Exec(ctx, `
+	tag, err := r.scope(propertyID).Exec(ctx, `
 		INSERT INTO announcement_reads (announcement_id, user_id)
 		SELECT $1, NULLIF($3,'')::uuid
 		FROM announcements WHERE id = $1 AND property_id = $2
@@ -179,7 +181,7 @@ func (r *AnnouncementRepository) MarkRead(ctx context.Context, propertyID, id, u
 	if tag.RowsAffected() == 0 {
 		// Ya duyuru yok ya da zaten okunmuş; ayrımı için kontrol edilir.
 		var exists bool
-		if err := r.pool.QueryRow(ctx,
+		if err := r.scope(propertyID).QueryRow(ctx,
 			`SELECT EXISTS(SELECT 1 FROM announcements WHERE id = $1 AND property_id = $2)`,
 			id, propertyID).Scan(&exists); err != nil {
 			return err
@@ -193,7 +195,7 @@ func (r *AnnouncementRepository) MarkRead(ctx context.Context, propertyID, id, u
 
 // Pin, duyuruyu sabitler ya da sabitlemeyi kaldırır.
 func (r *AnnouncementRepository) Pin(ctx context.Context, propertyID, id string, pinned bool) error {
-	tag, err := r.pool.Exec(ctx,
+	tag, err := r.scope(propertyID).Exec(ctx,
 		`UPDATE announcements SET is_pinned = $3 WHERE id = $1 AND property_id = $2`,
 		id, propertyID, pinned)
 	if err != nil {
@@ -215,7 +217,7 @@ type ReadStats struct {
 // ReadStats, duyuruyu kaç sakinin okuduğunu verir (yalnızca yönetim).
 func (r *AnnouncementRepository) ReadStats(ctx context.Context, propertyID, id string) (*ReadStats, error) {
 	var s ReadStats
-	err := r.pool.QueryRow(ctx, `
+	err := r.scope(propertyID).QueryRow(ctx, `
 		SELECT
 		  (SELECT count(DISTINCT ru.resident_id)
 		     FROM resident_units ru JOIN units u ON u.id = ru.unit_id
@@ -240,4 +242,12 @@ func contains(list []string, v string) bool {
 		}
 	}
 	return false
+}
+
+// scope, veritabanı erişimini SİTE KAPSAMINA bağlar (FAZ 2.6).
+//
+// `announcements` ve `announcement_reads` tablolarında RLS açıktır
+// (migration 023).
+func (r *AnnouncementRepository) scope(propertyID string) *dbscope.Scoped {
+	return dbscope.For(r.pool, propertyID)
 }
