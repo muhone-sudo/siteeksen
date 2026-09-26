@@ -96,9 +96,20 @@ class ApiClient {
         return response.data;
     }
 
-    async logout() {
-        await this.client.post("/auth/logout");
-        this.clearToken();
+    /**
+     * Sunucu tarafında oturumu kapatır: erişim jetonu VE yenileme jetonu iptal
+     * edilir. Yenileme jetonu gönderilmezse 7 gün boyunca yeni erişim jetonu
+     * üretebilir — asıl tehlike odur. Sunucu iptali başaramazsa hata fırlatılır;
+     * çağıran bunu kullanıcıya söylemelidir.
+     */
+    async logout(refreshToken?: string) {
+        const rt = refreshToken ?? (typeof window !== "undefined" ? localStorage.getItem("refresh_token") : null);
+        try {
+            const res = await this.client.post("/auth/logout", rt ? { refresh_token: rt } : {});
+            return res.data as { access_token_revoked?: boolean; refresh_token_revoked?: boolean };
+        } finally {
+            this.clearToken();
+        }
     }
 
     async refreshAccessToken() {

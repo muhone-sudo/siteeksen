@@ -51,6 +51,8 @@ func main() {
 	repo := repository.New(pool)
 
 	r := gin.Default()
+	// Biçimi bozuk kimlik 500 değil 404 döner (pkg/middleware/params.go).
+	r.Use(middleware.UUIDParams())
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"status": "healthy", "service": "smart_collection", "persistent": true,
@@ -126,12 +128,14 @@ func main() {
 			for _, h := range histories {
 				list = append(list, svc.Evaluate(h))
 			}
-			if err := repo.SaveScores(c.Request.Context(), propertyID, list); err != nil {
+			saved, err := repo.SaveScores(c.Request.Context(), propertyID, list)
+			if err != nil {
 				fail(c, err, "anlık görüntü kaydı")
 				return
 			}
 			c.JSON(http.StatusCreated, gin.H{
-				"saved": len(list),
+				"saved":   saved,
+				"skipped": len(list) - saved,
 				"note": "Skorlar bugünün tarihiyle kaydedildi (aynı gün tekrar " +
 					"çalıştırılırsa önceki kayıt yenilenir). Skor bileşenlerinin " +
 					"gerekçeleri de saklandı: bir ay sonra 'bu daire neden kritikti?' " +
@@ -157,6 +161,10 @@ func fail(c *gin.Context, err error, op string) {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{
 			"error": "Sitede bağımsız bölüm kaydı yok; değerlendirme yapılamaz"})
 	default:
+		// İstemci kaynaklı veritabanı hatası (biçim, kısıt, uzunluk) 500 değildir.
+		if middleware.DBErrorResponse(c, err) {
+			return
+		}
 		log.Printf("[smart_collection] %s başarısız: %v", op, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "İşlem tamamlanamadı"})
 	}

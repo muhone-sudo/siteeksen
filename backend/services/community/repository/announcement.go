@@ -251,3 +251,10 @@ func contains(list []string, v string) bool {
 func (r *AnnouncementRepository) scope(propertyID string) *dbscope.Scoped {
 	return dbscope.For(r.pool, propertyID)
 }
+
+// Exists, kayıt bu sitede var mı (RLS kapsamında) — handler'ın üst kaydı
+// doğrulaması için. Üst kayıt yokken alt liste boş dönerse istemci "kayıt
+// var ama boş" sanar.
+func (r *AnnouncementRepository) Exists(ctx context.Context, propertyID, table, id string) (bool, error) {
+	return r.scope(propertyID).Exists(ctx, table, id)
+}

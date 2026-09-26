@@ -21,6 +21,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -43,6 +44,8 @@ func main() {
 	notifier := notify.FromEnvOrNil(pool)
 
 	r := gin.Default()
+	// Biçimi bozuk kimlik 500 değil 404 döner (pkg/middleware/params.go).
+	r.Use(middleware.UUIDParams())
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"status": "healthy", "service": "inventory", "persistent": true,
@@ -92,6 +95,13 @@ func main() {
 		})
 
 		read.GET("/inventory/:id/movements", func(c *gin.Context) {
+			if ok, err := repo.Exists(c.Request.Context(), c.GetString("property_id"), "inventory_items", c.Param("id")); err != nil {
+				fail(c, err, "kayıt denetimi")
+				return
+			} else if !ok {
+				c.JSON(http.StatusNotFound, gin.H{"error": "Kayıt bulunamadı"})
+				return
+			}
 			limit, _ := strconv.Atoi(c.Query("limit"))
 			list, err := repo.Movements(c.Request.Context(),
 				c.GetString("property_id"), c.Param("id"), limit)
@@ -137,6 +147,10 @@ func main() {
 					"valid_types": repository.MovementTypes})
 				return
 			}
+			// Büyük harfe çevirme denetimden ÖNCE yapılır. Önceden karşılaştırma
+			// harf duyarlıydı ama depo değeri büyük harfe çeviriyordu: görevli
+			// "adjust" göndererek yönetime ayrılmış sayım düzeltmesini yapabiliyordu.
+			in.MovementType = strings.ToUpper(strings.TrimSpace(in.MovementType))
 			if in.MovementType == "ADJUST" && !isManagement(c) {
 				c.JSON(http.StatusForbidden, gin.H{
 					"error": "Sayım düzeltmesi (ADJUST) yalnızca yönetim tarafından yapılabilir",
@@ -266,7 +280,17 @@ func fail(c *gin.Context, err error, op string) {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error": "Sayım düzeltmesi için gerekçe (notes) zorunludur",
 			"note":  "Gerekçesiz düzeltme, kaybı ve fireyi görünmez kılar."})
+	case errors.Is(err, repository.ErrInvalidMovementType):
+		c.JSON(http.StatusUnprocessableEntity, gin.H{
+			"error": "Hareket türü geçersiz", "valid_types": repository.MovementTypes})
+	case errors.Is(err, repository.ErrInvalidReferenceType):
+		c.JSON(http.StatusUnprocessableEntity, gin.H{
+			"error": "Hareket dayanağı geçersiz", "valid_reference_types": repository.ReferenceTypes})
 	default:
+		// İstemci kaynaklı veritabanı hatası (biçim, kısıt, uzunluk) 500 değildir.
+		if middleware.DBErrorResponse(c, err) {
+			return
+		}
 		log.Printf("[inventory] %s başarısız: %v", op, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "İşlem tamamlanamadı"})
 	}

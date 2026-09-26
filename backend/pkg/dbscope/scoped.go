@@ -2,6 +2,8 @@ package dbscope
 
 import (
 	"context"
+	"fmt"
+	"regexp"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -124,6 +126,30 @@ func (r *scopedRow) Scan(dest ...any) error {
 type errRow struct{ err error }
 
 func (r errRow) Scan(_ ...any) error { return r.err }
+
+// identPattern, Exists'e verilen tablo adının düz bir tanımlayıcı olduğunu
+// güvenceye alır (tablo adı SQL'e parametre olarak verilemez).
+var identPattern = regexp.MustCompile(`^[a-z_][a-z0-9_]*$`)
+
+// Exists, kapsam içinde `id`'si verilen satırın var olup olmadığını söyler.
+//
+// NEDEN VAR (2026-09-26): durum geçişli güncellemeler (`UPDATE … WHERE id=$1
+// AND status='PENDING'`) etkilenen satır 0 olduğunda "uygun durumda değil"
+// (409) döndürüyordu — kayıt HİÇ YOKKEN de. İstemci var olmayan bir kaydı
+// "başka biri işlem yapmış" sanıyordu. Bu yardımcı, 0 satır durumunda iki
+// ihtimali ayırmak içindir: yoksa 404, varsa 409.
+//
+// RLS altında çalıştığı için başka sitenin kaydı da "yok" sayılır — doğru
+// davranış budur (varlığı sızdırılmaz).
+func (s *Scoped) Exists(ctx context.Context, table, id string) (bool, error) {
+	if !identPattern.MatchString(table) {
+		return false, fmt.Errorf("dbscope.Exists: geçersiz tablo adı %q", table)
+	}
+	var ok bool
+	err := s.QueryRow(ctx,
+		`SELECT EXISTS (SELECT 1 FROM `+table+` WHERE id = $1)`, id).Scan(&ok)
+	return ok, err
+}
 
 // QueryRow, tek satırlık sorguyu kapsam içinde çalıştırır.
 //

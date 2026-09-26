@@ -319,7 +319,7 @@ func (r *Repository) Decide(ctx context.Context, propertyID, id, status, userID,
 		id, propertyID, status, userID, reason).Scan(
 		&info.ResidentID, &info.FacilityName, &info.StartTime, &info.EndTime)
 	if err == pgx.ErrNoRows {
-		return nil, ErrBadState
+		return nil, r.stateOrNotFound(ctx, propertyID, "reservations", id, ErrNotFound, ErrBadState)
 	}
 	if err != nil {
 		return nil, err
@@ -340,16 +340,20 @@ type DecisionInfo struct {
 }
 
 // Cancel, rezervasyonu iptal eder. residentID doluysa yalnızca sahibi iptal edebilir.
-func (r *Repository) Cancel(ctx context.Context, propertyID, id, residentID, reason string) error {
+//
+// residentID doluysa yalnızca o sakinin rezervasyonu iptal edilir. actorID,
+// iptali YAPAN kişidir ve her durumda kaydedilir: önceden yönetim iptal
+// ettiğinde `cancelled_by` boş kalıyor, kimin iptal ettiği kayboluyordu.
+func (r *Repository) Cancel(ctx context.Context, propertyID, id, residentID, actorID, reason string) error {
 	tag, err := r.scope(propertyID).Exec(ctx, `
 		UPDATE reservations
 		SET status = 'CANCELLED', cancelled_at = now(),
-		    cancelled_by = NULLIF($3,'')::uuid, cancellation_reason = NULLIF($4,''),
+		    cancelled_by = NULLIF($5,'')::uuid, cancellation_reason = NULLIF($4,''),
 		    updated_at = now()
 		WHERE id = $1 AND property_id = $2
 		  AND status IN ('PENDING','APPROVED')
 		  AND ($3 = '' OR resident_id = NULLIF($3,'')::uuid)`,
-		id, propertyID, residentID, reason)
+		id, propertyID, residentID, reason, actorID)
 	if err != nil {
 		return err
 	}
@@ -368,4 +372,19 @@ func (r *Repository) Cancel(ctx context.Context, propertyID, id, residentID, rea
 // Bu, uygulama katmanındaki filtrenin yerine geçmez — onu YEDEKLER.
 func (r *Repository) scope(propertyID string) *dbscope.Scoped {
 	return dbscope.For(r.pool, propertyID)
+}
+
+// stateOrNotFound, durum geçişli bir güncelleme 0 satır etkilediğinde iki
+// ihtimali ayırır: kayıt hiç yoksa (ya da başka siteye aitse) notFound (404),
+// varsa ama durumu uygun değilse state (409). Önceden ikisi de 409 dönüyordu;
+// istemci var olmayan kaydı "başkası işlem yapmış" sanıyordu.
+func (r *Repository) stateOrNotFound(ctx context.Context, propertyID, table, id string, notFound, state error) error {
+	ok, err := r.scope(propertyID).Exists(ctx, table, id)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return notFound
+	}
+	return state
 }

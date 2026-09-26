@@ -3,6 +3,7 @@ package handlers
 
 import (
 	"errors"
+	"github.com/siteeksen/backend/pkg/middleware"
 	"log"
 	"net/http"
 	"strconv"
@@ -18,8 +19,11 @@ import (
 // mapError, iş kuralı hatalarını HTTP durumlarına çevirir.
 // Ham veritabanı hatası istemciye SIZDIRILMAZ; yalnızca loglanır.
 func mapError(c *gin.Context, err error, op string) {
+	var verr *service.ValidationError
 	switch {
-	case errors.Is(err, repository.ErrNotFound), repository.IsInvalidID(err):
+	// Yoldaki bozuk kimlik middleware.UUIDParams ile 404 döner; buraya ulaşan
+	// 22P02 GÖVDEDEKİ bir alandır ve istemci hatasıdır (400, default dalında).
+	case errors.Is(err, repository.ErrNotFound):
 		c.JSON(http.StatusNotFound, gin.H{"error": "Kayıt bulunamadı"})
 	case errors.Is(err, repository.ErrNoUnits):
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Sitede tanımlı bağımsız bölüm yok"})
@@ -37,6 +41,18 @@ func mapError(c *gin.Context, err error, op string) {
 		c.JSON(http.StatusConflict, gin.H{"error": "Toplantı bu işlem için uygun durumda değil"})
 	case errors.Is(err, repository.ErrNotAttending):
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Oy kullanan bağımsız bölüm hazirun listesinde yok"})
+	case errors.Is(err, repository.ErrAlreadyDecided):
+		c.JSON(http.StatusConflict, gin.H{"error": "Kayıt zaten sonuçlanmış"})
+	case errors.Is(err, repository.ErrUnitNotInSite):
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "Bağımsız bölüm bu sitede bulunamadı"})
+	case errors.Is(err, repository.ErrCategoryNotInSite):
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "Gider kalemi bu sitede bulunamadı"})
+	case errors.As(err, &verr):
+		body := gin.H{"error": verr.Msg}
+		if len(verr.Valid) > 0 {
+			body["valid"] = verr.Valid
+		}
+		c.JSON(http.StatusUnprocessableEntity, body)
 	case errors.Is(err, repository.ErrObjectionNotEntitled):
 		c.JSON(http.StatusForbidden, gin.H{"error": "İtiraz yalnızca dairenin maliki ya da vekili tarafından yapılabilir (KMK m.37/2)"})
 	case errors.Is(err, repository.ErrBookClosed):
@@ -46,11 +62,21 @@ func mapError(c *gin.Context, err error, op string) {
 		// Mevzuat sınırı ihlali: kullanıcıya NEDENİ ile birlikte gösterilir.
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
 	default:
+		// İstemci kaynaklı veritabanı hatası (biçim, kısıt, uzunluk) 500 değildir.
+		if middleware.DBErrorResponse(c, err) {
+			return
+		}
 		var nf *legalparams.ErrNotFound
 		if errors.As(err, &nf) {
+			if middleware.DBErrorResponse(c, err) {
+				return
+			}
 			log.Printf("[governance] mevzuat parametresi eksik (%s): %v", op, err)
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"error": "Mevzuat parametresi tanımlı değil; işlem yapılamadı"})
+			return
+		}
+		if middleware.DBErrorResponse(c, err) {
 			return
 		}
 		log.Printf("[governance] %s başarısız: %v", op, err)
@@ -185,7 +211,7 @@ func ResolveObjection(svc *service.Service) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Geçersiz itiraz durumu"})
 			return
 		}
-		if err := svc.ResolveObjection(c.Request.Context(), c.GetString("property_id"), c.Param("objectionId"), in.Status, in.Resolution); err != nil {
+		if err := svc.ResolveObjection(c.Request.Context(), c.GetString("property_id"), c.Param("id"), c.Param("objectionId"), in.Status, in.Resolution); err != nil {
 			mapError(c, err, "itiraz sonuçlandırma")
 			return
 		}

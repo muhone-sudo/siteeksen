@@ -14,6 +14,7 @@ import (
 )
 
 var (
+	ErrInvalidValue    = errors.New("endeks negatif olmayan bir sayı olmalıdır")
 	ErrNotFound        = errors.New("sayaç bulunamadı")
 	ErrUnitNotInSite   = errors.New("bağımsız bölüm bu siteye ait değil")
 	ErrDuplicateSerial = errors.New("bu seri numarası zaten kayıtlı")
@@ -187,7 +188,8 @@ type ReadingInput struct {
 func (r *Repository) AddReading(ctx context.Context, propertyID, userID string, in ReadingInput) (*Reading, error) {
 	current, err := decimal.NewFromString(strings.TrimSpace(strings.ReplaceAll(in.CurrentValue, ",", ".")))
 	if err != nil || current.IsNegative() {
-		return nil, ErrBackwards
+		// Önceden "sayaç geri gidemez" diyordu; sayı olmayan değer için yanıltıcıydı.
+		return nil, ErrInvalidValue
 	}
 
 	readingDate := time.Now()

@@ -141,7 +141,7 @@ func (r *Repository) CheckIn(ctx context.Context, propertyID, id, userID string)
 		id, propertyID, userID).Scan(
 		&info.VisitorName, &info.UnitID, &info.CreatedBy, &info.Company)
 	if err == pgx.ErrNoRows {
-		return nil, ErrBadState
+		return nil, r.stateOrNotFound(ctx, propertyID, "visitors", id, ErrNotFound, ErrBadState)
 	}
 	if err != nil {
 		return nil, err
@@ -187,21 +187,34 @@ func (r *Repository) CheckOut(ctx context.Context, propertyID, id, userID string
 		return err
 	}
 	if tag.RowsAffected() == 0 {
-		return ErrBadState
+		return r.stateOrNotFound(ctx, propertyID, "visitors", id, ErrNotFound, ErrBadState)
 	}
 	return nil
 }
 
 // Cancel, gelmemiş ziyaretçi kaydını iptal eder.
-func (r *Repository) Cancel(ctx context.Context, propertyID, id string) error {
+//
+// ownerUserID doluysa (güvenlik/yönetim OLMAYAN çağıran) yalnızca kişinin
+// kendi oluşturduğu ya da kendi dairesine gelen ziyaretçi iptal edilebilir.
+// Önceden hiçbir denetim yoktu: her sakin sitedeki HER beklenen ziyaretçiyi
+// iptal edebiliyordu — güvenlik görevlisi misafiri kapıdan geri çevirirdi.
+// Başkasının kaydı "bulunamadı" döner; varlığı sızdırılmaz.
+func (r *Repository) Cancel(ctx context.Context, propertyID, ownerUserID, id string) error {
 	tag, err := r.scope(propertyID).Exec(ctx, `
 		UPDATE visitors SET status = 'CANCELLED', updated_at = now()
-		WHERE id = $1 AND property_id = $2 AND status = 'EXPECTED'`, id, propertyID)
+		WHERE id = $1 AND property_id = $2 AND status = 'EXPECTED'
+		  AND ($3 = '' OR created_by = NULLIF($3,'')::uuid
+		       OR unit_id IN (SELECT ru.unit_id FROM resident_units ru
+		                      WHERE ru.resident_id = NULLIF($3,'')::uuid AND ru.is_active = true))`,
+		id, propertyID, ownerUserID)
 	if err != nil {
 		return err
 	}
 	if tag.RowsAffected() == 0 {
-		return ErrBadState
+		if ownerUserID != "" {
+			return ErrNotFound
+		}
+		return r.stateOrNotFound(ctx, propertyID, "visitors", id, ErrNotFound, ErrBadState)
 	}
 	return nil
 }
@@ -231,4 +244,19 @@ func (r *Repository) Summary(ctx context.Context, propertyID string) (*models.Su
 // Bu, uygulama katmanındaki filtrenin yerine geçmez — onu YEDEKLER.
 func (r *Repository) scope(propertyID string) *dbscope.Scoped {
 	return dbscope.For(r.pool, propertyID)
+}
+
+// stateOrNotFound, durum geçişli bir güncelleme 0 satır etkilediğinde iki
+// ihtimali ayırır: kayıt hiç yoksa (ya da başka siteye aitse) notFound (404),
+// varsa ama durumu uygun değilse state (409). Önceden ikisi de 409 dönüyordu;
+// istemci var olmayan kaydı "başkası işlem yapmış" sanıyordu.
+func (r *Repository) stateOrNotFound(ctx context.Context, propertyID, table, id string, notFound, state error) error {
+	ok, err := r.scope(propertyID).Exists(ctx, table, id)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return notFound
+	}
+	return state
 }

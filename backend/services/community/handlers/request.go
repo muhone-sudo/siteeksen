@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"errors"
+	"github.com/siteeksen/backend/pkg/middleware"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -28,6 +29,9 @@ func ListRequests(svc *service.RequestService) gin.HandlerFunc {
 
 		requests, err := svc.List(c.Request.Context(), userID, propertyID, getRoles(c), status)
 		if err != nil {
+			if middleware.DBErrorResponse(c, err) {
+				return
+			}
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Talepler alınamadı"})
 			return
 		}
@@ -49,6 +53,9 @@ func CreateRequest(svc *service.RequestService) gin.HandlerFunc {
 
 		req, err := svc.Create(c.Request.Context(), userID, propertyID, input)
 		if err != nil {
+			if middleware.DBErrorResponse(c, err) {
+				return
+			}
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Talep oluşturulamadı"})
 			return
 		}

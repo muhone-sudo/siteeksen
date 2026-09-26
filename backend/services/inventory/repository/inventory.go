@@ -15,13 +15,15 @@ import (
 )
 
 var (
-	ErrNotFound        = errors.New("stok kalemi bulunamadı")
-	ErrInvalidCategory = errors.New("kategori bu siteye ait değil")
-	ErrInvalidUnit     = errors.New("geçersiz birim")
-	ErrInvalidQuantity = errors.New("miktar sıfırdan büyük olmalıdır")
-	ErrInsufficient    = errors.New("stok yetersiz")
-	ErrInactive        = errors.New("stok kalemi pasif")
-	ErrReasonRequired  = errors.New("sayım düzeltmesi için gerekçe zorunludur")
+	ErrInvalidMovementType  = errors.New("hareket türü geçersiz")
+	ErrInvalidReferenceType = errors.New("hareket dayanağı geçersiz")
+	ErrNotFound             = errors.New("stok kalemi bulunamadı")
+	ErrInvalidCategory      = errors.New("kategori bu siteye ait değil")
+	ErrInvalidUnit          = errors.New("geçersiz birim")
+	ErrInvalidQuantity      = errors.New("miktar sıfırdan büyük olmalıdır")
+	ErrInsufficient         = errors.New("stok yetersiz")
+	ErrInactive             = errors.New("stok kalemi pasif")
+	ErrReasonRequired       = errors.New("sayım düzeltmesi için gerekçe zorunludur")
 )
 
 // Units, kabul edilen ölçü birimleridir. Serbest metin bırakılırsa aynı malzeme
@@ -306,11 +308,14 @@ type MovementResult struct {
 func (r *Repository) RecordMovement(ctx context.Context, propertyID, itemID, userID string, in MovementInput) (*MovementResult, error) {
 	mType := strings.ToUpper(strings.TrimSpace(in.MovementType))
 	if !contains(MovementTypes, mType) {
-		return nil, ErrInvalidQuantity
+		// Önceden "miktar geçersiz" diyordu; asıl hata türdeydi.
+		return nil, ErrInvalidMovementType
 	}
 	refType := strings.ToUpper(strings.TrimSpace(in.ReferenceType))
 	if refType != "" && !contains(ReferenceTypes, refType) {
-		refType = ""
+		// Önceden geçersiz dayanak SESSİZCE siliniyordu; hareket dayanaksız
+		// kaydediliyor ve istemci bunu bilmiyordu.
+		return nil, ErrInvalidReferenceType
 	}
 
 	// ADJUST'ta miktar hedef stoktur (sayım sonucu), sıfır olabilir.
@@ -574,4 +579,11 @@ func parseQuantity(s string, allowZero bool) (decimal.Decimal, error) {
 // Bu, uygulama katmanındaki filtrenin yerine geçmez — onu YEDEKLER.
 func (r *Repository) scope(propertyID string) *dbscope.Scoped {
 	return dbscope.For(r.pool, propertyID)
+}
+
+// Exists, kayıt bu sitede var mı (RLS kapsamında) — handler'ın üst kaydı
+// doğrulaması için. Üst kayıt yokken alt liste boş dönerse istemci "kayıt
+// var ama boş" sanar.
+func (r *Repository) Exists(ctx context.Context, propertyID, table, id string) (bool, error) {
+	return r.scope(propertyID).Exists(ctx, table, id)
 }

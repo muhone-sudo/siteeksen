@@ -65,7 +65,7 @@ func (r *ResidentRepository) List(ctx context.Context, propertyID, search, block
 	}
 	defer rows.Close()
 
-	var residents []*models.Resident
+	residents := []*models.Resident{}
 	for rows.Next() {
 		res, err := scanResident(rows)
 		if err != nil {
@@ -183,7 +183,7 @@ func (r *ResidentRepository) ListUnits(ctx context.Context, propertyID string) (
 	}
 	defer rows.Close()
 
-	var units []*models.Unit
+	units := []*models.Unit{}
 	for rows.Next() {
 		u := &models.Unit{}
 		if err := rows.Scan(&u.ID, &u.PropertyID, &u.Block, &u.Floor, &u.DoorNumber, &u.ShareRatio,

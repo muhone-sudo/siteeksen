@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/shopspring/decimal"
@@ -22,6 +23,41 @@ var (
 	// ErrUnknownDistribution, tanınmayan dağıtım türü.
 	ErrUnknownDistribution = errors.New("bilinmeyen dağıtım türü")
 )
+
+// ValidationError, istemci girdisinin kurala uymadığını bildirir (422).
+//
+// NEDEN VAR (2026-09-26): tür/durum alanları kodda denetlenmiyor, veritabanı
+// CHECK kısıtına çarpıp 500 dönüyordu. İstemci ne yanlış yaptığını
+// öğrenemiyordu. Valid, kabul edilen değerlerin listesidir.
+type ValidationError struct {
+	Msg   string
+	Valid []string
+}
+
+func (e *ValidationError) Error() string { return e.Msg }
+
+func invalid(msg string, valid ...string) error { return &ValidationError{Msg: msg, Valid: valid} }
+
+func oneOf(v string, list ...string) bool {
+	for _, x := range list {
+		if x == v {
+			return true
+		}
+	}
+	return false
+}
+
+var (
+	assemblyKinds = []string{"ORDINARY", "EXTRAORDINARY"}
+	itemKinds     = []string{"EXPENSE", "INCOME"}
+	attendTypes   = []string{"SELF", "PROXY"}
+	caseTypes     = []string{"EXECUTION", "LAWSUIT", "MORTGAGE"}
+	basisDocTypes = []string{"OPERATING_BUDGET", "ASSEMBLY_DECISION", "COURT_ORDER"}
+	bookKinds     = []string{"DECISION", "OPERATING"}
+)
+
+// BookKinds, defter türleridir (handler doğrulaması için dışa açık).
+func BookKinds() []string { return bookKinds }
 
 // Service, yönetişim iş kurallarını uygular.
 type Service struct {
@@ -48,6 +84,31 @@ func New(repo *repository.Repository, params *legalparams.Resolver) *Service {
 // Dağıtım `pkg/money` ile KURUŞ üzerinden ve en büyük kalan yöntemiyle yapılır;
 // böylece payların toplamı kalemin tutarına BİREBİR eşittir (kuruş kaybı yok).
 func (s *Service) CreateBudget(ctx context.Context, propertyID, userID string, in models.CreateBudgetInput) (*models.Budget, error) {
+	if in.PeriodYear < 2000 || in.PeriodYear > 2200 {
+		return nil, invalid("Dönem yılı 2000-2200 arasında olmalıdır")
+	}
+	for i := range in.Items {
+		it := &in.Items[i]
+		it.Kind = strings.ToUpper(strings.TrimSpace(it.Kind))
+		if it.Kind == "" {
+			it.Kind = "EXPENSE"
+		}
+		if !oneOf(it.Kind, itemKinds...) {
+			return nil, invalid("Kalem türü geçersiz: "+it.Name, itemKinds...)
+		}
+		if strings.TrimSpace(it.Name) == "" {
+			return nil, invalid("Her kalemin adı olmalıdır")
+		}
+		if it.CategoryID != "" {
+			ok, err := s.repo.CategoryVisible(ctx, propertyID, it.CategoryID)
+			if err != nil {
+				return nil, err
+			}
+			if !ok {
+				return nil, repository.ErrCategoryNotInSite
+			}
+		}
+	}
 	units, err := s.repo.ListUnits(ctx, propertyID)
 	if err != nil {
 		return nil, err
@@ -159,8 +220,8 @@ func (s *Service) AddObjection(ctx context.Context, propertyID, budgetID, unitID
 func (s *Service) ListObjections(ctx context.Context, propertyID, budgetID string) ([]models.Objection, error) {
 	return s.repo.ListObjections(ctx, propertyID, budgetID)
 }
-func (s *Service) ResolveObjection(ctx context.Context, propertyID, id, status, resolution string) error {
-	return s.repo.ResolveObjection(ctx, propertyID, id, status, resolution)
+func (s *Service) ResolveObjection(ctx context.Context, propertyID, budgetID, id, status, resolution string) error {
+	return s.repo.ResolveObjection(ctx, propertyID, budgetID, id, status, resolution)
 }
 
 // -----------------------------------------------------------------------------
@@ -169,6 +230,35 @@ func (s *Service) ResolveObjection(ctx context.Context, propertyID, id, status, 
 
 // CreateAssembly, toplantıyı oluşturur.
 func (s *Service) CreateAssembly(ctx context.Context, propertyID, userID string, in models.CreateAssemblyInput) (*models.Assembly, error) {
+	in.Kind = strings.ToUpper(strings.TrimSpace(in.Kind))
+	if in.Kind != "" && !oneOf(in.Kind, assemblyKinds...) {
+		return nil, invalid("Toplantı türü geçersiz", assemblyKinds...)
+	}
+	if in.CallNumber != 0 && in.CallNumber != 1 && in.CallNumber != 2 {
+		return nil, invalid("Çağrı numarası 1 (ilk toplantı) ya da 2 (ikinci toplantı) olmalıdır")
+	}
+	seen := map[int]bool{}
+	for i := range in.AgendaItems {
+		a := &in.AgendaItems[i]
+		if strings.TrimSpace(a.Title) == "" {
+			return nil, invalid(fmt.Sprintf("%d. gündem maddesinin başlığı boş", i+1))
+		}
+		order := a.OrderNo
+		if order == 0 {
+			order = i + 1
+		}
+		if seen[order] {
+			return nil, invalid(fmt.Sprintf("Gündem sıra numarası %d iki kez kullanılmış", order))
+		}
+		seen[order] = true
+		// Özel nisap kodu mevzuat tablosunda yoksa madde KAPATILAMAZ; bunu
+		// toplantı günü değil, oluştururken söylemek gerekir.
+		if code := strings.TrimSpace(a.RequiredMajorityCode); code != "" {
+			if _, err := s.params.Get(ctx, propertyID, code, time.Now()); err != nil {
+				return nil, invalid("Tanınmayan nisap kodu: " + code)
+			}
+		}
+	}
 	id, err := s.repo.CreateAssembly(ctx, propertyID, userID, in)
 	if err != nil {
 		return nil, err
@@ -217,6 +307,15 @@ func (s *Service) NotifyAssembly(ctx context.Context, propertyID, assemblyID, me
 // Sınır aşılırsa kayıt REDDEDİLİR: sınırı aşan vekâletle kullanılan oy geçersizdir
 // ve kararın iptaline yol açar.
 func (s *Service) AddAttendee(ctx context.Context, propertyID, assemblyID string, in models.AttendeeInput) error {
+	in.AttendanceType = strings.ToUpper(strings.TrimSpace(in.AttendanceType))
+	if in.AttendanceType != "" && !oneOf(in.AttendanceType, attendTypes...) {
+		return invalid("Katılım türü geçersiz", attendTypes...)
+	}
+	// Vekâletle katılımda vekil zorunludur. Önceden vekil boşsa KMK m.31
+	// sınır denetimi ATLANIYOR ve kayıt veritabanında 500 ile düşüyordu.
+	if in.AttendanceType == "PROXY" && strings.TrimSpace(in.ProxyHolderID) == "" {
+		return invalid("Vekâletle katılımda vekil (proxy_holder_id) zorunludur")
+	}
 	if in.AttendanceType == "PROXY" && in.ProxyHolderID != "" {
 		if err := s.checkProxyLimits(ctx, propertyID, assemblyID, in); err != nil {
 			return err
@@ -320,6 +419,11 @@ func (s *Service) CloseAgendaItem(ctx context.Context, propertyID, agendaItemID,
 	if err != nil {
 		return models.MajorityResult{}, err
 	}
+	// Karar yalnızca YAPILMIŞ toplantıda alınır; nisap fotoğrafı yoksa
+	// çoğunluk hesabının paydası belirsizdir.
+	if assembly.Status != "HELD" {
+		return models.MajorityResult{}, repository.ErrAssemblyNotOpen
+	}
 	totalUnits, totalShare, attUnits, attShare, err := s.repo.AttendanceTotals(ctx, propertyID, assembly.ID)
 	if err != nil {
 		return models.MajorityResult{}, err
@@ -359,6 +463,10 @@ func (s *Service) CloseAgendaItem(ctx context.Context, propertyID, agendaItemID,
 // -----------------------------------------------------------------------------
 
 func (s *Service) EnsureBook(ctx context.Context, propertyID, kind string, year int) (*models.Book, error) {
+	kind = strings.ToUpper(strings.TrimSpace(kind))
+	if !oneOf(kind, bookKinds...) {
+		return nil, invalid("Defter türü geçersiz", bookKinds...)
+	}
 	return s.repo.EnsureBook(ctx, propertyID, kind, year)
 }
 func (s *Service) AppendBookEntry(ctx context.Context, propertyID, bookID, userID string, in models.CreateBookEntryInput) (*models.BookEntry, error) {
@@ -380,12 +488,14 @@ func (s *Service) CloseBook(ctx context.Context, propertyID, bookID, notaryRef s
 	if closedAt.IsZero() {
 		closedAt = time.Now()
 	}
-	if err := s.repo.CloseBook(ctx, propertyID, bookID, notaryRef, closedAt); err != nil {
-		return "", err
-	}
-
+	// Önce mevzuat parametresi okunur: önceden defter kapatıldıktan SONRA
+	// okunuyordu; parametre eksikse istemci 500 alıyor ama defter kapanmış
+	// kalıyordu (başarısız görünen başarılı işlem).
 	months, err := s.params.Int(ctx, propertyID, legalparams.DecisionBookNotaryCloseMonths, time.Now())
 	if err != nil {
+		return "", err
+	}
+	if err := s.repo.CloseBook(ctx, propertyID, bookID, notaryRef, closedAt); err != nil {
 		return "", err
 	}
 	deadline := time.Date(periodYear+1, time.January, 1, 0, 0, 0, 0, closedAt.Location()).
@@ -408,6 +518,14 @@ func (s *Service) CloseBook(ctx context.Context, propertyID, bookID, notaryRef s
 // İİK m.68'deki belgelerdendir. Takip bu belgeye dayandırılmalıdır; dayanak
 // belirtilmemişse uyarı verilir.
 func (s *Service) CreateLegalCase(ctx context.Context, propertyID string, in models.CreateLegalCaseInput) (*models.LegalCase, string, error) {
+	in.CaseType = strings.ToUpper(strings.TrimSpace(in.CaseType))
+	if !oneOf(in.CaseType, caseTypes...) {
+		return nil, "", invalid("Takip türü geçersiz", caseTypes...)
+	}
+	in.BasisDocumentType = strings.ToUpper(strings.TrimSpace(in.BasisDocumentType))
+	if in.BasisDocumentType != "" && !oneOf(in.BasisDocumentType, basisDocTypes...) {
+		return nil, "", invalid("Dayanak belge türü geçersiz", basisDocTypes...)
+	}
 	principal, lateFee, err := s.repo.UnitDebt(ctx, propertyID, in.UnitID)
 	if err != nil {
 		return nil, "", err

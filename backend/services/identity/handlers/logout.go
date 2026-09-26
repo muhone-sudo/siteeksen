@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"github.com/siteeksen/backend/pkg/middleware"
 	"log"
 	"net/http"
 	"strings"
@@ -100,6 +101,9 @@ func LogoutAll(checker *revocation.Checker) gin.HandlerFunc {
 			return
 		}
 		if err := checker.RevokeAll(c.Request.Context(), userID, "LOGOUT_ALL"); err != nil {
+			if middleware.DBErrorResponse(c, err) {
+				return
+			}
 			log.Printf("[identity] toplu iptal başarısız: %v", err)
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"error": "İşlem tamamlanamadı; oturumlar HÂLÂ AÇIK",

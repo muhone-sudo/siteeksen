@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import { Bell, ChevronDown, LogOut, Menu, User } from "lucide-react";
+import apiClient from "@/lib/api-client";
 
 /**
  * Üst çubuk.
@@ -46,9 +47,26 @@ export function Header() {
 
     async function handleSignOut() {
         setSigningOut(true);
-        // Not: Backend'in POST /auth/logout ucu şu an token'ı geçersizleştirmiyor
-        // (yalnızca "Çıkış başarılı" döndürüyor). Sunucu tarafı token iptali
-        // tasks/roadmap.md FAZ 2.12 kapsamında ele alınacak.
+        // Önce SUNUCUDA oturum kapatılır (erişim + yenileme jetonu iptal edilir).
+        // Önceki sürüm yalnızca tarayıcıdaki NextAuth oturumunu siliyordu; jeton
+        // sunucuda geçerli kalıyor, yenileme jetonu 7 gün boyunca yeni oturum
+        // açabiliyordu. İptal başarısız olursa kullanıcıya SÖYLENİR.
+        let revoked = false;
+        try {
+            if (session?.accessToken) {
+                apiClient.setToken(session.accessToken, session.refreshToken);
+                const res = await apiClient.logout(session.refreshToken);
+                revoked = !!res?.access_token_revoked && (!session.refreshToken || !!res?.refresh_token_revoked);
+            }
+        } catch {
+            revoked = false;
+        }
+        if (!revoked && session?.accessToken) {
+            window.alert(
+                "Bu cihazdaki oturum kapatılıyor, ancak sunucudaki oturum iptal edilemedi. " +
+                "Başka bir cihazda açık oturumunuz varsa güvenlik için şifrenizi değiştirin."
+            );
+        }
         await signOut({ callbackUrl: "/login" });
     }
 

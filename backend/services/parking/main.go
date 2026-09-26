@@ -34,6 +34,8 @@ func main() {
 	repo := repository.New(pool)
 
 	r := gin.Default()
+	// Biçimi bozuk kimlik 500 değil 404 döner (pkg/middleware/params.go).
+	r.Use(middleware.UUIDParams())
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"status": "healthy", "service": "parking", "persistent": true,
@@ -64,7 +66,11 @@ func main() {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Geçersiz istek formatı"})
 			return
 		}
-		id, err := repo.CreateVehicle(c.Request.Context(), c.GetString("property_id"), in)
+		owner := ""
+		if !hasOpsScope(c) {
+			owner = c.GetString("user_id")
+		}
+		id, err := repo.CreateVehicle(c.Request.Context(), c.GetString("property_id"), owner, in)
 		if err != nil {
 			fail(c, err, "araç kaydı")
 			return
@@ -73,8 +79,12 @@ func main() {
 	})
 
 	api.DELETE("/vehicles/:id", func(c *gin.Context) {
+		owner := ""
+		if !hasOpsScope(c) {
+			owner = c.GetString("user_id")
+		}
 		if err := repo.DeactivateVehicle(c.Request.Context(),
-			c.GetString("property_id"), c.Param("id")); err != nil {
+			c.GetString("property_id"), owner, c.Param("id")); err != nil {
 			fail(c, err, "araç pasife alma")
 			return
 		}
@@ -293,6 +303,17 @@ func fail(c *gin.Context, err error, op string) {
 	switch {
 	case errors.Is(err, repository.ErrNotFound):
 		c.JSON(http.StatusNotFound, gin.H{"error": "Kayıt bulunamadı"})
+	case errors.Is(err, repository.ErrPlateRequired):
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Plaka zorunludur"})
+	case errors.Is(err, repository.ErrUnitRequired):
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Aracın bağlı olduğu bağımsız bölüm zorunludur"})
+	case errors.Is(err, repository.ErrInvalidOwner):
+		c.JSON(http.StatusUnprocessableEntity, gin.H{
+			"error": "Araç sahibi türü geçersiz", "owner_types": repository.OwnerTypes})
+	case errors.Is(err, repository.ErrNotYourUnit):
+		c.JSON(http.StatusForbidden, gin.H{"error": "Yalnızca kendi dairenize araç kaydedebilirsiniz"})
+	case errors.Is(err, repository.ErrZoneFull):
+		c.JSON(http.StatusConflict, gin.H{"error": "Otopark bölgesi dolu"})
 	case errors.Is(err, repository.ErrPlateExists):
 		c.JSON(http.StatusConflict, gin.H{"error": "Bu plaka sitede zaten kayıtlı"})
 	case errors.Is(err, repository.ErrAlreadyInside):
@@ -302,6 +323,10 @@ func fail(c *gin.Context, err error, op string) {
 	case errors.Is(err, repository.ErrUnitNotInSite):
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Belirtilen bağımsız bölüm bu siteye ait değil"})
 	default:
+		// İstemci kaynaklı veritabanı hatası (biçim, kısıt, uzunluk) 500 değildir.
+		if middleware.DBErrorResponse(c, err) {
+			return
+		}
 		log.Printf("[parking] %s başarısız: %v", op, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "İşlem tamamlanamadı"})
 	}

@@ -237,7 +237,28 @@ func (r *Repository) Review(ctx context.Context, propertyID, id, reviewerID, sta
 		return err
 	}
 	if tag.RowsAffected() == 0 {
-		return ErrBadState
+		return r.stateOrNotFound(ctx, propertyID, "bulletin_posts", id, ErrNotFound, ErrBadState)
+	}
+	return nil
+}
+
+// Visible, ilanın çağırana görünür olup olmadığını söyler (Get ile aynı kural,
+// görüntülenme sayacını ARTTIRMADAN). Yoksa ErrNotFound döner.
+func (r *Repository) Visible(ctx context.Context, propertyID, id, userID string, isManagement bool) error {
+	var status string
+	var mine bool
+	err := r.scope(propertyID).QueryRow(ctx, `
+		SELECT status, (author_id = NULLIF($3,'')::uuid)
+		FROM bulletin_posts WHERE id = $1 AND property_id = $2`,
+		id, propertyID, userID).Scan(&status, &mine)
+	if err == pgx.ErrNoRows {
+		return ErrNotFound
+	}
+	if err != nil {
+		return err
+	}
+	if status != "APPROVED" && !mine && !isManagement {
+		return ErrNotFound
 	}
 	return nil
 }
@@ -415,4 +436,19 @@ func contains(list []string, v string) bool {
 // Bu, uygulama katmanındaki filtrenin yerine geçmez — onu YEDEKLER.
 func (r *Repository) scope(propertyID string) *dbscope.Scoped {
 	return dbscope.For(r.pool, propertyID)
+}
+
+// stateOrNotFound, durum geçişli bir güncelleme 0 satır etkilediğinde iki
+// ihtimali ayırır: kayıt hiç yoksa (ya da başka siteye aitse) notFound (404),
+// varsa ama durumu uygun değilse state (409). Önceden ikisi de 409 dönüyordu;
+// istemci var olmayan kaydı "başkası işlem yapmış" sanıyordu.
+func (r *Repository) stateOrNotFound(ctx context.Context, propertyID, table, id string, notFound, state error) error {
+	ok, err := r.scope(propertyID).Exists(ctx, table, id)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return notFound
+	}
+	return state
 }

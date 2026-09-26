@@ -145,6 +145,9 @@ cleanup() {
   kill_tree "$MTG_PID"
   kill_tree "$SMC_PID"
   kill_tree "$COM_PID"
+  kill_tree "${GW2_PID:-}"; kill_tree "${STUB2_PID:-}"
+  kill_tree "${H_PER:-}"; kill_tree "${H_PRK:-}"; kill_tree "${H_VIS:-}"
+  kill_tree "${H_INV:-}"; kill_tree "${H_GOV:-}"
   rm -rf /tmp/verify-docs
   docker rm -f "$CNAME" >/dev/null 2>&1
 }
@@ -220,6 +223,14 @@ if python3 "$SCRIPT_DIR/gen-deploy.py" --check >/tmp/verify-gendeploy.log 2>&1; 
   ok "dağıtım dosyaları servis listesiyle tutarlı (gen-deploy --check)"
 else
   bad "dağıtım dosyaları sapmış"; cat /tmp/verify-gendeploy.log | sed 's/^/      /'
+fi
+# Gateway her servis rotasını doğru servise yönlendirmeli. Önceden servisler
+# yalnızca kendi portlarından sınanıyordu; ayarlar, devriye, ilan panosu, sayaç
+# okuma, bildirim tercihleri ve modül özetleri gateway'de HİÇ yoktu.
+if python3 "$SCRIPT_DIR/check-gateway-routes.py" >/tmp/verify-gwroutes.log 2>&1; then
+  ok "gateway yönlendirmesi servis rotalarıyla tutarlı ($(tail -1 /tmp/verify-gwroutes.log))"
+else
+  bad "gateway yönlendirmesinde eksik/yanlış rota var"; head -20 /tmp/verify-gwroutes.log | sed 's/^/      /'
 fi
 if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
   if (cd "$SCRIPT_DIR/../.." && docker compose -f docker-compose.yml config -q) >/dev/null 2>&1; then
@@ -2046,10 +2057,11 @@ if [ "$AUP" = "1" ] && [ -n "${MGR:-}" ] && [ -n "${TEN:-}" ]; then
     echo "$DUE2" | grep -q 'Jenerator' && bad "bakımı yapılan demirbaş hâlâ gecikmiş görünüyor" \
       || ok "bakımı yapılan demirbaş gecikmiş listesinden çıktı"
 
-    # Geçersiz bakım türü
+    # Geçersiz bakım türü: 422 (girdi hatası). Önceden 409 ("kayıt uygun durumda
+    # değil") dönüyordu ve bu test o yanlış kodu sabitliyordu.
     SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$AURL/assets/$A1ID/maintenance" -H "$AA" -H "$AJ" \
       -d '{"maintenance_type":"UYDURMA","description":"x"}')
-    [ "$SC" = "409" ] && ok "geçersiz bakım türü reddedildi" || bad "geçersiz bakım türü → $SC"
+    [ "$SC" = "422" ] && ok "geçersiz bakım türü reddedildi → 422" || bad "geçersiz bakım türü → $SC"
 
     # Bakım geçmişi
     HIST=$(curl -s "$AURL/assets/$A1ID/maintenance" -H "$AA")
@@ -4736,6 +4748,205 @@ NOTRLS=$($PSQL -t -A -c "SELECT string_agg(t.table_name, ' ' ORDER BY t.table_na
 EXPECTED="audit_logs invoices legal_parameters revoked_tokens schema_migrations tenants usage_metrics user_token_invalidation"
 [ "$NOTRLS" = "$EXPECTED" ] && ok "RLS dışındaki 8 tablonun her biri gerekçeli: $NOTRLS" \
   || bad "RLS dışında beklenmeyen tablo var: '$NOTRLS' (beklenen: '$EXPECTED')"
+
+step "37) Sertleştirme turu: gateway yönlendirmesi, durum kodları, sahiplik (2026-09-26)"
+# Bu turda API sözleşmesi servis servis çıkarıldı ve şu sınıf hatalar bulundu:
+# gateway'de hiç yönlendirilmeyen rotalar, var olmayan kayıt için 409/500,
+# başkasının aracını/ziyaretçisini silebilme, pasif hesabın giriş yapabilmesi,
+# başkasının tahakkuk dökümünü okuyabilme, yapılmış toplantıya oy ekleyebilme.
+
+# --- A) Gateway: her rota gerçekten doğru servise ulaşıyor mu (saplamalarla) ---
+STUBBASE=${VERIFY_STUB_BASE:-19100}
+GWP=${VERIFY_GW2_PORT:-18899}
+python3 "$SCRIPT_DIR/gateway-routing-probe.py" serve "$STUBBASE" >/tmp/verify-stubs.env 2>/tmp/verify-stubs.err &
+STUB2_PID=$!
+for _ in $(seq 1 20); do grep -q READY /tmp/verify-stubs.env 2>/dev/null && break; sleep 0.5; done
+if grep -q READY /tmp/verify-stubs.env; then
+  env $(grep '_SERVICE_URL=' /tmp/verify-stubs.env | tr '\n' ' ') \
+    JWT_SECRET=verify-secret-key-at-least-32-chars PORT=$GWP \
+    go run ./cmd/gateway >/tmp/verify-gw2.log 2>&1 &
+  GW2_PID=$!
+  for _ in $(seq 1 45); do curl -fsS "http://127.0.0.1:$GWP/health" >/dev/null 2>&1 && break; sleep 1; done
+  if python3 "$SCRIPT_DIR/gateway-routing-probe.py" probe "http://127.0.0.1:$GWP" "$MGR" >/tmp/verify-gwprobe.log 2>&1; then
+    ok "gateway çalışırken: $(tail -1 /tmp/verify-gwprobe.log)"
+  else
+    bad "gateway çalışırken yönlendirme hatası"; head -15 /tmp/verify-gwprobe.log | sed 's/^/      /'
+  fi
+  kill_tree "$GW2_PID"
+else
+  bad "saplama sunucuları açılmadı"; cat /tmp/verify-stubs.err | head -5
+fi
+kill_tree "$STUB2_PID"
+
+# Servisleri tek tek aç (önceki adımlar kendi servislerini kapattı)
+start_svc() { # ad port yol → PID değişkeni adı $4
+  DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_app DB_PASSWORD="$APPPW" DB_NAME=siteeksen \
+  DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=$2 \
+  PII_ENCRYPTION_KEY="${PIIKEY:-$(head -c 32 /dev/zero | base64 -w0)}" \
+    go run "$3" >"/tmp/verify-h-$1.log" 2>&1 &
+  eval "$4=$!"
+}
+wait_up() { for _ in $(seq 1 60); do curl -fsS "http://127.0.0.1:$1/health" >/dev/null 2>&1 && return 0; sleep 1; done; return 1; }
+start_svc personnel 18300 ./services/personnel H_PER
+start_svc parking   18301 ./services/parking   H_PRK
+start_svc visitor   18302 ./services/visitor   H_VIS
+start_svc inventory 18303 ./services/inventory H_INV
+start_svc govern    18304 ./services/governance H_GOV
+HUP=1
+for p in 18300 18301 18302 18303 18304; do wait_up $p || { HUP=0; echo "     açılmadı: $p"; }; done
+[ "$HUP" = "1" ] && ok "sertleştirme sınaması için 5 servis ayağa kalktı" || bad "sertleştirme servisleri açılmadı"
+
+J='Content-Type: application/json'
+TENID=$($PSQL -t -A -c "SELECT id FROM users WHERE phone LIKE '%5559876543' LIMIT 1;")
+TEN=$(curl -s -X POST "http://127.0.0.1:${SVCPORT}/api/v1/auth/login" -H "$J" \
+  -d '{"phone":"5559876543","password":"Demo123!"}' | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+# Kiracının dairesi OLMAYAN bir daire
+OTHERUNIT=$($PSQL -t -A -c "SELECT id FROM units WHERE property_id='$DEMO_PROPERTY'
+  AND id NOT IN (SELECT unit_id FROM resident_units WHERE resident_id='$TENID') ORDER BY door_number LIMIT 1;")
+TENUNIT=$($PSQL -t -A -c "SELECT unit_id FROM resident_units WHERE resident_id='$TENID' AND is_active LIMIT 1;")
+
+# --- B) Durum kodları: var olmayan kayıt 404, bozuk kimlik 404, geçersiz girdi 400/422 ---
+code() { curl -s -o /dev/null -w '%{http_code}' "$@"; }
+Z=00000000-0000-0000-0000-000000000000
+SC=$(code -X POST "http://127.0.0.1:18300/api/v1/leaves/$Z/approve" -H "Authorization: Bearer $MGR")
+[ "$SC" = "404" ] && ok "var olmayan izin onayı → 404 (önceden 409 'zaten sonuçlanmış')" || bad "var olmayan izin onayı → $SC"
+SC=$(code "http://127.0.0.1:18300/api/v1/employees/stats" -H "Authorization: Bearer $MGR")
+[ "$SC" = "404" ] && ok "var olmayan alt yol /employees/stats → 404 (önceden 500)" || bad "/employees/stats → $SC"
+SC=$(code -X POST "http://127.0.0.1:18300/api/v1/employees" -H "Authorization: Bearer $MGR" -H "$J" \
+  -d '{"first_name":"A","last_name":"B","position":"X","hire_date":"2026-01-01","contract_type":"UYDURMA"}')
+[ "$SC" = "422" ] && ok "geçersiz sözleşme türü → 422 (önceden veritabanı kısıtıyla 500)" || bad "geçersiz sözleşme türü → $SC"
+SC=$(code -X POST "http://127.0.0.1:18301/api/v1/vehicles" -H "Authorization: Bearer $MGR" -H "$J" -d '{}')
+[ "$SC" = "400" ] && ok "boş gövdeyle araç kaydı → 400 (önceden 500)" || bad "boş araç kaydı → $SC"
+SC=$(code -X POST "http://127.0.0.1:18302/api/v1/visitors/$Z/check-in" -H "Authorization: Bearer $MGR")
+[ "$SC" = "404" ] && ok "var olmayan ziyaretçi girişi → 404 (önceden 409)" || bad "var olmayan ziyaretçi girişi → $SC"
+SC=$(code -X POST "http://127.0.0.1:18302/api/v1/visitors" -H "Authorization: Bearer $MGR" -H "$J" \
+  -d '{"visitor_name":"X","unit_id":"bozuk-kimlik"}')
+[ "$SC" = "400" ] && ok "gövdede bozuk kimlik → 400 (önceden 500)" || bad "gövdede bozuk kimlik → $SC"
+
+# --- C) Sahiplik: sakin başkasının aracını/ziyaretçisini silemez ---
+if [ -n "$TEN" ] && [ -n "$OTHERUNIT" ]; then
+  SC=$(code -X POST "http://127.0.0.1:18301/api/v1/vehicles" -H "Authorization: Bearer $TEN" -H "$J" \
+    -d "{\"plate\":\"34 SAH 001\",\"unit_id\":\"$OTHERUNIT\"}")
+  [ "$SC" = "403" ] && ok "sakin komşusunun dairesine araç kaydedemiyor → 403" || bad "başkasının dairesine araç kaydı → $SC"
+  VID=$(curl -s -X POST "http://127.0.0.1:18301/api/v1/vehicles" -H "Authorization: Bearer $MGR" -H "$J" \
+    -d "{\"plate\":\"34 SAH 002\",\"unit_id\":\"$OTHERUNIT\"}" | sed -n 's/.*"id":"\([^"]*\)".*/\1/p')
+  SC=$(code -X DELETE "http://127.0.0.1:18301/api/v1/vehicles/$VID" -H "Authorization: Bearer $TEN")
+  ACT=$($PSQL -t -A -c "SELECT is_active FROM vehicles WHERE id='$VID';")
+  [ "$SC" = "404" ] && [ "$ACT" = "t" ] && ok "sakin başkasının aracını pasife alamıyor → 404, araç aktif" \
+    || bad "sakin başkasının aracını pasife aldı → $SC (aktif=$ACT)"
+  SC=$(code -X DELETE "http://127.0.0.1:18301/api/v1/vehicles/$VID" -H "Authorization: Bearer $MGR")
+  [ "$SC" = "200" ] && ok "yönetim aracı pasife alabiliyor → 200" || bad "yönetim araç pasife alma → $SC"
+
+  XVIS=$(curl -s -X POST "http://127.0.0.1:18302/api/v1/visitors" -H "Authorization: Bearer $MGR" -H "$J" \
+    -d "{\"visitor_name\":\"Komsu Misafiri\",\"unit_id\":\"$OTHERUNIT\"}" | sed -n 's/.*"id":"\([^"]*\)".*/\1/p')
+  SC=$(code -X POST "http://127.0.0.1:18302/api/v1/visitors/$XVIS/cancel" -H "Authorization: Bearer $TEN")
+  VST=$($PSQL -t -A -c "SELECT status FROM visitors WHERE id='$XVIS';")
+  [ "$SC" = "404" ] && [ "$VST" = "EXPECTED" ] && ok "sakin komşusunun ziyaretçisini iptal edemiyor → 404" \
+    || bad "sakin başkasının ziyaretçisini iptal etti → $SC ($VST)"
+  if [ -n "$TENUNIT" ]; then
+    OWNVIS=$(curl -s -X POST "http://127.0.0.1:18302/api/v1/visitors" -H "Authorization: Bearer $TEN" -H "$J" \
+      -d "{\"visitor_name\":\"Kendi Misafirim\",\"unit_id\":\"$TENUNIT\"}" | sed -n 's/.*"id":"\([^"]*\)".*/\1/p')
+    SC=$(code -X POST "http://127.0.0.1:18302/api/v1/visitors/$OWNVIS/cancel" -H "Authorization: Bearer $TEN")
+    [ "$SC" = "200" ] && ok "sakin kendi ziyaretçisini iptal edebiliyor → 200" || bad "kendi ziyaretçisini iptal → $SC"
+  fi
+else
+  bad "sahiplik sınaması için kiracı jetonu/daire bulunamadı"
+fi
+
+# --- D) Kimlik: pasif hesap giriş yapamaz ---
+$PSQL -c "INSERT INTO users (id, first_name, last_name, phone, password_hash, is_active, roles)
+  VALUES ('44444444-4444-4444-4444-444444444406','Pasif','Hesap','+905550000006',
+          (SELECT password_hash FROM users WHERE phone LIKE '%5551234567'), false, ARRAY['RESIDENT'])
+  ON CONFLICT (id) DO NOTHING;" >/dev/null 2>&1
+SC=$(code -X POST "http://127.0.0.1:${SVCPORT}/api/v1/auth/login" -H "$J" -d '{"phone":"5550000006","password":"Demo123!"}')
+[ "$SC" = "401" ] && ok "pasife alınmış hesap giriş yapamıyor → 401 (önceden giriş yapabiliyordu)" \
+  || bad "pasif hesap girişi → $SC"
+
+# --- E) Mali: sakin başkasının tahakkuk dökümünü okuyamaz ---
+XASS=$($PSQL -t -A -c "INSERT INTO monthly_assessments (property_id, unit_id, period_year, period_month,
+    base_amount, total_amount, paid_amount, due_date)
+  VALUES ('$DEMO_PROPERTY','$OTHERUNIT',2031,6,750,750,250,'2031-06-10') RETURNING id;" | head -1)
+SC=$(code "http://127.0.0.1:${FINPORT}/api/v1/finance/assessments/$XASS" -H "Authorization: Bearer $TEN")
+[ "$SC" = "404" ] && ok "sakin başkasının tahakkuk dökümünü okuyamıyor → 404" || bad "başkasının tahakkuku → $SC"
+DET=$(curl -s "http://127.0.0.1:${FINPORT}/api/v1/finance/assessments/$XASS" -H "Authorization: Bearer $MGR")
+echo "$DET" | grep -q '"paid_amount":250' && ok "tahakkuk dökümünde ödenen tutar doğru (önceden hep 0)" \
+  || bad "tahakkuk dökümü: $DET"
+SC=$(code "http://127.0.0.1:${FINPORT}/api/v1/finance/my-payments" -H "Authorization: Bearer $TEN")
+[ "$SC" = "200" ] && ok "sakin kendi ödeme geçmişini görebiliyor (yeni uç) → 200" || bad "my-payments → $SC"
+$PSQL -c "DELETE FROM monthly_assessments WHERE id='$XASS';" >/dev/null 2>&1
+
+# --- F) Stok: görevli küçük harfle 'adjust' göndererek düzeltme yapamaz ---
+$PSQL -c "INSERT INTO users (id, first_name, last_name, phone, password_hash, active_property_id, roles)
+    VALUES ('44444444-4444-4444-4444-444444444407','Gorevli','Personel','+905550000007',
+            (SELECT password_hash FROM users WHERE phone LIKE '%5551234567'), '$DEMO_PROPERTY', ARRAY['RESIDENT'])
+    ON CONFLICT (id) DO NOTHING;
+  INSERT INTO property_roles (user_id, property_id, role)
+    VALUES ('44444444-4444-4444-4444-444444444407','$DEMO_PROPERTY','STAFF');" >/dev/null 2>&1
+STAFF=$(curl -s -X POST "http://127.0.0.1:${SVCPORT}/api/v1/auth/login" -H "$J" \
+  -d '{"phone":"5550000007","password":"Demo123!"}' | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+ITEM=$(curl -s -X POST "http://127.0.0.1:18303/api/v1/inventory" -H "Authorization: Bearer $MGR" -H "$J" \
+  -d '{"name":"Sertlestirme deneme kalemi","unit":"ADET"}' | sed -n 's/.*"id":"\([^"]*\)".*/\1/p')
+BEFORE=$(qscoped "SELECT current_stock FROM inventory_items WHERE id='$ITEM';")
+SC=$(code -X POST "http://127.0.0.1:18303/api/v1/inventory/$ITEM/movements" -H "Authorization: Bearer $STAFF" -H "$J" \
+  -d '{"movement_type":"adjust","quantity":"999","notes":"sayim"}')
+AFTER=$(qscoped "SELECT current_stock FROM inventory_items WHERE id='$ITEM';")
+[ "$SC" = "403" ] && [ "$BEFORE" = "$AFTER" ] \
+  && ok "görevli küçük harfli 'adjust' ile sayım düzeltmesi yapamıyor → 403 (yetki atlatma kapandı)" \
+  || bad "YETKİ ATLATMA: görevli sayım düzeltmesi yaptı → $SC ($BEFORE → $AFTER)"
+
+# --- G) Genel kurul: tam akış ve durum denetimleri ---
+GU="http://127.0.0.1:18304/api/v1/governance"
+GA="Authorization: Bearer $MGR"
+ASM2=$(curl -s -X POST "$GU/assemblies" -H "$GA" -H "$J" -d '{"kind":"ORDINARY","call_number":1,
+  "scheduled_at":"2032-06-01T18:00:00Z","agenda_items":[{"title":"Bahçe düzenlemesi"}]}')
+A2=$(echo "$ASM2" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+ITEM2=$(echo "$ASM2" | grep -o '"agenda_items":\[{"id":"[^"]*"' | grep -o '[0-9a-f-]\{36\}')
+if [ -n "$A2" ] && [ -n "$ITEM2" ]; then
+  SC=$(code -X POST "$GU/assemblies" -H "$GA" -H "$J" -d '{"kind":"UYDURMA","scheduled_at":"2032-06-01T18:00:00Z","agenda_items":[{"title":"x"}]}')
+  [ "$SC" = "422" ] && ok "geçersiz toplantı türü → 422 (önceden 500)" || bad "geçersiz toplantı türü → $SC"
+  SC=$(code -X POST "$GU/assemblies" -H "$GA" -H "$J" -d '{"scheduled_at":"2032-06-01T18:00:00Z","agenda_items":[{"title":""}]}')
+  [ "$SC" = "422" ] && ok "başlıksız gündem maddesi → 422" || bad "başlıksız gündem → $SC"
+  SC=$(code -X POST "$GU/assemblies/$A2/attendees" -H "$GA" -H "$J" -d "{\"unit_id\":\"$Z\"}")
+  [ "$SC" = "422" ] && ok "sitede olmayan daire hazirune eklenemiyor → 422 (önceden SESSİZCE 201)" \
+    || bad "olmayan daire hazirun → $SC"
+  SC=$(code -X POST "$GU/assemblies/$A2/attendees" -H "$GA" -H "$J" -d "{\"unit_id\":\"$OTHERUNIT\",\"attendance_type\":\"PROXY\"}")
+  [ "$SC" = "422" ] && ok "vekilsiz vekâlet kaydı → 422 (önceden m.31 denetimi atlanıyordu)" || bad "vekilsiz vekâlet → $SC"
+  SC=$(code -X POST "$GU/agenda-items/$ITEM2/votes" -H "$GA" -H "$J" -d "{\"unit_id\":\"$OTHERUNIT\",\"vote\":\"FOR\"}")
+  [ "$SC" = "409" ] && ok "yapılmamış toplantıda oy kullanılamıyor → 409" || bad "yapılmamış toplantıya oy → $SC"
+  SC=$(code -X POST "$GU/agenda-items/$Z/votes" -H "$GA" -H "$J" -d "{\"unit_id\":\"$OTHERUNIT\",\"vote\":\"FOR\"}")
+  [ "$SC" = "404" ] && ok "var olmayan gündem maddesine oy → 404 (önceden 400)" || bad "olmayan maddeye oy → $SC"
+  UNITS=$($PSQL -t -A -c "SELECT id FROM units WHERE property_id='$DEMO_PROPERTY';")
+  for u in $UNITS; do curl -s -o /dev/null -X POST "$GU/assemblies/$A2/attendees" -H "$GA" -H "$J" -d "{\"unit_id\":\"$u\"}"; done
+  SC=$(code -X POST "$GU/assemblies/$A2/hold" -H "$GA")
+  [ "$SC" = "200" ] && ok "toplantı yapıldı (nisap fotoğrafı alındı)" || bad "toplantı yapılamadı → $SC"
+  SC=$(code -X POST "$GU/assemblies/$A2/attendees" -H "$GA" -H "$J" -d "{\"unit_id\":\"$OTHERUNIT\"}")
+  [ "$SC" = "409" ] && ok "yapılmış toplantıya sonradan hazirun eklenemiyor → 409" || bad "yapılmış toplantıya hazirun → $SC"
+  NV=0
+  for u in $UNITS; do
+    [ "$(code -X POST "$GU/agenda-items/$ITEM2/votes" -H "$GA" -H "$J" -d "{\"unit_id\":\"$u\",\"vote\":\"FOR\"}")" = "201" ] && NV=$((NV+1))
+  done
+  [ "$NV" -ge 13 ] && ok "yapılmış toplantıda $NV oy kaydedildi" || bad "oy kaydı: $NV"
+  CL=$(curl -s -X POST "$GU/agenda-items/$ITEM2/close" -H "$GA" -H "$J" -d '{}')
+  echo "$CL" | grep -q '"accepted":true' && ok "gündem maddesi oy çokluğuyla kabul edildi" || bad "madde kapatma: $CL"
+  SC=$(code -X POST "$GU/agenda-items/$ITEM2/votes" -H "$GA" -H "$J" -d "{\"unit_id\":\"$OTHERUNIT\",\"vote\":\"AGAINST\"}")
+  VF=$($PSQL -t -A -c "SELECT votes_for FROM assembly_agenda_items WHERE id='$ITEM2';")
+  [ "$SC" = "409" ] && [ "$VF" = "$NV" ] && ok "karara bağlanmış maddeye oy eklenemiyor → 409, sayaç değişmedi" \
+    || bad "kapalı maddeye oy → $SC (lehte $NV → $VF)"
+  SC=$(code -X POST "$GU/agenda-items/$ITEM2/close" -H "$GA" -H "$J" -d '{}')
+  [ "$SC" = "409" ] && ok "kapatılmış madde yeniden kapatılamıyor → 409 (önceden 404)" || bad "yeniden kapatma → $SC"
+else
+  bad "genel kurul akışı kurulamadı: $ASM2"
+fi
+# İtiraz: yoldaki proje kimliği artık yok sayılmıyor
+OBJ2=$($PSQL -t -A -c "SELECT id FROM budget_objections LIMIT 1;")
+if [ -n "$OBJ2" ]; then
+  SC=$(code -X PATCH "$GU/budgets/$Z/objections/$OBJ2" -H "$GA" -H "$J" -d '{"status":"REJECTED"}')
+  [ "$SC" = "404" ] && ok "itiraz başka proje adresinden sonuçlandırılamıyor → 404" || bad "yanlış proje adresi → $SC"
+fi
+SC=$(code "$GU/budgets/$Z/objections" -H "$GA")
+[ "$SC" = "404" ] && ok "var olmayan projenin itiraz listesi → 404 (önceden 200 [])" || bad "olmayan proje itirazları → $SC"
+
+kill_tree "$H_PER"; kill_tree "$H_PRK"; kill_tree "$H_VIS"; kill_tree "$H_INV"; kill_tree "$H_GOV"
 
 step "SONUÇ"
 echo "  Geçen: $PASS   Başarısız: $FAIL"

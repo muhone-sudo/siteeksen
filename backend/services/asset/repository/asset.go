@@ -14,8 +14,12 @@ import (
 )
 
 var (
-	ErrNotFound        = errors.New("demirbaş bulunamadı")
-	ErrBadState        = errors.New("demirbaş bu işlem için uygun durumda değil")
+	ErrNotFound = errors.New("demirbaş bulunamadı")
+	ErrBadState = errors.New("demirbaş bu işlem için uygun durumda değil")
+	// ErrInvalidValue: durum/tür alanı izin verilen değerlerden biri değil.
+	// Önceden bu da ErrBadState'ti ve 409 dönüyordu; istemci "kayıt uygun
+	// durumda değil" sanıyordu, oysa hata gönderdiği değerdeydi.
+	ErrInvalidValue    = errors.New("değer izin verilen değerlerden biri değil")
 	ErrInvalidCategory = errors.New("kategori bu siteye ait değil")
 	ErrDuplicateCode   = errors.New("bu demirbaş kodu zaten kullanılıyor")
 	ErrInvalidDate     = errors.New("tarih geçersiz")
@@ -308,7 +312,7 @@ func (r *Repository) Create(ctx context.Context, propertyID string, in CreateInp
 		condition = "GOOD"
 	}
 	if !contains(Conditions, condition) {
-		return "", ErrBadState
+		return "", ErrInvalidValue
 	}
 
 	// İlk bakım tarihi, satın alma tarihine aralık eklenerek belirlenir; satın
@@ -365,7 +369,7 @@ func (r *Repository) Assign(ctx context.Context, propertyID, id, assignee string
 		return err
 	}
 	if tag.RowsAffected() == 0 {
-		return ErrBadState
+		return r.stateOrNotFound(ctx, propertyID, "assets", id, ErrNotFound, ErrBadState)
 	}
 	return nil
 }
@@ -381,7 +385,7 @@ func (r *Repository) Dispose(ctx context.Context, propertyID, id, reason, decisi
 		condition = "DISPOSED"
 	}
 	if !contains(Conditions, condition) {
-		return ErrBadState
+		return ErrInvalidValue
 	}
 	tag, err := r.scope(propertyID).Exec(ctx, `
 		UPDATE assets
@@ -397,7 +401,7 @@ func (r *Repository) Dispose(ctx context.Context, propertyID, id, reason, decisi
 		return err
 	}
 	if tag.RowsAffected() == 0 {
-		return ErrBadState
+		return r.stateOrNotFound(ctx, propertyID, "assets", id, ErrNotFound, ErrBadState)
 	}
 	return nil
 }
@@ -424,7 +428,7 @@ type MaintenanceInput struct {
 func (r *Repository) RecordMaintenance(ctx context.Context, propertyID, assetID string, in MaintenanceInput) (string, error) {
 	mType := strings.ToUpper(strings.TrimSpace(in.MaintenanceType))
 	if !contains(MaintenanceTypes, mType) {
-		return "", ErrBadState
+		return "", ErrInvalidValue
 	}
 	performed, err := parseOptionalDate(in.PerformedAt)
 	if err != nil {
@@ -630,4 +634,26 @@ func parseOptionalDate(s string) (*time.Time, error) {
 // Bu, uygulama katmanındaki filtrenin yerine geçmez — onu YEDEKLER.
 func (r *Repository) scope(propertyID string) *dbscope.Scoped {
 	return dbscope.For(r.pool, propertyID)
+}
+
+// stateOrNotFound, durum geçişli bir güncelleme 0 satır etkilediğinde iki
+// ihtimali ayırır: kayıt hiç yoksa (ya da başka siteye aitse) notFound (404),
+// varsa ama durumu uygun değilse state (409). Önceden ikisi de 409 dönüyordu;
+// istemci var olmayan kaydı "başkası işlem yapmış" sanıyordu.
+func (r *Repository) stateOrNotFound(ctx context.Context, propertyID, table, id string, notFound, state error) error {
+	ok, err := r.scope(propertyID).Exists(ctx, table, id)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return notFound
+	}
+	return state
+}
+
+// Exists, kayıt bu sitede var mı (RLS kapsamında) — handler'ın üst kaydı
+// doğrulaması için. Üst kayıt yokken alt liste boş dönerse istemci "kayıt
+// var ama boş" sanar.
+func (r *Repository) Exists(ctx context.Context, propertyID, table, id string) (bool, error) {
+	return r.scope(propertyID).Exists(ctx, table, id)
 }

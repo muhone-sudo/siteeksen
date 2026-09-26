@@ -44,6 +44,8 @@ func main() {
 	repo := repository.New(pool)
 
 	r := gin.Default()
+	// Biçimi bozuk kimlik 500 değil 404 döner (pkg/middleware/params.go).
+	r.Use(middleware.UUIDParams())
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"status": "healthy", "service": "asset", "persistent": true,
@@ -119,6 +121,13 @@ func main() {
 		})
 
 		read.GET("/assets/:id/maintenance", func(c *gin.Context) {
+			if ok, err := repo.Exists(c.Request.Context(), c.GetString("property_id"), "assets", c.Param("id")); err != nil {
+				fail(c, err, "kayıt denetimi")
+				return
+			} else if !ok {
+				c.JSON(http.StatusNotFound, gin.H{"error": "Kayıt bulunamadı"})
+				return
+			}
 			list, err := repo.MaintenanceHistory(c.Request.Context(),
 				c.GetString("property_id"), c.Param("id"))
 			if err != nil {
@@ -293,7 +302,16 @@ func fail(c *gin.Context, err error, op string) {
 	case errors.Is(err, repository.ErrInvalidDate):
 		c.JSON(http.StatusUnprocessableEntity, gin.H{
 			"error": "Tarihler geçersiz (YYYY-AA-GG bekleniyor)"})
+	case errors.Is(err, repository.ErrInvalidValue):
+		c.JSON(http.StatusUnprocessableEntity, gin.H{
+			"error":            "Durum ya da tür değeri geçersiz",
+			"valid_conditions": repository.Conditions,
+			"valid_types":      repository.MaintenanceTypes})
 	default:
+		// İstemci kaynaklı veritabanı hatası (biçim, kısıt, uzunluk) 500 değildir.
+		if middleware.DBErrorResponse(c, err) {
+			return
+		}
 		log.Printf("[asset] %s başarısız: %v", op, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "İşlem tamamlanamadı"})
 	}

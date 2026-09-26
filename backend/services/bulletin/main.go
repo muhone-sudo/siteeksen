@@ -41,6 +41,8 @@ func main() {
 	repo := repository.New(pool)
 
 	r := gin.Default()
+	// Biçimi bozuk kimlik 500 değil 404 döner (pkg/middleware/params.go).
+	r.Use(middleware.UUIDParams())
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"status": "healthy", "service": "bulletin", "persistent": true,
@@ -112,6 +114,13 @@ func main() {
 
 	// --- Yorumlar ---
 	api.GET("/bulletins/:id/comments", func(c *gin.Context) {
+		// Onaylanmamış ilanın yorumları yalnızca sahibine ve yönetime görünür.
+		// Önceden denetim yoktu: başkasının bekleyen ilanının yorumları okunabiliyordu.
+		if err := repo.Visible(c.Request.Context(), c.GetString("property_id"),
+			c.Param("id"), c.GetString("user_id"), isManagement(c)); err != nil {
+			fail(c, err, "ilan okuma")
+			return
+		}
 		list, err := repo.Comments(c.Request.Context(), c.GetString("property_id"),
 			c.Param("id"), c.GetString("user_id"))
 		if err != nil {
@@ -247,6 +256,10 @@ func fail(c *gin.Context, err error, op string) {
 		c.JSON(http.StatusConflict, gin.H{
 			"error": "İlan bu işlem için uygun durumda değil ya da size ait değil"})
 	default:
+		// İstemci kaynaklı veritabanı hatası (biçim, kısıt, uzunluk) 500 değildir.
+		if middleware.DBErrorResponse(c, err) {
+			return
+		}
 		log.Printf("[bulletin] %s başarısız: %v", op, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "İşlem tamamlanamadı"})
 	}

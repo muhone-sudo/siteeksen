@@ -14,6 +14,7 @@ import (
 )
 
 var (
+	ErrInvalidType   = errors.New("paket türü geçersiz")
 	ErrNotFound      = errors.New("kayıt bulunamadı")
 	ErrUnitNotInSite = errors.New("bağımsız bölüm bu siteye ait değil")
 	ErrBadState      = errors.New("paket bu işlem için uygun durumda değil")
@@ -174,9 +175,12 @@ func (r *Repository) Create(ctx context.Context, propertyID, receivedBy string, 
 
 	pkgType := strings.ToUpper(strings.TrimSpace(in.PackageType))
 	switch pkgType {
+	case "":
+		pkgType = "PACKAGE"
 	case "PACKAGE", "ENVELOPE", "LARGE":
 	default:
-		pkgType = "PACKAGE"
+		// Önceden geçersiz tür SESSİZCE "PACKAGE" yapılıyordu.
+		return "", ErrInvalidType
 	}
 
 	var id string
@@ -209,7 +213,7 @@ func (r *Repository) Deliver(ctx context.Context, propertyID, id, deliveredBy, t
 		return err
 	}
 	if tag.RowsAffected() == 0 {
-		return ErrBadState
+		return r.stateOrNotFound(ctx, propertyID, "packages", id, ErrNotFound, ErrBadState)
 	}
 	return nil
 }
@@ -226,7 +230,7 @@ func (r *Repository) Return(ctx context.Context, propertyID, id, reason string) 
 		return err
 	}
 	if tag.RowsAffected() == 0 {
-		return ErrBadState
+		return r.stateOrNotFound(ctx, propertyID, "packages", id, ErrNotFound, ErrBadState)
 	}
 	return nil
 }
@@ -249,7 +253,7 @@ func (r *Repository) MarkNotified(ctx context.Context, propertyID, id, method st
 		WHERE id = $1 AND property_id = $2 AND status IN ('RECEIVED','NOTIFIED')
 		RETURNING reminder_count`, id, propertyID, method).Scan(&reminders)
 	if err == pgx.ErrNoRows {
-		return 0, ErrBadState
+		return 0, r.stateOrNotFound(ctx, propertyID, "packages", id, ErrNotFound, ErrBadState)
 	}
 	return reminders, err
 }
@@ -294,3 +298,21 @@ func (r *Repository) Summary(ctx context.Context, propertyID string) (*Summary, 
 func (r *Repository) scope(propertyID string) *dbscope.Scoped {
 	return dbscope.For(r.pool, propertyID)
 }
+
+// stateOrNotFound, durum geçişli bir güncelleme 0 satır etkilediğinde iki
+// ihtimali ayırır: kayıt hiç yoksa (ya da başka siteye aitse) notFound (404),
+// varsa ama durumu uygun değilse state (409). Önceden ikisi de 409 dönüyordu;
+// istemci var olmayan kaydı "başkası işlem yapmış" sanıyordu.
+func (r *Repository) stateOrNotFound(ctx context.Context, propertyID, table, id string, notFound, state error) error {
+	ok, err := r.scope(propertyID).Exists(ctx, table, id)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return notFound
+	}
+	return state
+}
+
+// PackageTypes, kabul edilen paket türleridir.
+var PackageTypes = []string{"PACKAGE", "ENVELOPE", "LARGE"}

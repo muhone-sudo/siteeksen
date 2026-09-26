@@ -314,7 +314,7 @@ func (r *Repository) Terminate(ctx context.Context, propertyID, id, reason strin
 		return err
 	}
 	if tag.RowsAffected() == 0 {
-		return ErrBadState
+		return r.stateOrNotFound(ctx, propertyID, "contracts", id, ErrNotFound, ErrBadState)
 	}
 	return nil
 }
@@ -419,4 +419,19 @@ func parseOptionalDate(s string) (*time.Time, error) {
 // Bu, uygulama katmanındaki filtrenin yerine geçmez — onu YEDEKLER.
 func (r *Repository) scope(propertyID string) *dbscope.Scoped {
 	return dbscope.For(r.pool, propertyID)
+}
+
+// stateOrNotFound, durum geçişli bir güncelleme 0 satır etkilediğinde iki
+// ihtimali ayırır: kayıt hiç yoksa (ya da başka siteye aitse) notFound (404),
+// varsa ama durumu uygun değilse state (409). Önceden ikisi de 409 dönüyordu;
+// istemci var olmayan kaydı "başkası işlem yapmış" sanıyordu.
+func (r *Repository) stateOrNotFound(ctx context.Context, propertyID, table, id string, notFound, state error) error {
+	ok, err := r.scope(propertyID).Exists(ctx, table, id)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return notFound
+	}
+	return state
 }

@@ -4,6 +4,7 @@ package service
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/siteeksen/backend/services/personnel/models"
@@ -14,7 +15,27 @@ var (
 	ErrInvalidDate    = errors.New("tarih biçimi YYYY-AA-GG olmalıdır")
 	ErrDateOrder      = errors.New("bitiş tarihi başlangıç tarihinden önce olamaz")
 	ErrReasonRequired = errors.New("gerekçe zorunludur")
+	// ErrInvalidEnum, sözleşme ya da izin türü izin verilen değerlerden biri
+	// değilse döner. Önceden kodda denetlenmiyor, veritabanı CHECK kısıtı
+	// reddediyor ve istemci 500 alıyordu.
+	ErrInvalidEnum = errors.New("geçersiz tür")
 )
+
+// ContractTypes ve LeaveTypes, veritabanı CHECK kısıtlarıyla (migration 005)
+// birebir aynıdır. İzin türleri 4857 s. İş Kanunu'ndaki izin çeşitlerine karşılık gelir.
+var (
+	ContractTypes = []string{"FULL_TIME", "PART_TIME", "CONTRACT", "INTERN"}
+	LeaveTypes    = []string{"ANNUAL", "SICK", "UNPAID", "MATERNITY", "PATERNITY", "MARRIAGE", "BEREAVEMENT", "OTHER"}
+)
+
+func oneOf(v string, list []string) bool {
+	for _, x := range list {
+		if x == v {
+			return true
+		}
+	}
+	return false
+}
 
 // defaultAnnualLeaveDays — 4857 sayılı İş Kanunu m.53'e göre 1-5 yıl kıdemde
 // yıllık ücretli izin en az 14 gündür. Kıdeme göre artan hak (5-15 yıl: 20 gün,
@@ -94,6 +115,13 @@ func (s *Service) CreateEmployee(ctx context.Context, propertyID string, in mode
 	if err != nil {
 		return nil, ErrInvalidDate
 	}
+	in.ContractType = strings.ToUpper(strings.TrimSpace(in.ContractType))
+	if in.ContractType == "" {
+		in.ContractType = "FULL_TIME"
+	}
+	if !oneOf(in.ContractType, ContractTypes) {
+		return nil, ErrInvalidEnum
+	}
 	annual := in.AnnualLeaveDays
 	if annual <= 0 {
 		annual = defaultAnnualLeaveDays
@@ -140,6 +168,10 @@ func (s *Service) ListLeaves(ctx context.Context, propertyID, status string) ([]
 // CreateLeave, izin talebi oluşturur. Gün sayısı tarihlerden hesaplanır —
 // istemciden gelen gün sayısına güvenilmez.
 func (s *Service) CreateLeave(ctx context.Context, propertyID string, in models.CreateLeaveInput) (string, error) {
+	in.LeaveType = strings.ToUpper(strings.TrimSpace(in.LeaveType))
+	if !oneOf(in.LeaveType, LeaveTypes) {
+		return "", ErrInvalidEnum
+	}
 	start, err := time.Parse("2006-01-02", in.StartDate)
 	if err != nil {
 		return "", ErrInvalidDate

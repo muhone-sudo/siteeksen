@@ -2,9 +2,11 @@ package handlers
 
 import (
 	"errors"
+	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/siteeksen/backend/pkg/middleware"
 	"github.com/siteeksen/backend/services/identity/models"
 	"github.com/siteeksen/backend/services/identity/repository"
 	"github.com/siteeksen/backend/services/identity/service"
@@ -30,6 +32,12 @@ func mapResidentError(c *gin.Context, err error, fallback string) {
 	case errors.Is(err, repository.ErrPhoneAlreadyExists):
 		c.JSON(http.StatusConflict, gin.H{"error": "Bu telefon numarası başka bir kullanıcıya ait"})
 	default:
+		// Aynı daireye aynı kişinin ikinci kaydı (benzersizlik) ve biçimi bozuk
+		// kimlik gibi istemci hataları 500 değildir.
+		if middleware.DBErrorResponse(c, err) {
+			return
+		}
+		log.Printf("[identity] sakin işlemi başarısız: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fallback})
 	}
 }

@@ -52,6 +52,8 @@ func main() {
 	repo := repository.New(pool)
 
 	r := gin.Default()
+	// Biçimi bozuk kimlik 500 değil 404 döner (pkg/middleware/params.go).
+	r.Use(middleware.UUIDParams())
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"status": "healthy", "service": "esg", "persistent": true,
@@ -253,6 +255,10 @@ func fail(c *gin.Context, err error, op string) {
 			"error": "Bu dönemde sayaç okuması yok; hesap yapılamaz",
 			"note":  "Veri olmadan karbon ayak izi üretilmez."})
 	default:
+		// İstemci kaynaklı veritabanı hatası (biçim, kısıt, uzunluk) 500 değildir.
+		if middleware.DBErrorResponse(c, err) {
+			return
+		}
 		log.Printf("[esg] %s başarısız: %v", op, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "İşlem tamamlanamadı"})
 	}

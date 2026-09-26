@@ -212,7 +212,7 @@ func (r *Repository) ListRoutes(ctx context.Context, propertyID string, includeI
 	out := []Route{}
 	for rows.Next() {
 		var rt Route
-		var raw []byte
+		raw := []byte{}
 		if err := rows.Scan(&rt.ID, &rt.Name, &rt.Description, &raw,
 			&rt.ExpectedMins, &rt.ToleranceMin, &rt.IsActive); err != nil {
 			return nil, err
@@ -228,7 +228,7 @@ func (r *Repository) ListRoutes(ctx context.Context, propertyID string, includeI
 // getRoute, tek güzergâhı okur.
 func (r *Repository) getRoute(ctx context.Context, q pgx.Tx, propertyID, routeID string) (*Route, error) {
 	var rt Route
-	var raw []byte
+	raw := []byte{}
 	err := q.QueryRow(ctx, `
 		SELECT id, name, checkpoints, COALESCE(expected_duration_minutes,30),
 		       COALESCE(tolerance_minutes,10), COALESCE(is_active,true)
@@ -325,7 +325,7 @@ func (r *Repository) ScanCheckpoint(ctx context.Context, propertyID, patrolID, c
 
 	var routeID *string
 	var status string
-	var raw []byte
+	raw := []byte{}
 	var expected int
 	err = tx.QueryRow(ctx, `
 		SELECT route_id::text, status, checkpoint_details, COALESCE(checkpoints_expected,0)
@@ -360,7 +360,7 @@ func (r *Repository) ScanCheckpoint(ctx context.Context, propertyID, patrolID, c
 		}
 	}
 
-	var scans []Scan
+	scans := []Scan{}
 	if err := json.Unmarshal(raw, &scans); err != nil {
 		scans = []Scan{}
 	}
@@ -423,7 +423,7 @@ func (r *Repository) ReportIssue(ctx context.Context, propertyID, patrolID, guar
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 
-	var raw []byte
+	raw := []byte{}
 	var status string
 	err = tx.QueryRow(ctx, `
 		SELECT COALESCE(issues,'[]'::jsonb), status FROM patrol_logs
@@ -439,7 +439,7 @@ func (r *Repository) ReportIssue(ctx context.Context, propertyID, patrolID, guar
 		return ErrNoOpenPatrol
 	}
 
-	var issues []Issue
+	issues := []Issue{}
 	if err := json.Unmarshal(raw, &issues); err != nil {
 		issues = []Issue{}
 	}
@@ -491,7 +491,7 @@ func (r *Repository) CompletePatrol(ctx context.Context, propertyID, patrolID, g
 
 	var routeID *string
 	var status string
-	var raw []byte
+	raw := []byte{}
 	var startedAt time.Time
 	var expectedMins *int
 	err = tx.QueryRow(ctx, `
@@ -509,7 +509,7 @@ func (r *Repository) CompletePatrol(ctx context.Context, propertyID, patrolID, g
 		return nil, ErrNoOpenPatrol
 	}
 
-	var scans []Scan
+	scans := []Scan{}
 	if err := json.Unmarshal(raw, &scans); err != nil {
 		scans = []Scan{}
 	}

@@ -20,7 +20,21 @@ var (
 	ErrAlreadyInside = errors.New("bu plaka hâlihazırda otoparkta (çıkış kaydı yok)")
 	ErrNotInside     = errors.New("bu kayıt için açık bir giriş bulunmuyor")
 	ErrZoneFull      = errors.New("otopark bölgesi dolu")
+	// ErrPlateRequired: boş plaka önceden düz bir errors.New ile dönüyor ve
+	// eşleyicide 500'e düşüyordu.
+	ErrPlateRequired = errors.New("plaka zorunludur")
+	ErrInvalidOwner  = errors.New("geçersiz araç sahibi türü")
+	ErrNotYourUnit   = errors.New("bağımsız bölüm size ait değil")
+	ErrUnitRequired  = errors.New("bağımsız bölüm zorunludur")
 )
+
+// OwnerTypes, vehicles.owner_type CHECK kısıtıyla (migration 005) aynıdır.
+var OwnerTypes = []string{"RESIDENT", "VISITOR", "STAFF", "SERVICE"}
+
+// ownUnitSQL, bağımsız bölümün verilen kullanıcının AKTİF dairesi olup
+// olmadığını denetler.
+const ownUnitSQL = `SELECT EXISTS (SELECT 1 FROM resident_units ru
+	WHERE ru.unit_id = $1 AND ru.resident_id = $2 AND ru.is_active = true)`
 
 // Vehicle, kayıtlı araçtır.
 type Vehicle struct {
@@ -153,10 +167,36 @@ func (r *Repository) FindByPlate(ctx context.Context, propertyID, plate string) 
 }
 
 // CreateVehicle, araç kaydeder. Aynı plaka sitede iki kez kaydedilemez.
-func (r *Repository) CreateVehicle(ctx context.Context, propertyID string, v Vehicle) (string, error) {
+//
+// ownerUserID doluysa (yönetim/görevli OLMAYAN çağıran) araç yalnızca o
+// kişinin kendi dairesine kaydedilebilir. Önceden yalnızca dairenin siteye ait
+// olduğu denetleniyordu: sakin, komşusunun dairesine araç bağlayabiliyordu.
+func (r *Repository) CreateVehicle(ctx context.Context, propertyID, ownerUserID string, v Vehicle) (string, error) {
 	norm := NormalizePlate(v.Plate)
 	if norm == "" {
-		return "", errors.New("plaka boş olamaz")
+		return "", ErrPlateRequired
+	}
+	v.OwnerType = strings.ToUpper(strings.TrimSpace(defaultStr(v.OwnerType, "RESIDENT")))
+	valid := false
+	for _, t := range OwnerTypes {
+		if t == v.OwnerType {
+			valid = true
+		}
+	}
+	if !valid {
+		return "", ErrInvalidOwner
+	}
+	if ownerUserID != "" {
+		if v.UnitID == "" {
+			return "", ErrUnitRequired
+		}
+		var own bool
+		if err := r.scope(propertyID).QueryRow(ctx, ownUnitSQL, v.UnitID, ownerUserID).Scan(&own); err != nil {
+			return "", err
+		}
+		if !own {
+			return "", ErrNotYourUnit
+		}
 	}
 
 	if v.UnitID != "" {
@@ -187,17 +227,25 @@ func (r *Repository) CreateVehicle(ctx context.Context, propertyID string, v Veh
 		VALUES ($1, NULLIF($2,'')::uuid, $3, NULLIF($4,''), $5, $5,
 		        NULLIF($6,''), NULLIF($7,''), NULLIF($8,''), $9, NULLIF($10,''), true)
 		RETURNING id`,
-		propertyID, v.UnitID, defaultStr(v.OwnerType, "RESIDENT"), v.OwnerName,
+		propertyID, v.UnitID, v.OwnerType, v.OwnerName,
 		strings.ToUpper(strings.TrimSpace(v.Plate)), v.Brand, v.Model, v.Color,
 		defaultStr(v.VehicleType, "CAR"), v.ParkingSpot).Scan(&id)
 	return id, err
 }
 
 // DeactivateVehicle, aracı pasife alır (kayıt silinmez — geçmiş loglar bağlıdır).
-func (r *Repository) DeactivateVehicle(ctx context.Context, propertyID, id string) error {
+//
+// ownerUserID doluysa yalnızca o kişinin dairesine kayıtlı araç pasife
+// alınabilir. Önceden hiçbir denetim yoktu: her sakin sitedeki HER aracı
+// pasife alabiliyordu (araç otoparkta "misafir" sayılıp ücretlendirilirdi).
+// Başkasının aracı "bulunamadı" olarak döner; varlığı sızdırılmaz.
+func (r *Repository) DeactivateVehicle(ctx context.Context, propertyID, ownerUserID, id string) error {
 	tag, err := r.scope(propertyID).Exec(ctx,
 		`UPDATE vehicles SET is_active = false, updated_at = now()
-		 WHERE id = $1 AND property_id = $2 AND COALESCE(is_active,true)`, id, propertyID)
+		 WHERE id = $1 AND property_id = $2 AND COALESCE(is_active,true)
+		   AND ($3 = '' OR unit_id IN (SELECT ru.unit_id FROM resident_units ru
+		                               WHERE ru.resident_id = NULLIF($3,'')::uuid AND ru.is_active = true))`,
+		id, propertyID, ownerUserID)
 	if err != nil {
 		return err
 	}
@@ -269,6 +317,30 @@ func (r *Repository) RecordEntry(ctx context.Context, propertyID, zoneID, plate,
 	defer tx.Rollback(ctx) //nolint:errcheck
 
 	norm := NormalizePlate(plate)
+
+	// Doluluk denetimi TRANSACTION İÇİNDE ve bölge satırı kilitlenerek yapılır.
+	// Önceden transaction dışındaydı: aynı anda gelen iki giriş, son boş yere
+	// ikisi birden alınabiliyordu.
+	if zoneID != "" {
+		var capacity, occupied int
+		if err := tx.QueryRow(ctx, `
+			SELECT COALESCE(capacity,0) FROM parking_zones
+			WHERE id = $1 AND property_id = $2 FOR UPDATE`, zoneID, propertyID).Scan(&capacity); err != nil {
+			if err == pgx.ErrNoRows {
+				return "", false, ErrNotFound
+			}
+			return "", false, err
+		}
+		if err := tx.QueryRow(ctx, `
+			SELECT count(*) FROM parking_logs WHERE parking_zone_id = $1 AND exit_at IS NULL`,
+			zoneID).Scan(&occupied); err != nil {
+			return "", false, err
+		}
+		if capacity > 0 && occupied >= capacity {
+			return "", false, ErrZoneFull
+		}
+	}
+
 	var open int
 	if err := tx.QueryRow(ctx, `
 		SELECT count(*) FROM parking_logs
@@ -344,7 +416,7 @@ func (r *Repository) RecordExit(ctx context.Context, propertyID, id, gate string
 		return err
 	}
 	if tag.RowsAffected() == 0 {
-		return ErrNotInside
+		return r.stateOrNotFound(ctx, propertyID, "parking_logs", id, ErrNotFound, ErrNotInside)
 	}
 	return nil
 }
@@ -404,4 +476,19 @@ func strOrEmpty(p *string) string {
 // Bu, uygulama katmanındaki filtrenin yerine geçmez — onu YEDEKLER.
 func (r *Repository) scope(propertyID string) *dbscope.Scoped {
 	return dbscope.For(r.pool, propertyID)
+}
+
+// stateOrNotFound, durum geçişli bir güncelleme 0 satır etkilediğinde iki
+// ihtimali ayırır: kayıt hiç yoksa (ya da başka siteye aitse) notFound (404),
+// varsa ama durumu uygun değilse state (409). Önceden ikisi de 409 dönüyordu;
+// istemci var olmayan kaydı "başkası işlem yapmış" sanıyordu.
+func (r *Repository) stateOrNotFound(ctx context.Context, propertyID, table, id string, notFound, state error) error {
+	ok, err := r.scope(propertyID).Exists(ctx, table, id)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return notFound
+	}
+	return state
 }

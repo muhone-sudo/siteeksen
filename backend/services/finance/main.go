@@ -30,6 +30,8 @@ func main() {
 
 	// Gin router
 	r := gin.Default()
+	// Biçimi bozuk kimlik 500 değil 404 döner (pkg/middleware/params.go).
+	r.Use(middleware.UUIDParams())
 
 	// Health check
 	r.GET("/health", func(c *gin.Context) {
@@ -60,6 +62,7 @@ func main() {
 		api.GET("/assessments", handlers.GetAssessments(financeService))
 		api.GET("/assessments/:id", handlers.GetAssessmentDetails(financeService))
 		api.POST("/payments", handlers.CreatePayment(financeService))
+		api.GET("/my-payments", handlers.GetMyPayments(financeService))
 		api.GET("/consumption/summary", handlers.GetConsumptionSummary(financeService))
 
 		// --- Yönetim: site geneli okuma ---

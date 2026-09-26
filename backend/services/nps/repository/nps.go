@@ -287,7 +287,7 @@ func (r *Repository) Close(ctx context.Context, propertyID, id string) error {
 		return err
 	}
 	if tag.RowsAffected() == 0 {
-		return ErrBadState
+		return r.stateOrNotFound(ctx, propertyID, "surveys", id, ErrNotFound, ErrBadState)
 	}
 	return nil
 }
@@ -298,4 +298,26 @@ func (r *Repository) Close(ctx context.Context, propertyID, id string) error {
 // Kapsam olmadan sorgu HİÇBİR satır döndürmez — bu bilinçlidir.
 func (r *Repository) scope(propertyID string) *dbscope.Scoped {
 	return dbscope.For(r.pool, propertyID)
+}
+
+// stateOrNotFound, durum geçişli bir güncelleme 0 satır etkilediğinde iki
+// ihtimali ayırır: kayıt hiç yoksa (ya da başka siteye aitse) notFound (404),
+// varsa ama durumu uygun değilse state (409). Önceden ikisi de 409 dönüyordu;
+// istemci var olmayan kaydı "başkası işlem yapmış" sanıyordu.
+func (r *Repository) stateOrNotFound(ctx context.Context, propertyID, table, id string, notFound, state error) error {
+	ok, err := r.scope(propertyID).Exists(ctx, table, id)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return notFound
+	}
+	return state
+}
+
+// Exists, kayıt bu sitede var mı (RLS kapsamında) — handler'ın üst kaydı
+// doğrulaması için. Üst kayıt yokken alt liste boş dönerse istemci "kayıt
+// var ama boş" sanar.
+func (r *Repository) Exists(ctx context.Context, propertyID, table, id string) (bool, error) {
+	return r.scope(propertyID).Exists(ctx, table, id)
 }

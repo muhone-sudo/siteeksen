@@ -45,6 +45,8 @@ func main() {
 	params := legalparams.New(pool)
 
 	r := gin.Default()
+	// Biçimi bozuk kimlik 500 değil 404 döner (pkg/middleware/params.go).
+	r.Use(middleware.UUIDParams())
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"status": "healthy", "service": "iot", "persistent": true,
@@ -196,14 +198,16 @@ func main() {
 		// Dönem giderini bağımsız bölümlere paylaştırır.
 		write.POST("/consumption/allocate", func(c *gin.Context) {
 			var in struct {
-				MeterType string  `json:"meter_type" binding:"required"`
-				From      string  `json:"from" binding:"required"`
-				To        string  `json:"to" binding:"required"`
-				TotalTRY  float64 `json:"total_amount_try" binding:"required"`
+				MeterType string `json:"meter_type" binding:"required"`
+				From      string `json:"from" binding:"required"`
+				To        string `json:"to" binding:"required"`
+				// `required` bir float için 0'ı da "yok" sayar; sıfır tutar aşağıda
+				// anlaşılır bir mesajla (422) reddedilir.
+				TotalTRY float64 `json:"total_amount_try"`
 			}
 			if err := c.ShouldBindJSON(&in); err != nil {
 				c.JSON(http.StatusBadRequest, gin.H{
-					"error":       "meter_type, from, to ve total_amount_try zorunludur",
+					"error":       "meter_type, from ve to zorunludur",
 					"valid_types": repository.MeterTypes})
 				return
 			}
@@ -367,6 +371,9 @@ func isOps(c *gin.Context) bool {
 // Sessizce bir varsayılan kullanmak, kanuna aykırı bir paylaştırmayı doğru
 // göstermek olurdu.
 func failParam(c *gin.Context, err error, code string) {
+	if middleware.DBErrorResponse(c, err) {
+		return
+	}
 	log.Printf("[iot] mevzuat parametresi okunamadı (%s): %v", code, err)
 	c.JSON(http.StatusInternalServerError, gin.H{
 		"error": "Paylaştırma oranı tanımlı değil: " + code,
@@ -417,7 +424,14 @@ func fail(c *gin.Context, err error, op string) {
 	case errors.Is(err, iotsvc.ErrInvalidShares):
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": "Paylaşım oranları toplamı 1 değil — legal_parameters hatalı"})
+	case errors.Is(err, repository.ErrInvalidValue):
+		c.JSON(http.StatusUnprocessableEntity, gin.H{
+			"error": "Endeks negatif olmayan bir sayı olmalıdır (ondalık ayırıcı , ya da .)"})
 	default:
+		// İstemci kaynaklı veritabanı hatası (biçim, kısıt, uzunluk) 500 değildir.
+		if middleware.DBErrorResponse(c, err) {
+			return
+		}
 		log.Printf("[iot] %s başarısız: %v", op, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "İşlem tamamlanamadı"})
 	}

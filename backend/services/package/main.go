@@ -45,6 +45,8 @@ func main() {
 	notifier := notify.FromEnvOrNil(pool)
 
 	r := gin.Default()
+	// Biçimi bozuk kimlik 500 değil 404 döner (pkg/middleware/params.go).
+	r.Use(middleware.UUIDParams())
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"status": "healthy", "service": "package", "persistent": true,
@@ -238,7 +240,14 @@ func fail(c *gin.Context, err error, op string) {
 		c.JSON(http.StatusConflict, gin.H{"error": "Paket bu işlem için uygun durumda değil"})
 	case errors.Is(err, repository.ErrNoUnit):
 		c.JSON(http.StatusForbidden, gin.H{"error": "Bu sitede aktif bir bağımsız bölümünüz bulunmuyor"})
+	case errors.Is(err, repository.ErrInvalidType):
+		c.JSON(http.StatusUnprocessableEntity, gin.H{
+			"error": "Paket türü geçersiz", "valid_types": repository.PackageTypes})
 	default:
+		// İstemci kaynaklı veritabanı hatası (biçim, kısıt, uzunluk) 500 değildir.
+		if middleware.DBErrorResponse(c, err) {
+			return
+		}
 		log.Printf("[package] %s başarısız: %v", op, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "İşlem tamamlanamadı"})
 	}

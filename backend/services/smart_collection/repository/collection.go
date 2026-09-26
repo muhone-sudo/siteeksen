@@ -91,18 +91,21 @@ func (r *Repository) Histories(ctx context.Context, propertyID string) ([]svc.Hi
 // `ai_model_version` ve `predicted_payment_probability` alanları BİLEREK boş
 // bırakılır: model yoktur, olasılık hesaplanmaz. Boş bırakmak, uydurma bir
 // değerle doldurmaktan iyidir.
-func (r *Repository) SaveScores(ctx context.Context, propertyID string, list []svc.Assessment) error {
+// Dönen sayı GERÇEKTEN yazılan satır sayısıdır. Önceden çağıran len(list)
+// yazıyordu; geçmişi olmayan (atlanan) bölümler de "kaydedildi" sayılıyordu.
+func (r *Repository) SaveScores(ctx context.Context, propertyID string, list []svc.Assessment) (int, error) {
 	tx, err := r.scope(propertyID).Begin(ctx)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
+	saved := 0
 
 	// Aynı günün ikinci çalıştırması önceki kaydı tekrarlamaz.
 	if _, err := tx.Exec(ctx,
 		`DELETE FROM payment_risk_scores WHERE property_id = $1 AND analysis_date = CURRENT_DATE`,
 		propertyID); err != nil {
-		return err
+		return 0, err
 	}
 
 	for _, a := range list {
@@ -110,6 +113,7 @@ func (r *Repository) SaveScores(ctx context.Context, propertyID string, list []s
 			// Geçmişi olmayan bölüm için skor saklanmaz.
 			continue
 		}
+		saved++
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO payment_risk_scores
 				(property_id, unit_id, risk_score, risk_category,
@@ -120,10 +124,13 @@ func (r *Repository) SaveScores(ctx context.Context, propertyID string, list []s
 			propertyID, a.UnitID, a.Score, a.Category,
 			a.TotalAssessments, a.PaidOnTime, a.PaidLate, a.Unpaid,
 			a.AverageDelayDays, a.CurrentDebt, a.Action, factorsJSON(a)); err != nil {
-			return err
+			return 0, err
 		}
 	}
-	return tx.Commit(ctx)
+	if err := tx.Commit(ctx); err != nil {
+		return 0, err
+	}
+	return saved, nil
 }
 
 // factorsJSON, skor bileşenlerini kayda uygun biçime çevirir.

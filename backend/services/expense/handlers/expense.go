@@ -3,6 +3,7 @@ package handlers
 
 import (
 	"errors"
+	"github.com/siteeksen/backend/pkg/middleware"
 	"log"
 	"net/http"
 	"strconv"
@@ -30,6 +31,10 @@ func mapError(c *gin.Context, err error, op string) {
 		errors.Is(err, service.ErrUnknownDistribution):
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
 	default:
+		// İstemci kaynaklı veritabanı hatası (biçim, kısıt, uzunluk) 500 değildir.
+		if middleware.DBErrorResponse(c, err) {
+			return
+		}
 		log.Printf("[expense] %s başarısız: %v", op, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "İşlem tamamlanamadı"})
 	}

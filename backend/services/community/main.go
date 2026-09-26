@@ -37,6 +37,8 @@ func main() {
 	notifier := notify.FromEnvOrNil(pool)
 
 	r := gin.Default()
+	// Biçimi bozuk kimlik 500 değil 404 döner (pkg/middleware/params.go).
+	r.Use(middleware.UUIDParams())
 
 	// Health check — hangi modülün gerçek olduğunu açıkça bildirir.
 	r.GET("/health", func(c *gin.Context) {
@@ -153,6 +155,13 @@ func main() {
 
 		// Okunma istatistiği: acil bir duyurunun kimlere ulaştığının tek kanıtı.
 		annWrite.GET("/:id/read-stats", func(c *gin.Context) {
+			if ok, err := announcementRepo.Exists(c.Request.Context(), c.GetString("property_id"), "announcements", c.Param("id")); err != nil {
+				failAnnouncement(c, err, "kayıt denetimi")
+				return
+			} else if !ok {
+				c.JSON(http.StatusNotFound, gin.H{"error": "Kayıt bulunamadı"})
+				return
+			}
 			s, err := announcementRepo.ReadStats(c.Request.Context(),
 				c.GetString("property_id"), c.Param("id"))
 			if err != nil {
@@ -234,6 +243,9 @@ func failAnnouncement(c *gin.Context, err error, op string) {
 			"categories": repository.AnnouncementCategories,
 			"priorities": repository.AnnouncementPriorities})
 	default:
+		if middleware.DBErrorResponse(c, err) {
+			return
+		}
 		log.Printf("[community/announcement] %s başarısız: %v", op, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "İşlem tamamlanamadı"})
 	}

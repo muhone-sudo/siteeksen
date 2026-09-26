@@ -20,6 +20,13 @@ var (
 	ErrExpenseCategoryNotFound = errors.New("gider kalemi bulunamadı")
 	ErrAssessmentPeriodExists  = errors.New("bu dönem için tahakkuk zaten oluşturulmuş")
 	ErrNoUnitsInProperty       = errors.New("sitede tanımlı birim bulunamadı")
+	// ErrInvalidAssessmentInput: istemcinin düzeltebileceği tahakkuk girdisi
+	// hatası (vade biçimi, dağıtım yapılamayan kalem). Mesajı istemciye gösterilir;
+	// önceden eşleyici HER hatanın ham metnini — veritabanı hataları dahil —
+	// istemciye yazıyordu.
+	ErrInvalidAssessmentInput = errors.New("tahakkuk girdisi geçersiz")
+	// ErrAssessmentNotFound: tahakkuk yok ya da çağıranın dairesine ait değil.
+	ErrAssessmentNotFound = errors.New("aidat bulunamadı")
 
 	// ErrAssessmentNotPayable seçilen tahakkuklardan en az biri kullanıcıya ait değil,
 	// silinmiş ya da ödenecek bakiyesi yok.
@@ -137,7 +144,7 @@ func (r *FinanceRepository) GetAssessments(ctx context.Context, propertyID, user
 	}
 	defer rows.Close()
 
-	var assessments []models.AssessmentSummary
+	assessments := []models.AssessmentSummary{}
 	for rows.Next() {
 		var a models.AssessmentSummary
 		if err := rows.Scan(&a.ID, &a.Period, &a.BaseAmount, &a.LateFee, &a.TotalAmount, &a.PaidAmount, &a.Status); err != nil {
@@ -184,18 +191,31 @@ func (r *FinanceRepository) ListAssessmentPeriods(ctx context.Context, propertyI
 }
 
 // GetAssessmentDetails aidat detayı
-func (r *FinanceRepository) GetAssessmentDetails(ctx context.Context, propertyID, assessmentID string) (*models.AssessmentDetail, error) {
+//
+// residentID doluysa (yönetim OLMAYAN çağıran) yalnızca kişinin AKTİF
+// dairesinin tahakkuku döner. Önceden sahiplik denetimi yoktu: sitedeki her
+// sakin, kimliğini bildiği her dairenin borç dökümünü okuyabiliyordu.
+// Ayrıca `paid_amount` okunmuyor, her zaman 0 görünüyordu.
+func (r *FinanceRepository) GetAssessmentDetails(ctx context.Context, propertyID, residentID, assessmentID string) (*models.AssessmentDetail, error) {
 	// Ana aidat bilgisi
 	query := `
-		SELECT id, property_id, unit_id, period_year, period_month, 
-			   base_amount, late_fee, total_amount, due_date, status, created_at
-		FROM monthly_assessments WHERE id = $1 AND deleted = 0
+		SELECT ma.id, ma.property_id, ma.unit_id, ma.period_year, ma.period_month,
+			   ma.base_amount, ma.late_fee, ma.total_amount, COALESCE(ma.paid_amount, 0),
+			   ma.due_date, ma.status, ma.created_at
+		FROM monthly_assessments ma
+		WHERE ma.id = $1 AND ma.deleted = 0
+		  AND ($2 = '' OR ma.unit_id IN (SELECT ru.unit_id FROM resident_units ru
+		                                 WHERE ru.resident_id = NULLIF($2,'')::uuid AND ru.is_active = true))
 	`
 	detail := &models.AssessmentDetail{}
-	err := r.scope(propertyID).QueryRow(ctx, query, assessmentID).Scan(
+	err := r.scope(propertyID).QueryRow(ctx, query, assessmentID, residentID).Scan(
 		&detail.ID, &detail.PropertyID, &detail.UnitID, &detail.PeriodYear, &detail.PeriodMonth,
-		&detail.BaseAmount, &detail.LateFee, &detail.TotalAmount, &detail.DueDate, &detail.Status, &detail.CreatedAt,
+		&detail.BaseAmount, &detail.LateFee, &detail.TotalAmount, &detail.PaidAmount,
+		&detail.DueDate, &detail.Status, &detail.CreatedAt,
 	)
+	if err == pgx.ErrNoRows {
+		return nil, ErrAssessmentNotFound
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -288,7 +308,7 @@ func (r *FinanceRepository) CreatePayment(
 		remaining float64
 		unitID    string
 	}
-	var items []payable
+	items := []payable{}
 	for rows.Next() {
 		var p payable
 		if err := rows.Scan(&p.id, &p.remaining, &p.unitID); err != nil {
@@ -458,6 +478,12 @@ func (r *FinanceRepository) RejectPayment(ctx context.Context, paymentID, proper
 		return err
 	}
 	if tag.RowsAffected() == 0 {
+		// Yoksa 404, varsa (onaylanmış/reddedilmiş) 409. Önceden ikisi de 409'du.
+		if ok, err := r.scope(propertyID).Exists(ctx, "payments", paymentID); err != nil {
+			return err
+		} else if !ok {
+			return ErrPaymentNotFound
+		}
 		return ErrPaymentNotPending
 	}
 	return nil
@@ -604,7 +630,7 @@ func (r *FinanceRepository) GetPaymentHistory(ctx context.Context, propertyID, u
 	}
 	defer rows.Close()
 
-	var payments []models.Payment
+	payments := []models.Payment{}
 	for rows.Next() {
 		var p models.Payment
 		var txID, completedAt interface{}
@@ -723,7 +749,7 @@ func (r *FinanceRepository) GetConsumptionData(ctx context.Context, propertyID, 
 	}
 	defer rows.Close()
 
-	var data []models.ConsumptionData
+	data := []models.ConsumptionData{}
 	for rows.Next() {
 		var d models.ConsumptionData
 		if err := rows.Scan(&d.Period, &d.Consumption, &d.Amount, &d.Status); err != nil {
@@ -765,7 +791,7 @@ type assessmentDetailRow struct {
 func (r *FinanceRepository) CreateAssessment(ctx context.Context, propertyID string, input models.CreateAssessmentInput) ([]models.AssessmentSummary, error) {
 	dueDate, err := time.Parse("2006-01-02", input.DueDate)
 	if err != nil {
-		return nil, errors.New("geçersiz vade tarihi formatı (YYYY-MM-DD bekleniyor)")
+		return nil, fmt.Errorf("%w: geçersiz vade tarihi formatı (YYYY-MM-DD bekleniyor)", ErrInvalidAssessmentInput)
 	}
 
 	tx, err := r.scope(propertyID).Begin(ctx)
@@ -781,7 +807,7 @@ func (r *FinanceRepository) CreateAssessment(ctx context.Context, propertyID str
 	if err != nil {
 		return nil, err
 	}
-	var units []unitShare
+	units := []unitShare{}
 	for rows.Next() {
 		var u unitShare
 		if err := rows.Scan(&u.id, &u.shareRatio, &u.grossAreaM2, &u.isCommercial, &u.isGroundFloor); err != nil {
@@ -796,7 +822,7 @@ func (r *FinanceRepository) CreateAssessment(ctx context.Context, propertyID str
 	}
 
 	unitTotals := make(map[string]float64, len(units))
-	var details []assessmentDetailRow
+	details := []assessmentDetailRow{}
 
 	for _, item := range input.ExpenseItems {
 		var distType string
@@ -840,7 +866,7 @@ func (r *FinanceRepository) CreateAssessment(ctx context.Context, propertyID str
 				totalArea += u.grossAreaM2
 			}
 			if totalArea == 0 {
-				return nil, fmt.Errorf("'%s' kalemi metrekareye göre dağıtılamıyor: birimlerde alan bilgisi yok", item.CategoryID)
+				return nil, fmt.Errorf("%w: '%s' kalemi metrekareye göre dağıtılamıyor: birimlerde alan bilgisi yok", ErrInvalidAssessmentInput, item.CategoryID)
 			}
 			for _, u := range eligible {
 				ratio := u.grossAreaM2 / totalArea
@@ -854,7 +880,7 @@ func (r *FinanceRepository) CreateAssessment(ctx context.Context, propertyID str
 				totalRatio += u.shareRatio
 			}
 			if totalRatio == 0 {
-				return nil, fmt.Errorf("'%s' kalemi arsa payına göre dağıtılamıyor: birimlerde arsa payı bilgisi yok", item.CategoryID)
+				return nil, fmt.Errorf("%w: '%s' kalemi arsa payına göre dağıtılamıyor: birimlerde arsa payı bilgisi yok", ErrInvalidAssessmentInput, item.CategoryID)
 			}
 			for _, u := range eligible {
 				ratio := u.shareRatio / totalRatio
@@ -924,7 +950,7 @@ func (r *FinanceRepository) ListExpenseCategories(ctx context.Context, propertyI
 	}
 	defer rows.Close()
 
-	var categories []models.ExpenseCategory
+	categories := []models.ExpenseCategory{}
 	for rows.Next() {
 		var ec models.ExpenseCategory
 		if err := rows.Scan(&ec.ID, &ec.PropertyID, &ec.Name, &ec.DistributionType,

@@ -345,7 +345,7 @@ func (r *Repository) DecideLeave(ctx context.Context, propertyID, leaveID, statu
 		WHERE l.id = $1 AND e.property_id = $2 AND l.status = 'PENDING'
 		FOR UPDATE OF l`, leaveID, propertyID).Scan(&employeeID, &leaveType, &days)
 	if err == pgx.ErrNoRows {
-		return ErrNotPending
+		return r.stateOrNotFound(ctx, propertyID, "employee_leaves", leaveID, ErrLeaveInvalid, ErrNotPending)
 	}
 	if err != nil {
 		return err
@@ -383,4 +383,19 @@ func (r *Repository) DecideLeave(ctx context.Context, propertyID, leaveID, statu
 // Bu, uygulama katmanındaki filtrenin yerine geçmez — onu YEDEKLER.
 func (r *Repository) scope(propertyID string) *dbscope.Scoped {
 	return dbscope.For(r.pool, propertyID)
+}
+
+// stateOrNotFound, durum geçişli bir güncelleme 0 satır etkilediğinde iki
+// ihtimali ayırır: kayıt hiç yoksa (ya da başka siteye aitse) notFound (404),
+// varsa ama durumu uygun değilse state (409). Önceden ikisi de 409 dönüyordu;
+// istemci var olmayan kaydı "başkası işlem yapmış" sanıyordu.
+func (r *Repository) stateOrNotFound(ctx context.Context, propertyID, table, id string, notFound, state error) error {
+	ok, err := r.scope(propertyID).Exists(ctx, table, id)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return notFound
+	}
+	return state
 }

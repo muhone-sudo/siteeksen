@@ -89,7 +89,7 @@ func (s *Service) Create(ctx context.Context, propertyID, userID string, in mode
 		distributionType = category.DistributionType
 	}
 
-	var distributions []models.Distribution
+	distributions := []models.Distribution{}
 	if reflects {
 		distributions, err = s.distribute(ctx, propertyID, in.Amount, distributionType, category.AppliesToGroundFloor)
 		if err != nil {

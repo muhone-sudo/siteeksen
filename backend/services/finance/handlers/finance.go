@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/siteeksen/backend/pkg/middleware"
 	"github.com/siteeksen/backend/services/finance/models"
 	"github.com/siteeksen/backend/services/finance/repository"
 	"github.com/siteeksen/backend/services/finance/service"
@@ -32,8 +33,17 @@ func mapAssessmentError(c *gin.Context, err error) {
 		c.JSON(http.StatusConflict, gin.H{"error": "Bu dönem için tahakkuk zaten oluşturulmuş"})
 	case errors.Is(err, repository.ErrNoUnitsInProperty):
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Sitede tanımlı birim bulunamadı"})
-	default:
+	case errors.Is(err, repository.ErrInvalidAssessmentInput):
+		// Mesaj bizim yazdığımız metindir (vade biçimi, dağıtılamayan kalem).
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	default:
+		// Önceki sürüm burada HER hatanın ham metnini 400 ile istemciye yazıyordu;
+		// PostgreSQL hata metni tablo/kısıt adlarını sızdırıyordu.
+		if middleware.DBErrorResponse(c, err) {
+			return
+		}
+		log.Printf("[finance] tahakkuk işlemi başarısız: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "İşlem tamamlanamadı"})
 	}
 }
 
@@ -45,6 +55,9 @@ func GetDebtStatus(svc *service.FinanceService) gin.HandlerFunc {
 
 		status, err := svc.GetDebtStatus(c.Request.Context(), userID, propertyID)
 		if err != nil {
+			if middleware.DBErrorResponse(c, err) {
+				return
+			}
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Borç durumu alınamadı"})
 			return
 		}
@@ -61,6 +74,9 @@ func GetAssessments(svc *service.FinanceService) gin.HandlerFunc {
 
 		assessments, err := svc.GetAssessments(c.Request.Context(), propertyID, userID, year)
 		if err != nil {
+			if middleware.DBErrorResponse(c, err) {
+				return
+			}
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Aidatlar alınamadı"})
 			return
 		}
@@ -92,9 +108,20 @@ func GetAssessmentDetails(svc *service.FinanceService) gin.HandlerFunc {
 		assessmentID := c.Param("id")
 		propertyID := c.GetString("property_id")
 
-		details, err := svc.GetAssessmentDetails(c.Request.Context(), propertyID, assessmentID)
-		if err != nil {
+		details, err := svc.GetAssessmentDetails(c.Request.Context(), propertyID,
+			c.GetString("user_id"), getRoles(c), assessmentID)
+		if errors.Is(err, repository.ErrAssessmentNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Aidat bulunamadı"})
+			return
+		}
+		if err != nil {
+			// Önceden HER hata (veritabanı arızası dahil) "bulunamadı" diye
+			// dönüyordu; arıza, kaydın yokluğu gibi görünüyordu.
+			if middleware.DBErrorResponse(c, err) {
+				return
+			}
+			log.Printf("[finance] aidat detayı okunamadı: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Aidat detayı alınamadı"})
 			return
 		}
 		c.JSON(http.StatusOK, details)
@@ -166,6 +193,9 @@ func CreatePayment(svc *service.FinanceService) gin.HandlerFunc {
 					"error": "Seçilen aidatlardan biri ödenebilir durumda değil",
 				})
 			default:
+				if middleware.DBErrorResponse(c, err) {
+					return
+				}
 				log.Printf("[finance] ödeme oluşturulamadı (user=%s): %v", userID, err)
 				c.JSON(http.StatusInternalServerError, gin.H{"error": "Ödeme kaydı oluşturulamadı"})
 			}
@@ -198,6 +228,9 @@ func AccrueLateFees(svc *service.FinanceService) gin.HandlerFunc {
 		propertyID := c.GetString("property_id")
 		res, err := svc.AccrueLateFees(c.Request.Context(), propertyID, asOf)
 		if err != nil {
+			if middleware.DBErrorResponse(c, err) {
+				return
+			}
 			log.Printf("[finance] gecikme tazminatı işlenemedi (property=%s): %v", propertyID, err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Gecikme tazminatı işlenemedi"})
 			return
@@ -248,6 +281,9 @@ func ListPendingPayments(svc *service.FinanceService) gin.HandlerFunc {
 		propertyID := c.GetString("property_id")
 		payments, err := svc.ListPendingPayments(c.Request.Context(), propertyID)
 		if err != nil {
+			if middleware.DBErrorResponse(c, err) {
+				return
+			}
 			log.Printf("[finance] bekleyen ödemeler alınamadı (property=%s): %v", propertyID, err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Bekleyen ödemeler alınamadı"})
 			return
@@ -270,8 +306,27 @@ func mapPaymentConfirmError(c *gin.Context, err error, paymentID string) {
 	case errors.Is(err, repository.ErrNoPayableAssessment):
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Ödemeye bağlı tahakkuk bulunamadı"})
 	default:
+		if middleware.DBErrorResponse(c, err) {
+			return
+		}
 		log.Printf("[finance] ödeme onay/ret hatası (payment=%s): %v", paymentID, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "İşlem tamamlanamadı"})
+	}
+}
+
+// GetMyPayments, çağıranın kendi ödeme geçmişi (sakin uygulaması için).
+func GetMyPayments(svc *service.FinanceService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		payments, err := svc.GetMyPayments(c.Request.Context(), c.GetString("user_id"), c.GetString("property_id"))
+		if err != nil {
+			if middleware.DBErrorResponse(c, err) {
+				return
+			}
+			log.Printf("[finance] kişisel ödeme geçmişi alınamadı: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Ödeme geçmişi alınamadı"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"data": payments})
 	}
 }
 
@@ -283,6 +338,9 @@ func GetPaymentHistory(svc *service.FinanceService) gin.HandlerFunc {
 
 		payments, err := svc.GetPaymentHistory(c.Request.Context(), userID, propertyID, getRoles(c))
 		if err != nil {
+			if middleware.DBErrorResponse(c, err) {
+				return
+			}
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Ödeme geçmişi alınamadı"})
 			return
 		}
@@ -312,6 +370,9 @@ func GetConsumptionSummary(svc *service.FinanceService) gin.HandlerFunc {
 
 		summary, err := svc.GetConsumptionSummary(c.Request.Context(), c.GetString("property_id"), userID, meterType)
 		if err != nil {
+			if middleware.DBErrorResponse(c, err) {
+				return
+			}
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Tüketim verisi alınamadı"})
 			return
 		}

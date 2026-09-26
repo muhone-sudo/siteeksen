@@ -24,7 +24,7 @@ func (r *UserRepository) GetByPhone(ctx context.Context, phone string) (*models.
 		SELECT id, COALESCE(tc_encrypted, ''), COALESCE(tc_hash, ''), first_name, last_name,
 			   phone, COALESCE(email, ''), password_hash, COALESCE(active_property_id::text, ''), roles, kvkk_consent_at, created_at, updated_at
 		FROM users
-		WHERE phone = $1 AND deleted = 0
+		WHERE phone = $1 AND deleted = 0 AND COALESCE(is_active, true)
 	`
 	user := &models.User{}
 	err := r.pool.QueryRow(ctx, query, phone).Scan(
@@ -44,7 +44,7 @@ func (r *UserRepository) GetByID(ctx context.Context, id string) (*models.User, 
 		SELECT id, COALESCE(tc_encrypted, ''), COALESCE(tc_hash, ''), first_name, last_name,
 			   phone, COALESCE(email, ''), password_hash, COALESCE(active_property_id::text, ''), roles, kvkk_consent_at, created_at, updated_at
 		FROM users
-		WHERE id = $1 AND deleted = 0
+		WHERE id = $1 AND deleted = 0 AND COALESCE(is_active, true)
 	`
 	user := &models.User{}
 	err := r.pool.QueryRow(ctx, query, id).Scan(
@@ -73,7 +73,7 @@ func (r *UserRepository) GetUserProperties(ctx context.Context, userID string) (
 	}
 	defer rows.Close()
 
-	var properties []models.UserProperty
+	properties := []models.UserProperty{}
 	for rows.Next() {
 		var p models.UserProperty
 		if err := rows.Scan(&p.PropertyID, &p.PropertyName, &p.UnitID, &p.UnitName, &p.Role); err != nil {

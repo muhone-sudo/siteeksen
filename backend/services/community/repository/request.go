@@ -78,7 +78,7 @@ func (r *RequestRepository) list(ctx context.Context, propertyID, query string, 
 	}
 	defer rows.Close()
 
-	var requests []*models.Request
+	requests := []*models.Request{}
 	for rows.Next() {
 		req, err := scanRequest(rows)
 		if err != nil {

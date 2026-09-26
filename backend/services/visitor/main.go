@@ -39,6 +39,8 @@ func main() {
 	notifier := notify.FromEnvOrNil(pool)
 
 	r := gin.Default()
+	// Biçimi bozuk kimlik 500 değil 404 döner (pkg/middleware/params.go).
+	r.Use(middleware.UUIDParams())
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"status": "healthy", "service": "visitor", "persistent": true,
@@ -60,6 +62,9 @@ func main() {
 		list, err := repo.List(c.Request.Context(), propertyID,
 			c.Query("status"), scopeUser, c.Query("inside") == "true")
 		if err != nil {
+			if middleware.DBErrorResponse(c, err) {
+				return
+			}
 			log.Printf("[visitor] listeleme başarısız: %v", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Ziyaretçiler alınamadı"})
 			return
@@ -79,6 +84,9 @@ func main() {
 		}
 		s, err := repo.Summary(c.Request.Context(), c.GetString("property_id"))
 		if err != nil {
+			if middleware.DBErrorResponse(c, err) {
+				return
+			}
 			log.Printf("[visitor] özet başarısız: %v", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Özet alınamadı"})
 			return
@@ -110,6 +118,9 @@ func main() {
 		if err != nil {
 			if errors.Is(err, repository.ErrUnitNotInSite) {
 				c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+				return
+			}
+			if middleware.DBErrorResponse(c, err) {
 				return
 			}
 			log.Printf("[visitor] oluşturma başarısız: %v", err)
@@ -157,7 +168,11 @@ func main() {
 	}
 
 	api.POST("/visitors/:id/cancel", func(c *gin.Context) {
-		if err := repo.Cancel(c.Request.Context(), c.GetString("property_id"), c.Param("id")); err != nil {
+		owner := ""
+		if !hasSecurityScope(c) {
+			owner = c.GetString("user_id")
+		}
+		if err := repo.Cancel(c.Request.Context(), c.GetString("property_id"), owner, c.Param("id")); err != nil {
 			mapStateError(c, err)
 			return
 		}
@@ -211,6 +226,10 @@ func mapStateError(c *gin.Context, err error) {
 	case errors.Is(err, repository.ErrNotFound):
 		c.JSON(http.StatusNotFound, gin.H{"error": "Ziyaretçi kaydı bulunamadı"})
 	default:
+		// İstemci kaynaklı veritabanı hatası (biçim, kısıt, uzunluk) 500 değildir.
+		if middleware.DBErrorResponse(c, err) {
+			return
+		}
 		log.Printf("[visitor] durum değişikliği başarısız: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "İşlem tamamlanamadı"})
 	}

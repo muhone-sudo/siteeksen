@@ -15,6 +15,7 @@ import (
 )
 
 var (
+	ErrInvalidType      = errors.New("anket türü geçersiz")
 	ErrNotFound         = errors.New("anket bulunamadı")
 	ErrBadState         = errors.New("anket bu işlem için uygun durumda değil")
 	ErrAlreadyVoted     = errors.New("bu ankete zaten oy verdiniz")
@@ -188,7 +189,7 @@ func (r *Repository) options(ctx context.Context, propertyID, surveyID string, w
 		count  int
 		weight decimal.Decimal
 	}
-	var items []raw
+	items := []raw{}
 	totalCount := 0
 	totalWeight := decimal.Zero
 
@@ -266,7 +267,7 @@ func (r *Repository) Create(ctx context.Context, propertyID, userID string, in C
 		return "", ErrGeneralAssembly
 	}
 	if !contains(Types, sType) {
-		return "", ErrBadState
+		return "", ErrInvalidType
 	}
 
 	clean := make([]string, 0, len(in.Options))
@@ -373,6 +374,13 @@ func countEligible(ctx context.Context, q pgx.Tx, propertyID, sType string) (int
 
 // Publish, taslağı yayına alır.
 func (r *Repository) Publish(ctx context.Context, propertyID, id string) (*PublishedSurvey, error) {
+	// Önce anket var mı: önceden seçenek sayısı önce sayılıyor, var olmayan
+	// anket için "en az iki seçenek gerekir" (422) dönüyordu.
+	if ok, err := r.scope(propertyID).Exists(ctx, "surveys", id); err != nil {
+		return nil, err
+	} else if !ok {
+		return nil, ErrNotFound
+	}
 	var optionCount int
 	if err := r.scope(propertyID).QueryRow(ctx,
 		`SELECT count(*) FROM survey_options WHERE survey_id = $1`, id).Scan(&optionCount); err != nil {
@@ -391,7 +399,7 @@ func (r *Repository) Publish(ctx context.Context, propertyID, id string) (*Publi
 		RETURNING title, survey_type, ends_at`, id, propertyID).Scan(
 		&out.Title, &out.Type, &out.EndsAt)
 	if err == pgx.ErrNoRows {
-		return nil, ErrBadState
+		return nil, r.stateOrNotFound(ctx, propertyID, "surveys", id, ErrNotFound, ErrBadState)
 	}
 	if err != nil {
 		return nil, err
@@ -415,7 +423,7 @@ func (r *Repository) Close(ctx context.Context, propertyID, id string) error {
 		return err
 	}
 	if tag.RowsAffected() == 0 {
-		return ErrBadState
+		return r.stateOrNotFound(ctx, propertyID, "surveys", id, ErrNotFound, ErrBadState)
 	}
 	return nil
 }
@@ -433,7 +441,7 @@ func (r *Repository) Cancel(ctx context.Context, propertyID, id, reason string) 
 		return err
 	}
 	if tag.RowsAffected() == 0 {
-		return ErrBadState
+		return r.stateOrNotFound(ctx, propertyID, "surveys", id, ErrNotFound, ErrBadState)
 	}
 	return nil
 }
@@ -607,4 +615,19 @@ func contains(list []string, v string) bool {
 // Bu, uygulama katmanındaki filtrenin yerine geçmez — onu YEDEKLER.
 func (r *Repository) scope(propertyID string) *dbscope.Scoped {
 	return dbscope.For(r.pool, propertyID)
+}
+
+// stateOrNotFound, durum geçişli bir güncelleme 0 satır etkilediğinde iki
+// ihtimali ayırır: kayıt hiç yoksa (ya da başka siteye aitse) notFound (404),
+// varsa ama durumu uygun değilse state (409). Önceden ikisi de 409 dönüyordu;
+// istemci var olmayan kaydı "başkası işlem yapmış" sanıyordu.
+func (r *Repository) stateOrNotFound(ctx context.Context, propertyID, table, id string, notFound, state error) error {
+	ok, err := r.scope(propertyID).Exists(ctx, table, id)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return notFound
+	}
+	return state
 }

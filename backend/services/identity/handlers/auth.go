@@ -2,11 +2,13 @@ package handlers
 
 import (
 	"errors"
+	"github.com/siteeksen/backend/pkg/middleware"
 	"log"
 	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5"
 	"github.com/siteeksen/backend/services/identity/models"
 	"github.com/siteeksen/backend/services/identity/repository"
 	"github.com/siteeksen/backend/services/identity/service"
@@ -42,8 +44,16 @@ func Login(svc *service.AuthService) gin.HandlerFunc {
 		}
 
 		tokens, user, err := svc.Login(c.Request.Context(), normalizePhone(req.Phone), req.Password)
-		if err != nil {
+		if errors.Is(err, service.ErrInvalidCredentials) {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Geçersiz telefon veya şifre"})
+			return
+		}
+		if err != nil {
+			if middleware.DBErrorResponse(c, err) {
+				return
+			}
+			log.Printf("[identity] giriş yapılamadı: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Giriş şu anda yapılamıyor; lütfen daha sonra deneyin"})
 			return
 		}
 
@@ -68,8 +78,19 @@ func RefreshToken(svc *service.AuthService) gin.HandlerFunc {
 		}
 
 		tokens, err := svc.RefreshToken(c.Request.Context(), req.RefreshToken)
-		if err != nil {
+		switch {
+		case errors.Is(err, service.ErrInvalidToken), errors.Is(err, service.ErrTokenRevoked):
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Geçersiz refresh token"})
+			return
+		case errors.Is(err, service.ErrRevocationUnavailable):
+			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Oturum doğrulanamadı; lütfen biraz sonra deneyin"})
+			return
+		case err != nil:
+			if middleware.DBErrorResponse(c, err) {
+				return
+			}
+			log.Printf("[identity] jeton yenilenemedi: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Oturum yenilenemedi"})
 			return
 		}
 
@@ -82,8 +103,16 @@ func GetCurrentUser(svc *service.AuthService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		userID := c.GetString("user_id")
 		user, err := svc.GetUserByID(c.Request.Context(), userID)
-		if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Kullanıcı bulunamadı"})
+			return
+		}
+		if err != nil {
+			if middleware.DBErrorResponse(c, err) {
+				return
+			}
+			log.Printf("[identity] kullanıcı okunamadı: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Kullanıcı bilgisi alınamadı"})
 			return
 		}
 		c.JSON(http.StatusOK, user)
@@ -96,6 +125,9 @@ func GetUserProperties(svc *service.AuthService) gin.HandlerFunc {
 		userID := c.GetString("user_id")
 		properties, err := svc.GetUserProperties(c.Request.Context(), userID)
 		if err != nil {
+			if middleware.DBErrorResponse(c, err) {
+				return
+			}
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Siteler alınamadı"})
 			return
 		}
@@ -121,6 +153,9 @@ func SetActiveProperty(svc *service.AuthService) gin.HandlerFunc {
 			// 400 değil 403 döner ve denetim izinde DENIED olarak ayrışır.
 			if errors.Is(err, repository.ErrPropertyNotOwned) {
 				c.JSON(http.StatusForbidden, gin.H{"error": "Bu siteye erişim yetkiniz yok"})
+				return
+			}
+			if middleware.DBErrorResponse(c, err) {
 				return
 			}
 			log.Printf("[identity] aktif site güncellenemedi (user=%s): %v", userID, err)

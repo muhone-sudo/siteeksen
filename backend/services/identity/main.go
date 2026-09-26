@@ -32,6 +32,8 @@ func main() {
 
 	// Gin router
 	r := gin.Default()
+	// Biçimi bozuk kimlik 500 değil 404 döner (pkg/middleware/params.go).
+	r.Use(middleware.UUIDParams())
 
 	// Health check
 	r.GET("/health", func(c *gin.Context) {

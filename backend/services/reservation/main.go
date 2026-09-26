@@ -66,6 +66,8 @@ func main() {
 	notifier := notify.FromEnvOrNil(pool)
 
 	r := gin.Default()
+	// Biçimi bozuk kimlik 500 değil 404 döner (pkg/middleware/params.go).
+	r.Use(middleware.UUIDParams())
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"status": "healthy", "service": "reservation", "persistent": true,
@@ -237,12 +239,15 @@ func main() {
 		}
 		_ = c.ShouldBindJSON(&in)
 
+		// İptal bir YAZMA işlemidir: denetçi (AUDITOR) okur ama başkasının
+		// rezervasyonunu iptal edemez (KMK m.41 görevler ayrılığı). Önceden
+		// okuma kapsamı burada da kullanılıyordu ve denetçi iptal edebiliyordu.
 		owner := ""
-		if !hasOpsScope(c) {
+		if !canManage(c) {
 			owner = c.GetString("user_id")
 		}
 		if err := repo.Cancel(c.Request.Context(), c.GetString("property_id"),
-			c.Param("id"), owner, in.Reason); err != nil {
+			c.Param("id"), owner, c.GetString("user_id"), in.Reason); err != nil {
 			fail(c, err, "iptal")
 			return
 		}
@@ -413,6 +418,20 @@ func calculateFee(minutes int, hourly, daily *float64) money.Kurus {
 	return money.FromTRY(total)
 }
 
+// canManage, başkasının kaydını DEĞİŞTİREBİLEN rollerdir (denetçi hariç).
+func canManage(c *gin.Context) bool {
+	value, _ := c.Get("roles")
+	roles, _ := value.([]string)
+	for _, r := range roles {
+		switch r {
+		case middleware.RoleManager, middleware.RoleBoardMember, middleware.RoleSuperAdmin:
+			return true
+		}
+	}
+	return false
+}
+
+// hasOpsScope, site genelini OKUYABİLEN rollerdir (denetçi dahil).
 func hasOpsScope(c *gin.Context) bool {
 	value, _ := c.Get("roles")
 	roles, _ := value.([]string)
@@ -440,6 +459,10 @@ func fail(c *gin.Context, err error, op string) {
 		c.JSON(http.StatusForbidden, gin.H{
 			"error": "Bu sitede aktif bir bağımsız bölümünüz bulunmuyor"})
 	default:
+		// İstemci kaynaklı veritabanı hatası (biçim, kısıt, uzunluk) 500 değildir.
+		if middleware.DBErrorResponse(c, err) {
+			return
+		}
 		log.Printf("[reservation] %s başarısız: %v", op, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "İşlem tamamlanamadı"})
 	}

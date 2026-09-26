@@ -22,8 +22,10 @@ var ErrAssessmentForbidden = errors.New("bu işlem için yetkiniz yok")
 func isFinanceManagement(roles []string) bool {
 	for _, role := range roles {
 		switch role {
-		case middleware.RoleManager, middleware.RoleAuditor,
-			middleware.RoleStaff, middleware.RoleBoardMember:
+		// STAFF (görevli) bilerek YOK: site geneli mali veri görevlinin işi
+		// değildir. Önceden burada vardı ama rota katmanı (RequireRole)
+		// dışarıda bırakıyordu; iki katman farklı kural söylüyordu.
+		case middleware.RoleManager, middleware.RoleAuditor, middleware.RoleBoardMember:
 			return true
 		}
 	}
@@ -100,8 +102,12 @@ func (s *FinanceService) ListAssessmentOverview(ctx context.Context, propertyID 
 }
 
 // GetAssessmentDetails aidat detayı getirir
-func (s *FinanceService) GetAssessmentDetails(ctx context.Context, propertyID, assessmentID string) (*models.AssessmentDetail, error) {
-	return s.repo.GetAssessmentDetails(ctx, propertyID, assessmentID)
+func (s *FinanceService) GetAssessmentDetails(ctx context.Context, propertyID, userID string, roles []string, assessmentID string) (*models.AssessmentDetail, error) {
+	resident := userID
+	if isFinanceManagement(roles) {
+		resident = "" // yönetim ve denetçi site genelini görür
+	}
+	return s.repo.GetAssessmentDetails(ctx, propertyID, resident, assessmentID)
 }
 
 // ListExpenseCategories sitenin gider kalemlerini getirir (yalnızca yönetim rolleri —
@@ -251,6 +257,13 @@ func (s *FinanceService) GetPaymentHistory(ctx context.Context, userID, property
 	if isFinanceManagement(roles) {
 		return s.repo.ListPropertyPayments(ctx, propertyID)
 	}
+	return s.repo.GetPaymentHistory(ctx, propertyID, userID)
+}
+
+// GetMyPayments, çağıranın KENDİ ödemelerini döner — rolünden bağımsız.
+// Önceden sakinin kendi ödeme geçmişine ulaşabileceği bir uç yoktu: servis
+// kodu vardı ama rota yalnızca yönetime açıktı.
+func (s *FinanceService) GetMyPayments(ctx context.Context, userID, propertyID string) (interface{}, error) {
 	return s.repo.GetPaymentHistory(ctx, propertyID, userID)
 }
 

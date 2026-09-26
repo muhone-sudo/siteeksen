@@ -48,7 +48,7 @@ func (r *Repository) ListUnits(ctx context.Context, propertyID string) ([]Unit, 
 	}
 	defer rows.Close()
 
-	var out []Unit
+	out := []Unit{}
 	for rows.Next() {
 		var u Unit
 		if err := rows.Scan(&u.ID, &u.Name, &u.ShareRatio, &u.AreaM2, &u.IsGround); err != nil {
@@ -299,7 +299,7 @@ func (r *Repository) SetStatus(ctx context.Context, propertyID, id, status, user
 		return err
 	}
 	if tag.RowsAffected() == 0 {
-		return ErrNotPending
+		return r.stateOrNotFound(ctx, propertyID, "expenses", id, ErrNotFound, ErrNotPending)
 	}
 	return nil
 }
@@ -358,4 +358,19 @@ func (r *Repository) Summary(ctx context.Context, propertyID string, year, month
 // yazılamaz.
 func (r *Repository) scope(propertyID string) *dbscope.Scoped {
 	return dbscope.For(r.pool, propertyID)
+}
+
+// stateOrNotFound, durum geçişli bir güncelleme 0 satır etkilediğinde iki
+// ihtimali ayırır: kayıt hiç yoksa (ya da başka siteye aitse) notFound (404),
+// varsa ama durumu uygun değilse state (409). Önceden ikisi de 409 dönüyordu;
+// istemci var olmayan kaydı "başkası işlem yapmış" sanıyordu.
+func (r *Repository) stateOrNotFound(ctx context.Context, propertyID, table, id string, notFound, state error) error {
+	ok, err := r.scope(propertyID).Exists(ctx, table, id)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return notFound
+	}
+	return state
 }

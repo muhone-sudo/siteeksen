@@ -45,6 +45,8 @@ func main() {
 	repo := repository.New(pool)
 
 	r := gin.Default()
+	// Biçimi bozuk kimlik 500 değil 404 döner (pkg/middleware/params.go).
+	r.Use(middleware.UUIDParams())
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"status": "healthy", "service": "patrol", "persistent": true,
@@ -305,6 +307,10 @@ func fail(c *gin.Context, err error, op string) {
 	case errors.Is(err, repository.ErrDuplicateTag):
 		c.JSON(http.StatusConflict, gin.H{"error": "Bu NFC/QR kimliği zaten kullanılıyor"})
 	default:
+		// İstemci kaynaklı veritabanı hatası (biçim, kısıt, uzunluk) 500 değildir.
+		if middleware.DBErrorResponse(c, err) {
+			return
+		}
 		log.Printf("[patrol] %s başarısız: %v", op, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "İşlem tamamlanamadı"})
 	}

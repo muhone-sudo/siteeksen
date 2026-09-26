@@ -54,6 +54,8 @@ func main() {
 	notifier := notify.FromEnvOrNil(pool)
 
 	r := gin.Default()
+	// Biçimi bozuk kimlik 500 değil 404 döner (pkg/middleware/params.go).
+	r.Use(middleware.UUIDParams())
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"status": "healthy", "service": "survey", "persistent": true,
@@ -113,6 +115,18 @@ func main() {
 	})
 
 	api.GET("/surveys/:id/comments", func(c *gin.Context) {
+		// Anket yoksa ya da sakin için görünmeyen bir TASLAKSA 404. Önceden bu
+		// uçta taslak denetimi yoktu; yayımlanmamış anketin yorumları okunabiliyordu.
+		base, err := repo.Get(c.Request.Context(), c.GetString("property_id"), c.Param("id"),
+			c.GetString("user_id"), false)
+		if err != nil {
+			fail(c, err, "okuma")
+			return
+		}
+		if base.Status == "DRAFT" && !isManagement(c) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Anket bulunamadı"})
+			return
+		}
 		list, err := repo.Comments(c.Request.Context(),
 			c.GetString("property_id"), c.Param("id"))
 		if err != nil {
@@ -294,7 +308,14 @@ func fail(c *gin.Context, err error, op string) {
 	case errors.Is(err, repository.ErrInvalidDate):
 		c.JSON(http.StatusUnprocessableEntity, gin.H{
 			"error": "Tarihler geçersiz (RFC3339 bekleniyor; bitiş, başlangıçtan sonra olmalı)"})
+	case errors.Is(err, repository.ErrInvalidType):
+		c.JSON(http.StatusUnprocessableEntity, gin.H{
+			"error": "Anket türü geçersiz", "valid_types": repository.Types})
 	default:
+		// İstemci kaynaklı veritabanı hatası (biçim, kısıt, uzunluk) 500 değildir.
+		if middleware.DBErrorResponse(c, err) {
+			return
+		}
 		log.Printf("[survey] %s başarısız: %v", op, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "İşlem tamamlanamadı"})
 	}

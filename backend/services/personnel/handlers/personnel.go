@@ -77,16 +77,27 @@ func mapError(c *gin.Context, err error, op string) {
 			"note":  "Aynı kişinin iki kez kaydedilip iki maaş alması engellenir."})
 	case errors.Is(err, repository.ErrNotFound):
 		c.JSON(http.StatusNotFound, gin.H{"error": "Personel kaydı bulunamadı"})
+	case errors.Is(err, repository.ErrLeaveInvalid):
+		c.JSON(http.StatusNotFound, gin.H{"error": "İzin kaydı bulunamadı"})
 	case errors.Is(err, repository.ErrNotPending):
 		c.JSON(http.StatusConflict, gin.H{"error": "Bu izin talebi zaten sonuçlanmış"})
 	case errors.Is(err, repository.ErrOverlapping):
 		c.JSON(http.StatusConflict, gin.H{
 			"error": "Bu tarihlerde personelin çakışan bir izni var"})
+	case errors.Is(err, service.ErrInvalidEnum):
+		c.JSON(http.StatusUnprocessableEntity, gin.H{
+			"error":          "Sözleşme ya da izin türü geçersiz",
+			"contract_types": service.ContractTypes,
+			"leave_types":    service.LeaveTypes})
 	case errors.Is(err, service.ErrInvalidDate),
 		errors.Is(err, service.ErrDateOrder),
 		errors.Is(err, service.ErrReasonRequired):
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
 	default:
+		// İstemci kaynaklı veritabanı hatası (biçim, kısıt, uzunluk) 500 değildir.
+		if middleware.DBErrorResponse(c, err) {
+			return
+		}
 		log.Printf("[personnel] %s başarısız: %v", op, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "İşlem tamamlanamadı"})
 	}

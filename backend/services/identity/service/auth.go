@@ -8,6 +8,7 @@ import (
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/siteeksen/backend/pkg/revocation"
 	"github.com/siteeksen/backend/services/identity/models"
 	"github.com/siteeksen/backend/services/identity/repository"
@@ -41,12 +42,18 @@ func NewAuthService(userRepo *repository.UserRepository, jwtSecret string) *Auth
 // Login kullanıcı girişi yapar
 func (s *AuthService) Login(ctx context.Context, phone, password string) (*TokenPair, *models.UserResponse, error) {
 	user, err := s.userRepo.GetByPhone(ctx, phone)
+	if errors.Is(err, pgx.ErrNoRows) {
+		_ = bcrypt.CompareHashAndPassword(dummyHash, []byte(password))
+		return nil, nil, ErrInvalidCredentials
+	}
 	if err != nil {
-		return nil, nil, errors.New("kullanıcı bulunamadı")
+		// Veritabanı arızası "yanlış şifre" gibi GÖSTERİLMEZ: kullanıcı doğru
+		// şifreyi tekrar tekrar dener, yönetici arızayı fark etmez.
+		return nil, nil, fmt.Errorf("kullanıcı okunamadı: %w", err)
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
-		return nil, nil, errors.New("geçersiz şifre")
+		return nil, nil, ErrInvalidCredentials
 	}
 
 	// Roller bir kez çözülür; hem jetona hem de yanıta AYNI küme yazılır.
@@ -84,6 +91,22 @@ func (s *AuthService) Login(ctx context.Context, phone, password string) (*Token
 // ErrTokenRevoked, iptal edilmiş bir jetonla yenileme denendiğinde döner.
 var ErrTokenRevoked = errors.New("jeton iptal edilmiş; yeniden giriş yapılmalı")
 
+// ErrInvalidCredentials, telefon ya da şifre yanlış, hesap yok veya pasif.
+// Üçü BİLEREK aynı hatadır: hangisi olduğunu söylemek hesap varlığını sızdırır.
+var ErrInvalidCredentials = errors.New("geçersiz telefon veya şifre")
+
+// ErrInvalidToken, yenileme jetonu geçersiz ya da kullanıcı artık yok/pasif.
+var ErrInvalidToken = errors.New("geçersiz yenileme jetonu")
+
+// ErrRevocationUnavailable, iptal denetimi yapılamadığında döner (fail-closed).
+var ErrRevocationUnavailable = errors.New("jeton iptal denetimi yapılamadı")
+
+// dummyHash, bulunamayan kullanıcı için de bcrypt karşılaştırması yapılmasını
+// sağlar. Önceden kullanıcı yoksa karşılaştırma HİÇ yapılmıyor ve yanıt
+// belirgin biçimde hızlı dönüyordu: yanıt süresinden bir telefon numarasının
+// sistemde kayıtlı olup olmadığı anlaşılabiliyordu (kullanıcı sayımı).
+var dummyHash, _ = bcrypt.GenerateFromPassword([]byte("zamanlama-esitleme"), bcrypt.DefaultCost)
+
 // RefreshToken, yenileme jetonuyla yeni jeton çifti üretir.
 //
 // İPTAL DENETİMİ ŞART: çıkışta iptal edilmiş bir yenileme jetonu, denetlenmezse
@@ -96,7 +119,7 @@ func (s *AuthService) RefreshToken(ctx context.Context, refreshToken string) (*T
 	})
 
 	if err != nil || !token.Valid {
-		return nil, errors.New("geçersiz refresh token")
+		return nil, ErrInvalidToken
 	}
 
 	// Çıkışta iptal edilen bir yenileme jetonu, denetlenmezse 7 GÜN boyunca yeni
@@ -110,7 +133,7 @@ func (s *AuthService) RefreshToken(ctx context.Context, refreshToken string) (*T
 		if rerr != nil {
 			// Fail-closed: denetim yapılamıyorsa jeton kabul edilmez. Aksi hâlde
 			// iptal mekanizması, veritabanını yoran bir saldırganca kapatılabilirdi.
-			return nil, fmt.Errorf("jeton iptal denetimi yapılamadı: %w", rerr)
+			return nil, fmt.Errorf("%w: %v", ErrRevocationUnavailable, rerr)
 		}
 		if revoked {
 			return nil, ErrTokenRevoked
@@ -118,6 +141,10 @@ func (s *AuthService) RefreshToken(ctx context.Context, refreshToken string) (*T
 	}
 
 	user, err := s.userRepo.GetByID(ctx, claims.Subject)
+	if errors.Is(err, pgx.ErrNoRows) {
+		// Hesap silinmiş ya da pasife alınmış: yenileme jetonu artık geçersizdir.
+		return nil, ErrInvalidToken
+	}
 	if err != nil {
 		return nil, err
 	}

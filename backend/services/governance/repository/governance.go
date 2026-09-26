@@ -29,6 +29,13 @@ var (
 	ErrNotAttending         = errors.New("oy kullanan bağımsız bölüm hazirun listesinde yok")
 	ErrBookClosed           = errors.New("defter kapatılmış; yeni kayıt eklenemez")
 	ErrObjectionNotEntitled = errors.New("itiraz yalnızca dairenin maliki ya da vekili tarafından yapılabilir")
+	// ErrAlreadyDecided: kayıt var ama zaten sonuçlanmış (itiraz, gündem maddesi).
+	// Önceden bu durum "bulunamadı" (404) dönüyordu.
+	ErrAlreadyDecided = errors.New("kayıt zaten sonuçlanmış")
+	// ErrUnitNotInSite: bağımsız bölüm bu siteye ait değil ya da yok.
+	ErrUnitNotInSite = errors.New("bağımsız bölüm bu sitede bulunamadı")
+	// ErrCategoryNotInSite: gider kalemi bu siteye ait değil (ortak şablonlar hariç).
+	ErrCategoryNotInSite = errors.New("gider kalemi bu sitede bulunamadı")
 )
 
 // Unit, dağıtım hesaplarında kullanılan bağımsız bölüm özetidir.
@@ -67,7 +74,7 @@ func (r *Repository) ListUnits(ctx context.Context, propertyID string) ([]Unit, 
 	}
 	defer rows.Close()
 
-	var out []Unit
+	out := []Unit{}
 	for rows.Next() {
 		var u Unit
 		if err := rows.Scan(&u.ID, &u.Name, &u.ShareRatio, &u.AreaM2, &u.IsGround); err != nil {
@@ -207,7 +214,7 @@ func (r *Repository) GetBudget(ctx context.Context, propertyID, budgetID string)
 	defer shareRows.Close()
 	for shareRows.Next() {
 		var s models.UnitShare
-		var raw []byte
+		raw := []byte{}
 		if err := shareRows.Scan(&s.UnitID, &s.UnitName, &s.AnnualKurus, &s.MonthlyKurus, &raw); err != nil {
 			return nil, err
 		}
@@ -260,7 +267,7 @@ func (r *Repository) NotifyBudget(ctx context.Context, propertyID, budgetID, met
 		return nil, err
 	}
 	if tag.RowsAffected() == 0 {
-		return nil, ErrBudgetNotDraft
+		return nil, r.stateOrNotFound(ctx, propertyID, "operating_budgets", budgetID, ErrNotFound, ErrBudgetNotDraft)
 	}
 	return r.GetBudget(ctx, propertyID, budgetID)
 }
@@ -378,6 +385,12 @@ func (r *Repository) AddObjection(ctx context.Context, propertyID, budgetID, uni
 // GÜVENLİK (2026-09-26): `b.property_id` filtresi eklendi. Önceden yalnızca proje
 // kimliğine bakılıyordu; başka sitenin itirazları (daire, kişi, gerekçe) okunabiliyordu.
 func (r *Repository) ListObjections(ctx context.Context, propertyID, budgetID string) ([]models.Objection, error) {
+	// Proje yoksa boş liste DEĞİL 404: boş liste "itiraz yok" demektir ve yanıltır.
+	if ok, err := r.scope(propertyID).Exists(ctx, "operating_budgets", budgetID); err != nil {
+		return nil, err
+	} else if !ok {
+		return nil, ErrNotFound
+	}
 	rows, err := r.scope(propertyID).Query(ctx, `
 		SELECT o.id, o.budget_id, COALESCE(o.unit_id::text,''), COALESCE(o.user_id::text,''),
 		       o.reason, o.submitted_at, o.status, COALESCE(o.resolution,''), o.resolved_at,
@@ -409,17 +422,30 @@ func (r *Repository) ListObjections(ctx context.Context, propertyID, budgetID st
 // yalnızca itiraz kimliğine bakılıyordu: A sitesinin yöneticisi B sitesindeki açık
 // itirazı "reddedildi" yapıp B'nin işletme projesinin kesinleşme engelini
 // kaldırabiliyordu (KMK m.37 — kesinleşen proje İİK m.68 belgesidir).
-func (r *Repository) ResolveObjection(ctx context.Context, propertyID, objectionID, status, resolution string) error {
+//
+// budgetID de denetlenir: önceden yoldaki proje kimliği yok sayılıyor, aynı
+// sitedeki BAŞKA bir projenin itirazı herhangi bir proje adresinden
+// sonuçlandırılabiliyordu.
+func (r *Repository) ResolveObjection(ctx context.Context, propertyID, budgetID, objectionID, status, resolution string) error {
 	tag, err := r.scope(propertyID).Exec(ctx, `
 		UPDATE budget_objections
 		SET status = $2, resolution = NULLIF($3,''), resolved_at = now()
-		WHERE id = $1 AND status = 'OPEN'
+		WHERE id = $1 AND status = 'OPEN' AND budget_id = $5
 		  AND budget_id IN (SELECT id FROM operating_budgets WHERE property_id = $4)`,
-		objectionID, status, resolution, propertyID)
+		objectionID, status, resolution, propertyID, budgetID)
 	if err != nil {
 		return err
 	}
 	if tag.RowsAffected() == 0 {
+		var exists bool
+		if err := r.scope(propertyID).QueryRow(ctx,
+			`SELECT EXISTS (SELECT 1 FROM budget_objections WHERE id = $1 AND budget_id = $2)`,
+			objectionID, budgetID).Scan(&exists); err != nil {
+			return err
+		}
+		if exists {
+			return ErrAlreadyDecided
+		}
 		return ErrNotFound
 	}
 	return nil
@@ -568,7 +594,22 @@ func (r *Repository) AddAttendee(ctx context.Context, propertyID, assemblyID str
 	if attType == "" {
 		attType = "SELF"
 	}
-	_, err := r.scope(propertyID).Exec(ctx, `
+	// Toplantı var mı ve hazirun alınabilir durumda mı? Önceden denetlenmiyordu:
+	// yapılmış (HELD) toplantıya sonradan katılımcı eklenebiliyor ve nisap
+	// fotoğrafı ile hazirun listesi birbirini tutmuyordu.
+	var status string
+	if err := r.scope(propertyID).QueryRow(ctx,
+		`SELECT status FROM assemblies WHERE id = $1 AND property_id = $2`,
+		assemblyID, propertyID).Scan(&status); err != nil {
+		if err == pgx.ErrNoRows {
+			return ErrNotFound
+		}
+		return err
+	}
+	if status != "PLANNED" && status != "NOTIFIED" {
+		return ErrAssemblyNotOpen
+	}
+	tag, err := r.scope(propertyID).Exec(ctx, `
 		INSERT INTO assembly_attendees
 			(assembly_id, unit_id, user_id, attendance_type, proxy_holder_id, share_ratio)
 		SELECT $1, u.id, NULLIF($3,'')::uuid, $4, NULLIF($5,'')::uuid, COALESCE(u.share_ratio,0)
@@ -580,7 +621,16 @@ func (r *Repository) AddAttendee(ctx context.Context, propertyID, assemblyID str
 		    user_id = EXCLUDED.user_id,
 		    proxy_holder_id = EXCLUDED.proxy_holder_id`,
 		assemblyID, in.UnitID, in.UserID, attType, in.ProxyHolderID, propertyID)
-	return err
+	if err != nil {
+		return err
+	}
+	// INSERT … SELECT, daire bu sitede yoksa SESSİZCE 0 satır ekler. Önceden bu
+	// durumda "Hazirun kaydedildi" (201) dönüyordu — kaydedilmemiş bir katılımı
+	// kaydedilmiş göstermek, nisabı yanlış hesaplatır.
+	if tag.RowsAffected() == 0 {
+		return ErrUnitNotInSite
+	}
+	return nil
 }
 
 // ProxyLoad, bir vekilin taşıdığı vekâlet sayısı ve oy payını verir (m.31 sınırları).
@@ -639,13 +689,35 @@ func (r *Repository) CastVote(ctx context.Context, propertyID, agendaItemID stri
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 
+	// Önce madde ve toplantı: önceden madde yoksa da "hazirunda yok" (400)
+	// dönüyordu; toplantı durumu ve maddenin sonuçlanıp sonuçlanmadığı hiç
+	// denetlenmiyordu — KARARA BAĞLANMIŞ maddeye oy eklenip sayaçlar
+	// değiştirilebiliyordu.
+	var assemblyStatus, decision string
+	err = tx.QueryRow(ctx, `
+		SELECT a.status, ai.decision_status
+		FROM assembly_agenda_items ai
+		JOIN assemblies a ON a.id = ai.assembly_id AND a.property_id = $2
+		WHERE ai.id = $1 FOR UPDATE OF ai`, agendaItemID, propertyID).Scan(&assemblyStatus, &decision)
+	if err == pgx.ErrNoRows {
+		return ErrNotFound
+	}
+	if err != nil {
+		return err
+	}
+	if assemblyStatus != "HELD" {
+		return ErrAssemblyNotOpen
+	}
+	if decision != "PENDING" {
+		return ErrAlreadyDecided
+	}
+
 	var share float64
 	err = tx.QueryRow(ctx, `
 		SELECT at.share_ratio::float8
 		FROM assembly_agenda_items ai
-		JOIN assemblies a ON a.id = ai.assembly_id AND a.property_id = $3
-		JOIN assembly_attendees at ON at.assembly_id = a.id AND at.unit_id = $2
-		WHERE ai.id = $1`, agendaItemID, in.UnitID, propertyID).Scan(&share)
+		JOIN assembly_attendees at ON at.assembly_id = ai.assembly_id AND at.unit_id = $2
+		WHERE ai.id = $1`, agendaItemID, in.UnitID).Scan(&share)
 	if err == pgx.ErrNoRows {
 		return ErrNotAttending
 	}
@@ -722,7 +794,7 @@ func (r *Repository) CloseAgendaItem(ctx context.Context, propertyID, agendaItem
 		return err
 	}
 	if tag.RowsAffected() == 0 {
-		return ErrNotFound
+		return r.stateOrNotFound(ctx, propertyID, "assembly_agenda_items", agendaItemID, ErrNotFound, ErrAlreadyDecided)
 	}
 	return nil
 }
@@ -929,7 +1001,7 @@ func (r *Repository) CloseBook(ctx context.Context, propertyID, bookID, notaryRe
 		return err
 	}
 	if tag.RowsAffected() == 0 {
-		return ErrNotFound
+		return r.stateOrNotFound(ctx, propertyID, "books", bookID, ErrNotFound, ErrBookClosed)
 	}
 	return nil
 }
@@ -942,6 +1014,17 @@ func (r *Repository) CloseBook(ctx context.Context, propertyID, bookID, notaryRe
 // ödenmemiş tahakkuklarından hesaplanır.
 func (r *Repository) CreateLegalCase(ctx context.Context, propertyID string, in models.CreateLegalCaseInput,
 	principalKurus, lateFeeKurus int64) (string, error) {
+	// Daire bu siteye ait mi? Önceden yalnızca yabancı anahtar denetleniyordu:
+	// BAŞKA sitenin dairesi için takip açılabiliyor (borç 0 hesaplanıyordu).
+	var ok bool
+	if err := r.scope(propertyID).QueryRow(ctx,
+		`SELECT EXISTS (SELECT 1 FROM units WHERE id = $1 AND property_id = $2)`,
+		in.UnitID, propertyID).Scan(&ok); err != nil {
+		return "", err
+	}
+	if !ok {
+		return "", ErrUnitNotInSite
+	}
 	var id string
 	err := r.scope(propertyID).QueryRow(ctx, `
 		INSERT INTO legal_cases
@@ -996,6 +1079,31 @@ func (r *Repository) UnitDebt(ctx context.Context, propertyID, unitID string) (p
 }
 
 // -----------------------------------------------------------------------------
+
+// CategoryVisible, gider kaleminin bu sitede kullanılabilir olduğunu söyler
+// (siteye ait ya da ortak şablon). Yabancı anahtar denetimi RLS'i atlar;
+// denetlenmeseydi başka sitenin kalemi bütçeye bağlanabilirdi.
+func (r *Repository) CategoryVisible(ctx context.Context, propertyID, categoryID string) (bool, error) {
+	var ok bool
+	err := r.scope(propertyID).QueryRow(ctx, `
+		SELECT EXISTS (SELECT 1 FROM expense_categories
+		               WHERE id = $1 AND (property_id = $2 OR property_id IS NULL))`,
+		categoryID, propertyID).Scan(&ok)
+	return ok, err
+}
+
+// stateOrNotFound, 0 satır etkileyen durum geçişinde kaydın hiç olmadığını
+// (notFound) durumunun uygun olmadığından (state) ayırır.
+func (r *Repository) stateOrNotFound(ctx context.Context, propertyID, table, id string, notFound, state error) error {
+	ok, err := r.scope(propertyID).Exists(ctx, table, id)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return notFound
+	}
+	return state
+}
 
 // IsInvalidID, istemciden gelen bir kimliğin UUID biçiminde olmadığı için
 // veritabanının reddettiğini bildirir (PostgreSQL 22P02). Handler bunu

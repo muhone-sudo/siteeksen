@@ -22,6 +22,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -256,99 +257,53 @@ func main() {
 		})
 	}))
 
-	// --- IDENTITY SERVICE (8081) ---
-	proxyPaths(mux, newProxy(identityURL), "/api/v1/auth", "/api/v1/users", "/api/v1/residents")
-
-	// units yolu identity ile package servisi arasında paylaşılıyor
-	unitsProxy := newProxy(identityURL)
-	packageProxy := newProxy(packageURL)
-	mux.Handle("/api/v1/units", unitsProxy)
-	mux.Handle("/api/v1/units/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.Contains(r.URL.Path, "/packages") {
-			packageProxy.ServeHTTP(w, r)
-		} else {
-			unitsProxy.ServeHTTP(w, r)
-		}
-	}))
-
-	// --- FINANCE SERVICE (8082) ---
-	proxyPaths(mux, newProxy(financeURL), "/api/v1/finance", "/api/v1/assessments", "/api/v1/payments")
-
-	// --- COMMUNITY SERVICE (8083) ---
-	proxyPaths(mux, newProxy(communityURL), "/api/v1/announcements", "/api/v1/requests")
-
-	// --- IOT SERVICE (8084) ---
-	proxyPaths(mux, newProxy(iotURL), "/api/v1/sensors", "/api/v1/iot", "/api/v1/meters")
-
-	// --- NOTIFICATION SERVICE (8085) ---
-	proxyPaths(mux, newProxy(notificationURL), "/api/v1/notifications")
-
-	// --- EXPENSE SERVICE (8086) ---
-	proxyPaths(mux, newProxy(expenseURL), "/api/v1/expenses", "/api/v1/expense-categories")
-
-	// --- ASSET SERVICE (8087) ---
-	proxyPaths(mux, newProxy(assetURL), "/api/v1/assets", "/api/v1/asset-categories")
-
-	// --- BULLETIN SERVICE (8089) ---
-	proxyPaths(mux, newProxy(bulletinURL), "/api/v1/bulletin")
-
-	// --- CONTRACT SERVICE (8090) ---
-	proxyPaths(mux, newProxy(contractURL), "/api/v1/contracts")
-
-	// --- DOCUMENT SERVICE (8091) ---
-	proxyPaths(mux, newProxy(documentURL), "/api/v1/documents")
-
-	// --- ENERGY SERVICE (8092) ---
-	proxyPaths(mux, newProxy(energyURL), "/api/v1/energy")
-
-	// --- ESG SERVICE (8093) ---
-	proxyPaths(mux, newProxy(esgURL), "/api/v1/esg")
-
-	// --- INVENTORY SERVICE (8094) ---
-	proxyPaths(mux, newProxy(inventoryURL), "/api/v1/inventory", "/api/v1/stock-movements")
-
-	// --- MEETING SERVICE (8095) ---
-	proxyPaths(mux, newProxy(meetingURL), "/api/v1/meetings")
-
-	// --- NPS SERVICE (8096) ---
-	proxyPaths(mux, newProxy(npsURL), "/api/v1/nps")
-
-	// --- PACKAGE SERVICE (8097) ---
-	proxyPaths(mux, newProxy(packageURL), "/api/v1/packages", "/api/v1/carriers")
-
-	// --- PARKING SERVICE (8098) ---
-	proxyPaths(mux, newProxy(parkingURL), "/api/v1/parking", "/api/v1/vehicles",
-		"/api/v1/parking-zones", "/api/v1/parking-logs", "/api/v1/plate-recognition")
-
-	// --- PATROL SERVICE (8099) ---
-	proxyPaths(mux, newProxy(patrolURL), "/api/v1/patrol", "/api/v1/patrol-routes", "/api/v1/patrol-sessions")
-
-	// --- PERSONNEL SERVICE (8100) ---
-	proxyPaths(mux, newProxy(personnelURL), "/api/v1/personnel", "/api/v1/employees",
-		"/api/v1/payroll", "/api/v1/leaves")
-
-	// --- RESERVATION SERVICE (8101) ---
-	proxyPaths(mux, newProxy(reservationURL), "/api/v1/reservations", "/api/v1/facilities")
-
-	// --- SETTINGS SERVICE (8102) ---
-	proxyPaths(mux, newProxy(settingsURL), "/api/v1/credentials")
-
-	// --- SMART COLLECTION SERVICE (8103) ---
-	proxyPaths(mux, newProxy(smartCollectionURL), "/api/v1/smart-collection", "/api/v1/collection")
-
-	// --- SURVEY SERVICE (8104) ---
-	proxyPaths(mux, newProxy(surveyURL), "/api/v1/surveys", "/api/v1/my-surveys")
-
-	// --- VISITOR SERVICE (8105) ---
-	proxyPaths(mux, newProxy(visitorURL), "/api/v1/visitors")
-
-	// --- BANKING SERVICE (8106) ---
-	proxyPaths(mux, newProxy(bankingURL), "/api/v1/bank-accounts", "/api/v1/bank-transactions", "/api/v1/banking")
-
-	// --- GOVERNANCE SERVICE (8107) — KMK yönetişim süreçleri ---
-	// İşletme projesi (m.37), genel kurul (m.29-33), defterler (m.32/36), icra takibi (m.22).
-	// `meeting_wizard` stub'ının aksine bu servis gerçek veri katmanına bağlıdır.
-	proxyPaths(mux, newProxy(governanceURL), "/api/v1/governance")
+	// --- YÖNLENDİRME TABLOSU ---
+	//
+	// Her satır: servis adresi → o servisin GERÇEKTEN kaydettiği rota ön ekleri.
+	// Bu tablo elle tutulur ama DOĞRULANIR: backend/scripts/check-gateway-routes.py
+	// her servisin main.go'sundaki rotaları çözer ve (1) her rotanın burada bir ön
+	// eke düştüğünü, (2) doğru servise gittiğini, (3) ölü ön ek kalmadığını denetler
+	// (verify-stack.sh). Önceki sürümde ayarlar, devriye, ilan panosu, sayaç okuma,
+	// bildirim tercihleri ve modül özetleri hiç yönlendirilmiyordu; yalnızca
+	// servisler doğrudan sınandığı için bu fark edilmemişti.
+	routes := []struct {
+		url      string
+		prefixes []string
+	}{
+		{identityURL, []string{"/api/v1/auth", "/api/v1/users", "/api/v1/residents", "/api/v1/units"}},
+		{financeURL, []string{"/api/v1/finance"}},
+		{communityURL, []string{"/api/v1/announcements", "/api/v1/requests"}},
+		{iotURL, []string{"/api/v1/meters", "/api/v1/meter-readings", "/api/v1/consumption",
+			"/api/v1/sensors", "/api/v1/iot"}},
+		{notificationURL, []string{"/api/v1/notifications", "/api/v1/notification-preferences"}},
+		{expenseURL, []string{"/api/v1/expenses", "/api/v1/expense-categories"}},
+		{assetURL, []string{"/api/v1/assets", "/api/v1/assets-summary", "/api/v1/asset-categories"}},
+		{bulletinURL, []string{"/api/v1/bulletins", "/api/v1/bulletins-summary", "/api/v1/bulletin-comments"}},
+		{contractURL, []string{"/api/v1/contracts", "/api/v1/contracts-summary"}},
+		{documentURL, []string{"/api/v1/documents", "/api/v1/documents-summary"}},
+		{energyURL, []string{"/api/v1/energy"}},
+		{esgURL, []string{"/api/v1/esg"}},
+		{inventoryURL, []string{"/api/v1/inventory", "/api/v1/inventory-categories",
+			"/api/v1/inventory-movements", "/api/v1/inventory-summary"}},
+		{meetingURL, []string{"/api/v1/meetings", "/api/v1/action-items"}},
+		{npsURL, []string{"/api/v1/nps"}},
+		{packageURL, []string{"/api/v1/packages", "/api/v1/packages-summary"}},
+		{parkingURL, []string{"/api/v1/vehicles", "/api/v1/parking-zones", "/api/v1/parking-logs"}},
+		{patrolURL, []string{"/api/v1/patrols", "/api/v1/patrols-summary", "/api/v1/patrol-routes",
+			"/api/v1/patrol-checkpoints"}},
+		{personnelURL, []string{"/api/v1/employees", "/api/v1/leaves"}},
+		{reservationURL, []string{"/api/v1/reservations", "/api/v1/facilities"}},
+		{settingsURL, []string{"/api/v1/settings", "/api/v1/settings-history", "/api/v1/credentials",
+			"/api/v1/credentials-available-services"}},
+		{smartCollectionURL, []string{"/api/v1/collection"}},
+		{surveyURL, []string{"/api/v1/surveys"}},
+		{visitorURL, []string{"/api/v1/visitors"}},
+		{bankingURL, []string{"/api/v1/banking", "/api/v1/bank-accounts", "/api/v1/bank-transactions"}},
+		{governanceURL, []string{"/api/v1/governance"}},
+	}
+	for _, rt := range routes {
+		proxyPaths(mux, newProxy(rt.url), rt.prefixes...)
+	}
 
 	// --- TOPLU (aggregate) UÇLAR ---
 	// Bu uçlar birden çok servisten veri toplar. Hiçbir kaynağa ulaşılamazsa
@@ -380,31 +335,35 @@ func main() {
 }
 
 // registerDashboard, panel ana ekranının özet uçlarını kaydeder.
+//
+// DÜZELTME (2026-09-26): önceki sürüm servis yanıtlarını DÜZ DİZİ bekliyordu;
+// servisler ise {"data": [...]} döndürüyor. Sonuç: sakin, daire ve talep sayısı
+// HİÇBİR ZAMAN gelmiyor, hepsi "unavailable" listesinde görünüyordu. Tahsilat
+// özeti de var olmayan anahtarlardan (total_collected, collection_rate)
+// okunuyor ve sessizce boş kalıyordu — "unavailable" listesine bile girmiyordu.
 func registerDashboard(mux *http.ServeMux, identityURL, communityURL, financeURL string) {
 	mux.Handle("/api/v1/dashboard/stats", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		auth := r.Header.Get("Authorization")
 		stats := map[string]interface{}{}
 		var missing []unavailable
 
-		var residents []interface{}
-		if err := fetchJSON(identityURL+"/api/v1/residents", auth, &residents); err == nil {
-			stats["totalResidents"] = len(residents)
+		if list, err := fetchList(identityURL+"/api/v1/residents", auth); err == nil {
+			stats["totalResidents"] = len(list)
 		} else {
 			missing = append(missing, unavailable{"identity.residents", err.Error()})
 		}
 
-		var units []interface{}
-		if err := fetchJSON(identityURL+"/api/v1/units", auth, &units); err == nil {
-			stats["totalUnits"] = len(units)
+		if list, err := fetchList(identityURL+"/api/v1/units", auth); err == nil {
+			stats["totalUnits"] = len(list)
 		} else {
 			missing = append(missing, unavailable{"identity.units", err.Error()})
 		}
 
-		var requests []interface{}
-		if err := fetchJSON(communityURL+"/api/v1/requests", auth, &requests); err == nil {
+		if list, err := fetchList(communityURL+"/api/v1/requests", auth); err == nil {
 			open := 0
-			for _, v := range requests {
-				if m, ok := v.(map[string]interface{}); ok && m["status"] == "OPEN" {
+			for _, m := range list {
+				// Bekleyen = henüz çözülmemiş: açık ya da işlemde.
+				if st, _ := m["status"].(string); st == "OPEN" || st == "IN_PROGRESS" {
 					open++
 				}
 			}
@@ -413,14 +372,24 @@ func registerDashboard(mux *http.ServeMux, identityURL, communityURL, financeURL
 			missing = append(missing, unavailable{"community.requests", err.Error()})
 		}
 
-		// Tahsilat oranı ve dönem geliri yalnızca gerçek mali özetten gelir.
-		var overview map[string]interface{}
-		if err := fetchJSON(financeURL+"/api/v1/finance/assessments/overview", auth, &overview); err == nil {
-			if v, ok := overview["total_collected"]; ok {
-				stats["monthlyIncome"] = v
-			}
-			if v, ok := overview["collection_rate"]; ok {
-				stats["collectionRate"] = v
+		// Tahsilat: EN SON tahakkuk döneminin gerçek toplamları. Dönem yoksa
+		// alan yazılmaz ve nedeni söylenir — sıfır "tahsilat yapılmadı" demektir,
+		// "tahakkuk yok" ile karıştırılmamalı.
+		if list, err := fetchList(financeURL+"/api/v1/finance/assessments/overview", auth); err == nil {
+			if len(list) == 0 {
+				missing = append(missing, unavailable{"finance.assessments.overview",
+					"bu yıl için tahakkuk dönemi yok"})
+			} else {
+				latest := list[0]
+				for _, m := range list[1:] {
+					if p, _ := m["period"].(string); p > fmt.Sprint(latest["period"]) {
+						latest = m
+					}
+				}
+				stats["period"] = latest["period"]
+				stats["monthlyIncome"] = latest["collected_amount"]
+				stats["monthlyAssessed"] = latest["total_amount"]
+				stats["collectionRate"] = latest["rate"]
 			}
 		} else {
 			missing = append(missing, unavailable{"finance.assessments.overview", err.Error()})
@@ -434,30 +403,30 @@ func registerDashboard(mux *http.ServeMux, identityURL, communityURL, financeURL
 		})
 	}))
 
-	mux.Handle("/api/v1/dashboard/recent-payments", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		auth := r.Header.Get("Authorization")
-		var payments interface{}
-		if err := fetchJSON(financeURL+"/api/v1/finance/payments", auth, &payments); err != nil {
-			// Sessizce boş liste döndürmek "ödeme yok" anlamına gelir — bu yanlıştır.
-			writeJSON(w, http.StatusBadGateway, Response{
-				Success: false, Error: "Ödeme verisi alınamadı: " + err.Error(),
-			})
-			return
+	// Son hareketler: servis listesi olduğu gibi aktarılır ({success, data: [...]}).
+	// Önceden yanıt bir kez daha sarılıyor, istemci data.data okumak zorunda kalıyordu.
+	recent := func(url, what string) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			list, err := fetchList(url, r.Header.Get("Authorization"))
+			if err != nil {
+				// Sessizce boş liste döndürmek "kayıt yok" anlamına gelir — bu yanlıştır.
+				writeJSON(w, http.StatusBadGateway, Response{
+					Success: false, Error: what + " alınamadı: " + err.Error(),
+				})
+				return
+			}
+			limit := 5
+			if v, perr := strconv.Atoi(r.URL.Query().Get("limit")); perr == nil && v > 0 && v <= 50 {
+				limit = v
+			}
+			if len(list) > limit {
+				list = list[:limit]
+			}
+			writeJSON(w, http.StatusOK, Response{Success: true, Data: list})
 		}
-		writeJSON(w, http.StatusOK, Response{Success: true, Data: payments})
-	}))
-
-	mux.Handle("/api/v1/dashboard/recent-requests", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		auth := r.Header.Get("Authorization")
-		var requests interface{}
-		if err := fetchJSON(communityURL+"/api/v1/requests", auth, &requests); err != nil {
-			writeJSON(w, http.StatusBadGateway, Response{
-				Success: false, Error: "Talep verisi alınamadı: " + err.Error(),
-			})
-			return
-		}
-		writeJSON(w, http.StatusOK, Response{Success: true, Data: requests})
-	}))
+	}
+	mux.Handle("/api/v1/dashboard/recent-payments", recent(financeURL+"/api/v1/finance/payments", "Ödeme verisi"))
+	mux.Handle("/api/v1/dashboard/recent-requests", recent(communityURL+"/api/v1/requests", "Talep verisi"))
 
 	// Tanımlı olmayan /dashboard/* yolları: boş başarı yerine 404.
 	mux.Handle("/api/v1/dashboard/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -465,10 +434,14 @@ func registerDashboard(mux *http.ServeMux, identityURL, communityURL, financeURL
 	}))
 }
 
-func fetchJSON(url string, authHeader string, target interface{}) error {
+// fetchList, bir servisin liste ucunu çağırır ve {"data": [...]} sarmalayıcısını
+// açar. Servislerin tek liste sözleşmesi budur; "data": null boş liste sayılır.
+// 403 ayrıca belirtilir: rolü o listeyi görmeye yetmeyen kullanıcının panosunda
+// alanın neden boş olduğu anlaşılsın.
+func fetchList(url, authHeader string) ([]map[string]interface{}, error) {
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if authHeader != "" {
 		req.Header.Set("Authorization", authHeader)
@@ -476,28 +449,30 @@ func fetchJSON(url string, authHeader string, target interface{}) error {
 	client := &http.Client{Timeout: 5 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode == http.StatusNotImplemented {
-		return fmt.Errorf("kaynak henüz uygulanmadı (501)")
+	switch resp.StatusCode {
+	case http.StatusOK:
+	case http.StatusForbidden:
+		return nil, fmt.Errorf("bu veriyi görme yetkiniz yok (403)")
+	case http.StatusNotImplemented:
+		return nil, fmt.Errorf("kaynak henüz uygulanmadı (501)")
+	default:
+		return nil, fmt.Errorf("beklenmeyen durum kodu: %d", resp.StatusCode)
 	}
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("beklenmeyen durum kodu: %d", resp.StatusCode)
-	}
-
-	bodyBytes, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return err
+		return nil, err
 	}
-
-	// Servisler yanıtı {success, data} sarmalayıcısıyla döndürebiliyor.
 	var outer struct {
-		Success bool            `json:"success"`
-		Data    json.RawMessage `json:"data"`
+		Data []map[string]interface{} `json:"data"`
 	}
-	if err := json.Unmarshal(bodyBytes, &outer); err == nil && outer.Success && len(outer.Data) > 0 {
-		return json.Unmarshal(outer.Data, target)
+	if err := json.Unmarshal(body, &outer); err != nil {
+		return nil, fmt.Errorf("yanıt çözülemedi: %w", err)
 	}
-	return json.Unmarshal(bodyBytes, target)
+	if outer.Data == nil {
+		return []map[string]interface{}{}, nil
+	}
+	return outer.Data, nil
 }
