@@ -212,6 +212,30 @@ else
   bad "go test ./services/governance/service/..."; tail -15 /tmp/verify-quorum.log
 fi
 
+# Dağıtım dosyaları (compose, k8s, CI imajları, Dockerfile'lar) servis
+# listesinden sapmamalı. Önceden compose'da 18 servisin veritabanı ayarı yoktu,
+# 8'i süper kullanıcıyla bağlanıyordu; k8s ve CI 24 servisin çoğunu hiç
+# tanımıyordu. Üreteç tek kaynaktır; burada sapma yakalanır.
+if python3 "$SCRIPT_DIR/gen-deploy.py" --check >/tmp/verify-gendeploy.log 2>&1; then
+  ok "dağıtım dosyaları servis listesiyle tutarlı (gen-deploy --check)"
+else
+  bad "dağıtım dosyaları sapmış"; cat /tmp/verify-gendeploy.log | sed 's/^/      /'
+fi
+if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
+  if (cd "$SCRIPT_DIR/../.." && docker compose -f docker-compose.yml config -q) >/dev/null 2>&1; then
+    bad "compose gizli değerler verilmeden geçerli sayıldı (varsayılan parola var)"
+  else
+    ok "compose zorunlu gizli değerler olmadan açılmıyor (varsayılan parola yok)"
+  fi
+  if (cd "$SCRIPT_DIR/../.." && DB_PASSWORD=a APP_DB_PASSWORD=b IDENTITY_DB_PASSWORD=c \
+      JWT_SECRET=verify-secret-key-at-least-32-chars NEXTAUTH_SECRET=d PII_ENCRYPTION_KEY=e \
+      docker compose -f docker-compose.yml config -q) >/dev/null 2>&1; then
+    ok "compose gizli değerlerle geçerli"
+  else
+    bad "compose yapılandırması geçersiz"
+  fi
+fi
+
 step "1) Temiz PostgreSQL 16"
 docker rm -f "$CNAME" >/dev/null 2>&1
 docker run --rm -d --name "$CNAME" -e POSTGRES_PASSWORD="$PW" -e POSTGRES_DB=siteeksen \
@@ -228,6 +252,12 @@ PSQL="psql -h 127.0.0.1 -p ${DBPORT} -U siteeksen -d siteeksen -v ON_ERROR_STOP=
 
 step "2) Migration'lar (sıfırdan kurulum, cmd/migrate ile)"
 export DATABASE_URL="postgres://siteeksen:${PW}@127.0.0.1:${DBPORT}/siteeksen?sslmode=disable"
+# Rol parolaları: RLS SÜPER KULLANICIYI BAĞLAMAZ; servisler yetkisi sınırlı
+# rollerle bağlanır. Parola migration dosyasına yazılamaz (sürüm deposuna
+# girerdi); dağıtımda olduğu gibi `cmd/migrate` ortam değişkeninden atar.
+APPPW="verify-app-$(head -c 12 /dev/urandom | base64 | tr -d '/+=')"
+IDPW="verify-id-$(head -c 12 /dev/urandom | base64 | tr -d '/+=')"
+export APP_DB_PASSWORD="$APPPW" IDENTITY_DB_PASSWORD="$IDPW"
 if go run ./cmd/migrate -dir "$MIG_DIR" >/tmp/verify-mig.log 2>&1; then
   APPLIED=$(grep -c 'uygulandı:' /tmp/verify-mig.log)
   ok "cmd/migrate: $APPLIED migration uygulandı"
@@ -236,16 +266,18 @@ else
   echo "Migration zinciri kırık — sonraki adımlar atlanıyor"; exit 1
 fi
 
-# Uygulama rolüne parola ve giriş yetkisi ver.
-#
-# RLS SÜPER KULLANICIYI BAĞLAMAZ; uygulama süper kullanıcıyla bağlandığı sürece
-# politikalar hiç devreye girmez. Bu yüzden servisler `siteeksen_app` rolüyle
-# bağlanır. Parola migration dosyasına yazılamaz (sürüm deposuna girerdi),
-# kurulum adımında verilir — burada yapılan da budur.
-APPPW="verify-app-$(head -c 12 /dev/urandom | base64 | tr -d '/+=')"
-$PSQL -c "ALTER ROLE siteeksen_app LOGIN PASSWORD '$APPPW';" >/dev/null 2>&1 \
-  && ok "uygulama rolü (siteeksen_app) giriş yetkisi aldı" \
-  || bad "uygulama rolü hazırlanamadı"
+for R in siteeksen_app siteeksen_identity; do
+  grep -q "rol $R: giriş parolası atandı" /tmp/verify-mig.log \
+    && PGPASSWORD="$([ "$R" = siteeksen_app ] && echo "$APPPW" || echo "$IDPW")" \
+       psql -h 127.0.0.1 -p "${DBPORT}" -U "$R" -d siteeksen -t -A -c "SELECT 1;" >/dev/null 2>&1 \
+    && ok "cmd/migrate $R rolüne parola atadı ve rol giriş yapabiliyor" \
+    || bad "$R rolü hazırlanamadı (cmd/migrate rol ataması)"
+done
+# Süper kullanıcı olmadıkları doğrulanır: süper kullanıcı RLS'i atlar.
+SUPERS=$($PSQL -t -A -c "SELECT count(*) FROM pg_roles
+  WHERE rolname IN ('siteeksen_app','siteeksen_identity') AND (rolsuper OR rolbypassrls);")
+[ "$SUPERS" = "0" ] && ok "uygulama ve kimlik rolleri süper kullanıcı değil, RLS'i atlayamaz" \
+  || bad "$SUPERS rol RLS'i atlayabiliyor (rolsuper/rolbypassrls)"
 APPPSQL="psql -h 127.0.0.1 -p ${DBPORT} -U siteeksen_app -d siteeksen -v ON_ERROR_STOP=1 -q"
 
 # Sürüm tablosu gerçekten dolduruldu mu?
@@ -274,7 +306,11 @@ done
 
 step "4) Migration idempotency (tekrar uygulanabilirlik)"
 # 4a) Çalıştırıcı ikinci kez çağrıldığında hiçbir şey uygulamamalı
-if go run ./cmd/migrate -dir "$MIG_DIR" 2>&1 | grep -q 'güncel'; then
+# Çıktı önce dosyaya alınır: `| grep -q` ilk eşleşmede boruyu kapatır ve
+# çalıştırıcının sonraki satırları (rol ataması) SIGPIPE ile düşer; pipefail
+# altında bu, başarılı çalıştırmayı başarısız gösterirdi.
+go run ./cmd/migrate -dir "$MIG_DIR" >/tmp/verify-mig2.log 2>&1
+if grep -q 'güncel' /tmp/verify-mig2.log && ! grep -q 'uygulandı:' /tmp/verify-mig2.log; then
   ok "cmd/migrate tekrar çağrıldığında hiçbir şey uygulamıyor"
 else
   bad "cmd/migrate tekrar çağrıldığında migration uyguladı (sürüm takibi çalışmıyor)"
@@ -336,7 +372,9 @@ HS=$($PSQL -t -A -c "SELECT sum(value_numeric) FROM legal_parameters WHERE code 
 [ "$HS" = "1.000000" ] && ok "ısıtma gider payları toplamı 1 (%70 + %30)" || bad "ısıtma payları toplamı $HS"
 
 step "6) identity-service uçtan uca"
-DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_app DB_PASSWORD="$APPPW" DB_NAME=siteeksen \
+# Kimlik servisi KENDİ rolüyle bağlanır (migration 025): dizin tablolarının
+# tamamını görür, site verisine hiç erişemez.
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_identity DB_PASSWORD="$IDPW" DB_NAME=siteeksen \
 DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${SVCPORT} \
   go run ./services/identity >/tmp/verify-identity.log 2>&1 &
 SVC_PID=$!
@@ -4572,24 +4610,132 @@ else
 fi
 kill_tree "$GOV_PID"
 
-# 10) Toplam durum — dürüstçe raporlanır
-RLSCOUNT=$($PSQL -t -A -c "SELECT count(*) FROM rls_enabled_tables;")
-[ "$RLSCOUNT" = "62" ] && ok "RLS toplam 62 tabloda açık (7 + 19 + 4 + 10 + 22 dilim)" \
-  || bad "beklenmedik RLS tablo sayısı: $RLSCOUNT (beklenen 62)"
+step "36) Kimlik rolü, dizin tablolarında RLS, en az yetki (FAZ 2.6 son dilim)"
+# Önceki durum: 24 servisin ortak rolü users/units/resident_units/property_roles
+# tablolarının TAMAMINI okuyup yazabiliyordu — bütün sitelerin telefon, e-posta
+# ve PAROLA ÖZETİ dahil. Jeton iptal kayıtlarını ve denetim izini silebiliyordu.
+# Artık kimlik servisi ayrı ve dar yetkili bir rolle bağlanır; diğer servisler
+# dizin tablolarını yalnızca okur, yalnızca aktif siteyi görür.
+appfails() { # $1 = SQL, $2 = kapsam (boşsa kapsamsız). Başarısız olursa 0 döner.
+  local pre=""; [ -n "${2:-}" ] && pre="SET LOCAL app.property_id = '$2';"
+  ! PGPASSWORD="$APPPW" psql -h 127.0.0.1 -p "${DBPORT}" -U siteeksen_app -d siteeksen \
+      -v ON_ERROR_STOP=1 -q -c "BEGIN; $pre $1; ROLLBACK;" >/dev/null 2>&1
+}
+idfails() {
+  ! PGPASSWORD="$IDPW" psql -h 127.0.0.1 -p "${DBPORT}" -U siteeksen_identity -d siteeksen \
+      -v ON_ERROR_STOP=1 -q -c "$1" >/dev/null 2>&1
+}
+qid() {
+  PGPASSWORD="$IDPW" psql -h 127.0.0.1 -p "${DBPORT}" -U siteeksen_identity -d siteeksen \
+    -t -A -c "$1" 2>/dev/null | tail -1
+}
 
-# 10b) DİLİM DIŞINDA KALANLAR: kimlik/dizin tabloları HÂLÂ kapalı olmalı.
-#      identity-service bir kullanıcının BÜTÜN sitelerini listeler (site seçimi);
-#      tek site kapsamı bu tablolara uymaz ve açmak girişi bozar.
-for T in users properties units resident_units property_roles; do
-  N=$($PSQL -t -A -c "SELECT count(*) FROM rls_enabled_tables WHERE table_name='$T';")
-  [ "$N" = "0" ] && ok "$T bilerek RLS dışında (kimlik/dizin tablosu; ayrı tasarım gerekiyor)" \
-    || bad "$T erken açılmış — site seçimi ve giriş bozulur"
+# 1) Dizin tablolarında RLS: kapsam politikası + kimlik rolü politikası
+for T in users properties units blocks resident_units property_roles; do
+  ROW=$($PSQL -t -A -c "SELECT rls_enabled || '/' || rls_forced || '/' || policy_count
+    FROM rls_enabled_tables WHERE table_name='$T';")
+  case "$ROW" in
+    true/true/2|t/t/2) ok "RLS açık: $T (site kapsamı + kimlik rolü politikası)" ;;
+    *)                 bad "RLS eksik: $T ($ROW)" ;;
+  esac
 done
+
+# 2) Parola özeti ve TCKN uygulama rolüne HİÇ açık değil (sütun yetkisi)
+for C in password_hash tc_hash tc_encrypted phone_encrypted; do
+  appfails "SELECT $C FROM users LIMIT 1" "$DEMO_PROPERTY" \
+    && ok "uygulama rolü users.$C okuyamıyor" || bad "uygulama rolü users.$C OKUYABİLİYOR"
+done
+N=$(qscoped "SELECT count(*) FROM users;")
+[ "${N:-0}" -ge 2 ] && ok "uygulama rolü izinli sütunlarla kullanıcıları okuyabiliyor ($N kişi)" \
+  || bad "uygulama rolü kullanıcıları okuyamıyor: $N (servisler ad gösteremez)"
+
+# 3) Kapsamsız sorgu dizin tablolarından hiçbir şey döndürmemeli
+DLEAK=0
+for T in users properties units blocks resident_units property_roles; do
+  N=$(qapp "SELECT count(*) FROM $T;")
+  [ "$N" = "0" ] || { DLEAK=$((DLEAK+1)); echo "     sızdırdı: $T -> $N"; }
+done
+[ "$DLEAK" = "0" ] && ok "kapsamsız sorgu dizin tablolarının hiçbirinden satır döndürmüyor" \
+  || bad "$DLEAK dizin tablosu kapsamsız sorguda satır döndürdü"
+
+# 4) Başka sitenin kapsamında demo sitenin kişileri görünmemeli
+N=$(qscoped "SELECT count(*) FROM users WHERE phone LIKE '%5551234567' OR phone LIKE '%5559876543';" "$OTHERPROP")
+[ "$N" = "0" ] && ok "başka sitenin kapsamında demo sitenin sakinleri/yöneticisi görünmüyor" \
+  || bad "başka siteden demo sitenin kişileri görünüyor: $N"
+N=$(qscoped "SELECT count(*) FROM users WHERE id='44444444-4444-4444-4444-444444444404';" "$OTHERPROP")
+[ "$N" = "1" ] && ok "kendi sitesinin yöneticisi o sitenin kapsamında görünüyor" \
+  || bad "diğer sitenin yöneticisi kendi kapsamında görünmüyor: $N"
+N=$(qscoped "SELECT count(*) FROM units;" "$OTHERPROP")
+[ "$N" = "0" ] && ok "başka sitenin kapsamında demo sitenin daireleri görünmüyor" \
+  || bad "başka siteden $N daire görünüyor"
+N=$(qscoped "SELECT count(*) FROM properties;")
+[ "$N" = "1" ] && ok "uygulama rolü yalnızca aktif siteyi görüyor (properties: 1)" \
+  || bad "uygulama rolü $N site görüyor"
+
+# 5) Uygulama rolü dizin tablolarına YAZAMAZ
+appfails "UPDATE property_roles SET role='MANAGER'" "$DEMO_PROPERTY" \
+  && ok "uygulama rolü site rolü değiştiremiyor" || bad "uygulama rolü property_roles YAZABİLDİ"
+appfails "UPDATE units SET share_ratio = share_ratio + 1" "$DEMO_PROPERTY" \
+  && ok "uygulama rolü arsa payı değiştiremiyor" || bad "uygulama rolü units YAZABİLDİ"
+appfails "INSERT INTO users (first_name,last_name,phone,password_hash) VALUES ('x','y','+900000000001','x')" "$DEMO_PROPERTY" \
+  && ok "uygulama rolü kullanıcı oluşturamıyor" || bad "uygulama rolü users'a YAZABİLDİ"
+
+# 6) Jeton iptali ve denetim izi geri alınamaz / silinemez
+appfails "DELETE FROM revoked_tokens" \
+  && ok "uygulama rolü jeton iptal kaydını silemiyor (çıkış geri açılamaz)" \
+  || bad "uygulama rolü revoked_tokens SİLEBİLDİ"
+appfails "DELETE FROM user_token_invalidation" \
+  && ok "uygulama rolü toplu oturum iptalini silemiyor" || bad "uygulama rolü user_token_invalidation SİLEBİLDİ"
+N=$(qapp "SELECT count(*) FROM revoked_tokens;")
+[ -n "$N" ] && ok "uygulama rolü jeton iptal kaydını okuyabiliyor (kontrol için gerekli)" \
+  || bad "uygulama rolü revoked_tokens okuyamıyor — iptal kontrolü çalışmaz"
+appfails "DELETE FROM audit_logs" && appfails "SELECT count(*) FROM audit_logs" \
+  && ok "uygulama rolü denetim izini okuyamıyor ve silemiyor (yalnızca ekler)" \
+  || bad "uygulama rolü audit_logs okuyabiliyor ya da silebiliyor"
+AUD=$($PSQL -t -A -c "SELECT count(*) FROM audit_logs WHERE created_at > now() - interval '1 hour';")
+[ "${AUD:-0}" -ge 1 ] && ok "servisler denetim izine yazmaya devam ediyor ($AUD kayıt)" \
+  || bad "denetim izine yazılmamış — INSERT yetkisi de gitmiş olabilir"
+appfails "UPDATE legal_parameters SET value_numeric = 0" \
+  && ok "uygulama rolü mevzuat parametresini değiştiremiyor" || bad "uygulama rolü legal_parameters YAZABİLDİ"
+for T in tenants invoices usage_metrics schema_migrations; do
+  appfails "SELECT count(*) FROM $T" && ok "uygulama rolü platform tablosuna erişemiyor: $T" \
+    || bad "uygulama rolü $T okuyabiliyor"
+done
+
+# 7) Kimlik rolü SİTE VERİSİNE erişemez; dizini bütünüyle görür
+for T in employees monthly_assessments documents payments notifications; do
+  idfails "SELECT count(*) FROM $T" && ok "kimlik rolü site verisine erişemiyor: $T" \
+    || bad "kimlik rolü $T OKUYABİLİYOR"
+done
+N=$(qid "SELECT count(*) FROM users;")
+[ "${N:-0}" -ge 4 ] && ok "kimlik rolü bütün kullanıcıları görüyor ($N) — giriş ve site seçimi için" \
+  || bad "kimlik rolü kullanıcıları göremiyor: $N"
+N=$(qid "SELECT count(*) FROM properties;")
+[ "${N:-0}" -ge 2 ] && ok "kimlik rolü bütün siteleri görüyor ($N)" || bad "kimlik rolü siteleri göremiyor: $N"
+
+# 8) Kullanılmayan tablolar da korumalı doğar (migration 026)
+for T in accountability_reports audit_reports bank_accounts bank_transactions energy_analytics \
+         governing_terms management_staff meetings chart_of_accounts consumption_tariffs \
+         request_categories expense_invoices request_comments; do
+  ROW=$($PSQL -t -A -c "SELECT rls_enabled || '/' || rls_forced FROM rls_enabled_tables WHERE table_name='$T';")
+  case "$ROW" in true/true|t/t) : ;; *) bad "kullanılmayan tablo korumasız: $T ($ROW)" ;; esac
+done
+ok "kullanılmayan 13 site tablosu RLS ile korunuyor"
+
+# 9) Toplam durum — RLS DIŞINDA KALAN her tablo bilinçli ve gerekçeli olmalı
+RLSCOUNT=$($PSQL -t -A -c "SELECT count(*) FROM rls_enabled_tables;")
+[ "$RLSCOUNT" = "81" ] && ok "RLS toplam 81 tabloda açık" \
+  || bad "beklenmedik RLS tablo sayısı: $RLSCOUNT (beklenen 81)"
 NOTRLS=$($PSQL -t -A -c "SELECT string_agg(t.table_name, ' ' ORDER BY t.table_name)
   FROM information_schema.tables t
   WHERE t.table_schema='public' AND t.table_type='BASE TABLE'
     AND t.table_name NOT IN (SELECT table_name FROM rls_enabled_tables);")
-ok "RLS dışındaki tablolar: $NOTRLS"
+# audit_logs: yalnızca ekleme · legal_parameters: salt-okur, platform geneli
+# revoked_tokens / user_token_invalidation: salt-okur, kişi bazlı (site değil)
+# tenants / invoices / usage_metrics / schema_migrations: uygulama rolüne kapalı
+EXPECTED="audit_logs invoices legal_parameters revoked_tokens schema_migrations tenants usage_metrics user_token_invalidation"
+[ "$NOTRLS" = "$EXPECTED" ] && ok "RLS dışındaki 8 tablonun her biri gerekçeli: $NOTRLS" \
+  || bad "RLS dışında beklenmeyen tablo var: '$NOTRLS' (beklenen: '$EXPECTED')"
 
 step "SONUÇ"
 echo "  Geçen: $PASS   Başarısız: $FAIL"

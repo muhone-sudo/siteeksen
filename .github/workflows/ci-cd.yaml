@@ -197,16 +197,96 @@ jobs:
     strategy:
       matrix:
         include:
+          # BEGIN gen-deploy: imajlar
+          # Bu dosya backend/scripts/gen-deploy.py ile ÜRETİLİR — elle düzenlemeyin.
           - name: identity-service
+            context: ./backend
             dockerfile: services/identity/Dockerfile
           - name: finance-service
+            context: ./backend
             dockerfile: services/finance/Dockerfile
           - name: community-service
+            context: ./backend
             dockerfile: services/community/Dockerfile
+          - name: iot-service
+            context: ./backend
+            dockerfile: services/iot/Dockerfile
+          - name: notification-service
+            context: ./backend
+            dockerfile: services/notification/Dockerfile
+          - name: expense-service
+            context: ./backend
+            dockerfile: services/expense/Dockerfile
+          - name: asset-service
+            context: ./backend
+            dockerfile: services/asset/Dockerfile
+          - name: bulletin-service
+            context: ./backend
+            dockerfile: services/bulletin/Dockerfile
+          - name: contract-service
+            context: ./backend
+            dockerfile: services/contract/Dockerfile
+          - name: document-service
+            context: ./backend
+            dockerfile: services/document/Dockerfile
+          - name: energy-service
+            context: ./backend
+            dockerfile: services/energy_analytics/Dockerfile
+          - name: esg-service
+            context: ./backend
+            dockerfile: services/esg/Dockerfile
+          - name: inventory-service
+            context: ./backend
+            dockerfile: services/inventory/Dockerfile
+          - name: meeting-service
+            context: ./backend
+            dockerfile: services/meeting_wizard/Dockerfile
+          - name: nps-service
+            context: ./backend
+            dockerfile: services/nps/Dockerfile
+          - name: package-service
+            context: ./backend
+            dockerfile: services/package/Dockerfile
+          - name: parking-service
+            context: ./backend
+            dockerfile: services/parking/Dockerfile
+          - name: patrol-service
+            context: ./backend
+            dockerfile: services/patrol/Dockerfile
+          - name: personnel-service
+            context: ./backend
+            dockerfile: services/personnel/Dockerfile
+          - name: reservation-service
+            context: ./backend
+            dockerfile: services/reservation/Dockerfile
+          - name: settings-service
+            context: ./backend
+            dockerfile: services/settings/Dockerfile
+          - name: smart-collection-service
+            context: ./backend
+            dockerfile: services/smart_collection/Dockerfile
+          - name: survey-service
+            context: ./backend
+            dockerfile: services/survey/Dockerfile
+          - name: visitor-service
+            context: ./backend
+            dockerfile: services/visitor/Dockerfile
+          - name: banking-service
+            context: ./backend
+            dockerfile: services/banking/Dockerfile
+          - name: governance-service
+            context: ./backend
+            dockerfile: services/governance/Dockerfile
           - name: gateway
+            context: ./backend
             dockerfile: cmd/gateway/Dockerfile
           - name: migrate
+            context: ./backend
             dockerfile: cmd/migrate/Dockerfile
+          - name: admin-panel
+            context: ./admin
+            dockerfile: Dockerfile
+          # END gen-deploy: imajlar
     steps:
       - uses: actions/checkout@v4
 
@@ -220,15 +300,20 @@ jobs:
       - name: Build and push ${{ matrix.name }}
         uses: docker/build-push-action@v5
         with:
-          context: ./backend
-          file: ./backend/${{ matrix.dockerfile }}
+          context: ${{ matrix.context }}
+          file: ${{ matrix.context }}/${{ matrix.dockerfile }}
           push: true
+          # Yalnızca admin paneli kullanır: tarayıcıya giden API adresi derleme
+          # anında gömülür (Next.js NEXT_PUBLIC_*). Diğer imajlar yok sayar.
+          build-args: |
+            NEXT_PUBLIC_API_URL=https://api.siteeksen.com/api/v1
           tags: |
             ${{ env.IMAGE_PREFIX }}/${{ matrix.name }}:latest
             ${{ env.IMAGE_PREFIX }}/${{ matrix.name }}:${{ github.sha }}
 
-      # NOT: Mock (501 dönen) servislerin imajı bilerek yayınlanmıyor.
-      # Gerçek veri katmanına bağlanan her servis bu listeye eklenir.
+      # Liste backend/scripts/gen-deploy.py'den üretilir; 26 servisin tamamı,
+      # gateway, migrate ve admin paneli. 501 dönen iki servis (banka, toplantı
+      # sihirbazı) da yayınlanır: gateway'in 502 yerine GEREKÇELİ 501 dönmesi için.
 
   # ------------------------------------------------------------------
   # Dağıtım
@@ -262,6 +347,17 @@ jobs:
           echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > ~/.kube/config
           chmod 600 ~/.kube/config
 
+      # Sıra önemlidir: migrate işi şemayı günceller ve servis rollerinin
+      # parolasını atar. Bitmeden açılan servis ya eski şemayla çalışır ya da
+      # veritabanına hiç bağlanamaz. Job tanımı değiştirilemez olduğu için her
+      # dağıtımda silinip yeniden yaratılır.
+      - name: Migrate
+        if: env.skip != 'true'
+        run: |
+          kubectl delete job siteeksen-migrate --ignore-not-found
+          kubectl apply -f k8s/migrate-job.yaml
+          kubectl wait --for=condition=complete job/siteeksen-migrate --timeout=600s
+
       - name: Deploy to Kubernetes
         if: env.skip != 'true'
         run: |
@@ -271,6 +367,34 @@ jobs:
       - name: Wait for rollout
         if: env.skip != 'true'
         run: |
+          # BEGIN gen-deploy: rollout
+          # Bu dosya backend/scripts/gen-deploy.py ile ÜRETİLİR — elle düzenlemeyin.
           kubectl rollout status deployment/identity-service --timeout=300s
           kubectl rollout status deployment/finance-service --timeout=300s
+          kubectl rollout status deployment/community-service --timeout=300s
+          kubectl rollout status deployment/iot-service --timeout=300s
+          kubectl rollout status deployment/notification-service --timeout=300s
+          kubectl rollout status deployment/expense-service --timeout=300s
+          kubectl rollout status deployment/asset-service --timeout=300s
+          kubectl rollout status deployment/bulletin-service --timeout=300s
+          kubectl rollout status deployment/contract-service --timeout=300s
+          kubectl rollout status deployment/document-service --timeout=300s
+          kubectl rollout status deployment/energy-service --timeout=300s
+          kubectl rollout status deployment/esg-service --timeout=300s
+          kubectl rollout status deployment/inventory-service --timeout=300s
+          kubectl rollout status deployment/meeting-service --timeout=300s
+          kubectl rollout status deployment/nps-service --timeout=300s
+          kubectl rollout status deployment/package-service --timeout=300s
+          kubectl rollout status deployment/parking-service --timeout=300s
+          kubectl rollout status deployment/patrol-service --timeout=300s
+          kubectl rollout status deployment/personnel-service --timeout=300s
+          kubectl rollout status deployment/reservation-service --timeout=300s
+          kubectl rollout status deployment/settings-service --timeout=300s
+          kubectl rollout status deployment/smart-collection-service --timeout=300s
+          kubectl rollout status deployment/survey-service --timeout=300s
+          kubectl rollout status deployment/visitor-service --timeout=300s
+          kubectl rollout status deployment/banking-service --timeout=300s
+          kubectl rollout status deployment/governance-service --timeout=300s
+          kubectl rollout status deployment/gateway --timeout=300s
           kubectl rollout status deployment/admin-panel --timeout=300s
+          # END gen-deploy: rollout

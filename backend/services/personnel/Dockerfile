@@ -1,21 +1,22 @@
+# personnel-service — Bu dosya backend/scripts/gen-deploy.py ile ÜRETİLİR — elle düzenlemeyin.
+#
+# Root olmayan kullanıcıyla çalışır; ikili, kaynak kodu içermeyen küçük bir
+# imajdadır. Port ve GIN_MODE burada sabitlenir; gizli değerler çalışma
+# anında ortam değişkeniyle verilir (imaja GİRMEZ).
 FROM golang:1.24-alpine AS builder
-
-WORKDIR /app
-
+WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
-
 COPY . .
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/app ./services/personnel
 
-RUN CGO_ENABLED=0 GOOS=linux go build -o /personnel-service ./services/personnel
-
-FROM alpine:3.19
-
-RUN apk --no-cache add ca-certificates tzdata
-
+FROM alpine:3.20
+RUN apk --no-cache add ca-certificates tzdata && addgroup -S app && adduser -S -G app -u 10001 app
 WORKDIR /app
-
-COPY --from=builder /personnel-service .
-RUN chmod +x ./personnel-service
-
-CMD ["./personnel-service"]
+COPY --from=builder /out/app /app/personnel-service
+USER app
+ENV PORT=8100 GIN_MODE=release
+EXPOSE 8100
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+  CMD wget -qO- http://127.0.0.1:8100/health >/dev/null || exit 1
+ENTRYPOINT ["/app/personnel-service"]

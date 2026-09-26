@@ -1,0 +1,58 @@
+# Bu dosya backend/scripts/gen-deploy.py ile ÜRETİLİR — elle düzenlemeyin.
+#
+# Beklenen gizli değerler (kubectl create secret generic ...):
+#   db-admin      : host, password           → yalnızca migrate işi (şema sahibi)
+#   db-app        : password                 → siteeksen_app (23 servis)
+#   db-identity   : password                 → siteeksen_identity (kimlik servisi)
+#   app-secrets   : jwt-secret, nextauth-secret, pii-encryption-key
+#   storage       : endpoint, region, bucket, access-key-id, secret-access-key
+#
+# Sıra: önce k8s/migrate-job.yaml tamamlanmalı (şemayı günceller ve rol
+# parolalarını atar), sonra bu dosya. CI bu sırayı uygular.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: siteeksen-migrate
+spec:
+  backoffLimit: 1
+  ttlSecondsAfterFinished: 86400
+  template:
+    spec:
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+      containers:
+        - name: migrate
+          image: ghcr.io/siteeksen/migrate:latest
+          env:
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: db-admin
+                  key: host
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_USER
+              value: "siteeksen"
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-admin
+                  key: password
+            - name: DB_NAME
+              value: "siteeksen"
+            - name: DB_SSLMODE
+              value: "require"
+            - name: APP_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-app
+                  key: password
+            - name: IDENTITY_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-identity
+                  key: password
+            - name: SEED_DEMO_DATA
+              value: "false"

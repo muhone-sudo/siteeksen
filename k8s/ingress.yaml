@@ -1,55 +1,36 @@
+# Bu dosya backend/scripts/gen-deploy.py ile ÜRETİLİR — elle düzenlemeyin.
+#
+# API'nin TEK giriş kapısı gateway'dir: kimlik doğrulama, istemciden gelen
+# kimlik başlıklarının silinmesi, CORS ve istek kimliği orada yapılır.
+# Servisler doğrudan yayınlanmaz (önceki sürüm identity/finance'i gateway'i
+# atlayarak ve yanlış yol önekiyle — /v1 yerine /api/v1 — yayınlıyordu).
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: siteeksen-ingress
   annotations:
-    kubernetes.io/ingress.class: nginx
     cert-manager.io/cluster-issuer: letsencrypt-prod
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
-    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
-    nginx.ingress.kubernetes.io/rate-limit: "100"
-    nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+    nginx.ingress.kubernetes.io/proxy-body-size: "25m"
+    nginx.ingress.kubernetes.io/limit-rps: "20"
 spec:
+  ingressClassName: nginx
   tls:
     - hosts:
         - api.siteeksen.com
         - admin.siteeksen.com
       secretName: siteeksen-tls
   rules:
-    # API Gateway
     - host: api.siteeksen.com
       http:
         paths:
-          - path: /v1/auth
+          - path: /
             pathType: Prefix
             backend:
               service:
-                name: identity-service
+                name: gateway
                 port:
                   number: 80
-          - path: /v1/users
-            pathType: Prefix
-            backend:
-              service:
-                name: identity-service
-                port:
-                  number: 80
-          - path: /v1/finance
-            pathType: Prefix
-            backend:
-              service:
-                name: finance-service
-                port:
-                  number: 80
-          - path: /v1/payments
-            pathType: Prefix
-            backend:
-              service:
-                name: finance-service
-                port:
-                  number: 80
-
-    # Admin Panel
     - host: admin.siteeksen.com
       http:
         paths:
@@ -74,4 +55,4 @@ spec:
     solvers:
       - http01:
           ingress:
-            class: nginx
+            ingressClassName: nginx

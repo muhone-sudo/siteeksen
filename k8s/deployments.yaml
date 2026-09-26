@@ -1,9 +1,23 @@
+# Bu dosya backend/scripts/gen-deploy.py ile ÜRETİLİR — elle düzenlemeyin.
+#
+# Beklenen gizli değerler (kubectl create secret generic ...):
+#   db-admin      : host, password           → yalnızca migrate işi (şema sahibi)
+#   db-app        : password                 → siteeksen_app (23 servis)
+#   db-identity   : password                 → siteeksen_identity (kimlik servisi)
+#   app-secrets   : jwt-secret, nextauth-secret, pii-encryption-key
+#   storage       : endpoint, region, bucket, access-key-id, secret-access-key
+#
+# Sıra: önce k8s/migrate-job.yaml tamamlanmalı (şemayı günceller ve rol
+# parolalarını atar), sonra bu dosya. CI bu sırayı uygular.
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: identity-service
   labels:
     app: identity-service
+  annotations:
+    siteeksen/not: "Kimlik, JWT, sakinler"
 spec:
   replicas: 2
   selector:
@@ -14,45 +28,47 @@ spec:
       labels:
         app: identity-service
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
       containers:
         - name: identity-service
           image: ghcr.io/siteeksen/identity-service:latest
           ports:
             - containerPort: 8081
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
           env:
             - name: DB_HOST
               valueFrom:
                 secretKeyRef:
-                  name: db-credentials
+                  name: db-admin
                   key: host
             - name: DB_PORT
               value: "5432"
+            - name: DB_NAME
+              value: "siteeksen"
+            - name: DB_SSLMODE
+              value: "require"
             - name: DB_USER
-              valueFrom:
-                secretKeyRef:
-                  name: db-credentials
-                  key: username
+              value: "siteeksen_identity"
             - name: DB_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: db-credentials
+                  name: db-identity
                   key: password
-            - name: DB_NAME
-              value: siteeksen
             - name: JWT_SECRET
               valueFrom:
                 secretKeyRef:
                   name: app-secrets
                   key: jwt-secret
-            - name: REDIS_URL
-              valueFrom:
-                secretKeyRef:
-                  name: redis-credentials
-                  key: url
           resources:
             requests:
-              memory: "128Mi"
-              cpu: "100m"
+              memory: "64Mi"
+              cpu: "50m"
             limits:
               memory: "256Mi"
               cpu: "500m"
@@ -88,6 +104,8 @@ metadata:
   name: finance-service
   labels:
     app: finance-service
+  annotations:
+    siteeksen/not: "Aidat, ödeme, gecikme tazminatı"
 spec:
   replicas: 2
   selector:
@@ -98,52 +116,47 @@ spec:
       labels:
         app: finance-service
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
       containers:
         - name: finance-service
           image: ghcr.io/siteeksen/finance-service:latest
           ports:
             - containerPort: 8082
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
           env:
             - name: DB_HOST
               valueFrom:
                 secretKeyRef:
-                  name: db-credentials
+                  name: db-admin
                   key: host
             - name: DB_PORT
               value: "5432"
+            - name: DB_NAME
+              value: "siteeksen"
+            - name: DB_SSLMODE
+              value: "require"
             - name: DB_USER
-              valueFrom:
-                secretKeyRef:
-                  name: db-credentials
-                  key: username
+              value: "siteeksen_app"
             - name: DB_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: db-credentials
+                  name: db-app
                   key: password
-            - name: DB_NAME
-              value: siteeksen
             - name: JWT_SECRET
               valueFrom:
                 secretKeyRef:
                   name: app-secrets
                   key: jwt-secret
-            - name: IYZICO_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: iyzico-credentials
-                  key: api-key
-            - name: IYZICO_SECRET_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: iyzico-credentials
-                  key: secret-key
-            - name: IYZICO_BASE_URL
-              value: "https://api.iyzipay.com"
           resources:
             requests:
-              memory: "128Mi"
-              cpu: "100m"
+              memory: "64Mi"
+              cpu: "50m"
             limits:
               memory: "256Mi"
               cpu: "500m"
@@ -153,6 +166,12 @@ spec:
               port: 8082
             initialDelaySeconds: 10
             periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8082
+            initialDelaySeconds: 5
+            periodSeconds: 10
 ---
 apiVersion: v1
 kind: Service
@@ -165,6 +184,2274 @@ spec:
     - protocol: TCP
       port: 80
       targetPort: 8082
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: community-service
+  labels:
+    app: community-service
+  annotations:
+    siteeksen/not: "Talepler ve duyurular"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: community-service
+  template:
+    metadata:
+      labels:
+        app: community-service
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+      containers:
+        - name: community-service
+          image: ghcr.io/siteeksen/community-service:latest
+          ports:
+            - containerPort: 8083
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          env:
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: db-admin
+                  key: host
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_NAME
+              value: "siteeksen"
+            - name: DB_SSLMODE
+              value: "require"
+            - name: DB_USER
+              value: "siteeksen_app"
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-app
+                  key: password
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: jwt-secret
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8083
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8083
+            initialDelaySeconds: 5
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: community-service
+spec:
+  selector:
+    app: community-service
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8083
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: iot-service
+  labels:
+    app: iot-service
+  annotations:
+    siteeksen/not: "Sayaç ve ısı payı"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: iot-service
+  template:
+    metadata:
+      labels:
+        app: iot-service
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+      containers:
+        - name: iot-service
+          image: ghcr.io/siteeksen/iot-service:latest
+          ports:
+            - containerPort: 8084
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          env:
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: db-admin
+                  key: host
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_NAME
+              value: "siteeksen"
+            - name: DB_SSLMODE
+              value: "require"
+            - name: DB_USER
+              value: "siteeksen_app"
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-app
+                  key: password
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: jwt-secret
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8084
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8084
+            initialDelaySeconds: 5
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: iot-service
+spec:
+  selector:
+    app: iot-service
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8084
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification-service
+  labels:
+    app: notification-service
+  annotations:
+    siteeksen/not: "Bildirim merkezi"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: notification-service
+  template:
+    metadata:
+      labels:
+        app: notification-service
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+      containers:
+        - name: notification-service
+          image: ghcr.io/siteeksen/notification-service:latest
+          ports:
+            - containerPort: 8085
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          env:
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: db-admin
+                  key: host
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_NAME
+              value: "siteeksen"
+            - name: DB_SSLMODE
+              value: "require"
+            - name: DB_USER
+              value: "siteeksen_app"
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-app
+                  key: password
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: jwt-secret
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8085
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8085
+            initialDelaySeconds: 5
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: notification-service
+spec:
+  selector:
+    app: notification-service
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8085
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: expense-service
+  labels:
+    app: expense-service
+  annotations:
+    siteeksen/not: "Giderler"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: expense-service
+  template:
+    metadata:
+      labels:
+        app: expense-service
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+      containers:
+        - name: expense-service
+          image: ghcr.io/siteeksen/expense-service:latest
+          ports:
+            - containerPort: 8086
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          env:
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: db-admin
+                  key: host
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_NAME
+              value: "siteeksen"
+            - name: DB_SSLMODE
+              value: "require"
+            - name: DB_USER
+              value: "siteeksen_app"
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-app
+                  key: password
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: jwt-secret
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8086
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8086
+            initialDelaySeconds: 5
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: expense-service
+spec:
+  selector:
+    app: expense-service
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8086
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: asset-service
+  labels:
+    app: asset-service
+  annotations:
+    siteeksen/not: "Demirbaş"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: asset-service
+  template:
+    metadata:
+      labels:
+        app: asset-service
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+      containers:
+        - name: asset-service
+          image: ghcr.io/siteeksen/asset-service:latest
+          ports:
+            - containerPort: 8087
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          env:
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: db-admin
+                  key: host
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_NAME
+              value: "siteeksen"
+            - name: DB_SSLMODE
+              value: "require"
+            - name: DB_USER
+              value: "siteeksen_app"
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-app
+                  key: password
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: jwt-secret
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8087
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8087
+            initialDelaySeconds: 5
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: asset-service
+spec:
+  selector:
+    app: asset-service
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8087
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bulletin-service
+  labels:
+    app: bulletin-service
+  annotations:
+    siteeksen/not: "İlan panosu"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: bulletin-service
+  template:
+    metadata:
+      labels:
+        app: bulletin-service
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+      containers:
+        - name: bulletin-service
+          image: ghcr.io/siteeksen/bulletin-service:latest
+          ports:
+            - containerPort: 8089
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          env:
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: db-admin
+                  key: host
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_NAME
+              value: "siteeksen"
+            - name: DB_SSLMODE
+              value: "require"
+            - name: DB_USER
+              value: "siteeksen_app"
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-app
+                  key: password
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: jwt-secret
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8089
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8089
+            initialDelaySeconds: 5
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bulletin-service
+spec:
+  selector:
+    app: bulletin-service
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8089
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: contract-service
+  labels:
+    app: contract-service
+  annotations:
+    siteeksen/not: "Sözleşmeler"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: contract-service
+  template:
+    metadata:
+      labels:
+        app: contract-service
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+      containers:
+        - name: contract-service
+          image: ghcr.io/siteeksen/contract-service:latest
+          ports:
+            - containerPort: 8090
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          env:
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: db-admin
+                  key: host
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_NAME
+              value: "siteeksen"
+            - name: DB_SSLMODE
+              value: "require"
+            - name: DB_USER
+              value: "siteeksen_app"
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-app
+                  key: password
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: jwt-secret
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8090
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8090
+            initialDelaySeconds: 5
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: contract-service
+spec:
+  selector:
+    app: contract-service
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8090
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: document-service
+  labels:
+    app: document-service
+  annotations:
+    siteeksen/not: "Belge arşivi"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: document-service
+  template:
+    metadata:
+      labels:
+        app: document-service
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+      containers:
+        - name: document-service
+          image: ghcr.io/siteeksen/document-service:latest
+          ports:
+            - containerPort: 8091
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          env:
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: db-admin
+                  key: host
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_NAME
+              value: "siteeksen"
+            - name: DB_SSLMODE
+              value: "require"
+            - name: DB_USER
+              value: "siteeksen_app"
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-app
+                  key: password
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: jwt-secret
+            - name: STORAGE_BACKEND
+              value: "s3"
+            - name: S3_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: storage
+                  key: endpoint
+            - name: S3_REGION
+              valueFrom:
+                secretKeyRef:
+                  name: storage
+                  key: region
+            - name: S3_BUCKET
+              valueFrom:
+                secretKeyRef:
+                  name: storage
+                  key: bucket
+            - name: S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: storage
+                  key: access-key-id
+            - name: S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: storage
+                  key: secret-access-key
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8091
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8091
+            initialDelaySeconds: 5
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: document-service
+spec:
+  selector:
+    app: document-service
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8091
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: energy-service
+  labels:
+    app: energy-service
+  annotations:
+    siteeksen/not: "Enerji analizi"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: energy-service
+  template:
+    metadata:
+      labels:
+        app: energy-service
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+      containers:
+        - name: energy-service
+          image: ghcr.io/siteeksen/energy-service:latest
+          ports:
+            - containerPort: 8092
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          env:
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: db-admin
+                  key: host
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_NAME
+              value: "siteeksen"
+            - name: DB_SSLMODE
+              value: "require"
+            - name: DB_USER
+              value: "siteeksen_app"
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-app
+                  key: password
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: jwt-secret
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8092
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8092
+            initialDelaySeconds: 5
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: energy-service
+spec:
+  selector:
+    app: energy-service
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8092
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: esg-service
+  labels:
+    app: esg-service
+  annotations:
+    siteeksen/not: "Karbon ayak izi"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: esg-service
+  template:
+    metadata:
+      labels:
+        app: esg-service
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+      containers:
+        - name: esg-service
+          image: ghcr.io/siteeksen/esg-service:latest
+          ports:
+            - containerPort: 8093
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          env:
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: db-admin
+                  key: host
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_NAME
+              value: "siteeksen"
+            - name: DB_SSLMODE
+              value: "require"
+            - name: DB_USER
+              value: "siteeksen_app"
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-app
+                  key: password
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: jwt-secret
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8093
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8093
+            initialDelaySeconds: 5
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: esg-service
+spec:
+  selector:
+    app: esg-service
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8093
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: inventory-service
+  labels:
+    app: inventory-service
+  annotations:
+    siteeksen/not: "Stok"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: inventory-service
+  template:
+    metadata:
+      labels:
+        app: inventory-service
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+      containers:
+        - name: inventory-service
+          image: ghcr.io/siteeksen/inventory-service:latest
+          ports:
+            - containerPort: 8094
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          env:
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: db-admin
+                  key: host
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_NAME
+              value: "siteeksen"
+            - name: DB_SSLMODE
+              value: "require"
+            - name: DB_USER
+              value: "siteeksen_app"
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-app
+                  key: password
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: jwt-secret
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8094
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8094
+            initialDelaySeconds: 5
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: inventory-service
+spec:
+  selector:
+    app: inventory-service
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8094
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: meeting-service
+  labels:
+    app: meeting-service
+  annotations:
+    siteeksen/not: "Yazılmadı — 501 ile governance'a yönlendirir"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: meeting-service
+  template:
+    metadata:
+      labels:
+        app: meeting-service
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+      containers:
+        - name: meeting-service
+          image: ghcr.io/siteeksen/meeting-service:latest
+          ports:
+            - containerPort: 8095
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          env:
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: db-admin
+                  key: host
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_NAME
+              value: "siteeksen"
+            - name: DB_SSLMODE
+              value: "require"
+            - name: DB_USER
+              value: "siteeksen_app"
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-app
+                  key: password
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: jwt-secret
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8095
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8095
+            initialDelaySeconds: 5
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: meeting-service
+spec:
+  selector:
+    app: meeting-service
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8095
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nps-service
+  labels:
+    app: nps-service
+  annotations:
+    siteeksen/not: "Memnuniyet (NPS)"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: nps-service
+  template:
+    metadata:
+      labels:
+        app: nps-service
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+      containers:
+        - name: nps-service
+          image: ghcr.io/siteeksen/nps-service:latest
+          ports:
+            - containerPort: 8096
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          env:
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: db-admin
+                  key: host
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_NAME
+              value: "siteeksen"
+            - name: DB_SSLMODE
+              value: "require"
+            - name: DB_USER
+              value: "siteeksen_app"
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-app
+                  key: password
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: jwt-secret
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8096
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8096
+            initialDelaySeconds: 5
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nps-service
+spec:
+  selector:
+    app: nps-service
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8096
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: package-service
+  labels:
+    app: package-service
+  annotations:
+    siteeksen/not: "Kargo"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: package-service
+  template:
+    metadata:
+      labels:
+        app: package-service
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+      containers:
+        - name: package-service
+          image: ghcr.io/siteeksen/package-service:latest
+          ports:
+            - containerPort: 8097
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          env:
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: db-admin
+                  key: host
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_NAME
+              value: "siteeksen"
+            - name: DB_SSLMODE
+              value: "require"
+            - name: DB_USER
+              value: "siteeksen_app"
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-app
+                  key: password
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: jwt-secret
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8097
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8097
+            initialDelaySeconds: 5
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: package-service
+spec:
+  selector:
+    app: package-service
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8097
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: parking-service
+  labels:
+    app: parking-service
+  annotations:
+    siteeksen/not: "Otopark"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: parking-service
+  template:
+    metadata:
+      labels:
+        app: parking-service
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+      containers:
+        - name: parking-service
+          image: ghcr.io/siteeksen/parking-service:latest
+          ports:
+            - containerPort: 8098
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          env:
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: db-admin
+                  key: host
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_NAME
+              value: "siteeksen"
+            - name: DB_SSLMODE
+              value: "require"
+            - name: DB_USER
+              value: "siteeksen_app"
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-app
+                  key: password
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: jwt-secret
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8098
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8098
+            initialDelaySeconds: 5
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: parking-service
+spec:
+  selector:
+    app: parking-service
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8098
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: patrol-service
+  labels:
+    app: patrol-service
+  annotations:
+    siteeksen/not: "Devriye"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: patrol-service
+  template:
+    metadata:
+      labels:
+        app: patrol-service
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+      containers:
+        - name: patrol-service
+          image: ghcr.io/siteeksen/patrol-service:latest
+          ports:
+            - containerPort: 8099
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          env:
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: db-admin
+                  key: host
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_NAME
+              value: "siteeksen"
+            - name: DB_SSLMODE
+              value: "require"
+            - name: DB_USER
+              value: "siteeksen_app"
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-app
+                  key: password
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: jwt-secret
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8099
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8099
+            initialDelaySeconds: 5
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: patrol-service
+spec:
+  selector:
+    app: patrol-service
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8099
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: personnel-service
+  labels:
+    app: personnel-service
+  annotations:
+    siteeksen/not: "Personel (TCKN/IBAN şifreli)"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: personnel-service
+  template:
+    metadata:
+      labels:
+        app: personnel-service
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+      containers:
+        - name: personnel-service
+          image: ghcr.io/siteeksen/personnel-service:latest
+          ports:
+            - containerPort: 8100
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          env:
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: db-admin
+                  key: host
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_NAME
+              value: "siteeksen"
+            - name: DB_SSLMODE
+              value: "require"
+            - name: DB_USER
+              value: "siteeksen_app"
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-app
+                  key: password
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: jwt-secret
+            - name: PII_ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: pii-encryption-key
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8100
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8100
+            initialDelaySeconds: 5
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: personnel-service
+spec:
+  selector:
+    app: personnel-service
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8100
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: reservation-service
+  labels:
+    app: reservation-service
+  annotations:
+    siteeksen/not: "Ortak alan rezervasyonu"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: reservation-service
+  template:
+    metadata:
+      labels:
+        app: reservation-service
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+      containers:
+        - name: reservation-service
+          image: ghcr.io/siteeksen/reservation-service:latest
+          ports:
+            - containerPort: 8101
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          env:
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: db-admin
+                  key: host
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_NAME
+              value: "siteeksen"
+            - name: DB_SSLMODE
+              value: "require"
+            - name: DB_USER
+              value: "siteeksen_app"
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-app
+                  key: password
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: jwt-secret
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8101
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8101
+            initialDelaySeconds: 5
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: reservation-service
+spec:
+  selector:
+    app: reservation-service
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8101
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: settings-service
+  labels:
+    app: settings-service
+  annotations:
+    siteeksen/not: "Site ayarları"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: settings-service
+  template:
+    metadata:
+      labels:
+        app: settings-service
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+      containers:
+        - name: settings-service
+          image: ghcr.io/siteeksen/settings-service:latest
+          ports:
+            - containerPort: 8102
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          env:
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: db-admin
+                  key: host
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_NAME
+              value: "siteeksen"
+            - name: DB_SSLMODE
+              value: "require"
+            - name: DB_USER
+              value: "siteeksen_app"
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-app
+                  key: password
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: jwt-secret
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8102
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8102
+            initialDelaySeconds: 5
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: settings-service
+spec:
+  selector:
+    app: settings-service
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8102
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: smart-collection-service
+  labels:
+    app: smart-collection-service
+  annotations:
+    siteeksen/not: "Tahsilat riski"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: smart-collection-service
+  template:
+    metadata:
+      labels:
+        app: smart-collection-service
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+      containers:
+        - name: smart-collection-service
+          image: ghcr.io/siteeksen/smart-collection-service:latest
+          ports:
+            - containerPort: 8103
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          env:
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: db-admin
+                  key: host
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_NAME
+              value: "siteeksen"
+            - name: DB_SSLMODE
+              value: "require"
+            - name: DB_USER
+              value: "siteeksen_app"
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-app
+                  key: password
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: jwt-secret
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8103
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8103
+            initialDelaySeconds: 5
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: smart-collection-service
+spec:
+  selector:
+    app: smart-collection-service
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8103
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: survey-service
+  labels:
+    app: survey-service
+  annotations:
+    siteeksen/not: "Anket"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: survey-service
+  template:
+    metadata:
+      labels:
+        app: survey-service
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+      containers:
+        - name: survey-service
+          image: ghcr.io/siteeksen/survey-service:latest
+          ports:
+            - containerPort: 8104
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          env:
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: db-admin
+                  key: host
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_NAME
+              value: "siteeksen"
+            - name: DB_SSLMODE
+              value: "require"
+            - name: DB_USER
+              value: "siteeksen_app"
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-app
+                  key: password
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: jwt-secret
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8104
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8104
+            initialDelaySeconds: 5
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: survey-service
+spec:
+  selector:
+    app: survey-service
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8104
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: visitor-service
+  labels:
+    app: visitor-service
+  annotations:
+    siteeksen/not: "Ziyaretçi"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: visitor-service
+  template:
+    metadata:
+      labels:
+        app: visitor-service
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+      containers:
+        - name: visitor-service
+          image: ghcr.io/siteeksen/visitor-service:latest
+          ports:
+            - containerPort: 8105
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          env:
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: db-admin
+                  key: host
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_NAME
+              value: "siteeksen"
+            - name: DB_SSLMODE
+              value: "require"
+            - name: DB_USER
+              value: "siteeksen_app"
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-app
+                  key: password
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: jwt-secret
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8105
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8105
+            initialDelaySeconds: 5
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: visitor-service
+spec:
+  selector:
+    app: visitor-service
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8105
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: banking-service
+  labels:
+    app: banking-service
+  annotations:
+    siteeksen/not: "Yazılmadı — S-07 kararı, 501"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: banking-service
+  template:
+    metadata:
+      labels:
+        app: banking-service
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+      containers:
+        - name: banking-service
+          image: ghcr.io/siteeksen/banking-service:latest
+          ports:
+            - containerPort: 8106
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          env:
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: db-admin
+                  key: host
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_NAME
+              value: "siteeksen"
+            - name: DB_SSLMODE
+              value: "require"
+            - name: DB_USER
+              value: "siteeksen_app"
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-app
+                  key: password
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: jwt-secret
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8106
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8106
+            initialDelaySeconds: 5
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: banking-service
+spec:
+  selector:
+    app: banking-service
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8106
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: governance-service
+  labels:
+    app: governance-service
+  annotations:
+    siteeksen/not: "KMK yönetişim"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: governance-service
+  template:
+    metadata:
+      labels:
+        app: governance-service
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+      containers:
+        - name: governance-service
+          image: ghcr.io/siteeksen/governance-service:latest
+          ports:
+            - containerPort: 8107
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          env:
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: db-admin
+                  key: host
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_NAME
+              value: "siteeksen"
+            - name: DB_SSLMODE
+              value: "require"
+            - name: DB_USER
+              value: "siteeksen_app"
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-app
+                  key: password
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: jwt-secret
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8107
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8107
+            initialDelaySeconds: 5
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: governance-service
+spec:
+  selector:
+    app: governance-service
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8107
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway
+  labels:
+    app: gateway
+  annotations:
+    siteeksen/not: "Tek giriş kapısı — ingress yalnızca buraya yönlendirir"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: gateway
+  template:
+    metadata:
+      labels:
+        app: gateway
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+      containers:
+        - name: gateway
+          image: ghcr.io/siteeksen/gateway:latest
+          ports:
+            - containerPort: 8888
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          env:
+            - name: IDENTITY_SERVICE_URL
+              value: "http://identity-service"
+            - name: FINANCE_SERVICE_URL
+              value: "http://finance-service"
+            - name: COMMUNITY_SERVICE_URL
+              value: "http://community-service"
+            - name: IOT_SERVICE_URL
+              value: "http://iot-service"
+            - name: NOTIFICATION_SERVICE_URL
+              value: "http://notification-service"
+            - name: EXPENSE_SERVICE_URL
+              value: "http://expense-service"
+            - name: ASSET_SERVICE_URL
+              value: "http://asset-service"
+            - name: BULLETIN_SERVICE_URL
+              value: "http://bulletin-service"
+            - name: CONTRACT_SERVICE_URL
+              value: "http://contract-service"
+            - name: DOCUMENT_SERVICE_URL
+              value: "http://document-service"
+            - name: ENERGY_SERVICE_URL
+              value: "http://energy-service"
+            - name: ESG_SERVICE_URL
+              value: "http://esg-service"
+            - name: INVENTORY_SERVICE_URL
+              value: "http://inventory-service"
+            - name: MEETING_SERVICE_URL
+              value: "http://meeting-service"
+            - name: NPS_SERVICE_URL
+              value: "http://nps-service"
+            - name: PACKAGE_SERVICE_URL
+              value: "http://package-service"
+            - name: PARKING_SERVICE_URL
+              value: "http://parking-service"
+            - name: PATROL_SERVICE_URL
+              value: "http://patrol-service"
+            - name: PERSONNEL_SERVICE_URL
+              value: "http://personnel-service"
+            - name: RESERVATION_SERVICE_URL
+              value: "http://reservation-service"
+            - name: SETTINGS_SERVICE_URL
+              value: "http://settings-service"
+            - name: SMART_COLLECTION_SERVICE_URL
+              value: "http://smart-collection-service"
+            - name: SURVEY_SERVICE_URL
+              value: "http://survey-service"
+            - name: VISITOR_SERVICE_URL
+              value: "http://visitor-service"
+            - name: BANKING_SERVICE_URL
+              value: "http://banking-service"
+            - name: GOVERNANCE_SERVICE_URL
+              value: "http://governance-service"
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: jwt-secret
+            - name: CORS_ALLOWED_ORIGINS
+              value: "https://admin.siteeksen.com"
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8888
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8888
+            initialDelaySeconds: 5
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway
+spec:
+  selector:
+    app: gateway
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8888
   type: ClusterIP
 ---
 apiVersion: apps/v1
@@ -183,14 +2470,22 @@ spec:
       labels:
         app: admin-panel
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
       containers:
         - name: admin-panel
           image: ghcr.io/siteeksen/admin-panel:latest
           ports:
             - containerPort: 3001
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop: [ALL]
           env:
-            - name: NEXT_PUBLIC_API_URL
-              value: "https://api.siteeksen.com/v1"
+            - name: API_URL
+              value: "http://gateway/api/v1"
             - name: NEXTAUTH_URL
               value: "https://admin.siteeksen.com"
             - name: NEXTAUTH_SECRET
@@ -200,11 +2495,23 @@ spec:
                   key: nextauth-secret
           resources:
             requests:
-              memory: "256Mi"
-              cpu: "100m"
+              memory: "64Mi"
+              cpu: "50m"
             limits:
-              memory: "512Mi"
+              memory: "256Mi"
               cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3001
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3001
+            initialDelaySeconds: 5
+            periodSeconds: 10
 ---
 apiVersion: v1
 kind: Service

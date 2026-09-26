@@ -132,7 +132,10 @@ func run(ctx context.Context, dir string, statusOnly, dryRun bool) error {
 
 	if len(pending) == 0 {
 		fmt.Println("Veritabanı güncel — uygulanacak migration yok.")
-		return nil
+		if dryRun {
+			return nil
+		}
+		return provisionRoles(ctx, conn.Conn())
 	}
 
 	if dryRun {
@@ -162,6 +165,45 @@ func run(ctx context.Context, dir string, statusOnly, dryRun bool) error {
 	}
 
 	fmt.Printf("%d migration uygulandı.\n", len(pending))
+	return provisionRoles(ctx, conn.Conn())
+}
+
+// appRoles, servislerin bağlandığı veritabanı rolleri ve parolalarının
+// okunduğu ortam değişkenleridir. Roller migration'larda NOLOGIN olarak
+// yaratılır (020, 025); parola HİÇBİR ZAMAN migration dosyasına yazılmaz.
+var appRoles = []struct{ role, env string }{
+	{"siteeksen_app", "APP_DB_PASSWORD"},
+	{"siteeksen_identity", "IDENTITY_DB_PASSWORD"},
+}
+
+// provisionRoles, ortam değişkeni verilmiş rollere giriş parolası atar.
+//
+// Neden burada: RLS yalnızca süper kullanıcı OLMAYAN rollerde çalışır. Rolün
+// parolası elle ayarlanmazsa dağıtımlar pratikte süper kullanıcıyla bağlanır
+// ve RLS tanımlı olduğu hâlde hiç devreye girmez. Parolayı migration ile aynı
+// tek seferlik adımda atamak bu adımın unutulmasını engeller.
+//
+// Değişken verilmemişse rol olduğu gibi bırakılır ve bu AÇIKÇA yazılır; sessiz
+// geçilmez. ALTER ROLE parametre kabul etmediği için komut `format(%I, %L)` ile
+// veritabanında güvenli biçimde kurulur (parola SQL'e elle eklenmez).
+func provisionRoles(ctx context.Context, conn *pgx.Conn) error {
+	for _, r := range appRoles {
+		pw := os.Getenv(r.env)
+		if pw == "" {
+			fmt.Printf("  rol %s: %s verilmedi, parola atanmadı\n", r.role, r.env)
+			continue
+		}
+		var stmt string
+		if err := conn.QueryRow(ctx,
+			`SELECT format('ALTER ROLE %I LOGIN PASSWORD %L', $1::text, $2::text)`,
+			r.role, pw).Scan(&stmt); err != nil {
+			return fmt.Errorf("rol komutu hazırlanamadı (%s): %w", r.role, err)
+		}
+		if _, err := conn.Exec(ctx, stmt); err != nil {
+			return fmt.Errorf("rol parolası atanamadı (%s): %w", r.role, err)
+		}
+		fmt.Printf("  rol %s: giriş parolası atandı\n", r.role)
+	}
 	return nil
 }
 

@@ -69,19 +69,14 @@ for _ in $(seq 1 60); do
 done
 echo "  hazır (port ${DBPORT})"
 
-echo "=== Migration ==="
-export DATABASE_URL="postgres://siteeksen:${PW}@127.0.0.1:${DBPORT}/siteeksen?sslmode=disable"
-go run ./cmd/migrate | sed 's/^/  /'
-
-echo "=== Uygulama rolü ==="
+echo "=== Migration ve roller ==="
 # Satır düzeyi güvenliği (RLS) SÜPER KULLANICIYI BAĞLAMAZ. Servisler bu yüzden
-# yetkisi sınırlı `siteeksen_app` rolüyle bağlanır; aksi hâlde RLS politikaları
-# tanımlı olur ama hiç devreye girmez.
+# yetkisi sınırlı rollerle bağlanır: kimlik servisi `siteeksen_identity`,
+# diğerleri `siteeksen_app`. Parolaları dağıtımda olduğu gibi cmd/migrate atar.
 APPPW=${DEV_APP_PASSWORD:-devapppw}
-PGPASSWORD="$PW" psql -h 127.0.0.1 -p "$DBPORT" -U siteeksen -d siteeksen -q \
-  -c "ALTER ROLE siteeksen_app LOGIN PASSWORD '$APPPW';" >/dev/null 2>&1 \
-  && echo "  siteeksen_app hazır (RLS bu rolde geçerli)" \
-  || echo "  UYARI: uygulama rolü hazırlanamadı; RLS devrede OLMAYABİLİR"
+IDPW=${DEV_IDENTITY_PASSWORD:-devidpw}
+export DATABASE_URL="postgres://siteeksen:${PW}@127.0.0.1:${DBPORT}/siteeksen?sslmode=disable"
+APP_DB_PASSWORD="$APPPW" IDENTITY_DB_PASSWORD="$IDPW" go run ./cmd/migrate | sed 's/^/  /'
 
 export DB_HOST=127.0.0.1 DB_PORT=$DBPORT DB_USER=siteeksen_app DB_PASSWORD="$APPPW"
 export DB_NAME=siteeksen DB_SSLMODE=disable
@@ -110,7 +105,11 @@ start() { # ad, port, yol
 }
 
 echo "=== Servisler ==="
-start identity     8081 ./services/identity
+# Kimlik servisi kendi rolüyle: dizini bütünüyle görür, site verisine erişemez.
+echo "  identity → :8081 (rol: siteeksen_identity)"
+DB_USER=siteeksen_identity DB_PASSWORD="$IDPW" PORT=8081 \
+  go run ./services/identity >/tmp/dev-identity.log 2>&1 &
+PIDS+=($!)
 start finance      8082 ./services/finance
 start community    8083 ./services/community
 start iot          8084 ./services/iot
@@ -194,7 +193,8 @@ echo ""
 echo "  Bilerek yazılmayanlar        : banka entegrasyonu (S-07 kararı),"
 echo "                                 toplantı sihirbazı (governance ile tekrar)"
 echo "  Dosya depolama               : ${STORAGE_BACKEND} (${STORAGE_LOCAL_DIR})"
-echo "  Veritabanı rolü              : siteeksen_app (RLS geçerli, DDL yetkisi yok)"
+echo "  Veritabanı rolleri           : siteeksen_app (23 servis, RLS geçerli, DDL yetkisi yok)"
+echo "                                 siteeksen_identity (yalnızca kimlik servisi)"
 echo "  Kişisel veri                 : TCKN/IBAN şifreli (PII_ENCRYPTION_KEY)"
 echo "======================================================================"
 echo ""
