@@ -31,6 +31,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -405,7 +406,12 @@ func connect(ctx context.Context) (*pgxpool.Pool, error) {
 		pass := os.Getenv("DB_PASSWORD")
 		name := envOr("DB_NAME", "siteeksen")
 		ssl := envOr("DB_SSLMODE", "disable")
-		dsn = fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s", user, pass, host, port, name, ssl)
+		// Parola URL kaçışıyla eklenir: `/`, `@`, `+` içeren parola (ör. base64)
+		// düz birleştirmede adresi bozuyordu.
+		u := url.URL{Scheme: "postgres", User: url.UserPassword(user, pass),
+			Host: host + ":" + port, Path: "/" + name,
+			RawQuery: url.Values{"sslmode": {ssl}}.Encode()}
+		dsn = u.String()
 	}
 	pool, err := pgxpool.New(ctx, dsn)
 	if err != nil {

@@ -62,7 +62,7 @@ echo "=== PostgreSQL ==="
 docker rm -f "$CNAME" >/dev/null 2>&1
 docker run --rm -d --name "$CNAME" \
   -e POSTGRES_PASSWORD="$PW" -e POSTGRES_USER=siteeksen -e POSTGRES_DB=siteeksen \
-  -p ${DBPORT}:5432 postgres:16 >/dev/null
+  -p ${DBPORT}:5432 postgres:16 -c max_connections=300 >/dev/null
 for _ in $(seq 1 60); do
   docker exec "$CNAME" pg_isready -U siteeksen >/dev/null 2>&1 && break
   sleep 1

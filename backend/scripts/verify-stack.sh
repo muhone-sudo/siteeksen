@@ -250,7 +250,7 @@ fi
 step "1) Temiz PostgreSQL 16"
 docker rm -f "$CNAME" >/dev/null 2>&1
 docker run --rm -d --name "$CNAME" -e POSTGRES_PASSWORD="$PW" -e POSTGRES_DB=siteeksen \
-  -e POSTGRES_USER=siteeksen -p ${DBPORT}:5432 postgres:16 >/dev/null
+  -e POSTGRES_USER=siteeksen -p ${DBPORT}:5432 postgres:16 -c max_connections=300 >/dev/null
 for _ in $(seq 1 60); do
   docker exec "$CNAME" pg_isready -U siteeksen -d siteeksen >/dev/null 2>&1 && break
   sleep 1
@@ -266,8 +266,11 @@ export DATABASE_URL="postgres://siteeksen:${PW}@127.0.0.1:${DBPORT}/siteeksen?ss
 # Rol parolaları: RLS SÜPER KULLANICIYI BAĞLAMAZ; servisler yetkisi sınırlı
 # rollerle bağlanır. Parola migration dosyasına yazılamaz (sürüm deposuna
 # girerdi); dağıtımda olduğu gibi `cmd/migrate` ortam değişkeninden atar.
-APPPW="verify-app-$(head -c 12 /dev/urandom | base64 | tr -d '/+=')"
-IDPW="verify-id-$(head -c 12 /dev/urandom | base64 | tr -d '/+=')"
+# Parolalar BİLEREK URL'de özel anlamı olan karakterler içerir: DSN'in parolayı
+# kaçışla kurduğu her çalıştırmada sınanır (önceden düz birleştiriliyordu ve
+# base64 parolalar bağlantı adresini bozuyordu).
+APPPW="verify/app+$(head -c 12 /dev/urandom | base64 | tr -d '/+=')@#="
+IDPW="verify/id+$(head -c 12 /dev/urandom | base64 | tr -d '/+=')@#="
 export APP_DB_PASSWORD="$APPPW" IDENTITY_DB_PASSWORD="$IDPW"
 if go run ./cmd/migrate -dir "$MIG_DIR" >/tmp/verify-mig.log 2>&1; then
   APPLIED=$(grep -c 'uygulandı:' /tmp/verify-mig.log)

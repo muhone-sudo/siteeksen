@@ -145,6 +145,8 @@ def compose():
            "services:",
            "  postgres:",
            "    image: postgres:16-alpine",
+           "    # 26 servis × 8 bağlantı = 208 azami; varsayılan 100 yetmez (pkg/database).",
+           '    command: ["postgres", "-c", "max_connections=300"]',
            "    environment:",
            "      POSTGRES_DB: siteeksen",
            "      POSTGRES_USER: siteeksen",
