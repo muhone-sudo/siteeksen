@@ -99,6 +99,23 @@ export const ROUTE_ROLES: { prefix: string; roles: Role[]; reason: string }[] = 
     { prefix: "/dashboard/notifications", roles: MANAGEMENT, reason: "Toplu bildirim gönderimi" },
     { prefix: "/dashboard/settings", roles: MANAGEMENT, reason: "Site ayarları" },
 
+    // Yönetişim (KMK): denetçi okur (m.41), yazamaz.
+    { prefix: "/dashboard/governance", roles: MANAGEMENT_AND_AUDIT, reason: "Yönetişim kayıtları (işletme projesi, genel kurul, defterler)" },
+    { prefix: "/dashboard/contracts", roles: MANAGEMENT_AND_AUDIT, reason: "Sözleşmeler" },
+    { prefix: "/dashboard/documents", roles: MANAGEMENT_AND_AUDIT, reason: "Belge arşivi" },
+    { prefix: "/dashboard/collection", roles: MANAGEMENT_AND_AUDIT, reason: "Tahsilat riski (kişisel mali veri)" },
+    { prefix: "/dashboard/nps", roles: MANAGEMENT_AND_AUDIT, reason: "Memnuniyet sonuçları" },
+    { prefix: "/dashboard/esg", roles: MANAGEMENT_AND_AUDIT, reason: "Karbon ayak izi" },
+
+    // Operasyonel: görevli de kullanır.
+    { prefix: "/dashboard/packages", roles: MANAGEMENT_AND_STAFF, reason: "Kargo kabul ve teslim" },
+    { prefix: "/dashboard/assets", roles: [...MANAGEMENT_AND_AUDIT, Roles.Staff], reason: "Demirbaş ve bakım" },
+    { prefix: "/dashboard/inventory", roles: [...MANAGEMENT_AND_AUDIT, Roles.Staff], reason: "Stok" },
+    { prefix: "/dashboard/patrol", roles: [...MANAGEMENT_AND_AUDIT, Roles.Staff], reason: "Devriye" },
+    { prefix: "/dashboard/energy", roles: [...MANAGEMENT_AND_AUDIT, Roles.Staff], reason: "Enerji analizi" },
+    { prefix: "/dashboard/surveys", roles: MANAGEMENT, reason: "Anket yönetimi" },
+    { prefix: "/dashboard/bulletins", roles: MANAGEMENT, reason: "İlan panosu onayı" },
+
     // Ana sayfa: panele girebilen herkes.
     { prefix: "/dashboard", roles: [...MANAGEMENT_AND_AUDIT, Roles.Staff], reason: "Yönetim paneli" },
 ];

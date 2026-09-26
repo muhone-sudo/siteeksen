@@ -293,6 +293,18 @@ func AddAttendee(svc *service.Service) gin.HandlerFunc {
 	}
 }
 
+// ListAttendees, hazirun cetveli (KMK m.30).
+func ListAttendees(svc *service.Service) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		list, err := svc.ListAttendees(c.Request.Context(), c.GetString("property_id"), c.Param("id"))
+		if err != nil {
+			mapError(c, err, "hazirun listesi")
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"data": list})
+	}
+}
+
 func GetQuorum(svc *service.Service) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		q, err := svc.EvaluateQuorumFor(c.Request.Context(), c.GetString("property_id"), c.Param("id"))

@@ -153,6 +153,19 @@ type AttendeeInput struct {
 	ProxyHolderID  string `json:"proxy_holder_id"`
 }
 
+// Attendee, hazirun cetvelindeki bir satırdır (KMK m.30: toplantıya katılan
+// kat malikleri ve arsa payları cetvele yazılır).
+type Attendee struct {
+	UnitID         string  `json:"unit_id"`
+	UnitName       string  `json:"unit_name"`
+	UserID         string  `json:"user_id,omitempty"`
+	UserName       string  `json:"user_name,omitempty"`
+	AttendanceType string  `json:"attendance_type"`
+	ProxyHolderID  string  `json:"proxy_holder_id,omitempty"`
+	ProxyHolder    string  `json:"proxy_holder_name,omitempty"`
+	ShareRatio     float64 `json:"share_ratio"`
+}
+
 // VoteInput, oy kaydıdır.
 type VoteInput struct {
 	UnitID string `json:"unit_id" binding:"required"`

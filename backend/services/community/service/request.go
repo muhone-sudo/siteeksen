@@ -28,10 +28,24 @@ func NewRequestService(repo *repository.RequestRepository) *RequestService {
 	return &RequestService{repo: repo}
 }
 
-func isManagement(roles []string) bool {
+// canSeeAll: site genelindeki talepleri görebilen roller.
+func canSeeAll(roles []string) bool {
 	for _, role := range roles {
 		switch role {
-		case middleware.RoleManager, middleware.RoleAuditor, middleware.RoleStaff:
+		case middleware.RoleManager, middleware.RoleBoardMember, middleware.RoleAuditor, middleware.RoleStaff:
+			return true
+		}
+	}
+	return false
+}
+
+// canAdvance: talebi iş akışında ilerletebilen roller. Denetçi (AUDITOR) YOK:
+// denetler, yönetmez (KMK m.41). Önceden okuma ve yazma aynı listeydi; denetçi
+// talebi "çözüldü" yapabiliyor, kurul üyesi ise talepleri hiç göremiyordu.
+func canAdvance(roles []string) bool {
+	for _, role := range roles {
+		switch role {
+		case middleware.RoleManager, middleware.RoleBoardMember, middleware.RoleStaff:
 			return true
 		}
 	}
@@ -40,7 +54,7 @@ func isManagement(roles []string) bool {
 
 // List rol bazlı talep listesi döner: yönetim site genelini, sakin yalnızca kendi taleplerini görür
 func (s *RequestService) List(ctx context.Context, userID, propertyID string, roles []string, status string) ([]*models.Request, error) {
-	if isManagement(roles) {
+	if canSeeAll(roles) {
 		return s.repo.ListByProperty(ctx, propertyID, status)
 	}
 	return s.repo.ListByResident(ctx, propertyID, userID, status)
@@ -61,7 +75,7 @@ var allowedStatusTransitions = map[string]string{
 
 // UpdateStatus yönetici talebi OPEN -> IN_PROGRESS -> RESOLVED akışında ilerletir
 func (s *RequestService) UpdateStatus(ctx context.Context, propertyID, requestID string, roles []string, newStatus string) (*models.Request, error) {
-	if !isManagement(roles) {
+	if !canAdvance(roles) {
 		return nil, ErrForbidden
 	}
 

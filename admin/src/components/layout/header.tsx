@@ -54,7 +54,7 @@ export function Header() {
         let revoked = false;
         try {
             if (session?.accessToken) {
-                apiClient.setToken(session.accessToken, session.refreshToken);
+                apiClient.setToken(session.accessToken);
                 const res = await apiClient.logout(session.refreshToken);
                 revoked = !!res?.access_token_revoked && (!session.refreshToken || !!res?.refresh_token_revoked);
             }

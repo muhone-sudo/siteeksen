@@ -1,233 +1,159 @@
 "use client";
 
-/**
- * Sayaç Okuma
- *
- * NEDEN YENİDEN YAZILDI (2026-09-13):
- * Sayfa tamamen yerel duruma dayanıyordu:
- *   - 4 sayaç ve sahip isimleri koda gömülüydü.
- *   - "Okumaları Kaydet" düğmesi yalnızca `useState` güncelliyor, sunucuya
- *     HİÇBİR istek göndermiyordu. Sayaç görevlisi turunu tamamlayıp kaydettiğini
- *     sanıyor, veriler sayfa yenilenince kayboluyordu. Isı payı bu okumalardan
- *     hesaplandığı için bu, doğrudan yanlış tahakkuk demektir.
- *   - Birim fiyatlar (0,85 kWh / 12 m³) koda gömülüydü; gerçek tarife
- *     `consumption_tariffs` tablosundadır.
- *
- * Artık sayaçlar API'den gelir ve okumalar `submitBulkReadings` ile sunucuya
- * gönderilir; sunucu kabul etmezse "kaydedildi" DENMEZ.
- *
- * NOT: iot-service henüz gerçek veri katmanına bağlı değildir ve 501 döner;
- * bu durumda ekran bunu açıkça bildirir.
- */
+import { useState } from "react";
+import { Plus } from "lucide-react";
+import { api } from "@/lib/api";
+import { useAction, useApi, useRoles } from "@/lib/use-api";
+import { ActionFeedback, Badge, Button, Card, Field, FormModal, Grid, Input, Notice, Page, QueryView, Select, Table, Tabs } from "@/components/ui/kit";
+import { date, kurus, num, today } from "@/lib/format";
+import { METER_TYPES } from "@/lib/labels";
+import type { Allocation, Meter } from "@/lib/types";
 
-import { useCallback, useEffect, useState } from "react";
-import { useSession } from "next-auth/react";
-import { Thermometer, Droplets, Save } from "lucide-react";
-import { apiClient } from "@/lib/api-client";
-import {
-    ErrorState,
-    LoadingState,
-    EmptyState,
-    NotImplementedNotice,
-    toUserMessage,
-} from "@/components/ui/data-state";
-
-interface Meter {
-    id: string;
-    unit_name?: string;
-    unit_id?: string;
-    meter_type: string;
-    serial_number?: string;
-    last_reading?: number;
-    last_reading_date?: string;
-}
-
-const TYPE_TABS = [
-    { id: "HEAT", label: "Isı", icon: Thermometer, unit: "kWh" },
-    { id: "WATER_COLD", label: "Su", icon: Droplets, unit: "m³" },
-];
+const TYPE_LABEL = Object.fromEntries(METER_TYPES.map((t) => [t.value, t.label]));
 
 export default function MetersPage() {
-    const { data: session, status: authStatus } = useSession();
-
-    const [meterType, setMeterType] = useState("HEAT");
-    const [meters, setMeters] = useState<Meter[]>([]);
-    const [readings, setReadings] = useState<Record<string, string>>({});
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const [notImplemented, setNotImplemented] = useState(false);
-    const [saving, setSaving] = useState(false);
-    const [saveError, setSaveError] = useState<string | null>(null);
-    const [saveOk, setSaveOk] = useState<number | null>(null);
-
-    const load = useCallback(async () => {
-        setLoading(true);
-        setError(null);
-        setNotImplemented(false);
-        setSaveOk(null);
-        try {
-            const res = await apiClient.getMeters({ type: meterType });
-            const rows = Array.isArray(res) ? res : (res?.data ?? []);
-            setMeters(rows as Meter[]);
-            setReadings({});
-        } catch (e) {
-            const msg = toUserMessage(e, "Sayaçlar alınamadı");
-            setNotImplemented(msg.includes("henüz"));
-            setError(msg);
-        } finally {
-            setLoading(false);
-        }
-    }, [meterType]);
-
-    useEffect(() => {
-        if (authStatus !== "authenticated") return;
-        if (session?.accessToken) {
-            apiClient.setToken(session.accessToken, session.refreshToken);
-        }
-        void load();
-    }, [authStatus, session, load]);
-
-    const pending = Object.entries(readings).filter(([, v]) => v.trim() !== "");
-
-    async function save() {
-        if (pending.length === 0) return;
-        setSaving(true);
-        setSaveError(null);
-        setSaveOk(null);
-        try {
-            const now = new Date();
-            await apiClient.submitMeterReadings({
-                period_year: now.getFullYear(),
-                period_month: now.getMonth() + 1,
-                readings: pending.map(([meterId, value]) => ({
-                    meter_id: meterId,
-                    value: Number(value),
-                })),
-            });
-            setSaveOk(pending.length);
-            await load();
-        } catch (e) {
-            // Sunucu kaydetmediyse "kaydedildi" DENMEZ; girilen değerler ekranda kalır.
-            setSaveError(toUserMessage(e, "Okumalar kaydedilemedi"));
-        } finally {
-            setSaving(false);
-        }
-    }
-
-    const activeTab = TYPE_TABS.find((t) => t.id === meterType) ?? TYPE_TABS[0];
+    const [tab, setTab] = useState<"meters" | "readings" | "allocate">("meters");
+    const [type, setType] = useState("");
+    const meters = useApi(["meters", type], () => api.meters.list({ meter_type: type }));
+    const units = useApi(["units"], api.identity.units);
+    const readings = useApi(["meter-readings"], () => api.meters.readings(), tab === "readings");
+    const act = useAction();
+    const { canWrite, roles } = useRoles();
+    const canRead = canWrite || roles.includes("STAFF");
+    const [newMeter, setNewMeter] = useState<null | { unit_id: string; meter_type: string; serial_number: string; brand: string }>(null);
+    const [reading, setReading] = useState<null | { meter: Meter; current_value: string; reading_date: string; reading_type: string; meter_replaced: boolean; reason: string }>(null);
+    const [alloc, setAlloc] = useState({ meter_type: "HEAT", from: "", to: today(), total_amount_try: "" });
+    const [allocResult, setAllocResult] = useState<{ allocation: Allocation; basis_note: string; note: string; warning?: string } | null>(null);
 
     return (
-        <div className="space-y-6">
-            <div>
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Sayaç Okuma</h1>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                    Dönemlik sayaç okumalarının girilmesi
-                </p>
-            </div>
+        <Page
+            title="Sayaç ve ısı payı"
+            description="Sayaç okuma, endeks zinciri ve Merkezi Isıtma Yönetmeliğine göre gider paylaştırma."
+            actions={canWrite && <Button onClick={() => setNewMeter({ unit_id: "", meter_type: "HEAT", serial_number: "", brand: "" })}><Plus className="h-4 w-4" /> Sayaç ekle</Button>}
+        >
+            <ActionFeedback action={act} />
+            <Tabs tabs={[{ id: "meters", label: "Sayaçlar" }, { id: "readings", label: "Okumalar" }, { id: "allocate", label: "Gider paylaştırma" }]} value={tab} onChange={setTab} />
 
-            <div className="flex gap-2">
-                {TYPE_TABS.map((t) => (
-                    <button
-                        key={t.id}
-                        onClick={() => setMeterType(t.id)}
-                        className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium ${
-                            meterType === t.id
-                                ? "bg-primary text-white"
-                                : "border border-gray-300 text-gray-700 hover:bg-gray-50"
-                        }`}
-                    >
-                        <t.icon className="h-4 w-4" />
-                        {t.label}
-                    </button>
-                ))}
-            </div>
-
-            {saveError && (
-                <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                    {saveError}
-                </div>
-            )}
-            {saveOk !== null && (
-                <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-700">
-                    {saveOk} okuma sunucuya kaydedildi.
-                </div>
+            {tab === "meters" && (
+                <Card padded={false} actions={<Select value={type} onChange={(e) => setType(e.target.value)} options={METER_TYPES} placeholder="Tüm türler" />} title="Sayaçlar">
+                    <QueryView q={meters} empty="Sayaç yok">
+                        {(d) => (
+                            <Table rows={d.data} rowKey={(m) => m.id} columns={[
+                                { header: "Daire", cell: (m) => m.unit_name ?? "—" },
+                                { header: "Tür", cell: (m) => TYPE_LABEL[m.meter_type] ?? m.meter_type },
+                                { header: "Seri no", cell: (m) => <span className="font-mono text-xs">{m.serial_number}</span> },
+                                { header: "Son okuma", cell: (m) => (m.last_reading_date ? `${num(m.last_reading_value)} (${date(m.last_reading_date)})` : "—") },
+                                { header: "Durum", cell: (m) => (m.is_active ? <Badge tone="green">Aktif</Badge> : <Badge>Pasif</Badge>) },
+                                { header: "", cell: (m) => canRead && m.is_active ? (
+                                    <Button size="sm" onClick={() => setReading({ meter: m, current_value: "", reading_date: today(), reading_type: "MANUAL", meter_replaced: false, reason: "" })}>Okuma gir</Button>
+                                ) : null },
+                            ]} />
+                        )}
+                    </QueryView>
+                </Card>
             )}
 
-            {loading ? (
-                <LoadingState />
-            ) : notImplemented ? (
-                <NotImplementedNotice detail="Sayaç modülü sunucu tarafında gerçek veri katmanına bağlanmadı. Okuma girişi şimdilik kaydedilemez." />
-            ) : error ? (
-                <ErrorState message={error} onRetry={load} />
-            ) : meters.length === 0 ? (
-                <EmptyState title={`Tanımlı ${activeTab.label.toLowerCase()} sayacı yok`} />
-            ) : (
-                <>
-                    <div className="overflow-x-auto rounded-xl bg-white shadow-sm dark:bg-gray-800">
-                        <table className="w-full text-sm">
-                            <thead className="border-b border-gray-200 text-left text-xs uppercase text-gray-500">
-                                <tr>
-                                    <th className="px-4 py-3">Daire</th>
-                                    <th className="px-4 py-3">Seri No</th>
-                                    <th className="px-4 py-3">Önceki Okuma</th>
-                                    <th className="px-4 py-3">Yeni Okuma ({activeTab.unit})</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {meters.map((m) => {
-                                    const value = readings[m.id] ?? "";
-                                    const invalid =
-                                        value !== "" &&
-                                        m.last_reading !== undefined &&
-                                        Number(value) < m.last_reading;
-                                    return (
-                                        <tr key={m.id} className="border-b border-gray-100">
-                                            <td className="px-4 py-3">{m.unit_name ?? m.unit_id ?? "—"}</td>
-                                            <td className="px-4 py-3 text-gray-500">
-                                                {m.serial_number ?? "—"}
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                {m.last_reading ?? "—"}
-                                                {m.last_reading_date && (
-                                                    <span className="ml-2 text-xs text-gray-400">
-                                                        {new Date(m.last_reading_date).toLocaleDateString("tr-TR")}
-                                                    </span>
-                                                )}
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                <input
-                                                    type="number"
-                                                    value={value}
-                                                    onChange={(e) =>
-                                                        setReadings((p) => ({ ...p, [m.id]: e.target.value }))
-                                                    }
-                                                    className={`w-32 rounded-lg border px-3 py-1.5 ${
-                                                        invalid ? "border-red-400" : "border-gray-300"
-                                                    }`}
-                                                />
-                                                {invalid && (
-                                                    <p className="mt-1 text-xs text-red-600">
-                                                        Yeni okuma önceki okumadan küçük olamaz.
-                                                    </p>
-                                                )}
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
+            {tab === "readings" && (
+                <Card padded={false} title="Son okumalar">
+                    <QueryView q={readings} empty="Okuma yok">
+                        {(d) => (
+                            <Table rows={d.data} rowKey={(r) => r.id} columns={[
+                                { header: "Tarih", cell: (r) => date(r.reading_date) },
+                                { header: "Daire", cell: (r) => r.unit_name ?? "—" },
+                                { header: "Seri no", cell: (r) => <span className="font-mono text-xs">{r.serial_number}</span> },
+                                { header: "Önceki", cell: (r) => num(r.previous_value) },
+                                { header: "Güncel", cell: (r) => num(r.current_value) },
+                                { header: "Tüketim", cell: (r) => <b>{num(r.consumption)}</b> },
+                                { header: "Tür", cell: (r) => (r.reading_type === "ESTIMATED" ? <Badge tone="amber">Tahmini</Badge> : r.reading_type) },
+                                { header: "Okuyan", cell: (r) => r.reader_name ?? "—" },
+                            ]} />
+                        )}
+                    </QueryView>
+                </Card>
+            )}
+
+            {tab === "allocate" && (
+                <Card title="Dönem giderini paylaştır">
+                    <p className="mb-3 text-sm text-gray-600">
+                        Isıtma gideri %70 ölçülen tüketime, %30 kullanım alanına göre paylaştırılır (oranlar mevzuat tablosundan). Sonuç kuruş hassasiyetindedir; paylar toplamı tutara eşittir.
+                    </p>
+                    <Grid cols={3}>
+                        <Field label="Sayaç türü"><Select value={alloc.meter_type} onChange={(e) => setAlloc({ ...alloc, meter_type: e.target.value })} options={METER_TYPES} /></Field>
+                        <Field label="Başlangıç" required><Input type="date" value={alloc.from} onChange={(e) => setAlloc({ ...alloc, from: e.target.value })} /></Field>
+                        <Field label="Bitiş" required><Input type="date" value={alloc.to} onChange={(e) => setAlloc({ ...alloc, to: e.target.value })} /></Field>
+                        <Field label="Toplam gider (TL)" required><Input type="number" step="0.01" min="0.01" value={alloc.total_amount_try} onChange={(e) => setAlloc({ ...alloc, total_amount_try: e.target.value })} /></Field>
+                    </Grid>
+                    <div className="mt-3">
+                        <Button disabled={!canWrite || act.pending || !alloc.from || !alloc.total_amount_try}
+                            onClick={async () => {
+                                const r = await act.run(() => api.meters.allocate({ ...alloc, total_amount_try: Number(alloc.total_amount_try) }));
+                                if (r) setAllocResult(r);
+                            }}>
+                            Hesapla
+                        </Button>
                     </div>
-
-                    <button
-                        onClick={save}
-                        disabled={saving || pending.length === 0}
-                        className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-                    >
-                        <Save className="h-4 w-4" />
-                        {saving ? "Kaydediliyor…" : `${pending.length} okumayı kaydet`}
-                    </button>
-                </>
+                    {allocResult && (
+                        <div className="mt-4 space-y-3">
+                            {allocResult.warning && <Notice tone="amber">{allocResult.warning}</Notice>}
+                            <Notice tone="blue">{allocResult.basis_note} {allocResult.note}</Notice>
+                            <p className="text-sm">Toplam {kurus(allocResult.allocation.total_kurus)} = tüketim payı {kurus(allocResult.allocation.consumption_part_kurus)} + alan payı {kurus(allocResult.allocation.area_part_kurus)}</p>
+                            <Table rows={allocResult.allocation.units} rowKey={(u) => u.unit_id} columns={[
+                                { header: "Daire", cell: (u) => u.unit_name },
+                                { header: "Tüketim", cell: (u) => num(u.consumption) },
+                                { header: "Alan (m²)", cell: (u) => num(u.usable_area) },
+                                { header: "Pay", cell: (u) => <b>{kurus(u.total_kurus)}</b> },
+                            ]} />
+                        </div>
+                    )}
+                </Card>
             )}
-        </div>
+
+            <FormModal open={!!newMeter} onClose={() => setNewMeter(null)} title="Sayaç ekle" pending={act.pending} error={act.error}
+                onSubmit={async () => {
+                    if (!newMeter) return;
+                    const r = await act.run(() => api.meters.create(newMeter), { invalidate: ["meters"], success: "Sayaç kaydedildi" });
+                    if (r) setNewMeter(null);
+                }}>
+                {newMeter && (
+                    <Grid>
+                        <Field label="Daire" required>
+                            <Select required value={newMeter.unit_id} onChange={(e) => setNewMeter({ ...newMeter, unit_id: e.target.value })}
+                                options={(units.data?.data ?? []).map((u) => ({ value: u.id, label: `${u.block}-${u.door_number}` }))} placeholder="Seçin" />
+                        </Field>
+                        <Field label="Tür" required><Select value={newMeter.meter_type} onChange={(e) => setNewMeter({ ...newMeter, meter_type: e.target.value })} options={METER_TYPES} /></Field>
+                        <Field label="Seri no" required><Input required value={newMeter.serial_number} onChange={(e) => setNewMeter({ ...newMeter, serial_number: e.target.value })} /></Field>
+                        <Field label="Marka"><Input value={newMeter.brand} onChange={(e) => setNewMeter({ ...newMeter, brand: e.target.value })} /></Field>
+                    </Grid>
+                )}
+            </FormModal>
+
+            <FormModal open={!!reading} onClose={() => setReading(null)} title={reading ? `Okuma — ${reading.meter.unit_name ?? ""} ${reading.meter.serial_number}` : ""} pending={act.pending} error={act.error}
+                onSubmit={async () => {
+                    if (!reading) return;
+                    const r = await act.run(() => api.meters.addReading({
+                        meter_id: reading.meter.id, current_value: reading.current_value, reading_date: reading.reading_date,
+                        reading_type: reading.reading_type, meter_replaced: reading.meter_replaced, reason: reading.reason || undefined,
+                    }), { invalidate: ["meters", "meter-readings"], success: (res) => `Okuma kaydedildi — tüketim ${num(res.reading.consumption)}` });
+                    if (r) setReading(null);
+                }}>
+                {reading && (
+                    <>
+                        <p className="text-sm text-gray-600">Son endeks: {num(reading.meter.last_reading_value)} ({date(reading.meter.last_reading_date)})</p>
+                        <Grid>
+                            <Field label="Endeks" required hint="Ondalık ayırıcı , ya da ."><Input required value={reading.current_value} onChange={(e) => setReading({ ...reading, current_value: e.target.value })} /></Field>
+                            <Field label="Okuma tarihi"><Input type="date" value={reading.reading_date} onChange={(e) => setReading({ ...reading, reading_date: e.target.value })} /></Field>
+                            <Field label="Okuma türü">
+                                <Select value={reading.reading_type} onChange={(e) => setReading({ ...reading, reading_type: e.target.value })}
+                                    options={[{ value: "MANUAL", label: "Elle" }, { value: "AUTOMATIC", label: "Otomatik" }, { value: "ESTIMATED", label: "Tahmini" }]} />
+                            </Field>
+                            <Field label="Sayaç değişti mi?" hint="Endeks düştüyse zorunlu; gerekçe ister.">
+                                <Select value={reading.meter_replaced ? "1" : "0"} onChange={(e) => setReading({ ...reading, meter_replaced: e.target.value === "1" })} options={[{ value: "0", label: "Hayır" }, { value: "1", label: "Evet" }]} />
+                            </Field>
+                        </Grid>
+                        {reading.meter_replaced && <Field label="Gerekçe" required><Input required value={reading.reason} onChange={(e) => setReading({ ...reading, reason: e.target.value })} /></Field>}
+                    </>
+                )}
+            </FormModal>
+        </Page>
     );
 }

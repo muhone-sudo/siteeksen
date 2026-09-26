@@ -4951,6 +4951,57 @@ SC=$(code "$GU/budgets/$Z/objections" -H "$GA")
 
 kill_tree "$H_PER"; kill_tree "$H_PRK"; kill_tree "$H_VIS"; kill_tree "$H_INV"; kill_tree "$H_GOV"
 
+step "38) Panel veri katmanı: panelin okuduğu her uç gerçek gateway'e karşı"
+# Panel sayfaları FAZ 5'te arka uç gerçeğe çevrildikten sonra güncellenmemişti:
+# ~20 istemci yöntemi olmayan yollara gidiyordu ve bunu yakalayan bir şey
+# yoktu. Burada 24 servis ve GERÇEK gateway açılır; admin/src/lib/endpoints.ts
+# içindeki READS listesi (panelin okuduğu uçlar ve kullandığı alanlar),
+# önceki adımların doldurduğu veritabanına karşı sınanır.
+if command -v node >/dev/null 2>&1 && node --experimental-strip-types -e "0" >/dev/null 2>&1; then
+  P38_PIDS=()
+  GWENV=()
+  while read -r DIR PORT ENVN; do
+    USER_ROLE=siteeksen_app; USER_PW="$APPPW"
+    [ "$DIR" = "identity" ] && { USER_ROLE=siteeksen_identity; USER_PW="$IDPW"; }
+    DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=$USER_ROLE DB_PASSWORD="$USER_PW" DB_NAME=siteeksen \
+    DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=$PORT \
+    PII_ENCRYPTION_KEY="${PIIKEY:-$(head -c 32 /dev/zero | base64 -w0)}" \
+    STORAGE_BACKEND=local STORAGE_LOCAL_DIR=/tmp/verify-p38-files \
+      go run "./services/$DIR" >"/tmp/verify-p38-$DIR.log" 2>&1 &
+    P38_PIDS+=($!)
+    GWENV+=("$ENVN=http://127.0.0.1:$PORT")
+  done < <(python3 - "$SCRIPT_DIR" <<'PYEOF'
+import importlib.util, os, sys
+spec = importlib.util.spec_from_file_location("gd", os.path.join(sys.argv[1], "gen-deploy.py"))
+gd = importlib.util.module_from_spec(spec); spec.loader.exec_module(gd)
+for i, (d, port, name, kind, note) in enumerate(gd.SERVICES):
+    print(d, 18400 + i, gd.GATEWAY_ENV[d])
+PYEOF
+)
+  mkdir -p /tmp/verify-p38-files
+  env "${GWENV[@]}" JWT_SECRET=verify-secret-key-at-least-32-chars PORT=18499 \
+    go run ./cmd/gateway >/tmp/verify-p38-gateway.log 2>&1 &
+  P38_PIDS+=($!)
+  P38UP=0
+  for _ in $(seq 1 120); do
+    N=0
+    for p in $(seq 18400 18425); do curl -fsS -o /dev/null "http://127.0.0.1:$p/health" 2>/dev/null && N=$((N+1)); done
+    curl -fsS -o /dev/null http://127.0.0.1:18499/health 2>/dev/null && [ "$N" -ge 26 ] && { P38UP=1; break; }
+    sleep 2
+  done
+  [ "$P38UP" = "1" ] && ok "26 servis ve gateway ayağa kalktı (panel doğrulaması için)" \
+    || bad "panel doğrulaması için servisler açılmadı ($N/26)"
+  if (cd "$SCRIPT_DIR/../../admin" && GATEWAY=http://127.0.0.1:18499/api/v1 \
+      node --experimental-strip-types --no-warnings scripts/verify-endpoints.ts) >/tmp/verify-p38.log 2>&1; then
+    ok "panel: $(tail -1 /tmp/verify-p38.log)"
+  else
+    bad "panel uçları sözleşmeye uymuyor"; head -20 /tmp/verify-p38.log | sed 's/^/      /'
+  fi
+  for p in "${P38_PIDS[@]}"; do kill_tree "$p"; done
+else
+  bad "Node 22.6+ bulunamadı (panel doğrulaması --experimental-strip-types ister)"
+fi
+
 step "SONUÇ"
 echo "  Geçen: $PASS   Başarısız: $FAIL"
 [ "$FAIL" -eq 0 ] && { echo "  TÜM KONTROLLER GEÇTİ"; exit 0; } || { echo "  BAŞARISIZ KONTROL VAR"; exit 1; }

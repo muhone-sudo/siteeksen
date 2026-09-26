@@ -27,10 +27,28 @@ func NewResidentService(repo *repository.ResidentRepository) *ResidentService {
 	return &ResidentService{repo: repo}
 }
 
-func isResidentManagement(roles []string) bool {
+// canReadResidents: sakin listesini görebilen roller (görevli kapıda kimlik
+// doğrulaması için görür; denetçi denetim için okur).
+func canReadResidents(roles []string) bool {
 	for _, role := range roles {
 		switch role {
-		case middleware.RoleManager, middleware.RoleAuditor, middleware.RoleStaff:
+		case middleware.RoleManager, middleware.RoleBoardMember, middleware.RoleAuditor, middleware.RoleStaff:
+			return true
+		}
+	}
+	return false
+}
+
+// canWriteResidents: sakin EKLEYEBİLEN / DEĞİŞTİREBİLEN roller.
+//
+// Önceden okuma ve yazma aynı listeydi ve DENETÇİ sakin ekleyip sıfat
+// değiştirebiliyordu (KMK m.41: denetçi denetler, yönetmez); kurul üyesi ise
+// sakin listesini hiç göremiyordu. Görevli de yazamaz: malik/kiracı sıfatı
+// oy hakkını ve borç sorumluluğunu belirler.
+func canWriteResidents(roles []string) bool {
+	for _, role := range roles {
+		switch role {
+		case middleware.RoleManager, middleware.RoleBoardMember:
 			return true
 		}
 	}
@@ -39,7 +57,7 @@ func isResidentManagement(roles []string) bool {
 
 // List bir sitedeki sakinleri filtreleyerek getirir (yalnızca yönetim)
 func (s *ResidentService) List(ctx context.Context, propertyID string, roles []string, search, block, role string) ([]*models.Resident, error) {
-	if !isResidentManagement(roles) {
+	if !canReadResidents(roles) {
 		return nil, ErrResidentForbidden
 	}
 	return s.repo.List(ctx, propertyID, search, block, role)
@@ -47,7 +65,7 @@ func (s *ResidentService) List(ctx context.Context, propertyID string, roles []s
 
 // Get sakin detayını getirir (yalnızca yönetim)
 func (s *ResidentService) Get(ctx context.Context, propertyID, id string, roles []string) (*models.Resident, error) {
-	if !isResidentManagement(roles) {
+	if !canReadResidents(roles) {
 		return nil, ErrResidentForbidden
 	}
 	return s.repo.GetByID(ctx, propertyID, id)
@@ -55,7 +73,7 @@ func (s *ResidentService) Get(ctx context.Context, propertyID, id string, roles 
 
 // Create yeni sakin oluşturur; telefon numarası sistemde yoksa rastgele geçici şifreyle hesap açılır
 func (s *ResidentService) Create(ctx context.Context, propertyID string, roles []string, input models.CreateResidentInput) (*models.Resident, error) {
-	if !isResidentManagement(roles) {
+	if !canWriteResidents(roles) {
 		return nil, ErrResidentForbidden
 	}
 
@@ -73,7 +91,7 @@ func (s *ResidentService) Create(ctx context.Context, propertyID string, roles [
 
 // Update sakinin rol/aktiflik bilgisini günceller (yalnızca yönetim)
 func (s *ResidentService) Update(ctx context.Context, propertyID, id string, roles []string, input models.UpdateResidentInput) (*models.Resident, error) {
-	if !isResidentManagement(roles) {
+	if !canWriteResidents(roles) {
 		return nil, ErrResidentForbidden
 	}
 	return s.repo.Update(ctx, propertyID, id, input)
@@ -81,7 +99,7 @@ func (s *ResidentService) Update(ctx context.Context, propertyID, id string, rol
 
 // ListUnits bir sitedeki birimleri getirir (yalnızca yönetim)
 func (s *ResidentService) ListUnits(ctx context.Context, propertyID string, roles []string) ([]*models.Unit, error) {
-	if !isResidentManagement(roles) {
+	if !canReadResidents(roles) {
 		return nil, ErrResidentForbidden
 	}
 	return s.repo.ListUnits(ctx, propertyID)

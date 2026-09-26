@@ -1,371 +1,134 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
-import { Plus, X, FileText, Zap, Wrench, Building, Receipt, CreditCard, Upload, CheckCircle, AlertCircle, Edit, Trash2, Download } from "lucide-react";
-import apiClient from "@/lib/api-client";
-import { ErrorState, LoadingState, EmptyState, toUserMessage, NotImplementedNotice } from "@/components/ui/data-state";
-
-interface Expense {
-    id: string;
-    category_name: string;
-    description: string;
-    amount: number;
-    expense_date: string;
-    is_invoiced: boolean;
-    status: string;
-    vendor_name?: string;
-    invoice_number?: string;
-    deleted: number;
-}
-
-interface ExpenseSummary {
-    total_expenses: number;
-    invoiced_expenses: number;
-    non_invoiced_expenses: number;
-    assessment_reflecting: number;
-    pending_approval_count: number;
-    pending_approval_amount: number;
-}
-
-const categoryConfig: Record<string, { label: string; icon: React.ElementType; color: string }> = {
-    "Ortak Elektrik": { label: "Elektrik", icon: Zap, color: "text-yellow-500" },
-    "Bina Temizliği": { label: "Temizlik", icon: Building, color: "text-blue-500" },
-    "Güvenlik": { label: "Güvenlik", icon: Receipt, color: "text-red-500" },
-    "Asansör Bakımı": { label: "Bakım", icon: Wrench, color: "text-orange-500" },
-    "Yönetici Ücreti": { label: "Yönetim", icon: FileText, color: "text-purple-500" },
-    "Acil Tamir": { label: "Tamir", icon: CreditCard, color: "text-pink-500" },
-    default: { label: "Diğer", icon: FileText, color: "text-gray-500" },
-};
-
-const SAMPLE_CSV = `category_name,description,amount,expense_date,vendor_name,is_invoiced
-Ortak Elektrik,Haziran 2026 elektrik faturası,2800,2026-06-30,AYEDAŞ,true
-Asansör Bakımı,Periyodik bakım,3500,2026-06-15,Kone,true
-Bina Temizliği,Aylık temizlik,4200,2026-06-01,Temizlik A.Ş.,false`;
+import { useState } from "react";
+import { Plus } from "lucide-react";
+import { api } from "@/lib/api";
+import { useAction, useApi, useRoles } from "@/lib/use-api";
+import { ActionFeedback, Badge, Button, Card, Field, FormModal, Grid, Input, Modal, Notice, Page, QueryView, ReadOnlyHint, Select, Stats, StatusBadge, Table, Textarea } from "@/components/ui/kit";
+import { date, num, tl, today } from "@/lib/format";
+import { DISTRIBUTION, EXPENSE_STATUS, opts } from "@/lib/labels";
+import type { Expense } from "@/lib/types";
 
 export default function ExpensesPage() {
-    const [expenses, setExpenses] = useState<Expense[]>([]);
-    const [summary, setSummary] = useState<ExpenseSummary | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [loadError, setLoadError] = useState<string | null>(null);
-    const [actionError, setActionError] = useState<string | null>(null);
-    const [formError, setFormError] = useState<string | null>(null);
-    const [submitting, setSubmitting] = useState(false);
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [filterStatus, setFilterStatus] = useState("all");
-    const [editingId, setEditingId] = useState<string | null>(null);
-    const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
-    const csvRef = useRef<HTMLInputElement>(null);
+    const now = new Date();
+    const [year, setYear] = useState(now.getFullYear());
+    const [status, setStatus] = useState("");
+    const list = useApi(["expenses", year, status], () => api.expenses.list({ year, status }));
+    const summary = useApi(["expenses", "summary", year], () => api.expenses.summary({ year }));
+    const cats = useApi(["expense-categories"], api.expenses.categories);
+    const act = useAction();
+    const { canWrite } = useRoles();
+    const [open, setOpen] = useState(false);
+    const [detail, setDetail] = useState<string | null>(null);
+    const detailQ = useApi(["expenses", "detail", detail], () => api.expenses.get(detail!), !!detail);
+    const [rejecting, setRejecting] = useState<Expense | null>(null);
+    const [reason, setReason] = useState("");
+    const empty = { category_id: "", description: "", amount: "", expense_date: today(), is_invoiced: true, invoice_reason: "", vendor_name: "", invoice_number: "", distribution_type: "", notes: "" };
+    const [form, setForm] = useState(empty);
 
-    const [form, setForm] = useState({
-        category_name: "Bina Temizliği",
-        description: "",
-        amount: 0,
-        expense_date: new Date().toISOString().split("T")[0],
-        is_invoiced: true,
-        vendor_name: "",
-    });
-
-    const load = useCallback(async () => {
-        setLoading(true);
-        try {
-            const [expRes, sumRes] = await Promise.all([apiClient.getExpenses(), apiClient.getExpenseSummary()]);
-            const raw = expRes?.data ?? expRes ?? [];
-            setExpenses(raw.map((e: any) => ({ ...e, deleted: e.deleted ?? 0 })));
-            setSummary(sumRes ?? null);
-            setLoadError(null);
-        } catch (err) {
-            setExpenses([]);
-            setSummary(null);
-            setLoadError(toUserMessage(err));
-        } finally {
-            setLoading(false);
-        }
-    }, []);
-
-    useEffect(() => {
-        apiClient.loadToken();
-        load();
-    }, [load]);
-
-    const openAdd = () => { setEditingId(null); setFormError(null); setForm({ category_name: "Bina Temizliği", description: "", amount: 0, expense_date: new Date().toISOString().split("T")[0], is_invoiced: true, vendor_name: "" }); setIsModalOpen(true); };
-    const openEdit = (exp: Expense) => { setEditingId(exp.id); setFormError(null); setForm({ category_name: exp.category_name, description: exp.description, amount: exp.amount, expense_date: exp.expense_date, is_invoiced: exp.is_invoiced, vendor_name: exp.vendor_name ?? "" }); setIsModalOpen(true); };
-    const closeModal = () => { setIsModalOpen(false); setEditingId(null); setFormError(null); };
-
-    async function handleSubmit(e: React.FormEvent) {
-        e.preventDefault();
-        setFormError(null);
-
-        if (editingId) {
-            // apiClient içinde gider güncelleme uç noktası yok; sahte başarı göstermek yerine durumu bildiriyoruz.
-            setFormError("Gider güncelleme özelliği sunucu tarafında henüz hazır değil. Değişiklik kaydedilmedi.");
-            return;
-        }
-
-        setSubmitting(true);
-        try {
-            await apiClient.createExpense({
-                category: form.category_name,
-                description: form.description,
-                amount: form.amount,
-                expense_date: form.expense_date,
-                vendor_name: form.vendor_name,
-            });
-            closeModal();
-            await load();
-        } catch (err) {
-            setFormError(toUserMessage(err, "Gider kaydı oluşturulamadı."));
-        } finally {
-            setSubmitting(false);
-        }
-    }
-
-    const handleDelete = () => {
-        if (!deleteConfirmId) return;
-        // apiClient içinde gider silme uç noktası yok; kaydı yalnızca ekranda silmek yanıltıcı olur.
-        setDeleteConfirmId(null);
-        setActionError("Gider silme özelliği sunucu tarafında henüz hazır değil. Kayıt silinmedi.");
-    };
-
-    const downloadSampleCSV = () => {
-        const blob = new Blob([SAMPLE_CSV], { type: "text/csv;charset=utf-8;" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a"); a.href = url; a.download = "gider_ornek.csv"; a.click();
-        URL.revokeObjectURL(url);
-    };
-
-    const handleCSVUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0]; if (!file) return;
-        const reader = new FileReader();
-        reader.onload = async (ev) => {
-            const text = ev.target?.result as string;
-            const lines = text.trim().split("\n").slice(1).filter(l => l.trim() !== "");
-            if (lines.length === 0) return;
-
-            setActionError(null);
-            setSubmitting(true);
-            let firstError: unknown = null;
-            let failed = 0;
-
-            for (const line of lines) {
-                const [category_name, description, amount, expense_date, vendor_name] = line.split(",");
-                try {
-                    await apiClient.createExpense({
-                        category: (category_name ?? "").trim(),
-                        description: (description ?? "").trim(),
-                        amount: parseFloat((amount ?? "0").trim()) || 0,
-                        expense_date: (expense_date ?? "").trim(),
-                        vendor_name: (vendor_name ?? "").trim(),
-                    });
-                } catch (err) {
-                    failed++;
-                    if (firstError === null) firstError = err;
-                }
-            }
-
-            setSubmitting(false);
-            if (failed > 0) {
-                setActionError(`${lines.length} satırdan ${failed} tanesi kaydedilemedi: ${toUserMessage(firstError, "Gider kaydı oluşturulamadı.")}`);
-            }
-            await load();
-        };
-        reader.readAsText(file);
-        if (csvRef.current) csvRef.current.value = "";
-    };
-
-    const active = expenses.filter(e => e.deleted === 0);
-    const filtered = filterStatus === "all" ? active : active.filter(e => e.status === filterStatus);
-    const hasData = !loading && !loadError;
-
-    const cards = [
-        { label: "Toplam Gider", value: hasData ? `₺${(summary?.total_expenses ?? active.reduce((s, e) => s + e.amount, 0)).toLocaleString()}` : "—", color: "text-red-600" },
-        { label: "Faturalı", value: hasData ? `₺${(summary?.invoiced_expenses ?? active.filter(e => e.is_invoiced).reduce((s, e) => s + e.amount, 0)).toLocaleString()}` : "—", color: "text-green-600" },
-        { label: "Faturasız", value: hasData ? `₺${(summary?.non_invoiced_expenses ?? active.filter(e => !e.is_invoiced).reduce((s, e) => s + e.amount, 0)).toLocaleString()}` : "—", color: "text-orange-600" },
-        { label: "Onay Bekliyor", value: hasData ? String(summary?.pending_approval_count ?? active.filter(e => e.status === "PENDING").length) : "—", color: "text-yellow-600" },
-    ];
-
+    const s = summary.data;
     return (
-        <div className="space-y-6">
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Gider Yönetimi</h1>
-                    <p className="text-sm text-gray-500">Ortak alan giderleri ve fatura takibi</p>
+        <Page
+            title="Giderler"
+            description="Gider kaydı, onay ve bağımsız bölümlere dağıtım. Onaylanan gider seçilen dağıtım kuralıyla paylaştırılır."
+            actions={canWrite && <Button onClick={() => { setForm(empty); setOpen(true); }}><Plus className="h-4 w-4" /> Gider ekle</Button>}
+        >
+            {!canWrite && <ReadOnlyHint />}
+            <ActionFeedback action={act} />
+            <Stats items={[
+                { label: `${year} toplam`, value: tl(s?.total_amount) },
+                { label: "Faturalı", value: tl(s?.invoiced_amount), tone: "green" },
+                { label: "Faturasız", value: tl(s?.non_invoiced_amount), tone: "amber" },
+                { label: "Onay bekleyen", value: num(s?.pending_count), tone: "blue" },
+            ]} />
+            <Card padded={false} title="Gider kayıtları" actions={
+                <div className="flex gap-2">
+                    <Select value={String(year)} onChange={(e) => setYear(Number(e.target.value))} options={[0, 1, 2].map((d) => ({ value: String(now.getFullYear() - d), label: String(now.getFullYear() - d) }))} />
+                    <Select value={status} onChange={(e) => setStatus(e.target.value)} options={opts(EXPENSE_STATUS)} placeholder="Tüm durumlar" />
                 </div>
-                <div className="flex items-center gap-2">
-                    <button onClick={downloadSampleCSV} className="flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300">
-                        <Download className="h-4 w-4" /> Örnek CSV
-                    </button>
-                    <label className="flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 cursor-pointer">
-                        <Upload className="h-4 w-4" /> CSV Yükle
-                        <input ref={csvRef} type="file" accept=".csv" className="hidden" onChange={handleCSVUpload} disabled={submitting} />
-                    </label>
-                    <button onClick={openAdd} className="flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700">
-                        <Plus className="h-4 w-4" /> Gider Ekle
-                    </button>
-                </div>
-            </div>
-
-            <NotImplementedNotice />
-
-            {actionError && (
-                <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                    {actionError}
-                </div>
-            )}
-
-            <div className="grid gap-4 md:grid-cols-4">
-                {cards.map((s) => (
-                    <div key={s.label} className="rounded-xl bg-white p-4 shadow-sm dark:bg-gray-800">
-                        <p className="text-sm text-gray-500">{s.label}</p>
-                        <p className={`mt-1 text-2xl font-bold ${s.color}`}>{s.value}</p>
-                    </div>
-                ))}
-            </div>
-
-            <div className="flex gap-2">
-                {["all", "APPROVED", "PENDING"].map(s => (
-                    <button key={s} onClick={() => setFilterStatus(s)}
-                        className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${filterStatus === s ? "bg-primary text-white" : "bg-white text-gray-600 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-300"}`}>
-                        {s === "all" ? "Tümü" : s === "APPROVED" ? "Onaylı" : "Bekleyen"}
-                    </button>
-                ))}
-            </div>
-
-            <div className="rounded-xl bg-white shadow-sm dark:bg-gray-800">
-                {loading ? (
-                    <LoadingState />
-                ) : loadError ? (
-                    <ErrorState message={loadError} onRetry={load} />
-                ) : filtered.length === 0 ? (
-                    <EmptyState title="Gider kaydı bulunamadı" />
-                ) : (
-                    <table className="w-full">
-                        <thead>
-                            <tr className="border-b border-gray-200 dark:border-gray-700">
-                                <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-500">Kategori</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-500">Açıklama</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-500">Tedarikçi</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-500">Tarih</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-500">Fatura</th>
-                                <th className="px-6 py-3 text-right text-xs font-medium uppercase text-gray-500">Tutar</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium uppercase text-gray-500">Durum</th>
-                                <th className="px-6 py-3 text-right text-xs font-medium uppercase text-gray-500">İşlem</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                            {filtered.map((exp) => {
-                                const cfg = categoryConfig[exp.category_name] ?? categoryConfig.default;
-                                const Icon = cfg.icon;
-                                return (
-                                    <tr key={exp.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                                        <td className="px-6 py-4">
-                                            <span className="flex items-center gap-2 text-sm"><Icon className={`h-4 w-4 ${cfg.color}`} />{exp.category_name}</span>
-                                        </td>
-                                        <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">{exp.description}</td>
-                                        <td className="px-6 py-4 text-sm text-gray-500">{exp.vendor_name ?? "—"}</td>
-                                        <td className="px-6 py-4 text-sm text-gray-500">{new Date(exp.expense_date).toLocaleDateString("tr-TR")}</td>
-                                        <td className="px-6 py-4">
-                                            {exp.is_invoiced
-                                                ? <span className="flex items-center gap-1 text-xs text-green-600"><CheckCircle className="h-3 w-3" />Faturalı</span>
-                                                : <span className="flex items-center gap-1 text-xs text-orange-500"><AlertCircle className="h-3 w-3" />Faturasız</span>}
-                                        </td>
-                                        <td className="px-6 py-4 text-right text-sm font-medium text-red-600">-₺{exp.amount.toLocaleString()}</td>
-                                        <td className="px-6 py-4">
-                                            <span className={`rounded-full px-2 py-1 text-xs font-medium ${exp.status === "APPROVED" ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"}`}>
-                                                {exp.status === "APPROVED" ? "Onaylı" : "Bekliyor"}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4 text-right">
-                                            <div className="flex justify-end gap-1">
-                                                <button onClick={() => openEdit(exp)} className="p-1.5 rounded hover:bg-blue-100 text-blue-500"><Edit className="h-4 w-4" /></button>
-                                                <button onClick={() => setDeleteConfirmId(exp.id)} className="p-1.5 rounded hover:bg-red-100 text-red-500"><Trash2 className="h-4 w-4" /></button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
-                )}
-            </div>
-
-            {/* Add/Edit Modal */}
-            {isModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-                    <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-2xl dark:bg-gray-800 max-h-[90vh] overflow-y-auto">
-                        <div className="flex items-center justify-between mb-4">
-                            <h2 className="text-xl font-bold text-gray-900 dark:text-white">{editingId ? "Gideri Düzenle" : "Gider Ekle"}</h2>
-                            <button onClick={closeModal}><X className="h-5 w-5 text-gray-500" /></button>
-                        </div>
-                        <form onSubmit={handleSubmit} className="space-y-4">
-                            {formError && (
-                                <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                                    {formError}
+            }>
+                <QueryView q={list} empty="Gider kaydı yok">
+                    {(d) => (
+                        <Table rows={d.data} rowKey={(e) => e.id} columns={[
+                            { header: "Tarih", cell: (e) => date(e.expense_date) },
+                            { header: "Açıklama", cell: (e) => <div><p className="font-medium">{e.description}</p><p className="text-xs text-gray-500">{e.category_name}{e.vendor_name ? ` · ${e.vendor_name}` : ""}</p></div> },
+                            { header: "Tutar", cell: (e) => tl(e.amount) },
+                            { header: "Fatura", cell: (e) => (e.is_invoiced ? <Badge tone="green">Var</Badge> : <Badge tone="amber">Yok</Badge>) },
+                            { header: "Durum", cell: (e) => <StatusBadge value={e.status} map={EXPENSE_STATUS} /> },
+                            { header: "", cell: (e) => (
+                                <div className="flex gap-1">
+                                    <Button size="sm" variant="ghost" onClick={() => setDetail(e.id)}>Dağıtım</Button>
+                                    {canWrite && e.status === "PENDING" && (
+                                        <>
+                                            <Button size="sm" disabled={act.pending} onClick={() => act.run(() => api.expenses.approve(e.id), { invalidate: ["expenses"], success: "Gider onaylandı" })}>Onayla</Button>
+                                            <Button size="sm" variant="danger" onClick={() => { setReason(""); setRejecting(e); }}>Reddet</Button>
+                                        </>
+                                    )}
                                 </div>
+                            ) },
+                        ]} />
+                    )}
+                </QueryView>
+            </Card>
+
+            <FormModal open={open} onClose={() => setOpen(false)} title="Gider ekle" wide pending={act.pending} error={act.error}
+                onSubmit={async () => {
+                    const body: Record<string, unknown> = { ...form, amount: Number(form.amount) };
+                    if (!form.distribution_type) delete body.distribution_type;
+                    if (form.is_invoiced) delete body.invoice_reason;
+                    const r = await act.run(() => api.expenses.create(body), { invalidate: ["expenses"], success: "Gider kaydedildi" });
+                    if (r) setOpen(false);
+                }}>
+                <Grid>
+                    <Field label="Gider kalemi" required>
+                        <Select required value={form.category_id} onChange={(e) => setForm({ ...form, category_id: e.target.value })}
+                            options={(cats.data?.data ?? []).map((c) => ({ value: c.id, label: c.name }))} placeholder="Seçin" />
+                    </Field>
+                    <Field label="Tutar (TL)" required><Input required type="number" step="0.01" min="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} /></Field>
+                    <Field label="Gider tarihi" required><Input required type="date" value={form.expense_date} onChange={(e) => setForm({ ...form, expense_date: e.target.value })} /></Field>
+                    <Field label="Dağıtım" hint="Boş bırakılırsa kalemin varsayılanı kullanılır.">
+                        <Select value={form.distribution_type} onChange={(e) => setForm({ ...form, distribution_type: e.target.value })} options={DISTRIBUTION} placeholder="Kalem varsayılanı" />
+                    </Field>
+                    <Field label="Tedarikçi"><Input value={form.vendor_name} onChange={(e) => setForm({ ...form, vendor_name: e.target.value })} /></Field>
+                    <Field label="Fatura">
+                        <Select value={form.is_invoiced ? "1" : "0"} onChange={(e) => setForm({ ...form, is_invoiced: e.target.value === "1" })} options={[{ value: "1", label: "Faturalı" }, { value: "0", label: "Faturasız" }]} />
+                    </Field>
+                    {form.is_invoiced ? (
+                        <Field label="Fatura no"><Input value={form.invoice_number} onChange={(e) => setForm({ ...form, invoice_number: e.target.value })} /></Field>
+                    ) : (
+                        <Field label="Faturasız gider gerekçesi" required><Input required value={form.invoice_reason} onChange={(e) => setForm({ ...form, invoice_reason: e.target.value })} /></Field>
+                    )}
+                </Grid>
+                <Field label="Açıklama" required><Textarea required value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></Field>
+            </FormModal>
+
+            <FormModal open={!!rejecting} onClose={() => setRejecting(null)} title="Gideri reddet" submitLabel="Reddet" pending={act.pending} error={act.error}
+                onSubmit={async () => {
+                    if (!rejecting) return;
+                    const r = await act.run(() => api.expenses.reject(rejecting.id, reason), { invalidate: ["expenses"], success: "Gider reddedildi" });
+                    if (r) setRejecting(null);
+                }}>
+                <Field label="Gerekçe" required><Textarea required value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
+            </FormModal>
+
+            <Modal open={!!detail} onClose={() => setDetail(null)} title="Dağıtım" wide>
+                <QueryView q={detailQ} isEmpty={() => false}>
+                    {(e) => (
+                        <div className="space-y-3">
+                            <p className="text-sm">{e.description} — <b>{tl(e.amount)}</b> ({e.distribution_type}){e.per_unit_amount !== undefined ? ` · daire başı ${tl(e.per_unit_amount)}` : ""}</p>
+                            {e.distributions && e.distributions.length > 0 ? (
+                                <Table rows={e.distributions} rowKey={(x) => x.unit_id} columns={[
+                                    { header: "Daire", cell: (x) => x.unit_name ?? x.unit_id },
+                                    { header: "Pay", cell: (x) => tl(x.amount) },
+                                    { header: "Ödendi", cell: (x) => (x.is_paid ? "Evet" : "Hayır") },
+                                ]} />
+                            ) : (
+                                <Notice tone="blue">Dağıtım, gider onaylandığında oluşturulur.</Notice>
                             )}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Kategori</label>
-                                <select value={form.category_name} onChange={e => setForm({ ...form, category_name: e.target.value })}
-                                    className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm dark:border-gray-600 dark:bg-gray-700">
-                                    {["Ortak Elektrik", "Ortak Su", "Bina Temizliği", "Güvenlik", "Asansör Bakımı", "Yönetici Ücreti", "Bahçe Bakımı", "Acil Tamir", "Diğer"].map(c => (
-                                        <option key={c}>{c}</option>
-                                    ))}
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Açıklama</label>
-                                <input required value={form.description} onChange={e => setForm({ ...form, description: e.target.value })}
-                                    className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm dark:border-gray-600 dark:bg-gray-700" />
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tutar (₺)</label>
-                                    <input type="number" required value={form.amount || ""} onChange={e => setForm({ ...form, amount: Number(e.target.value) })}
-                                        className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm dark:border-gray-600 dark:bg-gray-700" />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tarih</label>
-                                    <input type="date" required value={form.expense_date} onChange={e => setForm({ ...form, expense_date: e.target.value })}
-                                        className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm dark:border-gray-600 dark:bg-gray-700" />
-                                </div>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tedarikçi / Firma</label>
-                                <input value={form.vendor_name} onChange={e => setForm({ ...form, vendor_name: e.target.value })}
-                                    className="w-full rounded-lg border border-gray-300 px-4 py-2 text-sm dark:border-gray-600 dark:bg-gray-700" />
-                            </div>
-                            <div className="flex items-center gap-2">
-                                <input type="checkbox" id="invoiced" checked={form.is_invoiced} onChange={e => setForm({ ...form, is_invoiced: e.target.checked })}
-                                    className="h-4 w-4 rounded border-gray-300 text-primary" />
-                                <label htmlFor="invoiced" className="text-sm text-gray-700 dark:text-gray-300">Fatura mevcut</label>
-                            </div>
-                            {form.is_invoiced && (
-                                <div className="flex items-center justify-center h-20 border-2 border-dashed border-gray-300 rounded-lg text-center">
-                                    <div className="flex items-center gap-2 text-gray-400 text-sm"><Upload className="h-4 w-4" /> Fatura yükleme henüz hazır değil</div>
-                                </div>
-                            )}
-                            <div className="flex gap-3 pt-2">
-                                <button type="button" onClick={closeModal} className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300">İptal</button>
-                                <button type="submit" disabled={submitting} className="flex-1 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50">{submitting ? "Kaydediliyor..." : editingId ? "Güncelle" : "Ekle"}</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
-
-            {/* Delete Confirm */}
-            {deleteConfirmId && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-                    <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-2xl dark:bg-gray-800 text-center">
-                        <div className="flex justify-center mb-4"><div className="rounded-full bg-red-100 p-3"><Trash2 className="h-6 w-6 text-red-600" /></div></div>
-                        <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-2">Gideri Sil</h2>
-                        <p className="text-gray-500 text-sm mb-6">Bu gider kaydı silinecek. Emin misiniz?</p>
-                        <div className="flex gap-3">
-                            <button onClick={() => setDeleteConfirmId(null)} className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300">İptal</button>
-                            <button onClick={handleDelete} className="flex-1 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700">Sil</button>
                         </div>
-                    </div>
-                </div>
-            )}
-        </div>
+                    )}
+                </QueryView>
+            </Modal>
+        </Page>
     );
 }

@@ -15,6 +15,8 @@ declare module "next-auth" {
     interface Session {
         accessToken: string;
         refreshToken: string;
+        /** Sunucu tarafı jeton yenilemesi başarısız olduysa dolu (oturum kapatılır). */
+        error?: string;
         user: {
             id: string;
             name: string;
@@ -30,8 +32,11 @@ declare module "next-auth/jwt" {
     interface JWT {
         accessToken: string;
         refreshToken: string;
+        /** Erişim jetonunun bitiş anı (ms). */
+        accessExpires?: number;
         roles: string[];
         propertyId: string;
         phone: string;
+        error?: string;
     }
 }

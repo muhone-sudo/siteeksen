@@ -1,415 +1,86 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { X, Mail, User, Briefcase, Edit, Trash2 } from 'lucide-react';
-import { NotImplementedNotice } from '@/components/ui/data-state';
+import { useState } from "react";
+import { api } from "@/lib/api";
+import { useAction, useApi } from "@/lib/use-api";
+import { ActionFeedback, Badge, Button, Card, Field, FormModal, Input, Notice, Page, QueryView, Select, Table, Tabs } from "@/components/ui/kit";
+import { dateTime } from "@/lib/format";
+import type { Setting } from "@/lib/types";
 
-interface UserData {
-    id: number;
-    name: string;
-    role: string;
-    email: string;
-    deleted: number;
-}
-
+/**
+ * Site işletme ayarları. Mevzuata bağlı oranlar (gecikme tazminatı, ısıtma
+ * payları, nisaplar) bu ekrandan DEĞİŞTİRİLEMEZ — kanunla sabittir ve
+ * veritabanı kısıtıyla korunur.
+ */
 export default function SettingsPage() {
-    const [activeTab, setActiveTab] = useState('general');
-    const [isUserModalOpen, setIsUserModalOpen] = useState(false);
-    // DÜZELTME (2026-09-13): Burada üç sahte yönetim kullanıcısı ("Ahmet Yılmaz /
-    // Yönetim Kurulu Başkanı" vb.) koda gömülüydü. Yönetici, sitede tanımlı
-    // yetkilileri gördüğünü sanıyordu. Kullanıcı/rol yönetimi için sunucuda bir uç
-    // bulunmadığından liste BOŞ başlar ve sekmede durum açıkça bildirilir.
-    // Site bazlı roller backend'de `property_roles` tablosunda tutulur (migration 013);
-    // panel arayüzü bu tabloya bağlanana kadar buradan yönetim yapılamaz.
-    const [users, setUsers] = useState<UserData[]>([]);
-    const [newUser, setNewUser] = useState({ name: '', email: '', role: 'Site Görevlisi' });
-    const [editingUserId, setEditingUserId] = useState<number | null>(null);
-    const [deleteUserId, setDeleteUserId] = useState<number | null>(null);
-    // DÜZELTME (2026-09-13): Bu alanlar "Güneş Sitesi / Atatürk Mah. ..." gibi
-    // uydurma değerlerle doluydu ve hangi siteye girilirse girilsin aynı görünüyordu.
-    // Site ayarlarını okuyan/yazan bir sunucu ucu olmadığı için alanlar BOŞ başlar.
-    const [generalSettings, setGeneralSettings] = useState({
-        siteName: '',
-        address: '',
-        email: '',
-        phone: '',
-        timezone: 'Europe/Istanbul (UTC+3)',
-    });
-    const [notificationSettings, setNotificationSettings] = useState([
-        { label: 'Yeni talep bildirimi', checked: true },
-        { label: 'Ödeme hatırlatıcıları', checked: true },
-        { label: 'Duyuru bildirimleri', checked: true },
-        { label: 'Ziyaretçi bildirimleri', checked: false },
-        { label: 'Sistem güncellemeleri', checked: true },
-    ]);
+    const [tab, setTab] = useState<"settings" | "history">("settings");
+    const list = useApi(["settings"], api.settings.list);
+    const defs = useApi(["settings", "defs"], api.settings.definitions);
+    const history = useApi(["settings", "history"], () => api.settings.history(), tab === "history");
+    const act = useAction();
+    const [edit, setEdit] = useState<Setting | null>(null);
+    const [value, setValue] = useState("");
 
-    // Site ayarlarını sunucuya yazan bir uç yok (api-client.ts'de ayar kaydetme metodu bulunmuyor,
-    // settings servisi tamamen bellek içi/TODO durumunda). Bu yüzden "Kaydedildi" mesajı kaldırıldı
-    // ve kaydet düğmesi devre dışı bırakıldı — sahte başarı gösterilmez.
-    // bkz. tasks/dogrulama-politikasi.md §3
-
-    const toggleNotification = (idx: number) => {
-        setNotificationSettings(prev => prev.map((n, i) => i === idx ? { ...n, checked: !n.checked } : n));
-    };
-
-    const tabs = [
-        { id: 'general', label: 'Genel', icon: '⚙️' },
-        { id: 'notifications', label: 'Bildirimler', icon: '🔔' },
-        { id: 'users', label: 'Kullanıcılar', icon: '👥' },
-        { id: 'integrations', label: 'Entegrasyonlar', icon: '🔗' },
-        { id: 'billing', label: 'Fatura', icon: '💳' },
-    ];
-
-    const activeUsers = users.filter(u => u.deleted === 0);
-
-    const openAddUser = () => { setEditingUserId(null); setNewUser({ name: '', email: '', role: 'Site Görevlisi' }); setIsUserModalOpen(true); };
-    const openEditUser = (u: UserData) => { setEditingUserId(u.id); setNewUser({ name: u.name, email: u.email, role: u.role }); setIsUserModalOpen(true); };
-
-    const handleAddUser = (e: React.FormEvent) => {
-        e.preventDefault();
-        if (editingUserId !== null) {
-            setUsers(prev => prev.map(u => u.id === editingUserId ? { ...u, ...newUser } : u));
-        } else {
-            setUsers(prev => [...prev, { id: Date.now(), ...newUser, deleted: 0 }]);
-        }
-        setNewUser({ name: '', email: '', role: 'Site Görevlisi' });
-        setEditingUserId(null);
-        setIsUserModalOpen(false);
-    };
-
-    const handleDeleteUser = () => {
-        if (deleteUserId === null) return;
-        setUsers(prev => prev.map(u => u.id === deleteUserId ? { ...u, deleted: 1 } : u));
-        setDeleteUserId(null);
-    };
+    const defOf = (key: string) => defs.data?.data.find((d) => d.key === key);
 
     return (
-        <div className="p-6 space-y-6">
-            {/* Header */}
-            <div>
-                <h1 className="text-2xl font-bold text-gray-900">Ayarlar</h1>
-                <p className="text-gray-500">Site ve sistem ayarlarınızı yönetin</p>
-            </div>
-
-            <NotImplementedNotice detail="Ayarlar servisi henüz sunucuya bağlı değil. Bu sayfada yapılan değişiklikler (genel ayarlar, bildirim tercihleri, yönetici kullanıcılar) kaydedilmez ve sayfa yenilendiğinde kaybolur. Entegrasyon ve fatura sekmelerindeki değerler örnek veridir." />
-
-            <div className="flex gap-6">
-                {/* Sidebar Tabs */}
-                <div className="w-64 space-y-1">
-                    {tabs.map((tab) => (
-                        <button
-                            key={tab.id}
-                            onClick={() => setActiveTab(tab.id)}
-                            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-all ${activeTab === tab.id
-                                ? 'bg-blue-50 text-blue-700 font-medium'
-                                : 'text-gray-600 hover:bg-gray-100'
-                                }`}
-                        >
-                            <span>{tab.icon}</span>
-                            {tab.label}
-                        </button>
-                    ))}
-                </div>
-
-                {/* Content */}
-                <div className="flex-1 bg-white rounded-xl border p-6">
-                    {activeTab === 'general' && (
-                        <div className="space-y-6">
-                            <h2 className="text-lg font-semibold">Genel Ayarlar</h2>
-
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Site Adı
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={generalSettings.siteName}
-                                        onChange={(e) => setGeneralSettings({ ...generalSettings, siteName: e.target.value })}
-                                        className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Site Adresi
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={generalSettings.address}
-                                        onChange={(e) => setGeneralSettings({ ...generalSettings, address: e.target.value })}
-                                        className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        İletişim E-posta
-                                    </label>
-                                    <input
-                                        type="email"
-                                        value={generalSettings.email}
-                                        onChange={(e) => setGeneralSettings({ ...generalSettings, email: e.target.value })}
-                                        className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Telefon
-                                    </label>
-                                    <input
-                                        type="tel"
-                                        value={generalSettings.phone}
-                                        onChange={(e) => setGeneralSettings({ ...generalSettings, phone: e.target.value })}
-                                        className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Zaman Dilimi
-                                    </label>
-                                    <select
-                                        value={generalSettings.timezone}
-                                        onChange={(e) => setGeneralSettings({ ...generalSettings, timezone: e.target.value })}
-                                        className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                    >
-                                        <option>Europe/Istanbul (UTC+3)</option>
-                                    </select>
-                                </div>
-                            </div>
-
-                            <div className="flex items-center gap-3">
-                                <button
-                                    type="button"
-                                    disabled
-                                    title="Ayarları sunucuya kaydeden bir uç henüz mevcut değil"
-                                    className="px-6 py-2 bg-blue-600 text-white rounded-lg disabled:cursor-not-allowed disabled:opacity-50"
-                                >
-                                    Değişiklikleri Kaydet
-                                </button>
-                                <span className="text-sm text-gray-500">
-                                    Kaydetme özelliği henüz hazır değil.
-                                </span>
-                            </div>
-                        </div>
-                    )}
-
-                    {activeTab === 'notifications' && (
-                        <div className="space-y-6">
-                            <h2 className="text-lg font-semibold">Bildirim Ayarları</h2>
-
-                            <div className="space-y-4">
-                                {notificationSettings.map((item, idx) => (
-                                    <label key={idx} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                                        <span>{item.label}</span>
-                                        <input
-                                            type="checkbox"
-                                            checked={item.checked}
-                                            onChange={() => toggleNotification(idx)}
-                                            className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
-                                        />
-                                    </label>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
-                    {activeTab === 'users' && (
-                        <div className="space-y-6">
-                            <div className="flex justify-between items-center">
-                                <h2 className="text-lg font-semibold">Yönetici Kullanıcılar</h2>
-                                <button
-                                    onClick={openAddUser}
-                                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                                >
-                                    + Kullanıcı Ekle
-                                </button>
-                            </div>
-
-                            <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                                Bu liste örnek veridir. Ekleme, düzenleme ve silme işlemleri yalnızca bu
-                                ekranda geçerlidir; sunucuya kaydedilmez ve gerçek kullanıcı yetkilerini değiştirmez.
-                            </p>
-
-                            <div className="space-y-2">
-                                {activeUsers.map((user) => (
-                                    <div key={user.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-semibold">
-                                                {user.name.charAt(0)}
-                                            </div>
-                                            <div>
-                                                <p className="font-medium">{user.name}</p>
-                                                <p className="text-sm text-gray-500">{user.role}</p>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center gap-1">
-                                            <button onClick={() => openEditUser(user)} className="p-1.5 rounded-lg hover:bg-blue-100 text-blue-500"><Edit className="h-4 w-4" /></button>
-                                            <button onClick={() => setDeleteUserId(user.id)} className="p-1.5 rounded-lg hover:bg-red-100 text-red-500"><Trash2 className="h-4 w-4" /></button>
-                                        </div>
+        <Page title="Ayarlar" description="Site işletme ayarları">
+            <Notice tone="blue">Mevzuata bağlı değerler (gecikme tazminatı, ısıtma payları, genel kurul nisapları) burada değiştirilemez; kanunla sabittir.</Notice>
+            <ActionFeedback action={act} />
+            <Tabs tabs={[{ id: "settings", label: "Ayarlar" }, { id: "history", label: "Değişiklik geçmişi" }]} value={tab} onChange={setTab} />
+            {tab === "settings" && (
+                <Card padded={false}>
+                    <QueryView q={list} empty="Ayar yok">
+                        {(d) => (
+                            <Table rows={d.data} rowKey={(s) => s.key} columns={[
+                                { header: "Ayar", cell: (s) => <div><p className="font-medium">{s.description}</p><p className="font-mono text-xs text-gray-500">{s.key}</p></div> },
+                                { header: "Değer", cell: (s) => <span className="font-mono">{String(s.value ?? "")}</span> },
+                                { header: "", cell: (s) => (s.is_default ? <Badge>Varsayılan</Badge> : <Badge tone="blue">Değiştirildi</Badge>) },
+                                { header: "Son değişiklik", cell: (s) => (s.updated_at ? `${dateTime(s.updated_at)} · ${s.updated_by_name ?? ""}` : "—") },
+                                { header: "", cell: (s) => (
+                                    <div className="flex gap-1">
+                                        <Button size="sm" variant="ghost" onClick={() => { setValue(String(s.value ?? "")); setEdit(s); }}>Düzenle</Button>
+                                        {!s.is_default && <Button size="sm" variant="ghost" disabled={act.pending} onClick={() => act.run(() => api.settings.reset(s.key), { invalidate: ["settings"], success: "Varsayılana döndü" })}>Sıfırla</Button>}
                                     </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
-                    {activeTab === 'integrations' && (
-                        <div className="space-y-6">
-                            <h2 className="text-lg font-semibold">Entegrasyonlar</h2>
-
-                            {/*
-                              DÜZELTME (2026-09-13): Bu liste iyzico, Firebase ve SMTP'yi
-                              "Bağlı" gösteriyordu. Denetimde bu entegrasyonların HİÇBİRİNİN
-                              koda bağlanmadığı tespit edildi (pkg/payment, pkg/notification
-                              ve pkg/integrations hiçbir yerden import edilmiyor).
-                              "Bağlı" yazan bir ödeme entegrasyonu, yöneticinin tahsilatın
-                              çalıştığını sanmasına yol açar. Tüm durumlar gerçeğe çekildi.
-                            */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {[
-                                    { name: 'SMS (Netgsm)', status: 'not_connected', icon: '📱' },
-                                    { name: 'Ödeme (iyzico)', status: 'not_connected', icon: '💳' },
-                                    { name: 'Push bildirim (Firebase)', status: 'not_connected', icon: '🔔' },
-                                    { name: 'E-posta (SMTP)', status: 'not_connected', icon: '📧' },
-                                    { name: 'Görsel işleme (OpenAI)', status: 'not_connected', icon: '🧠' },
-                                ].map((integration, idx) => (
-                                    <div key={idx} className="p-4 border rounded-lg">
-                                        <div className="flex items-center justify-between">
-                                            <div className="flex items-center gap-3">
-                                                <span className="text-2xl">{integration.icon}</span>
-                                                <span className="font-medium">{integration.name}</span>
-                                            </div>
-                                            <span className={`px-2 py-1 rounded-full text-xs ${integration.status === 'connected'
-                                                ? 'bg-green-100 text-green-700'
-                                                : 'bg-gray-100 text-gray-700'
-                                                }`}>
-                                                {integration.status === 'connected' ? 'Bağlı' : 'Bağlı değil'}
-                                            </span>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
-                    {activeTab === 'billing' && (
-                        <div className="space-y-6">
-                            <h2 className="text-lg font-semibold">Abonelik ve Fatura</h2>
-
-                            {/*
-                              DÜZELTME (2026-09-13): Burada "Pro Plan ₺299/ay" ve ödenmiş
-                              görünen üç fatura koda gömülüydü. Ne abonelik modülü ne de
-                              faturalandırma vardır; kullanıcıya var olmayan bir ödeme
-                              geçmişi göstermek kabul edilemez.
-                            */}
-                            <NotImplementedNotice detail="SaaS abonelik ve faturalandırma modülü henüz geliştirilmedi. Bu bölümde gösterilecek gerçek bir plan ya da fatura kaydı bulunmuyor." />
-                        </div>
-                    )}
-                </div>
-            </div>
-
-            {/* User Modal */}
-            {isUserModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-                    <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl">
-                        <div className="flex items-center justify-between mb-4">
-                            <h2 className="text-xl font-bold text-gray-900">
-                                {editingUserId !== null ? 'Kullanıcıyı Düzenle' : 'Kullanıcı Ekle'}
-                            </h2>
-                            <button
-                                onClick={() => { setIsUserModalOpen(false); setEditingUserId(null); }}
-                                className="rounded-lg p-1 hover:bg-gray-100"
-                            >
-                                <X className="h-5 w-5 text-gray-500" />
-                            </button>
-                        </div>
-                        <form onSubmit={handleAddUser} className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Ad Soyad
-                                </label>
-                                <div className="relative">
-                                    <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                                    <input
-                                        type="text"
-                                        required
-                                        value={newUser.name}
-                                        onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
-                                        className="w-full rounded-lg border border-gray-300 bg-white py-2 pl-10 pr-4 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                        placeholder="Ali Veli"
-                                    />
-                                </div>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    E-posta
-                                </label>
-                                <div className="relative">
-                                    <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                                    <input
-                                        type="email"
-                                        required
-                                        value={newUser.email}
-                                        onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
-                                        className="w-full rounded-lg border border-gray-300 bg-white py-2 pl-10 pr-4 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                        placeholder="ali@email.com"
-                                    />
-                                </div>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Rol
-                                </label>
-                                <div className="relative">
-                                    <Briefcase className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-                                    <select
-                                        value={newUser.role}
-                                        onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}
-                                        className="w-full rounded-lg border border-gray-300 bg-white py-2 pl-10 pr-4 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                    >
-                                        <option>Site Görevlisi</option>
-                                        <option>Muhasebeci</option>
-                                        <option>Yönetim Kurulu Üyesi</option>
-                                        <option>Yönetim Kurulu Başkanı</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div className="flex gap-3 pt-4">
-                                <button
-                                    type="button"
-                                    onClick={() => { setIsUserModalOpen(false); setEditingUserId(null); }}
-                                    className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                                >
-                                    İptal
-                                </button>
-                                <button
-                                    type="submit"
-                                    className="flex-1 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-                                >
-                                    {editingUserId !== null ? 'Güncelle' : 'Ekle'}
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
+                                ) },
+                            ]} />
+                        )}
+                    </QueryView>
+                </Card>
+            )}
+            {tab === "history" && (
+                <Card padded={false}>
+                    <QueryView q={history} empty="Değişiklik yok">
+                        {(d) => (
+                            <Table rows={d.data} rowKey={(h) => `${h.key}-${h.changed_at}`} columns={[
+                                { header: "Zaman", cell: (h) => dateTime(h.changed_at) },
+                                { header: "Ayar", cell: (h) => <span className="font-mono text-xs">{h.key}</span> },
+                                { header: "Eski", cell: (h) => h.old_value ?? "—" },
+                                { header: "Yeni", cell: (h) => h.new_value },
+                                { header: "Değiştiren", cell: (h) => h.changed_by_name ?? "—" },
+                            ]} />
+                        )}
+                    </QueryView>
+                </Card>
             )}
 
-            {/* Delete User Confirm */}
-            {deleteUserId !== null && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-                    <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-2xl text-center">
-                        <div className="flex justify-center mb-4"><div className="rounded-full bg-red-100 p-3"><Trash2 className="h-6 w-6 text-red-600" /></div></div>
-                        <h2 className="text-lg font-bold text-gray-900 mb-2">Kullanıcıyı Sil</h2>
-                        <p className="text-gray-500 text-sm mb-6">Kayıt yalnızca bu ekrandaki listeden kaldırılacak; kullanıcının gerçek erişim yetkisi değişmez.</p>
-                        <div className="flex gap-3">
-                            <button onClick={() => setDeleteUserId(null)} className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">İptal</button>
-                            <button onClick={handleDeleteUser} className="flex-1 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700">Sil</button>
-                        </div>
-                    </div>
-                </div>
-            )}
-        </div>
+            <FormModal open={!!edit} onClose={() => setEdit(null)} title={edit?.description ?? ""} pending={act.pending} error={act.error}
+                onSubmit={async () => {
+                    if (!edit) return;
+                    const v: unknown = edit.type === "INT" ? Number(value) : edit.type === "BOOL" ? value === "true" : value;
+                    const r = await act.run(() => api.settings.set(edit.key, v), { invalidate: ["settings"], success: "Ayar kaydedildi" });
+                    if (r) setEdit(null);
+                }}>
+                {edit && (
+                    <Field label="Değer" hint={(() => { const d = defOf(edit.key); return d?.min !== undefined ? `Aralık: ${d.min}–${d.max}` : undefined; })()}>
+                        {edit.type === "BOOL" ? (
+                            <Select value={value} onChange={(e) => setValue(e.target.value)} options={[{ value: "true", label: "Açık" }, { value: "false", label: "Kapalı" }]} />
+                        ) : (
+                            <Input type={edit.type === "INT" ? "number" : "text"} value={value} onChange={(e) => setValue(e.target.value)} />
+                        )}
+                    </Field>
+                )}
+            </FormModal>
+        </Page>
     );
 }

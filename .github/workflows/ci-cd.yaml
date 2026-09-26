@@ -91,6 +91,14 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y postgresql-client
 
+      # 38. adım panelin uç tanımlarını (admin/src/lib/endpoints.ts) gerçek
+      # gateway'e karşı çalıştırır; TypeScript'i doğrudan çalıştırmak için
+      # Node 22.6+ gerekir (--experimental-strip-types).
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
       # Bu betik: temiz PostgreSQL 16 kabı → cmd/migrate ile tüm migration'lar →
       # şema denetimi → idempotency → pkg/audit testi → identity-service ve gateway
       # üzerinden gerçek giriş/yetki/denetim izi/501 doğrulaması.

@@ -298,6 +298,11 @@ func (s *Service) NotifyAssembly(ctx context.Context, propertyID, assemblyID, me
 	return s.repo.NotifyAssembly(ctx, propertyID, assemblyID, method)
 }
 
+// ListAttendees, hazirun cetvelini döner.
+func (s *Service) ListAttendees(ctx context.Context, propertyID, assemblyID string) ([]models.Attendee, error) {
+	return s.repo.ListAttendees(ctx, propertyID, assemblyID)
+}
+
 // AddAttendee, hazirun kaydı ekler ve vekâlet sınırlarını denetler.
 //
 // KMK m.31:

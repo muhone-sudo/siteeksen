@@ -62,6 +62,7 @@ func main() {
 		read.GET("/assemblies", handlers.ListAssemblies(svc))
 		read.GET("/assemblies/:id", handlers.GetAssembly(svc))
 		read.GET("/assemblies/:id/quorum", handlers.GetQuorum(svc))
+		read.GET("/assemblies/:id/attendees", handlers.ListAttendees(svc))
 
 		read.GET("/books/:id/entries", handlers.ListBookEntries(svc))
 		read.GET("/books/:id/verify", handlers.VerifyBook(svc))

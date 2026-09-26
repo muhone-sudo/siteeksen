@@ -633,6 +633,40 @@ func (r *Repository) AddAttendee(ctx context.Context, propertyID, assemblyID str
 	return nil
 }
 
+// ListAttendees, hazirun cetvelini döner. Toplantı yoksa ErrNotFound.
+func (r *Repository) ListAttendees(ctx context.Context, propertyID, assemblyID string) ([]models.Attendee, error) {
+	if ok, err := r.scope(propertyID).Exists(ctx, "assemblies", assemblyID); err != nil {
+		return nil, err
+	} else if !ok {
+		return nil, ErrNotFound
+	}
+	rows, err := r.scope(propertyID).Query(ctx, `
+		SELECT at.unit_id::text, COALESCE(u.block,'') || '-' || COALESCE(u.door_number,''),
+		       COALESCE(at.user_id::text,''), COALESCE(us.first_name || ' ' || us.last_name, ''),
+		       at.attendance_type, COALESCE(at.proxy_holder_id::text,''),
+		       COALESCE(ph.first_name || ' ' || ph.last_name, ''), at.share_ratio::float8
+		FROM assembly_attendees at
+		JOIN units u ON u.id = at.unit_id
+		LEFT JOIN users us ON us.id = at.user_id
+		LEFT JOIN users ph ON ph.id = at.proxy_holder_id
+		WHERE at.assembly_id = $1
+		ORDER BY u.block, u.door_number`, assemblyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []models.Attendee{}
+	for rows.Next() {
+		var a models.Attendee
+		if err := rows.Scan(&a.UnitID, &a.UnitName, &a.UserID, &a.UserName, &a.AttendanceType,
+			&a.ProxyHolderID, &a.ProxyHolder, &a.ShareRatio); err != nil {
+			return nil, err
+		}
+		out = append(out, a)
+	}
+	return out, rows.Err()
+}
+
 // ProxyLoad, bir vekilin taşıdığı vekâlet sayısı ve oy payını verir (m.31 sınırları).
 func (r *Repository) ProxyLoad(ctx context.Context, propertyID, assemblyID, holderID string) (count int, share float64, err error) {
 	err = r.scope(propertyID).QueryRow(ctx, `
