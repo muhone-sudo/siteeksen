@@ -299,13 +299,18 @@ Backend'e dokunan her değişiklikten sonra çalıştırılır.
       Panel: `src/lib/rbac.ts` + `middleware.ts` + menü süzme (bkz. 0.A.10).
       **Kanıt:** yönetici `/finance/debtors` → 200, kiracı → **403**; yetkisiz deneme
       denetim izine `DENIED` olarak yazıldı.
-- [ ] **2.6 🔴 Tenant izolasyonu (PostgreSQL RLS)** — `pkg/tenant` hâlâ ölü kod *(B20)*.
-      Bugün izolasyon uygulama katmanındadır (JWT `property_id` + sorgu filtreleri);
-      RLS ile veritabanı düzeyine indirilmesi hâlâ yapılmalı.
-- [ ] **2.7 🟠 Çıkışta jeton iptali** (jti kara listesi / Redis) — `Logout` hâlâ yalnızca
-      "Çıkış başarılı" döndürüyor; jeton süresi dolana kadar (15 dk) geçerli kalıyor.
-- [ ] **2.8 🟠 Hassas alanların şifrelenmesi** — `pkg/encryption` hiçbir yerden import
-      edilmiyor; TCKN düz metin *(B26)*. KVKK metnindeki taahhüt buna göre düzeltildi (0.D.1).
+- [x] **[D4] 2.6 🔴 Tenant izolasyonu (PostgreSQL RLS)** — **TAMAMLANDI (2026-09-26).**
+      81 tabloda RLS (migration 020-026); 26 servisin tamamı `pkg/dbscope` kullanıyor.
+      Kimlik servisi ayrı rol (`siteeksen_identity`), uygulama rolü en az yetkiyle.
+      RLS dışında kalan 8 tablo gerekçeli ve doğrulama listeyi birebir denetliyor.
+      Geçiş sırasında bulunan ve kapatılan açıklar: talep durumu (başka sitenin talebi
+      ilerletilebiliyordu), ödeme (başka sitenin tahakkuku bağlanabiliyordu), bütçe
+      itirazı (başka site sonuçlandırabiliyordu; kiracı/başkasının dairesi adına itiraz),
+      karar defteri (başka site yazabiliyordu), görünümler (RLS'i atlıyordu).
+      **Kanıt:** `verify-stack.sh` §32-36 — uçtan uca çapraz site testleri dahil.
+- [x] **[D4] 2.7 🟠 Çıkışta jeton iptali** — `revoked_tokens` + toplu iptal (§30).
+      Uygulama rolü iptal kaydını artık silemez (migration 025).
+- [x] **[D4] 2.8 🟠 Hassas alanların şifrelenmesi** — TCKN/IBAN AES-256-GCM + blind index (§31).
 
 ---
 
@@ -552,19 +557,14 @@ içinde kendi adımı. Bir modül baştan sona bitmeden diğerine geçilmez (dik
 FAZ 5 ve FAZ 2'nin çekirdeği bittiği için öncelik arayüzlere ve RLS'in
 yaygınlaştırılmasına kayıyor.
 
-1. **RLS'i kalan tablolara yay (2.6 devamı).** İki dilim tamamlandı:
-   bugün **26 tabloda açık, 63 tabloda kapalı**.
-   - 1. dilim (migration 020): personel, belge, bildirim — 7 tablo.
-   - 2. dilim (migration 021): otopark, ziyaretçi, stok, demirbaş, devriye,
-     ilan panosu, anket — 19 tablo. Sekiz servisin deposu `pkg/dbscope`
-     kullanımına geçirildi (nps, anket tablolarını paylaştığı için aynı
-     dilimde geçirilmek ZORUNDAYDI).
-   - **Sırada 3. dilim:** yine tek servisli olan `facilities`/`reservations`
-     (reservation), `packages` (package), `contracts` (contract),
-     `expenses`/`expense_categories` (expense), `meters`/`meter_readings` (iot).
-   - **En son:** çok servisli tablolar (`units`, `properties`,
-     `monthly_assessments`, `users`). Bunlar için önce TÜM tüketici servisler
-     kapsamlı sorguya geçmeli; sıra tersine dönerse uygulama bozulur.
+1. ~~**RLS'i kalan tablolara yay (2.6 devamı).**~~ **TAMAMLANDI (2026-09-26).**
+   81 tablo; kimlik rolü; dağıtım dosyaları (`gen-deploy.py`) tek kaynaktan.
+   **Kalan küçük işler:**
+   - `kong/kong.yml` artık isteğe bağlı profil; rotaları gateway'le birebir
+     değil. Ya gateway'e yönlendiren tek rotaya indirilmeli ya da kaldırılmalı.
+   - `legal_parameters` site bazlı istisna satırları RLS dışında (salt-okur).
+     `pkg/legalparams` çözümleyicisi kapsamsız havuz kullanıyor; RLS açılırsa
+     site istisnaları SESSİZCE yok sayılırdı. Önce çözümleyici kapsamlı olmalı.
 2. **FAZ 6.7 — yönetişim arayüzleri.** Governance servisi API olarak hazır ama
    panelde ekranı yok: işletme projesi, genel kurul, karar defteri.
 3. ~~**Modülleri bildirim altyapısına bağlama.**~~ **TAMAMLANDI (2026-09-14).**

@@ -470,3 +470,48 @@ Aynısı ziyaretçi kaydındaki `resident_notified_at` için de geçerli.
 
 **Kural:** Bir olayı belgeleyen alanı, olay GERÇEKTEN gerçekleştiğinde doldur.
 Denemeyi belgelemek istiyorsan ayrı bir alan kullan; ikisini karıştırma.
+
+---
+
+## 2026-09-26 — RLS'in son dilimleri ve dağıtım
+
+### Ders 29 — "Filtre var" sanılan yerde filtre yoktu; RLS bunu görünür yaptı
+
+Her depoyu kapsamlı sorguya geçirirken, imzasında `propertyID` OLMAYAN her
+fonksiyon bir soru işaretiydi. Beş yerde bu gerçek bir açıktı: talep, ödeme,
+itiraz, karar defteri. Hepsinde çağıran taraf "rolü denetledim" diyordu;
+kimse "bu kayıt benim sitemin mi?" diye sormamıştı.
+
+**Kural:** Kimlikle kayıt getiren/değiştiren her fonksiyon site kimliğini de
+alır ve sorguda kullanır. Rol denetimi YETKİ sorusudur, sahiplik sorusu değil;
+ikisi ayrı ayrı yapılır. Yeni depo fonksiyonu yazarken imzada `propertyID`
+yoksa bu bir tasarım hatasıdır.
+
+### Ders 30 — Görünümler RLS'i sessizce atlar
+
+PostgreSQL'de görünüm, alttaki tabloya varsayılan olarak SAHİBİNİN yetkisiyle
+erişir. Sahip süper kullanıcıysa RLS hiç uygulanmaz. Tablo korunuyor sanılırken
+görünüm üzerinden tüm siteler okunabiliyordu.
+
+**Kural:** Her görünüm `security_invoker = true` ile yaratılır. Doğrulama,
+bu seçeneği taşımayan görünüm kalırsa başarısız olur — yeni görünümler de.
+
+### Ders 31 — Doğrulama ortamında çalışan güvenlik, dağıtımda çalışmıyor olabilir
+
+RLS dev-up ve verify-stack'te uygulama rolüyle sınanıyordu ve geçiyordu. Ama
+`docker-compose.yml` servisleri SÜPER KULLANICIYLA bağlıyordu ve 18 serviste
+veritabanı ayarı hiç yoktu. "RLS çalışıyor" iddiası yalnızca test ortamında
+doğruydu.
+
+**Kural:** Bir güvenlik özelliği, dağıtım yapılandırması da aynı kaynaktan
+üretilip doğrulanmadıkça "tamamlandı" sayılmaz. Servis listesi tek yerde
+(`gen-deploy.py`) tutulur; compose/k8s/CI ondan üretilir ve doğrulama sapmayı
+yakalar. Tercihen gerçek imajlarla bir duman testi de yapılır.
+
+### Ders 32 — `cmd | grep -q` + `pipefail` = yanlış başarısızlık
+
+`grep -q` ilk eşleşmede boruyu kapatır; yazmaya devam eden komut SIGPIPE ile
+düşer ve `pipefail` altında boru hattı başarısız görünür. Komutun çıktısına
+yeni bir satır eklenmesi (rol ataması), dokunulmamış bir kontrolü bozdu.
+
+**Kural:** Doğrulama betiklerinde çıktıyı önce dosyaya al, sonra grep'le.

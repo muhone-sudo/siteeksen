@@ -109,7 +109,7 @@ Next.js admin paneli, iki Flutter mobil uygulaması (sakin + yönetici) içerir.
 
 > Aşağıdaki notlar **çalıştırılarak** doğrulanmıştır. Bu bölümdeki hiçbir ifade "olması gerekeni"
 > değil, **bugün gerçekte olanı** anlatır.
-> Toplu kanıt: `bash backend/scripts/verify-stack.sh` → **769/769**,
+> Toplu kanıt: `bash backend/scripts/verify-stack.sh` → **886/886**,
 > `bash backend/scripts/verify-mobile.sh` → **8/8**.
 > Tarihçe ve `dosya:satır` kanıtı: `tasks/audit-raporu.md`, `tasks/changelog.md`.
 
@@ -134,11 +134,20 @@ cd admin && npm run dev            # http://localhost:3001
   `meeting_wizard` (governance ile tekrar olurdu; oraya yönlendirir).
   Ayrıca `iot`'un sensör uçları ve `settings`'in kimlik bilgisi modülü gerçek
   değildir ve bunu açıkça bildirir.
-- **Uygulama artık veritabanına SÜPER KULLANICIYLA BAĞLANMIYOR.** `siteeksen_app`
-  rolünün DDL yetkisi yoktur ve satır düzeyi güvenlik politikalarına tabidir.
-  Bu, RLS'in çalışmasının ÖN KOŞULUDUR: PostgreSQL'de RLS süper kullanıcıyı
-  `FORCE ROW LEVEL SECURITY` ile bile bağlamaz. `rls_effective` görünümü
-  bağlantının RLS'e tabi olup olmadığını söyler.
+- **Uygulama veritabanına SÜPER KULLANICIYLA BAĞLANMIYOR — dev-up, doğrulama,
+  docker compose ve k8s'in dördünde de.** İki rol vardır:
+  `siteeksen_identity` (yalnızca kimlik servisi: dizin + jeton iptal tabloları,
+  site verisine erişim YOK) ve `siteeksen_app` (diğer 25 servis: RLS'e tabi,
+  dizin tablolarını yalnızca okur, `users.password_hash`/TCKN sütunlarını
+  göremez, denetim izini ve jeton iptalini silemez). Parolaları `cmd/migrate`
+  `APP_DB_PASSWORD` / `IDENTITY_DB_PASSWORD` ile atar; depoya yazılmaz.
+  RLS **81 tabloda** açık; dışarıda kalan 8 tablonun her biri gerekçelidir ve
+  doğrulama listeyi birebir denetler. Tüm görünümler `security_invoker`
+  (aksi hâlde görünüm sahibinin yetkisiyle RLS'i atlıyordu).
+- **Dağıtım dosyaları tek kaynaktan üretilir:** `backend/scripts/gen-deploy.py`
+  → 27 Dockerfile (root değil, uid 10001), `docker-compose.yml`, `k8s/*.yaml`,
+  CI imaj matrisi. Elle düzenlenmez; `--check` kipi doğrulamada sapmayı yakalar.
+  Compose zorunlu gizli değerler (`.env`, şablon `.env.example`) yoksa açılmaz.
 - **Modüller artık gerçekten bildirim gönderiyor.** Altı modül `pkg/notify`
   üzerinden uygulama içi bildirim üretir. Alıcı kümesi (sakinler / daire
   sakinleri / yönetim) `pkg/notify/audience.go`'da tek yerde tanımlıdır:
@@ -188,10 +197,11 @@ cd admin && npm run dev            # http://localhost:3001
   kaldırıldı); `pkg/audit` yeniden yazıldı; `pkg/middleware` artık hatayı yutmuyor ve 403'leri `DENIED`
   olarak ayırıyor. **Kanıt:** `go test ./pkg/audit/...` gerçek veritabanına karşı geçiyor + uçtan uca
   istekte `audit_logs`'a kayıt yazıldığı doğrulandı.
-- **İzolasyon uygulama katmanındadır, veritabanı katmanında DEĞİL.** `pkg/tenant` hâlâ ölü kod.
-  Bugün izolasyon JWT'deki `property_id` + sorgu filtreleriyle sağlanır; bu claim artık
-  **istemci tarafından değiştirilemez** (sahiplik doğrulaması eklendi) ve roller **site
-  bazlıdır**. PostgreSQL RLS'e geçiş hâlâ yapılacak (todo 2.6).
+- **İzolasyon hem uygulama hem veritabanı katmanındadır.** JWT'deki `property_id`
+  istemci tarafından değiştirilemez (sahiplik doğrulaması); her servis `pkg/dbscope`
+  ile sorguyu site kapsamına bağlar (`SET LOCAL app.property_id`); RLS unutulan
+  filtreyi yakalar. RLS'e geçiş sırasında **beş çapraz site açığı** bulundu ve
+  kapatıldı (talep, ödeme, itiraz, karar defteri, görünümler). `pkg/tenant` ölü koddur.
 - ~~**Para hesaplarında kritik hatalar**~~ → **DÜZELTİLDİ.** Bakiye kartezyen join'i giderildi
   (2026-09-12); ödeme artık `paid_amount`'ı günceller ve borcu düşürür (yönetici onay akışı,
   2026-09-13); gecikme tazminatı KMK m.20/2'ye göre hesaplanır.
@@ -236,7 +246,7 @@ Repo yolu WSL'de: `/mnt/c/Users/md064615/Documents/Projeler/proje99`
 
 | Betik | Kapsam | Ne zaman |
 |---|---|---|
-| `bash backend/scripts/verify-stack.sh` | **769 kontrol** — sıfırdan PostgreSQL, `cmd/migrate` ile 21 migration, şema denetimi, tam idempotency, `pkg/audit`+`pkg/legalparams`+`pkg/money`+`pkg/storage`+nisap testleri, ve uçtan uca: identity (giriş, roller), gateway (kimlik doğrulama), finance (ödeme→borç, gecikme tazminatı), governance (işletme projesi, nisap, defter zinciri), 501 dürüstlüğü ve 20 modülün uçtan uca sınanması (gider, personel, ziyaretçi, otopark, rezervasyon, kargo, sözleşme, belge, demirbaş, stok, anket, sayaç/ısı payı, bildirim, devriye, duyuru, ilan, ayarlar, enerji, tahsilat riski, NPS/ESG) | **Backend'e dokunan her değişiklikten sonra** |
+| `bash backend/scripts/verify-stack.sh` | **886 kontrol** — dağıtım dosyası tutarlılığı, sıfırdan PostgreSQL, `cmd/migrate` ile 26 migration ve rol ataması, RLS (81 tablo, çapraz site uçtan uca testleri, rol yetkileri), şema denetimi, tam idempotency, `pkg/audit`+`pkg/legalparams`+`pkg/money`+`pkg/storage`+nisap testleri, ve uçtan uca: identity (giriş, roller), gateway (kimlik doğrulama), finance (ödeme→borç, gecikme tazminatı), governance (işletme projesi, nisap, defter zinciri), 501 dürüstlüğü ve 20 modülün uçtan uca sınanması (gider, personel, ziyaretçi, otopark, rezervasyon, kargo, sözleşme, belge, demirbaş, stok, anket, sayaç/ısı payı, bildirim, devriye, duyuru, ilan, ayarlar, enerji, tahsilat riski, NPS/ESG) | **Backend'e dokunan her değişiklikten sonra** |
 | `bash backend/scripts/verify-mobile.sh` | **8 kontrol** — iki Flutter uygulaması için `pub get` + `analyze` + `test` ve arayüzde uydurma veri taraması | Mobil değişikliklerden sonra |
 | `cd admin && npx tsc --noEmit && npm run lint && npm run build` | Panel | Panel değişikliklerinden sonra |
 | `bash backend/scripts/dev-up.sh` | Geliştirme ortamını ayağa kaldırır | Elle deneme için |
@@ -249,10 +259,10 @@ Kural: Bir madde ancak çalıştığı **kanıtlandıktan** sonra tamamlandı i�
 
 ### Full Stack (Docker)
 ```bash
-docker-compose up -d                          # Start all services
-docker-compose up -d postgres redis           # Start only databases
-docker-compose logs -f                        # Follow all logs
-docker-compose logs -f identity-service       # Follow a specific service
+cp .env.example .env                          # gizli değerleri doldur (boşsa compose açılmaz)
+docker compose up -d --build                  # postgres → migrate → 26 servis → gateway → panel
+docker compose logs -f identity-service       # tek servisin günlüğü
+python3 backend/scripts/gen-deploy.py         # servis listesi değişince dağıtım dosyalarını üret
 ```
 
 ### Backend (Go)
@@ -331,14 +341,16 @@ Active services and their ports:
 | governance | 8107 | KMK yönetişim: işletme projesi, genel kurul, defterler, icra (**gerçek DB**) |
 | gateway | 8888 | Custom dev gateway (`cmd/gateway/`) — kimlik doğrulama kapısı |
 
-Many more services exist in `backend/services/` (parking, personnel, visitor, energy_analytics, reservation, contract, document, etc.) but are not yet wired into docker-compose.
+All 26 services are in docker-compose, k8s and the CI image matrix (generated by `backend/scripts/gen-deploy.py`).
 
 ### Shared Packages (`backend/pkg/`)
-- `database/` — pgx connection pool, config from env
-- `middleware/` — JWT auth middleware; extracts `user_id`, `property_id`, `roles` into Gin context
-- `tenant/` — multi-tenancy via `X-Tenant-ID` header or subdomain; use `TenantMiddleware()` on routes that need it
-- `encryption/` — AES-256-GCM for sensitive fields (TCKN, phone numbers)
-- `payment/`, `notification/`, `reports/`, `ai/`, `integrations/` — domain-specific shared utilities
+- `database/` — pgx connection pool, config from env (`DB_USER` is `siteeksen_app` or `siteeksen_identity`, never the superuser)
+- `dbscope/` — **every repository query goes through `dbscope.For(pool, propertyID)`**; sets `app.property_id` per transaction so RLS applies. New repository code must use it.
+- `middleware/` — JWT auth (+ revocation check), site-scoped roles into Gin context, `RequireRole`, `AuditLog`
+- `audit/`, `revocation/`, `authtoken/` — KVKK audit trail, token revocation, JWT
+- `pii/` — AES-256-GCM + HMAC blind index for TCKN/IBAN; `legalparams/` — mevzuat parametreleri; `money/` — kuruş aritmetiği
+- `notify/` — outbox bildirim + alıcı kümeleri (`audience.go`); `storage/` — local / S3 (SigV4)
+- `tenant/`, `payment/`, `notification/`, `ai/`, `integrations/` — **ölü kod, hiçbir yerden import edilmez**
 
 ### API Gateway
 **Kong** (port 8000) routes production traffic to services using declarative config at `kong/kong.yml`. For local dev, the lightweight custom gateway at `cmd/gateway/` (port 8888) is used instead.
@@ -374,21 +386,17 @@ Bildirilen ortak yığın: Riverpod, go_router, Dio, flutter_secure_storage.
 - Test sayısı: sakin 1 (derlenmiyor), yönetici 0 (`test/widget_test.dart` var olmayan sınıfı çağırıyor).
 
 ### Infrastructure
-- **PostgreSQL 16** — primary datastore; schema managed via sequential SQL migrations in `backend/migrations/`
-- **Redis 7** — caching and session storage (identity uses DB 0, notification uses DB 1)
-- **MongoDB 7** — IoT sensor time-series data only
-- **Kafka** (Confluent) — async event bus; consumed by notification-service
+- **PostgreSQL 16** — tek veri deposu; şema `backend/migrations/` (26 migration, `cmd/migrate`)
+- Redis, MongoDB ve Kafka **kullanılmıyor** (kodda bağlantı yok) ve compose'dan kaldırıldı.
 
-### Multi-Tenancy — **fiilen yok**
-`pkg/tenant/middleware.go` yazılmıştır ama **hiçbir route'a bağlı değildir** (294 satır ölü kod);
-`X-Tenant-ID` yaklaşımı geri alınmıştır. Bugün izolasyonun tek dayanağı JWT'deki `property_id` claim'idir ve:
-- `POST /users/me/active-property` sahiplik doğrulaması yapmadığı için bu değer **istemci tarafından
-  seçilebilir** (`identity/repository/user.go:87-91`),
-- roller siteye göre değil **globaldir** (`users.roles TEXT[]`) → bir sitede `MANAGER` olan kişi tüm
-  sitelerde yöneticidir,
-- 11 sorguda `deleted = 0` filtresi, bazı sorgularda tenant filtresi eksiktir.
-
-Kalıcı çözüm için önerilen yaklaşım PostgreSQL satır düzeyi güvenliğidir (RLS) — bkz. `tasks/roadmap.md` §U.1.
+### Multi-Tenancy (site izolasyonu) — **çalışıyor, iki katmanlı**
+- **Uygulama katmanı:** JWT `property_id` (site seçiminde sahiplik doğrulanır), site bazlı roller
+  (`property_roles`), her sorguda `property_id` filtresi.
+- **Veritabanı katmanı:** 81 tabloda RLS; kapsam `pkg/dbscope` ile verilir. Kapsam yoksa sorgu
+  hiç satır döndürmez (fail-closed). Alt tablolar ebeveyn üzerinden `EXISTS` ile korunur.
+- Yeni tablo eklerken: RLS + politika + (alt tabloysa) ebeveyn anahtarına indeks; doğrulama
+  RLS dışında kalan tablo listesini birebir denetler, eklenen tablo unutulursa yakalanır.
+- `pkg/tenant` (X-Tenant-ID) ölü koddur; kullanılmaz.
 
 ### Security — **beyan ile gerçek arasındaki fark**
 | Konu | Durum (2026-09-13) |
@@ -407,7 +415,9 @@ Kalıcı çözüm için önerilen yaklaşım PostgreSQL satır düzeyi güvenli�
 | Giriş şifresi loglanması | **Kaldırıldı** — yalnızca maskelenmiş telefon ve HTTP durumu loglanıyor |
 | İstemci kimlik başlıkları | Gateway `X-User-*` / `X-Property-Id` / `X-Tenant-Id` başlıklarını **siler** |
 | TCKN/IBAN şifreleme | **VAR** — AES-256-GCM; arama için HMAC blind index (düz SHA-256 değil). Anahtar yoksa personel servisi açılmaz. Varsayılan MASKELİ; maskesiz erişim ayrı `PII_REVEAL` denetim kaydı üretir |
-| Tenant izolasyonu (RLS) | **26 TABLODA AÇIK** — personel, belge, bildirim (1. dilim) + otopark, ziyaretçi, stok, demirbaş, devriye, ilan panosu, anket (2. dilim). Uygulama süper kullanıcıyla DEĞİL, yetkisi sınırlı `siteeksen_app` rolüyle bağlanır; RLS ancak böyle çalışır. **63 tablo hâlâ kapalı** (çok servisli tablolar) ve bu sayı doğrulamada raporlanıyor (todo 2.6) |
+| Tenant izolasyonu (RLS) | **81 TABLODA AÇIK** (migration 020-026). 26 servisin tamamı `pkg/dbscope` kullanır. RLS dışında kalan 8 tablo gerekçeli: `audit_logs` (yalnızca ekleme), `legal_parameters` (salt-okur), `revoked_tokens`/`user_token_invalidation` (salt-okur), `tenants`/`invoices`/`usage_metrics`/`schema_migrations` (uygulama rolüne kapalı) |
+| Veritabanı rolleri | **En az yetki** — kimlik servisi ayrı rol (site verisine erişemez); uygulama rolü parola özetini/TCKN'yi göremez, dizin tablolarına yazamaz, denetim izini ve jeton iptalini silemez |
+| Dağıtım | compose/k8s/CI tek kaynaktan; kaplar root değil; compose varsayılan parolayla açılmaz; k8s'te tek giriş kapısı gateway |
 | Çıkışta jeton iptali | **VAR** — `revoked_tokens` + toplu iptal. Çıkışta erişim VE yenileme jetonu iptal edilir; iptal tüm servislerde geçerlidir |
 
 `legal/kvkk-aydinlatma.md` 2026-09-13'te **gerçek duruma göre** düzeltildi: uygulanan ve

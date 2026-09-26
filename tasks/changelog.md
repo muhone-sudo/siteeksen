@@ -12,6 +12,54 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-09-26 — RLS TAMAMLANDI, EN AZ YETKİ, DAĞITIM TEK KAYNAKTAN (DOĞRULANMIŞ)
+
+> **Toplu kanıt:** `bash backend/scripts/verify-stack.sh` → **886 kontrol, 0 başarısız**.
+> Ek kanıt: gerçek imajlarla `docker compose` duman testi — 26 migration, iki rol
+> parolası atandı, giriş kimlik rolüyle 200, finance uygulama rolüyle 200,
+> kaplar uid 10001 (root değil). Commit'ler: `72603f9`, `3543388`, `ada898a`.
+
+#### RLS 30 → 81 tablo (migration 023-026)
+
+- **023:** ödeme, gecikme tazminatı, tahakkuk detayı, tüketim faturası, gider,
+  talep, duyuru (10 tablo). `payments`'a `property_id` eklendi: çok daireli
+  ödemede `unit_id` boş kaldığından ödemenin sitesi bilinemiyordu.
+- **024:** kalan altı servis (governance, settings, smart_collection, iot,
+  energy_analytics, esg) kapsama geçirildi; çok servisli `monthly_assessments`,
+  `expense_categories`, `meters`, `meter_readings` açılabildi (22 tablo).
+- **025:** dizin tabloları (users, properties, units, blocks, resident_units,
+  property_roles) + ayrı **kimlik rolü**.
+- **026:** kullanılmayan 13 site tablosu korumalı doğar; platform tabloları
+  uygulama rolüne kapalı.
+
+**Geçiş sırasında bulunan ve kapatılan gerçek açıklar:**
+
+| Yer | Açık | Etki |
+|---|---|---|
+| Talep | `GetByID/UpdateStatus/ConfirmResolution` site filtresiz | A sitesinin yöneticisi B'nin talebini ilerletebiliyordu |
+| Ödeme | Tahakkuk seçimi aktif siteye göre süzülmüyordu | Başka sitenin tahakkuku ödemeye bağlanabiliyordu |
+| Bütçe itirazı | Listeleme/sonuçlandırma site filtresiz | Başka site itirazı reddedip projenin kesinleşme engelini kaldırabiliyordu |
+| Bütçe itirazı | Daire doğrulanmıyordu | Kiracı ya da başkasının (başka sitenin) dairesi adına itiraz — KMK m.37/2 hak malikindir |
+| Karar defteri | Yazma/okuma/doğrulama site filtresiz | Başka sitenin KARAR DEFTERİNE kayıt yazılabiliyordu (KMK m.32) |
+| Görünümler | Süper kullanıcının yetkisiyle çalışıyordu | `monthly_expense_summary` üzerinden tüm sitelerin gider özeti okunuyordu |
+| Uygulama rolü | Dizin tablolarında tam yetki | Tüm sitelerin telefon/e-posta/**parola özeti** okunabilir; roller, arsa payları değiştirilebilir; jeton iptali ve denetim izi silinebilirdi |
+| Geçersiz kimlik | Veritabanı tür hatası | 404 yerine 500 |
+
+#### Dağıtım — `backend/scripts/gen-deploy.py`
+
+Önceki durum: `docker-compose.yml`'de 26 servisin **18'inde veritabanı ve JWT
+ayarı yoktu** (açılamazlardı), kalan 8'i **süper kullanıcıyla** bağlanıyordu —
+RLS dağıtımda hiç devrede değildi. k8s 2 servis tanımlıyordu; ingress servisleri
+gateway'i atlayarak ve yanlış önekle (`/v1` ↔ `/api/v1`) yayınlıyordu. CI 3 imaj
+üretiyordu. Dockerfile'lar root çalışıyordu. Redis/Mongo/Kafka compose'da ayakta
+ama koddan hiç kullanılmıyordu.
+
+Artık tek bir servis listesinden: 27 Dockerfile (uid 10001, sağlık kontrolü),
+compose (zorunlu gizli değer yoksa açılmaz, demo verisi varsayılan kapalı),
+k8s (26 servis + gateway + panel + migrate işi, salt-okur kök dosya sistemi),
+CI (29 imaj; önce migrate işi, sonra dağıtım). `--check` kipi doğrulamada sapmayı
+yakalar. `cmd/migrate` rol parolalarını ortam değişkeninden atar.
+
 ### 2026-09-14 (üçüncü tur) — RLS İKİNCİ DİLİM + BİLDİRİM BAĞLANTISI (DOĞRULANMIŞ)
 
 > **Toplu kanıt:** `bash backend/scripts/verify-stack.sh` → **769 kontrol, 0 başarısız**
