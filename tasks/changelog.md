@@ -12,6 +12,15 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-09-26 — GENEL KURUL KARARI → KARAR DEFTERİ (FAZ 6.6, DOĞRULANMIŞ)
+
+> **Kanıt:** `bash backend/scripts/verify-stack.sh` → **970 kontrol, 0 başarısız**.
+
+- Gündem maddesi sonuçlanınca karar aynı transaction'da toplantı yılının karar
+  defterine yazılır (KMK m.32): başlık, karar metni, oy dağılımı, nisap gerekçesi.
+  Reddedilen karar da yazılır. Defter notere kapatılmışsa karar yazılmaz → 409,
+  madde PENDING kalır. Tarih Türkiye saatiyle. Yanıt `book_entry` ve `note` taşır.
+
 ### 2026-09-26 — ZAMANLANMIŞ BİLDİRİMLER (DOĞRULANMIŞ)
 
 > **Kanıt:** `bash backend/scripts/verify-stack.sh` → **965 kontrol, 0 başarısız** (yeni adım 40: 15 kontrol).

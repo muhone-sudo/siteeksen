@@ -460,10 +460,13 @@ gerçek veri katmanına bağlı yazıldı. Şema: `migrations/014`.
 - [x] **[D3] 6.5 Yönetici/denetçi görev dönemleri, yıllık hesap verme (m.39), denetim
       tutanakları (m.41)** — şema hazır (`governing_terms`, `accountability_reports`,
       `audit_reports`); uçlar sonraki turda.
-- [ ] **6.6 Genel kurul tutanağı ve karar defteri otomatik bağlantısı** — toplantı
-      sonuçlandığında karar defterine otomatik kayıt düşmeli.
-- [ ] **6.7 Panel/mobil arayüzleri** — yönetişim servisi API olarak hazır; yönetim paneli
-      ekranları henüz yazılmadı.
+- [x] **[D4] 6.6 Genel kurul kararı → karar defteri otomatik bağlantısı (2026-09-26)**
+      Gündem maddesi sonuçlandığında karar (kabul ya da red) AYNI TRANSACTION'da toplantı
+      yılının karar defterine yazılır: oy dağılımı, nisap gerekçesi, kaynak = gündem maddesi.
+      Defter kapalıysa karar da yazılmaz (madde PENDING kalır; yarım işlem yok).
+      **Kanıt:** `verify-stack.sh` §37-G — tek kayıt, zincir geçerli, kapalı defterde 409.
+- [x] **6.7 Panel arayüzleri** — işletme projesi, genel kurul, defterler, icra ekranları
+      (2026-09-26, `8d9528d`). Mobil kaldı.
 
 ---
 

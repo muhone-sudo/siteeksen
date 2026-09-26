@@ -4945,6 +4945,41 @@ if [ -n "$A2" ] && [ -n "$ITEM2" ]; then
     || bad "kapalı maddeye oy → $SC (lehte $NV → $VF)"
   SC=$(code -X POST "$GU/agenda-items/$ITEM2/close" -H "$GA" -H "$J" -d '{}')
   [ "$SC" = "409" ] && ok "kapatılmış madde yeniden kapatılamıyor → 409 (önceden 404)" || bad "yeniden kapatma → $SC"
+
+  # FAZ 6.6 — karar AYNI İŞLEMDE karar defterine yazılır (KMK m.32)
+  ROW=$($PSQL -t -A -c "SELECT count(*), max(b.kind), max(b.period_year),
+      bool_and(b.period_year = EXTRACT(YEAR FROM a.held_at AT TIME ZONE 'Europe/Istanbul')),
+      max(e.title), max(e.book_id::text)
+    FROM book_entries e JOIN books b ON b.id = e.book_id
+    JOIN assembly_agenda_items ai ON ai.id = e.source_id JOIN assemblies a ON a.id = ai.assembly_id
+    WHERE e.source_type = 'AGENDA_ITEM' AND e.source_id = '$ITEM2';")
+  IFS='|' read -r NE BK BY BYOK BT BID <<<"$ROW"
+  [ "$NE" = "1" ] && [ "$BK" = "DECISION" ] && [ "$BYOK" = "t" ] && echo "$BT" | grep -q "KABUL EDİLDİ" \
+    && ok "karar, toplantı yılının ($BY) karar defterine tek kayıt olarak yazıldı: $BT" \
+    || bad "karar defteri kaydı: $ROW"
+  echo "$CL" | grep -q '"book_entry":{' && echo "$CL" | grep -q 'karar defterine' \
+    && ok "yanıt defter kaydını ve numarasını bildiriyor" || bad "yanıtta defter kaydı yok: $CL"
+  BODY=$($PSQL -t -A -c "SELECT body FROM book_entries WHERE source_id='$ITEM2';")
+  echo "$BODY" | grep -q "Oylar: lehte $NV" && echo "$BODY" | grep -q "Nisap:" \
+    && ok "defter kaydı oy dağılımını ve nisap gerekçesini taşıyor" || bad "defter kaydı içeriği: $BODY"
+  VER=$(curl -s "$GU/books/$BID/verify" -H "$GA")
+  echo "$VER" | grep -q '"valid":true' && ok "otomatik kayıttan sonra defter zinciri geçerli" || bad "defter zinciri: $VER"
+
+  # Defter kapalıysa karar da yazılmaz: madde PENDING kalır (yarım işlem yok)
+  ASM3=$(curl -s -X POST "$GU/assemblies" -H "$GA" -H "$J" -d '{"kind":"ORDINARY","call_number":1,
+    "scheduled_at":"2032-07-01T18:00:00Z","agenda_items":[{"title":"Kapali defter sinamasi"}]}')
+  A3=$(echo "$ASM3" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+  ITEM3=$(echo "$ASM3" | grep -o '"agenda_items":\[{"id":"[^"]*"' | grep -o '[0-9a-f-]\{36\}')
+  for u in $UNITS; do curl -s -o /dev/null -X POST "$GU/assemblies/$A3/attendees" -H "$GA" -H "$J" -d "{\"unit_id\":\"$u\"}"; done
+  curl -s -o /dev/null -X POST "$GU/assemblies/$A3/hold" -H "$GA"
+  $PSQL -c "UPDATE books SET status='CLOSED' WHERE id='$BID';" >/dev/null
+  SC=$(code -X POST "$GU/agenda-items/$ITEM3/close" -H "$GA" -H "$J" -d '{}')
+  ST=$($PSQL -t -A -c "SELECT decision_status FROM assembly_agenda_items WHERE id='$ITEM3';")
+  NE=$($PSQL -t -A -c "SELECT count(*) FROM book_entries WHERE source_id='$ITEM3';")
+  [ "$SC" = "409" ] && [ "$ST" = "PENDING" ] && [ "$NE" = "0" ] \
+    && ok "defter kapalıyken karar yazılamıyor → 409; madde PENDING kaldı, deftere kayıt yok" \
+    || bad "kapalı defter: $SC, madde $ST, kayıt $NE"
+  $PSQL -c "UPDATE books SET status='OPEN' WHERE id='$BID';" >/dev/null
 else
   bad "genel kurul akışı kurulamadı: $ASM2"
 fi

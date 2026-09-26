@@ -237,7 +237,7 @@ export function endpoints(http: Http) {
             attendees: (id: string) => g<T.List<T.Attendee>>(`/governance/assemblies/${id}/attendees`),
             hold: (id: string) => http.post<T.Quorum>(`/governance/assemblies/${id}/hold`),
             vote: (itemId: string, unit_id: string, vote: string) => http.post<Msg>(`/governance/agenda-items/${itemId}/votes`, { unit_id, vote }),
-            closeItem: (itemId: string, decision_text?: string) => http.post<T.MajorityResult>(`/governance/agenda-items/${itemId}/close`, { decision_text }),
+            closeItem: (itemId: string, decision_text?: string) => http.post<T.MajorityResult & { book_entry?: T.BookEntry; note?: string }>(`/governance/agenda-items/${itemId}/close`, { decision_text }),
             ensureBook: (kind: string, year: number) => http.post<T.Book>(`/governance/books?kind=${encodeURIComponent(kind)}&year=${year}`),
             entries: (bookId: string) => g<T.List<T.BookEntry>>(`/governance/books/${bookId}/entries`),
             addEntry: (bookId: string, b: { title: string; body: string; entry_date?: string }) => http.post<T.BookEntry>(`/governance/books/${bookId}/entries`, b),

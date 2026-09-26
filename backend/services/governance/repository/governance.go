@@ -816,21 +816,58 @@ func (r *Repository) GetAgendaItem(ctx context.Context, propertyID, agendaItemID
 	return nil, nil, ErrNotFound
 }
 
-// CloseAgendaItem, nisap değerlendirmesinin sonucunu yazar.
-func (r *Repository) CloseAgendaItem(ctx context.Context, propertyID, agendaItemID, status, decisionText string) error {
-	tag, err := r.scope(propertyID).Exec(ctx, `
+// CloseAgendaItem, nisap değerlendirmesinin sonucunu yazar VE aynı işlemde
+// karar defterine kaydını düşer (FAZ 6.6).
+//
+// KMK m.32: kurul kararları karar defterine yazılır. Önceden karar yalnızca
+// gündem maddesinde kalıyor, deftere yönetici elle yazmak zorundaydı; yazmazsa
+// kararın defterde izi olmuyordu. İkisi AYRI işlemlerde yapılsaydı, arada bir
+// hata "karar alınmış ama deftere yazılmamış" durumunu kalıcı hâle getirirdi —
+// bu yüzden tek transaction'dır: defter kapalıysa (notere kapatılmışsa) karar
+// da yazılmaz ve madde PENDING kalır.
+//
+// Defter, toplantı yılının karar defteridir; yoksa açılır.
+func (r *Repository) CloseAgendaItem(ctx context.Context, propertyID, agendaItemID, status, decisionText,
+	createdBy string, bookYear int, entry models.CreateBookEntryInput) (*models.BookEntry, error) {
+	tx, err := r.scope(propertyID).Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+
+	tag, err := tx.Exec(ctx, `
 		UPDATE assembly_agenda_items
 		SET decision_status = $2, decision_text = NULLIF($3,'')
 		WHERE id = $1 AND decision_status = 'PENDING'
 		  AND assembly_id IN (SELECT id FROM assemblies WHERE property_id = $4)`,
 		agendaItemID, status, decisionText, propertyID)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if tag.RowsAffected() == 0 {
-		return r.stateOrNotFound(ctx, propertyID, "assembly_agenda_items", agendaItemID, ErrNotFound, ErrAlreadyDecided)
+		return nil, r.stateOrNotFound(ctx, propertyID, "assembly_agenda_items", agendaItemID, ErrNotFound, ErrAlreadyDecided)
 	}
-	return nil
+
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO books (property_id, kind, period_year) VALUES ($1, 'DECISION', $2)
+		ON CONFLICT (property_id, kind, period_year) DO NOTHING`, propertyID, bookYear); err != nil {
+		return nil, err
+	}
+	var bookID, bookStatus string
+	if err := tx.QueryRow(ctx, `
+		SELECT id::text, status FROM books
+		WHERE property_id = $1 AND kind = 'DECISION' AND period_year = $2 FOR UPDATE`,
+		propertyID, bookYear).Scan(&bookID, &bookStatus); err != nil {
+		return nil, err
+	}
+	if bookStatus != "OPEN" {
+		return nil, ErrBookClosed
+	}
+	e, err := appendEntryTx(ctx, tx, bookID, createdBy, entry)
+	if err != nil {
+		return nil, err
+	}
+	return e, tx.Commit(ctx)
 }
 
 // -----------------------------------------------------------------------------
@@ -893,10 +930,22 @@ func (r *Repository) AppendBookEntry(ctx context.Context, propertyID, bookID, cr
 	if status != "OPEN" {
 		return nil, ErrBookClosed
 	}
+	e, err := appendEntryTx(ctx, tx, bookID, createdBy, in)
+	if err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	return e, nil
+}
 
+// appendEntryTx, kilitli (FOR UPDATE) ve açık olduğu denetlenmiş deftere kayıt
+// ekler; zinciri sürdürür. Çağıran transaction'ı yönetir.
+func appendEntryTx(ctx context.Context, tx pgx.Tx, bookID, createdBy string, in models.CreateBookEntryInput) (*models.BookEntry, error) {
 	var lastNo int
 	var prevHash *string
-	err = tx.QueryRow(ctx, `
+	err := tx.QueryRow(ctx, `
 		SELECT entry_no, entry_hash FROM book_entries
 		WHERE book_id = $1 ORDER BY entry_no DESC LIMIT 1`, bookID).Scan(&lastNo, &prevHash)
 	if err != nil && err != pgx.ErrNoRows {
@@ -933,10 +982,6 @@ func (r *Repository) AppendBookEntry(ctx context.Context, propertyID, bookID, cr
 		bookID, e.EntryNo, e.EntryDate, e.Title, e.Body, e.SourceType, e.SourceID,
 		createdBy, e.PrevHash, e.EntryHash).Scan(&e.ID, &e.CreatedAt)
 	if err != nil {
-		return nil, err
-	}
-
-	if err := tx.Commit(ctx); err != nil {
 		return nil, err
 	}
 	return e, nil

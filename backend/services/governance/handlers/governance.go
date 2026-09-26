@@ -353,13 +353,22 @@ func CloseAgendaItem(svc *service.Service) gin.HandlerFunc {
 			DecisionText string `json:"decision_text"`
 		}
 		_ = c.ShouldBindJSON(&in)
-		res, err := svc.CloseAgendaItem(c.Request.Context(), c.GetString("property_id"),
-			c.Param("itemId"), in.DecisionText)
+		res, entry, err := svc.CloseAgendaItem(c.Request.Context(), c.GetString("property_id"),
+			c.Param("itemId"), in.DecisionText, c.GetString("user_id"))
 		if err != nil {
 			mapError(c, err, "gündem maddesi sonuçlandırma")
 			return
 		}
-		c.JSON(http.StatusOK, res)
+		// Yanıt biçimi korunur (MajorityResult alanları üst düzeyde); defter
+		// kaydı ek alan olarak döner.
+		c.JSON(http.StatusOK, gin.H{
+			"required_code": res.RequiredCode, "required_ratio": res.RequiredRatio,
+			"by_count_ratio": res.ByCountRatio, "by_share_ratio": res.ByShareRatio,
+			"accepted": res.Accepted, "explanation": res.Explanation, "legal_basis": res.LegalBasis,
+			"book_entry": entry,
+			"note": "Karar, karar defterine " + strconv.Itoa(entry.EntryNo) + " numarayla yazıldı (KMK m.32). " +
+				"Kâğıt defterdeki imzaların yerine geçmez.",
+		})
 	}
 }
 

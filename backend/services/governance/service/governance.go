@@ -418,20 +418,23 @@ func (s *Service) CastVote(ctx context.Context, propertyID, agendaItemID string,
 	return s.repo.CastVote(ctx, propertyID, agendaItemID, in, userID)
 }
 
-// CloseAgendaItem, gündem maddesini nisap kurallarına göre sonuçlandırır.
-func (s *Service) CloseAgendaItem(ctx context.Context, propertyID, agendaItemID, decisionText string) (models.MajorityResult, error) {
+// CloseAgendaItem, gündem maddesini nisap kurallarına göre sonuçlandırır ve
+// kararı AYNI İŞLEMDE karar defterine yazar (KMK m.32; FAZ 6.6). Reddedilen
+// karar da yazılır: defter, kurulun neye karar verdiğinin kaydıdır, yalnızca
+// kabul edilenlerin değil.
+func (s *Service) CloseAgendaItem(ctx context.Context, propertyID, agendaItemID, decisionText, userID string) (models.MajorityResult, *models.BookEntry, error) {
 	item, assembly, err := s.repo.GetAgendaItem(ctx, propertyID, agendaItemID)
 	if err != nil {
-		return models.MajorityResult{}, err
+		return models.MajorityResult{}, nil, err
 	}
 	// Karar yalnızca YAPILMIŞ toplantıda alınır; nisap fotoğrafı yoksa
 	// çoğunluk hesabının paydası belirsizdir.
 	if assembly.Status != "HELD" {
-		return models.MajorityResult{}, repository.ErrAssemblyNotOpen
+		return models.MajorityResult{}, nil, repository.ErrAssemblyNotOpen
 	}
 	totalUnits, totalShare, attUnits, attShare, err := s.repo.AttendanceTotals(ctx, propertyID, assembly.ID)
 	if err != nil {
-		return models.MajorityResult{}, err
+		return models.MajorityResult{}, nil, err
 	}
 
 	required := 0.0
@@ -439,7 +442,7 @@ func (s *Service) CloseAgendaItem(ctx context.Context, propertyID, agendaItemID,
 	if item.RequiredMajorityCode != "" {
 		p, err := s.params.Get(ctx, propertyID, item.RequiredMajorityCode, time.Now())
 		if err != nil {
-			return models.MajorityResult{}, err
+			return models.MajorityResult{}, nil, err
 		}
 		required, _ = p.Numeric.Float64()
 		basis = p.LegalBasis
@@ -457,10 +460,62 @@ func (s *Service) CloseAgendaItem(ctx context.Context, propertyID, agendaItemID,
 	if text == "" {
 		text = res.Explanation
 	}
-	if err := s.repo.CloseAgendaItem(ctx, propertyID, agendaItemID, status, text); err != nil {
-		return res, err
+	decidedAt := time.Now()
+	if assembly.HeldAt != nil {
+		decidedAt = *assembly.HeldAt
 	}
-	return res, nil
+	decidedAt = decidedAt.In(istanbul)
+	entry := decisionEntry(assembly, item, status, text, res, decidedAt)
+	e, err := s.repo.CloseAgendaItem(ctx, propertyID, agendaItemID, status, text, userID, decidedAt.Year(), entry)
+	if err != nil {
+		return res, nil, err
+	}
+	return res, e, nil
+}
+
+// istanbul, karar tarihinin yazıldığı saat dilimidir (gece yarısına yakın
+// toplantıda UTC tarihi bir gün geri düşerdi).
+var istanbul = func() *time.Location {
+	loc, err := time.LoadLocation("Europe/Istanbul")
+	if err != nil {
+		return time.FixedZone("TRT", 3*60*60)
+	}
+	return loc
+}()
+
+// decisionEntry, karar defteri kaydının metnini üretir. Kayıt, kararın
+// kendisini ve hangi nisapla alındığını — sonradan itiraz edildiğinde
+// bakılacak bilgiyi — taşır. Katılanların imzası kâğıt defterde atılır;
+// bu kayıt imzanın yerine geçmez.
+func decisionEntry(a *models.Assembly, item *models.AgendaItem, status, text string,
+	res models.MajorityResult, decidedAt time.Time) models.CreateBookEntryInput {
+	verdict := "REDDEDİLDİ"
+	if status == "ACCEPTED" {
+		verdict = "KABUL EDİLDİ"
+	}
+	title := fmt.Sprintf("Gündem %d: %s — %s", item.OrderNo, item.Title, verdict)
+	if r := []rune(title); len(r) > 300 {
+		title = string(r[:297]) + "..."
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "Toplantı: %s, %d. toplantı", decidedAt.Format("02.01.2006 15:04"), a.CallNumber)
+	if a.Location != "" {
+		fmt.Fprintf(&b, ", %s", a.Location)
+	}
+	fmt.Fprintf(&b, "\nKarar: %s\nKarar metni: %s\n", verdict, text)
+	fmt.Fprintf(&b, "Oylar: lehte %d (arsa payı %.4f), aleyhte %d (%.4f), çekimser %d (%.4f)\n",
+		item.VotesFor, item.ShareFor, item.VotesAgainst, item.ShareAgainst, item.VotesAbstain, item.ShareAbstain)
+	fmt.Fprintf(&b, "Nisap: %s", res.Explanation)
+	if res.LegalBasis != "" {
+		fmt.Fprintf(&b, " (%s)", res.LegalBasis)
+	}
+	return models.CreateBookEntryInput{
+		Title:      title,
+		Body:       b.String(),
+		SourceType: "AGENDA_ITEM",
+		SourceID:   item.ID,
+		EntryDate:  decidedAt.Format("2006-01-02"),
+	}
 }
 
 // -----------------------------------------------------------------------------
