@@ -7,6 +7,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/shopspring/decimal"
+	"github.com/siteeksen/backend/pkg/dbscope"
 	svc "github.com/siteeksen/backend/services/smart_collection/service"
 )
 
@@ -27,7 +28,7 @@ func New(pool *pgxpool.Pool) *Repository { return &Repository{pool: pool} }
 // Borç, `total_amount - paid_amount` üzerinden hesaplanır; hiçbir yerde
 // varsayılan ya da tahmin kullanılmaz.
 func (r *Repository) Histories(ctx context.Context, propertyID string) ([]svc.History, error) {
-	rows, err := r.pool.Query(ctx, `
+	rows, err := r.scope(propertyID).Query(ctx, `
 		SELECT u.id::text,
 		       COALESCE(u.block,'') || '-' || COALESCE(u.door_number,''),
 		       count(a.id)::int,
@@ -91,7 +92,7 @@ func (r *Repository) Histories(ctx context.Context, propertyID string) ([]svc.Hi
 // bırakılır: model yoktur, olasılık hesaplanmaz. Boş bırakmak, uydurma bir
 // değerle doldurmaktan iyidir.
 func (r *Repository) SaveScores(ctx context.Context, propertyID string, list []svc.Assessment) error {
-	tx, err := r.pool.Begin(ctx)
+	tx, err := r.scope(propertyID).Begin(ctx)
 	if err != nil {
 		return err
 	}
@@ -139,4 +140,12 @@ func factorsJSON(a svc.Assessment) []map[string]any {
 		"code": "SUGGESTED_ACTION", "action": a.Action, "reason": a.ActionReason,
 	})
 	return out
+}
+
+// scope, veritabanı erişimini SİTE KAPSAMINA bağlar (FAZ 2.6).
+//
+// `payment_risk_scores` ve okunan `monthly_assessments` tablolarında RLS
+// açıktır (migration 024).
+func (r *Repository) scope(propertyID string) *dbscope.Scoped {
+	return dbscope.For(r.pool, propertyID)
 }

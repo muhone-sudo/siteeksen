@@ -156,11 +156,11 @@ func (s *Service) ListBudgets(ctx context.Context, propertyID string) ([]models.
 func (s *Service) AddObjection(ctx context.Context, propertyID, budgetID, unitID, userID, reason string) (*models.Objection, error) {
 	return s.repo.AddObjection(ctx, propertyID, budgetID, unitID, userID, reason)
 }
-func (s *Service) ListObjections(ctx context.Context, budgetID string) ([]models.Objection, error) {
-	return s.repo.ListObjections(ctx, budgetID)
+func (s *Service) ListObjections(ctx context.Context, propertyID, budgetID string) ([]models.Objection, error) {
+	return s.repo.ListObjections(ctx, propertyID, budgetID)
 }
-func (s *Service) ResolveObjection(ctx context.Context, id, status, resolution string) error {
-	return s.repo.ResolveObjection(ctx, id, status, resolution)
+func (s *Service) ResolveObjection(ctx context.Context, propertyID, id, status, resolution string) error {
+	return s.repo.ResolveObjection(ctx, propertyID, id, status, resolution)
 }
 
 // -----------------------------------------------------------------------------
@@ -240,7 +240,7 @@ func (s *Service) checkProxyLimits(ctx context.Context, propertyID, assemblyID s
 		}
 	}
 
-	count, share, err := s.repo.ProxyLoad(ctx, assemblyID, in.ProxyHolderID)
+	count, share, err := s.repo.ProxyLoad(ctx, propertyID, assemblyID, in.ProxyHolderID)
 	if err != nil {
 		return err
 	}
@@ -348,7 +348,7 @@ func (s *Service) CloseAgendaItem(ctx context.Context, propertyID, agendaItemID,
 	if text == "" {
 		text = res.Explanation
 	}
-	if err := s.repo.CloseAgendaItem(ctx, agendaItemID, status, text); err != nil {
+	if err := s.repo.CloseAgendaItem(ctx, propertyID, agendaItemID, status, text); err != nil {
 		return res, err
 	}
 	return res, nil
@@ -361,14 +361,14 @@ func (s *Service) CloseAgendaItem(ctx context.Context, propertyID, agendaItemID,
 func (s *Service) EnsureBook(ctx context.Context, propertyID, kind string, year int) (*models.Book, error) {
 	return s.repo.EnsureBook(ctx, propertyID, kind, year)
 }
-func (s *Service) AppendBookEntry(ctx context.Context, bookID, userID string, in models.CreateBookEntryInput) (*models.BookEntry, error) {
-	return s.repo.AppendBookEntry(ctx, bookID, userID, in)
+func (s *Service) AppendBookEntry(ctx context.Context, propertyID, bookID, userID string, in models.CreateBookEntryInput) (*models.BookEntry, error) {
+	return s.repo.AppendBookEntry(ctx, propertyID, bookID, userID, in)
 }
-func (s *Service) ListBookEntries(ctx context.Context, bookID string) ([]models.BookEntry, error) {
-	return s.repo.ListBookEntries(ctx, bookID)
+func (s *Service) ListBookEntries(ctx context.Context, propertyID, bookID string) ([]models.BookEntry, error) {
+	return s.repo.ListBookEntries(ctx, propertyID, bookID)
 }
-func (s *Service) VerifyBook(ctx context.Context, bookID string) (*models.BookIntegrity, error) {
-	return s.repo.VerifyBook(ctx, bookID)
+func (s *Service) VerifyBook(ctx context.Context, propertyID, bookID string) (*models.BookIntegrity, error) {
+	return s.repo.VerifyBook(ctx, propertyID, bookID)
 }
 
 // CloseBook, defteri notere kapattırıldı olarak işaretler.

@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/shopspring/decimal"
+	"github.com/siteeksen/backend/pkg/dbscope"
 )
 
 var (
@@ -98,7 +99,7 @@ func scanMeter(row pgx.Row) (*Meter, error) {
 
 // ListMeters, sitedeki sayaçları getirir. unitScope doluysa yalnızca o bölümünkiler.
 func (r *Repository) ListMeters(ctx context.Context, propertyID, unitScope, meterType string, includeInactive bool) ([]Meter, error) {
-	rows, err := r.pool.Query(ctx, meterSelect+`
+	rows, err := r.scope(propertyID).Query(ctx, meterSelect+`
 		WHERE u.property_id = $1
 		  AND ($2 = '' OR m.unit_id = NULLIF($2,'')::uuid)
 		  AND ($3 = '' OR m.meter_type = $3)
@@ -129,7 +130,7 @@ func (r *Repository) CreateMeter(ctx context.Context, propertyID, unitID, meterT
 	}
 
 	var ok bool
-	if err := r.pool.QueryRow(ctx,
+	if err := r.scope(propertyID).QueryRow(ctx,
 		`SELECT EXISTS(SELECT 1 FROM units WHERE id = $1 AND property_id = $2)`,
 		unitID, propertyID).Scan(&ok); err != nil {
 		return "", err
@@ -148,7 +149,7 @@ func (r *Repository) CreateMeter(ctx context.Context, propertyID, unitID, meterT
 	}
 
 	var id string
-	err := r.pool.QueryRow(ctx, `
+	err := r.scope(propertyID).QueryRow(ctx, `
 		INSERT INTO meters (unit_id, meter_type, serial_number, brand, model,
 		                    installation_date, is_active)
 		VALUES ($1,$2,$3,NULLIF($4,''),NULLIF($5,''),$6,true)
@@ -206,7 +207,7 @@ func (r *Repository) AddReading(ctx context.Context, propertyID, userID string, 
 		return nil, ErrInvalidType
 	}
 
-	tx, err := r.pool.Begin(ctx)
+	tx, err := r.scope(propertyID).Begin(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -289,7 +290,7 @@ func (r *Repository) AddReading(ctx context.Context, propertyID, userID string, 
 
 // Readings, okuma geçmişini döner.
 func (r *Repository) Readings(ctx context.Context, propertyID, meterID string, from, to *time.Time) ([]Reading, error) {
-	rows, err := r.pool.Query(ctx, `
+	rows, err := r.scope(propertyID).Query(ctx, `
 		SELECT r.id, r.meter_id, m.serial_number,
 		       COALESCE(u.block,'') || '-' || COALESCE(u.door_number,''),
 		       r.reading_date, r.previous_value::text, r.current_value::text,
@@ -347,7 +348,7 @@ type UnitConsumption struct {
 // dağıtıldığı için alan zorunludur (eksik alanı sıfır saymak o bölümü paydan
 // muaf tutup diğerlerine yüklerdi); su/elektrik/gazda alan hiç kullanılmaz.
 func (r *Repository) PeriodConsumption(ctx context.Context, propertyID, meterType string, from, to time.Time) ([]UnitConsumption, bool, error) {
-	rows, err := r.pool.Query(ctx, `
+	rows, err := r.scope(propertyID).Query(ctx, `
 		SELECT u.id::text,
 		       COALESCE(u.block,'') || '-' || COALESCE(u.door_number,''),
 		       COALESCE(SUM(r.consumption) FILTER (WHERE r.id IS NOT NULL), 0)::text,
@@ -400,7 +401,7 @@ func (r *Repository) PeriodConsumption(ctx context.Context, propertyID, meterTyp
 
 // DeactivateMeter, sayacı pasife alır. Okumalar silinmez.
 func (r *Repository) DeactivateMeter(ctx context.Context, propertyID, id string) error {
-	tag, err := r.pool.Exec(ctx, `
+	tag, err := r.scope(propertyID).Exec(ctx, `
 		UPDATE meters SET is_active = false
 		WHERE id = $1 AND COALESCE(is_active,true) = true
 		  AND unit_id IN (SELECT id FROM units WHERE property_id = $2)`, id, propertyID)
@@ -416,7 +417,7 @@ func (r *Repository) DeactivateMeter(ctx context.Context, propertyID, id string)
 // ResidentUnit, kullanıcının bu sitedeki aktif bağımsız bölümünü verir.
 func (r *Repository) ResidentUnit(ctx context.Context, propertyID, userID string) (string, error) {
 	var unitID string
-	err := r.pool.QueryRow(ctx, `
+	err := r.scope(propertyID).QueryRow(ctx, `
 		SELECT ru.unit_id::text
 		FROM resident_units ru
 		JOIN units u ON u.id = ru.unit_id
@@ -435,4 +436,13 @@ func contains(list []string, v string) bool {
 		}
 	}
 	return false
+}
+
+// scope, veritabanı erişimini SİTE KAPSAMINA bağlar (FAZ 2.6).
+//
+// `meters` ve `meter_readings` tablolarında RLS açıktır (migration 024).
+// Sayaçlar dört servis tarafından okunur (iot, energy_analytics, esg, finance);
+// dördü de kapsamlı sorguya geçmeden açılamazdı.
+func (r *Repository) scope(propertyID string) *dbscope.Scoped {
+	return dbscope.For(r.pool, propertyID)
 }

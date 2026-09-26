@@ -12,21 +12,23 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/siteeksen/backend/pkg/dbscope"
 	"github.com/siteeksen/backend/services/governance/models"
 )
 
 // Sentinel hatalar — HTTP durum eşlemesi handler katmanında yapılır.
 var (
-	ErrNotFound            = errors.New("kayıt bulunamadı")
-	ErrBudgetNotDraft      = errors.New("yalnızca taslak durumundaki işletme projesi tebliğ edilebilir")
-	ErrBudgetNotNotified   = errors.New("kesinleştirmeden önce işletme projesi tebliğ edilmelidir")
-	ErrObjectionPeriodOpen = errors.New("itiraz süresi dolmadan işletme projesi kesinleşemez")
-	ErrOpenObjections      = errors.New("açık itirazlar çözülmeden işletme projesi kesinleşemez")
-	ErrBudgetExists        = errors.New("bu dönem için zaten bir işletme projesi var")
-	ErrNoUnits             = errors.New("sitede tanımlı bağımsız bölüm yok")
-	ErrAssemblyNotOpen     = errors.New("toplantı bu işlem için uygun durumda değil")
-	ErrNotAttending        = errors.New("oy kullanan bağımsız bölüm hazirun listesinde yok")
-	ErrBookClosed          = errors.New("defter kapatılmış; yeni kayıt eklenemez")
+	ErrNotFound             = errors.New("kayıt bulunamadı")
+	ErrBudgetNotDraft       = errors.New("yalnızca taslak durumundaki işletme projesi tebliğ edilebilir")
+	ErrBudgetNotNotified    = errors.New("kesinleştirmeden önce işletme projesi tebliğ edilmelidir")
+	ErrObjectionPeriodOpen  = errors.New("itiraz süresi dolmadan işletme projesi kesinleşemez")
+	ErrOpenObjections       = errors.New("açık itirazlar çözülmeden işletme projesi kesinleşemez")
+	ErrBudgetExists         = errors.New("bu dönem için zaten bir işletme projesi var")
+	ErrNoUnits              = errors.New("sitede tanımlı bağımsız bölüm yok")
+	ErrAssemblyNotOpen      = errors.New("toplantı bu işlem için uygun durumda değil")
+	ErrNotAttending         = errors.New("oy kullanan bağımsız bölüm hazirun listesinde yok")
+	ErrBookClosed           = errors.New("defter kapatılmış; yeni kayıt eklenemez")
+	ErrObjectionNotEntitled = errors.New("itiraz yalnızca dairenin maliki ya da vekili tarafından yapılabilir")
 )
 
 // Unit, dağıtım hesaplarında kullanılan bağımsız bölüm özetidir.
@@ -51,7 +53,7 @@ func (r *Repository) Pool() *pgxpool.Pool { return r.pool }
 
 // ListUnits, dağıtım ve nisap hesapları için sitedeki bağımsız bölümleri getirir.
 func (r *Repository) ListUnits(ctx context.Context, propertyID string) ([]Unit, error) {
-	rows, err := r.pool.Query(ctx, `
+	rows, err := r.scope(propertyID).Query(ctx, `
 		SELECT id,
 		       COALESCE(block, '') || '-' || COALESCE(door_number, ''),
 		       COALESCE(share_ratio, 0)::float8,
@@ -95,7 +97,7 @@ func (r *Repository) CreateBudget(
 	total float64,
 	shares []models.UnitShare,
 ) (string, error) {
-	tx, err := r.pool.Begin(ctx)
+	tx, err := r.scope(propertyID).Begin(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -153,7 +155,7 @@ func (r *Repository) CreateBudget(
 func (r *Repository) GetBudget(ctx context.Context, propertyID, budgetID string) (*models.Budget, error) {
 	b := &models.Budget{}
 	var preparedBy, noticeMethod, decisionRef, note *string
-	err := r.pool.QueryRow(ctx, `
+	err := r.scope(propertyID).QueryRow(ctx, `
 		SELECT id, property_id, period_year, status, total_amount,
 		       prepared_by::text, prepared_at, notified_at, notice_method,
 		       objection_deadline, finalized_at, decision_ref, note,
@@ -175,7 +177,7 @@ func (r *Repository) GetBudget(ctx context.Context, propertyID, budgetID string)
 	b.DecisionRef = deref(decisionRef)
 	b.Note = deref(note)
 
-	itemRows, err := r.pool.Query(ctx, `
+	itemRows, err := r.scope(propertyID).Query(ctx, `
 		SELECT id, COALESCE(category_id::text,''), name, amount, distribution_type,
 		       kind, COALESCE(note,''), sort_order
 		FROM operating_budget_items WHERE budget_id = $1 ORDER BY sort_order`, budgetID)
@@ -192,7 +194,7 @@ func (r *Repository) GetBudget(ctx context.Context, propertyID, budgetID string)
 		b.Items = append(b.Items, it)
 	}
 
-	shareRows, err := r.pool.Query(ctx, `
+	shareRows, err := r.scope(propertyID).Query(ctx, `
 		SELECT s.unit_id, COALESCE(u.block,'') || '-' || COALESCE(u.door_number,''),
 		       s.annual_kurus, s.monthly_kurus, COALESCE(s.breakdown, '{}'::jsonb)
 		FROM operating_budget_unit_shares s
@@ -217,7 +219,7 @@ func (r *Repository) GetBudget(ctx context.Context, propertyID, budgetID string)
 
 // ListBudgets, sitenin işletme projelerini özet olarak listeler.
 func (r *Repository) ListBudgets(ctx context.Context, propertyID string) ([]models.Budget, error) {
-	rows, err := r.pool.Query(ctx, `
+	rows, err := r.scope(propertyID).Query(ctx, `
 		SELECT id, property_id, period_year, status, total_amount,
 		       notified_at, objection_deadline, finalized_at
 		FROM operating_budgets
@@ -243,7 +245,7 @@ func (r *Repository) ListBudgets(ctx context.Context, propertyID string) ([]mode
 // NotifyBudget, tebliğ anını ve itiraz süresi bitişini işler (KMK m.37/2).
 // objectionDays mevzuat parametresinden gelir.
 func (r *Repository) NotifyBudget(ctx context.Context, propertyID, budgetID, method string, objectionDays int) (*models.Budget, error) {
-	tag, err := r.pool.Exec(ctx, `
+	tag, err := r.scope(propertyID).Exec(ctx, `
 		UPDATE operating_budgets
 		SET status = 'NOTIFIED',
 		    notified_at = now(),
@@ -268,7 +270,7 @@ func (r *Repository) NotifyBudget(ctx context.Context, propertyID, budgetID, met
 // Kesinleşen işletme projesi İİK m.68 anlamında BELGE niteliği kazanır; bu yüzden
 // koşullar veritabanı düzeyinde de kontrol edilir, yalnızca arayüzde değil.
 func (r *Repository) FinalizeBudget(ctx context.Context, propertyID, budgetID, decisionRef string) (*models.Budget, error) {
-	tx, err := r.pool.Begin(ctx)
+	tx, err := r.scope(propertyID).Begin(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -305,7 +307,7 @@ func (r *Repository) FinalizeBudget(ctx context.Context, propertyID, budgetID, d
 	if _, err := tx.Exec(ctx, `
 		UPDATE operating_budgets
 		SET status = 'FINAL', finalized_at = now(), decision_ref = NULLIF($2,''), updated_at = now()
-		WHERE id = $1`, budgetID, decisionRef); err != nil {
+		WHERE id = $1 AND property_id = $3`, budgetID, decisionRef, propertyID); err != nil {
 		return nil, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -318,7 +320,7 @@ func (r *Repository) FinalizeBudget(ctx context.Context, propertyID, budgetID, d
 func (r *Repository) AddObjection(ctx context.Context, propertyID, budgetID, unitID, userID, reason string) (*models.Objection, error) {
 	var deadline *time.Time
 	var status string
-	err := r.pool.QueryRow(ctx,
+	err := r.scope(propertyID).QueryRow(ctx,
 		`SELECT status, objection_deadline FROM operating_budgets WHERE id=$1 AND property_id=$2`,
 		budgetID, propertyID).Scan(&status, &deadline)
 	if err == pgx.ErrNoRows {
@@ -328,8 +330,37 @@ func (r *Repository) AddObjection(ctx context.Context, propertyID, budgetID, uni
 		return nil, err
 	}
 
+	// İtiraz hakkı KAT MALİKİNİNDİR (KMK m.37/2). Önceden daire kimliği hiç
+	// doğrulanmıyordu: kiracı, başka birinin dairesi — hatta başka sitenin
+	// dairesi — adına itiraz yazabiliyordu ve açık itiraz projenin kesinleşmesini
+	// engellediği için bu, bir sitenin bütçe sürecini durdurmak demekti.
+	// Kabul edilenler: dairenin aktif maliki ya da vekili; ya da yazılı itirazı
+	// kayda geçiren site yönetimi (yönetici / denetim kurulu üyesi).
+	var entitled bool
+	if err := r.scope(propertyID).QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1 FROM units u
+			WHERE u.id = $1 AND u.property_id = $2 AND u.deleted = 0
+			  AND (EXISTS (SELECT 1 FROM resident_units ru
+			               WHERE ru.unit_id = u.id AND ru.resident_id = $3
+			                 AND ru.is_active AND ru.role IN ('OWNER','PROXY'))
+			    OR EXISTS (SELECT 1 FROM property_roles pr
+			               WHERE pr.user_id = $3 AND pr.property_id = $2 AND pr.is_active
+			                 AND pr.role IN ('MANAGER','BOARD_MEMBER')
+			                 AND pr.valid_from <= CURRENT_DATE
+			                 AND (pr.valid_to IS NULL OR pr.valid_to >= CURRENT_DATE))))`,
+		unitID, propertyID, userID).Scan(&entitled); err != nil {
+		if IsInvalidID(err) {
+			return nil, ErrObjectionNotEntitled
+		}
+		return nil, err
+	}
+	if !entitled {
+		return nil, ErrObjectionNotEntitled
+	}
+
 	o := &models.Objection{BudgetID: budgetID, UnitID: unitID, UserID: userID, Reason: reason}
-	err = r.pool.QueryRow(ctx, `
+	err = r.scope(propertyID).QueryRow(ctx, `
 		INSERT INTO budget_objections (budget_id, unit_id, user_id, reason)
 		VALUES ($1, NULLIF($2,'')::uuid, NULLIF($3,'')::uuid, $4)
 		RETURNING id, submitted_at, status`,
@@ -343,15 +374,18 @@ func (r *Repository) AddObjection(ctx context.Context, propertyID, budgetID, uni
 }
 
 // ListObjections, projeye yapılan itirazları getirir.
-func (r *Repository) ListObjections(ctx context.Context, budgetID string) ([]models.Objection, error) {
-	rows, err := r.pool.Query(ctx, `
+//
+// GÜVENLİK (2026-09-26): `b.property_id` filtresi eklendi. Önceden yalnızca proje
+// kimliğine bakılıyordu; başka sitenin itirazları (daire, kişi, gerekçe) okunabiliyordu.
+func (r *Repository) ListObjections(ctx context.Context, propertyID, budgetID string) ([]models.Objection, error) {
+	rows, err := r.scope(propertyID).Query(ctx, `
 		SELECT o.id, o.budget_id, COALESCE(o.unit_id::text,''), COALESCE(o.user_id::text,''),
 		       o.reason, o.submitted_at, o.status, COALESCE(o.resolution,''), o.resolved_at,
 		       (b.objection_deadline IS NOT NULL AND o.submitted_at::date <= b.objection_deadline)
 		FROM budget_objections o
 		JOIN operating_budgets b ON b.id = o.budget_id
-		WHERE o.budget_id = $1
-		ORDER BY o.submitted_at`, budgetID)
+		WHERE o.budget_id = $1 AND b.property_id = $2
+		ORDER BY o.submitted_at`, budgetID, propertyID)
 	if err != nil {
 		return nil, err
 	}
@@ -370,11 +404,18 @@ func (r *Repository) ListObjections(ctx context.Context, budgetID string) ([]mod
 }
 
 // ResolveObjection, itirazı sonuçlandırır.
-func (r *Repository) ResolveObjection(ctx context.Context, objectionID, status, resolution string) error {
-	tag, err := r.pool.Exec(ctx, `
+//
+// GÜVENLİK (2026-09-26): itirazın ait olduğu projenin sitesi denetlenir. Önceden
+// yalnızca itiraz kimliğine bakılıyordu: A sitesinin yöneticisi B sitesindeki açık
+// itirazı "reddedildi" yapıp B'nin işletme projesinin kesinleşme engelini
+// kaldırabiliyordu (KMK m.37 — kesinleşen proje İİK m.68 belgesidir).
+func (r *Repository) ResolveObjection(ctx context.Context, propertyID, objectionID, status, resolution string) error {
+	tag, err := r.scope(propertyID).Exec(ctx, `
 		UPDATE budget_objections
 		SET status = $2, resolution = NULLIF($3,''), resolved_at = now()
-		WHERE id = $1 AND status = 'OPEN'`, objectionID, status, resolution)
+		WHERE id = $1 AND status = 'OPEN'
+		  AND budget_id IN (SELECT id FROM operating_budgets WHERE property_id = $4)`,
+		objectionID, status, resolution, propertyID)
 	if err != nil {
 		return err
 	}
@@ -390,7 +431,7 @@ func (r *Repository) ResolveObjection(ctx context.Context, objectionID, status, 
 
 // CreateAssembly, toplantıyı gündem maddeleriyle birlikte oluşturur.
 func (r *Repository) CreateAssembly(ctx context.Context, propertyID, createdBy string, in models.CreateAssemblyInput) (string, error) {
-	tx, err := r.pool.Begin(ctx)
+	tx, err := r.scope(propertyID).Begin(ctx)
 	if err != nil {
 		return "", err
 	}
@@ -439,7 +480,7 @@ func (r *Repository) CreateAssembly(ctx context.Context, propertyID, createdBy s
 func (r *Repository) GetAssembly(ctx context.Context, propertyID, assemblyID string) (*models.Assembly, error) {
 	a := &models.Assembly{}
 	var noticeMethod, minutesRef *string
-	err := r.pool.QueryRow(ctx, `
+	err := r.scope(propertyID).QueryRow(ctx, `
 		SELECT id, property_id, kind, call_number, scheduled_at, COALESCE(location,''),
 		       notice_sent_at, notice_method, status, held_at,
 		       total_units, total_share_ratio::float8, attended_units,
@@ -458,7 +499,7 @@ func (r *Repository) GetAssembly(ctx context.Context, propertyID, assemblyID str
 	a.NoticeMethod = deref(noticeMethod)
 	a.MinutesRef = deref(minutesRef)
 
-	rows, err := r.pool.Query(ctx, `
+	rows, err := r.scope(propertyID).Query(ctx, `
 		SELECT id, assembly_id, order_no, title, COALESCE(description,''),
 		       COALESCE(required_majority_code,''), COALESCE(decision_text,''), decision_status,
 		       votes_for, votes_against, votes_abstain,
@@ -483,7 +524,7 @@ func (r *Repository) GetAssembly(ctx context.Context, propertyID, assemblyID str
 
 // ListAssemblies, sitenin toplantılarını listeler.
 func (r *Repository) ListAssemblies(ctx context.Context, propertyID string) ([]models.Assembly, error) {
-	rows, err := r.pool.Query(ctx, `
+	rows, err := r.scope(propertyID).Query(ctx, `
 		SELECT id, property_id, kind, call_number, scheduled_at, COALESCE(location,''),
 		       notice_sent_at, status, held_at, quorum_met
 		FROM assemblies WHERE property_id = $1 ORDER BY scheduled_at DESC`, propertyID)
@@ -507,7 +548,7 @@ func (r *Repository) ListAssemblies(ctx context.Context, propertyID string) ([]m
 // NotifyAssembly, çağrının yapıldığını işler.
 // noticeDays yalnızca bilgi amaçlıdır; süre denetimi service katmanında yapılır.
 func (r *Repository) NotifyAssembly(ctx context.Context, propertyID, assemblyID, method string) error {
-	tag, err := r.pool.Exec(ctx, `
+	tag, err := r.scope(propertyID).Exec(ctx, `
 		UPDATE assemblies
 		SET status = 'NOTIFIED', notice_sent_at = now(), notice_method = $3, updated_at = now()
 		WHERE id = $1 AND property_id = $2 AND status = 'PLANNED'`,
@@ -527,7 +568,7 @@ func (r *Repository) AddAttendee(ctx context.Context, propertyID, assemblyID str
 	if attType == "" {
 		attType = "SELF"
 	}
-	_, err := r.pool.Exec(ctx, `
+	_, err := r.scope(propertyID).Exec(ctx, `
 		INSERT INTO assembly_attendees
 			(assembly_id, unit_id, user_id, attendance_type, proxy_holder_id, share_ratio)
 		SELECT $1, u.id, NULLIF($3,'')::uuid, $4, NULLIF($5,'')::uuid, COALESCE(u.share_ratio,0)
@@ -543,30 +584,35 @@ func (r *Repository) AddAttendee(ctx context.Context, propertyID, assemblyID str
 }
 
 // ProxyLoad, bir vekilin taşıdığı vekâlet sayısı ve oy payını verir (m.31 sınırları).
-func (r *Repository) ProxyLoad(ctx context.Context, assemblyID, holderID string) (count int, share float64, err error) {
-	err = r.pool.QueryRow(ctx, `
+func (r *Repository) ProxyLoad(ctx context.Context, propertyID, assemblyID, holderID string) (count int, share float64, err error) {
+	err = r.scope(propertyID).QueryRow(ctx, `
 		SELECT count(*), COALESCE(sum(share_ratio),0)::float8
 		FROM assembly_attendees
-		WHERE assembly_id = $1 AND attendance_type = 'PROXY' AND proxy_holder_id = $2`,
-		assemblyID, holderID).Scan(&count, &share)
+		WHERE assembly_id = $1 AND attendance_type = 'PROXY' AND proxy_holder_id = $2
+		  AND assembly_id IN (SELECT id FROM assemblies WHERE property_id = $3)`,
+		assemblyID, holderID, propertyID).Scan(&count, &share)
 	return
 }
 
 // AttendanceTotals, hazirun ve site toplamlarını verir.
 func (r *Repository) AttendanceTotals(ctx context.Context, propertyID, assemblyID string) (
 	totalUnits int, totalShare float64, attendedUnits int, attendedShare float64, err error) {
-	err = r.pool.QueryRow(ctx, `
+	err = r.scope(propertyID).QueryRow(ctx, `
 		SELECT (SELECT count(*) FROM units WHERE property_id = $1 AND deleted = 0),
 		       (SELECT COALESCE(sum(share_ratio),0)::float8 FROM units WHERE property_id = $1 AND deleted = 0),
-		       (SELECT count(*) FROM assembly_attendees WHERE assembly_id = $2),
-		       (SELECT COALESCE(sum(share_ratio),0)::float8 FROM assembly_attendees WHERE assembly_id = $2)`,
+		       (SELECT count(*) FROM assembly_attendees
+		          WHERE assembly_id = $2
+		            AND assembly_id IN (SELECT id FROM assemblies WHERE property_id = $1)),
+		       (SELECT COALESCE(sum(share_ratio),0)::float8 FROM assembly_attendees
+		          WHERE assembly_id = $2
+		            AND assembly_id IN (SELECT id FROM assemblies WHERE property_id = $1))`,
 		propertyID, assemblyID).Scan(&totalUnits, &totalShare, &attendedUnits, &attendedShare)
 	return
 }
 
 // HoldAssembly, toplantıyı yapılmış olarak işaretler ve nisap fotoğrafını saklar.
 func (r *Repository) HoldAssembly(ctx context.Context, propertyID, assemblyID string, q models.QuorumResult) error {
-	tag, err := r.pool.Exec(ctx, `
+	tag, err := r.scope(propertyID).Exec(ctx, `
 		UPDATE assemblies
 		SET status = 'HELD', held_at = now(),
 		    total_units = $3, total_share_ratio = $4,
@@ -587,7 +633,7 @@ func (r *Repository) HoldAssembly(ctx context.Context, propertyID, assemblyID st
 // CastVote, oy kaydeder ve gündem maddesinin sayaçlarını günceller.
 // Oy yalnızca hazirun listesindeki bağımsız bölümler için kabul edilir.
 func (r *Repository) CastVote(ctx context.Context, propertyID, agendaItemID string, in models.VoteInput, castBy string) error {
-	tx, err := r.pool.Begin(ctx)
+	tx, err := r.scope(propertyID).Begin(ctx)
 	if err != nil {
 		return err
 	}
@@ -640,7 +686,7 @@ func (r *Repository) CastVote(ctx context.Context, propertyID, agendaItemID stri
 // GetAgendaItem, tek gündem maddesini ve ait olduğu toplantıyı getirir.
 func (r *Repository) GetAgendaItem(ctx context.Context, propertyID, agendaItemID string) (*models.AgendaItem, *models.Assembly, error) {
 	var assemblyID string
-	err := r.pool.QueryRow(ctx, `
+	err := r.scope(propertyID).QueryRow(ctx, `
 		SELECT ai.assembly_id::text
 		FROM assembly_agenda_items ai
 		JOIN assemblies a ON a.id = ai.assembly_id AND a.property_id = $2
@@ -665,11 +711,13 @@ func (r *Repository) GetAgendaItem(ctx context.Context, propertyID, agendaItemID
 }
 
 // CloseAgendaItem, nisap değerlendirmesinin sonucunu yazar.
-func (r *Repository) CloseAgendaItem(ctx context.Context, agendaItemID, status, decisionText string) error {
-	tag, err := r.pool.Exec(ctx, `
+func (r *Repository) CloseAgendaItem(ctx context.Context, propertyID, agendaItemID, status, decisionText string) error {
+	tag, err := r.scope(propertyID).Exec(ctx, `
 		UPDATE assembly_agenda_items
 		SET decision_status = $2, decision_text = NULLIF($3,'')
-		WHERE id = $1 AND decision_status = 'PENDING'`, agendaItemID, status, decisionText)
+		WHERE id = $1 AND decision_status = 'PENDING'
+		  AND assembly_id IN (SELECT id FROM assemblies WHERE property_id = $4)`,
+		agendaItemID, status, decisionText, propertyID)
 	if err != nil {
 		return err
 	}
@@ -685,7 +733,7 @@ func (r *Repository) CloseAgendaItem(ctx context.Context, agendaItemID, status, 
 
 // EnsureBook, ilgili yıl için defteri yoksa oluşturur.
 func (r *Repository) EnsureBook(ctx context.Context, propertyID, kind string, year int) (*models.Book, error) {
-	_, err := r.pool.Exec(ctx, `
+	_, err := r.scope(propertyID).Exec(ctx, `
 		INSERT INTO books (property_id, kind, period_year)
 		VALUES ($1, $2, $3) ON CONFLICT (property_id, kind, period_year) DO NOTHING`,
 		propertyID, kind, year)
@@ -695,7 +743,7 @@ func (r *Repository) EnsureBook(ctx context.Context, propertyID, kind string, ye
 
 	b := &models.Book{}
 	var notaryRef *string
-	err = r.pool.QueryRow(ctx, `
+	err = r.scope(propertyID).QueryRow(ctx, `
 		SELECT id, property_id, kind, period_year, notary_opened_at, notary_closed_at,
 		       notary_ref, status,
 		       (SELECT count(*) FROM book_entries e WHERE e.book_id = books.id)
@@ -714,15 +762,22 @@ func (r *Repository) EnsureBook(ctx context.Context, propertyID, kind string, ye
 // Hash = SHA256(prev_hash | entry_no | entry_date | title | body | source_type | source_id)
 // Bir kayıt sonradan değiştirilirse (tetikleyici engelliyor ama doğrudan veritabanı
 // erişimi düşünülerek) zincir doğrulaması bunu yakalar.
-func (r *Repository) AppendBookEntry(ctx context.Context, bookID, createdBy string, in models.CreateBookEntryInput) (*models.BookEntry, error) {
-	tx, err := r.pool.Begin(ctx)
+//
+// GÜVENLİK (2026-09-26): defterin sitesi denetlenir. Önceden yalnızca defter
+// kimliğine bakılıyordu; A sitesinin yöneticisi B sitesinin KARAR DEFTERİNE
+// kayıt ekleyebiliyordu. Karar defteri hukuki kayıttır (KMK m.32) ve hash
+// zinciri eklenen kaydı "geçerli" gösterirdi — zincir sahteciliği değil,
+// yetkisiz ama zincire uygun kayıt.
+func (r *Repository) AppendBookEntry(ctx context.Context, propertyID, bookID, createdBy string, in models.CreateBookEntryInput) (*models.BookEntry, error) {
+	tx, err := r.scope(propertyID).Begin(ctx)
 	if err != nil {
 		return nil, err
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 
 	var status string
-	if err := tx.QueryRow(ctx, `SELECT status FROM books WHERE id = $1 FOR UPDATE`, bookID).
+	if err := tx.QueryRow(ctx,
+		`SELECT status FROM books WHERE id = $1 AND property_id = $2 FOR UPDATE`, bookID, propertyID).
 		Scan(&status); err != nil {
 		if err == pgx.ErrNoRows {
 			return nil, ErrNotFound
@@ -792,13 +847,28 @@ func ComputeEntryHash(e *models.BookEntry) string {
 }
 
 // ListBookEntries, defter kayıtlarını sırayla getirir.
-func (r *Repository) ListBookEntries(ctx context.Context, bookID string) ([]models.BookEntry, error) {
-	rows, err := r.pool.Query(ctx, `
+//
+// Defter başka siteye aitse ya da yoksa ErrNotFound döner — boş liste DEĞİL:
+// boş liste "bu defterde kayıt yok" anlamına gelir ve yanıltıcı olurdu.
+func (r *Repository) ListBookEntries(ctx context.Context, propertyID, bookID string) ([]models.BookEntry, error) {
+	var owned bool
+	if err := r.scope(propertyID).QueryRow(ctx,
+		`SELECT EXISTS (SELECT 1 FROM books WHERE id = $1 AND property_id = $2)`,
+		bookID, propertyID).Scan(&owned); err != nil {
+		return nil, err
+	}
+	if !owned {
+		return nil, ErrNotFound
+	}
+	rows, err := r.scope(propertyID).Query(ctx, `
 		SELECT id, book_id, entry_no, entry_date, title, body,
 		       COALESCE(source_type,''), COALESCE(source_id::text,''),
 		       COALESCE(created_by::text,''), created_at,
 		       COALESCE(prev_hash,''), entry_hash
-		FROM book_entries WHERE book_id = $1 ORDER BY entry_no`, bookID)
+		FROM book_entries
+		WHERE book_id = $1
+		  AND book_id IN (SELECT id FROM books WHERE property_id = $2)
+		ORDER BY entry_no`, bookID, propertyID)
 	if err != nil {
 		return nil, err
 	}
@@ -818,8 +888,8 @@ func (r *Repository) ListBookEntries(ctx context.Context, bookID string) ([]mode
 }
 
 // VerifyBook, defterin hash zincirini baştan sona doğrular.
-func (r *Repository) VerifyBook(ctx context.Context, bookID string) (*models.BookIntegrity, error) {
-	entries, err := r.ListBookEntries(ctx, bookID)
+func (r *Repository) VerifyBook(ctx context.Context, propertyID, bookID string) (*models.BookIntegrity, error) {
+	entries, err := r.ListBookEntries(ctx, propertyID, bookID)
 	if err != nil {
 		return nil, err
 	}
@@ -851,7 +921,7 @@ func (r *Repository) VerifyBook(ctx context.Context, bookID string) (*models.Boo
 
 // CloseBook, defteri notere kapattırıldı olarak işaretler (m.36).
 func (r *Repository) CloseBook(ctx context.Context, propertyID, bookID, notaryRef string, closedAt time.Time) error {
-	tag, err := r.pool.Exec(ctx, `
+	tag, err := r.scope(propertyID).Exec(ctx, `
 		UPDATE books SET status='CLOSED', notary_closed_at=$3, notary_ref=NULLIF($4,'')
 		WHERE id=$1 AND property_id=$2 AND status='OPEN'`,
 		bookID, propertyID, closedAt, notaryRef)
@@ -873,7 +943,7 @@ func (r *Repository) CloseBook(ctx context.Context, propertyID, bookID, notaryRe
 func (r *Repository) CreateLegalCase(ctx context.Context, propertyID string, in models.CreateLegalCaseInput,
 	principalKurus, lateFeeKurus int64) (string, error) {
 	var id string
-	err := r.pool.QueryRow(ctx, `
+	err := r.scope(propertyID).QueryRow(ctx, `
 		INSERT INTO legal_cases
 			(property_id, unit_id, debtor_user_id, case_type, principal_kurus, late_fee_kurus,
 			 basis_document_type, basis_document_id, office_or_court, file_no, lawyer_name, note)
@@ -888,7 +958,7 @@ func (r *Repository) CreateLegalCase(ctx context.Context, propertyID string, in 
 
 // ListLegalCases, sitenin takiplerini listeler.
 func (r *Repository) ListLegalCases(ctx context.Context, propertyID string) ([]models.LegalCase, error) {
-	rows, err := r.pool.Query(ctx, `
+	rows, err := r.scope(propertyID).Query(ctx, `
 		SELECT id, property_id, COALESCE(unit_id::text,''), COALESCE(debtor_user_id::text,''),
 		       case_type, status, principal_kurus, late_fee_kurus,
 		       COALESCE(basis_document_type,''), COALESCE(basis_document_id::text,''),
@@ -916,7 +986,7 @@ func (r *Repository) ListLegalCases(ctx context.Context, propertyID string) ([]m
 
 // UnitDebt, bir bağımsız bölümün ödenmemiş ortak gider borcunu kuruş olarak verir.
 func (r *Repository) UnitDebt(ctx context.Context, propertyID, unitID string) (principal, lateFee int64, err error) {
-	err = r.pool.QueryRow(ctx, `
+	err = r.scope(propertyID).QueryRow(ctx, `
 		SELECT COALESCE(sum(round((total_amount - COALESCE(paid_amount,0) - COALESCE(late_fee,0)) * 100)), 0)::bigint,
 		       COALESCE(sum(round(COALESCE(late_fee,0) * 100)), 0)::bigint
 		FROM monthly_assessments
@@ -926,6 +996,12 @@ func (r *Repository) UnitDebt(ctx context.Context, propertyID, unitID string) (p
 }
 
 // -----------------------------------------------------------------------------
+
+// IsInvalidID, istemciden gelen bir kimliğin UUID biçiminde olmadığı için
+// veritabanının reddettiğini bildirir (PostgreSQL 22P02). Handler bunu
+// "bulunamadı" olarak döndürür; 500 dönmek hem yanlış hem de sunucu arızası
+// gibi alarm üretir.
+func IsInvalidID(err error) bool { return containsCode(err, "22P02") }
 
 func deref(s *string) string {
 	if s == nil {
@@ -945,4 +1021,13 @@ func containsCode(err error, code string) bool {
 		return c.SQLState() == code
 	}
 	return false
+}
+
+// scope, veritabanı erişimini SİTE KAPSAMINA bağlar (FAZ 2.6).
+//
+// Yönetişim tablolarında RLS açıktır (migration 024). Uygulama katmanındaki
+// `property_id` filtreleri korunur; RLS onları YEDEKLER. Bu modülde yedeğin
+// değeri somuttur: beş sorguda filtre hiç yoktu.
+func (r *Repository) scope(propertyID string) *dbscope.Scoped {
+	return dbscope.For(r.pool, propertyID)
 }

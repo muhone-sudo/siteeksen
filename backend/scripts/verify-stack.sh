@@ -4267,7 +4267,9 @@ XPN=$($PSQL -t -A -c "SELECT count(*) FROM payment_assessments
 [ "$XPAY" = "400" ] && [ "$XPN" = "0" ] \
   && ok "aktif site dışındaki tahakkuk ödemeye bağlanamıyor → 400, kayıt yok" \
   || bad "başka sitenin tahakkuku ödendi: HTTP $XPAY, bağlı kayıt $XPN ($(cat /tmp/verify-xpay.json))"
-$PSQL -c "DELETE FROM resident_units WHERE unit_id='99999999-0000-0000-0000-000000000001';" >/dev/null 2>&1
+$PSQL -c "DELETE FROM resident_units WHERE unit_id='99999999-0000-0000-0000-000000000001';
+  DELETE FROM monthly_assessments WHERE id='99999999-0000-0000-0000-0000000000a1';
+  DELETE FROM units WHERE id='99999999-0000-0000-0000-000000000001';" >/dev/null 2>&1
 
 # 10) UÇTAN UCA — ÇAPRAZ SİTE HATASI 2: talep (arıza/istek).
 #     Önceki davranış: talep durumunu güncelleme yalnızca ROLÜ denetliyordu.
@@ -4372,23 +4374,222 @@ else
 fi
 kill_tree "$COM_PID"
 
-# 11) Toplam durum — dürüstçe raporlanır
-RLSCOUNT=$($PSQL -t -A -c "SELECT count(*) FROM rls_enabled_tables;")
-[ "$RLSCOUNT" = "40" ] && ok "RLS toplam 40 tabloda açık (7 + 19 + 4 + 10 dilim)" \
-  || bad "beklenmedik RLS tablo sayısı: $RLSCOUNT (beklenen 40)"
+step "35) Satır düzeyi güvenlik (RLS) — beşinci dilim: yönetişim, sayaç, ortak finans + görünümler (FAZ 2.6)"
+# Kalan altı servis (governance, settings, smart_collection, iot,
+# energy_analytics, esg) kapsamlı sorguya geçti; böylece çok servisli
+# tablolar da açılabildi. 11., 23., 27. ve 28. adımların akışları zaten bu
+# RLS altında çalıştı.
+SLICE5_TABLES="monthly_assessments expense_categories meters meter_readings
+  ledger_entries ledger_lines property_settings property_setting_history payment_risk_scores
+  operating_budgets operating_budget_items operating_budget_unit_shares budget_objections
+  assemblies assembly_agenda_items assembly_attendees assembly_proxies assembly_votes
+  books book_entries legal_cases legal_case_events"
 
-# 11b) DİLİME ALINMAYANLAR: çok servisli tablolar HÂLÂ kapalı olmalı.
-#      Bir servis kapsamlı sorguya geçmeden tabloyu açmak o servisi sessizce
-#      boş veriye düşürür — hata vermeden yanlış sonuç üretmek demektir.
-for T in expense_categories monthly_assessments meters meter_readings units properties; do
-  N=$($PSQL -t -A -c "SELECT count(*) FROM rls_enabled_tables WHERE table_name='$T';")
-  [ "$N" = "0" ] && ok "$T bilerek RLS dışında (çok servisli; tüm tüketicileri henüz geçmedi)" \
-    || bad "$T erken açılmış — çok servisli tabloya RLS açmak uygulamayı bozar"
+# 1) RLS açık, zorlanıyor, politikası var
+S5MISS=0
+for T in $SLICE5_TABLES; do
+  ROW=$($PSQL -t -A -c "SELECT rls_enabled || '/' || rls_forced || '/' || policy_count
+    FROM rls_enabled_tables WHERE table_name='$T';")
+  case "$ROW" in
+    true/true/1|t/t/1) : ;;
+    *) S5MISS=$((S5MISS+1)); echo "     eksik: $T ($ROW)" ;;
+  esac
 done
-NOTRLS=$($PSQL -t -A -c "SELECT count(*) FROM information_schema.tables t
+[ "$S5MISS" = "0" ] && ok "beşinci dilimin 22 tablosunda RLS açık, zorlanıyor ve politikası var" \
+  || bad "$S5MISS tabloda RLS eksik (beşinci dilim)"
+
+# 2) Kapsamsız sorgu hiçbir SİTE VERİSİ döndürmemeli
+S5LEAK=0
+for T in $SLICE5_TABLES; do
+  case "$T" in
+    expense_categories) N=$(qapp "SELECT count(*) FROM $T WHERE property_id IS NOT NULL;") ;;
+    *)                  N=$(qapp "SELECT count(*) FROM $T;") ;;
+  esac
+  [ "$N" = "0" ] || { S5LEAK=$((S5LEAK+1)); echo "     sızdırdı: $T -> $N satır"; }
+done
+[ "$S5LEAK" = "0" ] && ok "kapsamsız sorgu 22 tablonun hiçbirinden site verisi döndürmüyor" \
+  || bad "$S5LEAK tablo kapsamsız sorguda site verisi döndürdü"
+
+# 3) Başka sitenin kapsamında hiçbir site verisi görünmemeli
+S5CROSS=0
+for T in $SLICE5_TABLES; do
+  case "$T" in
+    expense_categories) N=$(qscoped "SELECT count(*) FROM $T WHERE property_id IS NOT NULL;" "$OTHERPROP") ;;
+    *)                  N=$(qscoped "SELECT count(*) FROM $T;" "$OTHERPROP") ;;
+  esac
+  [ "$N" = "0" ] || { S5CROSS=$((S5CROSS+1)); echo "     çapraz sızıntı: $T -> $N"; }
+done
+[ "$S5CROSS" = "0" ] && ok "başka sitenin kapsamında 22 tablonun hiçbiri site verisi göstermiyor" \
+  || bad "$S5CROSS tabloda çapraz site erişimi var"
+
+# 4) Doğru kapsamda önceki adımların verisi görünmeli
+for T in monthly_assessments meters meter_readings property_settings property_setting_history \
+         payment_risk_scores operating_budgets operating_budget_items operating_budget_unit_shares \
+         assemblies assembly_agenda_items assembly_attendees books book_entries; do
+  N=$(qscoped "SELECT count(*) FROM $T;")
+  [ "${N:-0}" -ge 1 ] && ok "doğru kapsamda $T görünüyor ($N satır)" \
+    || bad "doğru kapsamda $T BOŞ — RLS uygulamayı bozdu"
+done
+
+# 5) Ortak gider kalemleri: sayı sabit, iki sitede de görünür, uygulama üretemez
+GEC=$($PSQL -t -A -c "SELECT count(*) FROM expense_categories WHERE property_id IS NULL;")
+[ "$GEC" = "10" ] && ok "ortak gider kalemi sayısı tohum verisiyle aynı (10)" \
+  || bad "ortak gider kalemi sayısı değişmiş ($GEC, beklenen 10)"
+GD=$(qscoped "SELECT count(*) FROM expense_categories WHERE property_id IS NULL;")
+GO=$(qscoped "SELECT count(*) FROM expense_categories WHERE property_id IS NULL;" "$OTHERPROP")
+[ "$GD" = "10" ] && [ "$GO" = "10" ] && ok "ortak gider kalemleri her iki sitede de görünüyor" \
+  || bad "ortak gider kalemleri kayboldu (demo=$GD diğer=$GO)"
+if PGPASSWORD="$APPPW" psql -h 127.0.0.1 -p "${DBPORT}" -U siteeksen_app -d siteeksen \
+  -v ON_ERROR_STOP=1 -q -c "SET LOCAL app.property_id = '$DEMO_PROPERTY';
+  INSERT INTO expense_categories (property_id, name, distribution_type) VALUES (NULL,'Kacak','EQUAL');" >/dev/null 2>&1; then
+  bad "uygulama rolü ORTAK gider kalemi yazabildi"
+else
+  ok "uygulama rolü ortak gider kalemi yazamıyor"
+fi
+
+# 6) Yazma kapsam dışına taşamamalı — iki kademeli alt tablo (oy → gündem → toplantı)
+DEMOITEM=$(qscoped "SELECT id FROM assembly_agenda_items LIMIT 1;")
+DEMOUNIT=$($PSQL -t -A -c "SELECT id FROM units WHERE property_id='$DEMO_PROPERTY' LIMIT 1;")
+if PGPASSWORD="$APPPW" psql -h 127.0.0.1 -p "${DBPORT}" -U siteeksen_app -d siteeksen \
+  -v ON_ERROR_STOP=1 -q -c "SET LOCAL app.property_id = '$OTHERPROP';
+  INSERT INTO assembly_votes (agenda_item_id, unit_id, vote, share_ratio)
+  VALUES ('$DEMOITEM','$DEMOUNIT','FOR',1);" >/dev/null 2>&1; then
+  bad "başka sitenin kapsamındayken demo sitenin gündemine OY YAZILABİLDİ"
+else
+  ok "iki kademeli alt tabloya (oy) kapsam dışı yazma engellendi"
+fi
+
+# 7) GÖRÜNÜMLER RLS'i atlamamalı.
+#    Önceki davranış: görünümler süper kullanıcıya aitti ve varsayılan olarak
+#    SAHİBİN yetkisiyle çalışıyordu; uygulama rolü monthly_expense_summary
+#    üzerinden 023'ten beri RLS'li olan giderlerin TÜM SİTELERE ait özetini
+#    okuyabiliyordu. Bundan sonra eklenecek her görünüm de burada yakalanır.
+VDEF=$($PSQL -t -A -c "SELECT string_agg(c.relname, ',') FROM pg_class c
+  JOIN pg_namespace n ON n.oid = c.relnamespace
+  WHERE n.nspname = 'public' AND c.relkind = 'v'
+    AND NOT COALESCE((SELECT option_value::bool FROM pg_options_to_table(c.reloptions)
+                      WHERE option_name = 'security_invoker'), false);")
+[ -z "$VDEF" ] && ok "tüm görünümler sorgulayanın yetkisiyle çalışıyor (security_invoker)" \
+  || bad "sahibin yetkisiyle çalışan görünüm var (RLS'i atlar): $VDEF"
+for V in monthly_expense_summary monthly_collection_summary; do
+  N=$(qapp "SELECT count(*) FROM $V;")
+  [ "$N" = "0" ] && ok "kapsamsız sorguda $V boş (görünüm RLS'e tabi)" \
+    || bad "$V kapsamsız sorguda $N satır döndürdü (görünüm sızıntısı)"
+done
+N=$(qscoped "SELECT count(*) FROM monthly_collection_summary;")
+[ "${N:-0}" -ge 1 ] && ok "doğru kapsamda tahsilat özeti görünüyor ($N satır)" \
+  || bad "doğru kapsamda tahsilat özeti boş"
+
+# 8) İndeksler
+IDXMISS=0
+for I in idx_monthly_assessments_property idx_ledger_lines_entry idx_property_setting_history_property \
+         idx_operating_budget_items_budget idx_budget_objections_budget idx_legal_case_events_case; do
+  N=$($PSQL -t -A -c "SELECT count(*) FROM pg_indexes WHERE schemaname='public' AND indexname='$I';")
+  [ "$N" = "1" ] || { IDXMISS=$((IDXMISS+1)); echo "     eksik indeks: $I"; }
+done
+[ "$IDXMISS" = "0" ] && ok "beşinci dilim politika indeksleri var" || bad "$IDXMISS indeks eksik"
+
+# 9) UÇTAN UCA — yönetişimde çapraz site ve itiraz hakkı.
+#    Önceki davranış: itiraz listeleme/sonuçlandırma ve karar defterine kayıt
+#    ekleme/okuma yalnızca kimliğe bakıyordu; A sitesinin yöneticisi B'nin
+#    itirazını reddedip projesinin kesinleşme engelini kaldırabiliyor ve B'nin
+#    KARAR DEFTERİNE kayıt yazabiliyordu. İtiraz için daire de doğrulanmıyordu.
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_app DB_PASSWORD="$APPPW" DB_NAME=siteeksen \
+DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${GOVPORT} \
+  go run ./services/governance >/tmp/verify-governance2.log 2>&1 &
+GOV_PID=$!
+GUP3=0
+for _ in $(seq 1 45); do
+  curl -fsS "http://127.0.0.1:${GOVPORT}/health" >/dev/null 2>&1 && { GUP3=1; break; }
+  sleep 1
+done
+if [ "$GUP3" = "1" ] && [ -n "${BID:-}" ] && [ -n "${BKID:-}" ] && [ -n "${XMGR:-}" ]; then
+  GURL="http://127.0.0.1:${GOVPORT}/api/v1/governance"
+  GJ='Content-Type: application/json'
+  OWN=$(curl -s -X POST "http://127.0.0.1:${SVCPORT}/api/v1/auth/login" \
+    -H "$GJ" -d '{"phone":"5550000003","password":"Demo123!"}' \
+    | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+  TENUNIT=$($PSQL -t -A -c "SELECT ru.unit_id FROM resident_units ru JOIN users u ON u.id = ru.resident_id
+    WHERE u.phone LIKE '%5559876543' AND ru.is_active LIMIT 1;")
+
+  # İtiraz hakkı: malik → 201, kiracı → 403, başka sitenin dairesi → 403
+  O1=$(curl -s -X POST "$GURL/budgets/$BID/objections" -H "Authorization: Bearer $OWN" -H "$GJ" \
+    -d '{"unit_id":"33333333-3333-3333-3333-333333333305","reason":"Asansor kalemi fazla"}')
+  OBJID=$(echo "$O1" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+  [ -n "$OBJID" ] && ok "kat maliki kendi dairesi için itiraz etti → kayıt" || bad "malik itirazı: $O1"
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$GURL/budgets/$BID/objections" \
+    -H "Authorization: Bearer $TEN" -H "$GJ" -d "{\"unit_id\":\"$TENUNIT\",\"reason\":\"Kiraci itirazi\"}")
+  [ "$SC" = "403" ] && ok "kiracının itirazı reddedildi → 403 (KMK m.37/2: hak malikindir)" \
+    || bad "kiracı itirazı → $SC (403 bekleniyordu)"
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$GURL/budgets/$BID/objections" \
+    -H "Authorization: Bearer $OWN" -H "$GJ" -d '{"unit_id":"33333333-3333-3333-3333-333333333301","reason":"Baskasinin dairesi"}')
+  [ "$SC" = "403" ] && ok "başkasının dairesi adına itiraz reddedildi → 403" \
+    || bad "başkasının dairesi adına itiraz → $SC"
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$GURL/budgets/$BID/objections" \
+    -H "Authorization: Bearer $OWN" -H "$GJ" -d '{"reason":"Dairesiz"}')
+  [ "$SC" = "400" ] && ok "dairesiz itiraz reddedildi → 400" || bad "dairesiz itiraz → $SC"
+  OBJID=${OBJID:-00000000-0000-0000-0000-000000000000}
+
+  # Diğer sitenin yöneticisi: listeleyemez, sonuçlandıramaz
+  XL=$(curl -s "$GURL/budgets/$BID/objections" -H "Authorization: Bearer $XMGR")
+  echo "$XL" | grep -q "$OBJID" && bad "diğer sitenin yöneticisi itirazları okudu: $XL" \
+    || ok "diğer sitenin yöneticisi itirazları okuyamıyor"
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X PATCH "$GURL/budgets/$BID/objections/$OBJID" \
+    -H "Authorization: Bearer $XMGR" -H "$GJ" -d '{"status":"REJECTED","resolution":"x"}')
+  OST=$($PSQL -t -A -c "SELECT status FROM budget_objections WHERE id='$OBJID';")
+  [ "$SC" = "404" ] && [ "$OST" = "OPEN" ] \
+    && ok "diğer sitenin yöneticisi itirazı sonuçlandıramıyor → 404, durum OPEN" \
+    || bad "ÇAPRAZ SİTE: itiraz sonuçlandırıldı → $SC, durum $OST"
+
+  # Karar defteri: diğer site ne yazabilir ne okuyabilir
+  BEFORE=$($PSQL -t -A -c "SELECT count(*) FROM book_entries WHERE book_id='$BKID';")
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$GURL/books/$BKID/entries" \
+    -H "Authorization: Bearer $XMGR" -H "$GJ" -d '{"title":"Sahte karar","body":"Yetkisiz kayit"}')
+  AFTER=$($PSQL -t -A -c "SELECT count(*) FROM book_entries WHERE book_id='$BKID';")
+  [ "$SC" = "404" ] && [ "$BEFORE" = "$AFTER" ] \
+    && ok "diğer sitenin yöneticisi karar defterine yazamıyor → 404, kayıt sayısı $AFTER" \
+    || bad "ÇAPRAZ SİTE: karar defterine yazıldı → $SC ($BEFORE → $AFTER)"
+  SC=$(curl -s -o /dev/null -w '%{http_code}' "$GURL/books/$BKID/entries" -H "Authorization: Bearer $XMGR")
+  [ "$SC" = "404" ] && ok "diğer sitenin yöneticisi karar defterini okuyamıyor → 404" \
+    || bad "diğer site karar defteri okuma → $SC"
+  SC=$(curl -s -o /dev/null -w '%{http_code}' "$GURL/books/$BKID/verify" -H "Authorization: Bearer $XMGR")
+  [ "$SC" = "404" ] && ok "diğer sitenin yöneticisi defter doğrulaması yapamıyor → 404" \
+    || bad "diğer site defter doğrulama → $SC"
+  SC=$(curl -s -o /dev/null -w '%{http_code}' "$GURL/books/gecersiz/entries" -H "Authorization: Bearer $MGR")
+  [ "$SC" = "404" ] && ok "geçersiz defter kimliği → 404 (500 değil)" || bad "geçersiz defter kimliği → $SC"
+
+  # Kendi sitesi: koruma işi bozmamalı
+  SC=$(curl -s -o /dev/null -w '%{http_code}' "$GURL/books/$BKID/verify" -H "Authorization: Bearer $MGR")
+  [ "$SC" = "200" ] && ok "kendi sitesinin yöneticisi defteri doğruluyor → 200" || bad "defter doğrulama → $SC"
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X PATCH "$GURL/budgets/$BID/objections/$OBJID" \
+    -H "Authorization: Bearer $MGR" -H "$GJ" -d '{"status":"REJECTED","resolution":"Kalem sozlesmeye uygun"}')
+  OST=$($PSQL -t -A -c "SELECT status FROM budget_objections WHERE id='$OBJID';")
+  [ "$SC" = "200" ] && [ "$OST" = "REJECTED" ] && ok "kendi sitesinin yöneticisi itirazı sonuçlandırdı" \
+    || bad "yönetici itirazı sonuçlandıramadı → $SC, durum $OST"
+else
+  bad "35. adım uçtan uca ön koşulu eksik (governance=$GUP3 BID=${BID:-yok} BKID=${BKID:-yok} XMGR=${XMGR:+var})"
+  tail -10 /tmp/verify-governance2.log
+fi
+kill_tree "$GOV_PID"
+
+# 10) Toplam durum — dürüstçe raporlanır
+RLSCOUNT=$($PSQL -t -A -c "SELECT count(*) FROM rls_enabled_tables;")
+[ "$RLSCOUNT" = "62" ] && ok "RLS toplam 62 tabloda açık (7 + 19 + 4 + 10 + 22 dilim)" \
+  || bad "beklenmedik RLS tablo sayısı: $RLSCOUNT (beklenen 62)"
+
+# 10b) DİLİM DIŞINDA KALANLAR: kimlik/dizin tabloları HÂLÂ kapalı olmalı.
+#      identity-service bir kullanıcının BÜTÜN sitelerini listeler (site seçimi);
+#      tek site kapsamı bu tablolara uymaz ve açmak girişi bozar.
+for T in users properties units resident_units property_roles; do
+  N=$($PSQL -t -A -c "SELECT count(*) FROM rls_enabled_tables WHERE table_name='$T';")
+  [ "$N" = "0" ] && ok "$T bilerek RLS dışında (kimlik/dizin tablosu; ayrı tasarım gerekiyor)" \
+    || bad "$T erken açılmış — site seçimi ve giriş bozulur"
+done
+NOTRLS=$($PSQL -t -A -c "SELECT string_agg(t.table_name, ' ' ORDER BY t.table_name)
+  FROM information_schema.tables t
   WHERE t.table_schema='public' AND t.table_type='BASE TABLE'
     AND t.table_name NOT IN (SELECT table_name FROM rls_enabled_tables);")
-ok "RLS henüz açılmamış tablo sayısı: $NOTRLS (bilerek — çok servisli tablolar sırada)"
+ok "RLS dışındaki tablolar: $NOTRLS"
 
 step "SONUÇ"
 echo "  Geçen: $PASS   Başarısız: $FAIL"

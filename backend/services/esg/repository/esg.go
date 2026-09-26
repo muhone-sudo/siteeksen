@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/siteeksen/backend/pkg/dbscope"
 )
 
 // ErrNoData, dönemde okuma yoksa döner.
@@ -31,7 +32,7 @@ func New(pool *pgxpool.Pool) *Repository { return &Repository{pool: pool} }
 // için uygulama katmanında yeniden hesaplanmaz; iki yerde hesaplamak iki farklı
 // sonuç riskidir.
 func (r *Repository) ConsumptionByType(ctx context.Context, propertyID string, from, to time.Time) ([]TypeTotal, error) {
-	rows, err := r.pool.Query(ctx, `
+	rows, err := r.scope(propertyID).Query(ctx, `
 		SELECT m.meter_type,
 		       COALESCE(SUM(r.consumption),0)::text,
 		       count(DISTINCT m.id)::int,
@@ -64,4 +65,11 @@ func (r *Repository) ConsumptionByType(ctx context.Context, propertyID string, f
 		return nil, ErrNoData
 	}
 	return out, nil
+}
+
+// scope, veritabanı erişimini SİTE KAPSAMINA bağlar (FAZ 2.6).
+//
+// Okunan `meters` ve `meter_readings` tablolarında RLS açıktır (migration 024).
+func (r *Repository) scope(propertyID string) *dbscope.Scoped {
+	return dbscope.For(r.pool, propertyID)
 }

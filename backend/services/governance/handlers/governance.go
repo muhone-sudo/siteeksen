@@ -19,7 +19,7 @@ import (
 // Ham veritabanı hatası istemciye SIZDIRILMAZ; yalnızca loglanır.
 func mapError(c *gin.Context, err error, op string) {
 	switch {
-	case errors.Is(err, repository.ErrNotFound):
+	case errors.Is(err, repository.ErrNotFound), repository.IsInvalidID(err):
 		c.JSON(http.StatusNotFound, gin.H{"error": "Kayıt bulunamadı"})
 	case errors.Is(err, repository.ErrNoUnits):
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Sitede tanımlı bağımsız bölüm yok"})
@@ -37,6 +37,8 @@ func mapError(c *gin.Context, err error, op string) {
 		c.JSON(http.StatusConflict, gin.H{"error": "Toplantı bu işlem için uygun durumda değil"})
 	case errors.Is(err, repository.ErrNotAttending):
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Oy kullanan bağımsız bölüm hazirun listesinde yok"})
+	case errors.Is(err, repository.ErrObjectionNotEntitled):
+		c.JSON(http.StatusForbidden, gin.H{"error": "İtiraz yalnızca dairenin maliki ya da vekili tarafından yapılabilir (KMK m.37/2)"})
 	case errors.Is(err, repository.ErrBookClosed):
 		c.JSON(http.StatusConflict, gin.H{"error": "Defter kapatılmış; yeni kayıt eklenemez"})
 	case errors.Is(err, service.ErrNoticeTooLate), errors.Is(err, service.ErrProxyLimitExceeded),
@@ -136,11 +138,11 @@ func FinalizeBudget(svc *service.Service) gin.HandlerFunc {
 func AddObjection(svc *service.Service) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var in struct {
-			UnitID string `json:"unit_id"`
+			UnitID string `json:"unit_id" binding:"required"`
 			Reason string `json:"reason" binding:"required"`
 		}
 		if err := c.ShouldBindJSON(&in); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "İtiraz gerekçesi zorunludur"})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Daire ve itiraz gerekçesi zorunludur"})
 			return
 		}
 		o, err := svc.AddObjection(c.Request.Context(), c.GetString("property_id"),
@@ -160,7 +162,7 @@ func AddObjection(svc *service.Service) gin.HandlerFunc {
 
 func ListObjections(svc *service.Service) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		list, err := svc.ListObjections(c.Request.Context(), c.Param("id"))
+		list, err := svc.ListObjections(c.Request.Context(), c.GetString("property_id"), c.Param("id"))
 		if err != nil {
 			mapError(c, err, "itiraz listeleme")
 			return
@@ -183,7 +185,7 @@ func ResolveObjection(svc *service.Service) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Geçersiz itiraz durumu"})
 			return
 		}
-		if err := svc.ResolveObjection(c.Request.Context(), c.Param("objectionId"), in.Status, in.Resolution); err != nil {
+		if err := svc.ResolveObjection(c.Request.Context(), c.GetString("property_id"), c.Param("objectionId"), in.Status, in.Resolution); err != nil {
 			mapError(c, err, "itiraz sonuçlandırma")
 			return
 		}
@@ -353,7 +355,7 @@ func AppendBookEntry(svc *service.Service) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Başlık ve içerik zorunludur"})
 			return
 		}
-		e, err := svc.AppendBookEntry(c.Request.Context(), c.Param("id"), c.GetString("user_id"), in)
+		e, err := svc.AppendBookEntry(c.Request.Context(), c.GetString("property_id"), c.Param("id"), c.GetString("user_id"), in)
 		if err != nil {
 			mapError(c, err, "defter kaydı")
 			return
@@ -364,7 +366,7 @@ func AppendBookEntry(svc *service.Service) gin.HandlerFunc {
 
 func ListBookEntries(svc *service.Service) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		list, err := svc.ListBookEntries(c.Request.Context(), c.Param("id"))
+		list, err := svc.ListBookEntries(c.Request.Context(), c.GetString("property_id"), c.Param("id"))
 		if err != nil {
 			mapError(c, err, "defter okuma")
 			return
@@ -375,7 +377,7 @@ func ListBookEntries(svc *service.Service) gin.HandlerFunc {
 
 func VerifyBook(svc *service.Service) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		res, err := svc.VerifyBook(c.Request.Context(), c.Param("id"))
+		res, err := svc.VerifyBook(c.Request.Context(), c.GetString("property_id"), c.Param("id"))
 		if err != nil {
 			mapError(c, err, "defter doğrulama")
 			return

@@ -352,9 +352,10 @@ func (r *Repository) Summary(ctx context.Context, propertyID string, year, month
 
 // scope, veritabanı erişimini SİTE KAPSAMINA bağlar (FAZ 2.6).
 //
-// `expenses` ve `expense_distributions` tablolarında RLS açıktır
-// (migration 023). `expense_categories` HENÜZ DEĞİL: onu finance-service de
-// okuyor ve iki servis aynı dilimde geçirilmeden açmak yanlış olurdu.
+// `expenses` ve `expense_distributions` (migration 023) ile `expense_categories`
+// (migration 024) tablolarında RLS açıktır. Kategori tablosunda ORTAK şablon
+// satırları (property_id IS NULL) her sitede okunur ama uygulama rolüyle
+// yazılamaz.
 func (r *Repository) scope(propertyID string) *dbscope.Scoped {
 	return dbscope.For(r.pool, propertyID)
 }

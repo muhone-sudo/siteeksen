@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/siteeksen/backend/pkg/dbscope"
 )
 
 var (
@@ -48,7 +49,7 @@ func New(pool *pgxpool.Pool) *Repository { return &Repository{pool: pool} }
 // varsayılanda" arasında ayrım yapamaz hâle getirir ve her istemci kendi
 // varsayılanını uydurur.
 func (r *Repository) List(ctx context.Context, propertyID string) ([]Setting, error) {
-	rows, err := r.pool.Query(ctx, `
+	rows, err := r.scope(propertyID).Query(ctx, `
 		SELECT s.setting_key, s.value_type, s.value_text, s.value_int, s.value_bool,
 		       COALESCE(u.first_name || ' ' || u.last_name,''), s.updated_at
 		FROM property_settings s
@@ -159,7 +160,7 @@ func (r *Repository) Set(ctx context.Context, propertyID, userID, key string, ra
 		display = strconv.FormatBool(b)
 	}
 
-	tx, err := r.pool.Begin(ctx)
+	tx, err := r.scope(propertyID).Begin(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -225,7 +226,7 @@ func (r *Repository) Reset(ctx context.Context, propertyID, userID, key string) 
 		return ErrUnknownKey
 	}
 
-	tx, err := r.pool.Begin(ctx)
+	tx, err := r.scope(propertyID).Begin(ctx)
 	if err != nil {
 		return err
 	}
@@ -257,7 +258,7 @@ func (r *Repository) History(ctx context.Context, propertyID, key string, limit 
 	if limit <= 0 || limit > 500 {
 		limit = 100
 	}
-	rows, err := r.pool.Query(ctx, `
+	rows, err := r.scope(propertyID).Query(ctx, `
 		SELECT h.setting_key, COALESCE(h.old_value,''), h.new_value,
 		       COALESCE(u.first_name || ' ' || u.last_name,''), h.changed_at
 		FROM property_setting_history h
@@ -325,4 +326,12 @@ func toBool(v any) (bool, error) {
 	default:
 		return false, ErrInvalidType
 	}
+}
+
+// scope, veritabanı erişimini SİTE KAPSAMINA bağlar (FAZ 2.6).
+//
+// `property_settings` ve `property_setting_history` tablolarında RLS açıktır
+// (migration 024).
+func (r *Repository) scope(propertyID string) *dbscope.Scoped {
+	return dbscope.For(r.pool, propertyID)
 }

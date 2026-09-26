@@ -9,6 +9,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/shopspring/decimal"
+	"github.com/siteeksen/backend/pkg/dbscope"
 )
 
 var (
@@ -56,7 +57,7 @@ func (r *Repository) MonthlyTotals(ctx context.Context, propertyID, meterType st
 		months = 12
 	}
 
-	rows, err := r.pool.Query(ctx, `
+	rows, err := r.scope(propertyID).Query(ctx, `
 		SELECT to_char(date_trunc('month', r.reading_date), 'YYYY-MM') AS period,
 		       COALESCE(SUM(r.consumption),0)::text,
 		       count(DISTINCT m.unit_id)::int,
@@ -92,7 +93,7 @@ func (r *Repository) UnitUsages(ctx context.Context, propertyID, meterType strin
 		return nil, ErrInvalidType
 	}
 
-	rows, err := r.pool.Query(ctx, `
+	rows, err := r.scope(propertyID).Query(ctx, `
 		SELECT u.id::text,
 		       COALESCE(u.block,'') || '-' || COALESCE(u.door_number,''),
 		       COALESCE(SUM(r.consumption),0)::text,
@@ -146,4 +147,11 @@ func contains(list []string, v string) bool {
 		}
 	}
 	return false
+}
+
+// scope, veritabanı erişimini SİTE KAPSAMINA bağlar (FAZ 2.6).
+//
+// Okunan `meters` ve `meter_readings` tablolarında RLS açıktır (migration 024).
+func (r *Repository) scope(propertyID string) *dbscope.Scoped {
+	return dbscope.For(r.pool, propertyID)
 }
