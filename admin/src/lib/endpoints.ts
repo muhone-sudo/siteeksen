@@ -43,8 +43,14 @@ export function endpoints(http: Http) {
             setActiveProperty: (property_id: string) => http.post<Msg>("/users/me/active-property", { property_id }),
             residents: (q?: { search?: string; block?: string; role?: string }) => g<T.List<T.Resident>>("/residents", q),
             createResident: (b: { first_name: string; last_name: string; phone: string; email?: string; unit_id: string; role: string }) =>
-                http.post<T.Resident>("/residents", b),
+                http.post<T.CreateResidentResult>("/residents", b),
             updateResident: (id: string, b: { role?: string; is_active?: boolean }) => http.patch<T.Resident>(`/residents/${id}`, b),
+            issueActivationCode: (id: string) => http.post<T.Activation>(`/residents/${id}/activation-code`),
+            changePassword: (current_password: string, new_password: string) =>
+                http.post<Msg>("/users/me/password", { current_password, new_password }),
+            /** Oturum gerektirmez: kodla ilk şifre belirleme ya da sıfırlama. */
+            activate: (phone: string, code: string, new_password: string) =>
+                http.post<Msg>("/auth/activate", { phone, code, new_password }),
             units: () => g<T.List<T.Unit>>("/units"),
         },
         finance: {

@@ -95,37 +95,41 @@ func (r *ResidentRepository) GetByID(ctx context.Context, propertyID, id string)
 	return res, nil
 }
 
-// Create yeni sakin oluşturur: telefon numarasıyla mevcut kullanıcı varsa birime bağlar,
-// yoksa geçici şifreyle yeni kullanıcı oluşturup birime bağlar (tek transaction)
-func (r *ResidentRepository) Create(ctx context.Context, propertyID, passwordHash string, input models.CreateResidentInput) (*models.Resident, error) {
+// Create sakin kaydı açar: telefon numarasıyla kullanıcı varsa daireye bağlar,
+// yoksa kullanılamaz bir parola özetiyle yeni hesap açıp bağlar (tek transaction).
+// İkinci dönüş değeri, bu işlemde YENİ bir kullanıcı
+// hesabı açılıp açılmadığıdır (açıldıysa etkinleştirme kodu üretilmelidir).
+func (r *ResidentRepository) Create(ctx context.Context, propertyID, passwordHash string, input models.CreateResidentInput) (*models.Resident, bool, error) {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	defer tx.Rollback(ctx)
 
 	var unitExists bool
 	if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM units WHERE id = $1 AND property_id = $2)`, input.UnitID, propertyID).Scan(&unitExists); err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	if !unitExists {
-		return nil, ErrUnitNotFound
+		return nil, false, ErrUnitNotFound
 	}
 
 	var userID, existingName string
+	created := false
 	err = tx.QueryRow(ctx, `SELECT id, first_name FROM users WHERE phone = $1 AND deleted = 0`, input.Phone).Scan(&userID, &existingName)
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
+		created = true
 		err = tx.QueryRow(ctx, `
 			INSERT INTO users (first_name, last_name, phone, email, password_hash, roles)
 			VALUES ($1, $2, $3, NULLIF($4, ''), $5, ARRAY['RESIDENT'])
 			RETURNING id
 		`, input.FirstName, input.LastName, input.Phone, input.Email, passwordHash).Scan(&userID)
 		if err != nil {
-			return nil, err
+			return nil, false, err
 		}
 	case err != nil:
-		return nil, err
+		return nil, false, err
 	}
 
 	var residentUnitID string
@@ -135,14 +139,15 @@ func (r *ResidentRepository) Create(ctx context.Context, propertyID, passwordHas
 		RETURNING id
 	`, userID, input.UnitID, input.Role).Scan(&residentUnitID)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
 	if err := tx.Commit(ctx); err != nil {
-		return nil, err
+		return nil, false, err
 	}
 
-	return r.GetByID(ctx, propertyID, residentUnitID)
+	res, err := r.GetByID(ctx, propertyID, residentUnitID)
+	return res, created, err
 }
 
 // Update sakinin birim ilişkisindeki rol/aktiflik bilgisini günceller

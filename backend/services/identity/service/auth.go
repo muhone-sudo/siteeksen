@@ -52,8 +52,26 @@ func (s *AuthService) Login(ctx context.Context, phone, password string) (*Token
 		return nil, nil, fmt.Errorf("kullanıcı okunamadı: %w", err)
 	}
 
-	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
+	// Giriş kilidi (migration 027): art arda 5 hatadan sonra 15 dakika. Önceden
+	// deneme sınırı yoktu; bir telefon numarasına sınırsız şifre denenebiliyordu.
+	// Kilitliyken de karşılaştırma YAPILIR (yanıt süresi kilit durumunu sızdırmasın)
+	// ve aynı genel hata döner.
+	lockedUntil, err := s.userRepo.LockState(ctx, user.ID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("kilit durumu okunamadı: %w", err)
+	}
+	mismatch := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)) != nil
+	if lockedUntil != nil && time.Now().Before(*lockedUntil) {
 		return nil, nil, ErrInvalidCredentials
+	}
+	if mismatch {
+		if err := s.userRepo.RecordLoginFailure(ctx, user.ID, loginFailureThreshold, loginLockDuration); err != nil {
+			return nil, nil, fmt.Errorf("hatalı giriş kaydedilemedi: %w", err)
+		}
+		return nil, nil, ErrInvalidCredentials
+	}
+	if err := s.userRepo.ResetLoginFailures(ctx, user.ID); err != nil {
+		return nil, nil, fmt.Errorf("giriş kaydı güncellenemedi: %w", err)
 	}
 
 	// Roller bir kez çözülür; hem jetona hem de yanıta AYNI küme yazılır.
@@ -91,8 +109,9 @@ func (s *AuthService) Login(ctx context.Context, phone, password string) (*Token
 // ErrTokenRevoked, iptal edilmiş bir jetonla yenileme denendiğinde döner.
 var ErrTokenRevoked = errors.New("jeton iptal edilmiş; yeniden giriş yapılmalı")
 
-// ErrInvalidCredentials, telefon ya da şifre yanlış, hesap yok veya pasif.
-// Üçü BİLEREK aynı hatadır: hangisi olduğunu söylemek hesap varlığını sızdırır.
+// ErrInvalidCredentials, telefon ya da şifre yanlış, hesap yok, pasif ya da
+// geçici olarak kilitli. Hepsi BİLEREK aynı hatadır: hangisi olduğunu söylemek
+// hesap varlığını sızdırır.
 var ErrInvalidCredentials = errors.New("geçersiz telefon veya şifre")
 
 // ErrInvalidToken, yenileme jetonu geçersiz ya da kullanıcı artık yok/pasif.
@@ -254,8 +273,11 @@ func (s *AuthService) generateTokens(user *models.User, roles []string) (*TokenP
 		"sub":         user.ID,
 		"property_id": user.ActivePropertyID,
 		"roles":       roles,
-		"iat":         now.Unix(),
-		"exp":         accessExpiry.Unix(),
+		// iat milisaniye hassasiyetindedir (pkg/revocation.Precision): toplu
+		// iptalden hemen sonra alınan jeton, iptalden ÖNCE üretilmiş sayılmasın.
+		// exp tam saniye kalır; Kong'un jwt eklentisi ve istemciler tam sayı bekler.
+		"iat": jwt.NewNumericDate(now),
+		"exp": accessExpiry.Unix(),
 		"jti":         uuid.New().String(),
 	}
 	accessToken := jwt.NewWithClaims(jwt.SigningMethodHS256, accessClaims)

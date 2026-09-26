@@ -39,9 +39,15 @@
 | `POST /users/me/active-property` | herkes | `property_id`* | `{message}` · 403 bağlı değil |
 | `POST /users/me/kvkk-consent` | herkes | — | `{message}` |
 | `POST /users/me/logout-all` | herkes | — | `{message,note}` |
-| `GET /residents` | M,A,S | `search`,`block`,`role` | `{data:[{id,user_id,first_name,last_name,phone,email,unit_id,unit,role,is_active,created_at}]}` (`id`=resident_units.id) |
-| `POST /residents` | M,A,S | `first_name`*,`last_name`*,`phone`*,`email`,`unit_id`*,`role`* | 201 sakin |
-| `GET/PATCH /residents/:id` | M,A,S | PATCH: `role`,`is_active` | sakin |
+| `POST /auth/activate` | açık | `phone`*,`code`*,`new_password`* | 200 `{message}` · 400 kod/telefon hatalı, kullanılmış ya da süresi dolmuş · 422 zayıf şifre · 429 kod 5 hatalı denemede kilitlendi. Başarılıysa kullanıcının açık bütün oturumları kapanır |
+| `POST /users/me/password` | herkes | `current_password`*,`new_password`* | 200 `{message,note}` · 400 mevcut şifre yanlış · 422 zayıf. Bütün oturumlar kapanır |
+| `GET /residents` | M,B,A,S | `search`,`block`,`role` | `{data:[{id,user_id,first_name,last_name,phone,email,unit_id,unit,role,is_active,created_at}]}` (`id`=resident_units.id) |
+| `POST /residents` | M,B | `first_name`*,`last_name`*,`phone`* (boşluk/tire atılır, +90'a çevrilir),`email`,`unit_id`*,`role`* | 201 sakin + yeni hesapsa `activation:{activation_code,purpose,expires_at,note}` (kod **bir kez** döner); telefon kayıtlıysa kod yok, `note` |
+| `POST /residents/:id/activation-code` | M,B | — | 201 `{activation_code,purpose:ACTIVATION\|RESET,expires_at,note}` · eski açık kod geçersizleşir · 404 |
+| `GET/PATCH /residents/:id` | GET M,B,A,S · PATCH M,B | PATCH: `role`,`is_active` | sakin |
+
+Şifre politikası: en az 8 karakter, en az bir harf ve bir rakam, telefon numarasını içeremez.
+Giriş kilidi: art arda 5 hatalı girişte hesap 15 dk kilitlenir (kilitliyken doğru şifre de 401).
 | `GET /units` | M,A,S | — | `{data:[{id,property_id,block,floor,door_number,share_ratio,gross_area_m2,unit_type,is_commercial}]}` |
 
 ## finance (8082) — önek `/finance`

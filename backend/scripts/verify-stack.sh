@@ -4712,7 +4712,7 @@ AUD=$($PSQL -t -A -c "SELECT count(*) FROM audit_logs WHERE created_at > now() -
   || bad "denetim izine yazılmamış — INSERT yetkisi de gitmiş olabilir"
 appfails "UPDATE legal_parameters SET value_numeric = 0" \
   && ok "uygulama rolü mevzuat parametresini değiştiremiyor" || bad "uygulama rolü legal_parameters YAZABİLDİ"
-for T in tenants invoices usage_metrics schema_migrations; do
+for T in tenants invoices usage_metrics schema_migrations user_activation_codes; do
   appfails "SELECT count(*) FROM $T" && ok "uygulama rolü platform tablosuna erişemiyor: $T" \
     || bad "uygulama rolü $T okuyabiliyor"
 done
@@ -4748,8 +4748,9 @@ NOTRLS=$($PSQL -t -A -c "SELECT string_agg(t.table_name, ' ' ORDER BY t.table_na
 # audit_logs: yalnızca ekleme · legal_parameters: salt-okur, platform geneli
 # revoked_tokens / user_token_invalidation: salt-okur, kişi bazlı (site değil)
 # tenants / invoices / usage_metrics / schema_migrations: uygulama rolüne kapalı
-EXPECTED="audit_logs invoices legal_parameters revoked_tokens schema_migrations tenants usage_metrics user_token_invalidation"
-[ "$NOTRLS" = "$EXPECTED" ] && ok "RLS dışındaki 8 tablonun her biri gerekçeli: $NOTRLS" \
+# user_activation_codes: uygulama rolüne kapalı, yalnızca kimlik servisi (027)
+EXPECTED="audit_logs invoices legal_parameters revoked_tokens schema_migrations tenants usage_metrics user_activation_codes user_token_invalidation"
+[ "$NOTRLS" = "$EXPECTED" ] && ok "RLS dışındaki 9 tablonun her biri gerekçeli: $NOTRLS" \
   || bad "RLS dışında beklenmeyen tablo var: '$NOTRLS' (beklenen: '$EXPECTED')"
 
 step "37) Sertleştirme turu: gateway yönlendirmesi, durum kodları, sahiplik (2026-09-26)"
@@ -5001,6 +5002,112 @@ PYEOF
 else
   bad "Node 22.6+ bulunamadı (panel doğrulaması --experimental-strip-types ister)"
 fi
+
+step "39) Hesap etkinleştirme, şifre değiştirme, giriş kilidi (migration 027)"
+# Önceden: yönetimin eklediği sakine rastgele bir geçici şifre atanıyor ve bu
+# şifre HİÇ KİMSEYE iletilmiyordu; şifre belirleme akışı da yoktu. Eklenen
+# sakin hiçbir zaman giriş yapamıyordu. Girişte deneme sınırı da yoktu.
+J='Content-Type: application/json'
+code() { curl -s -o /dev/null -w '%{http_code}' "$@"; }
+ID39="http://127.0.0.1:${SVCPORT}/api/v1"
+MGR39=$(curl -s -X POST "$ID39/auth/login" -H "$J" -d '{"phone":"5551234567","password":"Demo123!"}' \
+  | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+FREEUNIT=$($PSQL -t -A -c "SELECT id FROM units WHERE property_id='$DEMO_PROPERTY' ORDER BY door_number DESC LIMIT 1;")
+# Telefon boşluklu/tireli ve başında 0 ile girilir: girişle aynı biçimde saklanmalı
+CR=$(curl -s -X POST "$ID39/residents" -H "Authorization: Bearer $MGR39" -H "$J" \
+  -d "{\"first_name\":\"Yeni\",\"last_name\":\"Sakin\",\"phone\":\"0 555 000-00-39\",\"unit_id\":\"$FREEUNIT\",\"role\":\"TENANT\"}")
+ACODE=$(echo "$CR" | sed -n 's/.*"activation_code":"\([^"]*\)".*/\1/p')
+RUID=$(echo "$CR" | sed -n 's/.*"id":"\([^"]*\)".*/\1/p' | head -1)
+[ -n "$ACODE" ] && ok "yeni sakin eklenince etkinleştirme kodu bir kez gösteriliyor (${#ACODE} karakter)" \
+  || bad "sakin ekleme yanıtında kod yok: $CR"
+PH=$($PSQL -t -A -c "SELECT phone FROM users WHERE phone='+905550000039';")
+[ "$PH" = "+905550000039" ] && ok "telefon girişle aynı biçimde saklandı (+905550000039)" || bad "telefon biçimi: '$PH'"
+STORED=$($PSQL -t -A -c "SELECT count(*) FROM user_activation_codes c JOIN users u ON u.id=c.user_id
+  WHERE u.phone='+905550000039' AND c.code_hash <> '$ACODE' AND length(c.code_hash)=64;")
+[ "$STORED" = "1" ] && ok "veritabanında kodun kendisi değil SHA-256 özeti saklanıyor" || bad "kod saklama: $STORED"
+SC=$(code -X POST "$ID39/auth/login" -H "$J" -d '{"phone":"5550000039","password":"Demo123!"}')
+[ "$SC" = "401" ] && ok "etkinleşmemiş hesap herhangi bir şifreyle giriş yapamıyor → 401" || bad "etkinleşmemiş giriş → $SC"
+
+SC=$(code -X POST "$ID39/auth/activate" -H "$J" -d "{\"phone\":\"5550000039\",\"code\":\"$ACODE\",\"new_password\":\"kisa1\"}")
+[ "$SC" = "422" ] && ok "zayıf şifre reddediliyor → 422" || bad "zayıf şifre → $SC"
+SC=$(code -X POST "$ID39/auth/activate" -H "$J" -d "{\"phone\":\"5550000039\",\"code\":\"$ACODE\",\"new_password\":\"a5550000039\"}")
+[ "$SC" = "422" ] && ok "telefon numarasını içeren şifre reddediliyor → 422" || bad "telefonlu şifre → $SC"
+SC=$(code -X POST "$ID39/auth/activate" -H "$J" -d '{"phone":"5550000039","code":"YANLIS22","new_password":"Guclu123"}')
+[ "$SC" = "400" ] && ok "yanlış kod → 400" || bad "yanlış kod → $SC"
+SC=$(code -X POST "$ID39/auth/activate" -H "$J" -d "{\"phone\":\"5551234567\",\"code\":\"$ACODE\",\"new_password\":\"Guclu123\"}")
+[ "$SC" = "400" ] && ok "kod başka bir telefonla kullanılamıyor → 400" || bad "başka telefonla kod → $SC"
+LOWER=$(echo "$ACODE" | tr 'A-Z' 'a-z')
+SC=$(code -X POST "$ID39/auth/activate" -H "$J" -d "{\"phone\":\"+90 555 000 00 39\",\"code\":\" $LOWER \",\"new_password\":\"Guclu123\"}")
+[ "$SC" = "200" ] && ok "doğru kodla şifre belirlendi → 200 (küçük harf/boşluk tolere ediliyor)" || bad "etkinleştirme → $SC"
+SC=$(code -X POST "$ID39/auth/activate" -H "$J" -d "{\"phone\":\"5550000039\",\"code\":\"$ACODE\",\"new_password\":\"Baska123\"}")
+[ "$SC" = "400" ] && ok "kod ikinci kez kullanılamıyor → 400" || bad "kod tekrar kullanıldı → $SC"
+NEWTOK=$(curl -s -X POST "$ID39/auth/login" -H "$J" -d '{"phone":"5550000039","password":"Guclu123"}' \
+  | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+[ -n "$NEWTOK" ] && ok "sakin belirlediği şifreyle giriş yapabiliyor" || bad "etkinleşmiş hesap giriş yapamadı"
+
+# Kod deneme sınırı: 5 hatalı denemede kod kilitlenir, doğru kod da artık işlemez
+if [ -n "$RUID" ]; then
+  RC=$(curl -s -X POST "$ID39/residents/$RUID/activation-code" -H "Authorization: Bearer $MGR39")
+  RCODE=$(echo "$RC" | sed -n 's/.*"activation_code":"\([^"]*\)".*/\1/p')
+  echo "$RC" | grep -q '"purpose":"RESET"' && ok "etkin hesaba üretilen kod RESET amaçlı" || bad "yeniden kod: $RC"
+  LAST=""
+  for i in 1 2 3 4 5; do
+    LAST=$(code -X POST "$ID39/auth/activate" -H "$J" -d '{"phone":"5550000039","code":"YANLIS22","new_password":"Guclu456"}')
+  done
+  [ "$LAST" = "429" ] && ok "5. hatalı denemede kod kilitlendi → 429" || bad "kod kilidi → $LAST"
+  SC=$(code -X POST "$ID39/auth/activate" -H "$J" -d "{\"phone\":\"5550000039\",\"code\":\"$RCODE\",\"new_password\":\"Guclu456\"}")
+  [ "$SC" = "429" ] && ok "kilitli kod doğru girilse de işlemiyor → 429" || bad "kilitli kod → $SC"
+  RC2=$(curl -s -X POST "$ID39/residents/$RUID/activation-code" -H "Authorization: Bearer $MGR39" \
+    | sed -n 's/.*"activation_code":"\([^"]*\)".*/\1/p')
+  OPEN=$($PSQL -t -A -c "SELECT count(*) FROM user_activation_codes c JOIN users u ON u.id=c.user_id
+    WHERE u.phone='+905550000039' AND c.used_at IS NULL;")
+  [ "$OPEN" = "1" ] && ok "yeni kod üretilince eskisi geçersizleşiyor (tek açık kod)" || bad "açık kod sayısı: $OPEN"
+  SC=$(code -X POST "$ID39/residents/$RUID/activation-code" -H "Authorization: Bearer $NEWTOK")
+  [ "$SC" = "403" ] && ok "sakin kod üretemiyor → 403" || bad "sakinin kod üretmesi → $SC"
+  SC=$(code -X POST "$ID39/residents/$Z/activation-code" -H "Authorization: Bearer $MGR39")
+  [ "$SC" = "404" ] && ok "var olmayan sakin için kod → 404" || bad "var olmayan sakin kodu → $SC"
+  # Sıfırlama: kodla şifre belirlenince eski oturum kapanır
+  SC=$(code -X POST "$ID39/auth/activate" -H "$J" -d "{\"phone\":\"5550000039\",\"code\":\"$RC2\",\"new_password\":\"Guclu789\"}")
+  SC2=$(code "$ID39/users/me" -H "Authorization: Bearer $NEWTOK")
+  [ "$SC" = "200" ] && [ "$SC2" = "401" ] && ok "şifre sıfırlanınca eski oturum kapandı (200 → eski jeton 401)" \
+    || bad "sıfırlama $SC, eski jeton $SC2"
+fi
+
+# Şifre değiştirme
+TOK2=$(curl -s -X POST "$ID39/auth/login" -H "$J" -d '{"phone":"5550000039","password":"Guclu789"}' \
+  | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+SC=$(code -X POST "$ID39/users/me/password" -H "Authorization: Bearer $TOK2" -H "$J" \
+  -d '{"current_password":"yanlis","new_password":"Yepyeni12"}')
+[ "$SC" = "400" ] && ok "mevcut şifre yanlışsa değiştirilemiyor → 400" || bad "yanlış mevcut şifre → $SC"
+SC=$(code -X POST "$ID39/users/me/password" -H "Authorization: Bearer $TOK2" -H "$J" \
+  -d '{"current_password":"Guclu789","new_password":"zayif"}')
+[ "$SC" = "422" ] && ok "yeni şifre zayıfsa → 422" || bad "zayıf yeni şifre → $SC"
+SC=$(code -X POST "$ID39/users/me/password" -H "Authorization: Bearer $TOK2" -H "$J" \
+  -d '{"current_password":"Guclu789","new_password":"Yepyeni12"}')
+SC2=$(code "$ID39/users/me" -H "Authorization: Bearer $TOK2")
+[ "$SC" = "200" ] && [ "$SC2" = "401" ] && ok "şifre değişti ve bütün oturumlar kapandı (eski jeton 401)" \
+  || bad "şifre değiştirme $SC, eski jeton $SC2"
+SC=$(code -X POST "$ID39/auth/login" -H "$J" -d '{"phone":"5550000039","password":"Yepyeni12"}')
+[ "$SC" = "200" ] && ok "yeni şifreyle giriş → 200" || bad "yeni şifreyle giriş → $SC"
+
+# Giriş kilidi: art arda 5 hatadan sonra doğru şifre de 15 dk reddedilir
+for i in 1 2 3 4 5; do code -X POST "$ID39/auth/login" -H "$J" -d '{"phone":"5550000039","password":"hatali"}' >/dev/null; done
+SC=$(code -X POST "$ID39/auth/login" -H "$J" -d '{"phone":"5550000039","password":"Yepyeni12"}')
+LOCK=$($PSQL -t -A -c "SELECT locked_until > now() FROM users WHERE phone='+905550000039';")
+[ "$SC" = "401" ] && [ "$LOCK" = "t" ] && ok "5 hatalı girişten sonra hesap kilitlendi; doğru şifre de 401" \
+  || bad "giriş kilidi: $SC (kilit=$LOCK)"
+$PSQL -c "UPDATE users SET locked_until = now() - interval '1 second' WHERE phone='+905550000039';" >/dev/null
+SC=$(code -X POST "$ID39/auth/login" -H "$J" -d '{"phone":"5550000039","password":"Yepyeni12"}')
+N=$($PSQL -t -A -c "SELECT failed_login_attempts FROM users WHERE phone='+905550000039';")
+[ "$SC" = "200" ] && [ "$N" = "0" ] && ok "kilit süresi dolunca giriş açılıyor ve sayaç sıfırlanıyor" \
+  || bad "kilit sonrası giriş $SC (sayaç $N)"
+# Var olan telefonla sakin eklenirse kod üretilmez, mevcut şifre bozulmaz
+CR=$(curl -s -X POST "$ID39/residents" -H "Authorization: Bearer $MGR39" -H "$J" \
+  -d "{\"first_name\":\"Demo\",\"last_name\":\"Kiraci\",\"phone\":\"5559876543\",\"unit_id\":\"$FREEUNIT\",\"role\":\"TENANT\"}")
+SC=$(code -X POST "$ID39/auth/login" -H "$J" -d '{"phone":"5559876543","password":"Demo123!"}')
+echo "$CR" | grep -q activation_code && bad "var olan hesaba kod üretildi: $CR" \
+  || { [ "$SC" = "200" ] && ok "var olan hesap ikinci daireye bağlanınca kod üretilmiyor, şifresi bozulmuyor" \
+       || bad "var olan hesap bozuldu: giriş $SC"; }
 
 step "SONUÇ"
 echo "  Geçen: $PASS   Başarısız: $FAIL"

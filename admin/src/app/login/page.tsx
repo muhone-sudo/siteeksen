@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Building2, Phone, Lock, Eye, EyeOff } from "lucide-react";
 
 export default function LoginPage() {
@@ -111,22 +112,12 @@ export default function LoginPage() {
                             </div>
                         </div>
 
-                        <div className="flex items-center justify-between">
-                            <label className="flex items-center gap-2 text-sm">
-                                <input
-                                    type="checkbox"
-                                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
-                                />
-                                <span className="text-gray-600 dark:text-gray-400">
-                                    Beni hatırla
-                                </span>
-                            </label>
-                            <a
-                                href="#"
-                                className="text-sm text-primary hover:underline"
-                            >
-                                Şifremi unuttum
-                            </a>
+                        {/* "Beni hatırla" kutusu kaldırıldı: hiçbir şeye bağlı değildi.
+                            Şifre sıfırlama kodla yapılır; kodu site yönetimi üretir. */}
+                        <div className="text-right">
+                            <Link href="/activate" className="text-sm text-primary hover:underline">
+                                Şifremi unuttum / hesabımı etkinleştir
+                            </Link>
                         </div>
 
                         <button

@@ -17,6 +17,22 @@ type Resident struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
+// Activation, yöneticiye YALNIZCA BİR KEZ gösterilen etkinleştirme kodudur.
+// SMS sağlayıcısı bağlı olmadığı için kodu sakine yönetici iletir.
+type Activation struct {
+	Code      string    `json:"activation_code"`
+	Purpose   string    `json:"purpose"`
+	ExpiresAt time.Time `json:"expires_at"`
+	Note      string    `json:"note"`
+}
+
+// CreateResidentResult, sakin ekleme yanıtıdır.
+type CreateResidentResult struct {
+	*Resident
+	Activation *Activation `json:"activation,omitempty"`
+	Note       string      `json:"note,omitempty"`
+}
+
 // CreateResidentInput yeni sakin ekleme isteği
 type CreateResidentInput struct {
 	FirstName string `json:"first_name" binding:"required"`

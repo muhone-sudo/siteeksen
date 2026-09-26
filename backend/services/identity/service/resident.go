@@ -2,8 +2,9 @@ package service
 
 import (
 	"context"
-	"crypto/rand"
 	"errors"
+	"fmt"
+	"time"
 
 	"github.com/siteeksen/backend/pkg/middleware"
 	"github.com/siteeksen/backend/services/identity/models"
@@ -14,12 +15,29 @@ import (
 // ErrResidentForbidden yalnızca yönetim rollerinin yapabileceği bir işlem denendiğinde döner
 var ErrResidentForbidden = errors.New("bu işlem için yetkiniz yok")
 
-const tempPasswordChars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789"
-const tempPasswordLength = 10
-
 // ResidentService sakin yönetimi iş kuralları
 type ResidentService struct {
 	repo *repository.ResidentRepository
+	// auth, etkinleştirme kodu üretimi için (hesap işlemleri kimlik servisindedir).
+	auth *AuthService
+	// users, sakin kaydından kullanıcı hesabına ulaşmak için.
+	users *repository.UserRepository
+}
+
+// WithActivation, etkinleştirme kodu üretimini bağlar.
+func (s *ResidentService) WithActivation(auth *AuthService, users *repository.UserRepository) *ResidentService {
+	s.auth = auth
+	s.users = users
+	return s
+}
+
+const activationNote = "Bu kod YALNIZCA BİR KEZ gösterilir. SMS sağlayıcısı bağlı olmadığı için " +
+	"kodu sakine siz iletin (elden ya da telefonla). Sakin uygulamada 'Hesabımı etkinleştir' " +
+	"ekranında telefonu, bu kodu ve yeni şifresini girer. Kod 7 gün geçerlidir; 5 hatalı " +
+	"denemede kilitlenir."
+
+func activationOf(code, purpose string, expires time.Time) *models.Activation {
+	return &models.Activation{Code: code, Purpose: purpose, ExpiresAt: expires, Note: activationNote}
 }
 
 // NewResidentService yeni servis oluşturur
@@ -72,21 +90,66 @@ func (s *ResidentService) Get(ctx context.Context, propertyID, id string, roles 
 }
 
 // Create yeni sakin oluşturur; telefon numarası sistemde yoksa rastgele geçici şifreyle hesap açılır
-func (s *ResidentService) Create(ctx context.Context, propertyID string, roles []string, input models.CreateResidentInput) (*models.Resident, error) {
+//
+// DÜZELTME (2026-09-26): önceki sürüm rastgele bir geçici şifre üretip özetini
+// saklıyor ve şifreyi HİÇ KİMSEYE iletmiyordu; şifre belirleme akışı da
+// yoktu. Yönetimin eklediği sakin hiçbir zaman giriş yapamıyordu. Artık yeni
+// açılan hesap için tek kullanımlık etkinleştirme kodu üretilir ve yanıtla
+// yöneticiye bir kez gösterilir. Hesabın parolası, kullanıcı kodla kendi
+// şifresini belirleyene kadar HİÇBİR değerle eşleşmeyen rastgele bir özettir.
+func (s *ResidentService) Create(ctx context.Context, propertyID, actorID string, roles []string, input models.CreateResidentInput) (*models.CreateResidentResult, error) {
 	if !canWriteResidents(roles) {
 		return nil, ErrResidentForbidden
 	}
 
-	tempPassword, err := generateTempPassword()
+	unusable, err := GenerateCode()
 	if err != nil {
 		return nil, err
 	}
-	hash, err := bcrypt.GenerateFromPassword([]byte(tempPassword), bcrypt.DefaultCost)
+	hash, err := bcrypt.GenerateFromPassword([]byte(unusable+unusable), bcrypt.DefaultCost)
 	if err != nil {
 		return nil, err
 	}
 
-	return s.repo.Create(ctx, propertyID, string(hash), input)
+	res, created, err := s.repo.Create(ctx, propertyID, string(hash), input)
+	if err != nil {
+		return nil, err
+	}
+	out := &models.CreateResidentResult{Resident: res}
+	if !created {
+		out.Note = "Bu telefon numarasıyla kayıtlı bir hesap zaten var; kişi mevcut şifresiyle giriş yapar. Kod üretilmedi."
+		return out, nil
+	}
+	if s.auth == nil {
+		out.Note = "Hesap açıldı ama etkinleştirme kodu üretilemedi (yapılandırma eksik); 'kod üret' ile yeniden deneyin."
+		return out, nil
+	}
+	code, expires, purpose, err := s.auth.IssueActivation(ctx, res.UserID, actorID, false)
+	if err != nil {
+		return nil, fmt.Errorf("sakin eklendi ama etkinleştirme kodu üretilemedi: %w", err)
+	}
+	out.Activation = activationOf(code, purpose, expires)
+	return out, nil
+}
+
+// IssueActivationCode, var olan sakin için yeni kod üretir (ilk etkinleştirme
+// ya da unutulan şifre). Eski açık kod geçersizleşir.
+func (s *ResidentService) IssueActivationCode(ctx context.Context, propertyID, actorID string, roles []string, residentUnitID string) (*models.Activation, error) {
+	if !canWriteResidents(roles) {
+		return nil, ErrResidentForbidden
+	}
+	if s.auth == nil || s.users == nil {
+		return nil, errors.New("etkinleştirme bağlı değil")
+	}
+	acct, err := s.users.AccountByResident(ctx, propertyID, residentUnitID)
+	if err != nil {
+		return nil, err
+	}
+	code, expires, purpose, err := s.auth.IssueActivation(ctx, acct.ID, actorID, acct.PasswordSetAt != nil)
+	if err != nil {
+		return nil, err
+	}
+	return activationOf(code, purpose, expires), nil
 }
 
 // Update sakinin rol/aktiflik bilgisini günceller (yalnızca yönetim)
@@ -103,17 +166,4 @@ func (s *ResidentService) ListUnits(ctx context.Context, propertyID string, role
 		return nil, ErrResidentForbidden
 	}
 	return s.repo.ListUnits(ctx, propertyID)
-}
-
-// generateTempPassword sakin için rastgele bir geçici şifre üretir.
-// Sakin ilk girişte SMS/OTP doğrulamasıyla kendi şifresini belirleyebilir.
-func generateTempPassword() (string, error) {
-	buf := make([]byte, tempPasswordLength)
-	if _, err := rand.Read(buf); err != nil {
-		return "", err
-	}
-	for i, b := range buf {
-		buf[i] = tempPasswordChars[int(b)%len(tempPasswordChars)]
-	}
-	return string(buf), nil
 }

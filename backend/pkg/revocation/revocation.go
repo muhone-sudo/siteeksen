@@ -21,8 +21,24 @@ import (
 	"errors"
 	"time"
 
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+// Precision, jeton zamanlarının (iat/exp) hassasiyetidir.
+//
+// DÜZELTME (2026-09-26): jetonlar saniye hassasiyetindeydi. Toplu iptal bu
+// yüzden "şimdi + 1 sn" yazıyordu; bunun yan etkisi, iptalden sonraki 1-2 sn
+// içinde ALINAN YENİ jetonun da reddedilmesiydi. Şifresini belirleyip hemen
+// giriş yapan kullanıcı, girişi başarılı görüp ilk istekte 401 alıyordu.
+// Milisaniye hassasiyetiyle iptal anı ile yeni jeton birbirinden ayrılır.
+//
+// Paket düzeyinde ayarlanır: jetonu üreten (identity) ve doğrulayan her servis
+// bu paketi içe aktarır; ayar hepsinde aynı olmak ZORUNDADIR — biri saniyeye
+// yuvarlarsa aynı saniyede üretilmiş jeton yine "önce" görünür.
+const Precision = time.Millisecond
+
+func init() { jwt.TimePrecision = Precision }
 
 // ErrNotConfigured, denetleyici kurulmadan kullanılmaya çalışılırsa döner.
 var ErrNotConfigured = errors.New("jeton iptal denetimi yapılandırılmamış")
@@ -90,9 +106,9 @@ func (c *Checker) Revoke(ctx context.Context, jti, userID, tokenType string, exp
 
 // RevokeAll, kullanıcının o ana kadarki tüm jetonlarını geçersiz kılar.
 //
-// Zaman olarak `now()` yerine bir saniye ilerisi kullanılır: aynı saniye içinde
-// üretilmiş bir jeton, saniye hassasiyetindeki `iat` karşılaştırmasında
-// "önce üretilmiş" sayılmayabilirdi.
+// İptal anı veritabanının değil BU sürecin saatinden alınır: jetonların `iat`
+// değeri de jetonu üreten kimlik servisinin saatindendir. İki farklı saati
+// karşılaştırmak, saat kayması kadar bir pencerede yanlış sonuç verirdi.
 func (c *Checker) RevokeAll(ctx context.Context, userID, reason string) error {
 	if c == nil || c.pool == nil {
 		return ErrNotConfigured
@@ -102,11 +118,11 @@ func (c *Checker) RevokeAll(ctx context.Context, userID, reason string) error {
 	}
 	_, err := c.pool.Exec(ctx, `
 		INSERT INTO user_token_invalidation (user_id, invalidate_before, reason)
-		VALUES ($1::uuid, now() + interval '1 second', $2)
+		VALUES ($1::uuid, $3, $2)
 		ON CONFLICT (user_id) DO UPDATE
-		SET invalidate_before = now() + interval '1 second',
+		SET invalidate_before = GREATEST(user_token_invalidation.invalidate_before, EXCLUDED.invalidate_before),
 		    reason = EXCLUDED.reason,
-		    updated_at = now()`, userID, reason)
+		    updated_at = now()`, userID, reason, time.Now().Truncate(Precision))
 	return err
 }
 

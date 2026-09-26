@@ -12,6 +12,27 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-09-26 — HESAP ETKİNLEŞTİRME, ŞİFRE DEĞİŞTİRME, GİRİŞ KİLİDİ (DOĞRULANMIŞ)
+
+> **Kanıt:** `bash backend/scripts/verify-stack.sh` → **948 kontrol, 0 başarısız** (yeni adım 39: 25 kontrol).
+> Panel: `tsc --noEmit`, `npm run lint`, `npm run build` temiz.
+
+- **Hata:** panelden eklenen sakine rastgele geçici şifre atanıyor, şifre kimseye
+  iletilmiyordu; şifre belirleme akışı yoktu → yönetimin eklediği hiçbir sakin
+  giriş yapamıyordu. Telefon "0555…" olarak saklanıyor, giriş "+90555…" arıyordu.
+- **Migration 027:** `user_activation_codes` (yalnızca kimlik rolü; kodun SHA-256
+  özeti), `users.password_set_at/failed_login_attempts/locked_until`.
+- Tek kullanımlık kod (8 karakter, karışan harfler yok, modulo sapmasız), 7 gün,
+  5 hatalı denemede kilit, yenisi eskisini geçersiz kılar. `POST /auth/activate`,
+  `POST /users/me/password`, `POST /residents/:id/activation-code`.
+- Giriş kilidi: 5 hatada 15 dk; kilitliyken de bcrypt çalışır (zamanlama sızmaz).
+- **Hata:** toplu iptal "şimdi+1 sn" yazıyordu ve jeton `iat` tam saniyeydi →
+  şifre belirleyip hemen giriş yapanın jetonu ilk istekte 401. `iat` artık
+  milisaniye (`pkg/revocation.Precision`), iptal anı kimlik servisinin saatinden.
+- Panel: kod bir kez gösterilir (kopyala), satırda "kod üret", açık `/activate`
+  sayfası, `/dashboard/account` şifre değiştirme; girişteki ölü "Şifremi unuttum"
+  bağlantısı ve işlevsiz "Beni hatırla" kutusu kaldırıldı.
+
 ### 2026-09-26 — RLS TAMAMLANDI, EN AZ YETKİ, DAĞITIM TEK KAYNAKTAN (DOĞRULANMIŞ)
 
 > **Toplu kanıt:** `bash backend/scripts/verify-stack.sh` → **886 kontrol, 0 başarısız**.

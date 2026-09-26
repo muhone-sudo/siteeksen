@@ -28,7 +28,7 @@ func main() {
 	authService := service.NewAuthService(userRepo, os.Getenv("JWT_SECRET")).
 		WithRevocations(revocationChecker)
 	residentRepo := repository.NewResidentRepository(pool)
-	residentService := service.NewResidentService(residentRepo)
+	residentService := service.NewResidentService(residentRepo).WithActivation(authService, userRepo)
 
 	// Gin router
 	r := gin.Default()
@@ -47,6 +47,8 @@ func main() {
 		{
 			auth.POST("/login", handlers.Login(authService))
 			auth.POST("/refresh", handlers.RefreshToken(authService))
+			// Etkinleştirme koduyla şifre belirleme (oturum gerektirmez).
+			auth.POST("/activate", handlers.Activate(authService))
 			// Çıkış, kimlik doğrulama middleware'inin ARKASINDA DEĞİLDİR:
 			// süresi dolmuş ya da iptal edilmiş bir jetonla da çıkış denenebilmeli
 			// ve istemci anlamlı bir yanıt almalıdır. Jeton başlıktan elle okunur.
@@ -65,6 +67,7 @@ func main() {
 		protected.POST("/me/kvkk-consent", handlers.SetKVKKConsent(authService))
 		// Tüm cihazlardan çıkış: hesabın ele geçirildiği şüphesinde kullanılır.
 		protected.POST("/me/logout-all", handlers.LogoutAll(revocationChecker))
+		protected.POST("/me/password", handlers.ChangePassword(authService))
 	}
 
 	// Sakinler ve birimler
@@ -75,6 +78,7 @@ func main() {
 		residents.POST("", handlers.CreateResident(residentService))
 		residents.GET("/:id", handlers.GetResident(residentService))
 		residents.PATCH("/:id", handlers.UpdateResident(residentService))
+		residents.POST("/:id/activation-code", handlers.IssueActivationCode(residentService))
 	}
 
 	units := api.Group("/units")

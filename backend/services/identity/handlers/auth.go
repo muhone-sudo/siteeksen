@@ -14,8 +14,16 @@ import (
 	"github.com/siteeksen/backend/services/identity/service"
 )
 
+// normalizePhone, telefonu tek biçime (+90XXXXXXXXXX) getirir. Boşluk, tire,
+// parantez ve nokta atılır: "0 (555) 123-45-67" ile "+905551234567" aynı kişidir.
 func normalizePhone(phone string) string {
-	phone = strings.TrimSpace(phone)
+	phone = strings.Map(func(r rune) rune {
+		switch r {
+		case ' ', '-', '(', ')', '.', '\t':
+			return -1
+		}
+		return r
+	}, strings.TrimSpace(phone))
 	if strings.HasPrefix(phone, "+90") {
 		return phone
 	}
@@ -196,5 +204,63 @@ func CreateProperty(svc *service.AuthService) gin.HandlerFunc {
 		}
 
 		c.JSON(http.StatusCreated, property)
+	}
+}
+
+// Activate, etkinleştirme koduyla şifre belirler (kimlik doğrulaması gerekmez).
+func Activate(svc *service.AuthService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var in struct {
+			Phone       string `json:"phone" binding:"required"`
+			Code        string `json:"code" binding:"required"`
+			NewPassword string `json:"new_password" binding:"required"`
+		}
+		if err := c.ShouldBindJSON(&in); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Telefon, kod ve yeni şifre zorunludur"})
+			return
+		}
+		err := svc.Activate(c.Request.Context(), normalizePhone(in.Phone), in.Code, in.NewPassword)
+		switch {
+		case errors.Is(err, service.ErrWeakPassword):
+			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+		case errors.Is(err, repository.ErrInvalidCode):
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Telefon ya da kod hatalı, kod kullanılmış veya süresi dolmuş"})
+		case errors.Is(err, repository.ErrCodeLocked):
+			c.JSON(http.StatusTooManyRequests, gin.H{"error": "Kod çok sayıda hatalı deneme nedeniyle kilitlendi; yönetimden yeni kod isteyin"})
+		case err != nil:
+			log.Printf("[identity] etkinleştirme başarısız: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Şifre belirlenemedi"})
+		default:
+			c.JSON(http.StatusOK, gin.H{"message": "Şifreniz belirlendi; şimdi giriş yapabilirsiniz"})
+		}
+	}
+}
+
+// ChangePassword, oturumdaki kullanıcının şifresini değiştirir.
+func ChangePassword(svc *service.AuthService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var in struct {
+			CurrentPassword string `json:"current_password" binding:"required"`
+			NewPassword     string `json:"new_password" binding:"required"`
+		}
+		if err := c.ShouldBindJSON(&in); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Mevcut ve yeni şifre zorunludur"})
+			return
+		}
+		err := svc.ChangePassword(c.Request.Context(), c.GetString("user_id"), in.CurrentPassword, in.NewPassword)
+		switch {
+		case errors.Is(err, service.ErrWrongPassword):
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		case errors.Is(err, service.ErrWeakPassword):
+			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+		case err != nil:
+			log.Printf("[identity] şifre değiştirilemedi: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Şifre değiştirilemedi"})
+		default:
+			c.JSON(http.StatusOK, gin.H{
+				"message": "Şifreniz değiştirildi",
+				"note":    "Güvenlik için bütün oturumlarınız kapatıldı; yeniden giriş yapın.",
+			})
+		}
 	}
 }

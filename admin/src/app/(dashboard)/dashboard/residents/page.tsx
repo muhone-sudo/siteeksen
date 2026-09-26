@@ -1,12 +1,55 @@
 "use client";
 
 import { useState } from "react";
-import { Plus } from "lucide-react";
+import { KeyRound, Plus } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAction, useApi, useRoles } from "@/lib/use-api";
-import { ActionFeedback, Badge, Button, Card, Field, FormModal, Grid, Input, Page, QueryView, Select, Table } from "@/components/ui/kit";
+import { ActionFeedback, Badge, Button, Card, Field, FormModal, Grid, Input, Modal, Notice, Page, QueryView, Select, Table } from "@/components/ui/kit";
+import { dateTime } from "@/lib/format";
 import { RESIDENT_ROLES, ROLE_LABEL } from "@/lib/labels";
-import type { Resident } from "@/lib/types";
+import type { Activation, Resident } from "@/lib/types";
+
+/**
+ * Etkinleştirme kodu YALNIZCA BİR KEZ gösterilir: sunucu kodun kendisini değil
+ * özetini saklar, bu pencere kapandıktan sonra kod bir daha görüntülenemez.
+ * SMS sağlayıcısı bağlı olmadığı için kodu sakine yönetici iletir.
+ */
+function ActivationModal({ value, onClose }: { value: { who: string; phone: string; act: Activation } | null; onClose: () => void }) {
+    const [copied, setCopied] = useState(false);
+    if (!value) return null;
+    const { who, phone, act } = value;
+    return (
+        <Modal open onClose={onClose} title={act.purpose === "RESET" ? "Şifre sıfırlama kodu" : "Hesap etkinleştirme kodu"}>
+            <div className="space-y-4">
+                <p className="text-sm text-gray-700 dark:text-gray-300">
+                    <strong>{who}</strong> ({phone}) için kod:
+                </p>
+                <div className="flex items-center justify-between rounded-lg border border-gray-300 bg-gray-50 px-4 py-3 dark:border-gray-600 dark:bg-gray-700">
+                    <code className="font-mono text-2xl tracking-[0.3em] text-gray-900 dark:text-white">{act.activation_code}</code>
+                    <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={async () => {
+                            try {
+                                await navigator.clipboard.writeText(act.activation_code);
+                                setCopied(true);
+                            } catch {
+                                setCopied(false);
+                            }
+                        }}
+                    >
+                        {copied ? "Kopyalandı" : "Kopyala"}
+                    </Button>
+                </div>
+                <p className="text-xs text-gray-500">Son geçerlilik: {dateTime(act.expires_at)}</p>
+                <Notice tone="amber" title="Bu kod bir daha gösterilmez">{act.note}</Notice>
+                <div className="flex justify-end">
+                    <Button onClick={onClose}>Kodu ilettim, kapat</Button>
+                </div>
+            </div>
+        </Modal>
+    );
+}
 
 export default function ResidentsPage() {
     const [search, setSearch] = useState("");
@@ -18,6 +61,7 @@ export default function ResidentsPage() {
     const [open, setOpen] = useState(false);
     const [form, setForm] = useState({ first_name: "", last_name: "", phone: "", email: "", unit_id: "", role: "OWNER" });
     const [edit, setEdit] = useState<Resident | null>(null);
+    const [shown, setShown] = useState<{ who: string; phone: string; act: Activation } | null>(null);
 
     const unitOptions = (units.data?.data ?? []).map((u) => ({ value: u.id, label: `${u.block}-${u.door_number}` }));
 
@@ -44,7 +88,31 @@ export default function ResidentsPage() {
                                 { header: "Daire", cell: (r) => r.unit },
                                 { header: "Sıfat", cell: (r) => ROLE_LABEL[r.role] ?? r.role },
                                 { header: "Durum", cell: (r) => (r.is_active ? <Badge tone="green">Aktif</Badge> : <Badge>Ayrıldı</Badge>) },
-                                ...(canWrite ? [{ header: "", cell: (r: Resident) => <Button size="sm" variant="ghost" onClick={() => setEdit(r)}>Düzenle</Button> }] : []),
+                                ...(canWrite
+                                    ? [{
+                                          header: "",
+                                          cell: (r: Resident) => (
+                                              <div className="flex justify-end gap-1">
+                                                  <Button
+                                                      size="sm"
+                                                      variant="ghost"
+                                                      title="Etkinleştirme ya da şifre sıfırlama kodu üret (eski kod geçersizleşir)"
+                                                      disabled={act.pending}
+                                                      onClick={async () => {
+                                                          const a = await act.run(() => api.identity.issueActivationCode(r.id));
+                                                          if (a) {
+                                                              act.clear();
+                                                              setShown({ who: `${r.first_name} ${r.last_name}`, phone: r.phone, act: a });
+                                                          }
+                                                      }}
+                                                  >
+                                                      <KeyRound className="h-3.5 w-3.5" /> Kod üret
+                                                  </Button>
+                                                  <Button size="sm" variant="ghost" onClick={() => setEdit(r)}>Düzenle</Button>
+                                              </div>
+                                          ),
+                                      }]
+                                    : []),
                             ]}
                         />
                     )}
@@ -59,7 +127,10 @@ export default function ResidentsPage() {
                 error={act.error}
                 onSubmit={async () => {
                     const r = await act.run(() => api.identity.createResident(form), { invalidate: ["residents"], success: "Sakin eklendi" });
-                    if (r) setOpen(false);
+                    if (r) {
+                        setOpen(false);
+                        if (r.activation) setShown({ who: `${r.first_name} ${r.last_name}`, phone: r.phone, act: r.activation });
+                    }
                 }}
             >
                 <Grid>
@@ -75,6 +146,8 @@ export default function ResidentsPage() {
                     </Field>
                 </Grid>
             </FormModal>
+
+            <ActivationModal value={shown} onClose={() => setShown(null)} />
 
             <FormModal
                 open={!!edit}

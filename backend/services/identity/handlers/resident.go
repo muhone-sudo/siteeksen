@@ -78,13 +78,16 @@ func CreateResident(svc *service.ResidentService) gin.HandlerFunc {
 			return
 		}
 
+		// Telefon, girişle AYNI biçimde saklanır. Önceden "0555…" olduğu gibi
+		// yazılıyor, giriş ise "+90555…" arıyordu: sakin giriş yapamıyordu.
+		input.Phone = normalizePhone(input.Phone)
 		propertyID := c.GetString("property_id")
-		resident, err := svc.Create(c.Request.Context(), propertyID, getRoles(c), input)
+		result, err := svc.Create(c.Request.Context(), propertyID, c.GetString("user_id"), getRoles(c), input)
 		if err != nil {
 			mapResidentError(c, err, "Sakin oluşturulamadı")
 			return
 		}
-		c.JSON(http.StatusCreated, resident)
+		c.JSON(http.StatusCreated, result)
 	}
 }
 
@@ -117,5 +120,18 @@ func ListUnits(svc *service.ResidentService) gin.HandlerFunc {
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{"data": units})
+	}
+}
+
+// IssueActivationCode, sakin için yeni etkinleştirme / şifre sıfırlama kodu üretir.
+func IssueActivationCode(svc *service.ResidentService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		act, err := svc.IssueActivationCode(c.Request.Context(), c.GetString("property_id"),
+			c.GetString("user_id"), getRoles(c), c.Param("id"))
+		if err != nil {
+			mapResidentError(c, err, "Kod üretilemedi")
+			return
+		}
+		c.JSON(http.StatusCreated, act)
 	}
 }

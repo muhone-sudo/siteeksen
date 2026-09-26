@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
-import { Bell, ChevronDown, LogOut, Menu, User } from "lucide-react";
+import { Bell, ChevronDown, KeyRound, LogOut, Menu, User } from "lucide-react";
 import apiClient from "@/lib/api-client";
 
 /**
@@ -132,6 +132,17 @@ export function Header() {
                                         <p className="truncate text-xs text-gray-500">{session.user.phone}</p>
                                     )}
                                 </div>
+                                <button
+                                    role="menuitem"
+                                    onClick={() => {
+                                        setMenuOpen(false);
+                                        router.push("/dashboard/account");
+                                    }}
+                                    className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700"
+                                >
+                                    <KeyRound className="h-4 w-4" />
+                                    Şifre değiştir
+                                </button>
                                 <button
                                     role="menuitem"
                                     onClick={handleSignOut}

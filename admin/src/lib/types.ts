@@ -23,6 +23,9 @@ export interface Resident {
     id: Id; user_id: Id; first_name: string; last_name: string; phone: string; email: string;
     unit_id: Id; unit: string; role: string; is_active: boolean; created_at: string;
 }
+/** Yöneticiye YALNIZCA BİR KEZ gösterilen etkinleştirme / şifre sıfırlama kodu. */
+export interface Activation { activation_code: string; purpose: "ACTIVATION" | "RESET"; expires_at: string; note: string }
+export type CreateResidentResult = Resident & { activation?: Activation; note?: string };
 export interface Unit {
     id: Id; property_id: Id; block: string; floor: number; door_number: string; share_ratio: number;
     gross_area_m2: number; unit_type: string; is_commercial: boolean;
