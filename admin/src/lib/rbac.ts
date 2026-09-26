@@ -33,8 +33,13 @@ export const Roles = {
 
 export type Role = (typeof Roles)[keyof typeof Roles];
 
-/** Yönetim yetkisi taşıyan roller. */
-export const MANAGEMENT: Role[] = [Roles.SuperAdmin, Roles.Manager, Roles.BoardMember];
+/**
+ * Yönetim yetkisi taşıyan roller.
+ *
+ * SUPER_ADMIN bilerek YOKTUR: platform rolü site verisine yetki vermez; sunucu
+ * da tanımaz (pkg/middleware). Panel onu içeri alsaydı her ekran 403 dönerdi.
+ */
+export const MANAGEMENT: Role[] = [Roles.Manager, Roles.BoardMember];
 
 /** Yönetim + denetçi (denetçi okur, yazamaz — KMK m.41). */
 export const MANAGEMENT_AND_AUDIT: Role[] = [...MANAGEMENT, Roles.Auditor];
@@ -73,7 +78,7 @@ export function isRbacExempt(pathname: string): boolean {
 export const ROUTE_ROLES: { prefix: string; roles: Role[]; reason: string }[] = [
     // Sistem API anahtarları: yalnızca yönetici. Kurul üyesi bile göremez —
     // anahtar sızması tüm entegrasyonları etkiler.
-    { prefix: "/dashboard/credentials", roles: [Roles.SuperAdmin, Roles.Manager],
+    { prefix: "/dashboard/credentials", roles: [Roles.Manager],
       reason: "Sistem entegrasyon anahtarları" },
 
     // Personel: maaş, TCKN, SGK bilgisi içerir (KVKK özel önem).

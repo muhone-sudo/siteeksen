@@ -292,7 +292,7 @@ func hasOpsScope(c *gin.Context) bool {
 	for _, r := range roles {
 		switch r {
 		case middleware.RoleManager, middleware.RoleBoardMember,
-			middleware.RoleStaff, middleware.RoleSuperAdmin:
+			middleware.RoleStaff:
 			return true
 		}
 	}

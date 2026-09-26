@@ -25,7 +25,7 @@ func canSeeSalary(c *gin.Context) bool {
 	for _, r := range roles {
 		switch r {
 		case middleware.RoleManager, middleware.RoleBoardMember,
-			middleware.RoleAuditor, middleware.RoleSuperAdmin:
+			middleware.RoleAuditor:
 			return true
 		}
 	}
@@ -50,7 +50,7 @@ func isManager(c *gin.Context) bool {
 	value, _ := c.Get("roles")
 	roles, _ := value.([]string)
 	for _, r := range roles {
-		if r == middleware.RoleManager || r == middleware.RoleSuperAdmin {
+		if r == middleware.RoleManager {
 			return true
 		}
 	}

@@ -316,7 +316,7 @@ func allowedVisibilities(c *gin.Context) []string {
 
 func isManagement(c *gin.Context) bool {
 	return hasRole(c, middleware.RoleManager, middleware.RoleBoardMember,
-		middleware.RoleAuditor, middleware.RoleSuperAdmin)
+		middleware.RoleAuditor)
 }
 
 func hasRole(c *gin.Context, want ...string) bool {

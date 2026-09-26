@@ -33,7 +33,7 @@ export default function PersonnelPage() {
     const leaves = useApi(["leaves"], () => api.personnel.leaves(), tab === "leaves");
     const act = useAction();
     const { canWrite, roles } = useRoles();
-    const isManager = roles.includes("MANAGER") || roles.includes("SUPER_ADMIN");
+    const isManager = roles.includes("MANAGER");
     const [open, setOpen] = useState(false);
     const blank = { first_name: "", last_name: "", position: "", department: "", hire_date: today(), contract_type: "FULL_TIME", tc_number: "", phone: "", email: "", gross_salary: "", net_salary: "", bank_name: "", bank_iban: "", sgk_number: "", annual_leave_days: "14" };
     const [form, setForm] = useState(blank);

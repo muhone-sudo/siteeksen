@@ -280,7 +280,7 @@ func isManagement(c *gin.Context) bool {
 	for _, r := range roles {
 		switch r {
 		case middleware.RoleManager, middleware.RoleBoardMember,
-			middleware.RoleAuditor, middleware.RoleSuperAdmin:
+			middleware.RoleAuditor:
 			return true
 		}
 	}

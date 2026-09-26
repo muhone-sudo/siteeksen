@@ -12,6 +12,16 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-09-26 — SUPER_ADMIN SİTE VERİSİNE YETKİ VERMİYOR (DOĞRULANMIŞ)
+
+> **Kanıt:** \erify-stack.sh\ → **977 kontrol, 0 başarısız**.
+
+- **Yetki yükseltmesi:** 13 servisteki el yazımı rol kontrolleri SUPER_ADMIN'i
+  yönetim sayıyordu (RequireRole saymıyordu). Sitede yalnızca sakin olan platform
+  yöneticisi komşuların ziyaretçi/talep/rezervasyon kayıtlarını görebiliyordu.
+  Platform rolü artık hiçbir site kontrolünde yok; panelde de yönetim sayılmıyor.
+- meeting_wizard 501 yanıtı var olmayan governance yollarını gösteriyordu; düzeltildi.
+
 ### 2026-09-26 — YENİLEME JETONU TEK KULLANIMLIK + TEKRAR KULLANIM TESPİTİ (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **976 kontrol, 0 başarısız** (§30'a 6 kontrol); `verify-mobile.sh` → 8/8.

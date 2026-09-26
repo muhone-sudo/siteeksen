@@ -424,7 +424,7 @@ func canManage(c *gin.Context) bool {
 	roles, _ := value.([]string)
 	for _, r := range roles {
 		switch r {
-		case middleware.RoleManager, middleware.RoleBoardMember, middleware.RoleSuperAdmin:
+		case middleware.RoleManager, middleware.RoleBoardMember:
 			return true
 		}
 	}
@@ -438,7 +438,7 @@ func hasOpsScope(c *gin.Context) bool {
 	for _, r := range roles {
 		switch r {
 		case middleware.RoleManager, middleware.RoleBoardMember,
-			middleware.RoleAuditor, middleware.RoleSuperAdmin:
+			middleware.RoleAuditor:
 			return true
 		}
 	}

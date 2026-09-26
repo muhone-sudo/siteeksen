@@ -19,6 +19,14 @@ import (
 //   - Sakinlik rolleri `resident_units` tablosundan gelir.
 //   - Yönetim rolleri `property_roles` tablosundan gelir.
 //   - `users.roles` yalnızca platform düzeyi roller içindir (SUPER_ADMIN).
+//
+// SUPER_ADMIN SİTE VERİSİNE HİÇBİR YETKİ VERMEZ (2026-09-26). Önceden
+// RequireRole onu tanımıyor ama bazı servislerin el yazımı kontrolleri
+// "yönetim" sayıyordu: bir sitede yalnızca SAKİN olan platform yöneticisi,
+// rol kapısı olmayan uçlarda (talep listesi, rezervasyonlar, ziyaretçiler…)
+// bütün sakinlerin kaydını görebiliyordu. Platform işletmecisi site verisinin
+// sorumlusu değildir (KVKK m.3 veri sorumlusu/işleyen ayrımı); siteye erişim
+// o sitedeki açık bir rolle (property_roles) verilir.
 const (
 	RoleResident    = "RESIDENT"
 	RoleOwner       = "OWNER"

@@ -83,8 +83,11 @@ func main() {
 				"GET  /api/v1/governance/assemblies",
 				"POST /api/v1/governance/assemblies",
 				"POST /api/v1/governance/assemblies/{id}/attendees",
-				"POST /api/v1/governance/assemblies/{id}/votes",
-				"GET  /api/v1/governance/books",
+				"POST /api/v1/governance/assemblies/{id}/hold",
+				"POST /api/v1/governance/agenda-items/{itemId}/votes",
+				"POST /api/v1/governance/agenda-items/{itemId}/close",
+				"POST /api/v1/governance/books?kind=DECISION&year=YYYY",
+				"GET  /api/v1/governance/books/{id}/entries",
 			},
 			"legal_basis": "634 s. KMK m.29-32",
 		})

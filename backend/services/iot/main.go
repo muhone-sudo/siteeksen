@@ -360,7 +360,7 @@ func isOps(c *gin.Context) bool {
 	for _, r := range roles {
 		switch r {
 		case middleware.RoleManager, middleware.RoleBoardMember,
-			middleware.RoleAuditor, middleware.RoleStaff, middleware.RoleSuperAdmin:
+			middleware.RoleAuditor, middleware.RoleStaff:
 			return true
 		}
 	}

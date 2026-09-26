@@ -199,11 +199,11 @@ func maskID(v string) string {
 
 func hasSecurityScope(c *gin.Context) bool {
 	return hasAnyRole(c, middleware.RoleManager, middleware.RoleBoardMember,
-		middleware.RoleStaff, middleware.RoleSuperAdmin)
+		middleware.RoleStaff)
 }
 
 func isManagement(c *gin.Context) bool {
-	return hasAnyRole(c, middleware.RoleManager, middleware.RoleBoardMember, middleware.RoleSuperAdmin)
+	return hasAnyRole(c, middleware.RoleManager, middleware.RoleBoardMember)
 }
 
 func hasAnyRole(c *gin.Context, want ...string) bool {
