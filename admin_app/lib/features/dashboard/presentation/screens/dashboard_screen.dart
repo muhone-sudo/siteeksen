@@ -74,7 +74,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     List<dynamic> payments = const [];
     Object? paymentsError;
     try {
-      payments = await apiClient.getPayments();
+      payments = await apiClient.getList('/finance/payments');
     } catch (e) {
       paymentsError = e;
     }

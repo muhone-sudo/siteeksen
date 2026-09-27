@@ -1,9 +1,30 @@
-import 'package:flutter/material.dart';
-import '../../../../core/theme/apple_theme.dart';
-import '../../../../core/widgets/apple_widgets.dart';
-import '../../../../core/network/api_client.dart';
+// Ziyaretçi yönetimi (yönetim/görevli).
+//
+// DÜZELTME (2026-09-26): ekran `name`, `phone`, `unit`, `time` gibi var olmayan
+// alanları okuyordu; ad boş gelince `substring(0,1)` ile ÇÖKÜYORDU. Durum
+// süzgeçleri `inside`/`left` arıyordu (sunucu EXPECTED/CHECKED_IN/…); giriş ve
+// çıkış düğmelerinin işleyicisi boştu, üstteki 12/3/2/7 sayıları uydurmaydı.
 
-/// Ziyaretçi Yönetim Ekranı - Apple Tarzı Minimalist Tasarım
+import 'package:flutter/material.dart';
+
+import '../../../../core/network/api_client.dart';
+import '../../../../core/utils/formatters.dart';
+import '../../../../core/widgets/api_views.dart';
+
+const visitorStatusLabels = {
+  'EXPECTED': ('Bekleniyor', Colors.blue),
+  'CHECKED_IN': ('İçeride', Colors.green),
+  'CHECKED_OUT': ('Çıktı', Colors.grey),
+  'CANCELLED': ('İptal', Colors.red),
+  'NO_SHOW': ('Gelmedi', Colors.orange),
+};
+
+/// Ad ya da boş değer için güvenli baş harf (boş dizgede `substring` çökmesin).
+String initialOf(Object? name) {
+  final s = '${name ?? ''}'.trim();
+  return s.isEmpty ? '?' : s.characters.first.toUpperCase();
+}
+
 class VisitorManagementScreen extends StatefulWidget {
   const VisitorManagementScreen({super.key});
 
@@ -11,285 +32,86 @@ class VisitorManagementScreen extends StatefulWidget {
   State<VisitorManagementScreen> createState() => _VisitorManagementScreenState();
 }
 
-class _VisitorManagementScreenState extends State<VisitorManagementScreen>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
-  final TextEditingController _searchController = TextEditingController();
-  int _selectedFilter = 0;
+class _VisitorManagementScreenState extends State<VisitorManagementScreen> {
+  String? _status = 'EXPECTED';
+  final _listKey = GlobalKey<ApiListState>();
 
-  final List<String> _filters = ['Tümü', 'Beklenen', 'İçeride', 'Çıkış Yaptı'];
+  Future<List<dynamic>> _load() => apiClient.getList('/visitors', query: {'status': _status});
 
-  List<Map<String, dynamic>> _visitors = [];
-  bool _isLoading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(length: 2, vsync: this);
-    _loadVisitors();
-  }
-
-  void _loadVisitors() async {
-    try {
-      final list = await apiClient.getVisitors();
-      setState(() {
-        _visitors = List<Map<String, dynamic>>.from(list.map((v) {
-          return {
-            'name': v['name'] ?? '',
-            'unit': v['unit_id'] ?? v['unit'] ?? '',
-            'purpose': v['purpose'] ?? 'Ziyaret',
-            'status': v['status']?.toString().toLowerCase() ?? 'expected',
-            'time': v['time'] ?? '12:00',
-            'phone': v['phone'],
-          };
-        }));
-        _isLoading = false;
-      });
-    } catch (_) {
-      setState(() => _isLoading = false);
-    }
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    _searchController.dispose();
-    super.dispose();
+  Future<void> _act(Map v, String action) async {
+    final ok = await runAction(context, () => apiClient.post('/visitors/${v['id']}/$action'));
+    if (ok) await _listKey.currentState?.reload();
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return Scaffold(
-        backgroundColor: AppleTheme.background,
-        appBar: AppBar(title: const Text('Ziyaretçiler'), backgroundColor: Colors.white),
-        body: const Center(child: CircularProgressIndicator()),
-      );
-    }
-
     return Scaffold(
-      backgroundColor: AppleTheme.background,
-      body: CustomScrollView(
-        slivers: [
-          // Large Title AppBar
-          SliverAppBar(
-            expandedHeight: 120,
-            floating: false,
-            pinned: true,
-            backgroundColor: Colors.white,
-            surfaceTintColor: Colors.transparent,
-            flexibleSpace: FlexibleSpaceBar(
-              titlePadding: const EdgeInsets.only(left: 20, bottom: 16),
-              title: const Text(
-                'Ziyaretçiler',
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.black,
-                  letterSpacing: -0.5,
-                ),
-              ),
-            ),
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.qr_code_scanner_rounded),
-                onPressed: () {},
-                tooltip: 'QR Tara',
-              ),
-              const SizedBox(width: 8),
-            ],
+      appBar: AppBar(title: const Text('Ziyaretçiler')),
+      floatingActionButton: FloatingActionButton.extended(onPressed: _create, icon: const Icon(Icons.person_add), label: const Text('Kayıt')),
+      body: Column(
+        children: [
+          FutureBuilder<Map<String, dynamic>>(
+            future: apiClient.getMap('/visitors/summary'),
+            builder: (context, snap) {
+              final s = snap.data;
+              if (s == null) return const SizedBox.shrink();
+              return StatRow([
+                ('İçeride', '${s['currently_inside'] ?? 0}'),
+                ('Bugün beklenen', '${s['today_expected'] ?? 0}'),
+                ('Bugün giriş', '${s['today_checked_in'] ?? 0}'),
+                ('Bugün çıkış', '${s['today_checked_out'] ?? 0}'),
+              ]);
+            },
           ),
-
-          // Stats Cards
-          SliverToBoxAdapter(
-            child: Container(
-              height: 140,
-              margin: const EdgeInsets.only(top: 8),
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                children: [
-                  _buildStatCard(
-                    'Bugün',
-                    '12',
-                    'ziyaretçi',
-                    Icons.calendar_today_rounded,
-                    AppleTheme.systemBlue,
-                  ),
-                  _buildStatCard(
-                    'Beklenen',
-                    '3',
-                    'kişi',
-                    Icons.schedule_rounded,
-                    AppleTheme.systemOrange,
-                  ),
-                  _buildStatCard(
-                    'İçeride',
-                    '2',
-                    'kişi',
-                    Icons.location_on_rounded,
-                    AppleTheme.systemGreen,
-                  ),
-                  _buildStatCard(
-                    'Çıkış Yaptı',
-                    '7',
-                    'kişi',
-                    Icons.check_circle_rounded,
-                    AppleTheme.systemGray,
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          // Search Bar
-          SliverToBoxAdapter(
-            child: AppleSearchBar(
-              controller: _searchController,
-              placeholder: 'Ziyaretçi ara...',
-              onChanged: (value) => setState(() {}),
-            ),
-          ),
-
-          // Filter Chips
-          SliverToBoxAdapter(
-            child: Container(
-              height: 48,
-              margin: const EdgeInsets.symmetric(vertical: 8),
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                itemCount: _filters.length,
-                itemBuilder: (context, index) {
-                  final isSelected = _selectedFilter == index;
-                  return Padding(
+          SizedBox(
+            height: 48,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              children: [
+                for (final e in [null, ...visitorStatusLabels.keys])
+                  Padding(
                     padding: const EdgeInsets.only(right: 8),
-                    child: AnimatedContainer(
-                      duration: AppleTheme.fastAnimation,
-                      child: FilterChip(
-                        selected: isSelected,
-                        label: Text(_filters[index]),
-                        onSelected: (selected) {
-                          setState(() => _selectedFilter = index);
-                        },
-                        backgroundColor: Colors.white,
-                        selectedColor: AppleTheme.systemBlue.withOpacity(0.15),
-                        checkmarkColor: AppleTheme.systemBlue,
-                        labelStyle: TextStyle(
-                          color: isSelected ? AppleTheme.systemBlue : AppleTheme.label,
-                          fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20),
-                          side: BorderSide(
-                            color: isSelected ? AppleTheme.systemBlue : AppleTheme.systemGray4,
-                          ),
-                        ),
-                      ),
+                    child: ChoiceChip(
+                      label: Text(e == null ? 'Tümü' : visitorStatusLabels[e]!.$1),
+                      selected: _status == e,
+                      onSelected: (_) => setState(() => _status = e),
                     ),
-                  );
-                },
-              ),
+                  ),
+              ],
             ),
           ),
-
-          // Section Header
-          const SliverToBoxAdapter(
-            child: AppleSectionHeader(title: 'Bugünkü Ziyaretçiler'),
-          ),
-
-          // Visitor List
-          SliverToBoxAdapter(
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Column(
-                children: _filteredVisitors.asMap().entries.map((entry) {
-                  final index = entry.key;
-                  final visitor = entry.value;
-                  return _buildVisitorTile(
-                    visitor,
-                    isLast: index == _filteredVisitors.length - 1,
-                  );
-                }).toList(),
-              ),
-            ),
-          ),
-
-          // Bottom Spacing
-          const SliverToBoxAdapter(
-            child: SizedBox(height: 100),
-          ),
-        ],
-      ),
-      floatingActionButton: AppleFAB(
-        icon: Icons.add_rounded,
-        label: 'Ziyaretçi Ekle',
-        onPressed: () => _showAddVisitorSheet(context),
-      ),
-    );
-  }
-
-  List<Map<String, dynamic>> get _filteredVisitors {
-    final query = _searchController.text.toLowerCase();
-    return _visitors.where((v) {
-      final matchesSearch = query.isEmpty ||
-          v['name'].toString().toLowerCase().contains(query) ||
-          v['unit'].toString().toLowerCase().contains(query);
-
-      final matchesFilter = _selectedFilter == 0 ||
-          (_selectedFilter == 1 && v['status'] == 'expected') ||
-          (_selectedFilter == 2 && v['status'] == 'inside') ||
-          (_selectedFilter == 3 && v['status'] == 'left');
-
-      return matchesSearch && matchesFilter;
-    }).toList();
-  }
-
-  Widget _buildStatCard(String title, String value, String subtitle, IconData icon, Color color) {
-    return Container(
-      width: 140,
-      margin: const EdgeInsets.only(right: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.12),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(icon, color: color, size: 20),
-          ),
-          const Spacer(),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 28,
-              fontWeight: FontWeight.w700,
-              letterSpacing: -0.5,
-            ),
-          ),
-          Text(
-            '$title $subtitle',
-            style: TextStyle(
-              fontSize: 13,
-              color: AppleTheme.secondaryLabel,
+          Expanded(
+            child: ApiList(
+              key: _listKey,
+              token: _status,
+              load: _load,
+              empty: 'Ziyaretçi kaydı yok',
+              itemBuilder: (context, v, reload) {
+                final st = visitorStatusLabels['${v['status']}'];
+                final when = v['checked_in_at'] ?? v['expected_at'] ?? v['created_at'];
+                return ListTile(
+                  leading: CircleAvatar(child: Text(initialOf(v['visitor_name']))),
+                  title: Text('${v['visitor_name'] ?? ''}'),
+                  subtitle: Text([
+                    '${v['unit_name'] ?? 'Daire belirtilmemiş'}',
+                    formatDateTime(when),
+                    if ((v['vehicle_plate'] ?? '').toString().isNotEmpty) '${v['vehicle_plate']}',
+                    if ((v['visitor_phone'] ?? '').toString().isNotEmpty) '${v['visitor_phone']}',
+                  ].join(' · ')),
+                  trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                    if (st != null) StatusChip(st.$1, color: st.$2),
+                    PopupMenuButton<String>(
+                      onSelected: (a) => _act(v, a),
+                      itemBuilder: (_) => [
+                        if (v['status'] == 'EXPECTED') const PopupMenuItem(value: 'check-in', child: Text('Giriş yaptı')),
+                        if (v['status'] == 'CHECKED_IN') const PopupMenuItem(value: 'check-out', child: Text('Çıkış yaptı')),
+                        if (v['status'] == 'EXPECTED') const PopupMenuItem(value: 'cancel', child: Text('İptal et')),
+                      ],
+                    ),
+                  ]),
+                );
+              },
             ),
           ),
         ],
@@ -297,466 +119,72 @@ class _VisitorManagementScreenState extends State<VisitorManagementScreen>
     );
   }
 
-  Widget _buildVisitorTile(Map<String, dynamic> visitor, {bool isLast = false}) {
-    final status = visitor['status'] as String;
-    
-    Color statusColor;
-    String statusText;
-    IconData statusIcon;
-
-    switch (status) {
-      case 'expected':
-        statusColor = AppleTheme.systemOrange;
-        statusText = 'Bekleniyor';
-        statusIcon = Icons.schedule_rounded;
-        break;
-      case 'inside':
-        statusColor = AppleTheme.systemGreen;
-        statusText = 'İçeride';
-        statusIcon = Icons.location_on_rounded;
-        break;
-      case 'left':
-        statusColor = AppleTheme.systemGray;
-        statusText = 'Çıkış Yaptı';
-        statusIcon = Icons.check_circle_rounded;
-        break;
-      default:
-        statusColor = AppleTheme.systemGray;
-        statusText = status;
-        statusIcon = Icons.info_rounded;
+  Future<void> _create() async {
+    List<dynamic> units;
+    try {
+      units = await apiClient.getUnits();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(errorText(e))));
+      return;
     }
-
-    return Column(
-      children: [
-        InkWell(
-          onTap: () => _showVisitorDetails(context, visitor),
-          borderRadius: BorderRadius.circular(12),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                // Avatar
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: AppleTheme.systemGray6,
-                    borderRadius: BorderRadius.circular(24),
-                  ),
-                  child: Center(
-                    child: Text(
-                      visitor['name'].toString().substring(0, 1).toUpperCase(),
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w600,
-                        color: AppleTheme.label,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-
-                // Info
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Text(
-                            visitor['name'],
-                            style: const TextStyle(
-                              fontSize: 17,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: statusColor.withOpacity(0.12),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(statusIcon, size: 12, color: statusColor),
-                                const SizedBox(width: 4),
-                                Text(
-                                  statusText,
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    color: statusColor,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${visitor['unit']} • ${visitor['purpose']}',
-                        style: TextStyle(
-                          fontSize: 15,
-                          color: AppleTheme.secondaryLabel,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // Time
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      visitor['time'],
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w500,
-                        color: AppleTheme.secondaryLabel,
-                      ),
-                    ),
-                    if (status == 'inside' || status == 'expected')
-                      Icon(
-                        Icons.chevron_right_rounded,
-                        color: AppleTheme.systemGray3,
-                      ),
+    if (!mounted) return;
+    final formKey = GlobalKey<FormState>();
+    final name = TextEditingController();
+    final phone = TextEditingController();
+    final plate = TextEditingController();
+    final purpose = TextEditingController();
+    String? unitId;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, set) => AlertDialog(
+          title: const Text('Ziyaretçi kaydı'),
+          content: Form(
+            key: formKey,
+            child: SingleChildScrollView(
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                TextFormField(controller: name, decoration: const InputDecoration(labelText: 'Ad soyad'),
+                    validator: (v) => (v == null || v.trim().isEmpty) ? 'Ad gerekli' : null),
+                DropdownButtonFormField<String>(
+                  initialValue: unitId,
+                  decoration: const InputDecoration(labelText: 'Daire'),
+                  items: [
+                    for (final u in units.whereType<Map>())
+                      DropdownMenuItem(value: '${u['id']}', child: Text('${u['block'] ?? ''}-${u['door_number'] ?? ''}')),
                   ],
+                  onChanged: (v) => set(() => unitId = v),
+                  validator: (v) => v == null ? 'Daire seçin' : null,
                 ),
-              ],
+                TextFormField(controller: phone, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'Telefon')),
+                TextFormField(controller: plate, decoration: const InputDecoration(labelText: 'Plaka')),
+                TextFormField(controller: purpose, decoration: const InputDecoration(labelText: 'Ziyaret nedeni')),
+              ]),
             ),
           ),
-        ),
-        if (!isLast)
-          Padding(
-            padding: const EdgeInsets.only(left: 76),
-            child: Container(
-              height: 0.5,
-              color: AppleTheme.opaqueSeparator,
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Vazgeç')),
+            FilledButton(
+              onPressed: () {
+                if (formKey.currentState!.validate()) Navigator.pop(ctx, true);
+              },
+              child: const Text('Kaydet'),
             ),
-          ),
-      ],
-    );
-  }
-
-  void _showVisitorDetails(BuildContext context, Map<String, dynamic> visitor) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => _VisitorDetailsSheet(visitor: visitor),
-    );
-  }
-
-  void _showAddVisitorSheet(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => const _AddVisitorSheet(),
-    );
-  }
-}
-
-/// Visitor Details Bottom Sheet
-class _VisitorDetailsSheet extends StatelessWidget {
-  final Map<String, dynamic> visitor;
-
-  const _VisitorDetailsSheet({required this.visitor});
-
-  @override
-  Widget build(BuildContext context) {
-    final status = visitor['status'] as String;
-
-    return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Handle
-          Container(
-            width: 36,
-            height: 5,
-            margin: const EdgeInsets.only(top: 12),
-            decoration: BoxDecoration(
-              color: AppleTheme.systemGray4,
-              borderRadius: BorderRadius.circular(2.5),
-            ),
-          ),
-
-          // Header
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: Row(
-              children: [
-                Container(
-                  width: 60,
-                  height: 60,
-                  decoration: BoxDecoration(
-                    color: AppleTheme.systemGray6,
-                    borderRadius: BorderRadius.circular(30),
-                  ),
-                  child: Center(
-                    child: Text(
-                      visitor['name'].toString().substring(0, 1).toUpperCase(),
-                      style: const TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        visitor['name'],
-                        style: const TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${visitor['unit']} • ${visitor['purpose']}',
-                        style: TextStyle(
-                          fontSize: 15,
-                          color: AppleTheme.secondaryLabel,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          const Divider(height: 1),
-
-          // Info Items
-          if (visitor['phone'] != null)
-            AppleListTile(
-              leading: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: AppleTheme.systemGreen.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(Icons.phone_rounded, color: AppleTheme.systemGreen, size: 20),
-              ),
-              title: visitor['phone'],
-              subtitle: 'Telefon',
-              showChevron: false,
-            ),
-
-          AppleListTile(
-            leading: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: AppleTheme.systemBlue.withOpacity(0.12),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(Icons.access_time_rounded, color: AppleTheme.systemBlue, size: 20),
-            ),
-            title: visitor['time'],
-            subtitle: 'Giriş Saati',
-            showChevron: false,
-          ),
-
-          // Actions
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              children: [
-                if (status == 'expected')
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: () {
-                        Navigator.pop(context);
-                      },
-                      icon: const Icon(Icons.login_rounded),
-                      label: const Text('Giriş Yaptır'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppleTheme.systemGreen,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                      ),
-                    ),
-                  ),
-                if (status == 'inside') ...[
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: () {
-                        Navigator.pop(context);
-                      },
-                      icon: const Icon(Icons.logout_rounded),
-                      label: const Text('Çıkış Yaptır'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppleTheme.systemOrange,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: () {},
-                      icon: const Icon(Icons.notifications_rounded),
-                      label: const Text('Sakine Bildir'),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-
-          SizedBox(height: MediaQuery.of(context).padding.bottom),
-        ],
-      ),
-    );
-  }
-}
-
-/// Add Visitor Bottom Sheet
-class _AddVisitorSheet extends StatefulWidget {
-  const _AddVisitorSheet();
-
-  @override
-  State<_AddVisitorSheet> createState() => _AddVisitorSheetState();
-}
-
-class _AddVisitorSheetState extends State<_AddVisitorSheet> {
-  final _nameController = TextEditingController();
-  final _phoneController = TextEditingController();
-  final _purposeController = TextEditingController();
-  String? _selectedUnit;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      child: Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Handle
-            Center(
-              child: Container(
-                width: 36,
-                height: 5,
-                margin: const EdgeInsets.only(top: 12),
-                decoration: BoxDecoration(
-                  color: AppleTheme.systemGray4,
-                  borderRadius: BorderRadius.circular(2.5),
-                ),
-              ),
-            ),
-
-            // Header
-            Padding(
-              padding: const EdgeInsets.all(20),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('İptal'),
-                  ),
-                  const Text(
-                    'Yeni Ziyaretçi',
-                    style: TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: () {
-                      Navigator.pop(context);
-                    },
-                    child: const Text('Kaydet'),
-                  ),
-                ],
-              ),
-            ),
-
-            const Divider(height: 1),
-
-            // Form
-            Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                children: [
-                  TextField(
-                    controller: _nameController,
-                    decoration: const InputDecoration(
-                      labelText: 'İsim Soyisim',
-                      prefixIcon: Icon(Icons.person_outlined),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: _phoneController,
-                    keyboardType: TextInputType.phone,
-                    decoration: const InputDecoration(
-                      labelText: 'Telefon',
-                      prefixIcon: Icon(Icons.phone_outlined),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  DropdownButtonFormField<String>(
-                    value: _selectedUnit,
-                    decoration: const InputDecoration(
-                      labelText: 'Daire',
-                      prefixIcon: Icon(Icons.home_outlined),
-                    ),
-                    items: ['D.101', 'D.102', 'D.201', 'D.202', 'D.301', 'D.302']
-                        .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-                        .toList(),
-                    onChanged: (value) => setState(() => _selectedUnit = value),
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: _purposeController,
-                    decoration: const InputDecoration(
-                      labelText: 'Ziyaret Amacı',
-                      prefixIcon: Icon(Icons.info_outlined),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        Navigator.pop(context);
-                      },
-                      child: const Text('Ziyaretçi Kaydet'),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            SizedBox(height: MediaQuery.of(context).padding.bottom),
           ],
         ),
       ),
     );
+    if (ok == true && mounted) {
+      final saved = await runAction(context, () => apiClient.post('/visitors', {
+            'visitor_name': name.text.trim(),
+            'unit_id': unitId,
+            if (phone.text.trim().isNotEmpty) 'visitor_phone': phone.text.trim(),
+            if (plate.text.trim().isNotEmpty) 'vehicle_plate': plate.text.trim().toUpperCase(),
+            if (purpose.text.trim().isNotEmpty) 'visit_reason': purpose.text.trim(),
+          }));
+      if (saved) await _listKey.currentState?.reload();
+    }
+    for (final c in [name, phone, plate, purpose]) {
+      c.dispose();
+    }
   }
 }

@@ -39,7 +39,7 @@ class _AssetManagementScreenState extends State<AssetManagementScreen> {
       _notImplemented = false;
     });
     try {
-      final list = await apiClient.getAssets();
+      final list = await apiClient.getList('/assets');
       if (!mounted) return;
       setState(() {
         _assets = list.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();

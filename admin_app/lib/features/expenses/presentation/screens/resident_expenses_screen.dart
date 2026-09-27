@@ -48,7 +48,7 @@ class _ResidentExpensesScreenState extends State<ResidentExpensesScreen> {
       _error = null;
     });
     try {
-      final rows = await apiClient.getExpenses(year: _year, month: _month);
+      final rows = await apiClient.getList('/expenses', query: {'year': _year, 'month': _month});
       if (!mounted) return;
       setState(() {
         _expenses =
@@ -359,7 +359,7 @@ class _ExpenseCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      _text(expense, const ['non_invoiced_reason', 'reason']) ??
+                      _text(expense, const ['invoice_reason', 'reason']) ??
                           'Bu gider için resmi fatura bulunmamaktadır.',
                       style: TextStyle(
                           fontSize: 12,

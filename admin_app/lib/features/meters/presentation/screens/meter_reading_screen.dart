@@ -1,29 +1,25 @@
-// Toplu sayaç okuma giriş ekranı.
+// Sayaç okuma girişi.
 //
-// NE DEĞİŞTİ VE NEDEN (2026-09-13):
-// Okunacak sayaç listesi `List.generate(10, ...)` ile ekranda uyduruluyordu
-// ("A/B/C Blok D.x", "M-2024-1000x", son okuma = 100 + i*12.5). Daha kötüsü,
-// "Kaydet" düğmesi HİÇBİR ağ çağrısı yapmadan "Okumalar kaydedildi" diyordu:
-// görevli sahada tüm sayaçları okuyup kaydettiğini sanıyor, hiçbir değer
-// sunucuya ulaşmıyordu. Bu değerler tüketim faturalandırmasının girdisi olduğu
-// için bu sessiz kayıp doğrudan maddi zarar üretir.
-//
-// Artık:
-//  * Sayaç listesi seçilen türe göre `GET /meters?type=...` ucundan gelir;
-//    tür değiştikçe liste yeniden yüklenir.
-//  * Kaydetme `POST /meters/bulk-readings` ucuna gerçekten gider.
-//  * "Kaydedildi" mesajı ve ekranın kapanması YALNIZCA sunucu 2xx döndüğünde
-//    gerçekleşir; hata halinde girilen değerler ekranda KALIR (kaybolmaz) ve
-//    kullanıcıya nedeni gösterilir.
-//  * Sunucu 501 döndüğünde durum `NotImplementedNotice` ile açıkça bildirilir.
+// DÜZELTME (2026-09-26): toplu okuma var olmayan `/meters/bulk-readings`
+// yoluna gidiyordu (her kayıt 404). Okumalar sayaç başına `POST /meter-readings`
+// ile gönderilir; sunucu zinciri denetler (önceki okumadan küçük değer,
+// geleceğe tarih → 409/422) ve nedenini söyler. Değer METİN olarak gider:
+// kayan noktalı sayı ondalık hanelerde sapma üretir.
 
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../../core/network/api_client.dart';
-import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/formatters.dart';
-import '../../../../core/widgets/data_state.dart';
+import '../../../../core/widgets/api_views.dart';
+import 'meters_screen.dart' show meterTypes;
+
+/// "1.234,5" / "1234,5" / "1234.5" → "1234.5". Geçersizse null.
+String? normalizeReading(String input) {
+  var t = input.trim().replaceAll(' ', '');
+  if (t.isEmpty) return null;
+  if (t.contains(',')) t = t.replaceAll('.', '').replaceAll(',', '.');
+  return RegExp(r'^\d+(\.\d+)?$').hasMatch(t) ? t : null;
+}
 
 class MeterReadingScreen extends StatefulWidget {
   const MeterReadingScreen({super.key});
@@ -33,268 +29,98 @@ class MeterReadingScreen extends StatefulWidget {
 }
 
 class _MeterReadingScreenState extends State<MeterReadingScreen> {
-  String _selectedType = 'HEAT';
-
-  bool _loading = true;
-  bool _isSaving = false;
-  Object? _error;
-  List<Map<String, dynamic>> _meters = const [];
-
-  /// Girilen yeni okumalar: sayaç kimliği -> değer.
-  final Map<String, double> _newReadings = {};
+  final _values = <String, TextEditingController>{};
+  final _results = <String, String>{};
+  DateTime _date = DateTime.now();
+  bool _saving = false;
 
   @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-    try {
-      final data = await apiClient.getMeters(type: _selectedType);
-      if (!mounted) return;
-      setState(() {
-        _meters = data
-            .whereType<Map>()
-            .map((e) => Map<String, dynamic>.from(e))
-            .toList();
-        _loading = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _error = e;
-        _loading = false;
-      });
+  void dispose() {
+    for (final c in _values.values) {
+      c.dispose();
     }
+    super.dispose();
   }
 
-  void _changeType(String type) {
-    if (type == _selectedType) return;
+  Future<void> _submit() async {
+    final entries = _values.entries.where((e) => e.value.text.trim().isNotEmpty).toList();
+    if (entries.isEmpty) return;
     setState(() {
-      _selectedType = type;
-      // Tür değişince girilen değerler başka sayaçlara ait olur; temizlenir.
-      _newReadings.clear();
+      _saving = true;
+      _results.clear();
     });
-    _load();
+    var ok = 0;
+    for (final e in entries) {
+      final v = normalizeReading(e.value.text);
+      if (v == null) {
+        _results[e.key] = 'Geçersiz değer';
+        continue;
+      }
+      try {
+        final res = await apiClient.post('/meter-readings', {
+          'meter_id': e.key,
+          'current_value': v,
+          'reading_date': apiDate(_date),
+          'reading_type': 'MANUAL',
+        });
+        ok++;
+        _results[e.key] = 'Kaydedildi${res['note'] is String ? ' — ${res['note']}' : ''}';
+        e.value.clear();
+      } catch (err) {
+        _results[e.key] = errorText(err);
+      }
+    }
+    if (!mounted) return;
+    setState(() => _saving = false);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$ok / ${entries.length} okuma kaydedildi')));
   }
 
   @override
   Widget build(BuildContext context) {
-    final filled = _newReadings.length;
-    final total = _meters.length;
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('Sayaç Okuma'),
         actions: [
           TextButton.icon(
-            onPressed: (_isSaving || filled == 0) ? null : _saveReadings,
-            icon: _isSaving
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.save),
-            label: const Text('Kaydet'),
+            onPressed: () async {
+              final d = await showDatePicker(context: context, initialDate: _date, firstDate: DateTime(2020), lastDate: DateTime.now());
+              if (d != null) setState(() => _date = d);
+            },
+            icon: const Icon(Icons.calendar_today, size: 18),
+            label: Text(formatDate(_date)),
           ),
         ],
       ),
-      body: Column(
-        children: [
-          // Tür seçici
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Expanded(
-                  child: SegmentedButton<String>(
-                    segments: const [
-                      ButtonSegment(value: 'HEAT', label: Text('Isı')),
-                      ButtonSegment(
-                          value: 'WATER_COLD', label: Text('Soğuk Su')),
-                      ButtonSegment(value: 'WATER_HOT', label: Text('Sıcak Su')),
-                    ],
-                    selected: {_selectedType},
-                    onSelectionChanged: (v) => _changeType(v.first),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // İlerleme — yalnızca gerçek sayaç listesi varken anlamlı.
-          if (total > 0) ...[
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                children: [
-                  Text('$filled/$total girildi'),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: LinearProgressIndicator(
-                      value: filled / total,
-                      backgroundColor: AppTheme.borderColor,
-                    ),
-                  ),
-                ],
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: FilledButton(onPressed: _saving ? null : _submit, child: Text(_saving ? 'Kaydediliyor…' : 'Girilen okumaları kaydet')),
+        ),
+      ),
+      body: ApiList(
+        load: () => apiClient.getList('/meters'),
+        empty: 'Sayaç yok',
+        itemBuilder: (context, m, _) {
+          final id = '${m['id']}';
+          final c = _values.putIfAbsent(id, TextEditingController.new);
+          final result = _results[id];
+          return ListTile(
+            title: Text('${m['unit_name'] ?? ''} · ${meterTypes['${m['meter_type']}'] ?? m['meter_type']}'),
+            subtitle: Text([
+              'Son: ${m['last_reading_value'] ?? '—'}',
+              if (result != null) result,
+            ].join('\n')),
+            trailing: SizedBox(
+              width: 120,
+              child: TextField(
+                controller: c,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(hintText: 'Yeni değer', isDense: true),
               ),
             ),
-            const SizedBox(height: 16),
-          ],
-
-          Expanded(child: _buildList()),
-        ],
+          );
+        },
       ),
     );
-  }
-
-  Widget _buildList() {
-    if (_loading) {
-      return const LoadingView(message: 'Okunacak sayaçlar alınıyor...');
-    }
-    if (_error != null) {
-      final error = _error!;
-      if (isNotImplemented(error)) {
-        return const SingleChildScrollView(
-          child: NotImplementedNotice(
-            title: 'Sayaç listesi henüz sunucuda hazır değil',
-            detail: 'IoT servisi sayaçları henüz veritabanından okumuyor '
-                '(501). Okuma girişi, gerçek sayaç listesi gelmeden '
-                'yapılamaz.',
-          ),
-        );
-      }
-      return ErrorStateView(message: toUserMessage(error), onRetry: _load);
-    }
-    if (_meters.isEmpty) {
-      return const EmptyStateView(
-        message: 'Bu türde okunacak sayaç yok.',
-        icon: Icons.speed_outlined,
-      );
-    }
-
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      itemCount: _meters.length,
-      itemBuilder: (context, index) {
-        final meter = _meters[index];
-        final id = (meter['id'] ?? '').toString();
-        final serial = (meter['serial_number'] ?? '').toString();
-        final unitId = (meter['unit_id'] ?? '').toString();
-        final lastReading = meter['last_reading'];
-        final entered = _newReadings[id];
-
-        return Card(
-          margin: const EdgeInsets.only(bottom: 8),
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(serial.isEmpty ? '(seri no yok)' : serial,
-                          style: const TextStyle(fontWeight: FontWeight.w600)),
-                      Text(
-                        'Daire: ${unitId.isEmpty ? '—' : unitId} • Son: '
-                        '${lastReading is num ? formatNumber(lastReading) : '—'}',
-                        style: const TextStyle(
-                            fontSize: 12, color: AppTheme.textSecondary),
-                      ),
-                    ],
-                  ),
-                ),
-                SizedBox(
-                  width: 100,
-                  child: TextFormField(
-                    key: ValueKey('reading-$_selectedType-$id'),
-                    decoration: const InputDecoration(
-                      hintText: 'Yeni',
-                      isDense: true,
-                      contentPadding:
-                          EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    ),
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
-                    enabled: !_isSaving && id.isNotEmpty,
-                    onChanged: (v) {
-                      final parsed = double.tryParse(v.replaceAll(',', '.'));
-                      setState(() {
-                        if (parsed == null) {
-                          _newReadings.remove(id);
-                        } else {
-                          _newReadings[id] = parsed;
-                        }
-                      });
-                    },
-                  ),
-                ),
-                if (entered != null)
-                  const Padding(
-                    padding: EdgeInsets.only(left: 8),
-                    child: Icon(Icons.check_circle, color: AppTheme.successColor),
-                  ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Future<void> _saveReadings() async {
-    final readings = _newReadings.entries
-        .map((e) => {'meter_id': e.key, 'value': e.value})
-        .toList();
-    if (readings.isEmpty) return;
-
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Kaydet'),
-        content:
-            Text('${readings.length} okuma kaydedilecek. Onaylıyor musunuz?'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('İptal')),
-          ElevatedButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Kaydet')),
-        ],
-      ),
-    );
-    if (confirmed != true) return;
-
-    setState(() => _isSaving = true);
-    try {
-      await apiClient.submitBulkReadings(readings);
-      if (!mounted) return;
-      // Başarı mesajı yalnızca sunucu okumaları kabul ettiyse gösterilir.
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Okumalar kaydedildi'),
-            backgroundColor: Colors.green),
-      );
-      context.pop();
-    } catch (e) {
-      if (!mounted) return;
-      // Hata halinde girilen değerler ekranda kalır; kullanıcı yeniden dener.
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Okumalar kaydedilemedi: ${toUserMessage(e)}'),
-          backgroundColor: AppTheme.errorColor,
-        ),
-      );
-    } finally {
-      if (mounted) setState(() => _isSaving = false);
-    }
   }
 }

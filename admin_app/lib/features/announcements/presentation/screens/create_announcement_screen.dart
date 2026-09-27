@@ -109,12 +109,13 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
             // Kategori — seçim artık duruma yazılıyor ve sunucuya gönderiliyor.
             DropdownButtonFormField<String>(
               decoration: const InputDecoration(labelText: 'Kategori'),
-              value: _category,
+              initialValue: _category,
               items: const [
+                // Sunucunun kabul ettiği değerler (PAYMENT/MEETING reddediliyordu).
                 DropdownMenuItem(value: 'GENERAL', child: Text('Genel')),
-                DropdownMenuItem(value: 'PAYMENT', child: Text('Ödeme')),
+                DropdownMenuItem(value: 'FINANCIAL', child: Text('Mali')),
                 DropdownMenuItem(value: 'MAINTENANCE', child: Text('Bakım')),
-                DropdownMenuItem(value: 'MEETING', child: Text('Toplantı')),
+                DropdownMenuItem(value: 'ASSEMBLY', child: Text('Genel Kurul')),
                 DropdownMenuItem(value: 'EMERGENCY', child: Text('Acil')),
               ],
               onChanged: (v) =>
@@ -126,11 +127,12 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
             Card(
               child: Column(
                 children: [
-                  SwitchListTile(
-                    title: const Text('Push bildirim gönder'),
-                    subtitle: const Text('Tüm sakinlere bildirim gönderilir'),
-                    value: _sendNotification,
-                    onChanged: (v) => setState(() => _sendNotification = v),
+                  // Sunucu her duyuruda aktif sakinlere uygulama içi bildirim
+                  // oluşturur; anlık bildirim (push) sağlayıcısı bağlı değildir.
+                  const ListTile(
+                    leading: Icon(Icons.notifications_active_outlined),
+                    title: Text('Sakinlere uygulama içi bildirim oluşturulur'),
+                    subtitle: Text('Anlık bildirim (push) sağlayıcısı bağlı değil; sonuç yayından sonra gösterilir.'),
                   ),
                   const Divider(height: 1),
                   SwitchListTile(
@@ -197,18 +199,20 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
     });
 
     try {
-      await apiClient.createAnnouncement({
+      final res = await apiClient.post('/announcements', {
         'title': _titleController.text.trim(),
         'content': _contentController.text.trim(),
         'category': _category,
         'is_pinned': _isPinned,
-        'send_notification': _sendNotification,
       });
       if (!mounted) return;
-      // Yalnızca sunucu isteği kabul ettiyse başarı bildirilir ve ekran kapanır.
+      // Yalnızca sunucu isteği kabul ettiyse başarı bildirilir; bildirimin
+      // gerçekte ne olduğu (kaç alıcı, gönderildi/kuyrukta) sunucunun notudur.
+      final note = res['notification'] is Map ? (res['notification'] as Map)['note'] : null;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Duyuru yayınlandı'), backgroundColor: Colors.green),
+        SnackBar(
+            content: Text(note is String ? 'Duyuru yayınlandı. $note' : 'Duyuru yayınlandı'),
+            backgroundColor: Colors.green),
       );
       context.pop();
     } catch (e) {

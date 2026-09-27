@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/network/api_client.dart';
+import '../../../../core/utils/formatters.dart';
+import '../../../../core/widgets/api_views.dart';
+import '../widgets/activation_code_dialog.dart';
 
 const Map<String, String> _roleLabels = {
   'OWNER': 'Ev Sahibi',
@@ -133,23 +136,36 @@ class _AddResidentScreenState extends State<AddResidentScreen> {
 
     setState(() => _isSaving = true);
     try {
-      await apiClient.createResident({
+      // DÜZELTME (2026-09-26): yanıt atılıyordu. Yeni hesapta yanıt tek
+      // kullanımlık etkinleştirme kodunu BİR KEZ taşır; kod kaybolunca sakin
+      // hiçbir zaman giriş yapamıyordu.
+      final res = await apiClient.createResident({
         'first_name': _firstNameController.text.trim(),
         'last_name': _lastNameController.text.trim(),
-        'phone': _phoneController.text.trim(),
+        'phone': normalizePhone(_phoneController.text),
         if (_emailController.text.trim().isNotEmpty) 'email': _emailController.text.trim(),
         'unit_id': _selectedUnitId,
         'role': _role,
       });
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Sakin eklendi'), backgroundColor: Colors.green),
-      );
-      context.pop(true);
+      final activation = res['activation'];
+      if (activation is Map) {
+        await showActivationCodeDialog(
+          context,
+          who: '${_firstNameController.text.trim()} ${_lastNameController.text.trim()}',
+          activation: Map<String, dynamic>.from(activation),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(res['note'] is String ? 'Sakin eklendi. ${res['note']}' : 'Sakin eklendi'),
+          backgroundColor: Colors.green,
+        ));
+      }
+      if (mounted) context.pop(true);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Sakin eklenemedi, lütfen tekrar deneyin')),
+          SnackBar(content: Text('Sakin eklenemedi: ${errorText(e)}')),
         );
       }
     } finally {

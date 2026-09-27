@@ -43,7 +43,7 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
       _error = null;
     });
     try {
-      final data = await apiClient.getExpense(widget.expenseId);
+      final data = await apiClient.getMap('/expenses/${widget.expenseId}');
       if (!mounted) return;
       setState(() {
         _expense = data;

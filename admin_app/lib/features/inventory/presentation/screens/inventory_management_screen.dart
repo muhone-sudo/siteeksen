@@ -1,15 +1,14 @@
-// Stok Yönetimi Ekranı
+// Stok (sarf malzeme).
 //
-// NEDEN YENİDEN YAZILDI (2026-09-13):
-// Ekran, koda gömülü stok kalemleri ve "kritik seviye" uyarıları gösteriyordu.
-// Uydurma stok bilgisi, yönetimin gereksiz alım yapmasına ya da gerçekten biten
-// malzemeyi fark etmemesine yol açar. Artık veri gerçek API'den gelir.
+// DÜZELTME (2026-09-26): `quantity`, `min_quantity`, `category` alanları yoktu
+// (sunucu current_stock / minimum_stock METİN, category_name); stok hareketi
+// var olmayan `/stock-movements` yoluna gidiyordu.
 
 import 'package:flutter/material.dart';
 
 import '../../../../core/network/api_client.dart';
-import '../../../../core/theme/apple_theme.dart';
-import '../../../../core/widgets/data_state.dart';
+import '../../../../core/utils/formatters.dart';
+import '../../../../core/widgets/api_views.dart';
 
 class InventoryManagementScreen extends StatefulWidget {
   const InventoryManagementScreen({super.key});
@@ -19,121 +18,115 @@ class InventoryManagementScreen extends StatefulWidget {
 }
 
 class _InventoryManagementScreenState extends State<InventoryManagementScreen> {
-  bool _loading = true;
-  String? _error;
-  bool _notImplemented = false;
-  List<Map<String, dynamic>> _items = const [];
+  bool _belowOnly = false;
+  bool _canAdjust = false;
 
   @override
   void initState() {
     super.initState();
-    _load();
+    hasAnyRole(writeRoles).then((v) {
+      if (mounted) setState(() => _canAdjust = v);
+    });
   }
 
-  Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-      _notImplemented = false;
-    });
-    try {
-      final list = await apiClient.getInventory();
-      if (!mounted) return;
-      setState(() {
-        _items = list.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
-        _loading = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _notImplemented = isNotImplemented(e);
-        _error = toUserMessage(e);
-        _loading = false;
-      });
+  Future<void> _move(Map item, Future<void> Function() reload) async {
+    final formKey = GlobalKey<FormState>();
+    final qty = TextEditingController();
+    final notes = TextEditingController();
+    var type = 'OUT';
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, set) => AlertDialog(
+          title: Text('${item['name']} — stok hareketi'),
+          content: Form(
+            key: formKey,
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              DropdownButtonFormField<String>(
+                initialValue: type,
+                decoration: const InputDecoration(labelText: 'Hareket'),
+                items: [
+                  const DropdownMenuItem(value: 'IN', child: Text('Giriş (alım)')),
+                  const DropdownMenuItem(value: 'OUT', child: Text('Çıkış (kullanım)')),
+                  if (_canAdjust) const DropdownMenuItem(value: 'ADJUST', child: Text('Sayım düzeltmesi')),
+                ],
+                onChanged: (v) => set(() => type = v ?? type),
+              ),
+              TextFormField(
+                controller: qty,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: InputDecoration(labelText: 'Miktar (${item['unit'] ?? ''})'),
+                validator: (v) => (v == null || v.trim().isEmpty) ? 'Miktar gerekli' : null,
+              ),
+              TextFormField(
+                controller: notes,
+                decoration: InputDecoration(labelText: type == 'ADJUST' ? 'Açıklama (zorunlu)' : 'Açıklama'),
+                validator: (v) => type == 'ADJUST' && (v == null || v.trim().isEmpty) ? 'Sayım düzeltmesinde açıklama zorunlu' : null,
+              ),
+            ]),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Vazgeç')),
+            FilledButton(onPressed: () {
+              if (formKey.currentState!.validate()) Navigator.pop(ctx, true);
+            }, child: const Text('Kaydet')),
+          ],
+        ),
+      ),
+    );
+    if (ok == true && mounted) {
+      // Miktar METİN gider ("2,5" de kabul edilir); sunucu kuruş/ondalık hassas işler.
+      final saved = await runAction(context, () => apiClient.post('/inventory/${item['id']}/movements', {
+            'movement_type': type,
+            'quantity': qty.text.trim(),
+            if (notes.text.trim().isNotEmpty) 'notes': notes.text.trim(),
+            'reference_type': switch (type) { 'IN' => 'PURCHASE', 'OUT' => 'USAGE', _ => 'ADJUSTMENT' },
+          }));
+      if (saved) await reload();
     }
+    qty.dispose();
+    notes.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppleTheme.background,
       appBar: AppBar(
         title: const Text('Stok'),
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.transparent,
         actions: [
-          IconButton(icon: const Icon(Icons.refresh_rounded), onPressed: _load, tooltip: 'Yenile'),
+          FilterChip(label: const Text('Asgarinin altı'), selected: _belowOnly, onSelected: (v) => setState(() => _belowOnly = v)),
+          const SizedBox(width: 8),
         ],
       ),
-      body: _buildBody(),
-    );
-  }
-
-  Widget _buildBody() {
-    if (_loading) return const LoadingView();
-    if (_notImplemented) {
-      return const SingleChildScrollView(
-        child: NotImplementedNotice(
-          title: 'Stok modülü henüz hazır değil',
-          detail: 'Malzeme stok takibi ve giriş/çıkış hareketleri sunucu tarafında '
-              'gerçek veriye bağlanmadı.',
+      body: ApiList(
+        token: _belowOnly,
+        load: () => apiClient.getList('/inventory', query: {if (_belowOnly) 'below_minimum': 'true'}),
+        empty: _belowOnly ? 'Asgarinin altında kalem yok' : 'Stok kalemi yok',
+        header: (_) => FutureBuilder<Map<String, dynamic>>(
+          future: apiClient.getMap('/inventory-summary'),
+          builder: (context, snap) {
+            final s = snap.data;
+            if (s == null) return const SizedBox.shrink();
+            return StatRow([
+              ('Kalem', '${s['item_count'] ?? 0}'),
+              ('Asgarinin altı', '${s['below_minimum'] ?? 0}'),
+              ('Tükenen', '${s['out_of_stock'] ?? 0}'),
+              ('Stok değeri', formatTry(toNum(s['total_value_try']))),
+            ]);
+          },
         ),
-      );
-    }
-    if (_error != null) return ErrorStateView(message: _error!, onRetry: _load);
-    if (_items.isEmpty) {
-      return const EmptyStateView(message: 'Kayıtlı stok kalemi yok.', icon: Icons.inventory_2_outlined);
-    }
-
-    return RefreshIndicator(
-      onRefresh: _load,
-      child: ListView.separated(
-        padding: const EdgeInsets.all(16),
-        itemCount: _items.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 12),
-        itemBuilder: (_, i) => _itemCard(_items[i]),
-      ),
-    );
-  }
-
-  Widget _itemCard(Map<String, dynamic> it) {
-    final qty = it['quantity'];
-    final min = it['min_quantity'] ?? it['critical_level'];
-    // "Kritik" uyarısı YALNIZCA sunucudan gelen eşik varsa gösterilir; uydurulmaz.
-    final isCritical = qty is num && min is num && qty <= min;
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: AppleTheme.cardDecoration,
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text((it['name'] ?? 'Kalem').toString(),
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-                if (it['category'] != null)
-                  Text(it['category'].toString(),
-                      style: TextStyle(fontSize: 13, color: AppleTheme.secondaryLabel)),
-                if (isCritical)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Text('Kritik seviyenin altında',
-                        style: TextStyle(fontSize: 12, color: AppleTheme.systemRed)),
-                  ),
-              ],
-            ),
-          ),
-          Text(
-            qty == null ? '—' : '$qty ${it['unit'] ?? ''}'.trim(),
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w700,
-              color: isCritical ? AppleTheme.systemRed : AppleTheme.label,
-            ),
-          ),
-        ],
+        itemBuilder: (context, i, reload) => ListTile(
+          title: Text('${i['name'] ?? ''}'),
+          subtitle: Text([
+            'Mevcut: ${i['current_stock'] ?? '0'} ${i['unit'] ?? ''}',
+            'Asgari: ${i['minimum_stock'] ?? '0'}',
+            if ((i['category_name'] ?? '').toString().isNotEmpty) '${i['category_name']}',
+            if ((i['location'] ?? '').toString().isNotEmpty) '${i['location']}',
+          ].join(' · ')),
+          leading: Icon(i['below_minimum'] == true ? Icons.warning_amber : Icons.inventory_2,
+              color: i['below_minimum'] == true ? Colors.orange : null),
+          trailing: IconButton(icon: const Icon(Icons.swap_vert), tooltip: 'Hareket', onPressed: () => _move(i, reload)),
+        ),
       ),
     );
   }

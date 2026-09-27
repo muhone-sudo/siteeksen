@@ -1,174 +1,84 @@
-// Devriye Kontrol Ekranı
+// Devriye (tur) kontrolü.
 //
-// NEDEN YENİDEN YAZILDI (2026-09-13):
-// Ekran, koda gömülü devriye turları ve "bugün 8/10 tur tamamlandı" gibi uydurma
-// istatistikler gösteriyordu. Güvenlik turu bir denetim kaydıdır; yapılmamış bir
-// turun yapılmış gibi görünmesi, olay anında yönetimin yanlış bilgiyle savunma
-// yapmasına yol açar. Artık veri gerçek API'den gelir.
+// DÜZELTME (2026-09-26): ekran var olmayan `/patrol-sessions` yoluna gidiyordu
+// ve iki çağrı tek try bloğunda olduğu için BÜTÜN ekran hata veriyordu;
+// güzergâhta `checkpoint_count`, turda `completed_checkpoints` alanları yoktu.
+// Tur başlatma ve okutma görevlinin cihazından yapılır (NFC/QR); burada izlenir.
 
 import 'package:flutter/material.dart';
 
 import '../../../../core/network/api_client.dart';
-import '../../../../core/theme/apple_theme.dart';
 import '../../../../core/utils/formatters.dart';
-import '../../../../core/widgets/data_state.dart';
+import '../../../../core/widgets/api_views.dart';
 
-class PatrolControlScreen extends StatefulWidget {
+const patrolStatus = {
+  'IN_PROGRESS': ('Devam ediyor', Colors.blue),
+  'COMPLETED': ('Tamamlandı', Colors.green),
+  'INCOMPLETE': ('Eksik', Colors.red),
+};
+
+class PatrolControlScreen extends StatelessWidget {
   const PatrolControlScreen({super.key});
 
   @override
-  State<PatrolControlScreen> createState() => _PatrolControlScreenState();
-}
-
-class _PatrolControlScreenState extends State<PatrolControlScreen>
-    with SingleTickerProviderStateMixin {
-  late final TabController _tab;
-
-  bool _loading = true;
-  String? _error;
-  bool _notImplemented = false;
-  List<Map<String, dynamic>> _routes = const [];
-  List<Map<String, dynamic>> _sessions = const [];
-
-  @override
-  void initState() {
-    super.initState();
-    _tab = TabController(length: 2, vsync: this);
-    _load();
-  }
-
-  @override
-  void dispose() {
-    _tab.dispose();
-    super.dispose();
-  }
-
-  Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-      _notImplemented = false;
-    });
-    try {
-      final routes = await apiClient.getPatrolRoutes();
-      final sessions = await apiClient.getPatrolSessions();
-      if (!mounted) return;
-      setState(() {
-        _routes = routes.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
-        _sessions = sessions.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
-        _loading = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _notImplemented = isNotImplemented(e);
-        _error = toUserMessage(e);
-        _loading = false;
-      });
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppleTheme.background,
-      appBar: AppBar(
-        title: const Text('Devriye Kontrol'),
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.transparent,
-        bottom: TabBar(
-          controller: _tab,
-          tabs: const [Tab(text: 'Turlar'), Tab(text: 'Oturumlar')],
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Devriye'),
+          bottom: const TabBar(tabs: [Tab(text: 'Turlar'), Tab(text: 'Güzergâhlar')]),
         ),
-        actions: [
-          IconButton(icon: const Icon(Icons.refresh_rounded), onPressed: _load, tooltip: 'Yenile'),
-        ],
-      ),
-      body: _buildBody(),
-    );
-  }
-
-  Widget _buildBody() {
-    if (_loading) return const LoadingView();
-    if (_notImplemented) {
-      return const SingleChildScrollView(
-        child: NotImplementedNotice(
-          title: 'Devriye modülü henüz hazır değil',
-          detail: 'Tur tanımları ve QR/NFC noktalı devriye oturumları sunucu '
-              'tarafında gerçek veriye bağlanmadı.',
-        ),
-      );
-    }
-    if (_error != null) return ErrorStateView(message: _error!, onRetry: _load);
-
-    return TabBarView(
-      controller: _tab,
-      children: [
-        _list(_routes, 'Tanımlı devriye turu yok.', Icons.route_outlined, _routeCard),
-        _list(_sessions, 'Kayıtlı devriye oturumu yok.', Icons.history_rounded, _sessionCard),
-      ],
-    );
-  }
-
-  Widget _list(List<Map<String, dynamic>> items, String emptyMsg, IconData icon,
-      Widget Function(Map<String, dynamic>) builder) {
-    if (items.isEmpty) return EmptyStateView(message: emptyMsg, icon: icon);
-    return RefreshIndicator(
-      onRefresh: _load,
-      child: ListView.separated(
-        padding: const EdgeInsets.all(16),
-        itemCount: items.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 12),
-        itemBuilder: (_, i) => builder(items[i]),
-      ),
-    );
-  }
-
-  Widget _routeCard(Map<String, dynamic> r) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: AppleTheme.cardDecoration,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text((r['name'] ?? 'Tur').toString(),
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-          if (r['checkpoint_count'] != null)
-            Text('${r['checkpoint_count']} kontrol noktası',
-                style: TextStyle(fontSize: 13, color: AppleTheme.secondaryLabel)),
-          if (r['description'] != null)
-            Text(r['description'].toString(),
-                style: TextStyle(fontSize: 13, color: AppleTheme.tertiaryLabel)),
-        ],
-      ),
-    );
-  }
-
-  Widget _sessionCard(Map<String, dynamic> s) {
-    final done = s['status'] == 'COMPLETED';
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: AppleTheme.cardDecoration,
-      child: Row(
-        children: [
-          Icon(done ? Icons.check_circle_rounded : Icons.pending_rounded,
-              color: done ? AppleTheme.systemGreen : AppleTheme.systemOrange),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text((s['route_name'] ?? s['route_id'] ?? 'Devriye').toString(),
-                    style: const TextStyle(fontWeight: FontWeight.w600)),
-                Text(formatDateTime(s['started_at']),
-                    style: TextStyle(fontSize: 12, color: AppleTheme.tertiaryLabel)),
-              ],
+        body: TabBarView(children: [
+          ApiList(
+            load: () => apiClient.getList('/patrols', query: {'limit': 100}),
+            empty: 'Tur kaydı yok',
+            header: (_) => FutureBuilder<Map<String, dynamic>>(
+              future: apiClient.getMap('/patrols-summary'),
+              builder: (context, snap) {
+                final s = snap.data?['summary'];
+                if (s is! Map) return const SizedBox.shrink();
+                return Column(children: [
+                  StatRow([
+                    ('Son 7 gün', '${s['patrols_last_7_days'] ?? 0}'),
+                    ('Eksik', '${s['incomplete'] ?? 0}'),
+                    ('Şüpheli hızlı', '${s['suspiciously_fast'] ?? 0}'),
+                    ('Bildirilen sorun', '${s['issues_reported'] ?? 0}'),
+                  ]),
+                  if (snap.data?['warning'] is String)
+                    Padding(padding: const EdgeInsets.all(12), child: Text('${snap.data!['warning']}')),
+                ]);
+              },
             ),
+            itemBuilder: (context, p, _) {
+              final st = patrolStatus['${p['status']}'];
+              return ListTile(
+                title: Text('${p['route_name'] ?? 'Güzergâhsız tur'} · ${p['guard_name'] ?? ''}'),
+                subtitle: Text([
+                  formatDateTime(p['started_at']),
+                  'Nokta: ${toNum(p['checkpoints_visited']).toInt()}/${toNum(p['checkpoints_expected']).toInt()}',
+                  if (p['actual_duration_minutes'] != null) '${toNum(p['actual_duration_minutes']).toInt()} dk (beklenen ${toNum(p['expected_duration_minutes']).toInt()})',
+                  if (toNum(p['issues_reported']) > 0) '${toNum(p['issues_reported']).toInt()} sorun',
+                  if (p['too_fast'] == true) 'Beklenenden kısa sürdü — denetleyin',
+                ].join(' · ')),
+                trailing: st == null ? null : StatusChip(st.$1, color: st.$2),
+              );
+            },
           ),
-          if (s['completed_checkpoints'] != null && s['total_checkpoints'] != null)
-            Text('${s['completed_checkpoints']}/${s['total_checkpoints']}',
-                style: const TextStyle(fontWeight: FontWeight.w600)),
-        ],
+          ApiList(
+            load: () => apiClient.getList('/patrol-routes'),
+            empty: 'Güzergâh tanımlı değil (web panelinden tanımlanır)',
+            itemBuilder: (context, r, _) {
+              final cps = ApiClient.listOf(r['checkpoints']);
+              return ListTile(
+                title: Text('${r['name'] ?? ''}'),
+                subtitle: Text('${cps.length} nokta · ${toNum(r['expected_duration_minutes']).toInt()} dk '
+                    '(tolerans ${toNum(r['tolerance_minutes']).toInt()} dk)'),
+                trailing: r['is_active'] == false ? const StatusChip('Pasif', color: Colors.grey) : null,
+              );
+            },
+          ),
+        ]),
       ),
     );
   }

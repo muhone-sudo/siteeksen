@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:local_auth/local_auth.dart';
 import '../../../../core/network/api_client.dart';
+import '../../../../core/utils/formatters.dart';
 import '../../../../core/theme/app_theme.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -56,7 +57,7 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      final result = await apiClient.login(_phoneController.text, _passwordController.text);
+      final result = await apiClient.login(normalizePhone(_phoneController.text), _passwordController.text);
       if (!mounted) return;
 
       final user = result['user'];
@@ -169,7 +170,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                   const SizedBox(height: 24),
-                  
+
                   // Title
                   const Text(
                     'SiteEksen',
@@ -188,7 +189,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 48),
-                  
+
                   // Error message
                   if (_errorMessage != null) ...[
                     Container(
@@ -212,7 +213,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     const SizedBox(height: 16),
                   ],
-                  
+
                   // Phone field
                   TextFormField(
                     controller: _phoneController,
@@ -230,7 +231,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     },
                   ),
                   const SizedBox(height: 16),
-                  
+
                   // Password field
                   TextFormField(
                     controller: _passwordController,
@@ -255,7 +256,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     },
                   ),
                   const SizedBox(height: 24),
-                  
+
                   // Login button
                   ElevatedButton(
                     onPressed: _isLoading ? null : _login,
@@ -284,10 +285,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
                   // Forgot password
                   TextButton(
-                    onPressed: () {
-                      // TODO: Şifremi unuttum
-                    },
-                    child: const Text('Şifremi Unuttum'),
+                    // Kod site yönetiminden (ya da platform işletmecisinden) alınır.
+                    onPressed: () => context.push('/activate'),
+                    child: const Text('Şifremi Unuttum / Hesabı Etkinleştir'),
                   ),
                 ],
               ),

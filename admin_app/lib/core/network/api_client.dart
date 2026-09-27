@@ -168,419 +168,150 @@ class ApiClient {
   /// Biyometrik onay sonrası kayıtlı refresh token ile oturumu yeniler.
   Future<bool> loginWithStoredSession() => _refreshToken();
 
+  // ============ OTURUM ============
+
+  /// Sunucudaki oturumu kapatır (erişim + yenileme jetonu iptal), sonra cihazı
+  /// temizler. Dönüş: sunucu iptalinin gerçekleşip gerçekleşmediği.
+  ///
+  /// DÜZELTME (2026-09-26): çıkış yalnızca giriş ekranına gidiyordu; jetonlar
+  /// cihazda kalıyor, biyometrik giriş oturumu geri açıyordu.
+  Future<bool> serverLogout() async {
+    var revoked = false;
+    try {
+      final refresh = await _storage.read(key: 'refresh_token');
+      final response = await _dio.post('/auth/logout', data: {
+        if (refresh != null) 'refresh_token': refresh,
+      });
+      final data = response.data;
+      revoked = data is Map &&
+          data['access_token_revoked'] == true &&
+          (refresh == null || data['refresh_token_revoked'] == true);
+    } catch (_) {
+      revoked = false;
+    }
+    await logout();
+    return revoked;
+  }
+
+  /// Etkinleştirme / şifre sıfırlama kodu ile şifre belirler (oturum gerekmez).
+  Future<Map<String, dynamic>> activateAccount({
+    required String phone,
+    required String code,
+    required String newPassword,
+  }) async {
+    final response = await Dio(BaseOptions(baseUrl: baseUrl)).post('/auth/activate', data: {
+      'phone': phone,
+      'code': code.trim().toUpperCase(),
+      'new_password': newPassword,
+    });
+    return _map(response.data);
+  }
+
+  /// Şifre değiştirir; sunucu BÜTÜN oturumları kapatır, cihaz da temizlenir.
+  Future<Map<String, dynamic>> changePassword(String current, String next) async {
+    final response = await _dio.post('/users/me/password', data: {
+      'current_password': current,
+      'new_password': next,
+    });
+    await logout();
+    return _map(response.data);
+  }
+
+  /// Bağlı olunan siteler: `[{property_id, property_name, unit_id, unit_name, role}]`.
+  Future<List<dynamic>> getUserProperties() async {
+    final response = await _dio.get('/users/me/properties');
+    return listOf(response.data);
+  }
+
+  // ============ GENEL YARDIMCILAR ============
+  //
+  // Ekranlar yol ve gövdeyi burada değil, sözleşmeye (tasks/api-sozlesmesi.md)
+  // birebir uyan çağrılarla verir. Önceki sürümdeki ~20 yöntem var olmayan
+  // yollara gidiyordu (`/bulletin`, `/energy/summary`, `/smart-collection/*`,
+  // `/patrol-sessions`, `/meters/bulk-readings`…); tek tek yöntem yazmak bu
+  // sapmayı gizliyordu.
+
+  /// GET → `{"data":[...]}` listesini döner.
+  Future<List<dynamic>> getList(String path, {Map<String, dynamic>? query}) async {
+    final response = await _dio.get(path, queryParameters: _clean(query));
+    return listOf(response.data);
+  }
+
+  /// GET → nesne yanıtı.
+  Future<Map<String, dynamic>> getMap(String path, {Map<String, dynamic>? query}) async {
+    final response = await _dio.get(path, queryParameters: _clean(query));
+    return _map(response.data);
+  }
+
+  Future<Map<String, dynamic>> post(String path, [Map<String, dynamic>? body]) async {
+    final response = await _dio.post(path, data: body ?? const {});
+    return _map(response.data);
+  }
+
+  Future<Map<String, dynamic>> put(String path, Map<String, dynamic> body) async {
+    final response = await _dio.put(path, data: body);
+    return _map(response.data);
+  }
+
+  Future<Map<String, dynamic>> patch(String path, Map<String, dynamic> body) async {
+    final response = await _dio.patch(path, data: body);
+    return _map(response.data);
+  }
+
+  Future<Map<String, dynamic>> delete(String path, [Map<String, dynamic>? body]) async {
+    final response = await _dio.delete(path, data: body);
+    return _map(response.data);
+  }
+
   // ============ DASHBOARD ============
 
-  Future<Map<String, dynamic>> getDashboard() async {
-    final response = await _dio.get('/dashboard/stats');
-    return response.data;
-  }
+  /// `{success, data:{…}, unavailable:[{source,reason}], partial}` — erişilemeyen
+  /// alan yazılmaz; nedeni `unavailable` listesindedir.
+  Future<Map<String, dynamic>> getDashboard() => getMap('/dashboard/stats');
 
-  // ============ RESIDENTS ============
+  // ============ SAKİNLER ============
 
-  Future<List<dynamic>> getResidents({String? search, String? block, String? role}) async {
-    final response = await _dio.get('/residents', queryParameters: {
-      if (search != null && search.isNotEmpty) 'search': search,
-      if (block != null && block.isNotEmpty) 'block': block,
-      if (role != null && role.isNotEmpty) 'role': role,
-    });
-    return _list(response.data, 'data');
-  }
+  Future<List<dynamic>> getResidents({String? search, String? block, String? role}) =>
+      getList('/residents', query: {'search': search, 'block': block, 'role': role});
 
-  Future<Map<String, dynamic>> getResident(String id) async {
-    final response = await _dio.get('/residents/$id');
-    return response.data;
-  }
+  Future<Map<String, dynamic>> getResident(String id) => getMap('/residents/$id');
 
-  Future<void> createResident(Map<String, dynamic> data) async {
-    await _dio.post('/residents', data: data);
-  }
+  /// 201 sakin; yeni hesap açıldıysa `activation:{activation_code, purpose,
+  /// expires_at, note}` BİR KEZ döner (telefon kayıtlıysa yalnızca `note`).
+  Future<Map<String, dynamic>> createResident(Map<String, dynamic> data) => post('/residents', data);
 
-  Future<void> updateResident(String id, Map<String, dynamic> data) async {
-    await _dio.patch('/residents/$id', data: data);
-  }
+  Future<Map<String, dynamic>> updateResident(String id, Map<String, dynamic> data) =>
+      patch('/residents/$id', data);
 
-  // ============ UNITS ============
+  /// Yeni etkinleştirme / şifre sıfırlama kodu (eski açık kod geçersizleşir).
+  Future<Map<String, dynamic>> issueActivationCode(String residentId) =>
+      post('/residents/$residentId/activation-code');
 
-  Future<List<dynamic>> getUnits() async {
-    final response = await _dio.get('/units');
-    return _list(response.data, 'data');
-  }
+  Future<List<dynamic>> getUnits() => getList('/units');
 
-  // ============ FINANCE ============
-
-  Future<Map<String, dynamic>> getFinanceOverview() async {
-    // DÜZELTME (2026-09-13): '/finance/overview' diye bir uç YOK; her çağrı 404 dönüyordu.
-    // Finance servisindeki gerçek uç dönem bazlı tahakkuk/tahsilat özetidir.
-    final response = await _dio.get('/finance/assessments/overview');
-    return response.data;
-  }
-
-  Future<List<dynamic>> getAssessments({int? year, int? month}) async {
-    final response = await _dio.get('/finance/assessments', queryParameters: {
-      'year': year,
-      'month': month,
-    });
-    return _list(response.data, 'data');
-  }
-
-  Future<void> createAssessment(Map<String, dynamic> data) async {
-    await _dio.post('/finance/assessments', data: data);
-  }
-
-  Future<List<dynamic>> getPayments({String? status, int page = 1}) async {
-    final response = await _dio.get('/finance/payments', queryParameters: {
-      'status': status,
-      'page': page,
-    });
-    return _list(response.data, 'data');
-  }
-
-  Future<List<dynamic>> getExpenseCategories() async {
-    final response = await _dio.get('/finance/expense-categories');
-    return _list(response.data, 'data');
-  }
-
-  Future<void> sendPaymentReminder(String userId) async {
-    await _dio.post('/notifications/send', data: {
-      'type': 'PUSH',
-      'recipients': [userId],
-      'title': 'Ödeme Hatırlatması',
-      'body': 'Ödenmemiş aidat borcunuz bulunmaktadır.',
-    });
-  }
-
-  // ============ METERS ============
-
-  Future<List<dynamic>> getMeters({String? type}) async {
-    final response = await _dio.get('/meters', queryParameters: {'type': type});
-    return _list(response.data, 'data');
-  }
-
-  Future<void> submitMeterReading(String meterId, double value) async {
-    await _dio.post('/meters/$meterId/readings', data: {'value': value});
-  }
-
-  Future<void> submitBulkReadings(List<Map<String, dynamic>> readings) async {
-    await _dio.post('/meters/bulk-readings', data: {'readings': readings});
-  }
-
-  // ============ ANNOUNCEMENTS ============
-
-  Future<List<dynamic>> getAnnouncements() async {
-    final response = await _dio.get('/announcements');
-    return _list(response.data, 'data');
-  }
-
-  Future<void> createAnnouncement(Map<String, dynamic> data) async {
-    await _dio.post('/announcements', data: data);
-  }
-
-  Future<void> updateAnnouncement(String id, Map<String, dynamic> data) async {
-    await _dio.put('/announcements/$id', data: data);
-  }
-
-  Future<void> deleteAnnouncement(String id) async {
-    await _dio.delete('/announcements/$id');
-  }
-
-  // ============ REQUESTS ============
-
-  Future<List<dynamic>> getRequests({String? status}) async {
-    final response = await _dio.get('/requests', queryParameters: {'status': status});
-    return _list(response.data, 'data');
-  }
-
-  Future<Map<String, dynamic>> getRequest(String id) async {
-    final response = await _dio.get('/requests/$id');
-    return response.data;
-  }
-
-  Future<void> updateRequestStatus(String id, String status, {String? note}) async {
-    await _dio.patch('/requests/$id/status', data: {
-      'status': status,
-      'note': note,
-    });
-  }
-
-  Future<void> addRequestComment(String id, String comment) async {
-    await _dio.post('/requests/$id/comments', data: {'content': comment});
-  }
-
-  // ============ REPORTS ============
-
-  Future<String> generateReport(String type, {int? year, int? month}) async {
-    final response = await _dio.post('/reports/generate', data: {
-      'type': type,
-      'year': year,
-      'month': month,
-    });
-    return response.data['download_url'];
-  }
-
-  // ============ PARKING ============
-  Future<List<dynamic>> getVehicles() async {
-    final response = await _dio.get('/vehicles');
-    return _list(response.data, 'data');
-  }
-
-  Future<void> createVehicle(Map<String, dynamic> data) async {
-    await _dio.post('/vehicles', data: data);
-  }
-
-  Future<List<dynamic>> getParkingLogs() async {
-    final response = await _dio.get('/parking-logs');
-    return _list(response.data, 'data');
-  }
-
-  Future<Map<String, dynamic>> recognizePlate(String base64Image) async {
-    final response = await _dio.post('/plate-recognition', data: {'image': base64Image});
-    return response.data;
-  }
-
-  // ============ PERSONNEL ============
-  Future<List<dynamic>> getEmployees() async {
-    final response = await _dio.get('/employees');
-    return _list(response.data, 'data');
-  }
-
-  Future<void> createEmployee(Map<String, dynamic> data) async {
-    await _dio.post('/employees', data: data);
-  }
-
-  Future<List<dynamic>> getLeaves() async {
-    final response = await _dio.get('/leaves');
-    return _list(response.data, 'data');
-  }
-
-  Future<void> updateLeaveStatus(String leaveId, String status) async {
-    await _dio.patch('/leaves/$leaveId', data: {'status': status});
-  }
-
-  // ============ VISITORS ============
-  Future<List<dynamic>> getVisitors() async {
-    final response = await _dio.get('/visitors');
-    return _list(response.data, 'data');
-  }
-
-  Future<void> recordVisitorEntry(String visitorId) async {
-    await _dio.post('/visitors/$visitorId/entry');
-  }
-
-  Future<void> recordVisitorExit(String visitorId) async {
-    await _dio.post('/visitors/$visitorId/exit');
-  }
-
-  // ============ PACKAGES ============
-  Future<List<dynamic>> getPackages() async {
-    final response = await _dio.get('/packages');
-    return _list(response.data, 'data');
-  }
-
-  Future<List<dynamic>> getCarriers() async {
-    final response = await _dio.get('/carriers');
-    return _list(response.data, 'data');
-  }
-
-  Future<List<dynamic>> getUnitPackages(String unitId) async {
-    final response = await _dio.get('/units/$unitId/packages');
-    return _list(response.data, 'data');
-  }
-
-  Future<void> receivePackage(Map<String, dynamic> data) async {
-    await _dio.post('/packages', data: data);
-  }
-
-  Future<void> deliverPackage(String packageId) async {
-    await _dio.post('/packages/$packageId/deliver');
-  }
-
-  // ============ BANKING ============
-  Future<List<dynamic>> getBankAccounts() async {
-    final response = await _dio.get('/bank-accounts');
-    return _list(response.data, 'data');
-  }
-
-  Future<List<dynamic>> getBankTransactions() async {
-    final response = await _dio.get('/bank-transactions');
-    return _list(response.data, 'data');
-  }
-
-  Future<void> matchBankTransaction(String transactionId, String assessmentId) async {
-    await _dio.post('/bank-transactions/$transactionId/match', data: {'assessment_id': assessmentId});
-  }
-
-  // ============ FACILITIES & RESERVATIONS ============
-  Future<List<dynamic>> getFacilities() async {
-    final response = await _dio.get('/facilities');
-    return _list(response.data, 'facilities');
-  }
-
-  Future<List<dynamic>> getReservations() async {
-    final response = await _dio.get('/reservations');
-    return _list(response.data, 'data');
-  }
-
-  Future<void> createReservation(Map<String, dynamic> data) async {
-    await _dio.post('/reservations', data: data);
-  }
-
-  Future<void> cancelReservation(String id) async {
-    await _dio.delete('/reservations/$id');
-  }
-
-  // ============ GİDERLER ============
-  Future<List<dynamic>> getExpenses({int? year, int? month, String? status}) async {
-    final response = await _dio.get('/expenses', queryParameters: {
-      if (year != null) 'year': year,
-      if (month != null) 'month': month,
-      if (status != null) 'status': status,
-    });
-    return _list(response.data, 'expenses');
-  }
-
-  Future<Map<String, dynamic>> getExpense(String id) async {
-    final response = await _dio.get('/expenses/$id');
-    return Map<String, dynamic>.from(response.data as Map);
-  }
-
-  Future<void> createExpense(Map<String, dynamic> data) async {
-    await _dio.post('/expenses', data: data);
-  }
-
-  // ============ SÖZLEŞMELER ============
-  Future<List<dynamic>> getContracts({String? status}) async {
-    final response = await _dio.get('/contracts', queryParameters: {
-      if (status != null) 'status': status,
-    });
-    return _list(response.data, 'contracts');
-  }
-
-  Future<void> createContract(Map<String, dynamic> data) async {
-    await _dio.post('/contracts', data: data);
-  }
-
-  // ============ İLAN PANOSU ============
-  Future<List<dynamic>> getBulletins() async {
-    final response = await _dio.get('/bulletin');
-    return _list(response.data, 'bulletins');
-  }
-
-  Future<void> createBulletin(Map<String, dynamic> data) async {
-    await _dio.post('/bulletin', data: data);
-  }
-
-  Future<void> deleteBulletin(String id) async {
-    await _dio.delete('/bulletin/$id');
-  }
-
-  // ============ ENERJİ / TÜKETİM ANALİTİĞİ ============
-  Future<Map<String, dynamic>> getEnergySummary() async {
-    final response = await _dio.get('/energy/summary');
-    return Map<String, dynamic>.from(response.data as Map);
-  }
-
-  Future<List<dynamic>> getEnergyConsumption({String? period}) async {
-    final response = await _dio.get('/energy/consumption', queryParameters: {
-      if (period != null) 'period': period,
-    });
-    return _list(response.data, 'consumption');
-  }
-
-  // ============ AKILLI TAHSİLAT ============
-  Future<Map<String, dynamic>> getCollectionOverview() async {
-    final response = await _dio.get('/smart-collection/overview');
-    return Map<String, dynamic>.from(response.data as Map);
-  }
-
-  Future<List<dynamic>> getCollectionCandidates() async {
-    final response = await _dio.get('/smart-collection/candidates');
-    return _list(response.data, 'candidates');
-  }
-
-  Future<void> startCollectionAction(String residentId, String action) async {
-    await _dio.post('/smart-collection/actions',
-        data: {'resident_id': residentId, 'action': action});
-  }
-
-  // ============ GENEL KURUL / TOPLANTI ============
-  Future<List<dynamic>> getMeetings() async {
-    final response = await _dio.get('/meetings');
-    return _list(response.data, 'meetings');
-  }
-
-  Future<void> createMeeting(Map<String, dynamic> data) async {
-    await _dio.post('/meetings', data: data);
-  }
-
-  // ============ ANKETLER ============
-  Future<List<dynamic>> getSurveys() async {
-    final response = await _dio.get('/surveys');
-    return _list(response.data, 'surveys');
-  }
-
-  Future<void> createSurvey(Map<String, dynamic> data) async {
-    await _dio.post('/surveys', data: data);
-  }
-
-  Future<Map<String, dynamic>> getSurveyResults(String id) async {
-    final response = await _dio.get('/surveys/$id/results');
-    return Map<String, dynamic>.from(response.data as Map);
-  }
-
-  // ============ DEVRİYE ============
-  Future<List<dynamic>> getPatrolRoutes() async {
-    final response = await _dio.get('/patrol-routes');
-    return _list(response.data, 'routes');
-  }
-
-  Future<List<dynamic>> getPatrolSessions() async {
-    final response = await _dio.get('/patrol-sessions');
-    return _list(response.data, 'sessions');
-  }
-
-  // ============ DEMİRBAŞ ============
-  Future<List<dynamic>> getAssets() async {
-    final response = await _dio.get('/assets');
-    return _list(response.data, 'assets');
-  }
-
-  Future<void> createAsset(Map<String, dynamic> data) async {
-    await _dio.post('/assets', data: data);
-  }
-
-  // ============ STOK ============
-  Future<List<dynamic>> getInventory() async {
-    final response = await _dio.get('/inventory');
-    return _list(response.data, 'items');
-  }
-
-  Future<void> createStockMovement(Map<String, dynamic> data) async {
-    await _dio.post('/stock-movements', data: data);
-  }
-
-  // ============ API KİMLİK BİLGİLERİ ============
-  Future<List<dynamic>> getCredentials() async {
-    final response = await _dio.get('/credentials');
-    return _list(response.data, 'credentials');
-  }
-
-  Future<void> createCredential(Map<String, dynamic> data) async {
-    await _dio.post('/credentials', data: data);
-  }
-
-  Future<void> deleteCredential(String id) async {
-    await _dio.delete('/credentials/$id');
-  }
-
-  /// Servislerin liste yanıtları iki biçimde gelebiliyor:
-  /// düz dizi ya da `{"<anahtar>": [...]}` / `{"data": [...]}`.
-  static List<dynamic> _list(dynamic data, String key) {
+  /// Servislerin liste yanıtı `{"data": [...]}`; eski düz dizi biçimi de kabul edilir.
+  static List<dynamic> listOf(dynamic data) {
     if (data is List) return data;
     if (data is Map) {
-      final v = data[key] ?? data['data'] ?? data['items'];
+      final v = data['data'] ?? data['items'];
       if (v is List) return v;
     }
     return const [];
+  }
+
+  static Map<String, dynamic> _map(dynamic data) =>
+      data is Map ? Map<String, dynamic>.from(data) : <String, dynamic>{};
+
+  /// Boş sorgu parametreleri gönderilmez (sunucu `status=` boşunu filtre sayabilir).
+  static Map<String, dynamic>? _clean(Map<String, dynamic>? q) {
+    if (q == null) return null;
+    final out = <String, dynamic>{};
+    q.forEach((k, v) {
+      if (v == null) return;
+      if (v is String && v.isEmpty) return;
+      out[k] = v;
+    });
+    return out;
   }
 }
 

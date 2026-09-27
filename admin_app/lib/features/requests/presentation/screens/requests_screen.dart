@@ -37,7 +37,7 @@ class _RequestsScreenState extends State<RequestsScreen>
   Object? _error;
   List<Map<String, dynamic>> _requests = const [];
 
-  static const _statuses = ['OPEN', 'IN_PROGRESS', 'RESOLVED'];
+  static const _statuses = ['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'];
 
   @override
   void initState() {
@@ -58,7 +58,7 @@ class _RequestsScreenState extends State<RequestsScreen>
       _error = null;
     });
     try {
-      final data = await apiClient.getRequests();
+      final data = await apiClient.getList('/requests');
       if (!mounted) return;
       setState(() {
         _requests = data
@@ -102,6 +102,8 @@ class _RequestsScreenState extends State<RequestsScreen>
             Tab(text: _tabLabel('Açık', 'OPEN')),
             Tab(text: _tabLabel('İşlemde', 'IN_PROGRESS')),
             Tab(text: _tabLabel('Çözüldü', 'RESOLVED')),
+            // Sakinin onayladığı talepler; önceden hiçbir sekmede görünmüyordu.
+            Tab(text: _tabLabel('Kapandı', 'CLOSED')),
           ],
         ),
       ),

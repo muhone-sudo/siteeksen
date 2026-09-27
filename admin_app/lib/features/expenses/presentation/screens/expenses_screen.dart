@@ -54,7 +54,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
       _error = null;
     });
     try {
-      final rows = await apiClient.getExpenses(year: _year, month: _month);
+      final rows = await apiClient.getList('/expenses', query: {'year': _year, 'month': _month});
       if (!mounted) return;
       setState(() {
         _expenses =

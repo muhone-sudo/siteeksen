@@ -1,9 +1,26 @@
-import 'package:flutter/material.dart';
-import '../../../../core/theme/apple_theme.dart';
-import '../../../../core/widgets/apple_widgets.dart';
-import '../../../../core/network/api_client.dart';
+// Personel ve izin yönetimi.
+//
+// DÜZELTME (2026-09-26): ekran var olmayan `name` alanını okuyordu; ad boş
+// gelince `substring(0,1)` ile ÇÖKÜYORDU. Maaş ve durum alanları da yanlıştı
+// (`salary`, `status`); izin Onayla/Reddet düğmelerinin işleyicisi boştu.
+//
+// Kişisel veri: TCKN ve IBAN sunucudan maskeli gelir; görevli (STAFF) maaş
+// göremez (`salary_visible`). Maskesiz görüntüleme mobilde bilerek yoktur.
 
-/// Personel Yönetim Ekranı - Apple Tarzı
+import 'package:flutter/material.dart';
+
+import '../../../../core/network/api_client.dart';
+import '../../../../core/utils/formatters.dart';
+import '../../../../core/widgets/api_views.dart';
+import '../../../visitors/presentation/screens/visitor_management_screen.dart' show initialOf;
+
+const leaveTypeLabels = {
+  'ANNUAL': 'Yıllık', 'SICK': 'Hastalık', 'UNPAID': 'Ücretsiz', 'MATERNITY': 'Doğum',
+  'PATERNITY': 'Babalık', 'MARRIAGE': 'Evlilik', 'BEREAVEMENT': 'Vefat', 'OTHER': 'Diğer',
+};
+const leaveStatusLabels = {'PENDING': 'Onay bekliyor', 'APPROVED': 'Onaylandı', 'REJECTED': 'Reddedildi'};
+const contractTypes = {'FULL_TIME': 'Tam zamanlı', 'PART_TIME': 'Yarı zamanlı', 'CONTRACT': 'Sözleşmeli', 'INTERN': 'Stajyer'};
+
 class PersonnelManagementScreen extends StatefulWidget {
   const PersonnelManagementScreen({super.key});
 
@@ -11,349 +28,153 @@ class PersonnelManagementScreen extends StatefulWidget {
   State<PersonnelManagementScreen> createState() => _PersonnelManagementScreenState();
 }
 
-class _PersonnelManagementScreenState extends State<PersonnelManagementScreen>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
-
-  List<Map<String, dynamic>> _employees = [];
-  List<Map<String, dynamic>> _leaveRequests = [];
-  bool _isLoading = true;
+class _PersonnelManagementScreenState extends State<PersonnelManagementScreen> {
+  final _employees = GlobalKey<ApiListState>();
+  final _leaves = GlobalKey<ApiListState>();
+  bool _canWrite = false;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
-    _loadEmployeesAndLeaves();
-  }
-
-  void _loadEmployeesAndLeaves() async {
-    try {
-      final employeesList = await apiClient.getEmployees();
-      final leavesList = await apiClient.getLeaves();
-      setState(() {
-        _employees = List<Map<String, dynamic>>.from(employeesList.map((e) {
-          return {
-            'name': e['name'] ?? '',
-            'position': e['position'] ?? '',
-            'department': e['department'] ?? '',
-            'status': e['status']?.toString().toLowerCase() ?? 'active',
-            'phone': e['phone'] ?? '',
-            'hireDate': e['hire_date'] ?? '',
-            'salary': (e['salary'] ?? 0).toInt(),
-          };
-        }));
-        _leaveRequests = List<Map<String, dynamic>>.from(leavesList.map((l) {
-          return {
-            'name': l['employee_name'] ?? l['name'] ?? '',
-            'type': l['type'] ?? '',
-            'startDate': l['start_date'] ?? '',
-            'endDate': l['end_date'] ?? '',
-            'days': (l['days'] ?? 0).toInt(),
-            'status': l['status']?.toString().toLowerCase() ?? 'pending',
-          };
-        }));
-        _isLoading = false;
-      });
-    } catch (_) {
-      setState(() => _isLoading = false);
-    }
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
+    hasAnyRole(writeRoles).then((v) {
+      if (mounted) setState(() => _canWrite = v);
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return Scaffold(
-        backgroundColor: AppleTheme.background,
-        appBar: AppBar(title: const Text('Personel'), backgroundColor: Colors.white),
-        body: const Center(child: CircularProgressIndicator()),
-      );
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Personel'),
+          bottom: const TabBar(tabs: [Tab(text: 'Personel'), Tab(text: 'İzinler')]),
+        ),
+        floatingActionButton: _canWrite
+            ? FloatingActionButton.extended(onPressed: _createEmployee, icon: const Icon(Icons.person_add), label: const Text('Personel'))
+            : null,
+        body: TabBarView(children: [
+          ApiList(
+            key: _employees,
+            load: () => apiClient.getList('/employees'),
+            empty: 'Kayıtlı personel yok',
+            itemBuilder: (context, e, _) {
+              final name = '${e['first_name'] ?? ''} ${e['last_name'] ?? ''}'.trim();
+              final salaryVisible = e['salary_visible'] == true;
+              return ListTile(
+                leading: CircleAvatar(child: Text(initialOf(name))),
+                title: Text(name.isEmpty ? 'Adsız kayıt' : name),
+                subtitle: Text([
+                  '${e['position'] ?? ''}',
+                  contractTypes['${e['contract_type']}'] ?? '',
+                  'İşe giriş: ${formatDate(e['hire_date'])}',
+                  'Kalan izin: ${toNum(e['remaining_leave_days']).toInt()} gün',
+                  if (salaryVisible && e['net_salary'] != null) 'Net: ${formatTry(toNum(e['net_salary']))}',
+                ].where((s) => s.isNotEmpty).join(' · ')),
+                trailing: e['is_active'] == false ? const StatusChip('Ayrıldı', color: Colors.grey) : null,
+              );
+            },
+          ),
+          ApiList(
+            key: _leaves,
+            load: () => apiClient.getList('/leaves'),
+            empty: 'İzin talebi yok',
+            itemBuilder: (context, l, reload) => ListTile(
+              title: Text('${l['employee_name'] ?? ''} · ${leaveTypeLabels['${l['leave_type']}'] ?? l['leave_type']}'),
+              subtitle: Text([
+                '${formatDate(l['start_date'])} – ${formatDate(l['end_date'])} (${toNum(l['days']).toInt()} gün)',
+                leaveStatusLabels['${l['status']}'] ?? '${l['status']}',
+                if ((l['reason'] ?? '').toString().isNotEmpty) '${l['reason']}',
+              ].join('\n')),
+              isThreeLine: true,
+              trailing: _canWrite && l['status'] == 'PENDING'
+                  ? PopupMenuButton<String>(
+                      onSelected: (a) async {
+                        Map<String, dynamic> body = {};
+                        if (a == 'reject') {
+                          final r = await askText(context, 'İzni reddet', 'Gerekçe');
+                          if (r == null) return;
+                          body = {'reason': r};
+                        }
+                        if (!context.mounted) return;
+                        if (await runAction(context, () => apiClient.post('/leaves/${l['id']}/$a', body))) await reload();
+                      },
+                      itemBuilder: (_) => const [
+                        PopupMenuItem(value: 'approve', child: Text('Onayla')),
+                        PopupMenuItem(value: 'reject', child: Text('Reddet')),
+                      ],
+                    )
+                  : null,
+            ),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  Future<void> _createEmployee() async {
+    final formKey = GlobalKey<FormState>();
+    final first = TextEditingController();
+    final last = TextEditingController();
+    final position = TextEditingController();
+    var hire = DateTime.now();
+    var type = 'FULL_TIME';
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, set) => AlertDialog(
+          title: const Text('Yeni personel'),
+          content: Form(
+            key: formKey,
+            child: SingleChildScrollView(
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                TextFormField(controller: first, decoration: const InputDecoration(labelText: 'Ad'),
+                    validator: (v) => (v == null || v.trim().isEmpty) ? 'Gerekli' : null),
+                TextFormField(controller: last, decoration: const InputDecoration(labelText: 'Soyad'),
+                    validator: (v) => (v == null || v.trim().isEmpty) ? 'Gerekli' : null),
+                TextFormField(controller: position, decoration: const InputDecoration(labelText: 'Görev'),
+                    validator: (v) => (v == null || v.trim().isEmpty) ? 'Gerekli' : null),
+                DropdownButtonFormField<String>(
+                  initialValue: type,
+                  decoration: const InputDecoration(labelText: 'Sözleşme türü'),
+                  items: [for (final e in contractTypes.entries) DropdownMenuItem(value: e.key, child: Text(e.value))],
+                  onChanged: (v) => set(() => type = v ?? type),
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('İşe giriş'),
+                  subtitle: Text(formatDate(hire)),
+                  trailing: const Icon(Icons.calendar_today),
+                  onTap: () async {
+                    final d = await showDatePicker(context: ctx, initialDate: hire, firstDate: DateTime(2000), lastDate: DateTime.now().add(const Duration(days: 60)));
+                    if (d != null) set(() => hire = d);
+                  },
+                ),
+                const Text('TCKN ve IBAN gibi kişisel veriler web panelinden girilir.', style: TextStyle(fontSize: 12)),
+              ]),
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Vazgeç')),
+            FilledButton(onPressed: () {
+              if (formKey.currentState!.validate()) Navigator.pop(ctx, true);
+            }, child: const Text('Kaydet')),
+          ],
+        ),
+      ),
+    );
+    if (ok == true && mounted) {
+      final saved = await runAction(context, () => apiClient.post('/employees', {
+            'first_name': first.text.trim(),
+            'last_name': last.text.trim(),
+            'position': position.text.trim(),
+            'hire_date': apiDate(hire),
+            'contract_type': type,
+          }));
+      if (saved) await _employees.currentState?.reload();
     }
-
-    return Scaffold(
-      backgroundColor: AppleTheme.background,
-      body: NestedScrollView(
-        headerSliverBuilder: (context, innerBoxIsScrolled) => [
-          SliverAppBar(
-            expandedHeight: 120,
-            floating: true,
-            pinned: true,
-            backgroundColor: Colors.white,
-            surfaceTintColor: Colors.transparent,
-            flexibleSpace: const FlexibleSpaceBar(
-              titlePadding: EdgeInsets.only(left: 20, bottom: 60),
-              title: Text(
-                'Personel',
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.black,
-                  letterSpacing: -0.5,
-                ),
-              ),
-            ),
-            bottom: PreferredSize(
-              preferredSize: const Size.fromHeight(48),
-              child: Container(
-                color: Colors.white,
-                child: TabBar(
-                  controller: _tabController,
-                  indicatorColor: AppleTheme.systemBlue,
-                  labelColor: AppleTheme.systemBlue,
-                  unselectedLabelColor: AppleTheme.systemGray,
-                  tabs: const [
-                    Tab(text: 'Personeller'),
-                    Tab(text: 'İzinler'),
-                    Tab(text: 'Bordro'),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
-        body: TabBarView(
-          controller: _tabController,
-          children: [
-            _buildEmployeesTab(),
-            _buildLeavesTab(),
-            _buildPayrollTab(),
-          ],
-        ),
-      ),
-      floatingActionButton: AppleFAB(
-        icon: Icons.person_add_rounded,
-        label: 'Personel Ekle',
-        onPressed: () {},
-      ),
-    );
-  }
-
-  Widget _buildEmployeesTab() {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        // Stats
-        Row(
-          children: [
-            Expanded(child: _buildMiniStat('Toplam', '8', Icons.people_rounded, AppleTheme.systemBlue)),
-            const SizedBox(width: 12),
-            Expanded(child: _buildMiniStat('Aktif', '7', Icons.check_circle_rounded, AppleTheme.systemGreen)),
-            const SizedBox(width: 12),
-            Expanded(child: _buildMiniStat('İzinde', '1', Icons.beach_access_rounded, AppleTheme.systemOrange)),
-          ],
-        ),
-        const SizedBox(height: 16),
-        const AppleSectionHeader(title: 'Personel Listesi'),
-        Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Column(
-            children: _employees.asMap().entries.map((entry) {
-              return _buildEmployeeTile(entry.value, isLast: entry.key == _employees.length - 1);
-            }).toList(),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildLeavesTab() {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        const AppleSectionHeader(title: 'Bekleyen İzin Talepleri'),
-        _leaveRequests.isEmpty
-            ? const AppleEmptyState(
-                icon: Icons.event_available_rounded,
-                title: 'Bekleyen talep yok',
-              )
-            : Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Column(
-                  children: _leaveRequests.map((leave) => _buildLeaveTile(leave)).toList(),
-                ),
-              ),
-      ],
-    );
-  }
-
-  Widget _buildPayrollTab() {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('Şubat 2026 Bordrosu', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: AppleTheme.systemOrange.withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text('Hazırlanıyor', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppleTheme.systemOrange)),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              const Text('Toplam Bordro', style: TextStyle(fontSize: 13, color: AppleTheme.secondaryLabel)),
-              const SizedBox(height: 4),
-              const Text('₺125.000', style: TextStyle(fontSize: 32, fontWeight: FontWeight.w700)),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: () {},
-                  icon: const Icon(Icons.description_rounded),
-                  label: const Text('Bordro Oluştur'),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildMiniStat(String title, String value, IconData icon, Color color) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        children: [
-          Icon(icon, color: color, size: 24),
-          const SizedBox(height: 8),
-          Text(value, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700)),
-          Text(title, style: TextStyle(fontSize: 13, color: AppleTheme.secondaryLabel)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildEmployeeTile(Map<String, dynamic> employee, {bool isLast = false}) {
-    final isActive = employee['status'] == 'active';
-
-    return Column(
-      children: [
-        InkWell(
-          onTap: () {},
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  backgroundColor: AppleTheme.systemGray6,
-                  child: Text(
-                    employee['name'].toString().substring(0, 1),
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(employee['name'], style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
-                      Text(
-                        '${employee['position']} • ${employee['department']}',
-                        style: TextStyle(fontSize: 14, color: AppleTheme.secondaryLabel),
-                      ),
-                    ],
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: isActive ? AppleTheme.systemGreen.withOpacity(0.12) : AppleTheme.systemOrange.withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    isActive ? 'Aktif' : 'İzinde',
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: isActive ? AppleTheme.systemGreen : AppleTheme.systemOrange),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        if (!isLast)
-          Padding(
-            padding: const EdgeInsets.only(left: 68),
-            child: Container(height: 0.5, color: AppleTheme.opaqueSeparator),
-          ),
-      ],
-    );
-  }
-
-  Widget _buildLeaveTile(Map<String, dynamic> leave) {
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              CircleAvatar(
-                backgroundColor: AppleTheme.systemOrange.withOpacity(0.12),
-                child: Icon(Icons.beach_access_rounded, color: AppleTheme.systemOrange),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(leave['name'], style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
-                    Text('${leave['type']} • ${leave['days']} gün', style: TextStyle(fontSize: 14, color: AppleTheme.secondaryLabel)),
-                    Text('${leave['startDate']} - ${leave['endDate']}', style: TextStyle(fontSize: 13, color: AppleTheme.tertiaryLabel)),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () {},
-                  style: OutlinedButton.styleFrom(foregroundColor: AppleTheme.systemRed, side: BorderSide(color: AppleTheme.systemRed)),
-                  child: const Text('Reddet'),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: () {},
-                  style: ElevatedButton.styleFrom(backgroundColor: AppleTheme.systemGreen),
-                  child: const Text('Onayla'),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
+    for (final c in [first, last, position]) {
+      c.dispose();
+    }
   }
 }

@@ -1,10 +1,23 @@
-import 'package:flutter/material.dart';
-import '../../../../core/theme/apple_theme.dart';
-import '../../../../core/widgets/apple_widgets.dart';
-import '../../../../core/network/api_client.dart';
-import '../../../../core/widgets/data_state.dart';
+// Kargo kabul ve teslim (yönetim/görevli).
+//
+// DÜZELTME (2026-09-26): durumlar `waiting`/`delivered` aranıyordu (sunucu
+// RECEIVED/NOTIFIED/DELIVERED/RETURNED); `arrived_at`, `unit` alanları yoktu;
+// "Takip No" olarak kayıt kimliği gösteriliyordu; üstteki 5/12 sayıları
+// uydurmaydı; kabul formu "bağlı değil" diyordu ama uç vardı.
 
-/// Kargo Takip Ekranı - Apple Tarzı
+import 'package:flutter/material.dart';
+
+import '../../../../core/network/api_client.dart';
+import '../../../../core/utils/formatters.dart';
+import '../../../../core/widgets/api_views.dart';
+
+const packageStatus = {
+  'RECEIVED': ('Teslim alındı', Colors.orange),
+  'NOTIFIED': ('Sakine bildirildi', Colors.blue),
+  'DELIVERED': ('Teslim edildi', Colors.green),
+  'RETURNED': ('İade', Colors.grey),
+};
+
 class PackageTrackingScreen extends StatefulWidget {
   const PackageTrackingScreen({super.key});
 
@@ -13,495 +26,165 @@ class PackageTrackingScreen extends StatefulWidget {
 }
 
 class _PackageTrackingScreenState extends State<PackageTrackingScreen> {
-  int _selectedFilter = 0;
-  final TextEditingController _searchController = TextEditingController();
-
-  final List<String> _filters = ['Tümü', 'Bekleyen', 'Teslim Edildi'];
-
-  List<Map<String, dynamic>> _packages = [];
-  bool _isLoading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadPackages();
-  }
-
-  void _loadPackages() async {
-    try {
-      final list = await apiClient.getPackages();
-      setState(() {
-        _packages = List<Map<String, dynamic>>.from(list.map((p) {
-          return {
-            'id': p['id'] ?? '',
-            'carrier': p['carrier'] ?? 'Kargo Firması',
-            'recipient': p['recipient_name'] ?? p['recipient'] ?? '',
-            'unit': p['unit_id'] ?? p['unit'] ?? '',
-            'status': p['status'] ?? 'waiting',
-            'arrivedAt': p['arrived_at'] ?? '',
-            'deliveredAt': p['delivered_at'],
-          };
-        }));
-        _isLoading = false;
-      });
-    } catch (_) {
-      setState(() => _isLoading = false);
-    }
-  }
+  bool _pendingOnly = true;
+  final _list = GlobalKey<ApiListState>();
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return Scaffold(
-        backgroundColor: AppleTheme.background,
-        appBar: AppBar(title: const Text('Kargo Takibi'), backgroundColor: Colors.white),
-        body: const Center(child: CircularProgressIndicator()),
-      );
-    }
-
     return Scaffold(
-      backgroundColor: AppleTheme.background,
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar(
-            expandedHeight: 120,
-            floating: false,
-            pinned: true,
-            backgroundColor: Colors.white,
-            surfaceTintColor: Colors.transparent,
-            flexibleSpace: const FlexibleSpaceBar(
-              titlePadding: EdgeInsets.only(left: 20, bottom: 16),
-              title: Text(
-                'Kargo Takibi',
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.black,
-                  letterSpacing: -0.5,
-                ),
-              ),
-            ),
-            actions: [
-              IconButton(
-                icon: Icon(Icons.qr_code_scanner_rounded, color: AppleTheme.systemBlue),
-                onPressed: () {},
-              ),
-              const SizedBox(width: 8),
-            ],
+      appBar: AppBar(
+        title: const Text('Kargo'),
+        actions: [
+          FilterChip(
+            label: const Text('Bekleyenler'),
+            selected: _pendingOnly,
+            onSelected: (v) => setState(() => _pendingOnly = v),
           ),
-
-          // Stats
-          SliverToBoxAdapter(
-            child: Container(
-              height: 100,
-              margin: const EdgeInsets.only(top: 8),
-              child: ListView(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                children: [
-                  _buildMiniStat('Bekleyen', '${_packages.where((p) => p['status'] == 'waiting').length}', 
-                      Icons.inventory_2_rounded, AppleTheme.systemOrange),
-                  _buildMiniStat('Bugün Gelen', '5', Icons.local_shipping_rounded, AppleTheme.systemBlue),
-                  _buildMiniStat('Teslim', '12', Icons.check_circle_rounded, AppleTheme.systemGreen),
-                ],
-              ),
-            ),
-          ),
-
-          // Search
-          SliverToBoxAdapter(
-            child: AppleSearchBar(
-              controller: _searchController,
-              placeholder: 'Kargo ara...',
-              onChanged: (value) => setState(() {}),
-            ),
-          ),
-
-          // Filters
-          SliverToBoxAdapter(
-            child: Container(
-              height: 44,
-              margin: const EdgeInsets.symmetric(vertical: 8),
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                itemCount: _filters.length,
-                itemBuilder: (context, index) {
-                  final isSelected = _selectedFilter == index;
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: FilterChip(
-                      selected: isSelected,
-                      label: Text(_filters[index]),
-                      onSelected: (selected) => setState(() => _selectedFilter = index),
-                      backgroundColor: Colors.white,
-                      selectedColor: AppleTheme.systemBlue.withOpacity(0.15),
-                      checkmarkColor: AppleTheme.systemBlue,
-                      labelStyle: TextStyle(
-                        color: isSelected ? AppleTheme.systemBlue : AppleTheme.label,
-                        fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
-          ),
-
-          // Package Alert
-          if (_packages.any((p) => p['status'] == 'waiting'))
-            SliverToBoxAdapter(
-              child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppleTheme.systemOrange.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppleTheme.systemOrange.withOpacity(0.3)),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.notifications_active_rounded, color: AppleTheme.systemOrange),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Teslim Bekleyen Kargolar',
-                            style: TextStyle(fontWeight: FontWeight.w600, color: AppleTheme.systemOrange),
-                          ),
-                          Text(
-                            '${_packages.where((p) => p['status'] == 'waiting').length} kargo teslim edilmeyi bekliyor',
-                            style: TextStyle(fontSize: 13, color: AppleTheme.secondaryLabel),
-                          ),
-                        ],
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: () {},
-                      child: const Text('SMS Gönder'),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-          // List Header
-          const SliverToBoxAdapter(
-            child: AppleSectionHeader(title: 'Kargolar'),
-          ),
-
-          // Package List
-          SliverToBoxAdapter(
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: _filteredPackages.isEmpty
-                  ? const AppleEmptyState(
-                      icon: Icons.inventory_2_rounded,
-                      title: 'Kargo Bulunamadı',
-                    )
-                  : Column(
-                      children: _filteredPackages.asMap().entries.map((entry) {
-                        return _buildPackageTile(entry.value, isLast: entry.key == _filteredPackages.length - 1);
-                      }).toList(),
-                    ),
-            ),
-          ),
-
-          const SliverToBoxAdapter(child: SizedBox(height: 100)),
+          const SizedBox(width: 8),
         ],
       ),
-      floatingActionButton: AppleFAB(
-        icon: Icons.add_rounded,
-        label: 'Kargo Ekle',
-        onPressed: () => _showAddPackageSheet(context),
-      ),
-    );
-  }
-
-  List<Map<String, dynamic>> get _filteredPackages {
-    return _packages.where((p) {
-      final matchesSearch = _searchController.text.isEmpty ||
-          p['id'].toString().toLowerCase().contains(_searchController.text.toLowerCase()) ||
-          p['recipient'].toString().toLowerCase().contains(_searchController.text.toLowerCase());
-      
-      bool matchesFilter = true;
-      if (_selectedFilter == 1) matchesFilter = p['status'] == 'waiting';
-      if (_selectedFilter == 2) matchesFilter = p['status'] == 'delivered';
-      
-      return matchesSearch && matchesFilter;
-    }).toList();
-  }
-
-  Widget _buildMiniStat(String title, String value, IconData icon, Color color) {
-    return Container(
-      width: 120,
-      margin: const EdgeInsets.only(right: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Row(
-            children: [
-              Icon(icon, color: color, size: 18),
-              const Spacer(),
-              Text(value, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(title, style: TextStyle(fontSize: 12, color: AppleTheme.secondaryLabel)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPackageTile(Map<String, dynamic> pkg, {bool isLast = false}) {
-    final isWaiting = pkg['status'] == 'waiting';
-
-    return Column(
-      children: [
-        InkWell(
-          onTap: () => _showPackageDetails(context, pkg),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: isWaiting 
-                        ? AppleTheme.systemOrange.withOpacity(0.12)
-                        : AppleTheme.systemGreen.withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(
-                    isWaiting ? Icons.inventory_2_rounded : Icons.check_circle_rounded,
-                    color: isWaiting ? AppleTheme.systemOrange : AppleTheme.systemGreen,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        pkg['recipient'],
-                        style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
-                      ),
-                      Text(
-                        '${pkg['unit']} • ${pkg['carrier']}',
-                        style: TextStyle(fontSize: 14, color: AppleTheme.secondaryLabel),
-                      ),
-                      Text(
-                        pkg['id'],
-                        style: TextStyle(fontSize: 12, color: AppleTheme.tertiaryLabel),
-                      ),
-                    ],
-                  ),
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: isWaiting
-                            ? AppleTheme.systemOrange.withOpacity(0.12)
-                            : AppleTheme.systemGreen.withOpacity(0.12),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        isWaiting ? 'Bekliyor' : 'Teslim',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: isWaiting ? AppleTheme.systemOrange : AppleTheme.systemGreen,
-                        ),
-                      ),
+      floatingActionButton: FloatingActionButton.extended(onPressed: _receive, icon: const Icon(Icons.add_box), label: const Text('Kargo kabul')),
+      body: Column(children: [
+        FutureBuilder<Map<String, dynamic>>(
+          future: apiClient.getMap('/packages-summary'),
+          builder: (context, snap) {
+            final s = snap.data;
+            if (s == null) return const SizedBox.shrink();
+            return StatRow([
+              ('Bekleyen', '${s['pending'] ?? 0}'),
+              ('7 günden uzun', '${s['waiting_over_7_days'] ?? 0}'),
+              ('Bildirilmemiş', '${s['not_notified'] ?? 0}'),
+              ('Teslim edilen', '${s['delivered'] ?? 0}'),
+            ]);
+          },
+        ),
+        Expanded(
+          child: ApiList(
+            key: _list,
+            token: _pendingOnly,
+            load: () => apiClient.getList('/packages', query: {if (_pendingOnly) 'pending': 'true'}),
+            empty: _pendingOnly ? 'Bekleyen kargo yok' : 'Kargo kaydı yok',
+            itemBuilder: (context, p, reload) {
+              final st = packageStatus['${p['status']}'];
+              final waiting = p['status'] == 'RECEIVED' || p['status'] == 'NOTIFIED';
+              return ListTile(
+                title: Text('${p['unit_name'] ?? ''} · ${p['recipient_name'] ?? ''}'),
+                subtitle: Text([
+                  [p['carrier'], p['tracking_number']].where((v) => v != null && '$v'.isNotEmpty).join(' '),
+                  'Geliş: ${formatDateTime(p['received_at'])}',
+                  if (waiting && toNum(p['waiting_days']) > 0) '${toNum(p['waiting_days']).toInt()} gündür bekliyor',
+                  if ((p['storage_location'] ?? '').toString().isNotEmpty) 'Yer: ${p['storage_location']}',
+                  if (p['status'] == 'DELIVERED') 'Teslim: ${formatDateTime(p['delivered_at'])} (${p['delivered_to_name'] ?? ''})',
+                ].where((s) => s.isNotEmpty).join('\n')),
+                isThreeLine: true,
+                trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                  if (st != null) StatusChip(st.$1, color: st.$2),
+                  if (waiting)
+                    PopupMenuButton<String>(
+                      onSelected: (a) async {
+                        Map<String, dynamic> body = {};
+                        if (a == 'deliver') {
+                          final who = await askText(context, 'Teslim', 'Teslim alan kişinin adı', initial: '${p['recipient_name'] ?? ''}');
+                          if (who == null) return;
+                          body = {'delivered_to_name': who};
+                        } else if (a == 'return') {
+                          final r = await askText(context, 'İade', 'İade nedeni');
+                          if (r == null) return;
+                          body = {'reason': r};
+                        }
+                        if (!context.mounted) return;
+                        if (await runAction(context, () => apiClient.post('/packages/${p['id']}/$a', body))) await reload();
+                      },
+                      itemBuilder: (_) => const [
+                        PopupMenuItem(value: 'notify', child: Text('Sakine haber verildi (kaydet)')),
+                        PopupMenuItem(value: 'deliver', child: Text('Teslim et')),
+                        PopupMenuItem(value: 'return', child: Text('İade et')),
+                      ],
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      (pkg['arrivedAt'] as String).split(' ').last,
-                      style: TextStyle(fontSize: 12, color: AppleTheme.tertiaryLabel),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+                ]),
+              );
+            },
           ),
         ),
-        if (!isLast)
-          Padding(
-            padding: const EdgeInsets.only(left: 76),
-            child: Container(height: 0.5, color: AppleTheme.opaqueSeparator),
-          ),
-      ],
+      ]),
     );
   }
 
-  void _showPackageDetails(BuildContext context, Map<String, dynamic> pkg) {
-    final isWaiting = pkg['status'] == 'waiting';
-    
-    showModalBottomSheet(
+  Future<void> _receive() async {
+    List<dynamic> units;
+    try {
+      units = await apiClient.getUnits();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(errorText(e))));
+      return;
+    }
+    if (!mounted) return;
+    final formKey = GlobalKey<FormState>();
+    final recipient = TextEditingController();
+    final carrier = TextEditingController();
+    final tracking = TextEditingController();
+    final location = TextEditingController();
+    String? unitId;
+    var type = 'PACKAGE';
+    final ok = await showDialog<bool>(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 36,
-              height: 5,
-              margin: const EdgeInsets.only(top: 12),
-              decoration: BoxDecoration(
-                color: AppleTheme.systemGray4,
-                borderRadius: BorderRadius.circular(2.5),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: isWaiting
-                              ? AppleTheme.systemOrange.withOpacity(0.12)
-                              : AppleTheme.systemGreen.withOpacity(0.12),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Icon(
-                          Icons.inventory_2_rounded,
-                          color: isWaiting ? AppleTheme.systemOrange : AppleTheme.systemGreen,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(pkg['recipient'], style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
-                            Text(pkg['unit'], style: TextStyle(fontSize: 15, color: AppleTheme.secondaryLabel)),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-                  _buildInfoRow(Icons.local_shipping_rounded, 'Kargo Firması', pkg['carrier']),
-                  _buildInfoRow(Icons.tag_rounded, 'Takip No', pkg['id']),
-                  _buildInfoRow(Icons.access_time_rounded, 'Geliş Saati', pkg['arrivedAt']),
-                  if (pkg['deliveredAt'] != null)
-                    _buildInfoRow(Icons.check_circle_rounded, 'Teslim Saati', pkg['deliveredAt']),
-                  const SizedBox(height: 24),
-                  if (isWaiting) ...[
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: () => Navigator.pop(context),
-                        icon: const Icon(Icons.check_rounded),
-                        label: const Text('Teslim Edildi Olarak İşaretle'),
-                        style: ElevatedButton.styleFrom(backgroundColor: AppleTheme.systemGreen),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton.icon(
-                        onPressed: () => Navigator.pop(context),
-                        icon: const Icon(Icons.sms_rounded),
-                        label: const Text('SMS Bildirimi Gönder'),
-                      ),
-                    ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, set) => AlertDialog(
+          title: const Text('Kargo kabul'),
+          content: Form(
+            key: formKey,
+            child: SingleChildScrollView(
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                DropdownButtonFormField<String>(
+                  initialValue: unitId,
+                  decoration: const InputDecoration(labelText: 'Daire'),
+                  items: [
+                    for (final u in units.whereType<Map>())
+                      DropdownMenuItem(value: '${u['id']}', child: Text('${u['block'] ?? ''}-${u['door_number'] ?? ''}')),
                   ],
-                ],
-              ),
+                  onChanged: (v) => set(() => unitId = v),
+                  validator: (v) => v == null ? 'Daire seçin' : null,
+                ),
+                TextFormField(controller: recipient, decoration: const InputDecoration(labelText: 'Alıcı adı'),
+                    validator: (v) => (v == null || v.trim().isEmpty) ? 'Gerekli' : null),
+                TextFormField(controller: carrier, decoration: const InputDecoration(labelText: 'Kargo firması')),
+                TextFormField(controller: tracking, decoration: const InputDecoration(labelText: 'Takip numarası')),
+                DropdownButtonFormField<String>(
+                  initialValue: type,
+                  decoration: const InputDecoration(labelText: 'Tür'),
+                  items: const [
+                    DropdownMenuItem(value: 'PACKAGE', child: Text('Paket')),
+                    DropdownMenuItem(value: 'ENVELOPE', child: Text('Zarf')),
+                    DropdownMenuItem(value: 'LARGE', child: Text('Büyük')),
+                  ],
+                  onChanged: (v) => set(() => type = v ?? type),
+                ),
+                TextFormField(controller: location, decoration: const InputDecoration(labelText: 'Saklama yeri')),
+              ]),
             ),
-            SizedBox(height: MediaQuery.of(context).padding.bottom),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Vazgeç')),
+            FilledButton(onPressed: () {
+              if (formKey.currentState!.validate()) Navigator.pop(ctx, true);
+            }, child: const Text('Kaydet')),
           ],
         ),
       ),
     );
+    if (ok == true && mounted) {
+      final saved = await runAction(context, () => apiClient.post('/packages', {
+            'unit_id': unitId,
+            'recipient_name': recipient.text.trim(),
+            if (carrier.text.trim().isNotEmpty) 'carrier': carrier.text.trim(),
+            if (tracking.text.trim().isNotEmpty) 'tracking_number': tracking.text.trim(),
+            'package_type': type,
+            if (location.text.trim().isNotEmpty) 'storage_location': location.text.trim(),
+          }));
+      if (saved) await _list.currentState?.reload();
+    }
+    for (final c in [recipient, carrier, tracking, location]) {
+      c.dispose();
+    }
   }
-
-  Widget _buildInfoRow(IconData icon, String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Row(
-        children: [
-          Icon(icon, size: 20, color: AppleTheme.secondaryLabel),
-          const SizedBox(width: 12),
-          Text(label, style: TextStyle(fontSize: 15, color: AppleTheme.secondaryLabel)),
-          const Spacer(),
-          Text(value, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
-        ],
-      ),
-    );
-  }
-
-  /// Kargo ekleme formu.
-  ///
-  /// NEDEN BİLDİRİM (2026-09-13): Önceki form koda gömülü bir alıcı listesi
-  /// ("Ali Veli - D.101" vb.) gösteriyor, her alanın `onChanged`'i boş bırakılmış
-  /// ve "Kaydet" hiçbir yere yazmıyordu. Kullanıcı kargo kaydettiğini sanıyordu.
-  /// Form gerçek sakin listesine ve `receivePackage` ucuna bağlanana kadar durum
-  /// açıkça bildirilir.
-  void _showAddPackageSheet(BuildContext context) {
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => Container(
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 16),
-            const Text('Kargo Kaydı',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
-            const NotImplementedNotice(
-              title: 'Kargo kaydı formu henüz bağlanmadı',
-              detail: 'Kargo modülü sunucu tarafında gerçek veri katmanına '
-                  'bağlanmadığı için bu formdan kayıt oluşturulamaz. '
-                  'Kaydediyormuş gibi göstermek yerine devre dışı bırakıldı.',
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
-              child: SizedBox(
-                width: double.infinity,
-                child: OutlinedButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text('Kapat'),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
 }

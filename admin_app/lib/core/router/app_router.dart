@@ -3,6 +3,9 @@ import 'package:go_router/go_router.dart';
 
 import '../../features/auth/presentation/screens/login_screen.dart';
 import '../../features/auth/presentation/screens/kvkk_consent_screen.dart';
+import '../../features/auth/presentation/screens/activate_screen.dart';
+import '../../features/governance/presentation/screens/governance_screen.dart';
+import '../network/api_client.dart';
 import '../../features/dashboard/presentation/screens/dashboard_screen.dart';
 import '../../features/residents/presentation/screens/residents_screen.dart';
 import '../../features/residents/presentation/screens/resident_detail_screen.dart';
@@ -50,6 +53,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const LoginScreen(),
       ),
       GoRoute(
+        path: '/activate',
+        name: 'activate',
+        builder: (context, state) => const ActivateScreen(),
+      ),
+      GoRoute(
         path: '/kvkk-consent',
         name: 'kvkkConsent',
         builder: (context, state) => const KvkkConsentScreen(),
@@ -65,7 +73,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             name: 'dashboard',
             builder: (context, state) => const DashboardScreen(),
           ),
-          
+
           // Residents
           GoRoute(
             path: '/residents',
@@ -86,7 +94,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               ),
             ],
           ),
-          
+
           // Finance
           GoRoute(
             path: '/finance',
@@ -105,7 +113,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               ),
             ],
           ),
-          
+
           // Meters
           GoRoute(
             path: '/meters',
@@ -119,7 +127,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               ),
             ],
           ),
-          
+
           // Announcements
           GoRoute(
             path: '/announcements',
@@ -133,7 +141,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               ),
             ],
           ),
-          
+
           // Requests
           GoRoute(
             path: '/requests',
@@ -149,14 +157,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               ),
             ],
           ),
-          
+
           // Reports
           GoRoute(
             path: '/reports',
             name: 'reports',
             builder: (context, state) => const ReportsScreen(),
           ),
-          
+
           // Expenses (Gider Yönetimi)
           GoRoute(
             path: '/expenses',
@@ -177,112 +185,119 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               ),
             ],
           ),
-          
+
           // Ziyaretçi Yönetimi
           GoRoute(
             path: '/visitors',
             name: 'visitors',
             builder: (context, state) => const VisitorManagementScreen(),
           ),
-          
+
           // Otopark Yönetimi
           GoRoute(
             path: '/parking',
             name: 'parking',
             builder: (context, state) => const ParkingManagementScreen(),
           ),
-          
+
           // Rezervasyon Yönetimi
           GoRoute(
             path: '/reservations',
             name: 'reservations',
             builder: (context, state) => const ReservationManagementScreen(),
           ),
-          
+
           // AI Enerji Dashboard
           GoRoute(
             path: '/energy',
             name: 'energy',
             builder: (context, state) => const EnergyDashboardScreen(),
           ),
-          
+
           // Personel Yönetimi
           GoRoute(
             path: '/personnel',
             name: 'personnel',
             builder: (context, state) => const PersonnelManagementScreen(),
           ),
-          
+
           // Stok/Envanter Yönetimi
           GoRoute(
             path: '/inventory',
             name: 'inventory',
             builder: (context, state) => const InventoryManagementScreen(),
           ),
-          
+
           // Anket/Oylama
           GoRoute(
             path: '/surveys',
             name: 'surveys',
             builder: (context, state) => const SurveyManagementScreen(),
           ),
-          
+
           // Kargo Takibi
           GoRoute(
             path: '/packages',
             name: 'packages',
             builder: (context, state) => const PackageTrackingScreen(),
           ),
-          
+
           // Demirbaş Yönetimi
           GoRoute(
             path: '/assets',
             name: 'assets',
             builder: (context, state) => const AssetManagementScreen(),
           ),
-          
+
           // Sözleşme Yönetimi
           GoRoute(
             path: '/contracts',
             name: 'contracts',
             builder: (context, state) => const ContractManagementScreen(),
           ),
-          
+
           // Tur Kontrol
           GoRoute(
             path: '/patrol',
             name: 'patrol',
             builder: (context, state) => const PatrolControlScreen(),
           ),
-          
+
           // AI Toplantı Sihirbazı
           GoRoute(
             path: '/meetings',
             name: 'meetings',
             builder: (context, state) => const MeetingWizardScreen(),
           ),
-          
+
           // AI Akıllı Tahsilat
           GoRoute(
             path: '/collection',
             name: 'collection',
             builder: (context, state) => const SmartCollectionScreen(),
           ),
-          
+
           // Site İlan Panosu
           GoRoute(
             path: '/bulletin',
             name: 'bulletin',
             builder: (context, state) => const BulletinBoardScreen(),
           ),
-          
+
           // Banka Entegrasyonu
           GoRoute(
             path: '/banking',
             name: 'banking',
             builder: (context, state) => const BankIntegrationScreen(),
           ),
-          
+
+          // Yönetişim (KMK): işletme projesi, genel kurul, karar defteri — salt okuma
+          GoRoute(
+            path: '/governance',
+            name: 'governance',
+            builder: (context, state) => const GovernanceScreen(),
+          ),
+
           // API Ayarları
           GoRoute(
             path: '/api-settings',
@@ -292,12 +307,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         ],
       ),
     ],
-    redirect: (context, state) {
-      // TODO: Auth kontrolü
-      // final isLoggedIn = ref.read(authProvider).isLoggedIn;
-      // final isLoginRoute = state.matchedLocation == '/login';
-      // if (!isLoggedIn && !isLoginRoute) return '/login';
-      // if (isLoggedIn && isLoginRoute) return '/';
+    // Oturum koruması: kayıtlı oturum yoksa yalnızca giriş ve etkinleştirme
+    // açılır. Sunucu oturumu reddederse (yenileme 401) istemci jetonları siler;
+    // bir sonraki gezinmede kullanıcı girişe döner.
+    redirect: (context, state) async {
+      final loc = state.matchedLocation;
+      final public = loc == '/login' || loc == '/activate';
+      if (!public && !await apiClient.hasStoredSession()) return '/login';
       return null;
     },
   );

@@ -48,7 +48,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
       _error = null;
     });
     try {
-      final data = await apiClient.getAnnouncements();
+      final data = await apiClient.getList('/announcements');
       if (!mounted) return;
       setState(() {
         _announcements = data
@@ -71,14 +71,9 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
     if (id.isEmpty) return;
     final pinned = item['is_pinned'] == true;
     try {
-      // Sunucu tam kaydı beklediği için mevcut alanlar korunarak gönderilir.
-      await apiClient.updateAnnouncement(id, {
-        'title': item['title'],
-        'content': item['content'],
-        'category': item['category'],
-        'priority': item['priority'],
-        'is_pinned': !pinned,
-      });
+      // DÜZELTME (2026-09-26): `PUT /announcements/:id` diye bir uç yok;
+      // sabitleme kendi ucuyla yapılır.
+      await apiClient.post('/announcements/$id/pin', {'pinned': !pinned});
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -92,48 +87,6 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('İşlem yapılamadı: ${toUserMessage(e)}'),
-          backgroundColor: AppTheme.errorColor,
-        ),
-      );
-    }
-  }
-
-  Future<void> _delete(Map<String, dynamic> item) async {
-    final id = (item['id'] ?? '').toString();
-    if (id.isEmpty) return;
-
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Duyuruyu sil'),
-        content: Text(
-            '"${item['title'] ?? ''}" duyurusu silinecek. Onaylıyor musunuz?'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('İptal')),
-          ElevatedButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Sil')),
-        ],
-      ),
-    );
-    if (confirmed != true) return;
-
-    try {
-      await apiClient.deleteAnnouncement(id);
-      if (!mounted) return;
-      // Silindi mesajı yalnızca sunucu isteği kabul ettiyse gösterilir.
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Duyuru silindi'), backgroundColor: Colors.green),
-      );
-      await _load();
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Duyuru silinemedi: ${toUserMessage(e)}'),
           backgroundColor: AppTheme.errorColor,
         ),
       );
@@ -223,7 +176,6 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                         icon: const Icon(Icons.more_vert),
                         onSelected: (value) {
                           if (value == 'pin') _togglePin(item);
-                          if (value == 'delete') _delete(item);
                         },
                         itemBuilder: (context) => [
                           PopupMenuItem(
@@ -232,11 +184,8 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                                 ? 'Sabitlemeyi kaldır'
                                 : 'Sabitle'),
                           ),
-                          const PopupMenuItem(
-                            value: 'delete',
-                            child: Text('Sil',
-                                style: TextStyle(color: Colors.red)),
-                          ),
+                          // Silme ucu sunucuda yok: yayımlanmış duyuru kayıttır;
+                          // süresi dolan duyuru `expires_at` ile listeden düşer.
                         ],
                       ),
                     ],

@@ -1,3 +1,40 @@
+# DEVAM NOKTASI (2026-09-27, oturum kullanıcı isteğiyle durduruldu)
+
+**Yönetici mobil uygulaması (`admin_app/`) YARIM — commit EDİLMEDİ, şu an DERLENMİYOR.**
+Son commit: `01c7cf3` (sakin uygulaması tamam). Çalışma ağacındaki admin_app değişiklikleri korunmalı.
+
+Yapılanlar (diskte, commit'siz):
+- `core/network/api_client.dart` alan bölümü baştan yazıldı: yalnızca gerçek uçlar + genel
+  `getList/getMap/post/put/patch/delete`, `serverLogout`, `activateAccount`, `changePassword`,
+  `issueActivationCode`, `getUserProperties`. Eski yanlış yöntemler SİLİNDİ → kalan ekranlar derlenmiyor (bilerek).
+- Yeni ortak: `core/widgets/api_views.dart` (ApiList(token), ApiObject, runAction, askText, confirm,
+  StatusChip, StatRow, hasAnyRole, errorText), `core/auth/session_actions.dart`, `core/utils/{formatters,validators}.dart`.
+- Bitti: login (telefon normalize, /activate), activate_screen, router (oturum koruması, /activate, /governance),
+  main_screen (tüm modüller, rol süzme, gerçek site adı, şifre değiştir, sunucu çıkışı), governance_screen (yeni, salt okuma),
+  residents add/detail (etkinleştirme kodu penceresi `residents/presentation/widgets/activation_code_dialog.dart`),
+  visitors, personnel, packages, reservations, requests (liste+detay), patrol, parking, meters, meter_reading,
+  inventory, finance_screen, announcements (+create), banking/api_settings/reports/meeting_wizard (dürüst 501 ekranları),
+  assets/dashboard/expenses/resident_expenses/expense_detail çağrı adları düzeltildi.
+
+KALAN (sırayla):
+1. `create_announcement_screen.dart`: kullanılmayan `_sendNotification` alanını sil.
+2. `payments_screen.dart`: yeniden yaz — sekmeler "Onay bekleyen" (`/finance/payments/pending`, confirm `{reference}` / reject) ve "Tümü".
+3. `create_assessment_screen.dart`: kategoriler `getList('/finance/expense-categories')`; `due_date` `apiDate()` (YYYY-MM-DD); POST `/finance/assessments`.
+4. `add_expense_screen.dart`: kategoriler `/expense-categories`; `expense_date` YYYY-MM-DD; `invoice_reason`; POST `/expenses`.
+5. `expenses_screen.dart` satır ~88: var olmayan `category_type`/`type` süzgeci; `expense_detail`: `unit_count`→`distributions.length`, `assessment_period`, approve/reject (`/expenses/:id/approve|reject {reason}`).
+6. `dashboard_screen.dart`: `completed_at` sıfır tarih düşüşü (formatDate zaten boş sayar), sabit sayı kalmasın.
+7. Yeniden yaz: `contract_management` (party_name, contract_type; `/contracts`, renew/terminate), `smart_collection` (`/collection/risk`),
+   `energy_dashboard` (`/energy/trends|anomalies?meter_type=`, YZ öneri yok), `bulletin_board` (`/bulletins`, approve/reject{reason}/close),
+   `survey_management` (`/surveys`, `/surveys/:id`, publish/close/cancel, `eligible_voters`).
+8. `flutter analyze` hatasız + testler (`admin_app/test/`: durum eşlemeleri, normalizeReading, periodLabel, nextRequestStatus, initialOf).
+9. `bash backend/scripts/verify-mobile.sh` → commit; changelog/CLAUDE.md güncelle.
+
+Sonra: todo'daki diğer kalanlar (Kong temizliği, legalparams kapsamı, 1.6 down betikleri, anahtar döndürme, 4.12/4.13,
+mobil belge açma). Kökte kullanıcının bıraktığı `apsiyon_sikayetler.csv` ve `apsiyon_urun_gelistirme_raporu.md`
+(rakip şikayet analizi) — yol haritasına girdi olarak değerlendirilecek; commit edilmedi.
+
+---
+
 # Todo — Aktif İş Kuyruğu
 
 **Bu dosya 2026-09-09'da sıfırdan yeniden yazıldı.** Önceki sürüm, doğrulanmamış "✅" işaretleri içerdiği

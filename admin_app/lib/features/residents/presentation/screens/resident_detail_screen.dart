@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/theme/app_theme.dart';
+import '../../../../core/widgets/api_views.dart';
+import '../widgets/activation_code_dialog.dart';
 
 const Map<String, String> _roleLabels = {
   'OWNER': 'Ev Sahibi',
@@ -41,8 +43,25 @@ class _ResidentDetailScreenState extends State<ResidentDetailScreen> {
       if (!mounted) return;
       setState(() => _isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Sakin bilgileri yüklenemedi')),
+        SnackBar(content: Text('Sakin bilgileri yüklenemedi: ${errorText(e)}')),
       );
+    }
+  }
+
+  /// Yeni etkinleştirme / şifre sıfırlama kodu (yalnız M/B; eski kod geçersizleşir).
+  Future<void> _issueCode() async {
+    setState(() => _isUpdating = true);
+    try {
+      final act = await apiClient.issueActivationCode(widget.residentId);
+      if (!mounted) return;
+      final name = '${_resident?['first_name'] ?? ''} ${_resident?['last_name'] ?? ''}'.trim();
+      await showActivationCodeDialog(context, who: name, activation: act);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Kod üretilemedi: ${errorText(e)}')));
+      }
+    } finally {
+      if (mounted) setState(() => _isUpdating = false);
     }
   }
 
@@ -85,8 +104,10 @@ class _ResidentDetailScreenState extends State<ResidentDetailScreen> {
               enabled: !_isUpdating,
               onSelected: (value) {
                 if (value == 'toggle') _setActive(!isActive);
+                if (value == 'code') _issueCode();
               },
               itemBuilder: (context) => [
+                const PopupMenuItem(value: 'code', child: Text('Etkinleştirme / şifre sıfırlama kodu üret')),
                 PopupMenuItem(
                   value: 'toggle',
                   child: Text(
@@ -129,7 +150,7 @@ class _ResidentDetailScreenState extends State<ResidentDetailScreen> {
                                     Container(
                                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                       decoration: BoxDecoration(
-                                        color: (isActive ? AppTheme.successColor : AppTheme.textSecondary).withOpacity(0.1),
+                                        color: (isActive ? AppTheme.successColor : AppTheme.textSecondary).withValues(alpha: 0.1),
                                         borderRadius: BorderRadius.circular(4),
                                       ),
                                       child: Text(
