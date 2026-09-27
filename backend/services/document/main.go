@@ -25,6 +25,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -52,6 +53,17 @@ func main() {
 	log.Printf("Dosya depolama: %s", store.Backend())
 
 	repo := repository.New(pool)
+
+	// DOCUMENT_MAX_UPLOAD_MB: tek belge için üst sınır (varsayılan 25 MB).
+	// Kong'daki istek boyutu sınırı (kong/kong.yml) bununla uyumlu tutulur.
+	maxUpload := int64(25) << 20
+	if v := strings.TrimSpace(os.Getenv("DOCUMENT_MAX_UPLOAD_MB")); v != "" {
+		mb, perr := strconv.Atoi(v)
+		if perr != nil || mb <= 0 {
+			log.Fatalf("DOCUMENT_MAX_UPLOAD_MB pozitif tam sayı olmalıdır: %q", v)
+		}
+		maxUpload = int64(mb) << 20
+	}
 
 	r := middleware.NewRouter("document")
 	// Biçimi bozuk kimlik 500 değil 404 döner (pkg/middleware/params.go).
@@ -157,7 +169,17 @@ func main() {
 		write.POST("/documents", func(c *gin.Context) {
 			propertyID := c.GetString("property_id")
 
+			// Boyut sınırı (2026-09-27): önceden YOKTU; tek istekle depo ve
+			// geçici disk doldurulabilirdi. Gövde okunurken kesilir (form
+			// alanları için 1 MB pay), dosyanın kendisi ayrıca denetlenir.
+			c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxUpload+1<<20)
 			fileHeader, err := c.FormFile("file")
+			var tooLarge *http.MaxBytesError
+			if errors.As(err, &tooLarge) || (err == nil && fileHeader.Size > maxUpload) {
+				c.JSON(http.StatusRequestEntityTooLarge, gin.H{
+					"error": fmt.Sprintf("Dosya çok büyük; en fazla %d MB yüklenebilir", maxUpload>>20)})
+				return
+			}
 			if err != nil {
 				c.JSON(http.StatusBadRequest, gin.H{
 					"error": "multipart/form-data içinde 'file' alanı zorunludur"})

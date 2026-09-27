@@ -522,14 +522,24 @@ else
 fi
 kill_tree "$GW_PID"
 
-# Kaynak düzeyinde: Kong yapılandırmasında jwt eklentisi olmalı
-KJ=$(grep -c "name: jwt" "$BACKEND_DIR/../kong/kong.yml" 2>/dev/null | head -1)
-KJ=${KJ:-0}
-[ "$KJ" -ge 20 ] && ok "kong.yml: jwt eklentisi $KJ rotada tanımlı" || bad "kong.yml: jwt eklentisi eksik ($KJ)"
-KC=$(grep -c 'origins:' "$BACKEND_DIR/../kong/kong.yml" 2>/dev/null | head -1)
-KW=$(grep -c "'\*'" "$BACKEND_DIR/../kong/kong.yml" 2>/dev/null | head -1)
-KC=${KC:-0}; KW=${KW:-0}
-[ "$KW" -eq 0 ] && ok "kong.yml: joker (*) CORS kökeni kalmadı ($KC servis)" || bad "kong.yml: hâlâ $KW joker CORS kökeni var"
+# Kaynak düzeyinde Kong (2026-09-27): Kong yalnızca gateway'in ÖNÜNDE durur.
+# Önceden 26 servisi tek tek yönlendiriyordu; rotalar gateway'den sapmıştı ve
+# jwt eklentisi jeton iptalini bilmiyordu. Servise doğrudan rota, kimlik
+# doğrulamayı ve başlık temizliğini atlayan bir yan kapı olurdu.
+KONG="$BACKEND_DIR/../kong/kong.yml"
+KURLS=$(grep -E '^\s*url:' "$KONG" | sed -E 's/^\s*url:\s*//' | tr -d "'\"" | sort -u | tr '\n' ' ')
+[ "$KURLS" = "http://gateway:8888 " ] && ok "kong.yml: tek yukarı akış gateway (servislere doğrudan rota yok)" \
+  || bad "kong.yml yukarı akışları: '$KURLS' (yalnızca http://gateway:8888 bekleniyordu)"
+python3 - "$KONG" <<'PY' && ok "kong.yml: /api/v1/auth IP başına sıkı hız sınırı, belge sınırıyla uyumlu gövde sınırı" \
+  || bad "kong.yml: hız/gövde sınırı beklenen gibi değil"
+import re, sys
+s = open(sys.argv[1], encoding="utf-8").read()
+auth = s.split("- name: auth", 1)[1].split("- name: api", 1)[0]
+assert "/api/v1/auth" in auth and "rate-limiting" in auth and "limit_by: ip" in auth
+m = re.search(r"minute:\s*(\d+)", auth); assert m and int(m.group(1)) <= 30
+assert re.search(r"allowed_payload_size:\s*25\b", s) and "size_unit: megabytes" in s
+assert "name: jwt" not in s and "'*'" not in s
+PY
 
 step "9) Yetkilendirme: site bazlı roller ve sahiplik doğrulaması (FAZ 2.4/2.5/2.9)"
 FINPORT=${VERIFY_FIN_PORT:-18092}
@@ -1756,7 +1766,7 @@ DOCDIR=/tmp/verify-docs
 rm -rf "$DOCDIR"; mkdir -p "$DOCDIR"
 DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_app DB_PASSWORD="$APPPW" DB_NAME=siteeksen \
 DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${DOCPORT} \
-STORAGE_BACKEND=local STORAGE_LOCAL_DIR="$DOCDIR" \
+STORAGE_BACKEND=local STORAGE_LOCAL_DIR="$DOCDIR" DOCUMENT_MAX_UPLOAD_MB=1 \
   go run ./services/document >/tmp/verify-document.log 2>&1 &
 DOC_PID=$!
 DUP=0
@@ -1818,6 +1828,18 @@ if [ "$DUP" = "1" ] && [ -n "${MGR:-}" ] && [ -n "${TEN:-}" ]; then
   # Depo anahtarı site kimliğiyle başlamalı (site izolasyonu)
   echo "$STORED" | grep -q 'properties/11111111-1111-1111-1111-111111111111/documents/' \
     && ok "depo anahtarı site kimliğiyle ayrılmış" || bad "depo anahtarı site bazlı değil: $STORED"
+
+  # Boyut sınırı (2026-09-27): önceden yoktu, tek istekle depo doldurulabilirdi.
+  # Doğrulamada sınır 1 MB; 3 MB'lık dosya 413 almalı ve depoya HİÇBİR ŞEY yazılmamalı.
+  head -c 3145728 /dev/urandom > /tmp/verify-big.bin
+  BEFORE=$(find "$DOCDIR" -type f | wc -l)
+  BIG=$(curl -s -w '\n%{http_code}' -X POST "$DURL/documents" -H "$DA" \
+    -F "file=@/tmp/verify-big.bin;type=application/octet-stream" -F "category=OTHER" -F "title=Buyuk")
+  AFTER=$(find "$DOCDIR" -type f | wc -l)
+  [ "$(echo "$BIG" | tail -1)" = "413" ] && [ "$BEFORE" = "$AFTER" ] \
+    && ok "sınırı aşan belge 413 ile reddedildi, depoya yazılmadı" \
+    || bad "büyük belge: $(echo "$BIG" | tail -1), dosya sayısı $BEFORE → $AFTER"
+  rm -f /tmp/verify-big.bin
 
   # 3) Diğer kademelerde birer belge
   echo "Genel kurul karar tutanagi" > /tmp/verify-upload2.txt

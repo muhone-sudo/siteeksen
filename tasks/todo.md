@@ -566,7 +566,7 @@ yaygınlaştırılmasına kayıyor.
 1. ~~**RLS'i kalan tablolara yay (2.6 devamı).**~~ **TAMAMLANDI (2026-09-26).**
    81 tablo; kimlik rolü; dağıtım dosyaları (`gen-deploy.py`) tek kaynaktan.
    **Kalan küçük işler:**
-   - `kong/kong.yml` artık isteğe bağlı profil; rotaları gateway'le birebir
+   - **TAMAMLANDI (2026-09-27):** Kong tek yukarı akış (gateway) + kenar sınırları. Eski not: `kong/kong.yml` artık isteğe bağlı profil; rotaları gateway'le birebir
      değil. Ya gateway'e yönlendiren tek rotaya indirilmeli ya da kaldırılmalı.
    - ~~`legal_parameters` site bazlı istisna satırları RLS dışında (salt-okur).~~ **TAMAMLANDI (2026-09-27, 029)** — çözümleyici kapsamlı; RLS 82 tablo.
      `pkg/legalparams` çözümleyicisi kapsamsız havuz kullanıyor; RLS açılırsa
@@ -607,7 +607,7 @@ yaygınlaştırılmasına kayıyor.
 10. ~~**Eskimiş sunucu notları.**~~ **TAMAMLANDI (2026-09-27)** — süre dolumu bilerek elle; zamanlayıcı bildirim üretir. `contract`/`bulletin` `expire-due` yanıtları "zamanlanmış görev
     altyapısı yoktur" diyor; `cmd/scheduler` artık var. Zamanlayıcı süre dolumunu yapıyorsa not
     düzeltilmeli, yapmıyorsa iş zamanlayıcıya eklenmeli.
-11. **`/dashboard/stats` yalnızca geliştirme gateway'inde.** Üretim yolu (Kong) bu toplamayı
+11. ~~**`/dashboard/stats` yalnızca geliştirme gateway'inde.**~~ **ÇÖZÜLDÜ (2026-09-27)** — gateway her ortamda tek giriş; Kong ona yönlendirir. Üretim yolu (Kong) bu toplamayı
     yapmaz; Kong temizliği (madde 1) ile birlikte karara bağlanmalı.
 
 ---

@@ -12,6 +12,18 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-09-27 — KONG TEK YUKARI AKIŞA İNDİ + BELGE YÜKLEME SINIRI (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **990/990** (Kong yapısı, 3 MB belge → 413 ve depoya yazılmadı).
+
+- **Kong:** 26 servisi tek tek yönlendiriyordu ve rotalar gateway'den sapmıştı (finans
+  `/api/v1/assessments` gibi var olmayan yollar, `/dashboard/*` yok); jwt eklentisi jeton
+  iptalini bilmiyordu. Artık yalnızca gateway'in önünde kenar katmanı: IP başına hız
+  sınırı (`/api/v1/auth` 20/dk), 25 MB gövde sınırı. Kimlik, başlık temizliği, CORS ve
+  yönlendirme TEK yerde (gateway). Yol haritası 8.4 kararı.
+- **Güvenlik:** belge yüklemede boyut sınırı YOKTU (tek istekle depo/geçici disk
+  doldurulabilirdi) → `DOCUMENT_MAX_UPLOAD_MB` (varsayılan 25), aşan istek 413.
+
 ### 2026-09-27 — MEVZUAT PARAMETRELERİ RLS ALTINDA (migration 029) (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **989/989**; yeni `TestSiteIstisnasiUygulamaRoluyleYalnizcaKendiSitesinde`
