@@ -120,8 +120,8 @@ func main() {
 			}
 			c.JSON(http.StatusCreated, gin.H{
 				"id": id, "status": "ACTIVE",
-				"note": "Sözleşme metni DOSYA OLARAK saklanmadı; dosya depolama " +
-					"altyapısı henüz yoktur (todo S-09).",
+				"note": "Sözleşme metni bu kayıtta saklanmaz; imzalı nüshayı belge " +
+					"arşivine (Belgeler) yükleyin.",
 			})
 		})
 
@@ -155,8 +155,10 @@ func main() {
 			c.JSON(http.StatusOK, gin.H{"status": "TERMINATED"})
 		})
 
-		// Süresi dolmuş sözleşmeleri işaretler. Zamanlanmış görev altyapısı
-		// olmadığı için elle tetiklenir; işlem idempotenttir.
+		// Süresi dolmuş sözleşmeleri işaretler; işlem idempotenttir. Bilerek
+		// ELLE tetiklenir: süresi dolan sözleşme yenilenmiş ama kayda
+		// işlenmemiş olabilir. Zamanlayıcı (cmd/scheduler, contract.expired)
+		// kaydı değiştirmez, yönetime bildirim üretir.
 		write.POST("/contracts/expire-due", func(c *gin.Context) {
 			n, err := repo.ExpireDue(c.Request.Context(), c.GetString("property_id"))
 			if err != nil {
@@ -165,8 +167,8 @@ func main() {
 			}
 			c.JSON(http.StatusOK, gin.H{
 				"expired_count": n,
-				"note": "Zamanlanmış görev altyapısı yoktur; bu uç elle tetiklenir. " +
-					"Kendiliğinden yenilenen sözleşmeler kapsam dışıdır.",
+				"note": "Süre dolumu bilerek elle işlenir; zamanlayıcı yalnızca yönetime " +
+					"bildirim üretir. Kendiliğinden yenilenen sözleşmeler kapsam dışıdır.",
 			})
 		})
 	}

@@ -602,9 +602,9 @@ yaygınlaştırılmasına kayıyor.
    ortam değişkeniyle veriliyor. Üretim için anahtar deposu (vault) ve anahtar
    döndürme (rotation) yordamı yazılmalı — şifreli veriyi yeniden şifrelemek
    gerekeceği için bu, planlanması gereken bir iştir.
-9. **İlan panosu bildirimleri.** Yeni ilan yönetime, onay/ret ilan sahibine bildirim
+9. ~~**İlan panosu bildirimleri.**~~ **TAMAMLANDI (2026-09-27)** — ayrıca denetçinin ilan kapatma/yorum gizleme açığı kapatıldı. Yeni ilan yönetime, onay/ret ilan sahibine bildirim
    üretmiyor (yanıt "BİLDİRİM GÖNDERİLMEDİ" diyor). `pkg/notify` ile bağlanmalı.
-10. **Eskimiş sunucu notları.** `contract`/`bulletin` `expire-due` yanıtları "zamanlanmış görev
+10. ~~**Eskimiş sunucu notları.**~~ **TAMAMLANDI (2026-09-27)** — süre dolumu bilerek elle; zamanlayıcı bildirim üretir. `contract`/`bulletin` `expire-due` yanıtları "zamanlanmış görev
     altyapısı yoktur" diyor; `cmd/scheduler` artık var. Zamanlayıcı süre dolumunu yapıyorsa not
     düzeltilmeli, yapmıyorsa iş zamanlayıcıya eklenmeli.
 11. **`/dashboard/stats` yalnızca geliştirme gateway'inde.** Üretim yolu (Kong) bu toplamayı

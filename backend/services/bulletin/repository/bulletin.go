@@ -219,27 +219,28 @@ func (r *Repository) Create(ctx context.Context, propertyID, userID string, in C
 }
 
 // Review, ilanı onaylar ya da reddeder (yönetim).
-func (r *Repository) Review(ctx context.Context, propertyID, id, reviewerID, status, reason string) error {
+//
+// İlan sahibine karar bildirimi gönderilebilsin diye sahibin kimliği ve ilan
+// başlığı döner.
+func (r *Repository) Review(ctx context.Context, propertyID, id, reviewerID, status, reason string) (authorID, title string, err error) {
 	if status != "APPROVED" && status != "REJECTED" {
-		return ErrBadState
+		return "", "", ErrBadState
 	}
 	if status == "REJECTED" && strings.TrimSpace(reason) == "" {
 		// Gerekçesiz ret, sakinin ilanı düzeltmesini imkânsız kılar.
-		return ErrBadState
+		return "", "", ErrBadState
 	}
-	tag, err := r.scope(propertyID).Exec(ctx, `
+	err = r.scope(propertyID).QueryRow(ctx, `
 		UPDATE bulletin_posts
 		SET status = $3, reviewed_by = NULLIF($4,'')::uuid, reviewed_at = now(),
 		    rejection_reason = NULLIF($5,''), updated_at = now()
-		WHERE id = $1 AND property_id = $2 AND status = 'PENDING'`,
-		id, propertyID, status, reviewerID, reason)
-	if err != nil {
-		return err
+		WHERE id = $1 AND property_id = $2 AND status = 'PENDING'
+		RETURNING author_id::text, title`,
+		id, propertyID, status, reviewerID, reason).Scan(&authorID, &title)
+	if err == pgx.ErrNoRows {
+		return "", "", r.stateOrNotFound(ctx, propertyID, "bulletin_posts", id, ErrNotFound, ErrBadState)
 	}
-	if tag.RowsAffected() == 0 {
-		return r.stateOrNotFound(ctx, propertyID, "bulletin_posts", id, ErrNotFound, ErrBadState)
-	}
-	return nil
+	return authorID, title, err
 }
 
 // Visible, ilanın çağırana görünür olup olmadığını söyler (Get ile aynı kural,

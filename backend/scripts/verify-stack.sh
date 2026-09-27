@@ -3261,7 +3261,50 @@ if [ "$CUP" = "1" ] && [ "$BUP" = "1" ] && [ -n "${MGR:-}" ] && [ -n "${TEN:-}" 
     SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$BURL/bulletins/$B3ID/close" \
       -H "Authorization: Bearer $OWN" -H "$BJ" -d '{}')
     [ "$SC" = "409" ] && ok "başkasının ilanı kapatılamıyor → 409" || bad "başkasının ilanı kapatıldı → $SC"
+
+    # Denetçi okur ama müdahale etmez (2026-09-27): önceden AUDITOR da
+    # başkasının ilanını kapatıp yorum gizleyebiliyordu.
+    $PSQL -c "INSERT INTO property_roles (user_id, property_id, role)
+      VALUES ('44444444-4444-4444-4444-444444444403','$DEMO_PROPERTY','AUDITOR');" >/dev/null 2>&1
+    AUDT=$(curl -s -X POST "http://127.0.0.1:${SVCPORT}/api/v1/auth/login" -H "$BJ" \
+      -d '{"phone":"5550000003","password":"Demo123!"}' | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+    CM3ID=$(curl -s -X POST "$BURL/bulletins/$B1ID/comments" -H "$BA" -H "$BJ" -d '{"content":"Denetci testi"}' \
+      | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+    SC1=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$BURL/bulletins/$B1ID/close" -H "Authorization: Bearer $AUDT" -H "$BJ" -d '{}')
+    SC2=$(curl -s -o /dev/null -w '%{http_code}' -X DELETE "$BURL/bulletin-comments/$CM3ID" -H "Authorization: Bearer $AUDT")
+    SC3=$(curl -s -o /dev/null -w '%{http_code}' "$BURL/bulletins-summary" -H "Authorization: Bearer $AUDT")
+    [ -n "$AUDT" ] && [ "$SC1" = "409" ] && [ "$SC2" = "409" ] \
+      && ok "denetçi başkasının ilanını kapatamıyor ve yorum gizleyemiyor → 409/409" \
+      || bad "denetçi müdahalesi: kapatma $SC1, yorum gizleme $SC2"
+    [ "$SC3" = "403" ] && ok "denetçi onay özetine (yazma grubu) erişemiyor → 403" || bad "denetçi özet → $SC3"
+    $PSQL -c "DELETE FROM property_roles WHERE user_id='44444444-4444-4444-4444-444444444403'
+      AND role='AUDITOR';" >/dev/null 2>&1
   fi
+
+  # Bildirimler (2026-09-27): yeni ilan → onay yetkilileri; karar → ilan sahibi.
+  # Önceden yanıt "BİLDİRİM GÖNDERİLMEDİ" diyordu; yönetim bekleyen ilanı ancak
+  # panoyu açınca görüyor, sakin ilanının akıbetini öğrenemiyordu.
+  BPN=$(qscoped "SELECT count(*) FROM notifications WHERE topic='bulletin.pending' AND payload->>'bulletin_id'='$B1ID';")
+  BPX=$(qscoped "SELECT count(*) FROM notifications n WHERE n.topic='bulletin.pending' AND n.payload->>'bulletin_id'='$B1ID'
+    AND NOT EXISTS (SELECT 1 FROM property_roles pr WHERE pr.user_id = n.recipient_user_id
+      AND pr.property_id = n.property_id AND pr.role IN ('MANAGER','BOARD_MEMBER'));")
+  [ "${BPN:-0}" -ge 1 ] && [ "$BPX" = "0" ] \
+    && ok "yeni ilan onay yetkililerine bildirildi ($BPN), başkasına gitmedi" \
+    || bad "bekleyen ilan bildirimi: $BPN, ilgisiz alıcı $BPX"
+  BDN=$(qscoped "SELECT count(*) FROM notifications n WHERE n.topic='bulletin.decision'
+    AND n.payload->>'bulletin_id'='$B1ID' AND n.payload->>'status'='APPROVED'
+    AND n.recipient_user_id = (SELECT author_id FROM bulletin_posts WHERE id='$B1ID');")
+  BDX=$(qscoped "SELECT count(*) FROM notifications n WHERE n.topic='bulletin.decision'
+    AND n.payload->>'bulletin_id'='$B1ID'
+    AND n.recipient_user_id <> (SELECT author_id FROM bulletin_posts WHERE id='$B1ID');")
+  [ "$BDN" = "1" ] && [ "$BDX" = "0" ] && ok "onay yalnızca ilan sahibine ve bir kez bildirildi" \
+    || bad "onay bildirimi: sahibine $BDN, başkasına $BDX"
+  B4ID=$(curl -s -X POST "$BURL/bulletins" -H "$BT" -H "$BJ" \
+    -d '{"category":"SERVICE","title":"Ozel ders","content":"Matematik dersi."}' \
+    | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+  curl -s -o /dev/null -X POST "$BURL/bulletins/$B4ID/reject" -H "$BA" -H "$BJ" -d '{"reason":"Ticari ilan yasak"}'
+  RB=$(qscoped "SELECT body FROM notifications WHERE topic='bulletin.decision' AND payload->>'bulletin_id'='$B4ID' LIMIT 1;")
+  echo "$RB" | grep -q 'Ticari ilan yasak' && ok "ret gerekçesi ilan sahibinin bildiriminde" || bad "ret bildirimi: $RB"
 
   # Özet ve yetki
   BSUM=$(curl -s "$BURL/bulletins-summary" -H "$BA")

@@ -93,6 +93,22 @@ func Managers(ctx context.Context, pool *pgxpool.Pool, propertyID string) ([]Rec
 		ORDER BY pr.user_id, pr.role`, propertyID)
 }
 
+// Approvers, onay yetkisi olan yönetimi döner (MANAGER, BOARD_MEMBER).
+//
+// Onay bekleyen işler (ilan onayı vb.) için kullanılır: denetçi onay
+// VERMEZ, yalnızca denetler; ona "onayınızı bekliyor" demek yanlış olur.
+func Approvers(ctx context.Context, pool *pgxpool.Pool, propertyID string) ([]Recipient, error) {
+	return queryRecipients(ctx, pool, propertyID, `
+		SELECT DISTINCT ON (pr.user_id) pr.user_id::text, ''::text, pr.role
+		FROM property_roles pr
+		WHERE pr.property_id = $1
+		  AND pr.role IN ('MANAGER','BOARD_MEMBER')
+		  AND pr.is_active
+		  AND pr.valid_from <= CURRENT_DATE
+		  AND (pr.valid_to IS NULL OR pr.valid_to >= CURRENT_DATE)
+		ORDER BY pr.user_id, pr.role`, propertyID)
+}
+
 func queryRecipients(ctx context.Context, pool *pgxpool.Pool, propertyID, sql string,
 	args ...any) ([]Recipient, error) {
 	if pool == nil {

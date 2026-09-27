@@ -12,6 +12,19 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-09-27 — İLAN PANOSU BİLDİRİMLERİ + DENETÇİ YETKİ AÇIĞI (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **987/987** (5 yeni kontrol, §ilan panosu).
+
+- Yeni ilan onay yetkililerine (MANAGER, BOARD_MEMBER — `notify.Approvers`), onay/ret
+  kararı ilan sahibine bildirim üretir; ret gerekçesi bildirim gövdesinde. Önceden
+  yanıt "BİLDİRİM GÖNDERİLMEDİ" diyordu.
+- **Güvenlik:** denetçi (AUDITOR) başkasının ilanını kapatıp yorum gizleyebiliyordu
+  (`isManagement` denetçiyi de sayıyordu) → yazma işlemleri `canModerate` ile yalnızca yönetim.
+- Eskimiş sunucu notları düzeltildi: sözleşme/ilan `expire-due` "zamanlanmış görev
+  altyapısı yoktur" diyordu (zamanlayıcı var; süre dolumu BİLEREK elle işlenir),
+  sözleşme oluşturma "dosya depolama yoktur" diyordu (belge arşivine yönlendirir).
+
 ### 2026-09-27 — YÖNETİCİ MOBİL UYGULAMASI GERÇEK API'YE BAĞLANDI (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-mobile.sh` → 8/8 (yönetici: 21 test, 19'u yeni — `admin_app/test/logic_test.dart`).

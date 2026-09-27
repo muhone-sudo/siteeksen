@@ -25,8 +25,10 @@ import (
 	"os"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/siteeksen/backend/pkg/database"
 	"github.com/siteeksen/backend/pkg/middleware"
+	"github.com/siteeksen/backend/pkg/notify"
 	"github.com/siteeksen/backend/services/bulletin/repository"
 )
 
@@ -39,6 +41,7 @@ func main() {
 	defer database.Close()
 
 	repo := repository.New(pool)
+	notifier := notify.FromEnvOrNil(pool)
 
 	r := middleware.NewRouter("bulletin")
 	// Biçimi bozuk kimlik 500 değil 404 döner (pkg/middleware/params.go).
@@ -95,14 +98,14 @@ func main() {
 		}
 		c.JSON(http.StatusCreated, gin.H{
 			"id": id, "status": "PENDING",
-			"note": "İlan YÖNETİM ONAYINA gönderildi; onaylanana kadar panoda " +
-				"görünmez. Yöneticiye BİLDİRİM GÖNDERİLMEDİ.",
+			"note":         "İlan YÖNETİM ONAYINA gönderildi; onaylanana kadar panoda görünmez.",
+			"notification": notifyPending(c, notifier, pool, id, in.Title),
 		})
 	})
 
 	api.POST("/bulletins/:id/close", func(c *gin.Context) {
 		if err := repo.Close(c.Request.Context(), c.GetString("property_id"),
-			c.Param("id"), c.GetString("user_id"), isManagement(c)); err != nil {
+			c.Param("id"), c.GetString("user_id"), canModerate(c)); err != nil {
 			fail(c, err, "kapatma")
 			return
 		}
@@ -150,7 +153,7 @@ func main() {
 
 	api.DELETE("/bulletin-comments/:id", func(c *gin.Context) {
 		if err := repo.DeleteComment(c.Request.Context(), c.GetString("property_id"),
-			c.Param("id"), c.GetString("user_id"), isManagement(c)); err != nil {
+			c.Param("id"), c.GetString("user_id"), canModerate(c)); err != nil {
 			fail(c, err, "yorum silme")
 			return
 		}
@@ -165,14 +168,15 @@ func main() {
 	write.Use(middleware.RequireRole(middleware.RoleManager, middleware.RoleBoardMember))
 	{
 		write.POST("/bulletins/:id/approve", func(c *gin.Context) {
-			if err := repo.Review(c.Request.Context(), c.GetString("property_id"),
-				c.Param("id"), c.GetString("user_id"), "APPROVED", ""); err != nil {
+			author, title, err := repo.Review(c.Request.Context(), c.GetString("property_id"),
+				c.Param("id"), c.GetString("user_id"), "APPROVED", "")
+			if err != nil {
 				fail(c, err, "onay")
 				return
 			}
 			c.JSON(http.StatusOK, gin.H{
-				"status": "APPROVED",
-				"note":   "İlan sahibine BİLDİRİM GÖNDERİLMEDİ.",
+				"status":       "APPROVED",
+				"notification": notifyDecision(c, notifier, author, title, "APPROVED", ""),
 			})
 		})
 
@@ -186,12 +190,16 @@ func main() {
 					"note":  "Gerekçesiz ret, sakinin ilanını düzeltmesini imkânsız kılar."})
 				return
 			}
-			if err := repo.Review(c.Request.Context(), c.GetString("property_id"),
-				c.Param("id"), c.GetString("user_id"), "REJECTED", in.Reason); err != nil {
+			author, title, err := repo.Review(c.Request.Context(), c.GetString("property_id"),
+				c.Param("id"), c.GetString("user_id"), "REJECTED", in.Reason)
+			if err != nil {
 				fail(c, err, "ret")
 				return
 			}
-			c.JSON(http.StatusOK, gin.H{"status": "REJECTED"})
+			c.JSON(http.StatusOK, gin.H{
+				"status":       "REJECTED",
+				"notification": notifyDecision(c, notifier, author, title, "REJECTED", in.Reason),
+			})
 		})
 
 		write.POST("/bulletins/expire-due", func(c *gin.Context) {
@@ -202,7 +210,10 @@ func main() {
 			}
 			c.JSON(http.StatusOK, gin.H{
 				"expired_count": n,
-				"note":          "Zamanlanmış görev altyapısı yoktur; bu uç elle tetiklenir.",
+				// Süresi dolan ilan listelemede zaten gösterilmez (expires_at süzgeci);
+				// bu uç yalnızca kaydın DURUMUNU günceller (özet sayıları için).
+				"note": "Süresi dolan ilanlar panoda zaten gösterilmiyordu; bu işlem kayıtların " +
+					"durumunu EXPIRED olarak günceller.",
 			})
 		})
 
@@ -237,6 +248,72 @@ func isManagement(c *gin.Context) bool {
 		}
 	}
 	return false
+}
+
+// canModerate: başkasının ilanını kapatma ve yorum gizleme YAZMA işlemidir;
+// denetçi okur ama müdahale etmez. Önceden bu işlemler isManagement'a
+// bağlıydı ve denetçi de ilan kapatıp yorum gizleyebiliyordu.
+func canModerate(c *gin.Context) bool {
+	value, _ := c.Get("roles")
+	roles, _ := value.([]string)
+	for _, r := range roles {
+		if r == middleware.RoleManager || r == middleware.RoleBoardMember {
+			return true
+		}
+	}
+	return false
+}
+
+// notifyPending, onay bekleyen yeni ilanı onay yetkililerine bildirir.
+// İlan içeriği bildirime yazılmaz (yalnızca başlık): onaysız içerik
+// bildirim kutusunda yayımlanmış gibi dolaşmasın.
+func notifyPending(c *gin.Context, n *notify.Notifier, pool *pgxpool.Pool, id, title string) *notify.BroadcastResult {
+	if n == nil {
+		return &notify.BroadcastResult{Note: "Bildirim altyapısı kurulu değil; yönetime bildirim oluşturulmadı."}
+	}
+	propertyID := c.GetString("property_id")
+	recipients, err := notify.Approvers(c.Request.Context(), pool, propertyID)
+	if err != nil {
+		log.Printf("[bulletin] onay bildirimi alıcıları alınamadı: %v", err)
+		return &notify.BroadcastResult{Note: "Alıcı listesi okunamadı; yönetime bildirim oluşturulmadı."}
+	}
+	return n.Broadcast(c.Request.Context(), notify.Message{
+		PropertyID: propertyID,
+		Channel:    notify.ChannelInApp,
+		Category:   notify.CategoryTransactional,
+		Topic:      "bulletin.pending",
+		Subject:    "Onay bekleyen ilan",
+		Body:       "Yeni ilan onayınızı bekliyor: " + title,
+		Payload:    map[string]any{"bulletin_id": id},
+		DedupeKey:  "bulletin:" + id + ":PENDING",
+		CreatedBy:  c.GetString("user_id"),
+	}, recipients)
+}
+
+// notifyDecision, onay/ret kararını ilan sahibine bildirir. Ret gerekçesi
+// gövdeye yazılır: sakin ilanını ancak gerekçeyi görürse düzeltebilir.
+func notifyDecision(c *gin.Context, n *notify.Notifier, authorID, title, status, reason string) *notify.BroadcastResult {
+	if n == nil {
+		return &notify.BroadcastResult{Note: "Bildirim altyapısı kurulu değil; ilan sahibine bildirim oluşturulmadı."}
+	}
+	if authorID == "" {
+		return &notify.BroadcastResult{Note: "İlan sahibi çözülemedi; bildirim oluşturulmadı."}
+	}
+	subject, body := "İlanınız yayında", "\""+title+"\" ilanınız onaylandı ve panoda yayında."
+	if status == "REJECTED" {
+		subject, body = "İlanınız reddedildi", "\""+title+"\" ilanınız reddedildi.\nGerekçe: "+reason
+	}
+	return n.Broadcast(c.Request.Context(), notify.Message{
+		PropertyID: c.GetString("property_id"),
+		Channel:    notify.ChannelInApp,
+		Category:   notify.CategoryTransactional,
+		Topic:      "bulletin.decision",
+		Subject:    subject,
+		Body:       body,
+		Payload:    map[string]any{"bulletin_id": c.Param("id"), "status": status},
+		DedupeKey:  "bulletin:" + c.Param("id") + ":" + status,
+		CreatedBy:  c.GetString("user_id"),
+	}, []notify.Recipient{{UserID: authorID}})
 }
 
 func fail(c *gin.Context, err error, op string) {
