@@ -12,6 +12,19 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-09-27 — MIGRATION GERİ ALMA YORDAMI (1.6) (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **997/997**; adım 41: yedek → tablo silme + ödemeleri silme +
+> sahte sürüm + artık tablo → geri yükleme → şema, sürüm, RLS (82), politikalar, ödeme özeti,
+> denetim izi yedekle birebir; uygulama rolü RLS kapsamıyla çalışıyor; `cmd/migrate` sağlamaları geçiyor.
+
+- Karar: "down" betiği yazılmadı — denetim izi, belge erişim kaydı ve defterleri silen bir
+  geri alma hukuken saklanması gereken kaydı yok eder; hiç çalıştırılmayan down betikleri de
+  sessizce bozulur. Geri alma = yedekten geri yükleme.
+- `backend/scripts/db-backup.sh` (yedeğin okunabildiğini doğrular), `db-restore.sh` (veritabanı
+  adı onayı, tek transaction, yedekte olmayan tabloyu SİLMEZ → çıkış 3 ile bildirir).
+- Yordam: `docs/runbook-veritabani-geri-alma.md`.
+
 ### 2026-09-27 — KONG TEK YUKARI AKIŞA İNDİ + BELGE YÜKLEME SINIRI (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **990/990** (Kong yapısı, 3 MB belge → 413 ve depoya yazılmadı).

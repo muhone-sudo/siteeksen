@@ -173,6 +173,7 @@ cd admin && npm run dev            # http://localhost:3001
 - **Roller SİTE BAZLIDIR.** `users.roles` yalnızca platform rolleri içindir; site rolleri
   `property_roles`, sakinlik rolleri `resident_units` tablosundadır. Jeton rolleri aktif
   siteye göre üretilir.
+- **Geri alma = yedekten geri yükleme** (`backend/scripts/db-backup.sh` / `db-restore.sh`, `docs/runbook-veritabani-geri-alma.md`); "down" betiği bilerek yok — denetim izini ve defterleri silerdi. verify-stack adım 41 sınar.
 - **Migration'lar `cmd/migrate` ile uygulanır** (sürüm tablosu, advisory lock, SHA-256
   sağlama, transaction). `docker-entrypoint-initdb.d` kullanılmaz. Uygulanmış bir
   migration dosyası **düzenlenmez** — çalıştırıcı sağlama uyuşmazlığında durur.
@@ -246,7 +247,7 @@ Repo yolu WSL'de: `/mnt/c/Users/md064615/Documents/Projeler/proje99`
 
 | Betik | Kapsam | Ne zaman |
 |---|---|---|
-| `bash backend/scripts/verify-stack.sh` | **990 kontrol** — dağıtım dosyası tutarlılığı, sıfırdan PostgreSQL, `cmd/migrate` ile 29 migration ve rol ataması, RLS (82 tablo, çapraz site uçtan uca testleri, rol yetkileri), şema denetimi, tam idempotency, `pkg/audit`+`pkg/legalparams`+`pkg/money`+`pkg/storage`+nisap testleri, ve uçtan uca: identity (giriş, roller, hesap etkinleştirme, şifre değiştirme, giriş kilidi), gateway (kimlik doğrulama), finance (ödeme→borç, gecikme tazminatı), governance (işletme projesi, nisap, defter zinciri), 501 dürüstlüğü ve 20 modülün uçtan uca sınanması (gider, personel, ziyaretçi, otopark, rezervasyon, kargo, sözleşme, belge, demirbaş, stok, anket, sayaç/ısı payı, bildirim, devriye, duyuru, ilan, ayarlar, enerji, tahsilat riski, NPS/ESG) ve zamanlanmış bildirimler (`cmd/scheduler`) | **Backend'e dokunan her değişiklikten sonra** |
+| `bash backend/scripts/verify-stack.sh` | **997 kontrol** — dağıtım dosyası tutarlılığı, sıfırdan PostgreSQL, `cmd/migrate` ile 29 migration ve rol ataması, RLS (82 tablo, çapraz site uçtan uca testleri, rol yetkileri), şema denetimi, tam idempotency, `pkg/audit`+`pkg/legalparams`+`pkg/money`+`pkg/storage`+nisap testleri, ve uçtan uca: identity (giriş, roller, hesap etkinleştirme, şifre değiştirme, giriş kilidi), gateway (kimlik doğrulama), finance (ödeme→borç, gecikme tazminatı), governance (işletme projesi, nisap, defter zinciri), 501 dürüstlüğü ve 20 modülün uçtan uca sınanması (gider, personel, ziyaretçi, otopark, rezervasyon, kargo, sözleşme, belge, demirbaş, stok, anket, sayaç/ısı payı, bildirim, devriye, duyuru, ilan, ayarlar, enerji, tahsilat riski, NPS/ESG) ve zamanlanmış bildirimler (`cmd/scheduler`) | **Backend'e dokunan her değişiklikten sonra** |
 | `bash backend/scripts/verify-mobile.sh` | **8 kontrol** — iki Flutter uygulaması için `pub get` + `analyze` + `test` ve arayüzde uydurma veri taraması | Mobil değişikliklerden sonra |
 | `cd admin && npx tsc --noEmit && npm run lint && npm run build` | Panel | Panel değişikliklerinden sonra |
 | `bash backend/scripts/dev-up.sh` | Geliştirme ortamını ayağa kaldırır | Elle deneme için |

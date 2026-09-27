@@ -5464,6 +5464,45 @@ done
 [ "$HOK" = "1" ] && ok "sürekli kipte /health son turun raporunu gösteriyor" || bad "zamanlayıcı sağlık ucu: $(tail -3 /tmp/verify-sched-loop.log)"
 kill_tree "$SCHED_PID"
 
+step "41) Migration geri alma: yedek → yıkıcı değişiklik → geri yükleme (1.6)"
+# Down betikleri BİLEREK yazılmadı (docs/runbook-veritabani-geri-alma.md): denetim
+# izi ve defterleri silen bir "down" hukuken saklanması gereken kaydı yok ederdi.
+# Geri alma yolu yedekten geri yüklemedir; burada gerçekten çalıştığı sınanır.
+BK=/tmp/verify-backup.dump
+fingerprint() {
+  $PSQL -t -A -c "SELECT (SELECT count(*) FROM pg_tables WHERE schemaname='public') || '|' ||
+    (SELECT count(*) FROM schema_migrations) || '|' || (SELECT count(*) FROM rls_enabled_tables) || '|' ||
+    (SELECT md5(COALESCE(string_agg(id::text || amount::text || status, ',' ORDER BY id), '')) FROM payments) || '|' ||
+    (SELECT count(*) FROM audit_logs) || '|' || (SELECT count(*) FROM pg_policy);"
+}
+if bash "$SCRIPT_DIR/db-backup.sh" "$BK" >/tmp/verify-backup.log 2>&1; then
+  ok "yedek alındı ve okunabilir: $(tail -1 /tmp/verify-backup.log)"
+  FP1=$(fingerprint)
+  # Yıkıcı ve hatalı bir migration'ı taklit et: tablo sil, veri sil, sürüm ekle, yeni tablo aç.
+  $PSQL -c "DROP TABLE expenses CASCADE; DELETE FROM payment_assessments; DELETE FROM payments;
+    INSERT INTO schema_migrations (version, name, checksum) VALUES (999, '999_bozuk.sql', 'x');
+    CREATE TABLE bozuk_migration_artigi (id int);" >/dev/null 2>&1
+  [ "$(fingerprint)" != "$FP1" ] && ok "yıkıcı değişiklik uygulandı (tablo/veri/sürüm bozuldu)" || bad "benzetim şemayı değiştirmedi"
+  CONFIRM_RESTORE=yanlis bash "$SCRIPT_DIR/db-restore.sh" "$BK" >/dev/null 2>&1
+  [ $? -eq 2 ] && ok "yanlış veritabanı onayıyla geri yükleme reddedildi" || bad "onaysız geri yükleme çalıştı"
+  CONFIRM_RESTORE=siteeksen bash "$SCRIPT_DIR/db-restore.sh" "$BK" >/tmp/verify-restore.log 2>&1; RC=$?
+  [ "$RC" = "3" ] && grep -q 'bozuk_migration_artigi' /tmp/verify-restore.log \
+    && ok "yedekte olmayan tablo kendiliğinden silinmedi, operatöre bildirildi (çıkış 3)" \
+    || bad "artık tablo bildirimi: çıkış $RC, $(tail -2 /tmp/verify-restore.log)"
+  $PSQL -c "DROP TABLE bozuk_migration_artigi;" >/dev/null 2>&1
+  FP2=$(fingerprint)
+  [ "$FP2" = "$FP1" ] && ok "geri yükleme sonrası şema, sürüm, RLS, politikalar, ödemeler ve denetim izi yedekle birebir ($FP2)" \
+    || bad "geri yükleme farkı: önce '$FP1' sonra '$FP2'"
+  N=$(qscoped "SELECT count(*) FROM units;")
+  [ "${N:-0}" -ge 1 ] && ok "geri yüklemeden sonra uygulama rolü RLS kapsamıyla çalışıyor ($N bölüm)" \
+    || bad "geri yükleme sonrası uygulama rolü veri göremiyor"
+  go run ./cmd/migrate -dir "$MIG_DIR" -status >/tmp/verify-mig3.log 2>&1 \
+    && ok "geri yüklemeden sonra cmd/migrate sağlama denetimini geçiyor" || bad "migrate durumu: $(tail -3 /tmp/verify-mig3.log)"
+else
+  bad "yedek alınamadı: $(tail -3 /tmp/verify-backup.log)"
+fi
+rm -f "$BK"
+
 step "SONUÇ"
 echo "  Geçen: $PASS   Başarısız: $FAIL"
 [ "$FAIL" -eq 0 ] && { echo "  TÜM KONTROLLER GEÇTİ"; exit 0; } || { echo "  BAŞARISIZ KONTROL VAR"; exit 1; }

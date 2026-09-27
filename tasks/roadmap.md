@@ -90,7 +90,7 @@ Gerçek hale getirilmeyecek modüller **arayüzden kaldırılır** ya da açık 
 ## FAZ 1 — Kurulabilirlik `[TAMAMLANDI — 2026-09-13]`
 
 > Sürüm takipli migration çalıştırıcı, tam idempotency, port/CI/compose düzeltmeleri.
-> Kalan tek madde: geri alma (down) betikleri (1.6).
+> 1.6 (2026-09-27): geri alma yedekten geri yükleme ile; verify-stack adım 41.
 > **Kanıt:** `verify-stack.sh` §2 ve §4.
 
 **Amaç:** Temiz bir makinede `docker compose down -v && up` ile sistemin ayağa kalkması.
@@ -103,7 +103,7 @@ Bugün bu mümkün değil; mevcut ortam elle müdahalelerin toplamı ve kaybolur
 | 1.3 | Migration 006'nın var olmayan tabloları ALTER etmesini düzelt | `[D0]` | B03 |
 | 1.4 | Migration'ları idempotent yap (`IF NOT EXISTS`, `ON CONFLICT`) + transaction sarmalaması | `[D0]` | B08 |
 | 1.5 | **Migration çalıştırıcı** ekle (sürüm tablosu + kilit + eksikleri uygula) | `[D0]` | B05 — üç kez elle uygulama acısının kalıcı çözümü |
-| 1.6 | Down (geri alma) betikleri | `[D0]` | — |
+| 1.6 | Geri alma — karar: ileri yönlü migration + yedekten geri yükleme (`db-backup.sh`/`db-restore.sh`, runbook) | `[D2]` | — |
 | 1.7 | Seed'i `initdb.d` dışına taşı; demo şifre hash'ini bilinen bir şifreyle yeniden üret | `[D0]` | B06 — sıfırdan kurulumda giriş çalışmıyor |
 | 1.8 | Seed verisi tutarsızlığını düzelt (arsa payı toplamı, birim sayısı) | `[D0]` | B15 |
 | 1.9 | `go build ./...` çalışacak hale getir (`backend/api/` ölü dizinini kaldır) | `[D0]` | B04 |

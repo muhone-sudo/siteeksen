@@ -225,7 +225,7 @@ Backend'e dokunan her değişiklikten sonra çalıştırılır.
       `created_at`'i `TIMESTAMPTZ`'ye çeviriyor.
       **Kanıt:** `verify-stack.sh` §4c — tabloya kayıt atılıp 003 yeniden uygulanıyor, kayıt
       hâlâ orada.
-- [ ] **1.6 Down (geri alma) betikleri** — `cmd/migrate` ileri yönlüdür; geri alma yok.
+- [x] **[D2] 1.6 Geri alma (2026-09-27)** — `down` betiği BİLEREK yazılmadı (denetim izi/defterleri silerdi); geri alma = yedekten geri yükleme: `backend/scripts/db-backup.sh` / `db-restore.sh`, yordam `docs/runbook-veritabani-geri-alma.md`. **Kanıt:** `verify-stack.sh` adım 41 (yıkıcı migration taklidi → geri yükleme → birebir).
 
 ### Flutter doğrulaması — AÇILDI (2026-09-13)
 - [x] **[D4] Flutter 3.47.4 WSL'e kuruldu** *(S-01b)* → mobil işler artık `[D1]` değil,
@@ -480,7 +480,7 @@ Ayrıntı: `tasks/roadmap.md`
 | Faz | Kapsam | Durum (2026-09-13) |
 |---|---|---|
 | FAZ 0 | Dürüstlük onarımı | **Tamamlandı** — uydurma veri ve sahte başarı mesajı kalmadı |
-| FAZ 1 | Kurulabilirlik — migration çalıştırıcı, idempotency, portlar, CI | **Tamamlandı** (1.6 down betikleri hariç) |
+| FAZ 1 | Kurulabilirlik — migration çalıştırıcı, idempotency, portlar, CI | **Tamamlandı** (1.6: geri alma yedekten geri yükleme ile, 2026-09-27) |
 | FAZ 2 | Kimlik/yetki/izolasyon | **Tamamlandı (2026-09-14)** — gateway auth, site bazlı roller, sahiplik doğrulaması, RBAC, **jeton iptali (2.7)**, **TCKN/IBAN şifrelemesi (2.8)**, **RLS birinci dilimi (2.6)**. RLS kalan tablolara servis servis genişletilecek |
 | FAZ 3 | Denetim izi + gözlemlenebilirlik | Çalışıyor. Hassas veri okuma logu (3.4) **belgeler için yapıldı** (`document_access_logs`); diğer hassas uçlar ve yapılandırılmış log (3.5) kaldı |
 | FAZ 4 | Para doğruluğu | **Çekirdek tamam** — ödeme borçtan düşüyor, kuruş dağıtımı, gecikme tazminatı. Kalan: bakiye testi (4.12), tam kuruş göçü (4.13) |
@@ -597,7 +597,7 @@ yaygınlaştırılmasına kayıyor.
    Yapılandırılmış log (3.5).
 6. ~~**Panelde çıkış (logout) düğmesi yok**~~ **TAMAMLANDI** — başlık menüsünde
    çıkış düğmesi erişim ve yenileme jetonunu iptal eder; şifre değiştirme de var.
-7. **1.6 migration geri alma (down) betikleri.**
+7. ~~**1.6 migration geri alma (down) betikleri.**~~ **TAMAMLANDI (2026-09-27)** — yedek/geri yükleme yordamı, adım 41.
 8. **Anahtar yönetimi.** `PII_ENCRYPTION_KEY` ve `siteeksen_app` parolası bugün
    ortam değişkeniyle veriliyor. Üretim için anahtar deposu (vault) ve anahtar
    döndürme (rotation) yordamı yazılmalı — şifreli veriyi yeniden şifrelemek
