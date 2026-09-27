@@ -29,7 +29,7 @@ func main() {
 	financeService := service.NewFinanceService(financeRepo, params)
 
 	// Gin router
-	r := gin.Default()
+	r := middleware.NewRouter("finance")
 	// Biçimi bozuk kimlik 500 değil 404 döner (pkg/middleware/params.go).
 	r.Use(middleware.UUIDParams())
 

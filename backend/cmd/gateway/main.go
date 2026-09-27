@@ -26,8 +26,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
+	"log/slog"
+
 	"github.com/siteeksen/backend/pkg/authtoken"
+	"github.com/siteeksen/backend/pkg/middleware"
 )
 
 // Response, gateway'in kendi ürettiği yanıtların sözleşmesidir.
@@ -109,21 +111,58 @@ func corsMiddleware(allowed []string, next http.Handler) http.Handler {
 // Denetim izi (audit_logs.request_id) bu değeri kullanır.
 func requestIDMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		rid := r.Header.Get("X-Request-Id")
-		if rid == "" {
-			rid = uuid.NewString()
-			r.Header.Set("X-Request-Id", rid)
-		}
+		// İstemcinin verdiği kimlik yalnızca biçime uyuyorsa korunur. Uzun ya da
+		// bozuk bir kimlik denetim kaydının yazılmasını engelleyebiliyordu
+		// (audit_logs.request_id 64 karakter) — bkz. pkg/middleware/requestlog.go.
+		rid := middleware.SanitizeRequestID(r.Header.Get("X-Request-Id"))
+		r.Header.Set("X-Request-Id", rid)
 		w.Header().Set("X-Request-Id", rid)
 		next.ServeHTTP(w, r)
 	})
 }
 
+// statusRecorder, yanıt durum kodunu günlük için yakalar.
+type statusRecorder struct {
+	http.ResponseWriter
+	status int
+}
+
+func (s *statusRecorder) WriteHeader(code int) {
+	s.status = code
+	s.ResponseWriter.WriteHeader(code)
+}
+
+// Flush, akış yanıtlarının (ör. dosya indirme) tamponlanmadan geçmesini korur.
+func (s *statusRecorder) Flush() {
+	if f, ok := s.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}
+
+// logMiddleware, her isteği tek JSON satırıyla yazar (FAZ 3.5). Sorgu dizesi
+// YAZILMAZ: arama terimi olarak telefon/ad taşıyabilir (KVKK m.12).
 func logMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
-		next.ServeHTTP(w, r)
-		log.Printf("%s %s (%s)", r.Method, r.URL.Path, time.Since(start).Round(time.Millisecond))
+		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
+		next.ServeHTTP(rec, r)
+		if r.URL.Path == "/health" && rec.status == http.StatusOK {
+			return
+		}
+		level := slog.LevelInfo
+		switch {
+		case rec.status >= 500:
+			level = slog.LevelError
+		case rec.status >= 400:
+			level = slog.LevelWarn
+		}
+		slog.LogAttrs(r.Context(), level, "http",
+			slog.String("request_id", r.Header.Get("X-Request-Id")),
+			slog.String("method", r.Method),
+			slog.String("path", r.URL.Path),
+			slog.Int("status", rec.status),
+			slog.Int64("latency_ms", time.Since(start).Milliseconds()),
+		)
 	})
 }
 
@@ -206,6 +245,7 @@ func notImplemented(w http.ResponseWriter, module, detail string) {
 }
 
 func main() {
+	middleware.InitLogging("gateway")
 	identityURL := getEnv("IDENTITY_SERVICE_URL", "http://localhost:8081")
 	financeURL := getEnv("FINANCE_SERVICE_URL", "http://localhost:8082")
 	communityURL := getEnv("COMMUNITY_SERVICE_URL", "http://localhost:8083")

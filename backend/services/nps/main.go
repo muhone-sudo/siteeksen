@@ -48,7 +48,7 @@ func main() {
 
 	repo := repository.New(pool)
 
-	r := gin.Default()
+	r := middleware.NewRouter("nps")
 	// Biçimi bozuk kimlik 500 değil 404 döner (pkg/middleware/params.go).
 	r.Use(middleware.UUIDParams())
 	r.GET("/health", func(c *gin.Context) {

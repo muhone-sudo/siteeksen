@@ -75,6 +75,11 @@ func (s *AuthService) Login(ctx context.Context, phone, password string) (*Token
 		return nil, nil, fmt.Errorf("giriş kaydı güncellenemedi: %w", err)
 	}
 
+	properties, err := s.ensureActiveProperty(ctx, user)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	// Roller bir kez çözülür; hem jetona hem de yanıta AYNI küme yazılır.
 	// Yanıta yazılmadığı sürece panel oturumunda rol bulunmuyordu ve giriş yapan
 	// herkes yetkisiz sayılıyordu.
@@ -87,9 +92,6 @@ func (s *AuthService) Login(ctx context.Context, phone, password string) (*Token
 	if err != nil {
 		return nil, nil, err
 	}
-
-	// Kullanıcının sitelerini al
-	properties, _ := s.userRepo.GetUserProperties(ctx, user.ID)
 
 	response := &models.UserResponse{
 		ID:                  user.ID,
@@ -202,6 +204,10 @@ func (s *AuthService) RefreshToken(ctx context.Context, refreshToken string) (*T
 		return nil, ErrInvalidToken
 	}
 	if err != nil {
+		return nil, err
+	}
+	// Siteden ayrılan kullanıcının jetonu eski siteyi taşımaya devam etmesin.
+	if _, err := s.ensureActiveProperty(ctx, user); err != nil {
 		return nil, err
 	}
 
@@ -352,4 +358,38 @@ func (s *AuthService) generateTokens(user *models.User, roles []string) (*TokenP
 func (s *AuthService) WithRevocations(c *revocation.Checker) *AuthService {
 	s.revocations = c
 	return s
+}
+
+// ensureActiveProperty, kullanıcının aktif sitesinin HÂLÂ bağlı olduğu bir site
+// olmasını sağlar ve site listesini döner.
+//
+// DÜZELTME (2026-09-26): yeni açılan hesapta (yönetimin eklediği sakin) aktif
+// site boştu; jeton site taşımıyor, sakin giriş yaptıktan sonra HER istekte
+// 403 alıyordu. Aktif site boşsa ya da kullanıcı artık o siteye bağlı değilse
+// (taşındı, görevi bitti) bağlı olduğu ilk site seçilir ve kaydedilir. Hiç
+// bağlı site yoksa aktif site boşaltılır: eski sitenin kimliği jetonda kalmaz.
+func (s *AuthService) ensureActiveProperty(ctx context.Context, user *models.User) ([]models.UserProperty, error) {
+	properties, err := s.userRepo.GetUserProperties(ctx, user.ID)
+	if err != nil {
+		return nil, fmt.Errorf("siteler okunamadı: %w", err)
+	}
+	for _, p := range properties {
+		if p.PropertyID == user.ActivePropertyID {
+			return properties, nil
+		}
+	}
+	if len(properties) == 0 {
+		if user.ActivePropertyID != "" {
+			if err := s.userRepo.ClearActiveProperty(ctx, user.ID); err != nil {
+				return nil, err
+			}
+			user.ActivePropertyID = ""
+		}
+		return properties, nil
+	}
+	if err := s.userRepo.SetActiveProperty(ctx, user.ID, properties[0].PropertyID); err != nil {
+		return nil, err
+	}
+	user.ActivePropertyID = properties[0].PropertyID
+	return properties, nil
 }

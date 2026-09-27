@@ -35,7 +35,7 @@ func main() {
 	params := legalparams.New(pool)
 	svc := service.New(repo, params)
 
-	r := gin.Default()
+	r := middleware.NewRouter("governance")
 	// Biçimi bozuk kimlik 500 değil 404 döner (pkg/middleware/params.go).
 	r.Use(middleware.UUIDParams())
 

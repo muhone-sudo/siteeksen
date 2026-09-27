@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/google/uuid"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -67,6 +68,19 @@ func Log(ctx context.Context, pool *pgxpool.Pool, e Entry) error {
 			NULLIF($8, ''), NULLIF($9, 0), $10, $11
 		)
 	`
+
+	// Kayıt, istemcinin gönderdiği değerler yüzünden DÜŞMEMELİ: bozuk kimlikle
+	// yapılan yoklama istekleri tam da kaydedilmesi gereken isteklerdir.
+	// entity_id UUID sütunudur; geçersiz değer (ör. /visitors/gecersiz) INSERT'i
+	// düşürüp kaydı yok ediyordu. request_id 64 karakterle sınırlıdır.
+	if e.EntityID != "" {
+		if _, perr := uuid.Parse(e.EntityID); perr != nil {
+			e.EntityID = ""
+		}
+	}
+	if len(e.RequestID) > 64 {
+		e.RequestID = e.RequestID[:64]
+	}
 
 	if _, err := pool.Exec(ctx, query,
 		e.UserID, e.PropertyID, e.IPAddress, e.UserAgent,

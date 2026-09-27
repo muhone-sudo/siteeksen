@@ -12,9 +12,28 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-09-26 — YAPILANDIRILMIŞ GÜNLÜK, İSTEK KİMLİĞİ, AKTİF SİTE (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **981 kontrol, 0 başarısız**.
+
+- **Denetimden kaçma açığı:** istemcinin `X-Request-Id`'si doğrulanmadan
+  `audit_logs.request_id VARCHAR(64)`'e yazılıyordu; uzun değer INSERT'i düşürüp
+  kaydı YOK ediyordu. Gateway ve servisler kimliği doğrular, gerekirse yeniler;
+  `pkg/audit` geçersiz `entity_id`/uzun kimlik yüzünden kaydı düşürmez.
+- FAZ 3.5: 26 servis `middleware.NewRouter` ile JSON günlük yazar (request_id,
+  rota şablonu, durum, süre, kullanıcı, site). Ham yol ve sorgu dizesi yazılmaz
+  (arama terimi telefon taşıyabilir — KVKK m.12). Gateway de JSON yazar.
+- **Hata:** aktif sitesi boş hesap (yönetimin eklediği sakin) giriş yapınca jeton
+  site taşımıyor, her istek 403 dönüyordu. Giriş ve yenilemede bağlı olunan ilk
+  site seçilir; siteden ayrılanın eski sitesi jetonda kalmaz.
+- **Hata:** sitede oturmayan yönetici (yalnız `property_roles`) sitesini listede
+  görmüyor ve seçemiyordu; site listesi ve seçim artık yönetim rollerini de kapsar.
+- Sıkılaştırılan kontrol, SUPER_ADMIN sınamasının önceki "geçti"sinin boşuna
+  olduğunu gösterdi (istek 403 alıyordu); artık HTTP 200 de şart.
+
 ### 2026-09-26 — SUPER_ADMIN SİTE VERİSİNE YETKİ VERMİYOR (DOĞRULANMIŞ)
 
-> **Kanıt:** \erify-stack.sh\ → **977 kontrol, 0 başarısız**.
+> **Kanıt:** `verify-stack.sh` → **977 kontrol, 0 başarısız**.
 
 - **Yetki yükseltmesi:** 13 servisteki el yazımı rol kontrolleri SUPER_ADMIN'i
   yönetim sayıyordu (RequireRole saymıyordu). Sitede yalnızca sakin olan platform

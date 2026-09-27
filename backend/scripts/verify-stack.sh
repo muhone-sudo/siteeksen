@@ -4909,6 +4909,69 @@ SC=$(code -X POST "http://127.0.0.1:${SVCPORT}/api/v1/auth/login" -H "$J" -d '{"
 [ "$SC" = "401" ] && ok "pasife alınmış hesap giriş yapamıyor → 401 (önceden giriş yapabiliyordu)" \
   || bad "pasif hesap girişi → $SC"
 
+# --- D2) Platform rolü (SUPER_ADMIN) site verisine yetki vermez ---
+# Önceden bazı servislerin el yazımı kontrolleri SUPER_ADMIN'i "yönetim"
+# sayıyordu: bir sitede yalnızca sakin olan platform yöneticisi bütün
+# sakinlerin ziyaretçilerini görebiliyordu.
+$PSQL -c "INSERT INTO users (id, first_name, last_name, phone, password_hash, roles)
+    VALUES ('44444444-4444-4444-4444-444444444441','Platform','Yonetici','+905550000041',
+            (SELECT password_hash FROM users WHERE phone LIKE '%5551234567'), ARRAY['SUPER_ADMIN'])
+    ON CONFLICT (id) DO NOTHING;
+  INSERT INTO units (id, property_id, block, floor, door_number, share_ratio)
+    VALUES ('44444444-0000-0000-0000-0000000000a1','$DEMO_PROPERTY','S',5,'41',1) ON CONFLICT (id) DO NOTHING;
+  INSERT INTO resident_units (resident_id, unit_id, role, start_date)
+    VALUES ('44444444-4444-4444-4444-444444444441','44444444-0000-0000-0000-0000000000a1','OWNER',CURRENT_DATE);" >/dev/null
+SA=$(curl -s -X POST "http://127.0.0.1:${SVCPORT}/api/v1/auth/login" -H "$J" \
+  -d '{"phone":"5550000041","password":"Demo123!"}' | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+SAROLES=$(echo "$SA" | cut -d. -f2 | tr '_-' '/+' | base64 -d 2>/dev/null | grep -o '"roles":\[[^]]*\]')
+NVTOT=$($PSQL -t -A -c "SELECT count(*) FROM visitors WHERE property_id='$DEMO_PROPERTY';")
+SAV=$(curl -s -w '\n%{http_code}' "http://127.0.0.1:18302/api/v1/visitors" -H "Authorization: Bearer $SA")
+NVSA=$(echo "$SAV" | grep -o '"visitor_name"' | wc -l)
+echo "$SAROLES" | grep -q SUPER_ADMIN && [ "$(echo "$SAV" | tail -1)" = "200" ] && [ "${NVTOT:-0}" -ge 1 ] && [ "$NVSA" = "0" ] \
+  && ok "SUPER_ADMIN olup sitede yalnızca sakin olan kişi komşuların ziyaretçilerini göremiyor (0/$NVTOT)" \
+  || bad "platform rolü site verisi açtı: roller $SAROLES, gördüğü $NVSA / toplam $NVTOT"
+
+# Aktif sitesi olmayan hesap (yeni etkinleştirilen sakin gibi) girişte bağlı
+# olduğu siteye yerleşir; önceden jeton site taşımıyor, her istek 403 dönüyordu.
+SAPID=$(echo "$SA" | cut -d. -f2 | tr '_-' '/+' | base64 -d 2>/dev/null | grep -o '"property_id":"[^"]*"')
+echo "$SAPID" | grep -q "$DEMO_PROPERTY" && ok "aktif sitesi boş hesap girişte bağlı olduğu siteye yerleşti" \
+  || bad "aktif site atanmadı: $SAPID"
+# Sitede oturmayan yönetici (yalnız property_roles) sitesini görüp seçebilmeli
+$PSQL -c "INSERT INTO users (id, first_name, last_name, phone, password_hash, roles)
+    VALUES ('44444444-4444-4444-4444-444444444443','Profesyonel','Yonetici','+905550000043',
+            (SELECT password_hash FROM users WHERE phone LIKE '%5551234567'), ARRAY[]::text[])
+    ON CONFLICT (id) DO NOTHING;
+  INSERT INTO property_roles (user_id, property_id, role)
+    VALUES ('44444444-4444-4444-4444-444444444443','$OTHERPROP','MANAGER');" >/dev/null
+PM=$(curl -s -X POST "http://127.0.0.1:${SVCPORT}/api/v1/auth/login" -H "$J" \
+  -d '{"phone":"5550000043","password":"Demo123!"}' | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+PMC=$(echo "$PM" | cut -d. -f2 | tr '_-' '/+' | base64 -d 2>/dev/null)
+PMP=$(curl -s "http://127.0.0.1:${SVCPORT}/api/v1/users/me/properties" -H "Authorization: Bearer $PM")
+SC=$(code -X POST "http://127.0.0.1:${SVCPORT}/api/v1/users/me/active-property" -H "Authorization: Bearer $PM" \
+  -H "$J" -d "{\"property_id\":\"$OTHERPROP\"}")
+echo "$PMC" | grep -q "$OTHERPROP" && echo "$PMC" | grep -q MANAGER && echo "$PMP" | grep -q "$OTHERPROP" && [ "$SC" = "200" ] \
+  && ok "sitede oturmayan yönetici sitesini listede görüyor, seçebiliyor, jetonu MANAGER + site taşıyor" \
+  || bad "profesyonel yönetici: jeton '$PMC', siteler '$PMP', seçim $SC"
+
+# --- D3) İstek kimliği ve yapılandırılmış günlük (FAZ 3.5) ---
+# Önceden istemcinin X-Request-Id'si doğrulanmadan denetim izine yazılıyordu;
+# 64 karakterden uzun bir değer INSERT'i düşürüp denetim kaydını YOK ediyordu.
+LONGRID=$(printf 'R%.0s' $(seq 1 100))
+GOTRID=$(curl -s -D - -o /dev/null "http://127.0.0.1:18302/api/v1/visitors" -H "Authorization: Bearer $MGR" \
+  -H "X-Request-Id: $LONGRID" | tr -d '\r' | sed -n 's/^[Xx]-[Rr]equest-[Ii]d: //p')
+NAUD=$($PSQL -t -A -c "SELECT count(*) FROM audit_logs WHERE request_id='$GOTRID' AND entity_type='visitor';")
+[ -n "$GOTRID" ] && [ ${#GOTRID} -le 64 ] && [ "$GOTRID" != "$LONGRID" ] && [ "$NAUD" = "1" ] \
+  && ok "100 karakterlik istek kimliği atıldı, yenisi verildi ve denetim kaydı YAZILDI (önceden kayıt düşüyordu)" \
+  || bad "uzun istek kimliği: dönen '$GOTRID', denetim kaydı $NAUD"
+curl -s -o /dev/null "http://127.0.0.1:18302/api/v1/visitors?search=5551234567" -H "Authorization: Bearer $MGR" \
+  -H "X-Request-Id: verify-rid-37"
+LINE=$(grep '"request_id":"verify-rid-37"' /tmp/verify-h-visitor.log | head -1)
+NAUD=$($PSQL -t -A -c "SELECT count(*) FROM audit_logs WHERE request_id='verify-rid-37';")
+echo "$LINE" | python3 -c "import json,sys; r=json.loads(sys.stdin.read()); assert r['service']=='visitor' and r['route']=='/api/v1/visitors' and r['status']==200" 2>/dev/null \
+  && [ "$NAUD" = "1" ] && ! echo "$LINE" | grep -q 5551234567 \
+  && ok "geçerli istek kimliği korunuyor; servis günlüğü JSON (service, route, status) ve sorgu dizesindeki telefon günlüğe yazılmıyor" \
+  || bad "yapılandırılmış günlük: '$LINE', denetim $NAUD"
+
 # --- E) Mali: sakin başkasının tahakkuk dökümünü okuyamaz ---
 XASS=$($PSQL -t -A -c "INSERT INTO monthly_assessments (property_id, unit_id, period_year, period_month,
     base_amount, total_amount, paid_amount, due_date)

@@ -44,7 +44,7 @@ func main() {
 	// SMS/push sağlayıcısı olmadığı sürece o kanallar kullanılmaz.
 	notifier := notify.FromEnvOrNil(pool)
 
-	r := gin.Default()
+	r := middleware.NewRouter("package")
 	// Biçimi bozuk kimlik 500 değil 404 döner (pkg/middleware/params.go).
 	r.Use(middleware.UUIDParams())
 	r.GET("/health", func(c *gin.Context) {

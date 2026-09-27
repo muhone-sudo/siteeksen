@@ -49,7 +49,7 @@ func main() {
 	}
 	defer database.Close()
 
-	r := gin.Default()
+	r := middleware.NewRouter("banking")
 	// Biçimi bozuk kimlik 500 değil 404 döner (pkg/middleware/params.go).
 	r.Use(middleware.UUIDParams())
 

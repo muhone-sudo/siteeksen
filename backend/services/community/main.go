@@ -36,7 +36,7 @@ func main() {
 	// kullanılmaz — sahte bir gönderim iddiası üretilmez.
 	notifier := notify.FromEnvOrNil(pool)
 
-	r := gin.Default()
+	r := middleware.NewRouter("community")
 	// Biçimi bozuk kimlik 500 değil 404 döner (pkg/middleware/params.go).
 	r.Use(middleware.UUIDParams())
 

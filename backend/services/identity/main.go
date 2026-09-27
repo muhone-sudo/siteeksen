@@ -31,7 +31,7 @@ func main() {
 	residentService := service.NewResidentService(residentRepo).WithActivation(authService, userRepo)
 
 	// Gin router
-	r := gin.Default()
+	r := middleware.NewRouter("identity")
 	// Biçimi bozuk kimlik 500 değil 404 döner (pkg/middleware/params.go).
 	r.Use(middleware.UUIDParams())
 

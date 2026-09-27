@@ -58,14 +58,27 @@ func (r *UserRepository) GetByID(ctx context.Context, id string) (*models.User, 
 	return user, nil
 }
 
-// GetUserProperties kullanıcının bağlı olduğu siteleri getirir
+// GetUserProperties kullanıcının bağlı olduğu siteleri getirir: sakin olduğu
+// daireler VE yönetim rolü taşıdığı siteler.
+//
+// DÜZELTME (2026-09-26): yalnızca sakinlik bağı okunuyordu. Sitede oturmayan
+// profesyonel yönetici (yalnızca property_roles kaydı olan) sitesini listede
+// görmüyor ve seçemiyordu. Yönetim satırında daire yoktur (unit_id boş).
 func (r *UserRepository) GetUserProperties(ctx context.Context, userID string) ([]models.UserProperty, error) {
 	query := `
-		SELECT p.id, p.name, u.id, u.block || '-' || u.door_number, ru.role
+		SELECT p.id::text, p.name, u.id::text, u.block || '-' || u.door_number, ru.role
 		FROM resident_units ru
 		JOIN units u ON ru.unit_id = u.id
 		JOIN properties p ON u.property_id = p.id
 		WHERE ru.resident_id = $1 AND ru.is_active = true
+		UNION ALL
+		SELECT p.id::text, p.name, '', '', pr.role
+		FROM property_roles pr
+		JOIN properties p ON p.id = pr.property_id
+		WHERE pr.user_id = $1 AND pr.is_active
+		  AND pr.valid_from <= CURRENT_DATE
+		  AND (pr.valid_to IS NULL OR pr.valid_to >= CURRENT_DATE)
+		ORDER BY 2, 1, 3
 	`
 	rows, err := r.pool.Query(ctx, query, userID)
 	if err != nil {
@@ -106,14 +119,20 @@ func (r *UserRepository) SetActiveProperty(ctx context.Context, userID, property
 		UPDATE users
 		SET active_property_id = $1, updated_at = NOW()
 		WHERE id = $2
-		  AND EXISTS (
+		  AND (EXISTS (
 			SELECT 1
 			FROM resident_units ru
 			JOIN units u ON ru.unit_id = u.id
 			WHERE ru.resident_id = $2
 			  AND ru.is_active = true
 			  AND u.property_id = $1
-		  )`
+		  ) OR EXISTS (
+			-- Sitede oturmayan yönetici: geçerli bir yönetim rolü yeterlidir.
+			SELECT 1 FROM property_roles pr
+			WHERE pr.user_id = $2 AND pr.property_id = $1 AND pr.is_active
+			  AND pr.valid_from <= CURRENT_DATE
+			  AND (pr.valid_to IS NULL OR pr.valid_to >= CURRENT_DATE)
+		  ))`
 	tag, err := r.pool.Exec(ctx, query, propertyID, userID)
 	if err != nil {
 		return err
@@ -122,6 +141,12 @@ func (r *UserRepository) SetActiveProperty(ctx context.Context, userID, property
 		return ErrPropertyNotOwned
 	}
 	return nil
+}
+
+// ClearActiveProperty, kullanıcının artık bağlı olmadığı aktif siteyi boşaltır.
+func (r *UserRepository) ClearActiveProperty(ctx context.Context, userID string) error {
+	_, err := r.pool.Exec(ctx, `UPDATE users SET active_property_id = NULL, updated_at = NOW() WHERE id = $1`, userID)
+	return err
 }
 
 // GetPropertyRoles, kullanıcının BELİRLİ BİR SİTEDEKİ rollerini döndürür.

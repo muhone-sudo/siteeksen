@@ -38,7 +38,7 @@ func main() {
 
 	svc := service.New(repository.New(pool))
 
-	r := gin.Default()
+	r := middleware.NewRouter("expense")
 	// Biçimi bozuk kimlik 500 değil 404 döner (pkg/middleware/params.go).
 	r.Use(middleware.UUIDParams())
 

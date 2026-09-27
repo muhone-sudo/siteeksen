@@ -329,7 +329,10 @@ Backend'e dokunan her değişiklikten sonra çalıştırılır.
       uçtan uca istekte `audit_logs`'a kayıt yazıldığı doğrulandı.
 - [x] **[D3] 3.2 `old_values`/`new_values` alanları yazılabilir hale geldi** (tipli `Entry` ile)
 - [ ] **3.4 Hassas veri okuma logu** (TCKN, maaş, sır gösterme)
-- [ ] **3.5 Yapılandırılmış log + istek kimliği** (`request_id` kolonu hazır, üretimi eksik)
+- [x] **[D4] 3.5 Yapılandırılmış log + istek kimliği (2026-09-26)** — 26 servis + gateway JSON günlük
+      (`middleware.NewRouter`: request_id, route şablonu, status, süre, kullanıcı, site; ham yol/sorgu
+      YAZILMAZ). İstemci `X-Request-Id`'si doğrulanır: 64 karakteri aşan değer denetim kaydını
+      düşürüyordu (denetimden kaçma) — kapatıldı. **Kanıt:** `verify-stack.sh` §37-D3.
 
 ---
 
