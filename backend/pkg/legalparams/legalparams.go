@@ -26,6 +26,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/shopspring/decimal"
+	"github.com/siteeksen/backend/pkg/dbscope"
 )
 
 // Bilinen parametre kodları. Kod adını elle yazmak yerine bunları kullanın;
@@ -185,7 +186,16 @@ func (r *Resolver) load(ctx context.Context, propertyID, code string, on time.Ti
 		p       Parameter
 		numeric *decimal.Decimal
 	)
-	err := r.pool.QueryRow(ctx, selectQuery, code, propertyID, on).Scan(
+	// Siteye özel istisna yalnızca site kapsamında görünür (RLS, migration 029).
+	// Kapsamsız sorgu istisnayı SESSİZCE atlar ve sistem varsayılanını döndürürdü.
+	// Site verilmemişse yalnızca sistem geneli satırlar okunur.
+	var row pgx.Row
+	if propertyID == "" {
+		row = r.pool.QueryRow(ctx, selectQuery, code, propertyID, on)
+	} else {
+		row = dbscope.For(r.pool, propertyID).QueryRow(ctx, selectQuery, code, propertyID, on)
+	}
+	err := row.Scan(
 		&p.Code, &numeric, &p.Text, &p.Unit, &p.LegalBasis, &p.IsMandatory,
 		&p.PropertyScoped, &p.EffectiveFrom,
 	)

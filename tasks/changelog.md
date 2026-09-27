@@ -12,6 +12,17 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-09-27 — MEVZUAT PARAMETRELERİ RLS ALTINDA (migration 029) (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **989/989**; yeni `TestSiteIstisnasiUygulamaRoluyleYalnizcaKendiSitesinde`
+> uygulama rolüyle çalışır (süper kullanıcı RLS'e tabi olmadığı için ayrı bağlantı).
+
+- `legal_parameters` RLS dışındaydı: uygulama rolü her sitenin yönetim planı istisnasını
+  okuyabiliyordu. `pkg/legalparams` kapsamsız havuz kullandığı için RLS doğrudan açılsaydı
+  site istisnaları SESSİZCE yok sayılırdı → çözümleyici artık `dbscope` ile sorgular, 029
+  tabloyu korur (sistem geneli satırlar her sitede okunur, istisna yalnızca kendi sitesinde).
+- RLS 81 → **82** tablo; RLS dışı gerekçeli tablo 9 → **8**.
+
 ### 2026-09-27 — İLAN PANOSU BİLDİRİMLERİ + DENETÇİ YETKİ AÇIĞI (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **987/987** (5 yeni kontrol, §ilan panosu).

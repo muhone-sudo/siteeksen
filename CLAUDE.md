@@ -141,7 +141,7 @@ cd admin && npm run dev            # http://localhost:3001
   dizin tablolarını yalnızca okur, `users.password_hash`/TCKN sütunlarını
   göremez, denetim izini ve jeton iptalini silemez). Parolaları `cmd/migrate`
   `APP_DB_PASSWORD` / `IDENTITY_DB_PASSWORD` ile atar; depoya yazılmaz.
-  RLS **81 tabloda** açık; dışarıda kalan 9 tablonun her biri gerekçelidir ve
+  RLS **82 tabloda** açık; dışarıda kalan 8 tablonun her biri gerekçelidir ve
   doğrulama listeyi birebir denetler. Tüm görünümler `security_invoker`
   (aksi hâlde görünüm sahibinin yetkisiyle RLS'i atlıyordu).
 - **Dağıtım dosyaları tek kaynaktan üretilir:** `backend/scripts/gen-deploy.py`
@@ -246,7 +246,7 @@ Repo yolu WSL'de: `/mnt/c/Users/md064615/Documents/Projeler/proje99`
 
 | Betik | Kapsam | Ne zaman |
 |---|---|---|
-| `bash backend/scripts/verify-stack.sh` | **987 kontrol** — dağıtım dosyası tutarlılığı, sıfırdan PostgreSQL, `cmd/migrate` ile 28 migration ve rol ataması, RLS (81 tablo, çapraz site uçtan uca testleri, rol yetkileri), şema denetimi, tam idempotency, `pkg/audit`+`pkg/legalparams`+`pkg/money`+`pkg/storage`+nisap testleri, ve uçtan uca: identity (giriş, roller, hesap etkinleştirme, şifre değiştirme, giriş kilidi), gateway (kimlik doğrulama), finance (ödeme→borç, gecikme tazminatı), governance (işletme projesi, nisap, defter zinciri), 501 dürüstlüğü ve 20 modülün uçtan uca sınanması (gider, personel, ziyaretçi, otopark, rezervasyon, kargo, sözleşme, belge, demirbaş, stok, anket, sayaç/ısı payı, bildirim, devriye, duyuru, ilan, ayarlar, enerji, tahsilat riski, NPS/ESG) ve zamanlanmış bildirimler (`cmd/scheduler`) | **Backend'e dokunan her değişiklikten sonra** |
+| `bash backend/scripts/verify-stack.sh` | **989 kontrol** — dağıtım dosyası tutarlılığı, sıfırdan PostgreSQL, `cmd/migrate` ile 29 migration ve rol ataması, RLS (82 tablo, çapraz site uçtan uca testleri, rol yetkileri), şema denetimi, tam idempotency, `pkg/audit`+`pkg/legalparams`+`pkg/money`+`pkg/storage`+nisap testleri, ve uçtan uca: identity (giriş, roller, hesap etkinleştirme, şifre değiştirme, giriş kilidi), gateway (kimlik doğrulama), finance (ödeme→borç, gecikme tazminatı), governance (işletme projesi, nisap, defter zinciri), 501 dürüstlüğü ve 20 modülün uçtan uca sınanması (gider, personel, ziyaretçi, otopark, rezervasyon, kargo, sözleşme, belge, demirbaş, stok, anket, sayaç/ısı payı, bildirim, devriye, duyuru, ilan, ayarlar, enerji, tahsilat riski, NPS/ESG) ve zamanlanmış bildirimler (`cmd/scheduler`) | **Backend'e dokunan her değişiklikten sonra** |
 | `bash backend/scripts/verify-mobile.sh` | **8 kontrol** — iki Flutter uygulaması için `pub get` + `analyze` + `test` ve arayüzde uydurma veri taraması | Mobil değişikliklerden sonra |
 | `cd admin && npx tsc --noEmit && npm run lint && npm run build` | Panel | Panel değişikliklerinden sonra |
 | `bash backend/scripts/dev-up.sh` | Geliştirme ortamını ayağa kaldırır | Elle deneme için |
@@ -397,7 +397,7 @@ Bildirilen ortak yığın: Riverpod, go_router, Dio, flutter_secure_storage.
 ### Multi-Tenancy (site izolasyonu) — **çalışıyor, iki katmanlı**
 - **Uygulama katmanı:** JWT `property_id` (site seçiminde sahiplik doğrulanır), site bazlı roller
   (`property_roles`), her sorguda `property_id` filtresi.
-- **Veritabanı katmanı:** 81 tabloda RLS; kapsam `pkg/dbscope` ile verilir. Kapsam yoksa sorgu
+- **Veritabanı katmanı:** 82 tabloda RLS; kapsam `pkg/dbscope` ile verilir. Kapsam yoksa sorgu
   hiç satır döndürmez (fail-closed). Alt tablolar ebeveyn üzerinden `EXISTS` ile korunur.
 - Yeni tablo eklerken: RLS + politika + (alt tabloysa) ebeveyn anahtarına indeks; doğrulama
   RLS dışında kalan tablo listesini birebir denetler, eklenen tablo unutulursa yakalanır.
@@ -420,7 +420,7 @@ Bildirilen ortak yığın: Riverpod, go_router, Dio, flutter_secure_storage.
 | Giriş şifresi loglanması | **Kaldırıldı** — yalnızca maskelenmiş telefon ve HTTP durumu loglanıyor |
 | İstemci kimlik başlıkları | Gateway `X-User-*` / `X-Property-Id` / `X-Tenant-Id` başlıklarını **siler** |
 | TCKN/IBAN şifreleme | **VAR** — AES-256-GCM; arama için HMAC blind index (düz SHA-256 değil). Anahtar yoksa personel servisi açılmaz. Varsayılan MASKELİ; maskesiz erişim ayrı `PII_REVEAL` denetim kaydı üretir |
-| Tenant izolasyonu (RLS) | **81 TABLODA AÇIK** (migration 020-026). 26 servisin tamamı `pkg/dbscope` kullanır. RLS dışında kalan 9 tablo gerekçeli: `audit_logs` (yalnızca ekleme), `legal_parameters` (salt-okur), `revoked_tokens`/`user_token_invalidation` (salt-okur), `tenants`/`invoices`/`usage_metrics`/`schema_migrations`/`user_activation_codes` (uygulama rolüne kapalı) |
+| Tenant izolasyonu (RLS) | **82 TABLODA AÇIK** (migration 020-026, 029). 26 servisin tamamı `pkg/dbscope` kullanır. RLS dışında kalan 8 tablo gerekçeli: `audit_logs` (yalnızca ekleme), `revoked_tokens`/`user_token_invalidation` (salt-okur), `tenants`/`invoices`/`usage_metrics`/`schema_migrations`/`user_activation_codes` (uygulama rolüne kapalı) |
 | Hesap etkinleştirme / şifre | **VAR (027)** — yönetici sakin ekleyince tek kullanımlık kod bir kez gösterilir (SMS yok, yönetici iletir); kod özeti saklanır, 7 gün, 5 denemede kilit. Şifre değiştirme/sıfırlama bütün oturumları kapatır. Girişte 5 hatada 15 dk kilit. Jeton `iat` milisaniye hassasiyetinde (`pkg/revocation.Precision`) |
 | Veritabanı rolleri | **En az yetki** — kimlik servisi ayrı rol (site verisine erişemez); uygulama rolü parola özetini/TCKN'yi göremez, dizin tablolarına yazamaz, denetim izini ve jeton iptalini silemez |
 | Dağıtım | compose/k8s/CI tek kaynaktan; kaplar root değil; compose varsayılan parolayla açılmaz; k8s'te tek giriş kapısı gateway |

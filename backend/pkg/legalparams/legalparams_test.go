@@ -164,6 +164,73 @@ func TestSiteBazliDegerVarsayilaniEzer(t *testing.T) {
 	}
 }
 
+// Siteye özel istisna UYGULAMA ROLÜYLE (RLS altında, migration 029) yalnızca
+// kendi sitesinde görünmeli; başka site ve kapsamsız sorgu sistem varsayılanını
+// almalı. Süper kullanıcı RLS'e tabi olmadığı için bu test ayrı bağlantı ister.
+func TestSiteIstisnasiUygulamaRoluyleYalnizcaKendiSitesinde(t *testing.T) {
+	admin := testPool(t)
+	dsn := os.Getenv("TEST_APP_DATABASE_URL")
+	if dsn == "" {
+		t.Skip("TEST_APP_DATABASE_URL tanımlı değil — RLS testi atlanıyor")
+	}
+	app, err := pgxpool.New(context.Background(), dsn)
+	if err != nil {
+		t.Fatalf("uygulama rolüyle bağlanılamadı: %v", err)
+	}
+	t.Cleanup(app.Close)
+	ctx := context.Background()
+
+	var siteA, siteB string
+	if err := admin.QueryRow(ctx, `
+		INSERT INTO properties (id, name, address, city, district, total_share_ratio, total_units)
+		VALUES (gen_random_uuid(), 'RLS test A', 'x', 'x', 'x', 1000, 1),
+		       (gen_random_uuid(), 'RLS test B', 'x', 'x', 'x', 1000, 1)
+		RETURNING id::text`).Scan(&siteA); err != nil {
+		t.Fatalf("test siteleri oluşturulamadı: %v", err)
+	}
+	if err := admin.QueryRow(ctx, `SELECT id::text FROM properties WHERE name = 'RLS test B'
+		LIMIT 1`).Scan(&siteB); err != nil {
+		t.Fatalf("B sitesi okunamadı: %v", err)
+	}
+	if _, err := admin.Exec(ctx, `
+		INSERT INTO legal_parameters (property_id, code, value_numeric, unit, legal_basis, effective_from)
+		VALUES ($1, $2, 1, 'MONTH', 'test-rls', DATE '2000-01-01')`, siteA, AuditIntervalMonths); err != nil {
+		t.Fatalf("istisna yazılamadı: %v", err)
+	}
+	t.Cleanup(func() {
+		c := context.Background()
+		_, _ = admin.Exec(c, `DELETE FROM legal_parameters WHERE legal_basis = 'test-rls'`)
+		_, _ = admin.Exec(c, `DELETE FROM properties WHERE name IN ('RLS test A','RLS test B')`)
+	})
+
+	r := NewWithTTL(app, 0)
+	for _, tc := range []struct {
+		name, site string
+		want       int
+	}{
+		{"kendi sitesi istisnayı görür", siteA, 1},
+		{"başka site varsayılanı alır", siteB, 3},
+		{"kapsamsız sorgu varsayılanı alır", "", 3},
+	} {
+		got, err := r.Int(ctx, tc.site, AuditIntervalMonths, time.Now())
+		if err != nil {
+			t.Fatalf("%s: %v", tc.name, err)
+		}
+		if got != tc.want {
+			t.Errorf("%s: %d (beklenen %d)", tc.name, got, tc.want)
+		}
+	}
+
+	// Doğrudan okuma: B kapsamında A'nın istisna satırı görünmemeli.
+	var n int
+	if err := app.QueryRow(ctx, `SELECT count(*) FROM legal_parameters WHERE property_id IS NOT NULL`).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 0 {
+		t.Errorf("kapsamsız uygulama rolü %d site istisnası gördü (beklenen 0)", n)
+	}
+}
+
 // Yürürlük tarihi: geçmiş bir tarih sorulduğunda o tarihte geçerli olan değer dönmeli.
 func TestYururlukTarihiCozumlemesi(t *testing.T) {
 	pool := testPool(t)

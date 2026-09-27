@@ -365,9 +365,16 @@ else
 fi
 
 step "5b) Mevzuat parametreleri ve para aritmetiği"
+# TEST_APP_DATABASE_URL: site istisnalarının RLS altında (029) yalnızca kendi
+# sitesinde göründüğü uygulama rolüyle sınanır. Parola özel karakter içerdiği
+# için anahtar=değer biçiminde verilir.
 if TEST_DATABASE_URL="postgres://siteeksen:${PW}@127.0.0.1:${DBPORT}/siteeksen" \
-   go test ./pkg/legalparams/... -count=1 >/tmp/verify-legal.log 2>&1; then
+   TEST_APP_DATABASE_URL="host=127.0.0.1 port=${DBPORT} user=siteeksen_app password='${APPPW}' dbname=siteeksen sslmode=disable" \
+   go test ./pkg/legalparams/... -count=1 -v >/tmp/verify-legal.log 2>&1; then
   ok "go test ./pkg/legalparams/... (mevzuat parametreleri)"
+  grep -q -- '--- PASS: TestSiteIstisnasiUygulamaRoluyleYalnizcaKendiSitesinde' /tmp/verify-legal.log \
+    && ok "site istisnası uygulama rolüyle yalnızca kendi sitesinde görünüyor (RLS, 029)" \
+    || bad "legal_parameters RLS testi çalışmadı (atlandı?)"
 else
   bad "go test ./pkg/legalparams/..."; tail -15 /tmp/verify-legal.log
 fi
@@ -4831,18 +4838,19 @@ ok "kullanılmayan 13 site tablosu RLS ile korunuyor"
 
 # 9) Toplam durum — RLS DIŞINDA KALAN her tablo bilinçli ve gerekçeli olmalı
 RLSCOUNT=$($PSQL -t -A -c "SELECT count(*) FROM rls_enabled_tables;")
-[ "$RLSCOUNT" = "81" ] && ok "RLS toplam 81 tabloda açık" \
-  || bad "beklenmedik RLS tablo sayısı: $RLSCOUNT (beklenen 81)"
+[ "$RLSCOUNT" = "82" ] && ok "RLS toplam 82 tabloda açık" \
+  || bad "beklenmedik RLS tablo sayısı: $RLSCOUNT (beklenen 82)"
 NOTRLS=$($PSQL -t -A -c "SELECT string_agg(t.table_name, ' ' ORDER BY t.table_name)
   FROM information_schema.tables t
   WHERE t.table_schema='public' AND t.table_type='BASE TABLE'
     AND t.table_name NOT IN (SELECT table_name FROM rls_enabled_tables);")
-# audit_logs: yalnızca ekleme · legal_parameters: salt-okur, platform geneli
+# audit_logs: yalnızca ekleme
 # revoked_tokens / user_token_invalidation: salt-okur, kişi bazlı (site değil)
 # tenants / invoices / usage_metrics / schema_migrations: uygulama rolüne kapalı
 # user_activation_codes: uygulama rolüne kapalı, yalnızca kimlik servisi (027)
-EXPECTED="audit_logs invoices legal_parameters revoked_tokens schema_migrations tenants usage_metrics user_activation_codes user_token_invalidation"
-[ "$NOTRLS" = "$EXPECTED" ] && ok "RLS dışındaki 9 tablonun her biri gerekçeli: $NOTRLS" \
+# (legal_parameters 029'dan beri RLS altında: site istisnaları yalnızca kendi sitesinde.)
+EXPECTED="audit_logs invoices revoked_tokens schema_migrations tenants usage_metrics user_activation_codes user_token_invalidation"
+[ "$NOTRLS" = "$EXPECTED" ] && ok "RLS dışındaki 8 tablonun her biri gerekçeli: $NOTRLS" \
   || bad "RLS dışında beklenmeyen tablo var: '$NOTRLS' (beklenen: '$EXPECTED')"
 
 step "37) Sertleştirme turu: gateway yönlendirmesi, durum kodları, sahiplik (2026-09-26)"

@@ -568,7 +568,7 @@ yaygınlaştırılmasına kayıyor.
    **Kalan küçük işler:**
    - `kong/kong.yml` artık isteğe bağlı profil; rotaları gateway'le birebir
      değil. Ya gateway'e yönlendiren tek rotaya indirilmeli ya da kaldırılmalı.
-   - `legal_parameters` site bazlı istisna satırları RLS dışında (salt-okur).
+   - ~~`legal_parameters` site bazlı istisna satırları RLS dışında (salt-okur).~~ **TAMAMLANDI (2026-09-27, 029)** — çözümleyici kapsamlı; RLS 82 tablo.
      `pkg/legalparams` çözümleyicisi kapsamsız havuz kullanıyor; RLS açılırsa
      site istisnaları SESSİZCE yok sayılırdı. Önce çözümleyici kapsamlı olmalı.
 2. **FAZ 6.7 — yönetişim arayüzleri.** Governance servisi API olarak hazır ama
