@@ -16,6 +16,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/formatters.dart';
+import '../../../../core/widgets/api_views.dart';
 import '../../../../core/widgets/data_state.dart';
 
 class ExpenseDetailScreen extends StatefulWidget {
@@ -34,6 +35,9 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
   @override
   void initState() {
     super.initState();
+    hasAnyRole(writeRoles).then((v) {
+      if (mounted) setState(() => _canWrite = v);
+    });
     _load();
   }
 
@@ -58,36 +62,44 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
     }
   }
 
-  void _notReady(String action) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$action henüz hazır değil.')),
-    );
+  // DÜZELTME (2026-09-27): düzenle/kopyala/sil menüsü yalnızca "hazır değil"
+  // diyordu (sunucuda bu uçlar yok: kayıtlı gider muhasebe belgesidir). Buna
+  // karşılık sunucuda VAR olan onay/ret akışı ekranda hiç yoktu; faturasız
+  // giderler mobilden onaylanamıyordu.
+  bool _canWrite = false;
+
+  Future<void> _approve() async {
+    final ok = await confirm(context, 'Gideri onayla', 'Onaylanan gider hesap verme belgelerine dahil edilir.');
+    if (!ok || !mounted) return;
+    if (await runAction(context, () => apiClient.post('/expenses/${widget.expenseId}/approve'))) _load();
+  }
+
+  Future<void> _reject() async {
+    final reason = await askText(context, 'Gideri reddet', 'Red gerekçesi');
+    if (reason == null || !mounted) return;
+    if (await runAction(context, () => apiClient.post('/expenses/${widget.expenseId}/reject', {'reason': reason}))) {
+      _load();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final pending = (_expense?['status'] ?? '').toString().toUpperCase() == 'PENDING';
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Gider Detayı'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.edit),
-            tooltip: 'Düzenle',
-            onPressed: () => _notReady('Gider düzenleme'),
-          ),
-          PopupMenuButton<String>(
-            onSelected: (value) =>
-                _notReady(value == 'duplicate' ? 'Kopyalama' : 'Silme'),
-            itemBuilder: (context) => const [
-              PopupMenuItem(value: 'duplicate', child: Text('Kopyala')),
-              PopupMenuItem(
-                  value: 'delete',
-                  child: Text('Sil', style: TextStyle(color: Colors.red))),
-            ],
-          ),
-        ],
-      ),
+      appBar: AppBar(title: const Text('Gider Detayı')),
       body: _buildBody(),
+      bottomNavigationBar: pending && _canWrite
+          ? SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Row(children: [
+                  Expanded(child: OutlinedButton(onPressed: _reject, child: const Text('Reddet'))),
+                  const SizedBox(width: 12),
+                  Expanded(child: FilledButton(onPressed: _approve, child: const Text('Onayla'))),
+                ]),
+              ),
+            )
+          : null,
     );
   }
 
@@ -113,11 +125,14 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
     final description = _text(expense, const ['description', 'title']) ?? '—';
     final amount = _number(expense, const ['amount', 'total_amount']);
     final perUnit = _number(expense, const ['per_unit_amount']);
-    final unitCount = _number(expense, const ['unit_count', 'units'])?.toInt();
+    // Sunucu daire sayısı alanı döndürmez; paylaştırma satırlarından sayılır.
+    final distributions = expense['distributions'] is List
+        ? (expense['distributions'] as List).whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList()
+        : const <Map<String, dynamic>>[];
+    final unitCount = distributions.isEmpty ? null : distributions.length;
     final isInvoiced = _flag(expense, const ['is_invoiced']);
     final reflects = _flag(expense, const ['reflects_to_assessment']);
     final status = (_text(expense, const ['status']) ?? '').toUpperCase();
-    final documents = _documents(expense);
 
     return RefreshIndicator(
       onRefresh: _load,
@@ -242,27 +257,22 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
           ),
           const SizedBox(height: 16),
 
-          const Text('Fatura Dosyaları',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-          const SizedBox(height: 8),
-          if (documents.isEmpty)
-            const EmptyStateView(
-                message: 'Bu gidere eklenmiş fatura dosyası yok.',
-                icon: Icons.description_outlined)
-          else
-            ...documents.map((doc) => Card(
-                  child: ListTile(
-                    leading: const Icon(Icons.description, color: AppTheme.primaryColor, size: 32),
-                    title: Text(_text(doc, const ['name', 'file_name']) ?? 'Belge'),
-                    subtitle: Text(formatDate(doc['created_at'] ?? doc['uploaded_at'])),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.visibility),
-                      tooltip: 'Görüntüle',
-                      // Belge görüntüleme/indirme için bağlanmış bir uç yok.
-                      onPressed: () => _notReady('Belge görüntüleme'),
-                    ),
-                  ),
-                )),
+          if (isInvoiced == false && _text(expense, const ['invoice_reason']) != null)
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.warning_amber, color: AppTheme.warningColor),
+                title: const Text('Faturasız olma nedeni'),
+                subtitle: Text(_text(expense, const ['invoice_reason'])!),
+              ),
+            ),
+          if (status == 'REJECTED' && _text(expense, const ['rejection_reason']) != null)
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.cancel, color: AppTheme.errorColor),
+                title: const Text('Red gerekçesi'),
+                subtitle: Text(_text(expense, const ['rejection_reason'])!),
+              ),
+            ),
           const SizedBox(height: 16),
 
           if (reflects == true) ...[
@@ -299,6 +309,20 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
                 ),
               ),
             ),
+            if (distributions.isNotEmpty)
+              Card(
+                child: ExpansionTile(
+                  title: Text('Bağımsız bölüm payları (${distributions.length})'),
+                  children: [
+                    for (final d in distributions)
+                      ListTile(
+                        dense: true,
+                        title: Text(_text(d, const ['unit_name']) ?? '—'),
+                        trailing: Text(formatTry(toNum(d['amount']))),
+                      ),
+                  ],
+                ),
+              ),
           ],
           const SizedBox(height: 48),
         ],
@@ -307,23 +331,9 @@ class _ExpenseDetailScreenState extends State<ExpenseDetailScreen> {
   }
 }
 
-List<Map<String, dynamic>> _documents(Map<String, dynamic> expense) {
-  for (final key in const ['invoices', 'documents', 'files', 'attachments']) {
-    final v = expense[key];
-    if (v is List) {
-      return v.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
-    }
-  }
-  return const [];
-}
-
 String _periodLabel(Map<String, dynamic> expense) {
-  final period = _text(expense, const ['period']);
-  if (period != null) return period;
-  final year = _number(expense, const ['period_year'])?.toInt();
-  final month = _number(expense, const ['period_month'])?.toInt();
-  if (year == null || month == null) return '—';
-  return '${_monthName(month)} $year';
+  final period = _text(expense, const ['assessment_period']);
+  return period == null ? '—' : periodLabel(period);
 }
 
 String _distributionLabel(String? type, int? unitCount) {
@@ -383,14 +393,6 @@ IconData _statusIcon(String status) {
     default:
       return Icons.schedule;
   }
-}
-
-String _monthName(int month) {
-  const months = [
-    '', 'Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
-    'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık',
-  ];
-  return (month >= 1 && month <= 12) ? months[month] : '—';
 }
 
 double? _number(Map<String, dynamic> map, List<String> keys) {

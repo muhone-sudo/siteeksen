@@ -7,8 +7,8 @@
 // Yani yönetici tahakkuk yaptığını sanıp hiçbir şey kaydetmiyordu — para akışında
 // en ağır hata türü.
 //
-// Artık: gider kalemleri gerçek kategori listesinden (`getExpenseCategories`) seçilir,
-// daire sayısı `getUnits()` ile sayılır, kayıt `createAssessment()` ile yapılır ve
+// Artık: gider kalemleri gerçek kategori listesinden (`/finance/expense-categories`) seçilir,
+// daire sayısı `getUnits()` ile sayılır, kayıt `POST /finance/assessments` ile yapılır ve
 // başarı mesajı yalnızca sunucu 2xx döndüğünde gösterilir.
 // Backend `CreateAssessmentInput` alanları: period_year, period_month, due_date,
 // expense_items[{category_id, amount}] — gönderilen gövde buna birebir uyar.
@@ -19,6 +19,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/formatters.dart';
+import '../../../../core/widgets/api_views.dart';
 import '../../../../core/widgets/data_state.dart';
 
 class CreateAssessmentScreen extends StatefulWidget {
@@ -75,7 +76,7 @@ class _CreateAssessmentScreenState extends State<CreateAssessmentScreen> {
       _error = null;
     });
     try {
-      final categories = await apiClient.getExpenseCategories();
+      final categories = await apiClient.getList('/finance/expense-categories');
       // Daire sayısı ayrı bir uçtan gelir; alınamazsa dağıtım bilgisi "—" gösterilir,
       // tahmini bir sayı uydurulmaz.
       int? unitCount;
@@ -312,22 +313,24 @@ class _CreateAssessmentScreenState extends State<CreateAssessmentScreen> {
 
     setState(() => _saving = true);
     try {
-      await apiClient.createAssessment({
+      final res = await apiClient.post('/finance/assessments', {
         'period_year': _selectedYear,
         'period_month': _selectedMonth,
-        'due_date': _dueDate.toIso8601String(),
+        // DÜZELTME (2026-09-27): sunucu YYYY-MM-DD bekler; ISO zaman damgası 400 alıyordu.
+        'due_date': apiDate(_dueDate),
         'expense_items': _expenseItems
             .map((i) => {'category_id': i.categoryId, 'amount': i.amount})
             .toList(),
       });
       if (!mounted) return;
       // Başarı mesajı YALNIZCA sunucu isteği başarıyla tamamladığında gösterilir.
-      _showMessage('Tahakkuk oluşturuldu');
+      final n = res['data'] is List ? (res['data'] as List).length : null;
+      _showMessage(n == null ? 'Tahakkuk oluşturuldu' : 'Tahakkuk oluşturuldu: $n daire');
       context.pop();
     } catch (e) {
       if (!mounted) return;
       setState(() => _saving = false);
-      _showMessage(toUserMessage(e), isError: true);
+      _showMessage(errorText(e), isError: true);
     }
   }
 

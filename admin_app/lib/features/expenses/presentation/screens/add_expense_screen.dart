@@ -10,7 +10,7 @@
 //   3. "Kaydet" sunucuya hiçbir istek göndermeden "Gider eklendi" diyordu (`// TODO: API call`).
 //      Yönetici gideri kaydettiğini sanıp hiçbir kayıt oluşmuyordu.
 //
-// Artık kategoriler `getExpenseCategories()` ile gelir, kayıt `createExpense()` ile
+// Artık kategoriler `GET /expense-categories` ile gelir, kayıt `POST /expenses` ile
 // yapılır ve başarı mesajı yalnızca sunucu 2xx döndüğünde gösterilir. Fatura yükleme
 // ve AI tarama için bağlanmış bir uç olmadığından o bölüm `NotImplementedNotice` oldu.
 
@@ -20,6 +20,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/formatters.dart';
+import '../../../../core/widgets/api_views.dart';
 import '../../../../core/widgets/data_state.dart';
 
 class AddExpenseScreen extends StatefulWidget {
@@ -72,7 +73,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       _error = null;
     });
     try {
-      final rows = await apiClient.getExpenseCategories();
+      final rows = await apiClient.getList('/expense-categories');
       if (!mounted) return;
       setState(() {
         _categories =
@@ -152,7 +153,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
               isExpanded: true,
               decoration: const InputDecoration(labelText: 'Kategori *'),
               items: _categories.map((c) {
-                final type = _text(c, const ['category_type', 'type']);
+                final type = _text(c, const ['type']);
                 return DropdownMenuItem(
                   value: c['id']?.toString(),
                   child: Row(
@@ -180,7 +181,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                   );
                   // Kategori "aidata yansır mı" bilgisini gerçekten döndürüyorsa uygula;
                   // döndürmüyorsa kullanıcının seçimi bozulmaz (varsayım yapılmaz).
-                  final reflects = _flag(cat, const ['reflects_to_assessment', 'reflects']);
+                  final reflects = _flag(cat, const ['reflects_to_assessment']);
                   if (reflects != null) _reflectsToAssessment = reflects;
                   final distribution = _text(cat, const ['distribution_type']);
                   if (distribution != null) {
@@ -388,27 +389,33 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
 
     setState(() => _saving = true);
     try {
-      await apiClient.createExpense({
+      final res = await apiClient.post('/expenses', {
         'category_id': _selectedCategory,
         'description': _descriptionController.text.trim(),
         'amount': double.parse(_amountController.text.replaceAll(',', '.')),
-        'expense_date': _expenseDate.toIso8601String(),
+        // DÜZELTME (2026-09-27): sunucu YYYY-AA-GG bekler; ISO damga 400 alıyordu.
+        'expense_date': apiDate(_expenseDate),
         'is_invoiced': _isInvoiced,
         'reflects_to_assessment': _reflectsToAssessment,
         if (_reflectsToAssessment) 'distribution_type': _distributionType,
+        if (_reflectsToAssessment) 'assessment_period': apiDate(_expenseDate).substring(0, 7),
         if (_isInvoiced) 'vendor_name': _vendorController.text.trim(),
         if (_isInvoiced) 'invoice_number': _invoiceNumberController.text.trim(),
-        if (!_isInvoiced)
-          'non_invoiced_reason': _nonInvoicedReasonController.text.trim(),
+        // DÜZELTME: alan adı `invoice_reason`; `non_invoiced_reason` yok sayılıyor,
+        // faturasız her gider 422 alıyordu.
+        if (!_isInvoiced) 'invoice_reason': _nonInvoicedReasonController.text.trim(),
       });
       if (!mounted) return;
       // Başarı mesajı YALNIZCA sunucu kaydı onayladığında gösterilir.
-      _showMessage(_isInvoiced ? 'Gider eklendi' : 'Gider onaya gönderildi');
+      final e = res['expense'] is Map ? res['expense'] as Map : const {};
+      final n = e['distributions'] is List ? (e['distributions'] as List).length : 0;
+      final note = res['note'] is String ? '\n${res['note']}' : '';
+      _showMessage((n > 0 ? 'Gider kaydedildi; $n bağımsız bölüme paylaştırıldı' : 'Gider kaydedildi') + note);
       context.pop();
     } catch (e) {
       if (!mounted) return;
       setState(() => _saving = false);
-      _showMessage(toUserMessage(e), isError: true);
+      _showMessage(errorText(e), isError: true);
     }
   }
 

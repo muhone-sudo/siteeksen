@@ -225,12 +225,12 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
       case 'GENERAL':
       case 'INFO':
         return 'Genel';
-      case 'PAYMENT':
-        return 'Ödeme';
+      case 'FINANCIAL':
+        return 'Mali';
       case 'MAINTENANCE':
         return 'Bakım';
-      case 'MEETING':
-        return 'Toplantı';
+      case 'ASSEMBLY':
+        return 'Genel Kurul';
       case 'EMERGENCY':
         return 'Acil';
       default:

@@ -12,6 +12,34 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-09-27 — YÖNETİCİ MOBİL UYGULAMASI GERÇEK API'YE BAĞLANDI (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-mobile.sh` → 8/8 (yönetici: 21 test, 19'u yeni — `admin_app/test/logic_test.dart`).
+> Not: yarım hâli kullanıcı commit'i `1c22c88` içinde derlenmez durumdaydı; bu girdi onu tamamlar.
+
+İstemcideki ~20 alan yöntemi var olmayan yollara gidiyordu; hepsi silindi, ekranlar
+yolu sözleşmeden (`tasks/api-sozlesmesi.md`) verir (`getList/getMap/post…`).
+Ortak yükleme/hata/boş/işlem davranışı `core/widgets/api_views.dart`'ta tek yerde.
+- **Oturum:** sunucu çıkışı, etkinleştirme ekranı, şifre değiştirme, oturum koruması;
+  sakin eklenince tek kullanımlık **etkinleştirme kodu** gösterilir (yoksa sakin hiç giremiyordu).
+- **Menü:** tüm modüller site rolüne göre süzülür; gerçek site adı.
+- **Ödemeler:** havale/nakit ödemenin **yönetim onayı** mobilde hiç yoktu → "Onay bekleyen"
+  sekmesi (onay `{reference}` borcu düşürür, ret borcu değiştirmez).
+- **Tahakkuk / gider:** vade ve gider tarihi ISO damga gidiyordu → **her istek 400**'dü;
+  faturasız giderde alan adı yanlıştı (`non_invoiced_reason`) → **her faturasız gider 422**'ydi.
+  Gider detayında sunucuda olmayan düzenle/sil yerine sunucudaki **onay/ret** akışı;
+  daire sayısı paylaştırma satırlarından.
+- **Sözleşme:** alanlar tahmin ediliyordu → `party_name`/`contract_type`; yenileme ve
+  gerekçeli fesih; ihbar süresi uyarısı.
+- **Tahsilat riski / enerji:** "YZ tahmini" bekleyen ekranlar gerçek, gerekçeli
+  hesaplara bağlandı (`/collection/risk`, `/energy/trends|anomalies`); önceki dönem 0 iken yüzde uydurulmaz.
+- **İlan panosu:** yönetim ilan verip siliyordu (sunucuda yok) → onay/ret(gerekçe)/kapatma ve yorum gizleme.
+- **Anket:** taslak → yayın → bitir/iptal; genel kurul türü sunulmaz (KMK m.29-32).
+- **Dashboard:** bekleyen ödeme yeşil tikle "tamamlandı" gibi görünüyordu; tarih hep "—"ydi (sıfır zaman damgası).
+- Diğer: ziyaretçi, personel, kargo, rezervasyon, talep, devriye, otopark, sayaç, stok,
+  finans, duyuru (sabitleme ucu, geçerli kategoriler), yönetişim (yeni, salt okuma);
+  banka/rapor/API ayarları/toplantı sihirbazı dürüst 501 ekranı.
+
 ### 2026-09-27 — SAKİN MOBİL UYGULAMASI GERÇEK API'YE BAĞLANDI (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-mobile.sh` → 8/8 (sakin: 17 test, 15'i yeni); `verify-stack.sh` → **982/982**.

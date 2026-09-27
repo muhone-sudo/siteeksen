@@ -1,38 +1,35 @@
-// Anket / oylama yönetim ekranı.
+// Anket yönetimi.
 //
-// NE DEĞİŞTİ VE NEDEN (2026-09-13):
-// Ekran tamamen uydurma veri gösteriyordu: 3 sabit anket ("Otopark Düzenlemesi",
-// "Site İçi Hız Limiti", "Memnuniyet Anketi 2026"), sabit katılım sayıları
-// (45/120, 78/120, 95/120) ve tamamen sabit üst istatistikler ("Aktif 2",
-// "Katılım %62", "Tamamlanan 8"). Yönetici bu sayılara bakarak "oylama
-// tamamlandı / yeter sayı sağlandı" kararı verebilir; KMK'ya göre karar
-// yeter sayısı hesabı buna dayandığı için bu doğrudan hukuki risk üretir.
-//
-// Artık liste `GET /surveys`, sonuçlar `GET /surveys/{id}/results` ve oluşturma
-// `POST /surveys` uçlarından gelir. Survey servisi bu uçları henüz gerçek veri
-// katmanına bağlamadığı için bugün 501 döner; bu durumda satır üretmek yerine
-// `NotImplementedNotice` gösterilir.
-//
-// Kaldırılanlar:
-//   * `_surveys` sabit listesi ve sabit istatistik kartları,
-//   * "Geçmiş" başlık düğmesi (`onAction` verilmemişti, basınca hiçbir şey olmuyordu),
-//   * detay sayfasındaki "Sonuçları Görüntüle" düğmesi (yalnızca sayfayı kapatıyordu)
-//     — yerine sonuçlar doğrudan sunucudan çekilip gösteriliyor,
-//   * oluşturma formundaki "Oluştur" düğmesi (kaydetmeden kapatıyordu).
-//
-// Sunucu sözleşmesi (backend/services/survey/main.go): `POST /surveys` en az 2
-// seçenek ister (`options` binding:"required,min=2"), bu yüzden form seçenek
-// alanlarını zorunlu tutar.
+// DÜZELTME (2026-09-27): ekran var olmayan uçlara (`/surveys/:id/results`)
+// gidiyor, "genel kurul oylaması" türü sunuyordu. Sunucu genel kurul kararı
+// ÜRETMEZ (KMK m.29-32: çağrı, nisap ve karar defteri governance'tadır);
+// anket TASLAK olarak açılır, yayınlanınca sakinlere bildirim gider.
+// Sözleşme: `GET /surveys?status=`, `GET /surveys/:id` (sonuçlar yalnızca
+// görünürse), `POST /surveys`, `POST /surveys/:id/publish|close|cancel {reason}`.
 
 import 'package:flutter/material.dart';
 
 import '../../../../core/network/api_client.dart';
-import '../../../../core/theme/apple_theme.dart';
 import '../../../../core/utils/formatters.dart';
-import '../../../../core/widgets/apple_widgets.dart';
-import '../../../../core/widgets/data_state.dart';
+import '../../../../core/widgets/api_views.dart';
 
-/// Anket/Oylama Yönetim Ekranı - Apple Tarzı
+const surveyTypes = {'POLL': 'Kısa oylama', 'SURVEY': 'Anket', 'VOTE': 'Karar öncesi oylama'};
+
+(String, Color) surveyStatus(Object? s) {
+  switch ('${s ?? ''}') {
+    case 'DRAFT':
+      return ('Taslak', Colors.blueGrey);
+    case 'ACTIVE':
+      return ('Oylamada', Colors.green);
+    case 'ENDED':
+      return ('Sona erdi', Colors.indigo);
+    case 'CANCELLED':
+      return ('İptal edildi', Colors.red);
+    default:
+      return ('${s ?? '—'}', Colors.blueGrey);
+  }
+}
+
 class SurveyManagementScreen extends StatefulWidget {
   const SurveyManagementScreen({super.key});
 
@@ -41,858 +38,288 @@ class SurveyManagementScreen extends StatefulWidget {
 }
 
 class _SurveyManagementScreenState extends State<SurveyManagementScreen> {
-  /// Sunucudaki `survey_type` değerleri. Sekme 0 oylamaları, sekme 1 anketleri
-  /// gösterir; sınıflandırma sunucu alanına göre yapılır, isme göre değil.
-  static const Set<String> _pollTypes = {'POLL', 'VOTE'};
-
-  int _selectedTab = 0;
-  bool _loading = true;
-  Object? _error;
-  List<Map<String, dynamic>> _surveys = const [];
+  bool _canWrite = false;
+  int _token = 0;
+  String _status = '';
 
   @override
   void initState() {
     super.initState();
-    _load();
-  }
-
-  Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _error = null;
+    hasAnyRole(writeRoles).then((v) {
+      if (mounted) setState(() => _canWrite = v);
     });
-    try {
-      final data = await apiClient.getSurveys();
-      if (!mounted) return;
-      setState(() {
-        _surveys = data
-            .whereType<Map>()
-            .map((e) => Map<String, dynamic>.from(e))
-            .toList();
-        _loading = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _error = e;
-        _loading = false;
-      });
-    }
   }
 
-  List<Map<String, dynamic>> get _filteredSurveys {
-    return _surveys.where((s) {
-      final type = _str(s['survey_type']).toUpperCase();
-      final isPoll = _pollTypes.contains(type);
-      return _selectedTab == 0 ? isPoll : !isPoll;
-    }).toList();
+  Future<void> _create() async {
+    final saved = await showModalBottomSheet<bool>(context: context, isScrollControlled: true, builder: (_) => const _SurveyForm());
+    if (saved == true) setState(() => _token++);
   }
 
-  /// Modül sunucuda hiç hazır değilse yeni kayıt açtırmanın anlamı yok.
-  bool get _moduleUnavailable => _error != null && isNotImplemented(_error!);
+  Future<void> _open(Map<String, dynamic> s) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => SizedBox(
+        height: MediaQuery.of(context).size.height * 0.85,
+        child: _SurveyDetail(id: '${s['id']}', canWrite: _canWrite),
+      ),
+    );
+    if (mounted) setState(() => _token++);
+  }
 
   @override
   Widget build(BuildContext context) {
-    final loaded = !_loading && _error == null;
-
     return Scaffold(
-      backgroundColor: AppleTheme.background,
-      body: RefreshIndicator(
-        onRefresh: _load,
-        child: CustomScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          slivers: [
-            SliverAppBar(
-              expandedHeight: 120,
-              floating: false,
-              pinned: true,
-              backgroundColor: Colors.white,
-              surfaceTintColor: Colors.transparent,
-              flexibleSpace: const FlexibleSpaceBar(
-                titlePadding: EdgeInsets.only(left: 20, bottom: 16),
-                title: Text(
-                  'Anketler & Oylamalar',
-                  style: TextStyle(
-                    fontSize: 26,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.black,
-                    letterSpacing: -0.5,
-                  ),
-                ),
+      appBar: AppBar(title: const Text('Anketler')),
+      floatingActionButton: _canWrite
+          ? FloatingActionButton.extended(onPressed: _create, icon: const Icon(Icons.add), label: const Text('Anket'))
+          : null,
+      body: Column(children: [
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.all(8),
+          child: Row(children: [
+            for (final e in const {'': 'Tümü', 'DRAFT': 'Taslak', 'ACTIVE': 'Oylamada', 'ENDED': 'Sona eren', 'CANCELLED': 'İptal'}.entries)
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: ChoiceChip(label: Text(e.value), selected: _status == e.key, onSelected: (_) => setState(() => _status = e.key)),
               ),
-            ),
-
-            // İstatistikler yalnızca gerçek veri geldiyse gösterilir.
-            if (loaded)
-              SliverToBoxAdapter(
-                child: Container(
-                  height: 100,
-                  margin: const EdgeInsets.only(top: 8),
-                  child: ListView(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    children: [
-                      _buildMiniStat('Aktif', '$_activeCount',
-                          Icons.how_to_vote_rounded, AppleTheme.systemBlue),
-                      _buildMiniStat('Katılım', _participationLabel,
-                          Icons.groups_rounded, AppleTheme.systemGreen),
-                      _buildMiniStat('Tamamlanan', '$_endedCount',
-                          Icons.check_circle_rounded, AppleTheme.systemGray),
-                    ],
-                  ),
-                ),
-              ),
-
-            // Tab Selector
-            SliverToBoxAdapter(
-              child: Container(
-                height: 44,
-                margin:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                decoration: BoxDecoration(
-                  color: AppleTheme.systemGray6,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Row(
-                  children: [
-                    _buildTab('Oylamalar', 0, Icons.how_to_vote_rounded),
-                    _buildTab('Anketler', 1, Icons.poll_rounded),
-                  ],
-                ),
-              ),
-            ),
-
-            SliverToBoxAdapter(
-              child: AppleSectionHeader(
-                title: _selectedTab == 0 ? 'Oylamalar' : 'Anketler',
-              ),
-            ),
-
-            SliverToBoxAdapter(child: _buildBody()),
-
-            const SliverToBoxAdapter(child: SizedBox(height: 100)),
-          ],
+          ]),
         ),
-      ),
-      floatingActionButton: _moduleUnavailable
-          ? null
-          : AppleFAB(
-              icon: Icons.add_rounded,
-              label: _selectedTab == 0 ? 'Oylama' : 'Anket',
-              onPressed: () => _showCreateSheet(context),
-            ),
-    );
-  }
-
-  Widget _buildBody() {
-    if (_loading) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 48),
-        child: LoadingView(message: 'Anketler alınıyor...'),
-      );
-    }
-    if (_error != null) {
-      final error = _error!;
-      if (isNotImplemented(error)) {
-        return const NotImplementedNotice(
-          title: 'Anket modülü henüz sunucuda hazır değil',
-          detail: 'Survey servisi anketleri veritabanından okumuyor (501). '
-              'Gerçek oy sayısı gelmeden burada katılım/karar bilgisi '
-              'gösterilmez.',
-        );
-      }
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 32),
-        child: ErrorStateView(message: toUserMessage(error), onRetry: _load),
-      );
-    }
-
-    final items = _filteredSurveys;
-    if (items.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 32),
-        child: EmptyStateView(
-          message: _selectedTab == 0
-              ? 'Kayıtlı oylama yok.'
-              : 'Kayıtlı anket yok.',
-          icon: Icons.how_to_vote_outlined,
-        ),
-      );
-    }
-
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        children: items.asMap().entries.map((entry) {
-          return _buildSurveyTile(entry.value,
-              isLast: entry.key == items.length - 1);
-        }).toList(),
-      ),
-    );
-  }
-
-  int get _activeCount =>
-      _surveys.where((s) => _str(s['status']).toUpperCase() == 'ACTIVE').length;
-
-  int get _endedCount =>
-      _surveys.where((s) => _str(s['status']).toUpperCase() == 'ENDED').length;
-
-  /// Ortalama katılım; sunucu katılım verisi vermiyorsa uydurma bir yüzde
-  /// yerine "—" gösterilir.
-  String get _participationLabel {
-    final rates = _surveys
-        .map((s) => s['participation_rate'])
-        .whereType<num>()
-        .toList();
-    if (rates.isEmpty) return '—';
-    final avg = rates.reduce((a, b) => a + b) / rates.length;
-    return '%${avg.round()}';
-  }
-
-  Widget _buildTab(String title, int index, IconData icon) {
-    final isSelected = _selectedTab == index;
-    return Expanded(
-      child: GestureDetector(
-        onTap: () => setState(() => _selectedTab = index),
-        child: AnimatedContainer(
-          duration: AppleTheme.normalAnimation,
-          margin: const EdgeInsets.all(4),
-          decoration: BoxDecoration(
-            color: isSelected ? Colors.white : Colors.transparent,
-            borderRadius: BorderRadius.circular(8),
-            boxShadow: isSelected
-                ? [
-                    BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.08),
-                        blurRadius: 4)
-                  ]
-                : null,
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon,
-                  size: 18,
-                  color: isSelected
-                      ? AppleTheme.systemBlue
-                      : AppleTheme.secondaryLabel),
-              const SizedBox(width: 6),
-              Text(
-                title,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                  color: isSelected
-                      ? AppleTheme.label
-                      : AppleTheme.secondaryLabel,
-                ),
-              ),
-            ],
+        Expanded(
+          child: ApiList(
+            token: '$_status$_token',
+            load: () => apiClient.getList('/surveys', query: {'status': _status}),
+            empty: 'Anket yok',
+            itemBuilder: (context, s, _) {
+              final (label, color) = surveyStatus(s['status']);
+              return ListTile(
+                onTap: () => _open(s),
+                title: Text('${s['title'] ?? ''}'),
+                subtitle: Text('${surveyTypes[s['survey_type']] ?? s['survey_type'] ?? ''} · '
+                    '${s['total_votes'] ?? 0}/${s['eligible_voters'] ?? 0} oy (%${formatNumber(toNum(s['participation_rate']))})'
+                    '${s['ends_at'] != null ? ' · bitiş ${formatDate(s['ends_at'])}' : ''}'),
+                trailing: StatusChip(label, color: color),
+              );
+            },
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildMiniStat(
-      String title, String value, IconData icon, Color color) {
-    return Container(
-      width: 110,
-      margin: const EdgeInsets.only(right: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Row(
-            children: [
-              Icon(icon, color: color, size: 18),
-              const Spacer(),
-              Text(value,
-                  style: const TextStyle(
-                      fontSize: 20, fontWeight: FontWeight.w700)),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(title,
-              style: TextStyle(fontSize: 12, color: AppleTheme.secondaryLabel)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSurveyTile(Map<String, dynamic> survey, {bool isLast = false}) {
-    final status = _str(survey['status']).toUpperCase();
-    final isActive = status == 'ACTIVE';
-    final votes = _int(survey['total_votes']);
-    final eligible = _int(survey['total_eligible_voters']);
-    final hasParticipation = eligible > 0;
-
-    return Column(
-      children: [
-        InkWell(
-          onTap: () => _showSurveyDetails(context, survey),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        _str(survey['title']).isEmpty
-                            ? '(başlıksız)'
-                            : _str(survey['title']),
-                        style: const TextStyle(
-                            fontSize: 17, fontWeight: FontWeight.w600),
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: _statusColor(status).withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        _statusLabel(status),
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: _statusColor(status),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                // Katılım çubuğu yalnızca sunucu seçmen sayısını verdiyse
-                // çizilir; aksi halde oran uydurmak gerekirdi.
-                if (hasParticipation)
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
-                    child: LinearProgressIndicator(
-                      value: (votes / eligible).clamp(0.0, 1.0),
-                      backgroundColor: AppleTheme.systemGray6,
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        isActive ? AppleTheme.systemBlue : AppleTheme.systemGray,
-                      ),
-                      minHeight: 6,
-                    ),
-                  ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Icon(Icons.people_rounded,
-                        size: 14, color: AppleTheme.secondaryLabel),
-                    const SizedBox(width: 4),
-                    Text(
-                      hasParticipation
-                          ? '$votes/$eligible katılım'
-                          : 'Katılım verisi yok',
-                      style: TextStyle(
-                          fontSize: 13, color: AppleTheme.secondaryLabel),
-                    ),
-                    const Spacer(),
-                    Icon(Icons.calendar_today_rounded,
-                        size: 14, color: AppleTheme.tertiaryLabel),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Son: ${formatDate(survey['ends_at'])}',
-                      style: TextStyle(
-                          fontSize: 13, color: AppleTheme.tertiaryLabel),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-        if (!isLast)
-          Padding(
-            padding: const EdgeInsets.only(left: 16),
-            child: Container(height: 0.5, color: AppleTheme.opaqueSeparator),
-          ),
-      ],
-    );
-  }
-
-  Color _statusColor(String status) {
-    switch (status) {
-      case 'ACTIVE':
-        return AppleTheme.systemGreen;
-      case 'ENDED':
-        return AppleTheme.systemGray;
-      case 'CANCELLED':
-        return AppleTheme.systemRed;
-      default:
-        return AppleTheme.systemOrange;
-    }
-  }
-
-  String _statusLabel(String status) {
-    switch (status) {
-      case 'ACTIVE':
-        return 'Aktif';
-      case 'ENDED':
-        return 'Tamamlandı';
-      case 'CANCELLED':
-        return 'İptal';
-      case 'DRAFT':
-        return 'Taslak';
-      default:
-        return status.isEmpty ? 'Durum yok' : status;
-    }
-  }
-
-  void _showSurveyDetails(BuildContext context, Map<String, dynamic> survey) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => _SurveyResultsSheet(survey: survey),
-    );
-  }
-
-  void _showCreateSheet(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => _CreateSurveySheet(
-        surveyType: _selectedTab == 0 ? 'POLL' : 'SURVEY',
-        onCreated: _load,
-      ),
+      ]),
     );
   }
 }
 
-/// Anket sonuçları sayfası — sayılar `GET /surveys/{id}/results` ucundan gelir.
-class _SurveyResultsSheet extends StatefulWidget {
-  final Map<String, dynamic> survey;
-  const _SurveyResultsSheet({required this.survey});
-
-  @override
-  State<_SurveyResultsSheet> createState() => _SurveyResultsSheetState();
-}
-
-class _SurveyResultsSheetState extends State<_SurveyResultsSheet> {
-  bool _loading = true;
-  Object? _error;
-  List<Map<String, dynamic>> _options = const [];
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-    try {
-      final results =
-          await apiClient.getSurveyResults(_str(widget.survey['id']));
-      if (!mounted) return;
-      final raw = results['options'] ?? results['results'] ?? results['data'];
-      setState(() {
-        _options = raw is List
-            ? raw
-                .whereType<Map>()
-                .map((e) => Map<String, dynamic>.from(e))
-                .toList()
-            : const [];
-        _loading = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _error = e;
-        _loading = false;
-      });
-    }
-  }
+class _SurveyDetail extends StatelessWidget {
+  final String id;
+  final bool canWrite;
+  const _SurveyDetail({required this.id, required this.canWrite});
 
   @override
   Widget build(BuildContext context) {
-    final votes = _int(widget.survey['total_votes']);
-    final eligible = _int(widget.survey['total_eligible_voters']);
+    return ApiObject(
+      load: () => apiClient.getMap('/surveys/$id'),
+      builder: (context, res, reload) {
+        final s = res['survey'] is Map ? Map<String, dynamic>.from(res['survey'] as Map) : <String, dynamic>{};
+        final options = s['options'] is List ? (s['options'] as List).whereType<Map>().toList() : const <Map>[];
+        final status = s['status'];
+        final (label, color) = surveyStatus(status);
 
-    return Container(
-      height: MediaQuery.of(context).size.height * 0.6,
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      child: Column(
-        children: [
-          Container(
-            width: 36,
-            height: 5,
-            margin: const EdgeInsets.only(top: 12),
-            decoration: BoxDecoration(
-              color: AppleTheme.systemGray4,
-              borderRadius: BorderRadius.circular(2.5),
+        Future<void> act(String action, [Map<String, dynamic>? body]) async {
+          if (await runAction(context, () => apiClient.post('/surveys/$id/$action', body))) await reload();
+        }
+
+        return ListView(padding: const EdgeInsets.all(16), children: [
+          Row(children: [
+            Expanded(child: Text('${s['title'] ?? ''}', style: Theme.of(context).textTheme.titleLarge)),
+            StatusChip(label, color: color),
+          ]),
+          if ((s['description'] ?? '').toString().isNotEmpty) Padding(padding: const EdgeInsets.only(top: 8), child: Text('${s['description']}')),
+          const SizedBox(height: 8),
+          StatRow([
+            ('Oy', '${s['total_votes'] ?? 0}'),
+            ('Oy hakkı olan', '${s['eligible_voters'] ?? 0}'),
+            ('Katılım', '%${formatNumber(toNum(s['participation_rate']))}'),
+          ]),
+          Text([
+            if (s['is_anonymous'] == true) 'Anonim',
+            if (s['is_weighted'] == true) 'Arsa payı ağırlıklı',
+            'Başlangıç: ${formatDateTime(s['starts_at'])}',
+            if (s['ends_at'] != null) 'Bitiş: ${formatDateTime(s['ends_at'])}',
+          ].join(' · ')),
+          const Divider(height: 24),
+          for (final o in options)
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text('${o['option_text'] ?? ''}'),
+              subtitle: o['percentage'] == null
+                  ? null
+                  : LinearProgressIndicator(value: (toNum(o['percentage']) / 100).clamp(0, 1).toDouble()),
+              trailing: o['vote_count'] == null
+                  ? null
+                  // `percentage`: ağırlıklıysa arsa payı, değilse oy sayısı üzerinden.
+                  : Text('${o['vote_count']} oy'
+                      '${o['percentage'] != null ? ' · %${formatNumber(toNum(o['percentage']))}' : ''}'),
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(_str(widget.survey['title']),
-                    style: const TextStyle(
-                        fontSize: 22, fontWeight: FontWeight.w700)),
-                const SizedBox(height: 20),
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: AppleTheme.systemGray6,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      _statColumn(
-                        'Katılım',
-                        eligible > 0
-                            ? '${((votes / eligible) * 100).round()}%'
-                            : '—',
-                      ),
-                      Container(
-                          width: 1,
-                          height: 40,
-                          color: AppleTheme.opaqueSeparator),
-                      _statColumn('Oy Sayısı', eligible > 0 ? '$votes' : '—'),
-                      Container(
-                          width: 1,
-                          height: 40,
-                          color: AppleTheme.opaqueSeparator),
-                      _statColumn('Seçmen', eligible > 0 ? '$eligible' : '—'),
-                    ],
-                  ),
+          for (final key in const ['results_note', 'anonymity_note', 'legal_notice'])
+            if (res[key] is String) Padding(padding: const EdgeInsets.only(top: 8), child: Text('${res[key]}', style: Theme.of(context).textTheme.bodySmall)),
+          const SizedBox(height: 16),
+          if (canWrite)
+            Wrap(spacing: 8, alignment: WrapAlignment.end, children: [
+              if (status == 'DRAFT' || status == 'ACTIVE')
+                OutlinedButton(
+                  onPressed: () async {
+                    final reason = await askText(context, 'Anketi iptal et', 'İptal gerekçesi');
+                    if (reason != null) await act('cancel', {'reason': reason});
+                  },
+                  child: const Text('İptal et'),
                 ),
-              ],
-            ),
-          ),
-          Expanded(child: _buildResults()),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildResults() {
-    if (_loading) {
-      return const LoadingView(message: 'Sonuçlar alınıyor...');
-    }
-    if (_error != null) {
-      final error = _error!;
-      if (isNotImplemented(error)) {
-        return const SingleChildScrollView(
-          child: NotImplementedNotice(
-            title: 'Sonuçlar henüz sunucuda hazır değil',
-            detail: 'Survey servisi oy dökümünü döndürmüyor (501).',
-          ),
-        );
-      }
-      return ErrorStateView(message: toUserMessage(error), onRetry: _load);
-    }
-    if (_options.isEmpty) {
-      return const EmptyStateView(
-        message: 'Bu anket için seçenek/oy kaydı yok.',
-        icon: Icons.ballot_outlined,
-      );
-    }
-
-    return ListView.separated(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-      itemCount: _options.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 12),
-      itemBuilder: (context, index) {
-        final option = _options[index];
-        final percentage = option['percentage'];
-        final ratio =
-            percentage is num ? (percentage / 100).clamp(0.0, 1.0) : null;
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(_str(option['option_text']),
-                      style: const TextStyle(fontWeight: FontWeight.w500)),
+              if (status == 'ACTIVE')
+                FilledButton(
+                  onPressed: () async {
+                    if (await confirm(context, 'Oylamayı bitir', 'Oylama şimdi kapanır; sonuçlar kesinleşir.', ok: 'Bitir')) await act('close');
+                  },
+                  child: const Text('Oylamayı bitir'),
                 ),
-                Text(
-                  percentage is num
-                      ? '${_int(option['vote_count'])} oy • %${percentage.round()}'
-                      : '${_int(option['vote_count'])} oy',
-                  style:
-                      TextStyle(fontSize: 13, color: AppleTheme.secondaryLabel),
+              if (status == 'DRAFT')
+                FilledButton(
+                  onPressed: () async {
+                    if (await confirm(context, 'Yayınla', 'Anket oylamaya açılır ve sakinlere bildirim oluşturulur.', ok: 'Yayınla')) await act('publish');
+                  },
+                  child: const Text('Yayınla'),
                 ),
-              ],
-            ),
-            if (ratio != null) ...[
-              const SizedBox(height: 6),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: LinearProgressIndicator(
-                  value: ratio.toDouble(),
-                  backgroundColor: AppleTheme.systemGray6,
-                  valueColor:
-                      AlwaysStoppedAnimation<Color>(AppleTheme.systemBlue),
-                  minHeight: 6,
-                ),
-              ),
-            ],
-          ],
-        );
+            ]),
+        ]);
       },
     );
   }
-
-  Widget _statColumn(String label, String value) {
-    return Column(
-      children: [
-        Text(value,
-            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
-        Text(label,
-            style: TextStyle(fontSize: 13, color: AppleTheme.secondaryLabel)),
-      ],
-    );
-  }
 }
 
-/// Yeni anket/oylama formu. "Oluştur" yalnızca sunucu 2xx döndürdüğünde
-/// başarı mesajı gösterir; hata durumunda form açık kalır.
-class _CreateSurveySheet extends StatefulWidget {
-  final String surveyType;
-  final Future<void> Function() onCreated;
-
-  const _CreateSurveySheet({required this.surveyType, required this.onCreated});
+class _SurveyForm extends StatefulWidget {
+  const _SurveyForm();
 
   @override
-  State<_CreateSurveySheet> createState() => _CreateSurveySheetState();
+  State<_SurveyForm> createState() => _SurveyFormState();
 }
 
-class _CreateSurveySheetState extends State<_CreateSurveySheet> {
-  final _titleController = TextEditingController();
-  final _descriptionController = TextEditingController();
-  final List<TextEditingController> _optionControllers = [
-    TextEditingController(),
-    TextEditingController(),
-  ];
-
-  DateTime? _endsAt;
+class _SurveyFormState extends State<_SurveyForm> {
+  final _formKey = GlobalKey<FormState>();
+  final _title = TextEditingController();
+  final _desc = TextEditingController();
+  final List<TextEditingController> _options = [TextEditingController(), TextEditingController()];
+  String _type = 'SURVEY';
+  bool _anonymous = true;
+  bool _weighted = false;
+  bool _showResults = false;
+  DateTime? _endDate;
   bool _saving = false;
-  String? _formError;
 
   @override
   void dispose() {
-    _titleController.dispose();
-    _descriptionController.dispose();
-    for (final c in _optionControllers) {
+    for (final c in [_title, _desc, ..._options]) {
       c.dispose();
     }
     super.dispose();
   }
 
-  Future<void> _pickEndDate() async {
-    final now = DateTime.now();
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _endsAt ?? now.add(const Duration(days: 7)),
-      firstDate: now,
-      lastDate: now.add(const Duration(days: 365)),
-    );
-    if (picked != null) setState(() => _endsAt = picked);
-  }
-
-  Future<void> _submit() async {
-    final title = _titleController.text.trim();
-    final options = _optionControllers
-        .map((c) => c.text.trim())
-        .where((t) => t.isNotEmpty)
-        .toList();
-
-    if (title.isEmpty) {
-      setState(() => _formError = 'Başlık zorunludur.');
-      return;
-    }
-    // Sunucu en az 2 seçenek şart koşuyor (survey/main.go: min=2).
-    if (options.length < 2) {
-      setState(() => _formError = 'En az 2 seçenek girilmelidir.');
-      return;
-    }
-
-    setState(() {
-      _saving = true;
-      _formError = null;
-    });
-
-    try {
-      await apiClient.createSurvey({
-        'title': title,
-        'description': _descriptionController.text.trim(),
-        'survey_type': widget.surveyType,
-        'starts_at': DateTime.now().toUtc().toIso8601String(),
-        if (_endsAt != null) 'ends_at': _endsAt!.toUtc().toIso8601String(),
-        'options': options,
-      });
-      await widget.onCreated();
-      if (!mounted) return;
-      Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Kayıt sunucuya işlendi.')),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _saving = false;
-        _formError = toUserMessage(e);
-      });
+  Future<void> _save() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _saving = true);
+    final ok = await runAction(context, () => apiClient.post('/surveys', {
+          'title': _title.text.trim(),
+          if (_desc.text.trim().isNotEmpty) 'description': _desc.text.trim(),
+          'survey_type': _type,
+          'options': [for (final o in _options) o.text.trim()],
+          'is_anonymous': _anonymous,
+          'is_weighted': _weighted,
+          'show_results_before_end': _showResults,
+          // Bitiş: seçilen günün sonu, site saatiyle (+03:00).
+          if (_endDate != null) 'ends_at': '${apiDate(_endDate!)}T23:59:00+03:00',
+        }));
+    if (!mounted) return;
+    if (ok) {
+      Navigator.pop(context, true);
+    } else {
+      setState(() => _saving = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final isPoll = widget.surveyType == 'POLL';
-
-    return Container(
-      height: MediaQuery.of(context).size.height * 0.8,
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      child: Column(
-        children: [
-          Container(
-            width: 36,
-            height: 5,
-            margin: const EdgeInsets.only(top: 12),
-            decoration: BoxDecoration(
-              color: AppleTheme.systemGray4,
-              borderRadius: BorderRadius.circular(2.5),
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Form(
+          key: _formKey,
+          child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Text('Yeni anket (taslak)', style: Theme.of(context).textTheme.titleLarge),
+            const Text('Genel kurul kararı buradan alınamaz; Yönetişim bölümünü kullanın.'),
+            DropdownButtonFormField<String>(
+              initialValue: _type,
+              decoration: const InputDecoration(labelText: 'Tür'),
+              items: [for (final e in surveyTypes.entries) DropdownMenuItem(value: e.key, child: Text(e.value))],
+              onChanged: (v) => setState(() => _type = v ?? _type),
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                TextButton(
-                  onPressed:
-                      _saving ? null : () => Navigator.pop(context),
-                  child: const Text('İptal'),
-                ),
-                Text(isPoll ? 'Yeni Oylama' : 'Yeni Anket',
-                    style: const TextStyle(
-                        fontSize: 17, fontWeight: FontWeight.w600)),
-                TextButton(
-                  onPressed: _saving ? null : _submit,
-                  child: _saving
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Text('Oluştur'),
-                ),
-              ],
+            TextFormField(
+              controller: _title,
+              decoration: const InputDecoration(labelText: 'Başlık *'),
+              validator: (v) => (v == null || v.trim().isEmpty) ? 'Başlık gerekli' : null,
             ),
-          ),
-          const Divider(height: 1),
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.all(20),
-              children: [
-                if (_formError != null) ...[
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: AppleTheme.systemRed.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(_formError!,
-                        style: TextStyle(color: AppleTheme.systemRed)),
-                  ),
-                  const SizedBox(height: 16),
-                ],
-                TextFormField(
-                  controller: _titleController,
-                  decoration: const InputDecoration(
-                      labelText: 'Başlık',
-                      prefixIcon: Icon(Icons.title_rounded)),
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _descriptionController,
-                  decoration: const InputDecoration(
-                      labelText: 'Açıklama',
-                      prefixIcon: Icon(Icons.description_rounded)),
-                  maxLines: 3,
-                ),
-                const SizedBox(height: 16),
-                InkWell(
-                  onTap: _pickEndDate,
-                  child: InputDecorator(
-                    decoration: const InputDecoration(
-                      labelText: 'Son Tarih',
-                      prefixIcon: Icon(Icons.calendar_today_rounded),
-                    ),
-                    child: Text(
-                        _endsAt == null ? 'Seçilmedi' : formatDate(_endsAt)),
+            TextFormField(controller: _desc, decoration: const InputDecoration(labelText: 'Açıklama'), maxLines: 3, minLines: 1),
+            const SizedBox(height: 8),
+            for (var i = 0; i < _options.length; i++)
+              Row(children: [
+                Expanded(
+                  child: TextFormField(
+                    controller: _options[i],
+                    decoration: InputDecoration(labelText: 'Seçenek ${i + 1} *'),
+                    validator: (v) => (v == null || v.trim().isEmpty) ? 'Seçenek boş olamaz' : null,
                   ),
                 ),
-                const SizedBox(height: 24),
-                Text('Seçenekler (en az 2)',
-                    style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        color: AppleTheme.secondaryLabel)),
-                const SizedBox(height: 8),
-                ..._optionControllers.asMap().entries.map((entry) {
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: TextFormField(
-                      controller: entry.value,
-                      decoration: InputDecoration(
-                        labelText: '${entry.key + 1}. seçenek',
-                        prefixIcon: const Icon(Icons.radio_button_unchecked),
-                      ),
-                    ),
-                  );
-                }),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: TextButton.icon(
-                    onPressed: () => setState(
-                        () => _optionControllers.add(TextEditingController())),
-                    icon: const Icon(Icons.add_rounded),
-                    label: const Text('Seçenek ekle'),
+                if (_options.length > 2)
+                  IconButton(
+                    icon: const Icon(Icons.remove_circle_outline),
+                    onPressed: () => setState(() => _options.removeAt(i).dispose()),
                   ),
-                ),
-              ],
+              ]),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: () => setState(() => _options.add(TextEditingController())),
+                icon: const Icon(Icons.add),
+                label: const Text('Seçenek ekle'),
+              ),
             ),
-          ),
-        ],
+            SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text('Anonim'), value: _anonymous, onChanged: (v) => setState(() => _anonymous = v)),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Arsa payına göre ağırlıklı'),
+              subtitle: const Text('KMK m.20: ölçü arsa payıdır, metrekare değil'),
+              value: _weighted,
+              onChanged: (v) => setState(() => _weighted = v),
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Sonuçlar oylama sürerken görünsün'),
+              value: _showResults,
+              onChanged: (v) => setState(() => _showResults = v),
+            ),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Bitiş tarihi'),
+              subtitle: Text(_endDate == null ? 'Elle bitirilene kadar' : formatDate(_endDate)),
+              trailing: _endDate == null ? null : IconButton(icon: const Icon(Icons.clear), onPressed: () => setState(() => _endDate = null)),
+              onTap: () async {
+                final now = DateTime.now();
+                final d = await showDatePicker(context: context, initialDate: _endDate ?? now.add(const Duration(days: 7)), firstDate: now, lastDate: DateTime(now.year + 2));
+                if (d != null) setState(() => _endDate = d);
+              },
+            ),
+            const SizedBox(height: 16),
+            FilledButton(onPressed: _saving ? null : _save, child: const Text('Taslak olarak kaydet')),
+          ]),
+        ),
       ),
     );
   }
-}
-
-String _str(Object? value) => value?.toString() ?? '';
-
-int _int(Object? value) {
-  if (value is num) return value.toInt();
-  return int.tryParse(_str(value)) ?? 0;
 }

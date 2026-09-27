@@ -23,6 +23,7 @@ import '../../../../core/network/api_client.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../../core/widgets/data_state.dart';
+import '../../../finance/presentation/screens/payments_screen.dart' show paymentStatus;
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -284,7 +285,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     if (_payments.isEmpty) {
       return const EmptyStateView(
-        message: 'Bu dönemde kayıtlı ödeme yok.',
+        message: 'Kayıtlı ödeme yok.',
         icon: Icons.receipt_long_outlined,
       );
     }
@@ -411,7 +412,11 @@ class _PaymentCard extends StatelessWidget {
     final name = (payment['name'] ?? '').toString();
     final unit = (payment['unit'] ?? '').toString();
     final amount = payment['amount'];
-    final date = payment['completed_at'] ?? payment['created_at'];
+    // DÜZELTME (2026-09-27): tamamlanmamış ödemede `completed_at` sıfır zaman
+    // damgası gelir (null değil); `??` düşmediği için tarih hep "—" çıkıyordu.
+    final date = parseApiDate(payment['completed_at']) ?? payment['created_at'];
+    // Onay bekleyen/reddedilen ödeme de yeşil tikle gösteriliyordu.
+    final (label, color) = paymentStatus(payment['status']);
 
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
@@ -419,9 +424,9 @@ class _PaymentCard extends StatelessWidget {
         padding: const EdgeInsets.all(12),
         child: Row(
           children: [
-            const CircleAvatar(
-              backgroundColor: AppTheme.successColor,
-              child: Icon(Icons.check, color: Colors.white, size: 20),
+            CircleAvatar(
+              backgroundColor: color,
+              child: Icon(payment['status'] == 'COMPLETED' ? Icons.check : Icons.schedule, color: Colors.white, size: 20),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -430,7 +435,7 @@ class _PaymentCard extends StatelessWidget {
                 children: [
                   Text(name.isEmpty ? '—' : name,
                       style: const TextStyle(fontWeight: FontWeight.w600)),
-                  Text(unit.isEmpty ? '—' : unit,
+                  Text('${unit.isEmpty ? '—' : unit} · $label',
                       style: const TextStyle(
                           color: AppTheme.textSecondary, fontSize: 12)),
                 ],
@@ -440,10 +445,8 @@ class _PaymentCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(
-                  amount is num ? formatTry(amount) : '—',
-                  style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: AppTheme.successColor),
+                  amount == null ? '—' : formatTry(toNum(amount)),
+                  style: TextStyle(fontWeight: FontWeight.bold, color: color),
                 ),
                 Text(formatDateTime(date),
                     style: const TextStyle(

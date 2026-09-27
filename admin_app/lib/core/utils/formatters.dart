@@ -60,6 +60,15 @@ String formatTime(Object? value) {
   return d == null ? '—' : DateFormat('HH:mm', 'tr_TR').format(d.toLocal());
 }
 
+/// Dönem etiketi: `2026-03` → `Mart 2026`. Tanınmayan değer olduğu gibi döner.
+String periodLabel(Object? period) {
+  const months = ['', 'Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
+  final m = RegExp(r'^(\d{4})-(\d{1,2})').firstMatch('${period ?? ''}');
+  if (m == null) return '${period ?? '—'}';
+  final month = int.parse(m.group(2)!);
+  return month >= 1 && month <= 12 ? '${months[month]} ${m.group(1)}' : '${period ?? ''}';
+}
+
 /// Telefonu sunucunun sakladığı biçime getirir: `+90XXXXXXXXXX`.
 /// "0555 123 45 67", "555-123-4567", "+90 555…" hepsi aynı numaradır.
 String normalizePhone(String input) {

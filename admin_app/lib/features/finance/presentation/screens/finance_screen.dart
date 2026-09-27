@@ -12,15 +12,6 @@ import '../../../../core/network/api_client.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../../core/widgets/api_views.dart';
 
-/// "2026-03" → "Mart 2026".
-String periodLabel(Object? period) {
-  const months = ['', 'Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
-  final m = RegExp(r'^(\d{4})-(\d{1,2})').firstMatch('${period ?? ''}');
-  if (m == null) return '${period ?? '—'}';
-  final month = int.parse(m.group(2)!);
-  return month >= 1 && month <= 12 ? '${months[month]} ${m.group(1)}' : '${period ?? ''}';
-}
-
 class FinanceScreen extends StatefulWidget {
   const FinanceScreen({super.key});
 

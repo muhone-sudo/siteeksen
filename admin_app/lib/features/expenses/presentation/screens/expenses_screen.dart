@@ -29,9 +29,6 @@ class ExpensesScreen extends StatefulWidget {
 class _ExpensesScreenState extends State<ExpensesScreen> {
   String _filterType = 'all';
 
-  /// null = tüm kategori tipleri (FIXED / VARIABLE / UNPLANNED).
-  String? _categoryTypeFilter;
-
   late int _year;
   late int _month;
 
@@ -70,7 +67,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
     }
   }
 
-  /// Seçili sekme ve kategori tipine göre süzülmüş kayıtlar.
+  /// Seçili sekmeye göre süzülmüş kayıtlar.
   List<Map<String, dynamic>> get _visibleExpenses {
     return _expenses.where((e) {
       switch (_filterType) {
@@ -84,10 +81,6 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
           if ((_text(e, const ['status']) ?? '').toUpperCase() != 'PENDING') return false;
           break;
       }
-      if (_categoryTypeFilter != null) {
-        final type = (_text(e, const ['category_type', 'type']) ?? '').toUpperCase();
-        if (type != _categoryTypeFilter) return false;
-      }
       return true;
     }).toList();
   }
@@ -98,7 +91,6 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
       appBar: AppBar(
         title: const Text('Gider Yönetimi'),
         actions: [
-          IconButton(icon: const Icon(Icons.filter_list), onPressed: _showFilterSheet),
           IconButton(
             icon: const Icon(Icons.download),
             tooltip: 'Dışa aktar',
@@ -318,58 +310,6 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
       });
       await _load();
     }
-  }
-
-  void _showFilterSheet() {
-    showModalBottomSheet(
-      context: context,
-      builder: (ctx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Filtrele',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 16),
-              const Text('Kategori Tipi'),
-              const SizedBox(height: 8),
-              // Seçimler artık gerçekten listeyi süzüyor (önce hiçbir etkisi yoktu).
-              StatefulBuilder(
-                builder: (ctx, setSheetState) => Wrap(
-                  spacing: 8,
-                  children: [
-                    for (final entry in const {
-                      null: 'Tümü',
-                      'FIXED': 'Sabit',
-                      'VARIABLE': 'Değişken',
-                      'UNPLANNED': 'Plansız',
-                    }.entries)
-                      ChoiceChip(
-                        label: Text(entry.value),
-                        selected: _categoryTypeFilter == entry.key,
-                        onSelected: (_) {
-                          setSheetState(() {});
-                          setState(() => _categoryTypeFilter = entry.key);
-                        },
-                      ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text('Uygula'),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 }
 

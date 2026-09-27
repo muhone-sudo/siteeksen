@@ -1,40 +1,3 @@
-# DEVAM NOKTASI (2026-09-27, oturum kullanıcı isteğiyle durduruldu)
-
-**Yönetici mobil uygulaması (`admin_app/`) YARIM — commit EDİLMEDİ, şu an DERLENMİYOR.**
-Son commit: `01c7cf3` (sakin uygulaması tamam). Çalışma ağacındaki admin_app değişiklikleri korunmalı.
-
-Yapılanlar (diskte, commit'siz):
-- `core/network/api_client.dart` alan bölümü baştan yazıldı: yalnızca gerçek uçlar + genel
-  `getList/getMap/post/put/patch/delete`, `serverLogout`, `activateAccount`, `changePassword`,
-  `issueActivationCode`, `getUserProperties`. Eski yanlış yöntemler SİLİNDİ → kalan ekranlar derlenmiyor (bilerek).
-- Yeni ortak: `core/widgets/api_views.dart` (ApiList(token), ApiObject, runAction, askText, confirm,
-  StatusChip, StatRow, hasAnyRole, errorText), `core/auth/session_actions.dart`, `core/utils/{formatters,validators}.dart`.
-- Bitti: login (telefon normalize, /activate), activate_screen, router (oturum koruması, /activate, /governance),
-  main_screen (tüm modüller, rol süzme, gerçek site adı, şifre değiştir, sunucu çıkışı), governance_screen (yeni, salt okuma),
-  residents add/detail (etkinleştirme kodu penceresi `residents/presentation/widgets/activation_code_dialog.dart`),
-  visitors, personnel, packages, reservations, requests (liste+detay), patrol, parking, meters, meter_reading,
-  inventory, finance_screen, announcements (+create), banking/api_settings/reports/meeting_wizard (dürüst 501 ekranları),
-  assets/dashboard/expenses/resident_expenses/expense_detail çağrı adları düzeltildi.
-
-KALAN (sırayla):
-1. `create_announcement_screen.dart`: kullanılmayan `_sendNotification` alanını sil.
-2. `payments_screen.dart`: yeniden yaz — sekmeler "Onay bekleyen" (`/finance/payments/pending`, confirm `{reference}` / reject) ve "Tümü".
-3. `create_assessment_screen.dart`: kategoriler `getList('/finance/expense-categories')`; `due_date` `apiDate()` (YYYY-MM-DD); POST `/finance/assessments`.
-4. `add_expense_screen.dart`: kategoriler `/expense-categories`; `expense_date` YYYY-MM-DD; `invoice_reason`; POST `/expenses`.
-5. `expenses_screen.dart` satır ~88: var olmayan `category_type`/`type` süzgeci; `expense_detail`: `unit_count`→`distributions.length`, `assessment_period`, approve/reject (`/expenses/:id/approve|reject {reason}`).
-6. `dashboard_screen.dart`: `completed_at` sıfır tarih düşüşü (formatDate zaten boş sayar), sabit sayı kalmasın.
-7. Yeniden yaz: `contract_management` (party_name, contract_type; `/contracts`, renew/terminate), `smart_collection` (`/collection/risk`),
-   `energy_dashboard` (`/energy/trends|anomalies?meter_type=`, YZ öneri yok), `bulletin_board` (`/bulletins`, approve/reject{reason}/close),
-   `survey_management` (`/surveys`, `/surveys/:id`, publish/close/cancel, `eligible_voters`).
-8. `flutter analyze` hatasız + testler (`admin_app/test/`: durum eşlemeleri, normalizeReading, periodLabel, nextRequestStatus, initialOf).
-9. `bash backend/scripts/verify-mobile.sh` → commit; changelog/CLAUDE.md güncelle.
-
-Sonra: todo'daki diğer kalanlar (Kong temizliği, legalparams kapsamı, 1.6 down betikleri, anahtar döndürme, 4.12/4.13,
-mobil belge açma). Kökte kullanıcının bıraktığı `apsiyon_sikayetler.csv` ve `apsiyon_urun_gelistirme_raporu.md`
-(rakip şikayet analizi) — yol haritasına girdi olarak değerlendirilecek; commit edilmedi.
-
----
-
 # Todo — Aktif İş Kuyruğu
 
 **Bu dosya 2026-09-09'da sıfırdan yeniden yazıldı.** Önceki sürüm, doğrulanmamış "✅" işaretleri içerdiği
@@ -626,6 +589,9 @@ yaygınlaştırılmasına kayıyor.
    (`patrol_routes.schedule_times`) API'de tanımlanamıyor; "hiç başlatılmamış
    planlı tur" ölçülemez ve uydurulmaz.
 4. **Panel ve mobil arayüzler.** 20 gerçek modülün çoğunun panelde karşılığı yok.
+   **Mobil TAMAMLANDI (2026-09-27):** iki uygulama da gerçek API sözleşmesine bağlı
+   (sakin 17, yönetici 21 test; `verify-mobile.sh` 8/8). Kalan: mobilde belge açma
+   (`/documents/:id/download` → dosyayı cihazda açma).
 5. **FAZ 3 kalanı** — hassas veri okuma logu belge ve personel için yapıldı
    (`document_access_logs`, `PII_REVEAL`); sakin uçlarına da genişletilecek.
    Yapılandırılmış log (3.5).
@@ -636,6 +602,13 @@ yaygınlaştırılmasına kayıyor.
    ortam değişkeniyle veriliyor. Üretim için anahtar deposu (vault) ve anahtar
    döndürme (rotation) yordamı yazılmalı — şifreli veriyi yeniden şifrelemek
    gerekeceği için bu, planlanması gereken bir iştir.
+9. **İlan panosu bildirimleri.** Yeni ilan yönetime, onay/ret ilan sahibine bildirim
+   üretmiyor (yanıt "BİLDİRİM GÖNDERİLMEDİ" diyor). `pkg/notify` ile bağlanmalı.
+10. **Eskimiş sunucu notları.** `contract`/`bulletin` `expire-due` yanıtları "zamanlanmış görev
+    altyapısı yoktur" diyor; `cmd/scheduler` artık var. Zamanlayıcı süre dolumunu yapıyorsa not
+    düzeltilmeli, yapmıyorsa iş zamanlayıcıya eklenmeli.
+11. **`/dashboard/stats` yalnızca geliştirme gateway'inde.** Üretim yolu (Kong) bu toplamayı
+    yapmaz; Kong temizliği (madde 1) ile birlikte karara bağlanmalı.
 
 ---
 

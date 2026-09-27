@@ -37,7 +37,6 @@ class _CreateAnnouncementScreenState extends State<CreateAnnouncementScreen> {
   final _titleController = TextEditingController();
   final _contentController = TextEditingController();
   String _category = 'GENERAL';
-  bool _sendNotification = true;
   bool _isPinned = false;
   bool _isSubmitting = false;
 
