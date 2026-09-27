@@ -40,8 +40,8 @@ class _DuesPaymentScreenState extends State<DuesPaymentScreen> {
   List<Map<String, dynamic>> _assessments = const [];
 
   static const _paymentMethods = [
-    (label: 'Kredi/Banka Kartı', code: 'CARD', icon: Icons.credit_card_rounded, color: AppleTheme.systemBlue),
-    (label: 'Havale/EFT', code: 'TRANSFER', icon: Icons.account_balance_rounded, color: AppleTheme.systemGreen),
+    (label: 'Kredi/Banka Kartı', code: 'CREDIT_CARD', icon: Icons.credit_card_rounded, color: AppleTheme.systemBlue),
+    (label: 'Havale/EFT', code: 'BANK_TRANSFER', icon: Icons.account_balance_rounded, color: AppleTheme.systemGreen),
   ];
 
   @override
@@ -213,8 +213,9 @@ class _DuesPaymentScreenState extends State<DuesPaymentScreen> {
             ? AppleTheme.systemRed
             : AppleTheme.systemOrange;
 
-    final total = (a['total_amount'] as num?)?.toDouble() ?? 0;
-    final lateFee = (a['late_fee'] as num?)?.toDouble() ?? 0;
+    // Kısmen ödenmiş dönemde gösterilen tutar KALAN borçtur.
+    final total = (toNum(a['total_amount']) - toNum(a['paid_amount'])).toDouble();
+    final lateFee = toNum(a['late_fee']).toDouble();
 
     return Padding(
       padding: const EdgeInsets.all(16),

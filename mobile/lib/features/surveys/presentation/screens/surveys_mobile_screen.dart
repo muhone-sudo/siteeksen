@@ -1,9 +1,36 @@
-import 'package:flutter/material.dart';
-import '../../../../core/theme/apple_theme.dart';
-import '../../../../core/widgets/apple_widgets.dart';
-import '../../../../core/network/api_client.dart';
+// Anketler (sakin).
+//
+// DÜZELTME (2026-09-26): ekran var olmayan alanları okuyordu (`options` listede
+// yok, `o.text`, `votes`, `end_date`, `is_active`…) ve ilk anket geldiği anda
+// tanımsız `totalResidents` ile bölme yaparak ÇÖKÜYORDU; oy da var olmayan
+// `/responses` yoluna gidiyordu. Artık liste `GET /surveys`, seçenekler
+// `GET /surveys/:id`, oy `POST /surveys/:id/vote` ile çalışır.
+//
+// Anket genel kurul kararı DEĞİLDİR (KMK m.29-32); sunucunun hukuki notu gösterilir.
 
-/// Anket Listesi ve Oylama Ekranı - Apple Tarzı
+import 'package:dio/dio.dart';
+import 'package:flutter/material.dart';
+
+import '../../../../core/network/api_client.dart';
+import '../../../../core/utils/formatters.dart';
+import '../../../../core/widgets/data_state.dart';
+
+const surveyStatusLabels = {
+  'ACTIVE': 'Devam ediyor',
+  'CLOSED': 'Sona erdi',
+  'CANCELLED': 'İptal edildi',
+  'DRAFT': 'Taslak',
+};
+
+/// Katılım metni. Sunucu `participation_rate`'i YÜZDE olarak ("45.50") döner.
+String participationText(Object? rate, Object? votes, Object? eligible) {
+  final v = toNum(votes).toInt();
+  final e = toNum(eligible).toInt();
+  final r = toNum(rate).toDouble();
+  if (e <= 0) return '$v oy';
+  return '$v / $e katılım (%${r.toStringAsFixed(0)})';
+}
+
 class SurveysMobileScreen extends StatefulWidget {
   const SurveysMobileScreen({super.key});
 
@@ -12,441 +39,192 @@ class SurveysMobileScreen extends StatefulWidget {
 }
 
 class _SurveysMobileScreenState extends State<SurveysMobileScreen> {
-  List<Map<String, dynamic>> _surveys = [];
-  bool _isLoading = true;
+  late Future<List<dynamic>> _future;
 
   @override
   void initState() {
     super.initState();
-    _loadSurveys();
+    _future = apiClient.getSurveys();
   }
 
-  void _loadSurveys() async {
-    try {
-      final list = await apiClient.getSurveys();
-      setState(() {
-        _surveys = List<Map<String, dynamic>>.from(list.map((s) {
-          // Format active/passive options
-          final optionsList = (s['options'] as List? ?? []).map((o) {
-            return {
-              'id': o['id'] ?? '',
-              'text': o['text'] ?? '',
-              'votes': o['votes'] ?? 0,
-              'percentage': (o['percentage'] as num? ?? 0).toDouble(),
-            };
-          }).toList();
+  Future<void> _reload() async {
+    setState(() => _future = apiClient.getSurveys());
+    await _future;
+  }
 
-          return {
-            'id': s['id'] ?? '',
-            'title': s['title'] ?? '',
-            'description': s['description'] ?? '',
-            'endDate': s['end_date'] ?? 'Belirtilmemiş',
-            'daysLeft': s['days_left'] ?? 0,
-            'totalVotes': s['total_votes'] ?? 0,
-            'hasVoted': s['has_voted'] ?? false,
-            'votedOption': s['voted_option'],
-            'isActive': s['is_active'] ?? true,
-            'isUrgent': s['is_urgent'] ?? false,
-            'options': optionsList,
-          };
-        }));
-        _isLoading = false;
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Anketler')),
+      body: FutureBuilder<List<dynamic>>(
+        future: _future,
+        builder: (context, snap) {
+          if (snap.connectionState != ConnectionState.done) return const LoadingView();
+          if (snap.hasError) return ErrorStateView(message: toUserMessage(snap.error!), onRetry: _reload);
+          final items = snap.data!.whereType<Map>().toList();
+          if (items.isEmpty) return const EmptyStateView(message: 'Şu an anket yok', icon: Icons.poll_outlined);
+          return RefreshIndicator(
+            onRefresh: _reload,
+            child: ListView.separated(
+              itemCount: items.length,
+              separatorBuilder: (_, __) => const Divider(height: 1),
+              itemBuilder: (context, i) {
+                final s = items[i];
+                final status = '${s['status'] ?? ''}';
+                final voted = s['has_voted'] == true;
+                return ListTile(
+                  leading: Icon(voted ? Icons.check_circle : Icons.poll_outlined,
+                      color: voted ? Colors.green : null),
+                  title: Text('${s['title'] ?? 'Anket'}'),
+                  subtitle: Text([
+                    surveyStatusLabels[status] ?? status,
+                    if (parseApiDate(s['ends_at']) != null) 'Bitiş: ${formatDateTime(s['ends_at'])}',
+                    participationText(s['participation_rate'], s['total_votes'], s['eligible_voters']),
+                    if (voted) 'Oy kullandınız',
+                  ].join(' · ')),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () async {
+                    await Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => SurveyDetailScreen(surveyId: '${s['id']}'),
+                    ));
+                    if (mounted) await _reload();
+                  },
+                );
+              },
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class SurveyDetailScreen extends StatefulWidget {
+  final String surveyId;
+  const SurveyDetailScreen({super.key, required this.surveyId});
+
+  @override
+  State<SurveyDetailScreen> createState() => _SurveyDetailScreenState();
+}
+
+class _SurveyDetailScreenState extends State<SurveyDetailScreen> {
+  late Future<Map<String, dynamic>> _future;
+  String? _selected;
+  final _comment = TextEditingController();
+  bool _voting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = apiClient.getSurvey(widget.surveyId);
+  }
+
+  @override
+  void dispose() {
+    _comment.dispose();
+    super.dispose();
+  }
+
+  Future<void> _vote() async {
+    if (_selected == null) return;
+    setState(() => _voting = true);
+    try {
+      final res = await apiClient.voteSurvey(widget.surveyId, _selected!, comment: _comment.text.trim());
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${res['message'] ?? 'Oyunuz kaydedildi'}')));
+      setState(() {
+        _future = apiClient.getSurvey(widget.surveyId);
+        _selected = null;
       });
-    } catch (_) {
-      setState(() => _isLoading = false);
+    } catch (e) {
+      if (!mounted) return;
+      var msg = toUserMessage(e);
+      if (e is DioException && e.response?.data is Map && (e.response!.data as Map)['error'] is String) {
+        msg = (e.response!.data as Map)['error'] as String;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    } finally {
+      if (mounted) setState(() => _voting = false);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return Scaffold(
-        backgroundColor: AppleTheme.background,
-        body: const Center(child: CircularProgressIndicator()),
-      );
-    }
-
-    final activeSurveys = _surveys.where((s) => s['isActive'] == true).toList();
-    final completedSurveys = _surveys.where((s) => s['isActive'] == false).toList();
-
     return Scaffold(
-      backgroundColor: AppleTheme.background,
-      body: SafeArea(
-        child: CustomScrollView(
-          slivers: [
-            // Header
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Row(
-                  children: [
-                    IconButton(
-                      onPressed: () => Navigator.pop(context),
-                      icon: const Icon(Icons.arrow_back_ios_rounded),
-                    ),
-                    const Expanded(
-                      child: Text('Anketler', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700), textAlign: TextAlign.center),
-                    ),
-                    const SizedBox(width: 48),
-                  ],
-                ),
-              ),
-            ),
-
-            // Stats Summary
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Row(
-                  children: [
-                    Expanded(child: _buildStatCard('Aktif Anket', '${activeSurveys.length}', AppleTheme.systemBlue)),
-                    const SizedBox(width: 12),
-                    Expanded(child: _buildStatCard('Oy Verdiğim', '${_surveys.where((s) => s['hasVoted'] == true).length}', AppleTheme.systemGreen)),
-                  ],
-                ),
-              ),
-            ),
-
-            // Active Surveys
-            if (activeSurveys.isNotEmpty) ...[
-              const SliverToBoxAdapter(child: SectionTitle(title: 'Aktif Anketler')),
-              SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) => Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                    child: _buildSurveyCard(activeSurveys[index]),
-                  ),
-                  childCount: activeSurveys.length,
-                ),
-              ),
-            ],
-
-            // Completed Surveys
-            if (completedSurveys.isNotEmpty) ...[
-              const SliverToBoxAdapter(child: SectionTitle(title: 'Tamamlanan')),
-              SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) => Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                    child: _buildSurveyCard(completedSurveys[index]),
-                  ),
-                  childCount: completedSurveys.length,
-                ),
-              ),
-            ],
-
-            const SliverToBoxAdapter(child: SizedBox(height: 100)),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStatCard(String title, String value, Color color) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: AppleTheme.cardDecoration,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(value, style: TextStyle(fontSize: 28, fontWeight: FontWeight.w700, color: color)),
-          Text(title, style: TextStyle(color: AppleTheme.secondaryLabel)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSurveyCard(Map<String, dynamic> survey) {
-    final hasVoted = survey['hasVoted'] == true;
-    final isActive = survey['isActive'] == true;
-    final isUrgent = survey['isUrgent'] == true;
-    final participation = (survey['totalVotes'] / survey['totalResidents'] * 100).toInt();
-
-    return GestureDetector(
-      onTap: () => _showSurveyDetail(context, survey),
-      child: Container(
-        decoration: AppleTheme.cardDecoration,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Header Row
-                  Row(
-                    children: [
-                      if (!isActive)
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(color: AppleTheme.systemGray5, borderRadius: BorderRadius.circular(6)),
-                          child: Text('Tamamlandı', style: TextStyle(fontSize: 11, color: AppleTheme.secondaryLabel, fontWeight: FontWeight.w600)),
-                        )
-                      else if (isUrgent)
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(color: AppleTheme.systemRed.withOpacity(0.12), borderRadius: BorderRadius.circular(6)),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.timer_rounded, size: 12, color: AppleTheme.systemRed),
-                              const SizedBox(width: 4),
-                              Text('${survey['daysLeft']} gün kaldı', style: TextStyle(fontSize: 11, color: AppleTheme.systemRed, fontWeight: FontWeight.w600)),
-                            ],
-                          ),
-                        )
-                      else
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(color: AppleTheme.systemGreen.withOpacity(0.12), borderRadius: BorderRadius.circular(6)),
-                          child: Text('Aktif', style: TextStyle(fontSize: 11, color: AppleTheme.systemGreen, fontWeight: FontWeight.w600)),
-                        ),
-                      const Spacer(),
-                      if (hasVoted)
-                        Row(
-                          children: [
-                            Icon(Icons.check_circle_rounded, size: 16, color: AppleTheme.systemGreen),
-                            const SizedBox(width: 4),
-                            Text('Oy verildi', style: TextStyle(fontSize: 12, color: AppleTheme.systemGreen)),
-                          ],
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-
-                  // Title
-                  Text(survey['title'], style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 6),
-                  Text(survey['description'], style: TextStyle(fontSize: 14, color: AppleTheme.secondaryLabel), maxLines: 2, overflow: TextOverflow.ellipsis),
-                  
-                  const SizedBox(height: 16),
-
-                  // Progress
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text('Katılım', style: TextStyle(fontSize: 12, color: AppleTheme.tertiaryLabel)),
-                                Text('%$participation', style: TextStyle(fontSize: 12, color: AppleTheme.systemBlue, fontWeight: FontWeight.w600)),
-                              ],
-                            ),
-                            const SizedBox(height: 6),
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(4),
-                              child: LinearProgressIndicator(
-                                value: participation / 100,
-                                backgroundColor: AppleTheme.systemGray5,
-                                valueColor: AlwaysStoppedAnimation(AppleTheme.systemBlue),
-                                minHeight: 6,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 16),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Text('${survey['totalVotes']}/${survey['totalResidents']}', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-                          Text('oy', style: TextStyle(fontSize: 12, color: AppleTheme.tertiaryLabel)),
-                        ],
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-
-            // Vote Button
-            if (isActive && !hasVoted)
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppleTheme.systemBlue.withOpacity(0.08),
-                  borderRadius: const BorderRadius.vertical(bottom: Radius.circular(12)),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.how_to_vote_rounded, color: AppleTheme.systemBlue, size: 18),
-                    const SizedBox(width: 8),
-                    Text('Oy Ver', style: TextStyle(color: AppleTheme.systemBlue, fontWeight: FontWeight.w600)),
-                  ],
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showSurveyDetail(BuildContext context, Map<String, dynamic> survey) {
-    final hasVoted = survey['hasVoted'] == true;
-    final isActive = survey['isActive'] == true;
-    final options = survey['options'] as List;
-    String? selectedOption;
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setSheetState) {
-          return Container(
-            height: MediaQuery.of(context).size.height * 0.85,
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-            ),
-            child: Column(
-              children: [
-                Container(
-                  width: 36, height: 5,
-                  margin: const EdgeInsets.only(top: 12),
-                  decoration: BoxDecoration(color: AppleTheme.systemGray4, borderRadius: BorderRadius.circular(2.5)),
-                ),
-                Expanded(
-                  child: ListView(
-                    padding: const EdgeInsets.all(20),
-                    children: [
-                      // Title
-                      Text(survey['title'], style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
-                      const SizedBox(height: 8),
-                      Text(survey['description'], style: TextStyle(color: AppleTheme.secondaryLabel, height: 1.5)),
-                      const SizedBox(height: 16),
-
-                      // End Date
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(color: AppleTheme.systemGray6, borderRadius: BorderRadius.circular(10)),
-                        child: Row(
-                          children: [
-                            Icon(Icons.calendar_today_rounded, size: 18, color: AppleTheme.secondaryLabel),
-                            const SizedBox(width: 8),
-                            Text('Bitiş: ${survey['endDate']}', style: TextStyle(color: AppleTheme.secondaryLabel)),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-
-                      // Options
-                      const Text('Seçenekler', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
-                      const SizedBox(height: 12),
-
-                      ...options.map((option) {
-                        final isVoted = survey['votedOption'] == option['id'];
-                        final isWinner = option['winner'] == true;
-                        final isSelected = selectedOption == option['id'];
-
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 10),
-                          child: GestureDetector(
-                            onTap: isActive && !hasVoted ? () => setSheetState(() => selectedOption = option['id']) : null,
-                            child: AnimatedContainer(
-                              duration: AppleTheme.fastAnimation,
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: isSelected ? AppleTheme.systemBlue.withOpacity(0.08) : (isWinner ? AppleTheme.systemGreen.withOpacity(0.08) : AppleTheme.systemGray6),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: isSelected ? AppleTheme.systemBlue : (isWinner ? AppleTheme.systemGreen : Colors.transparent),
-                                  width: 2,
-                                ),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Expanded(child: Text(option['text'], style: const TextStyle(fontWeight: FontWeight.w600))),
-                                      if (isVoted)
-                                        Icon(Icons.check_circle_rounded, color: AppleTheme.systemGreen, size: 20),
-                                      if (isWinner)
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                          decoration: BoxDecoration(color: AppleTheme.systemGreen, borderRadius: BorderRadius.circular(4)),
-                                          child: const Text('Kazanan', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w600)),
-                                        ),
-                                    ],
-                                  ),
-                                  if (hasVoted || !isActive) ...[
-                                    const SizedBox(height: 10),
-                                    Row(
-                                      children: [
-                                        Expanded(
-                                          child: ClipRRect(
-                                            borderRadius: BorderRadius.circular(4),
-                                            child: LinearProgressIndicator(
-                                              value: option['percentage'] / 100,
-                                              backgroundColor: AppleTheme.systemGray5,
-                                              valueColor: AlwaysStoppedAnimation(isWinner ? AppleTheme.systemGreen : AppleTheme.systemBlue),
-                                              minHeight: 8,
-                                            ),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 12),
-                                        Text('%${option['percentage'].toStringAsFixed(1)}', style: const TextStyle(fontWeight: FontWeight.w600)),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text('${option['votes']} oy', style: TextStyle(fontSize: 12, color: AppleTheme.tertiaryLabel)),
-                                  ],
-                                ],
-                              ),
-                            ),
-                          ),
-                        );
-                      }),
-
-                      const SizedBox(height: 24),
-
-                      // Vote Button
-                      if (isActive && !hasVoted)
-                        ElevatedButton(
-                          onPressed: selectedOption != null ? () async {
-                            showDialog(
-                              context: context,
-                              barrierDismissible: false,
-                              builder: (context) => const Center(child: CircularProgressIndicator()),
-                            );
-
-                            try {
-                              await apiClient.submitSurveyResponse(survey['id'], {'option_id': selectedOption});
-                              Navigator.pop(context); // close loader
-                              Navigator.pop(context); // close sheet
-                              _loadSurveys(); // refresh surveys
-
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: const Text('Oyunuz kaydedildi!'),
-                                  backgroundColor: AppleTheme.systemGreen,
-                                ),
-                              );
-                            } catch (e) {
-                              Navigator.pop(context); // close loader
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text('Hata: $e'),
-                                  backgroundColor: AppleTheme.systemRed,
-                                ),
-                              );
-                            }
-                          } : null,
-                          style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
-                          child: const Text('Oyu Gönder'),
-                        ),
-                    ],
-                  ),
-                ),
+      appBar: AppBar(title: const Text('Anket')),
+      body: FutureBuilder<Map<String, dynamic>>(
+        future: _future,
+        builder: (context, snap) {
+          if (snap.connectionState != ConnectionState.done) return const LoadingView();
+          if (snap.hasError) {
+            return ErrorStateView(
+              message: toUserMessage(snap.error!),
+              onRetry: () => setState(() => _future = apiClient.getSurvey(widget.surveyId)),
+            );
+          }
+          final res = snap.data!;
+          final survey = res['survey'] is Map ? Map<String, dynamic>.from(res['survey'] as Map) : <String, dynamic>{};
+          final options = ApiClient.listOf(survey['options']).whereType<Map>().toList();
+          final resultsVisible = res['results_visible'] == true;
+          final canVote = survey['status'] == 'ACTIVE' && survey['has_voted'] != true;
+          return ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              Text('${survey['title'] ?? ''}', style: Theme.of(context).textTheme.titleLarge),
+              if ((survey['description'] ?? '').toString().isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text('${survey['description']}'),
               ],
-            ),
+              const SizedBox(height: 8),
+              Text(participationText(survey['participation_rate'], survey['total_votes'], survey['eligible_voters']),
+                  style: Theme.of(context).textTheme.bodySmall),
+              const SizedBox(height: 16),
+              RadioGroup<String>(
+                groupValue: _selected,
+                onChanged: (v) {
+                  if (canVote) setState(() => _selected = v);
+                },
+                child: Column(
+                  children: [
+                    for (final o in options)
+                      Card(
+                        child: RadioListTile<String>(
+                          value: '${o['id']}',
+                          enabled: canVote,
+                          title: Text('${o['option_text'] ?? ''}'),
+                          subtitle: resultsVisible && o['vote_count'] != null
+                              ? Text('${toNum(o['vote_count']).toInt()} oy'
+                                  '${o['percentage'] != null ? ' · %${toNum(o['percentage']).toStringAsFixed(0)}' : ''}')
+                              : ((o['description'] ?? '').toString().isEmpty ? null : Text('${o['description']}')),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              if (!resultsVisible && res['results_note'] is String)
+                Padding(padding: const EdgeInsets.only(top: 8), child: Text('${res['results_note']}')),
+              if (canVote && survey['allow_comments'] == true)
+                Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: TextField(controller: _comment, decoration: const InputDecoration(labelText: 'Yorum (isteğe bağlı)')),
+                ),
+              if (canVote)
+                Padding(
+                  padding: const EdgeInsets.only(top: 16),
+                  child: ElevatedButton(
+                    onPressed: _selected == null || _voting ? null : _vote,
+                    child: _voting
+                        ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Text('Oy Ver'),
+                  ),
+                )
+              else if (survey['has_voted'] == true)
+                const Padding(padding: EdgeInsets.only(top: 16), child: Text('Bu ankette oy kullandınız.')),
+              if (res['anonymity_note'] is String)
+                Padding(padding: const EdgeInsets.only(top: 16), child: Text('${res['anonymity_note']}', style: Theme.of(context).textTheme.bodySmall)),
+              if (res['legal_notice'] is String)
+                Padding(padding: const EdgeInsets.only(top: 8), child: Text('${res['legal_notice']}', style: Theme.of(context).textTheme.bodySmall)),
+            ],
           );
         },
       ),

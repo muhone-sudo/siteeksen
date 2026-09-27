@@ -1,8 +1,47 @@
-import 'package:flutter/material.dart';
-import '../../../../core/theme/apple_theme.dart';
-import '../../../../core/network/api_client.dart';
+// Site ilan panosu (sakin).
+//
+// DÜZELTME (2026-09-26): liste var olmayan alanları okuyor (`description`,
+// `author`, `unit`, `date`, `views`), kategori filtreleri küçük harfli
+// olduğu için hiçbir ilanla eşleşmiyordu. Yeni ilan zorunlu `content`
+// alanını göndermediği ve fiyatı metin olarak yolladığı için HER ZAMAN
+// reddediliyor, yine de "İlanınız yayınlandı!" deniyordu — oysa ilan
+// yönetim onayına düşer (PENDING).
 
-/// Site İlan Panosu Mobil Ekranı - Apple Tarzı
+import 'package:flutter/material.dart';
+
+import '../../../../core/network/api_client.dart';
+import '../../../../core/utils/formatters.dart';
+import '../../../../core/widgets/data_state.dart';
+
+/// Sunucunun kabul ettiği kategoriler (bulletin servisi).
+const bulletinCategories = <String, String>{
+  'SALE': 'Satılık',
+  'RENT': 'Kiralık',
+  'LOST_FOUND': 'Kayıp/Bulunan',
+  'HELP': 'Yardımlaşma',
+  'SUGGESTION': 'Öneri',
+  'CARPOOL': 'Araç paylaşımı',
+  'SERVICE': 'Hizmet',
+  'EVENT': 'Etkinlik',
+  'OTHER': 'Diğer',
+};
+
+const bulletinStatusLabels = <String, String>{
+  'PENDING': 'Onay bekliyor',
+  'APPROVED': 'Yayında',
+  'REJECTED': 'Reddedildi',
+  'EXPIRED': 'Süresi doldu',
+  'CLOSED': 'Kapatıldı',
+};
+
+/// Formdaki fiyat metnini sayıya çevirir ("1.250,50" → 1250.5). Boşsa null.
+num? parsePriceInput(String text) {
+  final t = text.trim();
+  if (t.isEmpty) return null;
+  final normalized = t.contains(',') ? t.replaceAll('.', '').replaceAll(',', '.') : t;
+  return num.tryParse(normalized);
+}
+
 class BulletinBoardMobileScreen extends StatefulWidget {
   const BulletinBoardMobileScreen({super.key});
 
@@ -11,546 +50,215 @@ class BulletinBoardMobileScreen extends StatefulWidget {
 }
 
 class _BulletinBoardMobileScreenState extends State<BulletinBoardMobileScreen> {
-  String _selectedCategory = 'all';
-  List<Map<String, dynamic>> _listings = [];
-  bool _isLoading = true;
-
-  final List<Map<String, String>> _categories = [
-    {'id': 'all', 'name': 'Tümü'},
-    {'id': 'sale', 'name': 'Satılık'},
-    {'id': 'rent', 'name': 'Kiralık'},
-    {'id': 'help', 'name': 'Yardımlaşma'},
-    {'id': 'service', 'name': 'Hizmet'},
-    {'id': 'lost', 'name': 'Kayıp'},
-  ];
+  late Future<List<dynamic>> _future;
+  String? _category;
 
   @override
   void initState() {
     super.initState();
-    _loadListings();
+    _future = apiClient.getBulletins();
   }
 
-  void _loadListings() async {
-    try {
-      final list = await apiClient.getBulletins();
-      setState(() {
-        _listings = List<Map<String, dynamic>>.from(list.map((b) {
-          return {
-            'id': b['id'] ?? '',
-            'category': b['category'] ?? 'sale',
-            'title': b['title'] ?? '',
-            'description': b['description'] ?? '',
-            'price': b['price'],
-            'author': b['author'] ?? 'Komşu',
-            'unit': b['unit'] ?? 'Blok',
-            'date': b['date'] ?? 'Yeni',
-            'views': b['views'] ?? 0,
-            'urgent': b['urgent'] ?? false,
-          };
-        }));
-        _isLoading = false;
-      });
-    } catch (_) {
-      setState(() => _isLoading = false);
-    }
+  Future<void> _reload() async {
+    setState(() => _future = apiClient.getBulletins());
+    await _future;
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return Scaffold(
-        backgroundColor: AppleTheme.background,
-        body: const Center(child: CircularProgressIndicator()),
-      );
-    }
-
     return Scaffold(
-      backgroundColor: AppleTheme.background,
-      body: SafeArea(
-        child: CustomScrollView(
-          slivers: [
-            // Header
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Row(
-                  children: [
-                    IconButton(
-                      onPressed: () => Navigator.pop(context),
-                      icon: const Icon(Icons.arrow_back_ios_rounded),
-                    ),
-                    const Expanded(
-                      child: Text(
-                        'İlan Panosu',
-                        style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
-                    IconButton(
-                      onPressed: () => _showCreateListingSheet(context),
-                      icon: Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: AppleTheme.systemBlue,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Icon(Icons.add_rounded, color: Colors.white, size: 18),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-            // Category Filter
-            SliverToBoxAdapter(
-              child: SizedBox(
-                height: 44,
-                child: ListView.builder(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  itemCount: _categories.length,
-                  itemBuilder: (context, index) {
-                    final cat = _categories[index];
-                    final isSelected = _selectedCategory == cat['id'];
-                    return Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: GestureDetector(
-                        onTap: () => setState(() => _selectedCategory = cat['id']!),
-                        child: AnimatedContainer(
-                          duration: AppleTheme.fastAnimation,
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                          decoration: BoxDecoration(
-                            color: isSelected ? AppleTheme.systemBlue : Colors.white,
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
-                              color: isSelected ? AppleTheme.systemBlue : AppleTheme.systemGray5,
-                            ),
-                          ),
-                          child: Text(
-                            cat['name']!,
-                            style: TextStyle(
-                              color: isSelected ? Colors.white : AppleTheme.label,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 14,
-                            ),
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ),
-
-            const SliverToBoxAdapter(child: SizedBox(height: 20)),
-
-            // Listings
-            SliverPadding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              sliver: SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) {
-                    final listing = _getFilteredListings()[index];
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: _buildListingCard(listing),
-                    );
-                  },
-                  childCount: _getFilteredListings().length,
-                ),
-              ),
-            ),
-
-            const SliverToBoxAdapter(child: SizedBox(height: 100)),
-          ],
-        ),
+      appBar: AppBar(title: const Text('İlan Panosu')),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _create,
+        icon: const Icon(Icons.add),
+        label: const Text('İlan Ver'),
       ),
-    );
-  }
-
-  List<Map<String, dynamic>> _getFilteredListings() {
-    if (_selectedCategory == 'all') return _listings;
-    return _listings.where((l) => l['category'] == _selectedCategory).toList();
-  }
-
-  Widget _buildListingCard(Map<String, dynamic> listing) {
-    final catInfo = _getCategoryInfo(listing['category']);
-    
-    return GestureDetector(
-      onTap: () => _showListingDetail(context, listing),
-      child: Container(
-        decoration: AppleTheme.cardDecoration,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Category Icon
-              Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  color: catInfo['color'].withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Stack(
-                  children: [
-                    Center(child: Icon(catInfo['icon'], color: catInfo['color'], size: 28)),
-                    if (listing['urgent'] == true)
-                      Positioned(
-                        top: -2,
-                        right: -2,
-                        child: Container(
-                          width: 12,
-                          height: 12,
-                          decoration: BoxDecoration(
-                            color: AppleTheme.systemRed,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 2),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 14),
-              // Content
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: catInfo['color'].withOpacity(0.12),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            catInfo['name'],
-                            style: TextStyle(fontSize: 10, color: catInfo['color'], fontWeight: FontWeight.w600),
-                          ),
-                        ),
-                        const Spacer(),
-                        Text(listing['date'], style: TextStyle(fontSize: 12, color: AppleTheme.tertiaryLabel)),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      listing['title'],
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      listing['description'],
-                      style: TextStyle(fontSize: 13, color: AppleTheme.secondaryLabel),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        if (listing['price'] != null) ...[
-                          Text(
-                            '₺${listing['price']}',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                              color: AppleTheme.systemGreen,
-                            ),
-                          ),
-                          const Spacer(),
-                        ],
-                        Text(
-                          '${listing['author']} • ${listing['unit']}',
-                          style: TextStyle(fontSize: 12, color: AppleTheme.tertiaryLabel),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Map<String, dynamic> _getCategoryInfo(String category) {
-    switch (category) {
-      case 'sale':
-        return {'name': 'Satılık', 'icon': Icons.sell_rounded, 'color': AppleTheme.systemBlue};
-      case 'rent':
-        return {'name': 'Kiralık', 'icon': Icons.key_rounded, 'color': AppleTheme.systemPurple};
-      case 'help':
-        return {'name': 'Yardımlaşma', 'icon': Icons.favorite_rounded, 'color': AppleTheme.systemPink};
-      case 'service':
-        return {'name': 'Hizmet', 'icon': Icons.handyman_rounded, 'color': AppleTheme.systemOrange};
-      case 'lost':
-        return {'name': 'Kayıp', 'icon': Icons.search_rounded, 'color': AppleTheme.systemRed};
-      default:
-        return {'name': 'Diğer', 'icon': Icons.article_rounded, 'color': AppleTheme.systemGray};
-    }
-  }
-
-  void _showCreateListingSheet(BuildContext context) {
-    final titleController = TextEditingController();
-    final descriptionController = TextEditingController();
-    final priceController = TextEditingController();
-    String activeCat = 'sale';
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setSheetState) {
-          return Container(
-            height: MediaQuery.of(context).size.height * 0.9,
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-            ),
-            child: Column(
+      body: Column(
+        children: [
+          SizedBox(
+            height: 52,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               children: [
-                Container(
-                  width: 36, height: 5,
-                  margin: const EdgeInsets.only(top: 12),
-                  decoration: BoxDecoration(color: AppleTheme.systemGray4, borderRadius: BorderRadius.circular(2.5)),
-                ),
                 Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      TextButton(onPressed: () => Navigator.pop(context), child: const Text('İptal')),
-                      const Text('İlan Oluştur', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
-                      TextButton(
-                        onPressed: () async {
-                          if (titleController.text.isEmpty || descriptionController.text.isEmpty) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Lütfen başlık ve açıklama giriniz.')),
-                            );
-                            return;
-                          }
-
-                          showDialog(
-                            context: context,
-                            barrierDismissible: false,
-                            builder: (context) => const Center(child: CircularProgressIndicator()),
-                          );
-
-                          try {
-                            await apiClient.createBulletin({
-                              'category': activeCat,
-                              'title': titleController.text,
-                              'description': descriptionController.text,
-                              'price': priceController.text.isNotEmpty ? priceController.text : null,
-                            });
-                            Navigator.pop(context); // close loader
-                            Navigator.pop(context); // close sheet
-                            _loadListings(); // refresh listings
-
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: const Text('İlanınız yayınlandı!'),
-                                backgroundColor: AppleTheme.systemGreen,
-                              ),
-                            );
-                          } catch (e) {
-                            Navigator.pop(context); // close loader
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Hata: $e'), backgroundColor: AppleTheme.systemRed),
-                            );
-                          }
-                        },
-                        child: const Text('Paylaş'),
-                      ),
-                    ],
-                  ),
+                  padding: const EdgeInsets.only(right: 8),
+                  child: ChoiceChip(label: const Text('Tümü'), selected: _category == null, onSelected: (_) => setState(() => _category = null)),
                 ),
-                Expanded(
-                  child: ListView(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    children: [
-                      // Category
-                      const Text('Kategori', style: TextStyle(fontWeight: FontWeight.w600)),
-                      const SizedBox(height: 10),
-                      Wrap(
-                        spacing: 8, runSpacing: 8,
-                        children: _categories.skip(1).map((cat) {
-                          final info = _getCategoryInfo(cat['id']!);
-                          final isSelected = activeCat == cat['id'];
-                          return ChoiceChip(
-                            label: Text(cat['name']!),
-                            selected: isSelected,
-                            onSelected: (selected) {
-                              if (selected) {
-                                setSheetState(() => activeCat = cat['id']!);
-                              }
-                            },
-                            avatar: Icon(
-                              info['icon'] as IconData,
-                              size: 16,
-                              color: isSelected ? Colors.white : AppleTheme.secondaryLabel,
-                            ),
-                          );
-                        }).toList(),
-                      ),
-                      const SizedBox(height: 20),
-
-                      // Title
-                      TextField(
-                        controller: titleController,
-                        decoration: InputDecoration(
-                          labelText: 'Başlık',
-                          hintText: 'Ne paylaşmak istiyorsunuz?',
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-
-                      // Description
-                      TextField(
-                        controller: descriptionController,
-                        maxLines: 4,
-                        decoration: InputDecoration(
-                          labelText: 'Açıklama',
-                          hintText: 'Detayları yazın...',
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-
-                      // Price
-                      TextField(
-                        controller: priceController,
-                        keyboardType: TextInputType.number,
-                        decoration: InputDecoration(
-                          labelText: 'Fiyat (Opsiyonel)',
-                          prefixText: '₺ ',
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                    ],
+                for (final e in bulletinCategories.entries)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: ChoiceChip(label: Text(e.value), selected: _category == e.key, onSelected: (_) => setState(() => _category = e.key)),
                   ),
-                ),
               ],
             ),
-          );
-        },
+          ),
+          Expanded(
+            child: FutureBuilder<List<dynamic>>(
+              future: _future,
+              builder: (context, snap) {
+                if (snap.connectionState != ConnectionState.done) return const LoadingView();
+                if (snap.hasError) return ErrorStateView(message: toUserMessage(snap.error!), onRetry: _reload);
+                final items = snap.data!
+                    .whereType<Map>()
+                    .where((b) => _category == null || b['category'] == _category)
+                    .toList();
+                if (items.isEmpty) return const EmptyStateView(message: 'İlan yok', icon: Icons.campaign_outlined);
+                return RefreshIndicator(
+                  onRefresh: _reload,
+                  child: ListView.separated(
+                    padding: const EdgeInsets.only(bottom: 96),
+                    itemCount: items.length,
+                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    itemBuilder: (context, i) => _tile(items[i]),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  void _showListingDetail(BuildContext context, Map<String, dynamic> listing) {
-    final catInfo = _getCategoryInfo(listing['category']);
-    
-    showModalBottomSheet(
+  Widget _tile(Map b) {
+    final price = b['price'];
+    final mine = b['is_mine'] == true;
+    final status = '${b['status'] ?? ''}';
+    return ListTile(
+      title: Text('${b['title'] ?? ''}'),
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: 4),
+          Text('${b['content'] ?? ''}', maxLines: 3, overflow: TextOverflow.ellipsis),
+          const SizedBox(height: 4),
+          Text([
+            bulletinCategories['${b['category']}'] ?? '${b['category']}',
+            if (price != null) '${formatTry(toNum(price))}${b['price_negotiable'] == true ? ' (pazarlık)' : ''}',
+            [b['author_name'], b['unit_name']].where((v) => v != null && '$v'.isNotEmpty).join(' '),
+            formatDate(b['created_at']),
+            if (mine) bulletinStatusLabels[status] ?? status,
+            if (status == 'REJECTED' && (b['rejection_reason'] ?? '').toString().isNotEmpty) 'Gerekçe: ${b['rejection_reason']}',
+          ].where((s) => s.isNotEmpty).join(' · '), style: Theme.of(context).textTheme.bodySmall),
+        ],
+      ),
+      isThreeLine: true,
+      trailing: mine && (status == 'PENDING' || status == 'APPROVED')
+          ? TextButton(onPressed: () => _close(b), child: const Text('Kapat'))
+          : null,
+    );
+  }
+
+  Future<void> _close(Map b) async {
+    try {
+      await apiClient.closeBulletin('${b['id']}');
+      await _reload();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(toUserMessage(e))));
+    }
+  }
+
+  Future<void> _create() async {
+    final formKey = GlobalKey<FormState>();
+    final title = TextEditingController();
+    final content = TextEditingController();
+    final price = TextEditingController();
+    var category = 'SALE';
+    var negotiable = false;
+    var anonymous = false;
+    String? error;
+    var busy = false;
+
+    final created = await showModalBottomSheet<String>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        height: MediaQuery.of(context).size.height * 0.85,
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: Column(
-          children: [
-            Container(
-              width: 36, height: 5,
-              margin: const EdgeInsets.only(top: 12),
-              decoration: BoxDecoration(color: AppleTheme.systemGray4, borderRadius: BorderRadius.circular(2.5)),
-            ),
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.all(20),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheet) => Padding(
+          padding: EdgeInsets.fromLTRB(16, 16, 16, MediaQuery.of(ctx).viewInsets.bottom + 16),
+          child: Form(
+            key: formKey,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Category
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: catInfo['color'].withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(catInfo['icon'], size: 16, color: catInfo['color']),
-                        const SizedBox(width: 6),
-                        Text(catInfo['name'], style: TextStyle(color: catInfo['color'], fontWeight: FontWeight.w600)),
-                      ],
-                    ),
+                  Text('Yeni İlan', style: Theme.of(ctx).textTheme.titleLarge),
+                  if (error != null)
+                    Padding(padding: const EdgeInsets.only(top: 8), child: Text(error!, style: TextStyle(color: Theme.of(ctx).colorScheme.error))),
+                  DropdownButtonFormField<String>(
+                    initialValue: category,
+                    decoration: const InputDecoration(labelText: 'Kategori'),
+                    items: [for (final e in bulletinCategories.entries) DropdownMenuItem(value: e.key, child: Text(e.value))],
+                    onChanged: (v) => setSheet(() => category = v ?? category),
                   ),
-                  const SizedBox(height: 16),
-
-                  // Title & Price
-                  Text(listing['title'], style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
-                  if (listing['price'] != null) ...[
-                    const SizedBox(height: 8),
-                    Text('₺${listing['price']}', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700, color: AppleTheme.systemGreen)),
-                  ],
-                  const SizedBox(height: 20),
-
-                  // Author Card
-                  Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(color: AppleTheme.systemGray6, borderRadius: BorderRadius.circular(12)),
-                    child: Row(
-                      children: [
-                        CircleAvatar(
-                          radius: 22,
-                          backgroundColor: AppleTheme.systemBlue.withOpacity(0.15),
-                          child: Text(listing['author'].toString()[0], style: TextStyle(color: AppleTheme.systemBlue, fontWeight: FontWeight.w700)),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(listing['author'], style: const TextStyle(fontWeight: FontWeight.w600)),
-                              Text(listing['unit'], style: TextStyle(fontSize: 13, color: AppleTheme.secondaryLabel)),
-                            ],
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(color: AppleTheme.systemBlue, borderRadius: BorderRadius.circular(10)),
-                          child: const Icon(Icons.message_rounded, color: Colors.white, size: 20),
-                        ),
-                      ],
-                    ),
+                  TextFormField(
+                    controller: title,
+                    decoration: const InputDecoration(labelText: 'Başlık'),
+                    validator: (v) => (v == null || v.trim().isEmpty) ? 'Başlık gerekli' : null,
                   ),
-                  const SizedBox(height: 20),
-
-                  // Description
-                  const Text('Açıklama', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                  TextFormField(
+                    controller: content,
+                    maxLines: 4,
+                    decoration: const InputDecoration(labelText: 'Açıklama'),
+                    validator: (v) => (v == null || v.trim().isEmpty) ? 'Açıklama gerekli' : null,
+                  ),
+                  if (category == 'SALE' || category == 'RENT' || category == 'SERVICE')
+                    TextFormField(
+                      controller: price,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      decoration: const InputDecoration(labelText: 'Fiyat (₺, isteğe bağlı)'),
+                      validator: (v) => (v != null && v.trim().isNotEmpty && parsePriceInput(v) == null) ? 'Geçerli bir tutar girin' : null,
+                    ),
+                  SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text('Pazarlık payı var'), value: negotiable,
+                      onChanged: (v) => setSheet(() => negotiable = v)),
+                  SwitchListTile(contentPadding: EdgeInsets.zero, title: const Text('Adım gösterilmesin'),
+                      subtitle: const Text('Yönetim ilan sahibini yine görür'), value: anonymous,
+                      onChanged: (v) => setSheet(() => anonymous = v)),
                   const SizedBox(height: 8),
-                  Text(listing['description'], style: TextStyle(color: AppleTheme.secondaryLabel, height: 1.6)),
-                  
-                  const SizedBox(height: 20),
-                  Row(
-                    children: [
-                      Icon(Icons.visibility_rounded, size: 16, color: AppleTheme.tertiaryLabel),
-                      const SizedBox(width: 4),
-                      Text('${listing['views']} görüntüleme', style: TextStyle(fontSize: 13, color: AppleTheme.tertiaryLabel)),
-                      const Spacer(),
-                      Text(listing['date'], style: TextStyle(fontSize: 13, color: AppleTheme.tertiaryLabel)),
-                    ],
+                  FilledButton(
+                    onPressed: busy
+                        ? null
+                        : () async {
+                            if (!formKey.currentState!.validate()) return;
+                            setSheet(() {
+                              busy = true;
+                              error = null;
+                            });
+                            try {
+                              final res = await apiClient.createBulletin({
+                                'category': category,
+                                'title': title.text.trim(),
+                                'content': content.text.trim(),
+                                if (parsePriceInput(price.text) != null) 'price': parsePriceInput(price.text),
+                                'price_negotiable': negotiable,
+                                'is_anonymous': anonymous,
+                              });
+                              if (ctx.mounted) Navigator.pop(ctx, '${res['note'] ?? ''}');
+                            } catch (e) {
+                              setSheet(() {
+                                busy = false;
+                                error = toUserMessage(e);
+                              });
+                            }
+                          },
+                    child: const Text('Gönder'),
                   ),
                 ],
               ),
             ),
-          ],
+          ),
         ),
       ),
     );
+    title.dispose();
+    content.dispose();
+    price.dispose();
+    if (created == null || !mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(created.isNotEmpty ? created : 'İlanınız alındı; yönetim onayından sonra yayınlanacak.'),
+    ));
+    await _reload();
   }
 }

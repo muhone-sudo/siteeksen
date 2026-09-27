@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:local_auth/local_auth.dart';
 
 import '../../../../core/network/api_client.dart';
+import '../../../../core/utils/formatters.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -58,7 +59,7 @@ class _LoginScreenState extends State<LoginScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const SizedBox(height: 60),
-                
+
                 // Logo
                 Center(
                   child: Container(
@@ -76,7 +77,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 ),
                 const SizedBox(height: 24),
-                
+
                 // Başlık
                 Text(
                   'SiteEksen',
@@ -95,7 +96,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                 ),
                 const SizedBox(height: 48),
-                
+
                 // Telefon Alanı
                 TextFormField(
                   controller: _phoneController,
@@ -109,14 +110,14 @@ class _LoginScreenState extends State<LoginScreen> {
                     if (value == null || value.isEmpty) {
                       return 'Telefon numarası gerekli';
                     }
-                    if (value.length < 10) {
-                      return 'Geçerli bir telefon numarası girin';
+                    if (normalizePhone(value).length != 13) {
+                      return 'Geçerli bir telefon numarası girin (5XX XXX XX XX)';
                     }
                     return null;
                   },
                 ),
                 const SizedBox(height: 16),
-                
+
                 // Şifre Alanı
                 TextFormField(
                   controller: _passwordController,
@@ -141,24 +142,21 @@ class _LoginScreenState extends State<LoginScreen> {
                     if (value == null || value.isEmpty) {
                       return 'Şifre gerekli';
                     }
-                    if (value.length < 6) {
-                      return 'Şifre en az 6 karakter olmalı';
-                    }
                     return null;
                   },
                 ),
                 const SizedBox(height: 8),
-                
+
                 // Şifremi Unuttum
                 Align(
                   alignment: Alignment.centerRight,
                   child: TextButton(
-                    onPressed: () {},
+                    onPressed: () => context.push('/activate'),
                     child: const Text('Şifremi Unuttum'),
                   ),
                 ),
                 const SizedBox(height: 24),
-                
+
                 // Giriş Butonu
                 ElevatedButton(
                   onPressed: _isLoading ? null : _handleLogin,
@@ -174,7 +172,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       : const Text('Giriş Yap'),
                 ),
                 const SizedBox(height: 16),
-                
+
                 // Biyometrik Giriş
                 if (_biometricLoginAvailable) ...[
                   OutlinedButton.icon(
@@ -194,12 +192,12 @@ class _LoginScreenState extends State<LoginScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
-                      'Hesabınız yok mu? ',
+                      'Yönetimden kod aldınız mı? ',
                       style: TextStyle(color: Colors.grey[600]),
                     ),
                     TextButton(
-                      onPressed: () {},
-                      child: const Text('Yöneticinize Başvurun'),
+                      onPressed: () => context.push('/activate'),
+                      child: const Text('Hesabı Etkinleştir'),
                     ),
                   ],
                 ),
@@ -217,7 +215,7 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final result = await apiClient.login(_phoneController.text.trim(), _passwordController.text);
+      final result = await apiClient.login(normalizePhone(_phoneController.text), _passwordController.text);
       if (!mounted) return;
 
       final user = result['user'];

@@ -39,6 +39,36 @@ String formatDateTime(Object? value) {
   return d == null ? '—' : _dateTimeFormat.format(d.toLocal());
 }
 
+/// Sunucudan gelen tutarı sayıya çevirir. Bazı uçlar parayı ondalık METİN
+/// ("1234.50") döner, bazıları sayı; ikisi de kabul edilir, bozuk değer 0'dır.
+num toNum(Object? value) {
+  if (value is num) return value;
+  if (value is String) return num.tryParse(value.replaceAll(',', '.')) ?? 0;
+  return 0;
+}
+
+/// Tarih/saat alanını ayrıştırır (boş ve sıfır zaman damgası null döner).
+DateTime? parseApiDate(Object? value) => _parseDate(value);
+
+/// Sunucunun beklediği tarih biçimi: `YYYY-MM-DD`.
+String apiDate(DateTime d) =>
+    '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+/// `HH:mm` (yerel saat).
+String formatTime(Object? value) {
+  final d = _parseDate(value);
+  return d == null ? '—' : DateFormat('HH:mm', 'tr_TR').format(d.toLocal());
+}
+
+/// Telefonu sunucunun sakladığı biçime getirir: `+90XXXXXXXXXX`.
+/// "0555 123 45 67", "555-123-4567", "+90 555…" hepsi aynı numaradır.
+String normalizePhone(String input) {
+  var digits = input.replaceAll(RegExp(r'\D'), '');
+  if (digits.startsWith('90') && digits.length == 12) digits = digits.substring(2);
+  if (digits.startsWith('0') && digits.length == 11) digits = digits.substring(1);
+  return '+90$digits';
+}
+
 DateTime? _parseDate(Object? value) {
   if (value == null) return null;
   if (value is DateTime) return value;

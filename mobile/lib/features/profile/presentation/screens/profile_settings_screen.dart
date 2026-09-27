@@ -14,6 +14,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/auth/session_actions.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/theme/apple_theme.dart';
 import '../../../../core/widgets/apple_widgets.dart';
@@ -35,6 +36,14 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
   /// karşılığı henüz yok (bkz. NotImplementedNotice).
   bool _biometricEnabled = false;
 
+  /// Bağlı olunan siteler/daireler (`GET /users/me/properties`).
+  List<dynamic> _properties = const [];
+
+  /// Bildirim tercihleri (`GET /notification-preferences`). Kayıt yoksa
+  /// işlemsel bildirimler AÇIK, ticari ileti KAPALI sayılır (6563 s. Kanun m.6).
+  Map<String, bool> _prefs = {};
+  String? _prefsError;
+
   @override
   void initState() {
     super.initState();
@@ -49,10 +58,24 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
     try {
       final user = await apiClient.getCurrentUser();
       final biometric = await apiClient.isBiometricEnabled();
+      final properties = await apiClient.getUserProperties();
+      Map<String, bool> prefs = {};
+      String? prefsError;
+      try {
+        final res = await apiClient.getNotificationPreferences();
+        for (final p in ApiClient.listOf(res)) {
+          if (p is Map) prefs['${p['channel']}:${p['category']}'] = p['enabled'] == true;
+        }
+      } catch (e) {
+        prefsError = toUserMessage(e);
+      }
       if (!mounted) return;
       setState(() {
         _user = user;
         _biometricEnabled = biometric;
+        _properties = properties;
+        _prefs = prefs;
+        _prefsError = prefsError;
         _loading = false;
       });
     } catch (e) {
@@ -98,12 +121,7 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
         const SectionTitle(title: 'Güvenlik'),
         _buildSecurity(),
         const SectionTitle(title: 'Bildirimler'),
-        const NotImplementedNotice(
-          title: 'Bildirim tercihleri henüz kaydedilemiyor',
-          detail: 'Bildirim altyapısı (push/e-posta) sunucu tarafında kurulmadığı için '
-              'bu tercihler geçici olarak kapalıdır. Açık gibi gösterip kaydetmemek '
-              'yerine özellik devre dışı bırakıldı.',
-        ),
+        _buildNotificationPrefs(),
         const SectionTitle(title: 'Yasal'),
         _buildLegal(),
         _buildLogoutButton(),
@@ -137,10 +155,13 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
           Text(_fullName,
               style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700)),
           const SizedBox(height: 4),
-          Text(
-            (_user?['roles'] as List?)?.join(' • ') ?? '',
-            style: TextStyle(fontSize: 15, color: AppleTheme.secondaryLabel),
-          ),
+          // users.roles yalnızca platform rolü taşır; sakinin görmesi gereken
+          // bağlı olduğu site ve dairedir.
+          for (final p in _properties.whereType<Map>())
+            Text(
+              [p['property_name'], p['unit_name']].where((v) => v != null && '$v'.isNotEmpty).join(' · '),
+              style: TextStyle(fontSize: 15, color: AppleTheme.secondaryLabel),
+            ),
         ],
       ),
     );
@@ -206,7 +227,7 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
             icon: Icons.lock_rounded,
             title: 'Şifre Değiştir',
             iconColor: AppleTheme.systemOrange,
-            onTap: () => _notYetEditable('Şifre değiştirme'),
+            onTap: () => showChangePasswordDialog(context, phone: _user?['phone'] as String?),
             showDivider: false,
           ),
         ],
@@ -251,6 +272,63 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
     );
   }
 
+  static const _channels = {
+    'IN_APP': 'Uygulama içi',
+    'PUSH': 'Anlık bildirim',
+    'SMS': 'SMS',
+    'EMAIL': 'E-posta',
+  };
+
+  bool _prefValue(String channel, String category) =>
+      _prefs['$channel:$category'] ?? (category == 'TRANSACTIONAL');
+
+  Future<void> _setPref(String channel, String category, bool enabled) async {
+    try {
+      await apiClient.setNotificationPreference(channel: channel, category: category, enabled: enabled);
+      if (!mounted) return;
+      setState(() => _prefs['$channel:$category'] = enabled);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Tercih kaydedilemedi: ${toUserMessage(e)}')));
+    }
+  }
+
+  Widget _buildNotificationPrefs() {
+    if (_prefsError != null) {
+      return NotImplementedNotice(title: 'Bildirim tercihleri alınamadı', detail: _prefsError);
+    }
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: AppleTheme.cardDecoration,
+      child: Column(
+        children: [
+          for (final e in _channels.entries)
+            SwitchListTile(
+              title: Text(e.value, style: const TextStyle(fontSize: 16)),
+              subtitle: Text(
+                e.key == 'IN_APP'
+                    ? 'Aidat, duyuru, kargo gibi hizmet bildirimleri'
+                    : 'Sağlayıcı henüz bağlı değil; açık olsa da bildirim kuyrukta bekler',
+                style: TextStyle(fontSize: 13, color: AppleTheme.secondaryLabel),
+              ),
+              value: _prefValue(e.key, 'TRANSACTIONAL'),
+              onChanged: (v) => _setPref(e.key, 'TRANSACTIONAL', v),
+            ),
+          SwitchListTile(
+            title: const Text('Tanıtım ve kampanya iletileri', style: TextStyle(fontSize: 16)),
+            subtitle: Text(
+              'Açarsanız ticari elektronik ileti almaya onay vermiş olursunuz (6563 s. Kanun m.6). '
+              'İstediğiniz zaman kapatabilirsiniz.',
+              style: TextStyle(fontSize: 13, color: AppleTheme.secondaryLabel),
+            ),
+            value: _prefValue('IN_APP', 'COMMERCIAL'),
+            onChanged: (v) => _setPref('IN_APP', 'COMMERCIAL', v),
+          ),
+        ],
+      ),
+    );
+  }
+
   /// Sunucuda karşılığı olmayan düzenleme işlemleri için dürüst bildirim.
   /// Sessizce hiçbir şey yapmak, kullanıcıya dokunuşunun işe yaradığını düşündürür.
   void _notYetEditable(String what) {
@@ -280,11 +358,7 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
         ],
       ),
     );
-    if (confirmed != true) return;
-
-    await apiClient.clearToken();
-    if (!mounted) return;
-    // ignore: use_build_context_synchronously
-    context.goNamed('login');
+    if (confirmed != true || !mounted) return;
+    await performLogout(context);
   }
 }

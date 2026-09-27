@@ -12,6 +12,35 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-09-27 — SAKİN MOBİL UYGULAMASI GERÇEK API'YE BAĞLANDI (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-mobile.sh` → 8/8 (sakin: 17 test, 15'i yeni); `verify-stack.sh` → **982/982**.
+
+Sapma analizi 25 çağrının 16'sında yanlış yol/alan buldu. Düzeltilenler:
+- **Oturum:** çıkış sunucuda da oturumu kapatır (yenileme jetonu iptal); iptal
+  edilemezse kullanıcıya söylenir. Yönlendirme koruması (oturumsuz → giriş).
+  Telefon `+90…` biçimine getirilir. **Etkinleştirme / şifre sıfırlama** ekranı
+  ve **şifre değiştirme** eklendi (önceden düğmeler boştu).
+- **Talepler:** liste koda gömülüydü (uydurma TLP-2025-0089), "Yeni Talep"
+  hiçbir istek atmadan kapanıyordu → gerçek liste ve oluşturma.
+- **Rezervasyon:** "09:00" gönderildiği için HER istek 400'dü ve saatler sabitti →
+  doluluk `/facilities/:id/slots`'tan, zaman RFC3339 (site saati); sonuç sunucu
+  durumuyla (PENDING'e "onaylandı" denmez); **Rezervasyonlarım** + iptal.
+- **Anket:** ilk ankette çöküyordu (tanımsız bölme), oy yanlış yola gidiyordu →
+  liste/detay/oy gerçek uçlarla; KMK notu gösterilir.
+- **Kargo:** durum eşlemesi yanlış olduğu için HER paket gizliydi; uydurma
+  '12:00/Bugün/Yakında' değerleri kaldırıldı.
+- **Duyuru:** tarih/kategori doğru alanlardan, okundu bilgisi sunucuya gider.
+- **İlan panosu:** zorunlu `content` ve sayısal fiyat gönderilir; "yayınlandı"
+  yerine "onaya düştü"; kendi ilanını kapatma.
+- **Ziyaretçi:** daire (`unit_id`) gönderilir (yoksa girişte bildirim gitmiyordu).
+- **Ödeme:** yöntem kodları sunucununkiler; kısmi ödemede kalan gösterilir.
+  Arka uç artık bilinmeyen yöntemi 422 ile reddeder.
+- **Yeni:** bildirim gelen kutusu, bildirim tercihleri (6563 m.6 onayı ayrı),
+  belgeler listesi (görünürlüğe göre). Sakine kapalı demirbaş menüsü kaldırıldı.
+- **Bilinçli sınır:** mobilde belge dosyası açılamıyor (görüntüleyici eklentisi
+  yok) — ekranda açıkça yazıyor.
+
 ### 2026-09-26 — YAPILANDIRILMIŞ GÜNLÜK, İSTEK KİMLİĞİ, AKTİF SİTE (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **981 kontrol, 0 başarısız**.

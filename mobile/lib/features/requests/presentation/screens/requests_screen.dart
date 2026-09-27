@@ -1,9 +1,64 @@
+// Taleplerim (sakin — yalnızca kendi talepleri, `GET /requests`).
+//
+// DÜZELTME (2026-09-26): liste KODA GÖMÜLÜYDÜ: "Tamamlanmış" sekmesinde uydurma
+// bir TLP-2025-0089 talebi, "Güncel" sekmesinde her zaman "talebiniz yok"
+// yazıyordu. "Yeni Talep" penceresi Gönder'e basınca hiçbir istek atmadan
+// kapanıyordu. Artık liste sunucudan gelir; yeni talep gerçek oluşturma
+// ekranına gider.
+
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/network/api_client.dart';
+import '../../../../core/utils/formatters.dart';
+import '../../../../core/widgets/data_state.dart';
 
-class RequestsScreen extends StatelessWidget {
+const requestStatusLabels = {
+  'OPEN': 'Açık',
+  'IN_PROGRESS': 'İşlemde',
+  'RESOLVED': 'Çözüldü — onayınızı bekliyor',
+  'CLOSED': 'Kapandı',
+};
+
+const requestPriorityLabels = {'LOW': 'Düşük', 'NORMAL': 'Normal', 'HIGH': 'Yüksek', 'URGENT': 'Acil'};
+
+/// Güncel sekmesinde görünen durumlar (kapanmamış olanlar).
+bool isRequestActive(Object? status) => status != 'CLOSED';
+
+class RequestsScreen extends StatefulWidget {
   const RequestsScreen({super.key});
+
+  @override
+  State<RequestsScreen> createState() => _RequestsScreenState();
+}
+
+class _RequestsScreenState extends State<RequestsScreen> {
+  late Future<List<dynamic>> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = apiClient.getRequests();
+  }
+
+  Future<void> _reload() async {
+    setState(() => _future = apiClient.getRequests());
+    await _future;
+  }
+
+  Future<void> _confirm(Map r, bool approved) async {
+    try {
+      await apiClient.confirmRequestResolution('${r['id']}', approved);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(approved ? 'Talebi onayladınız; kapatıldı.' : 'Talep yeniden yönetime iletildi.'),
+      ));
+      await _reload();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(toUserMessage(e))));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -12,299 +67,82 @@ class RequestsScreen extends StatelessWidget {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Taleplerim'),
-          bottom: const TabBar(
-            tabs: [
-              Tab(text: 'Güncel'),
-              Tab(text: 'Tamamlanmış'),
-            ],
-          ),
-        ),
-        body: TabBarView(
-          children: [
-            _RequestList(isActive: true),
-            _RequestList(isActive: false),
-          ],
+          bottom: const TabBar(tabs: [Tab(text: 'Güncel'), Tab(text: 'Tamamlanmış')]),
         ),
         floatingActionButton: FloatingActionButton.extended(
-          onPressed: () {
-            _showNewRequestSheet(context);
+          onPressed: () async {
+            await context.pushNamed('createRequest');
+            if (mounted) await _reload();
           },
           icon: const Icon(Icons.add),
           label: const Text('Yeni Talep'),
         ),
+        body: FutureBuilder<List<dynamic>>(
+          future: _future,
+          builder: (context, snap) {
+            if (snap.connectionState != ConnectionState.done) return const LoadingView();
+            if (snap.hasError) return ErrorStateView(message: toUserMessage(snap.error!), onRetry: _reload);
+            final all = snap.data!.whereType<Map>().toList();
+            final active = all.where((r) => isRequestActive(r['status'])).toList();
+            final done = all.where((r) => !isRequestActive(r['status'])).toList();
+            return TabBarView(children: [
+              _list(active, 'Açık talebiniz yok. Yönetime iletmek istediğiniz bir konu için yeni talep oluşturun.'),
+              _list(done, 'Kapanmış talebiniz yok.'),
+            ]);
+          },
+        ),
       ),
     );
   }
 
-  void _showNewRequestSheet(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.7,
-        minChildSize: 0.5,
-        maxChildSize: 0.95,
-        expand: false,
-        builder: (context, scrollController) => Padding(
-          padding: const EdgeInsets.all(20),
-          child: ListView(
-            controller: scrollController,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[300],
-                    borderRadius: BorderRadius.circular(2),
+  Widget _list(List<Map> items, String empty) {
+    if (items.isEmpty) return EmptyStateView(message: empty);
+    return RefreshIndicator(
+      onRefresh: _reload,
+      child: ListView.builder(
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 96),
+        itemCount: items.length,
+        itemBuilder: (context, i) {
+          final r = items[i];
+          final status = '${r['status'] ?? ''}';
+          return Card(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                ListTile(
+                  title: Text('${r['title'] ?? ''}'),
+                  subtitle: Text([
+                    '${r['ticket_number'] ?? ''}',
+                    requestStatusLabels[status] ?? status,
+                    requestPriorityLabels['${r['priority']}'] ?? '',
+                    formatDate(r['created_at']),
+                  ].where((s) => s.isNotEmpty).join(' · ')),
+                ),
+                if ((r['description'] ?? '').toString().isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                    child: Text('${r['description']}', maxLines: 3, overflow: TextOverflow.ellipsis),
                   ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              Text(
-                'Yeni Talep Oluştur',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
+                if (status == 'RESOLVED')
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(onPressed: () => _confirm(r, false), child: const Text('Devam ediyor')),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: FilledButton(onPressed: () => _confirm(r, true), child: const Text('Sorunum çözüldü')),
+                        ),
+                      ],
                     ),
-              ),
-              const SizedBox(height: 24),
-              const Text('Kategori Seçin'),
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  _CategoryChip(icon: Icons.elevator, label: 'Asansör'),
-                  _CategoryChip(icon: Icons.cleaning_services, label: 'Temizlik'),
-                  _CategoryChip(icon: Icons.security, label: 'Güvenlik'),
-                  _CategoryChip(icon: Icons.park, label: 'Bahçe'),
-                  _CategoryChip(icon: Icons.more_horiz, label: 'Diğer'),
-                ],
-              ),
-              const SizedBox(height: 24),
-              TextFormField(
-                decoration: const InputDecoration(
-                  labelText: 'Başlık',
-                  hintText: 'Sorunu kısaca açıklayın',
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                maxLines: 4,
-                decoration: const InputDecoration(
-                  labelText: 'Açıklama',
-                  hintText: 'Detaylı bilgi verin...',
-                  alignLabelWithHint: true,
-                ),
-              ),
-              const SizedBox(height: 16),
-              OutlinedButton.icon(
-                onPressed: () {},
-                icon: const Icon(Icons.camera_alt),
-                label: const Text('Fotoğraf Ekle'),
-                style: OutlinedButton.styleFrom(
-                  minimumSize: const Size(double.infinity, 52),
-                ),
-              ),
-              const SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                },
-                child: const Text('Gönder'),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _RequestList extends StatelessWidget {
-  final bool isActive;
-
-  const _RequestList({required this.isActive});
-
-  @override
-  Widget build(BuildContext context) {
-    if (!isActive) {
-      // Tamamlanmış talepler örnek
-      return ListView(
-        padding: const EdgeInsets.all(16),
-        children: const [
-          _RequestItem(
-            id: 'mock-request-0089',
-            ticketNo: 'TLP-2025-0089',
-            title: 'Merdiven temizlik sorunu',
-            category: 'Temizlik',
-            status: 'RESOLVED',
-            date: '15 Ara 2025',
-          ),
-        ],
-      );
-    }
-
-    // Aktif talep yok durumu
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.inbox_outlined,
-            size: 80,
-            color: Colors.grey[400],
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'Aktif talebiniz bulunmamaktadır',
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.grey[600],
+                  ),
+              ],
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Yönetiminiz ile iletişime geçmek için\nyeni talep oluşturabilirsiniz.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Colors.grey[500],
-            ),
-          ),
-        ],
+          );
+        },
       ),
-    );
-  }
-}
-
-class _RequestItem extends StatefulWidget {
-  final String id;
-  final String ticketNo;
-  final String title;
-  final String category;
-  final String status;
-  final String date;
-
-  const _RequestItem({
-    required this.id,
-    required this.ticketNo,
-    required this.title,
-    required this.category,
-    required this.status,
-    required this.date,
-  });
-
-  @override
-  State<_RequestItem> createState() => _RequestItemState();
-}
-
-class _RequestItemState extends State<_RequestItem> {
-  late String _status;
-  bool _isSubmitting = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _status = widget.status;
-  }
-
-  Future<void> _confirmResolution(bool approved) async {
-    setState(() => _isSubmitting = true);
-    try {
-      await apiClient.confirmRequestResolution(widget.id, approved);
-      if (!mounted) return;
-      setState(() => _status = approved ? 'CLOSED' : 'IN_PROGRESS');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(approved
-              ? 'Talebi onayladınız, kapatıldı olarak işaretlendi'
-              : 'Talep yeniden yöneticiye iletildi'),
-        ),
-      );
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('İşlem gerçekleştirilemedi, lütfen tekrar deneyin')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isSubmitting = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            ListTile(
-              title: Text(widget.title),
-              subtitle: Text('${widget.category} • ${widget.date}'),
-              trailing: const Icon(Icons.check_circle, color: Colors.green),
-              onTap: () {},
-            ),
-            if (_status == 'RESOLVED') ...[
-              const Padding(
-                padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
-                child: Text(
-                  'Yöneticiniz bu talebi çözüldü olarak işaretledi. Sorununuz gerçekten çözüldü mü?',
-                  style: TextStyle(color: Colors.grey),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: _isSubmitting ? null : () => _confirmResolution(false),
-                        icon: const Icon(Icons.replay),
-                        label: const Text('Devam ediyor'),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        onPressed: _isSubmitting ? null : () => _confirmResolution(true),
-                        icon: const Icon(Icons.check),
-                        label: const Text('Sorunum çözüldü'),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _CategoryChip extends StatelessWidget {
-  final IconData icon;
-  final String label;
-
-  const _CategoryChip({required this.icon, required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return FilterChip(
-      label: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 18),
-          const SizedBox(width: 6),
-          Text(label),
-        ],
-      ),
-      onSelected: (selected) {},
     );
   }
 }

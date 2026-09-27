@@ -610,6 +610,12 @@ if [ "$FUP" = "1" ] && [ -n "${MGR:-}" ]; then
   ASSESS='66666666-6666-6666-6666-666666666601'   # demo: A-3, 1200,00 TL, PENDING
   BEFORE=$($PSQL -t -A -c "SELECT COALESCE(paid_amount,0)::text FROM monthly_assessments WHERE id='$ASSESS';")
 
+  # Ödeme yöntemi doğrulanır (önceden 'CARD' gibi bilinmeyen değer kaydediliyordu)
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "http://127.0.0.1:${FINPORT}/api/v1/finance/payments" \
+    -H "Authorization: Bearer $MGR" -H 'Content-Type: application/json' \
+    -d "{\"assessment_ids\":[\"$ASSESS\"],\"payment_method\":\"CARD\"}")
+  [ "$SC" = "422" ] && ok "bilinmeyen ödeme yöntemi reddediliyor → 422" || bad "bilinmeyen ödeme yöntemi → $SC"
+
   PAYRESP=$(curl -s -X POST "http://127.0.0.1:${FINPORT}/api/v1/finance/payments" \
     -H "Authorization: Bearer $MGR" -H 'Content-Type: application/json' \
     -d "{\"assessment_ids\":[\"$ASSESS\"],\"payment_method\":\"BANK_TRANSFER\"}")

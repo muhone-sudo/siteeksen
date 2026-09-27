@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -160,6 +161,12 @@ func CreateAssessment(svc *service.FinanceService) gin.HandlerFunc {
 	}
 }
 
+// validPaymentMethods, payments.payment_method için kabul edilen değerlerdir
+// (001_initial_schema.sql'deki sözleşme).
+var validPaymentMethods = map[string]bool{
+	"CREDIT_CARD": true, "SAVED_CARD": true, "BANK_TRANSFER": true, "CASH": true,
+}
+
 // CreatePaymentRequest ödeme isteği
 type CreatePaymentRequest struct {
 	AssessmentIDs []string `json:"assessment_ids" binding:"required"`
@@ -174,6 +181,16 @@ func CreatePayment(svc *service.FinanceService) gin.HandlerFunc {
 		var req CreatePaymentRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Geçersiz istek formatı"})
+			return
+		}
+		// Ödeme yöntemi doğrulanmıyordu: istemci ne yazarsa ('CARD', 'TRANSFER'…)
+		// kaydediliyor, yönetim ekranı tanımadığı yöntemi gösteremiyordu.
+		req.PaymentMethod = strings.ToUpper(strings.TrimSpace(req.PaymentMethod))
+		if !validPaymentMethods[req.PaymentMethod] {
+			c.JSON(http.StatusUnprocessableEntity, gin.H{
+				"error": "Geçersiz ödeme yöntemi",
+				"valid": []string{"CREDIT_CARD", "SAVED_CARD", "BANK_TRANSFER", "CASH"},
+			})
 			return
 		}
 

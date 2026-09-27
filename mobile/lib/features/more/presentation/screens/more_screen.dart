@@ -10,6 +10,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/auth/session_actions.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/widgets/data_state.dart';
 
@@ -75,6 +76,11 @@ class _MoreScreenState extends State<MoreScreen> {
           _buildUserCard(context),
           const SizedBox(height: 8),
           _MenuItem(
+            icon: Icons.notifications_outlined,
+            title: 'Bildirimlerim',
+            onTap: () => context.pushNamed('notifications'),
+          ),
+          _MenuItem(
             icon: Icons.announcement_outlined,
             title: 'Duyurular',
             onTap: () => context.pushNamed('announcements'),
@@ -96,8 +102,8 @@ class _MoreScreenState extends State<MoreScreen> {
           ),
           _MenuItem(
             icon: Icons.event_outlined,
-            title: 'Rezervasyon Oluştur',
-            onTap: () => context.pushNamed('createReservation'),
+            title: 'Rezervasyonlarım',
+            onTap: () => context.pushNamed('myReservations'),
           ),
           _MenuItem(
             icon: Icons.person_add_outlined,
@@ -113,11 +119,6 @@ class _MoreScreenState extends State<MoreScreen> {
             icon: Icons.folder_copy_outlined,
             title: 'Belgeler',
             onTap: () => context.pushNamed('documents'),
-          ),
-          _MenuItem(
-            icon: Icons.chair_outlined,
-            title: 'Demirbaşlar',
-            onTap: () => context.pushNamed('assets'),
           ),
           const Divider(height: 32),
           _MenuItem(
@@ -234,13 +235,9 @@ class _MoreScreenState extends State<MoreScreen> {
         ],
       ),
     );
-    if (confirmed != true) return;
-
-    // Jetonlar cihazdan gerçekten silinir.
-    await apiClient.clearToken();
-    if (!mounted) return;
-    // ignore: use_build_context_synchronously
-    context.goNamed('login');
+    if (confirmed != true || !context.mounted) return;
+    // Sunucudaki oturum da kapatılır (yenileme jetonu iptal edilir).
+    await performLogout(context);
   }
 }
 

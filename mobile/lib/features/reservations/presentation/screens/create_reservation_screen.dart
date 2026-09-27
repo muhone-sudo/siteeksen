@@ -1,9 +1,21 @@
-import 'package:flutter/material.dart';
-import '../../../../core/theme/apple_theme.dart';
-import '../../../../core/widgets/apple_widgets.dart';
-import '../../../../core/network/api_client.dart';
+// Rezervasyon oluşturma.
+//
+// DÜZELTME (2026-09-26): saatler ve dolu durumları koda gömülüydü; istek
+// "09:00" biçiminde saat gönderdiği için sunucu HER rezervasyonu 400 ile
+// reddediyordu; sonuç da her zaman "Onaylandı" diye gösteriliyordu (tesis onay
+// istiyorsa rezervasyon PENDING kalır). Artık doluluk sunucudan gelir, zaman
+// RFC3339 gönderilir ve sunucunun verdiği durum gösterilir.
 
-/// Rezervasyon Yapma Ekranı - Apple Tarzı
+import 'package:flutter/material.dart';
+
+import '../../../../core/network/api_client.dart';
+import '../../../../core/theme/apple_theme.dart';
+import '../../../../core/utils/formatters.dart';
+import '../../../../core/widgets/apple_widgets.dart';
+import '../../../../core/widgets/data_state.dart';
+import '../../domain/reservation_slots.dart';
+import 'my_reservations_screen.dart' show reservationStatusLabels;
+
 class CreateReservationScreen extends StatefulWidget {
   const CreateReservationScreen({super.key});
 
@@ -12,23 +24,18 @@ class CreateReservationScreen extends StatefulWidget {
 }
 
 class _CreateReservationScreenState extends State<CreateReservationScreen> {
+  List<Map<String, dynamic>> _facilities = [];
   int _selectedFacility = 0;
   DateTime _selectedDate = DateTime.now();
-  int _selectedTimeSlot = -1;
-  bool _isLoading = true;
+  bool _loadingFacilities = true;
+  String? _facilitiesError;
 
-  List<Map<String, dynamic>> _facilities = [];
-
-  final List<Map<String, dynamic>> _timeSlots = [
-    {'time': '09:00 - 10:00', 'available': true},
-    {'time': '10:00 - 11:00', 'available': true},
-    {'time': '11:00 - 12:00', 'available': false},
-    {'time': '12:00 - 13:00', 'available': true},
-    {'time': '14:00 - 15:00', 'available': true},
-    {'time': '15:00 - 16:00', 'available': false},
-    {'time': '16:00 - 17:00', 'available': true},
-    {'time': '17:00 - 18:00', 'available': true},
-  ];
+  bool _loadingSlots = false;
+  String? _slotsError;
+  bool _open = true;
+  List<TimeSlot> _slots = [];
+  int _selectedSlot = -1;
+  bool _submitting = false;
 
   @override
   void initState() {
@@ -36,374 +43,224 @@ class _CreateReservationScreenState extends State<CreateReservationScreen> {
     _loadFacilities();
   }
 
-  void _loadFacilities() async {
+  Future<void> _loadFacilities() async {
+    setState(() {
+      _loadingFacilities = true;
+      _facilitiesError = null;
+    });
     try {
-      final dynamic data = await apiClient.getFacilities();
-      List<dynamic> list = [];
-      if (data is Map && data.containsKey('facilities')) {
-        list = data['facilities'];
-      } else if (data is List) {
-        list = data;
-      }
+      final list = await apiClient.getFacilities();
+      final usable = list
+          .whereType<Map>()
+          .map((m) => Map<String, dynamic>.from(m))
+          .where((f) => f['is_active'] != false && f['maintenance_mode'] != true)
+          .toList();
+      if (!mounted) return;
       setState(() {
-        _facilities = list.map((item) => {
-          'id': item['id'] ?? '',
-          'name': item['name'] ?? '',
-          'icon': _getIconForCategory(item['category']),
-          'color': _getColorForCategory(item['category']),
-          'price': (item['hourly_fee'] ?? item['price'] ?? 0).toInt(),
-        }).toList();
-        _isLoading = false;
+        _facilities = usable;
+        _loadingFacilities = false;
       });
-    } catch (_) {
-      setState(() => _isLoading = false);
+      if (usable.isNotEmpty) await _loadSlots();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _facilitiesError = toUserMessage(e);
+        _loadingFacilities = false;
+      });
     }
   }
 
-  IconData _getIconForCategory(String? category) {
-    switch (category) {
-      case 'POOL': return Icons.pool_rounded;
-      case 'GYM': return Icons.fitness_center_rounded;
-      case 'TENNIS': return Icons.sports_tennis_rounded;
-      case 'MEETING': return Icons.meeting_room_rounded;
-      default: return Icons.sports_rounded;
-    }
-  }
+  Map<String, dynamic> get _facility => _facilities[_selectedFacility];
 
-  Color _getColorForCategory(String? category) {
-    switch (category) {
-      case 'POOL': return AppleTheme.systemBlue;
-      case 'GYM': return AppleTheme.systemOrange;
-      case 'TENNIS': return AppleTheme.systemGreen;
-      case 'MEETING': return AppleTheme.systemPurple;
-      default: return AppleTheme.systemRed;
+  Future<void> _loadSlots() async {
+    setState(() {
+      _loadingSlots = true;
+      _slotsError = null;
+      _selectedSlot = -1;
+    });
+    try {
+      final res = await apiClient.getFacilitySlots('${_facility['id']}', apiDate(_selectedDate));
+      final open = parseHhmm(res['available_from']) ?? 8 * 60;
+      final close = parseHhmm(res['available_to']) ?? 22 * 60;
+      final minDur = toNum(_facility['min_duration_minutes']).toInt();
+      final busy = <(String, String)>[
+        for (final b in ApiClient.listOf(res['busy']).whereType<Map>())
+          if (b['start_time'] is String && b['end_time'] is String) (b['start_time'] as String, b['end_time'] as String),
+      ];
+      if (!mounted) return;
+      setState(() {
+        _open = res['open'] != false;
+        _slots = buildSlots(
+          day: _selectedDate,
+          openMinute: open,
+          closeMinute: close,
+          stepMinutes: minDur > 0 ? minDur : 60,
+          busy: busy,
+          bufferMinutes: toNum(res['buffer_minutes']).toInt(),
+          now: DateTime.now(),
+        );
+        _loadingSlots = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _slotsError = toUserMessage(e);
+        _loadingSlots = false;
+      });
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return Scaffold(
-        backgroundColor: AppleTheme.background,
-        appBar: AppBar(
-          title: const Text('Rezervasyon Yap'),
-          backgroundColor: Colors.white,
-          surfaceTintColor: Colors.transparent,
-        ),
-        body: const Center(child: CircularProgressIndicator()),
-      );
+    final appBar = AppBar(
+      title: const Text('Rezervasyon Yap'),
+      backgroundColor: Colors.white,
+      surfaceTintColor: Colors.transparent,
+    );
+    if (_loadingFacilities) return Scaffold(appBar: appBar, body: const LoadingView());
+    if (_facilitiesError != null) {
+      return Scaffold(appBar: appBar, body: ErrorStateView(message: _facilitiesError!, onRetry: _loadFacilities));
     }
-
     if (_facilities.isEmpty) {
-      return Scaffold(
-        backgroundColor: AppleTheme.background,
-        appBar: AppBar(
-          title: const Text('Rezervasyon Yap'),
-          backgroundColor: Colors.white,
-          surfaceTintColor: Colors.transparent,
-        ),
-        body: const Center(child: Text('Rezervasyona açık tesis bulunamadı.')),
-      );
+      return Scaffold(appBar: appBar, body: const EmptyStateView(message: 'Rezervasyona açık tesis bulunamadı.'));
     }
 
-    final selectedFacilityData = _facilities[_selectedFacility];
-
+    final fee = toNum(_facility['hourly_fee']);
     return Scaffold(
       backgroundColor: AppleTheme.background,
-      appBar: AppBar(
-        title: const Text('Rezervasyon Yap'),
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.transparent,
-      ),
-      body: CustomScrollView(
-        slivers: [
-          // Facility Selection
-          const SliverToBoxAdapter(
-            child: SectionTitle(title: 'Tesis Seçin'),
-          ),
-
-          SliverToBoxAdapter(
-            child: SizedBox(
-              height: 110,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                itemCount: _facilities.length,
-                itemBuilder: (context, index) {
-                  final facility = _facilities[index];
-                  final isSelected = _selectedFacility == index;
-
-                  return GestureDetector(
-                    onTap: () => setState(() {
-                      _selectedFacility = index;
-                      _selectedTimeSlot = -1;
-                    }),
-                    child: AnimatedContainer(
-                      duration: AppleTheme.fastAnimation,
-                      width: 100,
-                      margin: const EdgeInsets.only(right: 12),
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: isSelected ? (facility['color'] as Color).withOpacity(0.15) : Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: isSelected ? facility['color'] as Color : Colors.transparent,
-                          width: 2,
-                        ),
-                      ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(facility['icon'] as IconData, color: facility['color'] as Color, size: 32),
-                          const SizedBox(height: 8),
-                          Text(
-                            facility['name'] as String,
-                            style: TextStyle(fontSize: 12, fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500),
-                            textAlign: TextAlign.center,
-                            maxLines: 2,
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
+      appBar: appBar,
+      body: ListView(
+        padding: const EdgeInsets.only(bottom: 120),
+        children: [
+          const SectionTitle(title: 'Tesis'),
+          SizedBox(
+            height: 56,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: _facilities.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              itemBuilder: (context, i) => ChoiceChip(
+                label: Text('${_facilities[i]['name'] ?? 'Tesis'}'),
+                selected: i == _selectedFacility,
+                onSelected: (_) {
+                  setState(() => _selectedFacility = i);
+                  _loadSlots();
                 },
               ),
             ),
           ),
-
-          // Date Selector
-          const SliverToBoxAdapter(
-            child: SectionTitle(title: 'Tarih'),
+          if ((_facility['rules'] ?? '').toString().isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Text('Kurallar: ${_facility['rules']}', style: TextStyle(color: AppleTheme.secondaryLabel)),
+            ),
+          const SectionTitle(title: 'Tarih'),
+          SizedBox(
+            height: 56,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              itemCount: _bookingDays,
+              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              itemBuilder: (context, i) {
+                final d = DateTime.now().add(Duration(days: i));
+                final selected = d.year == _selectedDate.year && d.month == _selectedDate.month && d.day == _selectedDate.day;
+                return ChoiceChip(
+                  label: Text(formatDate(d).split(' ').take(2).join(' ')),
+                  selected: selected,
+                  onSelected: (_) {
+                    setState(() => _selectedDate = d);
+                    _loadSlots();
+                  },
+                );
+              },
+            ),
           ),
-
-          SliverToBoxAdapter(
-            child: SizedBox(
-              height: 90,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                itemCount: 14,
-                itemBuilder: (context, index) {
-                  final date = DateTime.now().add(Duration(days: index));
-                  final isSelected = _selectedDate.day == date.day && _selectedDate.month == date.month;
-                  final dayNames = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt', 'Paz'];
-
-                  return GestureDetector(
-                    onTap: () => setState(() {
-                      _selectedDate = date;
-                      _selectedTimeSlot = -1;
-                    }),
-                    child: AnimatedContainer(
-                      duration: AppleTheme.fastAnimation,
-                      width: 60,
-                      margin: const EdgeInsets.only(right: 10),
-                      decoration: BoxDecoration(
-                        color: isSelected ? AppleTheme.systemBlue : Colors.white,
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            dayNames[date.weekday - 1],
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: isSelected ? Colors.white70 : AppleTheme.secondaryLabel,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '${date.day}',
-                            style: TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.w700,
-                              color: isSelected ? Colors.white : AppleTheme.label,
-                            ),
-                          ),
-                        ],
-                      ),
+          const SectionTitle(title: 'Saat'),
+          if (_loadingSlots)
+            const Padding(padding: EdgeInsets.all(24), child: LoadingView())
+          else if (_slotsError != null)
+            ErrorStateView(message: _slotsError!, onRetry: _loadSlots)
+          else if (!_open)
+            const EmptyStateView(message: 'Tesis bu gün kapalı.', icon: Icons.event_busy)
+          else if (_slots.isEmpty)
+            const EmptyStateView(message: 'Bu gün için uygun saat yok.', icon: Icons.event_busy)
+          else
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (var i = 0; i < _slots.length; i++)
+                    ChoiceChip(
+                      label: Text(_slots[i].label),
+                      selected: i == _selectedSlot,
+                      onSelected: _slots[i].available ? (_) => setState(() => _selectedSlot = i) : null,
                     ),
-                  );
-                },
+                ],
               ),
             ),
-          ),
-
-          // Time Slots
-          const SliverToBoxAdapter(
-            child: SectionTitle(title: 'Saat'),
-          ),
-
-          SliverPadding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            sliver: SliverGrid(
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                childAspectRatio: 3,
-                mainAxisSpacing: 10,
-                crossAxisSpacing: 10,
-              ),
-              delegate: SliverChildBuilderDelegate(
-                (context, index) {
-                  final slot = _timeSlots[index];
-                  final isAvailable = slot['available'] as bool;
-                  final isSelected = _selectedTimeSlot == index;
-
-                  return GestureDetector(
-                    onTap: isAvailable ? () => setState(() => _selectedTimeSlot = index) : null,
-                    child: AnimatedContainer(
-                      duration: AppleTheme.fastAnimation,
-                      decoration: BoxDecoration(
-                        color: isSelected 
-                            ? AppleTheme.systemBlue 
-                            : isAvailable 
-                                ? Colors.white 
-                                : AppleTheme.systemGray6,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: isSelected ? AppleTheme.systemBlue : Colors.transparent,
-                        ),
-                      ),
-                      child: Center(
-                        child: Text(
-                          slot['time'] as String,
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                            color: isSelected 
-                                ? Colors.white 
-                                : isAvailable 
-                                    ? AppleTheme.label 
-                                    : AppleTheme.systemGray3,
-                          ),
-                        ),
-                      ),
-                    ),
-                  );
-                },
-                childCount: _timeSlots.length,
-              ),
+          if (fee > 0)
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text('Ücret: ${formatTry(fee)}/saat. Uygulamada tahsilat yapılmaz; ödeme yönetimle yapılır.',
+                  style: TextStyle(color: AppleTheme.secondaryLabel)),
             ),
-          ),
-
-          // Pricing Info
-          if ((selectedFacilityData['price'] as int) > 0)
-            SliverToBoxAdapter(
-              child: Container(
-                margin: const EdgeInsets.all(16),
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: AppleTheme.systemGreen.withOpacity(0.08),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.monetization_on_rounded, color: AppleTheme.systemGreen),
-                    const SizedBox(width: 12),
-                    Text('Ücret: ', style: TextStyle(fontSize: 15, color: AppleTheme.secondaryLabel)),
-                    Text('₺${selectedFacilityData['price']}/saat', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
-                  ],
-                ),
-              ),
-            ),
-
-          const SliverToBoxAdapter(child: SizedBox(height: 100)),
         ],
       ),
-      bottomNavigationBar: Container(
-        padding: EdgeInsets.fromLTRB(16, 16, 16, MediaQuery.of(context).padding.bottom + 16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -2))],
-        ),
-        child: SizedBox(
-          width: double.infinity,
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
           child: ElevatedButton(
-            onPressed: _selectedTimeSlot >= 0 ? () => _submitReservation(context) : null,
-            style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
-            child: const Text('Rezervasyon Yap'),
+            onPressed: _selectedSlot >= 0 && !_submitting ? _submit : null,
+            child: _submitting
+                ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Text('Rezervasyon Yap'),
           ),
         ),
       ),
     );
   }
 
-  void _submitReservation(BuildContext context) async {
-    final facility = _facilities[_selectedFacility];
-    final slot = _timeSlots[_selectedTimeSlot];
-    final times = slot['time'].split(' - ');
-    final startTime = times[0];
-    final endTime = times[1];
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const Center(child: CircularProgressIndicator()),
-    );
-
-    try {
-      await apiClient.createReservation(
-        facilityId: facility['id'],
-        date: _selectedDate.toIso8601String().split('T')[0],
-        startTime: startTime,
-        endTime: endTime,
-      );
-      Navigator.pop(context); // close loader
-
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: (facility['color'] as Color).withOpacity(0.12),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(facility['icon'] as IconData, size: 48, color: facility['color'] as Color),
-               ),
-              const SizedBox(height: 24),
-              const Text('Rezervasyon Onaylandı!', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
-              const SizedBox(height: 12),
-              Text(facility['name'] as String, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
-              const SizedBox(height: 4),
-              Text(
-                '${_formatDate(_selectedDate)} • ${slot['time']}',
-                style: TextStyle(fontSize: 14, color: AppleTheme.secondaryLabel),
-              ),
-            ],
-          ),
-          actions: [
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  Navigator.pop(context);
-                },
-                child: const Text('Tamam'),
-              ),
-            ),
-          ],
-        ),
-      );
-    } catch (e) {
-      Navigator.pop(context); // close loader
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Rezervasyon oluşturulamadı: $e'),
-          backgroundColor: AppleTheme.systemRed,
-        ),
-      );
-    }
+  int get _bookingDays {
+    final n = toNum(_facilities.isEmpty ? null : _facility['advance_booking_days']).toInt();
+    return n > 0 ? n.clamp(1, 60) : 14;
   }
 
-  String _formatDate(DateTime date) {
-    const months = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
-                    'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
-    return '${date.day} ${months[date.month - 1]}';
+  Future<void> _submit() async {
+    final slot = _slots[_selectedSlot];
+    setState(() => _submitting = true);
+    try {
+      final res = await apiClient.createReservation(
+        facilityId: '${_facility['id']}',
+        startTime: slot.startRfc3339(_selectedDate),
+        endTime: slot.endRfc3339(_selectedDate),
+      );
+      if (!mounted) return;
+      final status = '${res['status'] ?? ''}';
+      final notes = [res['note'], res['deposit_note']].whereType<String>().join('\n');
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text(status == 'APPROVED' ? 'Rezervasyon onaylandı' : 'Rezervasyon alındı'),
+          content: Text([
+            '${_facility['name']} · ${formatDate(_selectedDate)} · ${slot.label}',
+            'Durum: ${reservationStatusLabels[status] ?? status}',
+            if (status == 'PENDING') 'Tesis yönetim onayı gerektiriyor; karar bildirim olarak gelecek.',
+            if (notes.isNotEmpty) notes,
+          ].join('\n\n')),
+          actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Tamam'))],
+        ),
+      );
+      if (mounted) Navigator.of(context).pop();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Rezervasyon oluşturulamadı: ${toUserMessage(e)}')));
+      await _loadSlots();
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
   }
 }

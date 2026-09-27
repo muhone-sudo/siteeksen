@@ -1,8 +1,28 @@
-import 'package:flutter/material.dart';
-import '../../../../core/theme/apple_theme.dart';
-import '../../../../core/network/api_client.dart';
+// Kargolarım (sakin — yalnızca kendi dairesinin paketleri).
+//
+// DÜZELTME (2026-09-26): ekran `arrived`/`in_transit`/`picked_up` durumlarını
+// ve var olmayan alanları (`arrived_at`, `sender_name`…) arıyordu; sunucu
+// RECEIVED/NOTIFIED/DELIVERED/RETURNED döndüğü için HER PAKET GİZLİ kalıyordu.
+// Eksik alanlar '12:00', 'Bugün', 'Yakında' gibi uydurma değerlerle
+// dolduruluyordu. Artık sunucunun alanları olduğu gibi gösterilir.
 
-/// Kargo Takip Mobil Ekranı - Apple Tarzı
+import 'package:flutter/material.dart';
+
+import '../../../../core/network/api_client.dart';
+import '../../../../core/utils/formatters.dart';
+import '../../../../core/widgets/data_state.dart';
+
+/// Paket durumu → (etiket, bekliyor mu).
+const packageStatusLabels = {
+  'RECEIVED': 'Yönetimde bekliyor',
+  'NOTIFIED': 'Yönetimde bekliyor (bildirildi)',
+  'DELIVERED': 'Teslim edildi',
+  'RETURNED': 'İade edildi',
+};
+
+/// Teslim alınmayı bekleyen paket mi?
+bool isPackageWaiting(Object? status) => status == 'RECEIVED' || status == 'NOTIFIED';
+
 class PackageTrackingMobileScreen extends StatefulWidget {
   const PackageTrackingMobileScreen({super.key});
 
@@ -11,444 +31,77 @@ class PackageTrackingMobileScreen extends StatefulWidget {
 }
 
 class _PackageTrackingMobileScreenState extends State<PackageTrackingMobileScreen> {
-  List<Map<String, dynamic>> _packages = [];
-  bool _isLoading = true;
+  late Future<List<dynamic>> _future;
 
   @override
   void initState() {
     super.initState();
-    _loadPackages();
+    _future = apiClient.getPackages();
   }
 
-  void _loadPackages() async {
-    try {
-      final list = await apiClient.getPackages();
-      setState(() {
-        _packages = List<Map<String, dynamic>>.from(list.map((p) {
-          return {
-            'id': p['id'] ?? '',
-            'carrier': p['carrier'] ?? 'Kargo Firması',
-            'trackingNo': p['tracking_number'] ?? p['trackingNo'] ?? '',
-            'status': p['status'] ?? 'arrived',
-            'arrivedAt': p['arrived_at'] ?? '12:00',
-            'arrivedDate': p['arrived_date'] ?? 'Bugün',
-            'estimatedDate': p['estimated_date'] ?? 'Yakında',
-            'pickedUpAt': p['picked_up_at'] ?? '',
-            'description': p['description'] ?? '',
-            'senderName': p['sender_name'] ?? p['senderName'] ?? '',
-            'isPickedUp': p['is_picked_up'] ?? (p['status'] == 'picked_up'),
-          };
-        }));
-        _isLoading = false;
-      });
-    } catch (_) {
-      setState(() => _isLoading = false);
-    }
+  Future<void> _reload() async {
+    setState(() => _future = apiClient.getPackages());
+    await _future;
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return Scaffold(
-        backgroundColor: AppleTheme.background,
-        body: const Center(child: CircularProgressIndicator()),
-      );
-    }
-
-    if (_packages.isEmpty) {
-      return Scaffold(
-        backgroundColor: AppleTheme.background,
-        appBar: AppBar(title: const Text('Kargolarım'), backgroundColor: Colors.white),
-        body: const Center(child: Text('Kayıtlı kargo paketiniz bulunmamaktadır.')),
-      );
-    }
-
-    final waitingPackages = _packages.where((p) => p['status'] == 'arrived' && p['isPickedUp'] == false).toList();
-    final inTransitPackages = _packages.where((p) => p['status'] == 'in_transit').toList();
-    final pickedUpPackages = _packages.where((p) => p['isPickedUp'] == true).toList();
-
     return Scaffold(
-      backgroundColor: AppleTheme.background,
-      body: SafeArea(
-        child: CustomScrollView(
-          slivers: [
-            // Header
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Row(
-                  children: [
-                    IconButton(onPressed: () => Navigator.pop(context), icon: const Icon(Icons.arrow_back_ios_rounded)),
-                    const Expanded(child: Text('Kargolarım', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700), textAlign: TextAlign.center)),
-                    const SizedBox(width: 48),
-                  ],
-                ),
-              ),
-            ),
-
-            // Summary Cards
-            SliverToBoxAdapter(
-              child: SizedBox(
-                height: 90,
-                child: ListView(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  children: [
-                    _buildSummaryCard('Bekleyen', '${waitingPackages.length}', Icons.inventory_2_rounded, AppleTheme.systemOrange),
-                    _buildSummaryCard('Yolda', '${inTransitPackages.length}', Icons.local_shipping_rounded, AppleTheme.systemBlue),
-                    _buildSummaryCard('Teslim Alınan', '${pickedUpPackages.length}', Icons.check_circle_rounded, AppleTheme.systemGreen),
-                  ],
-                ),
-              ),
-            ),
-
-            // Waiting Packages
-            if (waitingPackages.isNotEmpty) ...[
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 8, height: 8,
-                        decoration: BoxDecoration(color: AppleTheme.systemOrange, shape: BoxShape.circle),
-                      ),
-                      const SizedBox(width: 8),
-                      const Text('Güvenlikte Bekliyor', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
-                    ],
-                  ),
-                ),
-              ),
-              SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) => Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                    child: _buildPackageCard(waitingPackages[index]),
-                  ),
-                  childCount: waitingPackages.length,
-                ),
-              ),
-            ],
-
-            // In Transit
-            if (inTransitPackages.isNotEmpty) ...[
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
-                  child: Row(
-                    children: [
-                      Container(width: 8, height: 8, decoration: BoxDecoration(color: AppleTheme.systemBlue, shape: BoxShape.circle)),
-                      const SizedBox(width: 8),
-                      const Text('Yolda', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
-                    ],
-                  ),
-                ),
-              ),
-              SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) => Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                    child: _buildPackageCard(inTransitPackages[index]),
-                  ),
-                  childCount: inTransitPackages.length,
-                ),
-              ),
-            ],
-
-            // Picked Up
-            if (pickedUpPackages.isNotEmpty) ...[
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
-                  child: Row(
-                    children: [
-                      Container(width: 8, height: 8, decoration: BoxDecoration(color: AppleTheme.systemGreen, shape: BoxShape.circle)),
-                      const SizedBox(width: 8),
-                      const Text('Teslim Alındı', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
-                    ],
-                  ),
-                ),
-              ),
-              SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) => Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                    child: _buildPackageCard(pickedUpPackages[index]),
-                  ),
-                  childCount: pickedUpPackages.length,
-                ),
-              ),
-            ],
-
-            const SliverToBoxAdapter(child: SizedBox(height: 100)),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSummaryCard(String title, String value, IconData icon, Color color) {
-    return Container(
-      width: 110,
-      margin: const EdgeInsets.only(right: 12),
-      padding: const EdgeInsets.all(14),
-      decoration: AppleTheme.cardDecoration,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Icon(icon, color: color, size: 24),
-          Row(
-            children: [
-              Text(value, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: color)),
-              const Spacer(),
-              Text(title, style: TextStyle(fontSize: 11, color: AppleTheme.secondaryLabel)),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPackageCard(Map<String, dynamic> package) {
-    final status = package['status'] as String;
-    final isPickedUp = package['isPickedUp'] == true;
-    
-    Color statusColor;
-    IconData statusIcon;
-    String statusText;
-    
-    if (isPickedUp) {
-      statusColor = AppleTheme.systemGreen;
-      statusIcon = Icons.check_circle_rounded;
-      statusText = 'Teslim alındı';
-    } else if (status == 'arrived') {
-      statusColor = AppleTheme.systemOrange;
-      statusIcon = Icons.inventory_2_rounded;
-      statusText = 'Güvenlikte';
-    } else {
-      statusColor = AppleTheme.systemBlue;
-      statusIcon = Icons.local_shipping_rounded;
-      statusText = 'Yolda';
-    }
-
-    return GestureDetector(
-      onTap: () => _showPackageDetail(context, package),
-      child: Container(
-        decoration: AppleTheme.cardDecoration,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              // Carrier Icon
-              Container(
-                width: 50,
-                height: 50,
-                decoration: BoxDecoration(color: statusColor.withOpacity(0.12), borderRadius: BorderRadius.circular(12)),
-                child: Icon(statusIcon, color: statusColor, size: 26),
-              ),
-              const SizedBox(width: 14),
-              // Details
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(child: Text(package['carrier'], style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600))),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(color: statusColor.withOpacity(0.12), borderRadius: BorderRadius.circular(6)),
-                          child: Text(statusText, style: TextStyle(fontSize: 11, color: statusColor, fontWeight: FontWeight.w600)),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(package['senderName'], style: TextStyle(color: AppleTheme.secondaryLabel)),
-                    const SizedBox(height: 6),
-                    Row(
-                      children: [
-                        Icon(Icons.qr_code_rounded, size: 14, color: AppleTheme.tertiaryLabel),
-                        const SizedBox(width: 4),
-                        Text(package['trackingNo'], style: TextStyle(fontSize: 12, color: AppleTheme.tertiaryLabel, fontFamily: 'monospace')),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    Row(
-                      children: [
-                        if (status == 'arrived' && !isPickedUp) ...[
-                          Icon(Icons.access_time_rounded, size: 14, color: AppleTheme.systemOrange),
-                          const SizedBox(width: 4),
-                          Text('${package['arrivedDate']} ${package['arrivedAt']}', style: TextStyle(fontSize: 12, color: AppleTheme.systemOrange)),
-                        ] else if (status == 'in_transit') ...[
-                          Icon(Icons.schedule_rounded, size: 14, color: AppleTheme.systemBlue),
-                          const SizedBox(width: 4),
-                          Text('Tahmini: ${package['estimatedDate']}', style: TextStyle(fontSize: 12, color: AppleTheme.systemBlue)),
-                        ] else if (isPickedUp) ...[
-                          Icon(Icons.check_rounded, size: 14, color: AppleTheme.systemGreen),
-                          const SizedBox(width: 4),
-                          Text('${package['arrivedDate']} ${package['pickedUpAt']}', style: TextStyle(fontSize: 12, color: AppleTheme.systemGreen)),
-                        ],
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              const Icon(Icons.chevron_right_rounded, color: AppleTheme.systemGray3),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _showPackageDetail(BuildContext context, Map<String, dynamic> package) {
-    final status = package['status'] as String;
-    final isPickedUp = package['isPickedUp'] == true;
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        height: MediaQuery.of(context).size.height * 0.7,
-        decoration: const BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: Column(
-          children: [
-            Container(width: 36, height: 5, margin: const EdgeInsets.only(top: 12), decoration: BoxDecoration(color: AppleTheme.systemGray4, borderRadius: BorderRadius.circular(2.5))),
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.all(20),
-                children: [
-                  // Carrier & Status
-                  Row(
-                    children: [
-                      Container(
-                        width: 56, height: 56,
-                        decoration: BoxDecoration(color: AppleTheme.systemBlue.withOpacity(0.12), borderRadius: BorderRadius.circular(14)),
-                        child: Icon(Icons.local_shipping_rounded, color: AppleTheme.systemBlue, size: 28),
-                      ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(package['carrier'], style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700)),
-                            Text(package['senderName'], style: TextStyle(color: AppleTheme.secondaryLabel)),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-
-                  // Tracking Number
-                  _buildDetailRow('Takip No', package['trackingNo'], canCopy: true),
-                  _buildDetailRow('Açıklama', package['description']),
-                  if (status == 'arrived')
-                    _buildDetailRow('Varış', '${package['arrivedDate']} ${package['arrivedAt']}'),
-                  if (isPickedUp)
-                    _buildDetailRow('Teslim', '${package['arrivedDate']} ${package['pickedUpAt']}'),
-                  if (status == 'in_transit')
-                    _buildDetailRow('Tahmini', package['estimatedDate']),
-
-                  const SizedBox(height: 24),
-
-                  // Timeline
-                  const Text('Takip', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 12),
-                  _buildTimelineItem('Kargo yola çıktı', 'Gönderici deposundan alındı', true),
-                  if (status == 'arrived' || isPickedUp)
-                    _buildTimelineItem('Siteye ulaştı', '${package['arrivedDate']} ${package['arrivedAt']}', true),
-                  if (isPickedUp)
-                    _buildTimelineItem('Teslim edildi', 'Sakin tarafından alındı', true, isLast: true)
-                  else if (status == 'arrived')
-                    _buildTimelineItem('Teslim bekliyor', 'Güvenlikte', false, isLast: true, isCurrent: true),
-
-                  const SizedBox(height: 24),
-
-                  // Actions
-                  if (status == 'arrived' && !isPickedUp)
-                    ElevatedButton.icon(
-                      onPressed: () {
-                        Navigator.pop(context);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: const Text('Güvenlik bilgilendirildi'), backgroundColor: AppleTheme.systemGreen),
-                        );
-                      },
-                      icon: const Icon(Icons.notifications_active_rounded),
-                      label: const Text('Güvenliğe Haber Ver'),
-                      style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
-                    ),
+      appBar: AppBar(title: const Text('Kargolarım')),
+      body: FutureBuilder<List<dynamic>>(
+        future: _future,
+        builder: (context, snap) {
+          if (snap.connectionState != ConnectionState.done) return const LoadingView();
+          if (snap.hasError) return ErrorStateView(message: toUserMessage(snap.error!), onRetry: _reload);
+          final all = snap.data!.whereType<Map>().toList();
+          if (all.isEmpty) {
+            return const EmptyStateView(message: 'Kayıtlı paketiniz yok', icon: Icons.local_shipping_outlined);
+          }
+          final waiting = all.where((p) => isPackageWaiting(p['status'])).toList();
+          final done = all.where((p) => !isPackageWaiting(p['status'])).toList();
+          return RefreshIndicator(
+            onRefresh: _reload,
+            child: ListView(
+              children: [
+                if (waiting.isNotEmpty) ...[
+                  _header(context, 'Teslim almanızı bekleyen (${waiting.length})'),
+                  for (final p in waiting) _tile(context, p),
                 ],
-              ),
+                if (done.isNotEmpty) ...[
+                  _header(context, 'Geçmiş'),
+                  for (final p in done) _tile(context, p),
+                ],
+              ],
             ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
 
-  Widget _buildDetailRow(String label, String value, {bool canCopy = false}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(width: 100, child: Text(label, style: TextStyle(color: AppleTheme.secondaryLabel))),
-          Expanded(
-            child: Row(
-              children: [
-                Expanded(child: Text(value, style: const TextStyle(fontWeight: FontWeight.w500))),
-                if (canCopy)
-                  IconButton(
-                    onPressed: () {},
-                    icon: Icon(Icons.copy_rounded, size: 18, color: AppleTheme.systemBlue),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                  ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget _header(BuildContext context, String text) => Padding(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+        child: Text(text, style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
+      );
 
-  Widget _buildTimelineItem(String title, String subtitle, bool isCompleted, {bool isLast = false, bool isCurrent = false}) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Column(
-          children: [
-            Container(
-              width: 12, height: 12,
-              decoration: BoxDecoration(
-                color: isCompleted ? AppleTheme.systemGreen : (isCurrent ? AppleTheme.systemOrange : AppleTheme.systemGray4),
-                shape: BoxShape.circle,
-              ),
-            ),
-            if (!isLast)
-              Container(width: 2, height: 40, color: isCompleted ? AppleTheme.systemGreen : AppleTheme.systemGray5),
-          ],
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Padding(
-            padding: const EdgeInsets.only(bottom: 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: TextStyle(fontWeight: FontWeight.w600, color: isCurrent ? AppleTheme.systemOrange : AppleTheme.label)),
-                Text(subtitle, style: TextStyle(fontSize: 13, color: AppleTheme.secondaryLabel)),
-              ],
-            ),
-          ),
-        ),
-      ],
+  Widget _tile(BuildContext context, Map p) {
+    final status = '${p['status'] ?? ''}';
+    final waiting = isPackageWaiting(status);
+    final days = toNum(p['waiting_days']).toInt();
+    final lines = <String>[
+      packageStatusLabels[status] ?? status,
+      'Geliş: ${formatDateTime(p['received_at'])}',
+      if (waiting && days > 0) '$days gündür bekliyor',
+      if (waiting && (p['storage_location'] ?? '').toString().isNotEmpty) 'Yer: ${p['storage_location']}',
+      if (!waiting && parseApiDate(p['delivered_at']) != null)
+        'Teslim: ${formatDateTime(p['delivered_at'])}${(p['delivered_to_name'] ?? '').toString().isNotEmpty ? ' (${p['delivered_to_name']})' : ''}',
+      if ((p['tracking_number'] ?? '').toString().isNotEmpty) 'Takip no: ${p['tracking_number']}',
+    ];
+    return ListTile(
+      leading: Icon(waiting ? Icons.inventory_2 : Icons.check_circle_outline, color: waiting ? Colors.orange : Colors.green),
+      title: Text([p['carrier'], p['recipient_name']].where((v) => v != null && '$v'.isNotEmpty).join(' · ')),
+      subtitle: Text(lines.join('\n')),
+      isThreeLine: true,
     );
   }
 }

@@ -1,28 +1,42 @@
-// Belgeler Ekranı (sakin)
+// Site belgeleri (sakin — görünürlüğe göre, `GET /documents`).
 //
-// NEDEN DEĞİŞTİRİLDİ (2026-09-13):
-// Ekran hiçbir ağ çağrısı yapmıyordu. Üç sekmenin tamamı koda gömülü uydurma
-// belgelerle doluydu ("Site Yönetim Planı 2.4 MB", "Kimlik Fotokopisi",
-// "Aidat Sözleşmesi" …). Daha kötüsü:
-//   - "Yükle" düğmesi hiçbir yere dosya göndermeden listeye satır ekleyip
-//     "Belge yönetimle paylaşıldı" diyordu — sunucuda hiçbir kayıt oluşmuyordu.
-//   - "İndir" düğmesi "Belge indiriliyor..." diyordu, hiçbir şey indirmiyordu.
-//   - Paylaşım anahtarı sadece yerel değişkeni değiştirip "paylaşıldı" diyordu.
-// Bunların hepsi kullanıcıya yalan söylüyordu.
+// DÜZELTME (2026-09-26): ekran "belge modülünün sunucu karşılığı yok" diyordu;
+// oysa belge arşivi gerçek (document servisi) ve sakinler RESIDENTS/OWNERS
+// görünürlüğündeki belgeleri görebiliyor. Liste artık sunucudan gelir.
 //
-// GERÇEK DURUM: Belge modülü için sunucuda uç yoktur ve `ApiClient` içinde
-// belge metodu bulunmamaktadır (bkz. lib/core/network/api_client.dart).
-// Bu nedenle uydurma içerik tamamen kaldırıldı; ekranın iskeleti (başlık, sekme
-// yapısı, bilgi bandı) korunarak içerik `NotImplementedNotice` ile değiştirildi.
-// Sunucuda belge uçları açıldığında yalnızca `_buildCurrentTabContent` gerçek
-// veriye bağlanacaktır.
+// Bilinçli sınır: mobilde dosyayı açacak bir görüntüleyici/indirme eklentisi
+// yok. Belge içeriği için yönetimden istenmesi söylenir; "indirildi" denmez.
+// Belge yükleme yalnızca yönetimindir (M/B).
 
 import 'package:flutter/material.dart';
 
-import '../../../../core/theme/apple_theme.dart';
+import '../../../../core/network/api_client.dart';
+import '../../../../core/utils/formatters.dart';
 import '../../../../core/widgets/data_state.dart';
 
-/// Belgelerim Ekranı - Sakin için belge görüntüleme
+const documentCategoryLabels = {
+  'MANAGEMENT_PLAN': 'Yönetim planı',
+  'DECISION': 'Karar',
+  'BUDGET': 'İşletme projesi',
+  'ACCOUNTING': 'Muhasebe',
+  'CONTRACT': 'Sözleşme',
+  'INVOICE': 'Fatura',
+  'INSURANCE': 'Sigorta',
+  'REPORT': 'Rapor',
+  'LEGAL': 'Hukuki',
+  'PERSONNEL': 'Personel',
+  'TECHNICAL': 'Teknik',
+  'OTHER': 'Diğer',
+};
+
+/// `1536` → `1,5 KB`
+String formatBytes(Object? v) {
+  final b = toNum(v).toDouble();
+  if (b < 1024) return '${b.toInt()} B';
+  if (b < 1024 * 1024) return '${formatNumber(double.parse((b / 1024).toStringAsFixed(1)))} KB';
+  return '${formatNumber(double.parse((b / (1024 * 1024)).toStringAsFixed(1)))} MB';
+}
+
 class DocumentsScreen extends StatefulWidget {
   const DocumentsScreen({super.key});
 
@@ -30,196 +44,61 @@ class DocumentsScreen extends StatefulWidget {
   State<DocumentsScreen> createState() => _DocumentsScreenState();
 }
 
-class _DocumentsScreenState extends State<DocumentsScreen>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
+class _DocumentsScreenState extends State<DocumentsScreen> {
+  late Future<List<dynamic>> _future;
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
-    _tabController.addListener(() => setState(() {}));
+    _future = apiClient.getDocuments();
   }
 
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
+  Future<void> _reload() async {
+    setState(() => _future = apiClient.getDocuments());
+    await _future;
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppleTheme.background,
-      body: CustomScrollView(
-        slivers: [
-          // Header
-          SliverToBoxAdapter(
-            child: SafeArea(
-              bottom: false,
-              child: Padding(
-                padding: const EdgeInsets.all(20),
-                child: Row(
-                  children: [
-                    GestureDetector(
-                      onTap: () => Navigator.pop(context),
-                      child: Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          color: AppleTheme.systemGray6,
-                          borderRadius: BorderRadius.circular(18),
-                        ),
-                        child: const Icon(Icons.arrow_back_ios_new_rounded,
-                            size: 16, color: AppleTheme.label),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    const Expanded(
-                      child: Text('Belgeler',
-                          style: TextStyle(
-                              fontSize: 28,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: -0.5)),
-                    ),
-                    // NOT: "Yükle" düğmesi kaldırıldı — sunucuda belge yükleme
-                    // ucu yok; düğmenin tek yaptığı sahte başarı mesajı vermekti.
-                  ],
+      appBar: AppBar(title: const Text('Belgeler')),
+      body: FutureBuilder<List<dynamic>>(
+        future: _future,
+        builder: (context, snap) {
+          if (snap.connectionState != ConnectionState.done) return const LoadingView();
+          if (snap.hasError) return ErrorStateView(message: toUserMessage(snap.error!), onRetry: _reload);
+          final items = snap.data!.whereType<Map>().toList();
+          return RefreshIndicator(
+            onRefresh: _reload,
+            child: ListView(
+              children: [
+                const NotImplementedNotice(
+                  title: 'Belgeler mobilde yalnızca listelenir',
+                  detail: 'Dosyayı açmak bu sürümde desteklenmiyor. Bir belgenin içeriğine '
+                      'ihtiyacınız varsa site yönetiminden isteyin; kanun gereği (KMK m.36) '
+                      'kat maliklerine incelemeye açık tutulması gerekir.',
                 ),
-              ),
-            ),
-          ),
-
-          // Tab Bar
-          SliverToBoxAdapter(
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 16),
-              decoration: BoxDecoration(
-                color: AppleTheme.systemGray6,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: TabBar(
-                controller: _tabController,
-                indicator: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(8),
-                  boxShadow: [
-                    BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.08),
-                        blurRadius: 4)
-                  ],
-                ),
-                indicatorPadding: const EdgeInsets.all(4),
-                labelColor: AppleTheme.label,
-                unselectedLabelColor: AppleTheme.secondaryLabel,
-                dividerColor: Colors.transparent,
-                labelPadding: EdgeInsets.zero,
-                tabs: const [
-                  Tab(child: Text('Site', style: TextStyle(fontSize: 13))),
-                  Tab(child: Text('Belgelerim', style: TextStyle(fontSize: 13))),
-                  Tab(
-                      child: Text('Yüklediklerim',
-                          style: TextStyle(fontSize: 13))),
-                ],
-              ),
-            ),
-          ),
-
-          // Info Banner
-          SliverToBoxAdapter(
-            child: Container(
-              margin: const EdgeInsets.all(16),
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: _bannerColor.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                children: [
-                  Icon(_bannerIcon, color: _bannerColor, size: 20),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(_bannerText,
-                        style: TextStyle(fontSize: 13, color: _bannerColor)),
+                if (items.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 48),
+                    child: EmptyStateView(message: 'Size açık belge yok', icon: Icons.folder_open),
                   ),
-                ],
-              ),
+                for (final d in items)
+                  ListTile(
+                    leading: const Icon(Icons.description_outlined),
+                    title: Text('${d['title'] ?? d['file_name'] ?? 'Belge'}'),
+                    subtitle: Text([
+                      documentCategoryLabels['${d['category']}'] ?? '${d['category'] ?? ''}',
+                      formatDate(d['uploaded_at']),
+                      formatBytes(d['size_bytes']),
+                      if (toNum(d['version']).toInt() > 1) 'sürüm ${d['version']}',
+                    ].where((s) => s.isNotEmpty).join(' · ')),
+                  ),
+              ],
             ),
-          ),
-
-          SliverToBoxAdapter(child: _buildCurrentTabContent()),
-
-          const SliverToBoxAdapter(child: SizedBox(height: 100)),
-        ],
+          );
+        },
       ),
     );
-  }
-
-  Color get _bannerColor {
-    switch (_tabController.index) {
-      case 0:
-        return AppleTheme.systemBlue;
-      case 1:
-        return AppleTheme.systemGreen;
-      case 2:
-        return AppleTheme.systemPurple;
-      default:
-        return AppleTheme.systemBlue;
-    }
-  }
-
-  IconData get _bannerIcon {
-    switch (_tabController.index) {
-      case 0:
-        return Icons.public_rounded;
-      case 1:
-        return Icons.lock_rounded;
-      case 2:
-        return Icons.cloud_upload_rounded;
-      default:
-        return Icons.info_rounded;
-    }
-  }
-
-  String get _bannerText {
-    switch (_tabController.index) {
-      case 0:
-        return 'Site yönetimi tarafından tüm sakinlerle paylaşılan belgeler';
-      case 1:
-        return 'Yönetimden size özel gönderilen belgeler';
-      case 2:
-        return 'Sizin yüklediğiniz belgeler - kişisel veya yönetimle paylaşımlı';
-      default:
-        return '';
-    }
-  }
-
-  /// Belge modülünün sunucu karşılığı olmadığı için üç sekme de durumu açıkça
-  /// bildirir. Uydurma belge listesi göstermek yerine bu tercih edilmiştir.
-  Widget _buildCurrentTabContent() {
-    switch (_tabController.index) {
-      case 0:
-        return const NotImplementedNotice(
-          title: 'Site belgeleri henüz hazır değil',
-          detail: 'Belge modülü için sunucu tarafında bir uç bulunmuyor. '
-              'Site yönetim planı, KVKK metni ve site kuralları burada '
-              'listelenecektir.',
-        );
-      case 1:
-        return const NotImplementedNotice(
-          title: 'Kişisel belgeleriniz henüz hazır değil',
-          detail: 'Yönetimin size özel gönderdiği belgeleri listeleyecek uç '
-              'sunucuda mevcut değil.',
-        );
-      case 2:
-        return const NotImplementedNotice(
-          title: 'Belge yükleme henüz hazır değil',
-          detail: 'Sunucuda belge yükleme ve saklama ucu bulunmadığı için bu '
-              'ekrandan belge yüklenemez. Önceki sürüm belgeyi hiçbir yere '
-              'göndermeden "yüklendi" diyordu; bu davranış kaldırıldı.',
-        );
-      default:
-        return const SizedBox();
-    }
   }
 }

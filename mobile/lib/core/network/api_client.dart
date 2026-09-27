@@ -133,6 +133,52 @@ class ApiClient {
   Future<bool> loginWithStoredSession() => _tryRefreshToken();
 
   // Auth
+  /// Sunucudaki oturumu kapatır (erişim + yenileme jetonu iptal edilir), sonra
+  /// cihazdaki jetonları siler. Sunucu iptali başarısız olsa da cihaz temizlenir;
+  /// dönüş değeri sunucu iptalinin gerçekleşip gerçekleşmediğidir.
+  Future<bool> logout() async {
+    var revoked = false;
+    try {
+      final refresh = await _storage.read(key: _refreshTokenKey);
+      final response = await _dio.post('/auth/logout', data: {
+        if (refresh != null) 'refresh_token': refresh,
+      });
+      final data = response.data;
+      revoked = data is Map &&
+          data['access_token_revoked'] == true &&
+          (refresh == null || data['refresh_token_revoked'] == true);
+    } catch (_) {
+      revoked = false;
+    }
+    await clearToken();
+    return revoked;
+  }
+
+  /// Etkinleştirme / şifre sıfırlama kodu ile şifre belirler (oturum gerekmez).
+  Future<Map<String, dynamic>> activateAccount({
+    required String phone,
+    required String code,
+    required String newPassword,
+  }) async {
+    final response = await Dio(BaseOptions(baseUrl: baseUrl)).post('/auth/activate', data: {
+      'phone': phone,
+      'code': code.trim().toUpperCase(),
+      'new_password': newPassword,
+    });
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
+  /// Şifre değiştirir. Başarılıysa sunucu BÜTÜN oturumları kapatır; cihazdaki
+  /// jetonlar da silinir ve kullanıcı yeniden giriş yapar.
+  Future<Map<String, dynamic>> changePassword(String current, String next) async {
+    final response = await _dio.post('/users/me/password', data: {
+      'current_password': current,
+      'new_password': next,
+    });
+    await clearToken();
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
   Future<Map<String, dynamic>> login(String phone, String password) async {
     final response = await _dio.post('/auth/login', data: {
       'phone': phone,
@@ -143,13 +189,6 @@ class ApiClient {
     if (accessToken != null) {
       await _persistTokens(accessToken, refreshToken);
     }
-    return response.data;
-  }
-
-  Future<Map<String, dynamic>> refreshToken(String refreshToken) async {
-    final response = await _dio.post('/auth/refresh', data: {
-      'refresh_token': refreshToken,
-    });
     return response.data;
   }
 
@@ -252,23 +291,36 @@ class ApiClient {
     return _list(response.data);
   }
 
+  /// Tesisin seçilen gündeki DOLU aralıkları ve açılış saatleri.
+  /// `{date, open, available_from, available_to, buffer_minutes, busy:[…], note}`
+  Future<Map<String, dynamic>> getFacilitySlots(String facilityId, String date) async {
+    final response = await _dio.get('/facilities/$facilityId/slots', queryParameters: {'date': date});
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
+  /// `startTime`/`endTime` RFC3339 olmalıdır (ör. `2026-10-01T09:00:00+03:00`).
   Future<Map<String, dynamic>> createReservation({
     required String facilityId,
-    required String date,
     required String startTime,
     required String endTime,
+    int? guestCount,
+    String? purpose,
   }) async {
     final response = await _dio.post('/reservations', data: {
       'facility_id': facilityId,
-      'date': date,
       'start_time': startTime,
       'end_time': endTime,
+      if (guestCount != null) 'guest_count': guestCount,
+      if (purpose != null && purpose.isNotEmpty) 'purpose': purpose,
     });
-    return response.data;
+    return Map<String, dynamic>.from(response.data as Map);
   }
 
-  Future<void> cancelReservation(String reservationId) async {
-    await _dio.delete('/reservations/$reservationId');
+  Future<Map<String, dynamic>> cancelReservation(String reservationId, {String? reason}) async {
+    final response = await _dio.post('/reservations/$reservationId/cancel', data: {
+      if (reason != null && reason.isNotEmpty) 'reason': reason,
+    });
+    return Map<String, dynamic>.from(response.data as Map);
   }
 
   // Announcements
@@ -277,15 +329,61 @@ class ApiClient {
     return _list(response.data);
   }
 
+  /// Duyurunun okunduğunu kaydeder (yönetim okunma oranını görür).
+  Future<void> markAnnouncementRead(String id) async {
+    await _dio.post('/announcements/$id/read');
+  }
+
   // Surveys
   Future<List<dynamic>> getSurveys() async {
     final response = await _dio.get('/surveys');
     return _list(response.data);
   }
 
-  Future<Map<String, dynamic>> submitSurveyResponse(String surveyId, Map<String, dynamic> data) async {
-    final response = await _dio.post('/surveys/$surveyId/responses', data: data);
-    return response.data;
+  /// `{survey:{…, options:[…]}, results_visible, legal_notice, …}`
+  Future<Map<String, dynamic>> getSurvey(String surveyId) async {
+    final response = await _dio.get('/surveys/$surveyId');
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
+  Future<Map<String, dynamic>> voteSurvey(String surveyId, String optionId, {String? comment}) async {
+    final response = await _dio.post('/surveys/$surveyId/vote', data: {
+      'option_id': optionId,
+      if (comment != null && comment.isNotEmpty) 'comment': comment,
+    });
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
+  // Notifications (uygulama içi gelen kutusu)
+  Future<List<dynamic>> getNotifications({int limit = 50}) async {
+    final response = await _dio.get('/notifications', queryParameters: {'limit': limit});
+    return _list(response.data);
+  }
+
+  /// `{data:[{channel,category,enabled,consent_at?,consent_source?}], note}`
+  Future<Map<String, dynamic>> getNotificationPreferences() async {
+    final response = await _dio.get('/notification-preferences');
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
+  Future<Map<String, dynamic>> setNotificationPreference({
+    required String channel,
+    required String category,
+    required bool enabled,
+  }) async {
+    final response = await _dio.put('/notification-preferences', data: {
+      'channel': channel,
+      'category': category,
+      'enabled': enabled,
+      'consent_source': 'MOBILE_APP',
+    });
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
+  // Documents (görünürlüğe göre)
+  Future<List<dynamic>> getDocuments() async {
+    final response = await _dio.get('/documents');
+    return _list(response.data);
   }
 
   // Packages
@@ -311,16 +409,24 @@ class ApiClient {
     return _list(response.data);
   }
 
+  /// `{id, status:"PENDING", note}` — ilan yönetim onayına düşer.
   Future<Map<String, dynamic>> createBulletin(Map<String, dynamic> data) async {
     final response = await _dio.post('/bulletins', data: data);
-    return response.data;
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
+  Future<void> closeBulletin(String id) async {
+    await _dio.post('/bulletins/$id/close');
   }
 
   /// Servisler liste yanıtını iki biçimde döndürebiliyor: düz dizi ya da
   /// `{"data": [...]}` sarmalayıcısı. Sunucu sözleşmesi `{"data": ...}` olarak
   /// tekilleştirildi; bu yardımcı, eski biçimi de kabul ederek istemcinin
   /// sürüm farkında kırılmasını engeller.
-  static List<dynamic> _list(dynamic data) {
+  static List<dynamic> _list(dynamic data) => listOf(data);
+
+  /// [_list]'in dışa açık hâli (ekranlar ham yanıt aldığında kullanır).
+  static List<dynamic> listOf(dynamic data) {
     if (data is List) return data;
     if (data is Map) {
       final v = data['data'] ?? data['items'];

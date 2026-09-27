@@ -3,6 +3,10 @@ import 'package:go_router/go_router.dart';
 
 import '../../features/auth/presentation/screens/login_screen.dart';
 import '../../features/auth/presentation/screens/kvkk_consent_screen.dart';
+import '../../features/auth/presentation/screens/activate_screen.dart';
+import '../../features/notifications/presentation/screens/notifications_screen.dart';
+import '../../features/reservations/presentation/screens/my_reservations_screen.dart';
+import '../network/api_client.dart';
 import '../../features/home/presentation/screens/resident_home_screen.dart';
 import '../../features/finance/presentation/screens/finance_screen.dart';
 import '../../features/finance/presentation/screens/dues_payment_screen.dart';
@@ -19,7 +23,6 @@ import '../../features/surveys/presentation/screens/surveys_mobile_screen.dart';
 import '../../features/packages/presentation/screens/package_tracking_mobile_screen.dart';
 import '../../features/energy/presentation/screens/energy_consumption_mobile_screen.dart';
 import '../../features/documents/presentation/screens/documents_screen.dart';
-import '../../features/assets/presentation/screens/assets_screen.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
@@ -31,6 +34,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/login',
         name: 'login',
         builder: (context, state) => const LoginScreen(),
+      ),
+      GoRoute(
+        path: '/activate',
+        name: 'activate',
+        builder: (context, state) => const ActivateScreen(),
       ),
       GoRoute(
         path: '/kvkk-consent',
@@ -78,7 +86,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           ),
         ],
       ),
-      
+
       // Standalone Routes
       GoRoute(
         path: '/announcements',
@@ -96,55 +104,65 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const CreateReservationScreen(),
       ),
       GoRoute(
+        path: '/my-reservations',
+        name: 'myReservations',
+        builder: (context, state) => const MyReservationsScreen(),
+      ),
+      GoRoute(
+        path: '/notifications',
+        name: 'notifications',
+        builder: (context, state) => const NotificationsScreen(),
+      ),
+      GoRoute(
         path: '/profile',
         name: 'profile',
         builder: (context, state) => const ProfileSettingsScreen(),
       ),
-      
+
       // İlan Panosu
       GoRoute(
         path: '/bulletin',
         name: 'bulletin',
         builder: (context, state) => const BulletinBoardMobileScreen(),
       ),
-      
+
       // Anketler
       GoRoute(
         path: '/surveys',
         name: 'surveys',
         builder: (context, state) => const SurveysMobileScreen(),
       ),
-      
+
       // Kargo Takip
       GoRoute(
         path: '/packages',
         name: 'packages',
         builder: (context, state) => const PackageTrackingMobileScreen(),
       ),
-      
+
       // Enerji Tüketimi
       GoRoute(
         path: '/energy',
         name: 'energy',
         builder: (context, state) => const EnergyConsumptionMobileScreen(),
       ),
-      
+
       // Belgeler
       GoRoute(
         path: '/documents',
         name: 'documents',
         builder: (context, state) => const DocumentsScreen(),
       ),
-      
-      // Demirbaşlar
-      GoRoute(
-        path: '/assets',
-        name: 'assets',
-        builder: (context, state) => const AssetsScreen(),
-      ),
+
     ],
-    redirect: (context, state) {
-      // TODO: Auth durumuna göre yönlendirme
+    // Oturum koruması: kayıtlı oturum yoksa yalnızca giriş ve etkinleştirme
+    // ekranları açılır. Oturum sunucuda reddedilirse (yenileme 401) istemci
+    // jetonları siler; bir sonraki gezinmede kullanıcı girişe döner.
+    redirect: (context, state) async {
+      final loc = state.matchedLocation;
+      final public = loc == '/login' || loc == '/activate';
+      final hasSession = await apiClient.hasStoredSession();
+      if (!hasSession && !public) return '/login';
       return null;
     },
   );

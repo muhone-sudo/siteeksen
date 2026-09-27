@@ -9,13 +9,11 @@
 // varken).
 //
 // Bu sürüm:
-//   - Kaydı gerçekten gönderir: `POST /visitors`
-//     (apiClient.createVisitorPreRegistration).
+//   - Kaydı gerçekten gönderir: `POST /visitors`, dairenizle (`unit_id`)
+//     birlikte. Daire gönderilmezse kayıt dairesiz kalıyor ve ziyaretçi
+//     girişinde size bildirim gidemiyordu (2026-09-26 düzeltmesi).
 //   - Yalnızca sunucu 2xx dönerse "oluşturuldu" der.
-//   - Ziyaretçi servisi bugün 501 döndürüyor (backend/services/visitor/main.go —
-//     tüm uçlar stub). Bu durumda kullanıcıya kaydın OLUŞMADIĞI açıkça söylenir.
-//   - SMS/QR gönderimi için entegrasyon yoktur; bu vaat metni kaldırılıp yerine
-//     `NotImplementedNotice` kondu.
+//   - SMS/QR gönderimi için entegrasyon yoktur; böyle bir vaat gösterilmez.
 
 import 'package:flutter/material.dart';
 
@@ -340,8 +338,47 @@ class _VisitorPreRegisterScreenState extends State<VisitorPreRegisterScreen> {
 
   /// Ön kaydı sunucuya gönderir. Alan adları `visitors` tablosuyla uyumludur
   /// (backend/migrations/005_new_modules.sql:10-30).
+  /// Ziyaretin geleceği daire. Birden çok daireniz varsa sorulur.
+  Future<String?> _pickUnit() async {
+    final props = await apiClient.getUserProperties();
+    final units = props
+        .whereType<Map>()
+        .where((p) => (p['unit_id'] ?? '').toString().isNotEmpty)
+        .toList();
+    if (units.isEmpty) return null;
+    if (units.length == 1 || !mounted) return '${units.first['unit_id']}';
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: const Text('Hangi daireye?'),
+        children: [
+          for (final u in units)
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(ctx, '${u['unit_id']}'),
+              child: Text('${u['property_name'] ?? ''} · ${u['unit_name'] ?? ''}'),
+            ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _submitPreRegister() async {
     setState(() => _submitting = true);
+    String? unitId;
+    try {
+      unitId = await _pickUnit();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _submitting = false);
+      _showFailure(e);
+      return;
+    }
+    if (unitId == null) {
+      if (!mounted) return;
+      setState(() => _submitting = false);
+      _showFailure(StateError('Kayıtlı bir daireniz bulunamadı; ön kayıt için site yönetimiyle görüşün.'));
+      return;
+    }
 
     final expectedAt = DateTime(
       _selectedDate.year,
@@ -354,6 +391,7 @@ class _VisitorPreRegisterScreenState extends State<VisitorPreRegisterScreen> {
 
     try {
       final result = await apiClient.createVisitorPreRegistration({
+        'unit_id': unitId,
         'visitor_name': _nameController.text.trim(),
         'visitor_phone': _phoneController.text.trim(),
         if (plate.isNotEmpty) 'vehicle_plate': plate,
@@ -432,7 +470,7 @@ class _VisitorPreRegisterScreenState extends State<VisitorPreRegisterScreen> {
           notImplemented
               ? 'Sunucu ziyaretçi kayıtlarını henüz saklamıyor. Ön kayıt '
                   'OLUŞTURULMADI; misafirinizi güvenliğe ayrıca bildirin.'
-              : '${toUserMessage(error)}\n\nÖn kayıt OLUŞTURULMADI.',
+              : '${error is StateError ? error.message : toUserMessage(error)}\n\nÖn kayıt OLUŞTURULMADI.',
         ),
         actions: [
           TextButton(
