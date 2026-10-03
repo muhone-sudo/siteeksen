@@ -42,7 +42,7 @@ export default function DashboardPage() {
                     { label: "Bekleyen talep", value: num(s?.pendingRequests), tone: "amber" },
                     {
                         label: s?.period ? `Tahsilat oranı (${s.period})` : "Tahsilat oranı",
-                        value: pct(s?.collectionRate),
+                        value: pct(s?.collectionRate, 1),
                         tone: "green",
                         hint: s?.period ? `${tl(s.monthlyIncome)} / ${tl(s.monthlyAssessed)}` : undefined,
                     },

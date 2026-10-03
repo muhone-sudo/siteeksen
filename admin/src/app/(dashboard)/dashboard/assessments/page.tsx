@@ -50,7 +50,7 @@ export default function AssessmentsPage() {
                                 { header: "Vade", cell: (p) => date(p.due_date) },
                                 { header: "Tahakkuk", cell: (p) => tl(p.total_amount) },
                                 { header: "Tahsil edilen", cell: (p) => tl(p.collected_amount) },
-                                { header: "Oran", cell: (p) => pct(p.rate) },
+                                { header: "Oran", cell: (p) => pct(p.rate, 1) },
                                 { header: "Durum", cell: (p) => (p.status === "completed" ? <Badge tone="green">Tamamlandı</Badge> : <Badge tone="amber">Açık</Badge>) },
                             ]}
                         />

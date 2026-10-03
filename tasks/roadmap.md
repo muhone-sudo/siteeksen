@@ -182,7 +182,7 @@ denemesi otomatik testte başarısız olur.
 | 4.3 | Para tipini `float64`'ten kuruş (`int64`) veya `decimal`'e çevir | `[D4]` yeni kod `pkg/money`; eski alanların göçü kaldı (todo 4.13) | B50 — şema zaten `DECIMAL` |
 | 4.4 | Tahakkukta kuruş yuvarlama + kalan dağıtımı (largest remainder) | `[D4]` | B51 |
 | 4.5 | Ödeme idempotency (`Idempotency-Key`) | `[D4]` 2026-10-03 — aynı tahakkuk için ikinci PENDING ödeme 409 (kilit altında denetim), verify §10. `Idempotency-Key` başlığı yok; sağlayıcı (S-06) gelince webhook için gerekir | B48 |
-| 4.6 | `CalculateTotalAmount`'a `deleted = 0`; tahsilat oranı kesme hatası | `[D0]` | B53, B54 |
+| 4.6 | `CalculateTotalAmount`'a `deleted = 0`; tahsilat oranı kesme hatası | `[D4]` 2026-10-03 — oran SQL numeric, tek ondalık aşağı; 348/1200 → %29,0 (eski %28), 1199,99/1200 → %99,9 active; verify §10 | B53, B54 |
 | 4.7 | `ListDebtors`'ı daire bazlı yap (kiracılı/boş daireler de görünsün) | `[D4]` 2026-10-03, verify §10 (hisseli daire tek satır, maliksiz daire görünür) | B55 |
 | 4.8 | `ListPropertyPayments` tenant filtresini ödeme üzerinden kur | `[D0]` | B56 |
 | 4.9 | Gecikme tazminatı (KMK m.20/2, aylık %5 — **parametrik**) | `[D4]` `legal_parameters`, verify §10 | B52, S-05 |

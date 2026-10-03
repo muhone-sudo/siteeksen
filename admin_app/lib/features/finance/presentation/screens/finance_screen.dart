@@ -76,7 +76,8 @@ class _FinanceScreenState extends State<FinanceScreen> {
                   ]);
                 },
                 itemBuilder: (context, p, _) {
-                  // Sunucu `rate`'i tam sayı YÜZDE olarak döner (0-100).
+                  // Sunucu `rate`'i YÜZDE olarak, tek ondalık ve aşağı yuvarlanmış döner;
+                  // burada da yuvarlanmaz (99,9 → "%100" yazmak açık borcu gizlerdi).
                   final rate = toNum(p['rate']).toDouble();
                   return ListTile(
                     title: Text(periodLabel(p['period'])),
@@ -86,7 +87,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
                       const SizedBox(height: 4),
                       LinearProgressIndicator(value: (rate / 100).clamp(0, 1).toDouble()),
                     ]),
-                    trailing: Text('%${rate.toStringAsFixed(0)}'),
+                    trailing: Text('%${rate.toStringAsFixed(1).replaceAll('.', ',')}'),
                   );
                 },
               ),

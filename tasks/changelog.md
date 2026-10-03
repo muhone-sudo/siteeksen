@@ -12,6 +12,17 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-03 — TAHSİLAT ORANI KAYAN NOKTA HATASI (B54, roadmap 4.6) (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **1025/1025**; §10: oran ve durum bağımsız `Decimal` hesabıyla
+> üç durumda birebir (1200/1200, 348/1200 → %29,0, 1199,99/1200 → %99,9 "active").
+
+- `int(tahsil / tahakkuk * 100)` kayan nokta hatasıyla tam yüzdeleri de bir aşağı kesiyordu
+  (348/1200 → 28,999… → **%28**) ve %99,9'u %99 yapıyordu. Panel ve yönetici uygulaması ise
+  tam sayıya **yuvarlıyordu**: %99,9 tahsil edilmiş dönem "%100" görünebiliyordu.
+- Oran artık SQL'de `numeric` ile, tek ondalığa aşağı yuvarlanarak; "completed" yalnızca
+  tahsilat ≥ tahakkuk iken. Panel (dönem tablosu, ana sayfa) ve yönetici uygulaması tek ondalık gösterir.
+
 ### 2026-10-03 — ÇİFT ÖDEME KAYDI ENGELLENDİ (roadmap 4.5) (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **1022/1022**; §10: aynı aidat için ikinci ödeme → 409, tek PENDING kayıt.

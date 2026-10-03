@@ -35,7 +35,7 @@ type AssessmentPeriodSummary struct {
 	DueDate         time.Time `json:"due_date"`
 	TotalAmount     float64   `json:"total_amount"`
 	CollectedAmount float64   `json:"collected_amount"`
-	Rate            int       `json:"rate"`
+	Rate            float64   `json:"rate"`   // yüzde, tek ondalık, AŞAĞI yuvarlanmış (99,96 → 99,9)
 	Status          string    `json:"status"` // active, completed
 }
 

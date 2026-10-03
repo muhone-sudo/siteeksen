@@ -738,6 +738,35 @@ print("%d|%.2f|%s" % (len(r), sum(x["amount"] for x in r), r[0]["name"] if r els
     echo "$DS1" | grep -q "\"has_debt\":$WANT" \
       && ok "has_debt kalan bakiyeyle tutarlı ($WANT)" || bad "has_debt tutarsız: $DS1"
 
+    # B54 Dönem tahsilat oranı: kayan noktayla `int(c/t*100)` tam yüzdeleri de aşağı
+    # kesiyordu (29/100 → %28). Beklenen değer Decimal ile BAĞIMSIZ hesaplanır:
+    # tek ondalık, aşağı yuvarlanmış; "completed" yalnızca tahsilat ≥ tahakkuk iken.
+    PYEAR=$($PSQL -t -A -c "SELECT period_year FROM monthly_assessments WHERE id='$ASSESS';")
+    PER=$($PSQL -t -A -c "SELECT to_char(make_date(period_year, period_month, 1), 'YYYY-MM') FROM monthly_assessments WHERE id='$ASSESS';")
+    rate_check() {
+    SUMS=$($PSQL -t -A -c "SELECT SUM(total_amount)::text || '|' || SUM(COALESCE(paid_amount,0))::text
+      FROM monthly_assessments WHERE property_id='$DEMO_PROPERTY' AND deleted=0
+        AND to_char(make_date(period_year, period_month, 1), 'YYYY-MM')='$PER';")
+    curl -s -H "Authorization: Bearer $MGR" \
+      "http://127.0.0.1:${FINPORT}/api/v1/finance/assessments/overview?year=$PYEAR" >/tmp/verify-overview.json
+    RATECHK=$(python3 -c 'import json,sys
+from decimal import Decimal, ROUND_FLOOR
+t,p = (Decimal(x) for x in sys.argv[2].split("|"))
+want = (p*1000/t).to_integral_value(rounding=ROUND_FLOOR)/10 if t else Decimal(0)
+row = [x for x in json.load(open("/tmp/verify-overview.json"))["data"] if x["period"]==sys.argv[1]][0]
+st = "completed" if p >= t else "active"
+print("ok" if Decimal(str(row["rate"])) == want and row["status"] == st else "fark api=%s/%s beklenen=%s/%s" % (row["rate"], row["status"], want, st))' "$PER" "$SUMS" 2>&1)
+    [ "$RATECHK" = "ok" ] && ok "dönem tahsilat oranı ve durumu bağımsız Decimal hesabıyla birebir ($PER: $SUMS)" \
+      || bad "tahsilat oranı ($SUMS): $RATECHK"
+    }
+    rate_check
+    # Ayırt edici değerler: 348/1200 eski kodla %28 (doğrusu %29,0); 1199,99/1200
+    # yuvarlanınca %100 görünürdü (doğrusu %99,9 ve "active"). Ardından geri alınır.
+    $PSQL -c "UPDATE monthly_assessments SET paid_amount=348.00, status='PARTIAL' WHERE id='$ASSESS';" >/dev/null
+    rate_check
+    $PSQL -c "UPDATE monthly_assessments SET paid_amount=1199.99, status='PARTIAL' WHERE id='$ASSESS';" >/dev/null
+    rate_check
+
     # Geri al: betik tekrar çalıştırılabilir kalsın
     $PSQL -c "UPDATE monthly_assessments SET paid_amount=0, status='PENDING' WHERE id='$ASSESS';" >/dev/null 2>&1
   fi

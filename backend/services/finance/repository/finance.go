@@ -161,9 +161,17 @@ func (r *FinanceRepository) GetAssessments(ctx context.Context, propertyID, user
 
 // ListAssessmentPeriods site genelinde dönem bazlı tahakkuk/tahsilat özetini listeler (yönetim görünümü)
 func (r *FinanceRepository) ListAssessmentPeriods(ctx context.Context, propertyID string, year int) ([]models.AssessmentPeriodSummary, error) {
+	// Oran ve durum SQL'de, numeric ile hesaplanır (2026-10-03, B54). Önceden
+	// `int(c / t * 100)` kullanılıyordu: kayan nokta hatası tam yüzdeleri de bir
+	// aşağı kesiyordu (29/100 → 28,999… → %28) ve %99,9 → %99 oluyordu. Oran
+	// tek ondalığa AŞAĞI yuvarlanır: 1 kuruş bile açık kalan dönem %100 görünmez.
+	// "completed" yalnızca tahsilat tahakkuka KESİN olarak ulaştığında.
 	query := `
 		SELECT TO_CHAR(MAKE_DATE(ma.period_year, ma.period_month, 1), 'YYYY-MM'),
-		       MIN(ma.due_date), SUM(ma.total_amount), SUM(ma.paid_amount)
+		       MIN(ma.due_date), SUM(ma.total_amount), SUM(COALESCE(ma.paid_amount, 0)),
+		       COALESCE(floor(SUM(COALESCE(ma.paid_amount, 0)) * 1000
+		                      / NULLIF(SUM(ma.total_amount), 0)) / 10, 0)::float8,
+		       SUM(COALESCE(ma.paid_amount, 0)) >= SUM(ma.total_amount)
 		FROM monthly_assessments ma
 		WHERE ma.property_id = $1 AND ma.period_year = $2 AND ma.deleted = 0
 		GROUP BY ma.period_year, ma.period_month
@@ -178,20 +186,18 @@ func (r *FinanceRepository) ListAssessmentPeriods(ctx context.Context, propertyI
 	periods := []models.AssessmentPeriodSummary{}
 	for rows.Next() {
 		var p models.AssessmentPeriodSummary
-		if err := rows.Scan(&p.Period, &p.DueDate, &p.TotalAmount, &p.CollectedAmount); err != nil {
+		var completed bool
+		if err := rows.Scan(&p.Period, &p.DueDate, &p.TotalAmount, &p.CollectedAmount,
+			&p.Rate, &completed); err != nil {
 			return nil, err
 		}
-		if p.TotalAmount > 0 {
-			p.Rate = int(p.CollectedAmount / p.TotalAmount * 100)
-		}
-		if p.Rate >= 100 {
+		p.Status = "active"
+		if completed {
 			p.Status = "completed"
-		} else {
-			p.Status = "active"
 		}
 		periods = append(periods, p)
 	}
-	return periods, nil
+	return periods, rows.Err()
 }
 
 // GetAssessmentDetails aidat detayı
