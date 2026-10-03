@@ -12,6 +12,17 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-03 — SAHTE GÜVENCE VEREN TESTLER KALDIRILDI (B96) (DOĞRULANMIŞ)
+
+> **Kanıt:** `go build ./...` + `go vet ./...` temiz; `verify-stack.sh` → **1040/1040**.
+
+- `services/finance/handlers/finance_test.go` ve `services/identity/handlers/auth_test.go` gerçek
+  handler/servis kodunu HİÇ çağırmıyordu: kendi içlerinde yazılmış sahte router ve fonksiyonları
+  sınıyorlardı. Örneğin `TestDistributionCalculation` geçerken gerçek tahakkuk dağıtımı kuruş
+  kaybediyordu. "go test geçiyor" izlenimi yanlıştı; kaldırıldı. Bu uçların gerçek sınaması
+  `verify-stack.sh` §5–§10 ve §39'dadır.
+- `go.mod`: doğrudan kullanılan `shopspring/decimal` "indirect" işaretliydi (`go mod tidy`).
+
 ### 2026-10-03 — AİDAT TAHAKKUKU KURUŞ DOĞRULUĞU + SAYAÇ KALEMİ SESSİZ DAĞITIMI (4.4, B70, B71, B75) (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **1040/1040** (tahakkuk oluşturma ucu ilk kez sınanıyor: 1000 + 777,77 + 100,01
