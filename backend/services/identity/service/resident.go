@@ -15,6 +15,19 @@ import (
 // ErrResidentForbidden yalnızca yönetim rollerinin yapabileceği bir işlem denendiğinde döner
 var ErrResidentForbidden = errors.New("bu işlem için yetkiniz yok")
 
+// ErrInvalidResidentRole sakinlik rolü OWNER/TENANT/PROXY dışında.
+var ErrInvalidResidentRole = errors.New("geçersiz sakinlik rolü")
+
+// residentRoles, bir daire bağının taşıyabileceği roller.
+//
+// YETKİ YÜKSELTME (2026-10-03): bağın rolü jeton rollerine OLDUĞU GİBİ girer
+// (UserRepository.GetPropertyRoles). Değer doğrulanmıyordu: sakin yazma yetkisi
+// olan yönetim kurulu üyesi kendi hesabını "MANAGER" rolüyle bir daireye bağlayıp
+// bir sonraki girişte YÖNETİCİ olabiliyordu (KMK m.34 atama izi atlanarak);
+// "SUPER_ADMIN" dizesi de jetona giriyordu. Yönetim rolleri yalnızca
+// property_roles üzerinden verilir. Veritabanı da kısıtlar (migration 031).
+var residentRoles = map[string]bool{"OWNER": true, "TENANT": true, "PROXY": true}
+
 // ResidentService sakin yönetimi iş kuralları
 type ResidentService struct {
 	repo *repository.ResidentRepository
@@ -101,6 +114,9 @@ func (s *ResidentService) Create(ctx context.Context, propertyID, actorID string
 	if !canWriteResidents(roles) {
 		return nil, ErrResidentForbidden
 	}
+	if !residentRoles[input.Role] {
+		return nil, ErrInvalidResidentRole
+	}
 
 	unusable, err := GenerateCode()
 	if err != nil {
@@ -156,6 +172,9 @@ func (s *ResidentService) IssueActivationCode(ctx context.Context, propertyID, a
 func (s *ResidentService) Update(ctx context.Context, propertyID, id string, roles []string, input models.UpdateResidentInput) (*models.Resident, error) {
 	if !canWriteResidents(roles) {
 		return nil, ErrResidentForbidden
+	}
+	if input.Role != nil && !residentRoles[*input.Role] {
+		return nil, ErrInvalidResidentRole
 	}
 	return s.repo.Update(ctx, propertyID, id, input)
 }

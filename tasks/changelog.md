@@ -12,6 +12,20 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-03 — GÜVENLİK: DAİRE BAĞI ROLÜYLE YETKİ YÜKSELTME KAPATILDI (migration 031) (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **1037/1037**; §39: `MANAGER` rolüyle sakin ekleme → 422 (hesap açılmadı),
+> `SUPER_ADMIN` güncellemesi → 422, veritabanı CHECK'i doğrudan yazımı reddediyor, kısıt mevcut satırlarla doğrulandı.
+
+- `resident_units.role` jeton rollerine olduğu gibi giriyordu ve değer hiçbir katmanda doğrulanmıyordu.
+  Sakin yazma yetkisi olan **yönetim kurulu üyesi kendi hesabını `MANAGER` rolüyle bir daireye bağlayıp
+  yönetici olabiliyordu** (KMK m.34 atama izini atlayarak); `SUPER_ADMIN` dizesi de jetona giriyordu.
+- Üç katman: servis yalnızca OWNER/TENANT/PROXY kabul eder (422); rol türetimi bağdan yalnızca bu
+  değerleri alır (eski hatalı bağ yetki vermez); 031 CHECK kısıtı (NOT VALID + uygunsa doğrulama;
+  uygunsuz eski satır silinmez, uyarı verilir).
+- Ayrıca (B65): talep durum geçişleri karşılaştır-ve-değiştir (eşzamanlı ikinci geçiş 409; kilitli
+  satırla gerçek yarış sınaması) ve sakin güncellemesi tek atomik UPDATE (kayıp güncelleme yok).
+
 ### 2026-10-03 — TALEP KAYDINDA DAİRE YAZILIYOR (B63) (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **1031/1031**; tek daireli kiracının talebi dairesine bağlanıyor,

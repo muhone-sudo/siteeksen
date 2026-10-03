@@ -83,6 +83,8 @@ func UpdateRequestStatus(svc *service.RequestService) gin.HandlerFunc {
 			c.JSON(http.StatusForbidden, gin.H{"error": "Bu işlem için yetkiniz yok"})
 		case errors.Is(err, service.ErrInvalidTransition):
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Geçersiz durum geçişi"})
+		case errors.Is(err, repository.ErrStatusChanged):
+			c.JSON(http.StatusConflict, gin.H{"error": "Talebin durumu bu sırada değişti; yenileyip tekrar deneyin"})
 		case errors.Is(err, repository.ErrRequestNotFound):
 			c.JSON(http.StatusNotFound, gin.H{"error": "Talep bulunamadı"})
 		case err != nil:
@@ -109,6 +111,8 @@ func ConfirmRequestResolution(svc *service.RequestService) gin.HandlerFunc {
 			c.JSON(http.StatusForbidden, gin.H{"error": "Bu talep size ait değil"})
 		case errors.Is(err, service.ErrInvalidTransition):
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Talep onay bekleyen durumda değil"})
+		case errors.Is(err, repository.ErrStatusChanged):
+			c.JSON(http.StatusConflict, gin.H{"error": "Talebin durumu bu sırada değişti; yenileyip tekrar deneyin"})
 		case errors.Is(err, repository.ErrRequestNotFound):
 			c.JSON(http.StatusNotFound, gin.H{"error": "Talep bulunamadı"})
 		case err != nil:

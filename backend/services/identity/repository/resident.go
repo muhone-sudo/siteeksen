@@ -175,25 +175,26 @@ func (r *ResidentRepository) Create(ctx context.Context, propertyID, passwordHas
 	return res, created, err
 }
 
-// Update sakinin birim ilişkisindeki rol/aktiflik bilgisini günceller
+// Update sakinin birim ilişkisindeki rol/aktiflik bilgisini günceller.
+//
+// TEK ATOMİK UPDATE (2026-10-03, B65): önceden kayıt okunup eksik alanlar okunan
+// değerle doldurularak yazılıyordu. Aynı anda biri rolü, diğeri aktifliği
+// değiştirirse ikinci yazım birincinin değişikliğini sessizce geri alıyordu
+// (kayıp güncelleme). Verilmeyen alan artık veritabanındaki güncel değeri korur;
+// site denetimi aynı ifadede yapılır.
 func (r *ResidentRepository) Update(ctx context.Context, propertyID, id string, input models.UpdateResidentInput) (*models.Resident, error) {
-	current, err := r.GetByID(ctx, propertyID, id)
+	tag, err := r.pool.Exec(ctx, `
+		UPDATE resident_units ru
+		SET role = COALESCE($3, ru.role), is_active = COALESCE($4, ru.is_active)
+		FROM units un, users u
+		WHERE ru.id = $1 AND un.id = ru.unit_id AND un.property_id = $2
+		  AND u.id = ru.resident_id AND u.deleted = 0`,
+		id, propertyID, input.Role, input.IsActive)
 	if err != nil {
 		return nil, err
 	}
-
-	role := current.Role
-	if input.Role != nil {
-		role = *input.Role
-	}
-	isActive := current.IsActive
-	if input.IsActive != nil {
-		isActive = *input.IsActive
-	}
-
-	_, err = r.pool.Exec(ctx, `UPDATE resident_units SET role = $2, is_active = $3 WHERE id = $1`, id, role, isActive)
-	if err != nil {
-		return nil, err
+	if tag.RowsAffected() == 0 {
+		return nil, ErrResidentNotFound
 	}
 	return r.GetByID(ctx, propertyID, id)
 }

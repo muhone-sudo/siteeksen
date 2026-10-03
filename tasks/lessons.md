@@ -559,3 +559,15 @@ yazılmayan bir tablodan okunuyordu ve ödemeden ÖNCE de false'tu. Kontrol
 ölçülür ve fark beklenen tutara eşit olmalıdır. Hesaplanan değer, sistemden
 BAĞIMSIZ bir hesapla (doğrudan SQL) karşılaştırılır. Bir görünüm/tablo
 okunuyorsa, ona gerçekten yazan bir kod yolu olduğu `git grep` ile doğrulanır.
+
+### Ders 37 — Yetkiye dönüşen her değer, yazıldığı yerde kısıtlanır
+
+`resident_units.role` "sakinlik bilgisi" gibi görünüyordu, ama jeton rollerine
+olduğu gibi giriyordu. Değer serbest metin olduğu için sakin ekleme formu fiilen
+bir "rol verme" ucuna dönüşmüştü. Kimse fark etmedi; çünkü yetki denetimi rolü
+OKUYAN tarafta yapılıyordu, rolü YAZAN tarafta değil.
+
+**Kural:** Yetki kararına giren her kolon için (rol, kapsam, sahiplik) hem
+uygulamada izin listesi hem veritabanında CHECK/FK olur. Rolü türeten sorgu da
+yalnızca beklenen değerleri alır — eski bir hatalı satır yetki vermesin.
+Yeni bir rol kaynağı eklerken "bu kolona kim yazabiliyor?" sorusu sorulur.

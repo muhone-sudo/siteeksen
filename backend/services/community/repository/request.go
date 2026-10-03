@@ -16,6 +16,9 @@ import (
 // ErrRequestNotFound talep bulunamadığında döner
 var ErrRequestNotFound = errors.New("talep bulunamadı")
 
+// ErrStatusChanged talep, durumu okunduktan sonra başka bir istekle değişti.
+var ErrStatusChanged = errors.New("talebin durumu bu sırada değişti")
+
 // ErrUnitNotYours talepte belirtilen daire çağıranın bu sitedeki aktif dairesi değil.
 var ErrUnitNotYours = errors.New("belirtilen daire size ait değil")
 
@@ -172,45 +175,52 @@ func (r *RequestRepository) Create(ctx context.Context, propertyID, residentID, 
 	return req, tx.Commit(ctx)
 }
 
-// UpdateStatus yönetici tarafından talep durumunu günceller (OPEN -> IN_PROGRESS -> RESOLVED)
-func (r *RequestRepository) UpdateStatus(ctx context.Context, propertyID, id, status string) (*models.Request, error) {
+// UpdateStatus yönetici tarafından talep durumunu günceller (OPEN -> IN_PROGRESS -> RESOLVED).
+//
+// KARŞILAŞTIR-VE-DEĞİŞTİR (2026-10-03, B65): servis geçişi okuduğu duruma göre
+// denetler; UPDATE durum koşulu taşımazsa arada başka bir istek durumu
+// değiştirdiğinde geçersiz bir geçiş sessizce yazılırdı. Satır `from` durumunda
+// değilse hiçbir şey yazılmaz ve ErrStatusChanged döner.
+func (r *RequestRepository) UpdateStatus(ctx context.Context, propertyID, id, from, status string) (*models.Request, error) {
 	var query string
 	switch status {
 	case models.StatusResolved:
-		query = `UPDATE requests SET status = $2, resolved_at = NOW(), updated_at = NOW() WHERE id = $1 AND property_id = $3 RETURNING ` + requestColumns
+		query = `UPDATE requests SET status = $2, resolved_at = NOW(), updated_at = NOW() WHERE id = $1 AND property_id = $3 AND status = $4 RETURNING ` + requestColumns
 	default:
-		query = `UPDATE requests SET status = $2, updated_at = NOW() WHERE id = $1 AND property_id = $3 RETURNING ` + requestColumns
+		query = `UPDATE requests SET status = $2, updated_at = NOW() WHERE id = $1 AND property_id = $3 AND status = $4 RETURNING ` + requestColumns
 	}
 
-	row := r.scope(propertyID).QueryRow(ctx, query, id, status, propertyID)
+	row := r.scope(propertyID).QueryRow(ctx, query, id, status, propertyID, from)
 	req, err := scanRequest(row)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, ErrRequestNotFound
+		return nil, ErrStatusChanged
 	}
 	return req, err
 }
 
 // ConfirmResolution sakin onayı: onaylarsa CLOSED + user_confirmed_at, reddederse IN_PROGRESS'e döner
-func (r *RequestRepository) ConfirmResolution(ctx context.Context, propertyID, id string, approved bool) (*models.Request, error) {
+// Durum hâlâ RESOLVED ve talep hâlâ bu sakinin ise yazılır (B65; çift dokunmada
+// onay ile ret yarışırsa ikincisi ErrStatusChanged alır).
+func (r *RequestRepository) ConfirmResolution(ctx context.Context, propertyID, id, residentID string, approved bool) (*models.Request, error) {
 	var query string
 	if approved {
 		query = `
 			UPDATE requests
 			SET status = 'CLOSED', user_confirmed_at = NOW(), closed_at = NOW(), updated_at = NOW()
-			WHERE id = $1 AND property_id = $2
+			WHERE id = $1 AND property_id = $2 AND status = 'RESOLVED' AND resident_id = $3
 			RETURNING ` + requestColumns
 	} else {
 		query = `
 			UPDATE requests
 			SET status = 'IN_PROGRESS', resolved_at = NULL, updated_at = NOW()
-			WHERE id = $1 AND property_id = $2
+			WHERE id = $1 AND property_id = $2 AND status = 'RESOLVED' AND resident_id = $3
 			RETURNING ` + requestColumns
 	}
 
-	row := r.scope(propertyID).QueryRow(ctx, query, id, propertyID)
+	row := r.scope(propertyID).QueryRow(ctx, query, id, propertyID, residentID)
 	req, err := scanRequest(row)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, ErrRequestNotFound
+		return nil, ErrStatusChanged
 	}
 	return req, err
 }

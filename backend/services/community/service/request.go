@@ -91,7 +91,7 @@ func (s *RequestService) UpdateStatus(ctx context.Context, propertyID, requestID
 		return nil, ErrInvalidTransition
 	}
 
-	return s.repo.UpdateStatus(ctx, propertyID, requestID, newStatus)
+	return s.repo.UpdateStatus(ctx, propertyID, requestID, req.Status, newStatus)
 }
 
 // ConfirmResolution sakinin "sorunum çözüldü" onayını ya da reddini kaydeder.
@@ -109,5 +109,5 @@ func (s *RequestService) ConfirmResolution(ctx context.Context, propertyID, requ
 		return nil, ErrInvalidTransition
 	}
 
-	return s.repo.ConfirmResolution(ctx, propertyID, requestID, approved)
+	return s.repo.ConfirmResolution(ctx, propertyID, requestID, residentID, approved)
 }

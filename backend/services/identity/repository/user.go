@@ -184,12 +184,14 @@ func (r *UserRepository) GetPropertyRoles(ctx context.Context, userID, propertyI
 
 		UNION
 
-		-- Sakinlik rolleri (bağımsız bölüm bağından türer)
+		-- Sakinlik rolleri (bağımsız bölüm bağından türer). Yalnızca sakinlik
+		-- değerleri: 031 öncesinden kalmış 'MANAGER' gibi bir bağ yetki VERMEZ.
 		SELECT DISTINCT ru.role
 		FROM resident_units ru
 		JOIN units un ON un.id = ru.unit_id
 		WHERE ru.resident_id = $1
 		  AND ru.is_active = true
+		  AND ru.role IN ('OWNER', 'TENANT', 'PROXY')
 		  AND un.property_id = NULLIF($2, '')::uuid
 
 		UNION

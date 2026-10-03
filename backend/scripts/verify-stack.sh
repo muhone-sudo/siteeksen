@@ -4643,6 +4643,29 @@ if [ "$CUP" = "1" ]; then
   [ "$SC" = "422" ] && [ "$NREQ" = "0" ] && ok "başkasının dairesine talep bağlanamıyor → 422, kayıt yok" \
     || bad "başkasının dairesine talep: $SC (kayıt $NREQ)"
 
+  # B65: durum geçişi karşılaştır-ve-değiştir olmalı. Satır kilitliyken iki eşzamanlı
+  # OPEN→IN_PROGRESS isteği: ikisi de "OPEN" okur, kilit bırakılınca yalnızca biri
+  # yazabilmeli; diğeri 409 almalı (önceden ikisi de koşulsuz yazıyordu).
+  RACE=$(curl -s -X POST "$CURL2/requests" -H "Authorization: Bearer $TEN" -H 'Content-Type: application/json' \
+    -d '{"title":"Yaris sinamasi","description":"es zamanli gecis"}' | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+  if [ -n "$RACE" ]; then
+    $PSQL -c "BEGIN; SELECT 1 FROM requests WHERE id='$RACE' FOR UPDATE; SELECT pg_sleep(3); COMMIT;" >/dev/null 2>&1 &
+    LOCKP=$!
+    sleep 1
+    for i in 1 2; do
+      curl -s -o /dev/null -w '%{http_code}\n' -X PATCH "$CURL2/requests/$RACE/status" \
+        -H "Authorization: Bearer $MGR" -H 'Content-Type: application/json' -d '{"status":"IN_PROGRESS"}' \
+        >/tmp/verify-race-$i.code &
+      eval "RP$i=\$!"
+    done
+    wait "$RP1" "$RP2" "$LOCKP" 2>/dev/null
+    CODES=$(cat /tmp/verify-race-1.code /tmp/verify-race-2.code | tr '\n' ' ' | xargs -n1 | sort | tr '\n' ' ')
+    [ "$CODES" = "200 409 " ] && ok "eşzamanlı iki durum geçişinden yalnızca biri yazıldı, diğeri 409 (karşılaştır-ve-değiştir)" \
+      || bad "yarış sonucu: '$CODES' (200 ve 409 bekleniyordu)"
+  else
+    bad "yarış sınaması için talep açılamadı"
+  fi
+
   # Kiracı kendi talebini listede görür
   RL=$(curl -s "$CURL2/requests" -H "Authorization: Bearer $TEN")
   echo "$RL" | grep -q "$RQID" && ok "sakin kendi talebini listede görüyor" \
@@ -5493,6 +5516,29 @@ L25=$($PSQL -t -A -c "SELECT count(*) FROM resident_units ru JOIN users u ON u.i
 echo "$CR25" | grep -qE 'Gizli|Baskasitesakini|gizli.kisi' \
   && bad "yanıt başka sitenin sakininin kişisel verisini sızdırıyor: $CR25" \
   || ok "yanıtta o hesabın adı/e-postası yok"
+
+# YETKİ YÜKSELTME (migration 031): daire bağının rolü jetona olduğu gibi girer.
+# Önceden 'MANAGER' / 'SUPER_ADMIN' gibi değerler kabul ediliyordu: sakin yazabilen
+# yönetim kurulu üyesi kendini yönetici yapabiliyordu.
+SC=$(code -X POST "$ID39/residents" -H "Authorization: Bearer $MGR39" -H "$J" \
+  -d "{\"first_name\":\"Rol\",\"last_name\":\"Yukseltme\",\"phone\":\"5550000078\",\"unit_id\":\"$FREEUNIT\",\"role\":\"MANAGER\"}")
+NU=$($PSQL -t -A -c "SELECT count(*) FROM users WHERE phone='+905550000078';")
+[ "$SC" = "422" ] && [ "$NU" = "0" ] && ok "sakin eklerken yönetim rolü verilemiyor (MANAGER → 422, hesap açılmadı)" \
+  || bad "MANAGER rolüyle sakin ekleme: $SC (hesap $NU)"
+if [ -n "${RUID:-}" ]; then
+  SC=$(code -X PATCH "$ID39/residents/$RUID" -H "Authorization: Bearer $MGR39" -H "$J" -d '{"role":"SUPER_ADMIN"}')
+  RR=$($PSQL -t -A -c "SELECT role FROM resident_units WHERE id='$RUID';")
+  [ "$SC" = "422" ] && [ "$RR" != "SUPER_ADMIN" ] && ok "sakin güncellemesiyle SUPER_ADMIN verilemiyor → 422 (rol $RR kaldı)" \
+    || bad "SUPER_ADMIN güncellemesi: $SC (rol $RR)"
+fi
+if $PSQL -c "INSERT INTO resident_units (resident_id, unit_id, role) SELECT id, '$FREEUNIT', 'MANAGER' FROM users WHERE phone='+905551234567';" >/dev/null 2>&1; then
+  bad "veritabanı MANAGER rollü daire bağını kabul etti"
+  $PSQL -c "DELETE FROM resident_units WHERE role='MANAGER';" >/dev/null 2>&1
+else
+  ok "veritabanı da sakinlik dışı rolü reddediyor (CHECK, migration 031)"
+fi
+CV=$($PSQL -t -A -c "SELECT convalidated FROM pg_constraint WHERE conname='resident_units_role_check';")
+[ "$CV" = "t" ] && ok "rol kısıtı mevcut bütün satırlar için doğrulandı (uygunsuz eski bağ yok)" || bad "rol kısıtı doğrulanmadı: '$CV'"
 
 step "40) Zamanlanmış bildirimler — gecikmiş aidat, sözleşme ihbarı, açık devriye (migration 028)"
 # Önceden bu bildirimleri kimse üretmiyordu: bir olaya değil zamanın geçmesine

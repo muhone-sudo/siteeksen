@@ -25,6 +25,9 @@ func mapResidentError(c *gin.Context, err error, fallback string) {
 	switch {
 	case errors.Is(err, service.ErrResidentForbidden):
 		c.JSON(http.StatusForbidden, gin.H{"error": "Bu işlem için yetkiniz yok"})
+	case errors.Is(err, service.ErrInvalidResidentRole):
+		c.JSON(http.StatusUnprocessableEntity, gin.H{
+			"error": "Sakinlik rolü OWNER, TENANT ya da PROXY olmalı; yönetim rolleri görevlendirmeyle verilir"})
 	case errors.Is(err, repository.ErrResidentNotFound):
 		c.JSON(http.StatusNotFound, gin.H{"error": "Sakin bulunamadı"})
 	case errors.Is(err, repository.ErrUnitNotFound):

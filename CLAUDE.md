@@ -109,7 +109,7 @@ Next.js admin paneli, iki Flutter mobil uygulaması (sakin + yönetici) içerir.
 
 > Aşağıdaki notlar **çalıştırılarak** doğrulanmıştır. Bu bölümdeki hiçbir ifade "olması gerekeni"
 > değil, **bugün gerçekte olanı** anlatır.
-> Toplu kanıt: `bash backend/scripts/verify-stack.sh` → **1031/1031**,
+> Toplu kanıt: `bash backend/scripts/verify-stack.sh` → **1037/1037**,
 > `bash backend/scripts/verify-mobile.sh` → **10/10**.
 > Tarihçe ve `dosya:satır` kanıtı: `tasks/audit-raporu.md`, `tasks/changelog.md`.
 
@@ -171,7 +171,7 @@ cd admin && npm run dev            # http://localhost:3001
   yürürlük tarihli ve hukuki dayanaklıdır. Kanunla sabit olanlar site bazında
   değiştirilemez (veritabanı tetikleyicisi).
 - **Roller SİTE BAZLIDIR.** `users.roles` yalnızca platform rolleri içindir; site rolleri
-  `property_roles`, sakinlik rolleri `resident_units` tablosundadır. Jeton rolleri aktif
+  `property_roles`, sakinlik rolleri (yalnızca OWNER/TENANT/PROXY — CHECK, migration 031) `resident_units` tablosundadır. Jeton rolleri aktif
   siteye göre üretilir.
 - **Geri alma = yedekten geri yükleme** (`backend/scripts/db-backup.sh` / `db-restore.sh`, `docs/runbook-veritabani-geri-alma.md`); "down" betiği bilerek yok — denetim izini ve defterleri silerdi. verify-stack adım 41 sınar.
 - **Migration'lar `cmd/migrate` ile uygulanır** (sürüm tablosu, advisory lock, SHA-256
@@ -246,7 +246,7 @@ Repo yolu WSL'de: `/mnt/c/Users/md064615/Documents/Projeler/proje99`
 
 | Betik | Kapsam | Ne zaman |
 |---|---|---|
-| `bash backend/scripts/verify-stack.sh` | **1031 kontrol** — dağıtım dosyası tutarlılığı, sıfırdan PostgreSQL, `cmd/migrate` ile 30 migration ve rol ataması, RLS (82 tablo, çapraz site uçtan uca testleri, rol yetkileri), şema denetimi, tam idempotency, `pkg/audit`+`pkg/legalparams`+`pkg/money`+`pkg/storage`+nisap testleri, ve uçtan uca: identity (giriş, roller, hesap etkinleştirme, şifre değiştirme, giriş kilidi), gateway (kimlik doğrulama), finance (ödeme→borç, gecikme tazminatı), governance (işletme projesi, nisap, defter zinciri), 501 dürüstlüğü ve 20 modülün uçtan uca sınanması (gider, personel, ziyaretçi, otopark, rezervasyon, kargo, sözleşme, belge, demirbaş, stok, anket, sayaç/ısı payı, bildirim, devriye, duyuru, ilan, ayarlar, enerji, tahsilat riski, NPS/ESG) zamanlanmış bildirimler (`cmd/scheduler`), yedekten geri yükleme ve kişisel veri anahtarı döndürme (`cmd/rotate-pii`) | **Backend'e dokunan her değişiklikten sonra** |
+| `bash backend/scripts/verify-stack.sh` | **1037 kontrol** — dağıtım dosyası tutarlılığı, sıfırdan PostgreSQL, `cmd/migrate` ile 31 migration ve rol ataması, RLS (82 tablo, çapraz site uçtan uca testleri, rol yetkileri), şema denetimi, tam idempotency, `pkg/audit`+`pkg/legalparams`+`pkg/money`+`pkg/storage`+nisap testleri, ve uçtan uca: identity (giriş, roller, hesap etkinleştirme, şifre değiştirme, giriş kilidi), gateway (kimlik doğrulama), finance (ödeme→borç, gecikme tazminatı), governance (işletme projesi, nisap, defter zinciri), 501 dürüstlüğü ve 20 modülün uçtan uca sınanması (gider, personel, ziyaretçi, otopark, rezervasyon, kargo, sözleşme, belge, demirbaş, stok, anket, sayaç/ısı payı, bildirim, devriye, duyuru, ilan, ayarlar, enerji, tahsilat riski, NPS/ESG) zamanlanmış bildirimler (`cmd/scheduler`), yedekten geri yükleme ve kişisel veri anahtarı döndürme (`cmd/rotate-pii`) | **Backend'e dokunan her değişiklikten sonra** |
 | `bash backend/scripts/verify-mobile.sh` | **10 kontrol** — iki Flutter uygulaması için `pub get` + `analyze` (bilgi düzeyi dahil) + `test`, arayüzde uydurma veri taraması ve release manifestinde INTERNET izni | Mobil değişikliklerden sonra |
 | `cd admin && npx tsc --noEmit && npm run lint && npm run build` | Panel | Panel değişikliklerinden sonra |
 | `bash backend/scripts/dev-up.sh` | Geliştirme ortamını ayağa kaldırır | Elle deneme için |
@@ -391,7 +391,7 @@ Bildirilen ortak yığın: Riverpod, go_router, Dio, flutter_secure_storage.
   Tarih gövdeleri `apiDate()` (YYYY-MM-DD) ya da site saatiyle RFC3339 gider.
 
 ### Infrastructure
-- **PostgreSQL 16** — tek veri deposu; şema `backend/migrations/` (30 migration, `cmd/migrate`)
+- **PostgreSQL 16** — tek veri deposu; şema `backend/migrations/` (31 migration, `cmd/migrate`)
 - Redis, MongoDB ve Kafka **kullanılmıyor** (kodda bağlantı yok) ve compose'dan kaldırıldı.
 
 ### Multi-Tenancy (site izolasyonu) — **çalışıyor, iki katmanlı**
