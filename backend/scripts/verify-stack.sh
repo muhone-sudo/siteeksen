@@ -836,6 +836,38 @@ if [ -n "${MGR:-}" ]; then
   [ "$SC" = "200" ] && ok "kendi sitesine geçiş kabul edildi → 200" || bad "kendi sitesine geçiş → $SC"
 fi
 
+# 4.4 Tahakkuk dağıtımı kuruş doğruluğu (2026-10-03). Önceden POST /finance/assessments
+# hiç sınanmıyordu; dağıtım float64 ile yapılıp her daire ayrı yuvarlanıyordu
+# (1.000 TL / 3 daire → 999,99) ve "Isınma" (METER_READING) sessizce arsa payıyla bölünüyordu.
+if [ "$FUP" = "1" ] && [ -n "${MGR:-}" ]; then
+  AURL="http://127.0.0.1:${FINPORT}/api/v1/finance/assessments"
+  C_EQ='55555555-5555-5555-5555-555555555501'; C_SR='55555555-5555-5555-5555-555555555502'; C_MR='55555555-5555-5555-5555-555555555506'
+  PQ="property_id='$DEMO_PROPERTY' AND period_year=2031 AND period_month=7"
+  R=$(curl -s -w '\n%{http_code}' -X POST "$AURL" -H "Authorization: Bearer $MGR" -H 'Content-Type: application/json' \
+    -d "{\"period_year\":2031,\"period_month\":7,\"due_date\":\"2031-07-15\",\"expense_items\":[{\"category_id\":\"$C_EQ\",\"amount\":1000},{\"category_id\":\"$C_MR\",\"amount\":500}]}")
+  N=$($PSQL -t -A -c "SELECT count(*) FROM monthly_assessments WHERE $PQ;")
+  [ "$(echo "$R" | tail -1)" = "400" ] && [ "$N" = "0" ] && echo "$R" | grep -q 'sayaç modülünde' \
+    && ok "sayaç bazlı kalem (Isınma) tahakkukta arsa payıyla bölünmüyor → 400, hiç kayıt yok" \
+    || bad "METER_READING kalemi: $(echo "$R" | tail -1), kayıt $N: $(echo "$R" | head -c 200)"
+
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$AURL" -H "Authorization: Bearer $MGR" -H 'Content-Type: application/json' \
+    -d "{\"period_year\":2031,\"period_month\":7,\"due_date\":\"2031-07-15\",\"expense_items\":[{\"category_id\":\"$C_EQ\",\"amount\":1000},{\"category_id\":\"$C_SR\",\"amount\":777.77},{\"category_id\":\"$C_EQ\",\"amount\":100.01}]}")
+  TSUM=$($PSQL -t -A -c "SELECT SUM(total_amount) FROM monthly_assessments WHERE $PQ;")
+  [ "$SC" = "201" ] && [ "$TSUM" = "1877.78" ] \
+    && ok "tahakkuk toplamı gider kalemleri toplamına kuruşu kuruşuna eşit (1877.78)" \
+    || bad "tahakkuk toplamı: $SC, $TSUM (1877.78 bekleniyordu)"
+  MIS=$($PSQL -t -A -c "SELECT count(*) FROM monthly_assessments ma WHERE $PQ
+    AND ma.total_amount <> (SELECT COALESCE(SUM(d.amount),0) FROM assessment_details d WHERE d.assessment_id = ma.id);")
+  CATS=$($PSQL -t -A -c "SELECT string_agg(expense_category_id::text || '=' || s::text, ',' ORDER BY expense_category_id)
+    FROM (SELECT d.expense_category_id, SUM(d.amount) s FROM assessment_details d
+          JOIN monthly_assessments ma ON ma.id = d.assessment_id WHERE $PQ GROUP BY d.expense_category_id) x;")
+  [ "$MIS" = "0" ] && [ "$CATS" = "$C_EQ=1100.01,$C_SR=777.77" ] \
+    && ok "her dairenin tahakkuku kalem satırlarının toplamına, her kalemin payları kalem tutarına birebir eşit" \
+    || bad "kalem tutarlılığı: uyuşmayan daire $MIS, kalem toplamları '$CATS'"
+  $PSQL -c "DELETE FROM assessment_details WHERE assessment_id IN (SELECT id FROM monthly_assessments WHERE $PQ);
+    DELETE FROM monthly_assessments WHERE $PQ;" >/dev/null
+fi
+
 step "11) Yönetişim: işletme projesi, genel kurul, defter (FAZ 6)"
 GOVPORT=${VERIFY_GOV_PORT:-18107}
 DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_app DB_PASSWORD="$APPPW" DB_NAME=siteeksen \

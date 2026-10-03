@@ -12,6 +12,20 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-03 — AİDAT TAHAKKUKU KURUŞ DOĞRULUĞU + SAYAÇ KALEMİ SESSİZ DAĞITIMI (4.4, B70, B71, B75) (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **1040/1040** (tahakkuk oluşturma ucu ilk kez sınanıyor: 1000 + 777,77 + 100,01
+> → toplam 1877.78 birebir, her daire = kalem satırları toplamı, her kalem = payların toplamı; "Isınma" → 400,
+> kayıt yok). `verify-mobile.sh` 10/10 (yönetici 26 test), panel `tsc`/`lint`/`build` temiz.
+
+- `POST /finance/assessments` dağıtımı `float64` ile yapıyor, her daire ayrı yuvarlanıyordu (1.000 TL /
+  3 daire → 999,99). todo 4.4 "kuruş dağıtımı" yalnızca YENİ yazılan kodu kapsıyordu; bu eski yol kalmıştı.
+  Artık `money.Distribute` (en büyük kalan), daireler kimlik sırasıyla (B70).
+- `METER_READING`/`CUSTOM` kalemleri **sessizce arsa payıyla** bölünüyordu ("Isınma" dahil). Gider ve
+  işletme projesi servisleri gibi artık reddedilir; panel ve yönetici uygulaması bu kalemleri seçtirmez.
+- B71: talep numarası çakışmasında yeni numarayla yeniden deneme (5 kez).
+- B75: ödeme listelerinde denetimsiz tip dönüşümü (sürücü farklı tip dönerse panic) kaldırıldı.
+
 ### 2026-10-03 — GÜVENLİK: DAİRE BAĞI ROLÜYLE YETKİ YÜKSELTME KAPATILDI (migration 031) (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **1037/1037**; §39: `MANAGER` rolüyle sakin ekleme → 422 (hesap açılmadı),

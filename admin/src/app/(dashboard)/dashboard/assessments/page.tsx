@@ -29,7 +29,11 @@ export default function AssessmentsPage() {
     });
     const [lateAsOf, setLateAsOf] = useState(today());
 
-    const catOptions = (cats.data?.data ?? []).map((c) => ({ value: c.id, label: `${c.name} — ${c.distribution_type}` }));
+    // Sayaç bazlı (METER_READING) ve özel (CUSTOM) kalemler tahakkukta paylaştırılmaz;
+    // sunucu reddeder (ısınma sayaç modülünde ısı payıyla hesaplanır). Seçtirilmez.
+    const catOptions = (cats.data?.data ?? [])
+        .filter((c) => ["EQUAL", "SHARE_RATIO", "AREA_M2"].includes(c.distribution_type))
+        .map((c) => ({ value: c.id, label: `${c.name} — ${c.distribution_type}` }));
 
     return (
         <Page

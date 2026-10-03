@@ -87,9 +87,12 @@ class _CreateAssessmentScreenState extends State<CreateAssessmentScreen> {
       }
       if (!mounted) return;
       setState(() {
+        // Sayaç bazlı (METER_READING) ve özel (CUSTOM) kalemler tahakkukta
+        // paylaştırılmaz; sunucu reddeder. Seçtirilmez.
         _categories = categories
             .whereType<Map>()
             .map((e) => Map<String, dynamic>.from(e))
+            .where((e) => distributableCategory(e['distribution_type']))
             .toList();
         _unitCount = unitCount;
         _loading = false;
@@ -450,3 +453,7 @@ class _InfoRow extends StatelessWidget {
     );
   }
 }
+
+/// Tahakkukta paylaştırılabilen dağıtım yöntemleri (sunucu ile aynı kural).
+bool distributableCategory(Object? distributionType) =>
+    const {'EQUAL', 'SHARE_RATIO', 'AREA_M2'}.contains(distributionType);

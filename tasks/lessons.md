@@ -571,3 +571,14 @@ OKUYAN tarafta yapılıyordu, rolü YAZAN tarafta değil.
 uygulamada izin listesi hem veritabanında CHECK/FK olur. Rolü türeten sorgu da
 yalnızca beklenen değerleri alır — eski bir hatalı satır yetki vermesin.
 Yeni bir rol kaynağı eklerken "bu kolona kim yazabiliyor?" sorusu sorulur.
+
+### Ders 38 — "Yeni kod doğru" demek, eski yolun da doğru olduğu anlamına gelmez
+
+Kuruş dağıtımı (`pkg/money`) yazıldığında madde "tamamlandı" işaretlendi; not
+"yeni yazılan tüm para kodu kuruş kullanıyor" diyordu. Aynı işi yapan ESKİ yol
+(finans servisinin tahakkuk oluşturması) float64 ile çalışmaya devam etti ve
+hiçbir doğrulama onu çağırmıyordu.
+
+**Kural:** Bir hesap kuralı (kuruş, nisap, oran) merkezîleştirildiğinde aynı
+hesabı yapan BÜTÜN yollar `git grep` ile bulunur ve ya merkeze bağlanır ya da
+silinir. Doğrulama, ucu çağırmayan bir kontrolle "geçti" sayılamaz.

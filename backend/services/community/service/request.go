@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/siteeksen/backend/pkg/middleware"
 	"github.com/siteeksen/backend/services/community/models"
 	"github.com/siteeksen/backend/services/community/repository"
@@ -60,10 +61,24 @@ func (s *RequestService) List(ctx context.Context, userID, propertyID string, ro
 	return s.repo.ListByResident(ctx, propertyID, userID, status)
 }
 
-// Create sakin adına yeni talep oluşturur
+// Create sakin adına yeni talep oluşturur.
+//
+// Talep numarası 32 bitlik rastgele değerdir ve bütün sitelerde benzersizdir
+// (001: UNIQUE). Doğum günü sınırıyla ~77 bin talepte çakışma olasılığı %50'ye
+// çıkar; önceden çakışmada istek kullanıcıya anlamsız bir hatayla dönüyordu
+// (B71). Benzersizlik ihlalinde yeni numarayla yeniden denenir.
 func (s *RequestService) Create(ctx context.Context, userID, propertyID string, input models.CreateRequestInput) (*models.Request, error) {
-	ticketNumber := fmt.Sprintf("TLP-%s", strings.ToUpper(uuid.New().String()[:8]))
-	return s.repo.Create(ctx, propertyID, userID, ticketNumber, input)
+	const attempts = 5
+	for i := 1; ; i++ {
+		ticketNumber := fmt.Sprintf("TLP-%s", strings.ToUpper(uuid.New().String()[:8]))
+		req, err := s.repo.Create(ctx, propertyID, userID, ticketNumber, input)
+		var pgErr *pgconn.PgError
+		if err != nil && i < attempts && errors.As(err, &pgErr) &&
+			pgErr.Code == "23505" && strings.Contains(pgErr.ConstraintName, "ticket_number") {
+			continue
+		}
+		return req, err
+	}
 }
 
 // allowedStatusTransitions yöneticinin tetikleyebileceği geçişler.

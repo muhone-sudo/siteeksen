@@ -10,8 +10,10 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/shopspring/decimal"
 
 	"github.com/siteeksen/backend/pkg/dbscope"
+	"github.com/siteeksen/backend/pkg/money"
 	"github.com/siteeksen/backend/services/finance/models"
 )
 
@@ -658,22 +660,26 @@ func (r *FinanceRepository) GetPaymentHistory(ctx context.Context, propertyID, u
 	}
 	defer rows.Close()
 
+	// Boş olabilen kolonlar tipli işaretçilere okunur (B75): önceden interface{}
+	// değerine denetimsiz tip dönüşümü yapılıyordu; sürücü farklı bir tip
+	// döndürdüğünde istek panic ile düşerdi.
 	payments := []models.Payment{}
 	for rows.Next() {
 		var p models.Payment
-		var txID, completedAt interface{}
+		var txID *string
+		var completedAt *time.Time
 		if err := rows.Scan(&p.ID, &p.UserID, &p.Amount, &p.PaymentMethod, &p.Status, &txID, &p.CreatedAt, &completedAt); err != nil {
 			return nil, err
 		}
 		if txID != nil {
-			p.TransactionID = txID.(string)
+			p.TransactionID = *txID
 		}
 		if completedAt != nil {
-			p.CompletedAt = completedAt.(time.Time)
+			p.CompletedAt = *completedAt
 		}
 		payments = append(payments, p)
 	}
-	return payments, nil
+	return payments, rows.Err()
 }
 
 // ListDebtors sitede borcu olan DAİRELERİ borç tutarına göre listeler (yönetim görünümü).
@@ -764,21 +770,22 @@ func (r *FinanceRepository) ListPropertyPayments(ctx context.Context, propertyID
 	for rows.Next() {
 		var pp models.PropertyPayment
 		var firstName, lastName string
-		var txID, completedAt interface{}
+		var txID *string
+		var completedAt *time.Time
 		if err := rows.Scan(&pp.ID, &pp.UserID, &pp.Amount, &pp.PaymentMethod, &pp.Status, &txID,
 			&pp.CreatedAt, &completedAt, &firstName, &lastName, &pp.Unit); err != nil {
 			return nil, err
 		}
 		if txID != nil {
-			pp.TransactionID = txID.(string)
+			pp.TransactionID = *txID
 		}
 		if completedAt != nil {
-			pp.CompletedAt = completedAt.(time.Time)
+			pp.CompletedAt = *completedAt
 		}
 		pp.Name = firstName + " " + lastName
 		payments = append(payments, pp)
 	}
-	return payments, nil
+	return payments, rows.Err()
 }
 
 // GetConsumptionData tüketim verisi (grafik için)
@@ -820,8 +827,8 @@ func (r *FinanceRepository) GetConsumptionData(ctx context.Context, propertyID, 
 // unitShare tahakkuk dağıtım hesabı için birim bilgisi
 type unitShare struct {
 	id            string
-	shareRatio    float64
-	grossAreaM2   float64
+	shareRatio    decimal.Decimal
+	grossAreaM2   decimal.Decimal
 	isCommercial  bool
 	isGroundFloor bool
 }
@@ -830,15 +837,29 @@ type unitShare struct {
 type assessmentDetailRow struct {
 	unitID           string
 	categoryID       string
-	amount           float64
+	amount           money.Kurus
 	calculationBasis string
-	shareValue       float64
+	shareValue       float64 // oran (para değil)
 }
 
 // CreateAssessment dönem için site genelinde aidat tahakkuku oluşturur.
 // Her gider kalemini, kategorinin dağıtım yöntemine (SHARE_RATIO/EQUAL/AREA_M2)
 // göre uygun birimlere paylaştırır ve her birim için tek bir monthly_assessments
 // kaydı + ilgili assessment_details satırlarını tek transaction'da yazar.
+//
+// KURUŞ DOĞRULUĞU (2026-10-03): dağıtım önceden float64 ile yapılıyor ve her
+// daire ayrı yuvarlanıyordu: 1.000 TL eşit 3 daireye → 3 × 333,33 = 999,99;
+// tahakkuk toplamı gider tutarını tutmuyor, kalem satırlarının toplamı da daire
+// toplamını tutmayabiliyordu. Artık her kalem `money.Distribute` (en büyük kalan)
+// ile kuruş olarak paylaştırılır: payların toplamı kaleme, daire toplamı kalem
+// satırlarına BİREBİR eşittir; aynı girdi aynı dağıtımı verir.
+//
+// SAYAÇ/ÖZEL DAĞITIM: METER_READING ve CUSTOM kalemler önceden SESSİZCE arsa
+// payına göre dağıtılıyordu ("Isınma" arsa payıyla bölünüyordu). Gider ve işletme
+// projesi servisleri bu kalemleri zaten paylaştırmıyor; burada da reddedilir.
+//
+// Daireler kimlik sırasıyla işlenir (B70: map sırası her çalıştırmada farklı
+// INSERT sırası ve kilitlenme riski demekti).
 func (r *FinanceRepository) CreateAssessment(ctx context.Context, propertyID string, input models.CreateAssessmentInput) ([]models.AssessmentSummary, error) {
 	dueDate, err := time.Parse("2006-01-02", input.DueDate)
 	if err != nil {
@@ -852,8 +873,10 @@ func (r *FinanceRepository) CreateAssessment(ctx context.Context, propertyID str
 	defer tx.Rollback(ctx)
 
 	rows, err := tx.Query(ctx, `
-		SELECT id, share_ratio, COALESCE(gross_area_m2, 0), is_commercial, is_ground_floor
+		SELECT id::text, COALESCE(share_ratio, 0)::text, COALESCE(gross_area_m2, 0)::text,
+		       is_commercial, is_ground_floor
 		FROM units WHERE property_id = $1 AND deleted = 0
+		ORDER BY id
 	`, propertyID)
 	if err != nil {
 		return nil, err
@@ -861,18 +884,30 @@ func (r *FinanceRepository) CreateAssessment(ctx context.Context, propertyID str
 	units := []unitShare{}
 	for rows.Next() {
 		var u unitShare
-		if err := rows.Scan(&u.id, &u.shareRatio, &u.grossAreaM2, &u.isCommercial, &u.isGroundFloor); err != nil {
+		var ratio, area string
+		if err := rows.Scan(&u.id, &ratio, &area, &u.isCommercial, &u.isGroundFloor); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		if u.shareRatio, err = decimal.NewFromString(ratio); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		if u.grossAreaM2, err = decimal.NewFromString(area); err != nil {
 			rows.Close()
 			return nil, err
 		}
 		units = append(units, u)
 	}
 	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	if len(units) == 0 {
 		return nil, ErrNoUnitsInProperty
 	}
 
-	unitTotals := make(map[string]float64, len(units))
+	unitTotals := make(map[string]money.Kurus, len(units))
 	details := []assessmentDetailRow{}
 
 	for _, item := range input.ExpenseItems {
@@ -889,7 +924,7 @@ func (r *FinanceRepository) CreateAssessment(ctx context.Context, propertyID str
 			return nil, err
 		}
 
-		eligible := make([]unitShare, 0, len(units))
+		shares := make([]money.Share, 0, len(units))
 		for _, u := range units {
 			if u.isCommercial && !appliesCommercial {
 				continue
@@ -897,59 +932,61 @@ func (r *FinanceRepository) CreateAssessment(ctx context.Context, propertyID str
 			if u.isGroundFloor && !appliesGround {
 				continue
 			}
-			eligible = append(eligible, u)
+			var w decimal.Decimal
+			switch distType {
+			case "EQUAL":
+				w = decimal.NewFromInt(1)
+			case "AREA_M2":
+				w = u.grossAreaM2
+			case "SHARE_RATIO":
+				w = u.shareRatio
+			default:
+				return nil, fmt.Errorf("%w: '%s' kalemi %s yöntemiyle dağıtılıyor; bu yöntem tahakkukta "+
+					"paylaştırılmaz (ısınma gibi tüketim giderleri sayaç modülünde ısı payıyla hesaplanır)",
+					ErrInvalidAssessmentInput, item.CategoryID, distType)
+			}
+			shares = append(shares, money.Share{Key: u.id, Weight: w})
 		}
-		if len(eligible) == 0 {
+		if len(shares) == 0 {
 			continue
 		}
 
-		switch distType {
-		case "EQUAL":
-			share := item.Amount / float64(len(eligible))
-			basisValue := 1.0 / float64(len(eligible))
-			for _, u := range eligible {
-				unitTotals[u.id] += share
-				details = append(details, assessmentDetailRow{u.id, item.CategoryID, share, "EQUAL", basisValue})
-			}
-		case "AREA_M2":
-			var totalArea float64
-			for _, u := range eligible {
-				totalArea += u.grossAreaM2
-			}
-			if totalArea == 0 {
-				return nil, fmt.Errorf("%w: '%s' kalemi metrekareye göre dağıtılamıyor: birimlerde alan bilgisi yok", ErrInvalidAssessmentInput, item.CategoryID)
-			}
-			for _, u := range eligible {
-				ratio := u.grossAreaM2 / totalArea
-				share := item.Amount * ratio
-				unitTotals[u.id] += share
-				details = append(details, assessmentDetailRow{u.id, item.CategoryID, share, "AREA_M2", ratio})
-			}
-		default: // SHARE_RATIO ve henüz desteklenmeyen yöntemler (METER_READING/CUSTOM) arsa payına göre paylaştırılır
-			var totalRatio float64
-			for _, u := range eligible {
-				totalRatio += u.shareRatio
-			}
-			if totalRatio == 0 {
-				return nil, fmt.Errorf("%w: '%s' kalemi arsa payına göre dağıtılamıyor: birimlerde arsa payı bilgisi yok", ErrInvalidAssessmentInput, item.CategoryID)
-			}
-			for _, u := range eligible {
-				ratio := u.shareRatio / totalRatio
-				share := item.Amount * ratio
-				unitTotals[u.id] += share
-				details = append(details, assessmentDetailRow{u.id, item.CategoryID, share, "SHARE_RATIO", ratio})
-			}
+		amount := money.FromFloatTRY(item.Amount)
+		dist, err := money.Distribute(amount, shares)
+		if errors.Is(err, money.ErrNoWeights) {
+			basis := map[string]string{"AREA_M2": "metrekare", "SHARE_RATIO": "arsa payı"}[distType]
+			return nil, fmt.Errorf("%w: '%s' kalemi %s bilgisine göre dağıtılamıyor: birimlerde %s bilgisi yok",
+				ErrInvalidAssessmentInput, item.CategoryID, basis, basis)
+		}
+		if err != nil {
+			return nil, fmt.Errorf("%w: %v", ErrInvalidAssessmentInput, err)
+		}
+		totalWeight := decimal.Zero
+		for _, s := range dist {
+			totalWeight = totalWeight.Add(s.Weight)
+		}
+		for _, s := range dist {
+			unitTotals[s.Key] += s.Amount
+			details = append(details, assessmentDetailRow{
+				unitID: s.Key, categoryID: item.CategoryID, amount: s.Amount,
+				calculationBasis: distType, shareValue: s.Weight.Div(totalWeight).InexactFloat64(),
+			})
 		}
 	}
 
 	period := fmt.Sprintf("%04d-%02d", input.PeriodYear, input.PeriodMonth)
 	assessmentIDs := make(map[string]string, len(unitTotals))
-	for unitID, total := range unitTotals {
+	summaries := make([]models.AssessmentSummary, 0, len(unitTotals))
+	for _, u := range units { // belirlenimci sıra
+		total, ok := unitTotals[u.id]
+		if !ok {
+			continue
+		}
 		id := uuid.New().String()
 		_, err := tx.Exec(ctx, `
 			INSERT INTO monthly_assessments (id, property_id, unit_id, period_year, period_month, base_amount, total_amount, due_date, status)
-			VALUES ($1, $2, $3, $4, $5, $6, $6, $7, 'PENDING')
-		`, id, propertyID, unitID, input.PeriodYear, input.PeriodMonth, total, dueDate)
+			VALUES ($1, $2, $3, $4, $5, $6::numeric, $6::numeric, $7, 'PENDING')
+		`, id, propertyID, u.id, input.PeriodYear, input.PeriodMonth, total.String(), dueDate)
 		if err != nil {
 			var pgErr *pgconn.PgError
 			if errors.As(err, &pgErr) && pgErr.Code == "23505" {
@@ -957,14 +994,21 @@ func (r *FinanceRepository) CreateAssessment(ctx context.Context, propertyID str
 			}
 			return nil, err
 		}
-		assessmentIDs[unitID] = id
+		assessmentIDs[u.id] = id
+		summaries = append(summaries, models.AssessmentSummary{
+			ID:          id,
+			Period:      period,
+			BaseAmount:  total.TRY().InexactFloat64(),
+			TotalAmount: total.TRY().InexactFloat64(),
+			Status:      "PENDING",
+		})
 	}
 
 	for _, d := range details {
 		_, err := tx.Exec(ctx, `
 			INSERT INTO assessment_details (id, assessment_id, expense_category_id, amount, calculation_basis, share_value)
-			VALUES ($1, $2, $3, $4, $5, $6)
-		`, uuid.New().String(), assessmentIDs[d.unitID], d.categoryID, d.amount, d.calculationBasis, d.shareValue)
+			VALUES ($1, $2, $3, $4::numeric, $5, $6)
+		`, uuid.New().String(), assessmentIDs[d.unitID], d.categoryID, d.amount.String(), d.calculationBasis, d.shareValue)
 		if err != nil {
 			return nil, err
 		}
@@ -972,17 +1016,6 @@ func (r *FinanceRepository) CreateAssessment(ctx context.Context, propertyID str
 
 	if err := tx.Commit(ctx); err != nil {
 		return nil, err
-	}
-
-	summaries := make([]models.AssessmentSummary, 0, len(assessmentIDs))
-	for unitID, id := range assessmentIDs {
-		summaries = append(summaries, models.AssessmentSummary{
-			ID:          id,
-			Period:      period,
-			BaseAmount:  unitTotals[unitID],
-			TotalAmount: unitTotals[unitID],
-			Status:      "PENDING",
-		})
 	}
 	return summaries, nil
 }
