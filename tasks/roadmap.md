@@ -169,7 +169,7 @@ denemesi otomatik testte başarısız olur.
 > S-02 dondurması kullanıcı tarafından kaldırıldı. Bakiye düzeltildi, ödeme borçtan
 > düşüyor, para kuruş cinsinden ve dağıtımda kuruş kaybı yok, gecikme tazminatı
 > (KMK m.20/2) hesaplanıyor. Bakiye sayısal testi yazıldı ve asıl hatayı buldu (migration 030,
-> 2026-10-03). **Kalan:** ödeme idempotency anahtarı (4.5), tam kuruş göçü (todo 4.13), sağlayıcı (4.11, S-06).
+> 2026-10-03). **Kalan:** tam kuruş göçü (todo 4.13), sağlayıcı (4.11, S-06).
 > **Kanıt:** `verify-stack.sh` §5b, §10, §11.
 
 **Amaç:** Gösterilen her tutarın doğru olması. Bugün bakiye kullanıcı sayısıyla çarpılıyor ve
@@ -181,7 +181,7 @@ denemesi otomatik testte başarısız olur.
 | 4.2 | Ödemeyi tamamla: `paid_amount` + tahakkuk durumu, tek transaction, `FOR UPDATE` | `[D4]` yönetici onay akışı, verify §10 | B46, B47 |
 | 4.3 | Para tipini `float64`'ten kuruş (`int64`) veya `decimal`'e çevir | `[D4]` yeni kod `pkg/money`; eski alanların göçü kaldı (todo 4.13) | B50 — şema zaten `DECIMAL` |
 | 4.4 | Tahakkukta kuruş yuvarlama + kalan dağıtımı (largest remainder) | `[D4]` | B51 |
-| 4.5 | Ödeme idempotency (`Idempotency-Key`) | `[BLOKE]` S-02 | B48 |
+| 4.5 | Ödeme idempotency (`Idempotency-Key`) | `[D4]` 2026-10-03 — aynı tahakkuk için ikinci PENDING ödeme 409 (kilit altında denetim), verify §10. `Idempotency-Key` başlığı yok; sağlayıcı (S-06) gelince webhook için gerekir | B48 |
 | 4.6 | `CalculateTotalAmount`'a `deleted = 0`; tahsilat oranı kesme hatası | `[D0]` | B53, B54 |
 | 4.7 | `ListDebtors`'ı daire bazlı yap (kiracılı/boş daireler de görünsün) | `[D4]` 2026-10-03, verify §10 (hisseli daire tek satır, maliksiz daire görünür) | B55 |
 | 4.8 | `ListPropertyPayments` tenant filtresini ödeme üzerinden kur | `[D0]` | B56 |

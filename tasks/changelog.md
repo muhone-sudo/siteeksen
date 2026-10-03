@@ -12,6 +12,14 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-03 — ÇİFT ÖDEME KAYDI ENGELLENDİ (roadmap 4.5) (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **1022/1022**; §10: aynı aidat için ikinci ödeme → 409, tek PENDING kayıt.
+
+- Aynı tahakkuk için ikinci `PENDING` ödeme açılabiliyordu (çift dokunma, zaman aşımında yeniden
+  deneme). Yönetici ikisini de onaylarsa borç iki kez düşer, sakin fazla ödemiş görünürdü.
+  Denetim tahakkuk satırlarının `FOR UPDATE` kilidi altında yapılır; eşzamanlı istekler de yakalanır.
+
 ### 2026-10-03 — BORÇLU LİSTESİ DAİRE BAZLI (B55, roadmap 4.7) (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **1021/1021**; §10: iki malikli daire tek satır ve borç bir kez

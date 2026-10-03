@@ -689,6 +689,17 @@ print("%d|%.2f|%s" % (len(r), sum(x["amount"] for x in r), r[0]["name"] if r els
   PAYID=$(echo "$PAYRESP" | sed -n 's/.*"payment_id":"\([^"]*\)".*/\1/p')
   [ -n "$PAYID" ] && ok "ödeme kaydı oluşturuldu" || bad "ödeme kaydı oluşturulamadı: $PAYRESP"
 
+  # Roadmap 4.5: aynı tahakkuk için ikinci PENDING ödeme açılamamalı (çift dokunma /
+  # yeniden deneme). Açılsaydı yönetici ikisini de onaylayınca borç iki kez düşerdi.
+  DUPPAY=$(curl -s -w '\n%{http_code}' -X POST "http://127.0.0.1:${FINPORT}/api/v1/finance/payments" \
+    -H "Authorization: Bearer $MGR" -H 'Content-Type: application/json' \
+    -d "{\"assessment_ids\":[\"$ASSESS\"],\"payment_method\":\"BANK_TRANSFER\"}")
+  NPEND=$($PSQL -t -A -c "SELECT count(*) FROM payment_assessments pa JOIN payments p ON p.id = pa.payment_id
+    WHERE pa.assessment_id='$ASSESS' AND p.status='PENDING';")
+  [ "$(echo "$DUPPAY" | tail -1)" = "409" ] && [ "$NPEND" = "1" ] \
+    && ok "aynı aidat için ikinci bekleyen ödeme açılamıyor → 409 (tek PENDING kayıt)" \
+    || bad "çift ödeme: $(echo "$DUPPAY" | tail -1), bekleyen kayıt $NPEND"
+
   echo "$PAYRESP" | grep -q '"payment_gateway_ready":false' \
     && ok "istemciye tahsilatın yapılmadığı bildiriliyor (payment_gateway_ready:false)" \
     || bad "payment_gateway_ready alanı yok/yanlış"

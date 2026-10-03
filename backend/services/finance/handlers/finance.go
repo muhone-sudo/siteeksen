@@ -209,6 +209,11 @@ func CreatePayment(svc *service.FinanceService) gin.HandlerFunc {
 				c.JSON(http.StatusBadRequest, gin.H{
 					"error": "Seçilen aidatlardan biri ödenebilir durumda değil",
 				})
+			case errors.Is(err, repository.ErrPaymentAlreadyPending):
+				c.JSON(http.StatusConflict, gin.H{
+					"error": "Bu aidat için yönetim onayı bekleyen bir ödemeniz zaten var; " +
+						"onaylanmasını ya da reddedilmesini bekleyin",
+				})
 			default:
 				if middleware.DBErrorResponse(c, err) {
 					return

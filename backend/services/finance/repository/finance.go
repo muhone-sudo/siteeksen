@@ -41,6 +41,8 @@ var (
 	ErrPaymentNotPending = errors.New("ödeme onay bekleyen durumda değil")
 	// ErrPaymentNotOwned ödeme, onaylayan yöneticinin sitesine ait değil.
 	ErrPaymentNotOwned = errors.New("bu ödeme sizin sitenize ait değil")
+	// ErrPaymentAlreadyPending seçilen tahakkuklardan biri için onay bekleyen ödeme var.
+	ErrPaymentAlreadyPending = errors.New("bu aidat için onay bekleyen bir ödeme zaten var")
 )
 
 // FinanceRepository finans veritabanı işlemleri
@@ -327,6 +329,24 @@ func (r *FinanceRepository) CreatePayment(
 	// İstenen tahakkukların hepsi kullanıcıya ait ve ödenebilir olmalı.
 	if len(items) != len(assessmentIDs) {
 		return "", 0, ErrAssessmentNotPayable
+	}
+
+	// ÇİFT GÖNDERİM (2026-10-03, roadmap 4.5): önceden aynı tahakkuk için ikinci
+	// bir PENDING ödeme açılabiliyordu (çift dokunma, ağ zaman aşımında yeniden
+	// deneme). Yönetici ikisini de onaylarsa borç İKİ KEZ düşer ve sakin fazla
+	// ödemiş görünürdü. Tahakkuk satırları yukarıda FOR UPDATE ile kilitli
+	// olduğundan eşzamanlı iki istek bu denetimi sırayla görür.
+	var pending bool
+	if err := tx.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1 FROM payment_assessments pa
+			JOIN payments p ON p.id = pa.payment_id
+			WHERE pa.assessment_id = ANY($1) AND p.status = 'PENDING')`,
+		assessmentIDs).Scan(&pending); err != nil {
+		return "", 0, err
+	}
+	if pending {
+		return "", 0, ErrPaymentAlreadyPending
 	}
 
 	var total float64
