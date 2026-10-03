@@ -328,7 +328,13 @@ Backend'e dokunan her değişiklikten sonra çalıştırılır.
       **Kanıt:** `go test ./pkg/audit/...` gerçek veritabanına karşı **2/2 geçti**;
       uçtan uca istekte `audit_logs`'a kayıt yazıldığı doğrulandı.
 - [x] **[D3] 3.2 `old_values`/`new_values` alanları yazılabilir hale geldi** (tipli `Entry` ile)
-- [ ] **3.4 Hassas veri okuma logu** (TCKN, maaş, sır gösterme)
+- [x] **[D4] 3.4 Hassas veri okuma logu (2026-10-03)** — her korumalı GET `VIEW` olarak
+      (kullanıcı, site, kayıt kimliği, durum kodu) yazılıyordu ama hiç sınanmamıştı; reddedilen
+      okuma `DENIED`, maskesiz TCKN/IBAN ayrıca `PII_REVEAL`, belge `document_access_logs`.
+      Sır gösterme ucu yok (kimlik bilgisi modülü 501). **Sınır:** liste okumalarında tek tek
+      kayıt kimlikleri yazılmaz (kim, ne zaman, hangi liste yazılır).
+      **Kanıt:** `verify-stack.sh` §31 → personel kaydı okuması (maaş), sakin listesi (telefon/e-posta)
+      ve sakinin reddedilen denemesi denetim izinde; 1019/1019.
 - [x] **[D4] 3.5 Yapılandırılmış log + istek kimliği (2026-09-26)** — 26 servis + gateway JSON günlük
       (`middleware.NewRouter`: request_id, route şablonu, status, süre, kullanıcı, site; ham yol/sorgu
       YAZILMAZ). İstemci `X-Request-Id`'si doğrulanır: 64 karakteri aşan değer denetim kaydını
@@ -597,7 +603,7 @@ yaygınlaştırılmasına kayıyor.
    **Mobil TAMAMLANDI (2026-09-27):** iki uygulama da gerçek API sözleşmesine bağlı
    (sakin 17, yönetici 21 test; `verify-mobile.sh` 8/8). Kalan: mobilde belge açma
    (`/documents/:id/download` → dosyayı cihazda açma).
-5. **FAZ 3 kalanı** — hassas veri okuma logu belge ve personel için yapıldı
+5. **FAZ 3 kalanı** — **3.4 TAMAMLANDI (2026-10-03).** Eski not: hassas veri okuma logu belge ve personel için yapıldı
    (`document_access_logs`, `PII_REVEAL`); sakin uçlarına da genişletilecek.
    Yapılandırılmış log (3.5).
 6. ~~**Panelde çıkış (logout) düğmesi yok**~~ **TAMAMLANDI** — başlık menüsünde

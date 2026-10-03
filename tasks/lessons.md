@@ -551,7 +551,7 @@ günlükte `\"` olarak geçer, grep deseni bunu kapsamalıdır.
 
 ### Ders 36 — Durum değişmeden de geçen kontrol, kontrol değildir
 
-"Ödeme sonrası has_debt:false" kontrolü yıllarca geçti; çünkü bakiye hiç
+"Ödeme sonrası has_debt:false" kontrolü haftalarca geçti; çünkü bakiye hiç
 yazılmayan bir tablodan okunuyordu ve ödemeden ÖNCE de false'tu. Kontrol
 çıktıyı sınadı ama değişimi sınamadı.
 

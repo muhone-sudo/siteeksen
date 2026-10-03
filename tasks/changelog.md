@@ -12,6 +12,15 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-03 — HASSAS VERİ OKUMA KAYDI KANITLANDI (3.4) (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **1019/1019** (§31'e 3 kontrol).
+
+- Korumalı her GET zaten `VIEW` olarak yazılıyordu ama hiçbir kontrol bunu sınamıyordu.
+  Artık: maaş içeren personel kaydını okuyan yönetici (kullanıcı, site, kayıt kimliği, 200),
+  sakin listesini okuyan yönetici ve personel kaydına erişmeye çalışan sakin (`DENIED`, 403)
+  denetim izinde doğrulanıyor. Sınır: liste okumalarında tek tek kayıt kimliği yazılmaz.
+
 ### 2026-10-03 — SAKİN BAKİYESİ HERKES İÇİN 0 GÖRÜNÜYORDU (migration 030, 4.12) (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **1016/1016**; §10: API `current_balance` bağımsız SQL toplamına

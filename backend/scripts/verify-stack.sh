@@ -4020,6 +4020,26 @@ if [ "$PUP2" = "1" ] && [ -n "${MGR:-}" ]; then
       -H "Authorization: Bearer $TEN2")
     [ "$SC" = "403" ] && ok "sakin reveal ile de tam veriye ulaşamıyor → 403" \
       || bad "sakin personel kaydına eriştin → $SC"
+
+    # 3.4 Hassas veri OKUMA kaydı: maaş/kimlik içeren personel kaydını ve sakin
+    # iletişim bilgilerini kimin okuduğu denetim izinde olmalı (KVKK m.12).
+    # Yalnızca yazmaları kaydetmek, verinin kimlerin gözünden geçtiğini bilinmez bırakırdı.
+    sleep 1
+    MGRUID=$($PSQL -t -A -c "SELECT id FROM users WHERE phone='+905551234567';")
+    VIEWP=$($PSQL -t -A -c "SELECT count(*) FROM audit_logs WHERE action='VIEW' AND entity_type='personnel'
+      AND entity_id='$E1ID' AND user_id='$MGRUID' AND property_id='$DEMO_PROPERTY' AND status_code=200;")
+    [ "${VIEWP:-0}" -ge 1 ] && ok "maaş içeren personel kaydının okunması kim/site/kayıt ile denetim izinde ($VIEWP)" \
+      || bad "personel kaydı okuması denetim izine yazılmadı"
+    DENP=$($PSQL -t -A -c "SELECT count(*) FROM audit_logs WHERE action='DENIED' AND entity_type='personnel'
+      AND entity_id='$E1ID' AND status_code=403 AND user_id <> '$MGRUID';")
+    [ "${DENP:-0}" -ge 1 ] && ok "sakinin reddedilen okuma denemesi DENIED olarak kayıtlı" \
+      || bad "reddedilen okuma denemesi kaydedilmedi"
+    curl -s -o /dev/null "http://127.0.0.1:${SVCPORT}/api/v1/residents" -H "$PA2"
+    sleep 1
+    VIEWR=$($PSQL -t -A -c "SELECT count(*) FROM audit_logs WHERE action='VIEW' AND entity_type='resident'
+      AND user_id='$MGRUID' AND property_id='$DEMO_PROPERTY' AND status_code=200;")
+    [ "${VIEWR:-0}" -ge 1 ] && ok "sakin listesinin (telefon/e-posta) okunması denetim izinde ($VIEWR)" \
+      || bad "sakin listesi okuması denetim izine yazılmadı"
   fi
 
   # 6) GEÇERSİZ TCKN reddedilmeli — şifreli alandaki yazım hatası bulunamaz
