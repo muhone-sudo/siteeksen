@@ -135,8 +135,8 @@ Bugün bu mümkün değil; mevcut ortam elle müdahalelerin toplamı ve kaybolur
 | 2.7 | Rolleri `(user_id, property_id)` çiftine bağla; JWT'ye aktif site rolleri | `[D0]` | B19 |
 | 2.8 | `RequireRole`'ü tüm yönetim uçlarına uygula; rol/yetki matrisi | `[D0]` | B28, M-60 |
 | 2.9 | Admin panelde rol bazlı görünürlük + sunucu tarafı zorlama | `[D0]` | B28 |
-| 2.10 | Yönetici mobilde RBAC fail-open'ı düzelt; `AUDITOR` kısıtı | `[D0]` | B26 |
-| 2.11 | Yönetici mobilde router auth guard | `[D0]` | B27 |
+| 2.10 | Yönetici mobilde RBAC fail-open'ı düzelt; `AUDITOR` kısıtı | `[D3]` 2026-10-03 — menü fail-closed, rolsüz kullanıcıya açıklama ekranı; 4 birim testi (cihazda denenmedi) | B26 |
+| 2.11 | Yönetici mobilde router auth guard | `[D3]` 2026-09-27 — `app_router.dart` redirect | B27 |
 | 2.12 | Gerçek çıkış: token denylist (Redis) + mobilde token silme | `[D0]` | B29 |
 | 2.13 | Refresh/access token türü ayrımı (`typ` claim) + rotasyon + yeniden kullanım tespiti | `[D0]` | B30 |
 | 2.14 | IDOR kapatma: `GET /assessments/:id`, ödeme sahipliği, talep site kontrolü | `[D0]` | B23, B24, B64 |

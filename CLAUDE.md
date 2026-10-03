@@ -384,7 +384,7 @@ Bildirilen ortak yığın: Riverpod, go_router, Dio, flutter_secure_storage.
   Push bildirim akışı hiç kurulmamıştır.
 - **`intl` kullanılmıyor** → para/tarih biçimlendirme elle yapılıyor ve hatalı (örn. `12.450.00`).
 - Sakin uygulamasında 13/22, yönetici uygulamasında 16 bağımlılık hiç import edilmemiş.
-- ~~Test sayısı: sakin 1 (derlenmiyor), yönetici 0~~ → **2026-09-27:** sakin 24, yönetici 21 test.
+- ~~Test sayısı: sakin 1 (derlenmiyor), yönetici 0~~ → **2026-09-27:** sakin 24, yönetici 25 test.
 - **İki uygulama da gerçek API sözleşmesine bağlı (2026-09-27).** Alan yöntemleri yerine
   genel `getList/getMap/post…` + yol sözleşmeden (`tasks/api-sozlesmesi.md`); yönetici
   uygulamasında yükleme/hata/boş/işlem davranışı `core/widgets/api_views.dart`'ta tek yerde.

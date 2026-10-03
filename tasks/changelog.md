@@ -12,6 +12,14 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-03 — YÖNETİCİ UYGULAMASI MENÜSÜ FAIL-CLOSED (B26, roadmap 2.10) (DOĞRULANMIŞ, D3)
+
+> **Kanıt:** `verify-mobile.sh` → **10/10** (yönetici testleri 21 → 25, `nav_access_test.dart`).
+
+- Roller boşsa (alınamadıysa ya da giren kişi sakinse) **bütün menü** görünüyordu (`_roles.isEmpty ||`).
+  Veri sunucuda `RequireRole` ile korunuyordu ama her ekran 403'e gidiyordu. Artık menü yalnızca
+  rolün açtığı öğeleri gösterir; yönetim rolü olmayan kişiye "bu uygulama yönetim içindir" + çıkış.
+
 ### 2026-10-03 — SAKİN EKLERKEN BAŞKA SİTENİN HESABI SESSİZCE BAĞLANIYORDU (B25, roadmap 2.15) (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **1029/1029**; §39: bu siteyle bağı olmayan hesabın telefonu → 409,

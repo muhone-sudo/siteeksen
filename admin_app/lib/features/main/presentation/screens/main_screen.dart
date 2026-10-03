@@ -25,6 +25,14 @@ const _mgmtAudit = [roleManager, roleBoard, roleAuditor];
 const _mgmtStaff = [roleManager, roleBoard, roleStaff];
 const _all = [roleManager, roleBoard, roleAuditor, roleStaff];
 
+/// Menü öğesi görünür mü? FAIL-CLOSED (2026-10-03, B26): önceden roller boşsa
+/// (alınamadıysa ya da kişi sakinse) BÜTÜN menü görünüyordu.
+bool navVisible(List<String> userRoles, List<String> itemRoles) =>
+    userRoles.any(itemRoles.contains);
+
+/// Yönetici uygulamasını kullanabilecek bir site rolü var mı?
+bool hasAdminAppAccess(List<String> userRoles) => userRoles.any(_all.contains);
+
 class _NavItem {
   final IconData icon;
   final String label;
@@ -88,9 +96,10 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
   List<String> _roles = [];
+  bool _rolesLoaded = false;
   String _siteName = '';
 
-  bool _visible(_NavItem item) => _roles.isEmpty || _roles.any(item.roles.contains);
+  bool _visible(_NavItem item) => navVisible(_roles, item.roles);
 
   List<_NavItem> get _navItems => _bottomItems.where(_visible).toList();
 
@@ -113,6 +122,7 @@ class _MainScreenState extends State<MainScreen> {
     if (!mounted) return;
     setState(() {
       _roles = roles;
+      _rolesLoaded = true;
       _siteName = site;
       if (_selectedIndex >= _navItems.length) _selectedIndex = 0;
     });
@@ -152,7 +162,7 @@ class _MainScreenState extends State<MainScreen> {
         }
       },
       child: Scaffold(
-        body: widget.child,
+        body: _rolesLoaded && !hasAdminAppAccess(_roles) ? const _NoAdminAccess() : widget.child,
         bottomNavigationBar: items.length < 2
             ? null
             : NavigationBar(
@@ -220,6 +230,44 @@ class _MainScreenState extends State<MainScreen> {
             },
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Yönetim rolü olmayan biri (sakin, kiracı) bu uygulamaya girerse: her ekran
+/// sunucudan 403 alacağı için boş menü yerine ne yapacağı söylenir.
+class _NoAdminAccess extends StatelessWidget {
+  const _NoAdminAccess();
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.admin_panel_settings_outlined, size: 56, color: Colors.grey),
+              const SizedBox(height: 16),
+              const Text('Bu uygulama site yönetimi içindir',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600), textAlign: TextAlign.center),
+              const SizedBox(height: 8),
+              const Text(
+                'Hesabınızın aktif sitede yönetici, yönetim kurulu üyesi, denetçi ya da görevli rolü yok. '
+                'Sakinseniz SiteEksen sakin uygulamasını kullanın.',
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 20),
+              FilledButton.icon(
+                onPressed: () => performLogout(context),
+                icon: const Icon(Icons.logout),
+                label: const Text('Çıkış yap'),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
