@@ -5,6 +5,7 @@
 #   db-app        : password                 → siteeksen_app (23 servis)
 #   db-identity   : password                 → siteeksen_identity (kimlik servisi)
 #   app-secrets   : jwt-secret, nextauth-secret, pii-encryption-key
+#                   (isteğe bağlı: pii-encryption-key-id, pii-encryption-previous-keys)
 #   storage       : endpoint, region, bucket, access-key-id, secret-access-key
 #
 # Sıra: önce k8s/migrate-job.yaml tamamlanmalı (şemayı günceller ve rol

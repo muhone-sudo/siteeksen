@@ -598,7 +598,10 @@ yaygınlaştırılmasına kayıyor.
 6. ~~**Panelde çıkış (logout) düğmesi yok**~~ **TAMAMLANDI** — başlık menüsünde
    çıkış düğmesi erişim ve yenileme jetonunu iptal eder; şifre değiştirme de var.
 7. ~~**1.6 migration geri alma (down) betikleri.**~~ **TAMAMLANDI (2026-09-27)** — yedek/geri yükleme yordamı, adım 41.
-8. **Anahtar yönetimi.** `PII_ENCRYPTION_KEY` ve `siteeksen_app` parolası bugün
+8. **Anahtar yönetimi.** **Döndürme TAMAMLANDI (2026-10-03)** — anahtar halkası,
+   `cmd/rotate-pii`, `docs/runbook-anahtar-dondurme.md`, verify adım 42 (1012/1012).
+   **Kalan:** anahtar deposu (vault/KMS) seçimi kullanıcı kararı bekliyor (questions S-19).
+   Eski not: `PII_ENCRYPTION_KEY` ve `siteeksen_app` parolası bugün
    ortam değişkeniyle veriliyor. Üretim için anahtar deposu (vault) ve anahtar
    döndürme (rotation) yordamı yazılmalı — şifreli veriyi yeniden şifrelemek
    gerekeceği için bu, planlanması gereken bir iştir.

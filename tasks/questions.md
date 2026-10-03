@@ -34,6 +34,24 @@ Kullanıcı S-01…S-18'in tamamını yanıtladı. **Bloklayıcı kalmadı.** Uy
 | S-17 | Madde başına commit, bölüm sonunda push | ◐ Commit'ler atılıyor; **push için kimlik bilgisi gerekiyor** (aşağıya bakın) |
 | S-18 | `tasks/` tek kaynak | ✔ Kök dosyalar işaretçi |
 
+## AÇIK SORULAR (2026-10-03)
+
+### S-19. Anahtar deposu (vault / KMS) — hangisi?
+
+`PII_ENCRYPTION_KEY`, `JWT_SECRET` ve veritabanı rol parolaları bugün ortam
+değişkeni / k8s Secret ile veriliyor. Anahtar **döndürme** artık var
+(`docs/runbook-anahtar-dondurme.md`); eksik olan anahtarın nerede tutulacağı.
+Hedef bulut ve bütçe bilinmeden seçilemez:
+
+| Seçenek | Not |
+|---|---|
+| a) k8s Secret + etcd şifreleme (bugünkü hâl) | Ek maliyet yok; anahtar küme yöneticisine açık |
+| b) HashiCorp Vault / OpenBao | Bulut bağımsız; işletmesi ayrı iş |
+| c) Bulut KMS (Oracle Cloud Vault, AWS KMS) | S-09'daki depolama sağlayıcısıyla aynı bulut seçilirse doğal |
+
+**Varsayılan (yanıt gelene kadar):** a) — kod tarafında değişiklik gerekmiyor;
+servisler anahtarı ortamdan okumaya devam eder.
+
 ### ⚠ Kullanıcıdan gereken tek şey: git push yetkisi
 
 `git push origin main` şu hatayı veriyor:

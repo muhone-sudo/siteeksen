@@ -6,6 +6,8 @@ import (
 	"errors"
 	"strings"
 	"testing"
+
+	"github.com/siteeksen/backend/pkg/encryption"
 )
 
 func testVault(t *testing.T) *Vault {
@@ -171,5 +173,169 @@ func TestBosDegerCozulunceBosKalir(t *testing.T) {
 	got, err := v.Decrypt("")
 	if err != nil || got != "" {
 		t.Fatalf("boş şifreli metin: %q %v", got, err)
+	}
+}
+
+// -----------------------------------------------------------------------------
+// ANAHTAR DÖNDÜRME
+// -----------------------------------------------------------------------------
+
+func randomKey(t *testing.T) string {
+	t.Helper()
+	key := make([]byte, 32)
+	if _, err := rand.Read(key); err != nil {
+		t.Fatal(err)
+	}
+	return base64.StdEncoding.EncodeToString(key)
+}
+
+func TestSifreliMetinAnahtarKimligiTasir(t *testing.T) {
+	v, err := NewKeyring("k7", randomKey(t), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ct, _ := v.Encrypt("10000000146")
+	if !strings.HasPrefix(ct, "k7$") {
+		t.Fatalf("şifreli metin anahtar kimliğini taşımıyor: %q", ct)
+	}
+	if v.NeedsRotation(ct) {
+		t.Fatal("birincil anahtarla yazılmış metin döndürme gerektiriyor sayıldı")
+	}
+}
+
+func TestEskiBicimHalaCozulur(t *testing.T) {
+	// 2026-09-27 öncesi kayıtlar kimliksiz ve ham anahtarla şifrelendi.
+	// Yeni kod bunları okuyamazsa dağıtım anında bütün personel ekranı kırılırdı.
+	key := randomKey(t)
+	legacy, err := encryption.NewService(key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	old, err := legacy.Encrypt("10000000146")
+	if err != nil {
+		t.Fatal(err)
+	}
+	v, _ := New(key)
+	got, err := v.Decrypt(old)
+	if err != nil || got != "10000000146" {
+		t.Fatalf("eski biçim çözülemedi: %q %v", got, err)
+	}
+	if !v.NeedsRotation(old) {
+		t.Fatal("eski biçimli metin döndürme gerektirmiyor sayıldı")
+	}
+}
+
+func TestDondurmeEskiAnahtarlaYazilaniOkur(t *testing.T) {
+	oldKey, newKey := randomKey(t), randomKey(t)
+	before, _ := NewKeyring("k1", oldKey, nil)
+	ct, _ := before.Encrypt("TR330006100519786457841326")
+
+	after, err := NewKeyring("k2", newKey, map[string]string{"k1": oldKey})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := after.Decrypt(ct)
+	if err != nil || got != "TR330006100519786457841326" {
+		t.Fatalf("döndürme sırasında eski kayıt okunamadı: %q %v", got, err)
+	}
+	if !after.NeedsRotation(ct) {
+		t.Fatal("eski anahtarla yazılmış kayıt döndürme gerektirmiyor sayıldı")
+	}
+	fresh, _ := after.Encrypt(got)
+	if !strings.HasPrefix(fresh, "k2$") || after.NeedsRotation(fresh) {
+		t.Fatalf("yeni yazım birincil anahtarla değil: %q", fresh)
+	}
+
+	// Eski anahtar halkadan çıkarılınca eski kayıt AÇIKÇA hata verir.
+	only, _ := NewKeyring("k2", newKey, nil)
+	if _, err := only.Decrypt(ct); !errors.Is(err, ErrUnknownKey) {
+		t.Fatalf("tanımsız anahtar sessizce geçti: %v", err)
+	}
+}
+
+func TestAnahtarKimligiDegistirilenMetinCozulmez(t *testing.T) {
+	// Kimlik AAD olarak bağlıdır: aynı anahtar baytları iki kimlikle tanımlansa
+	// bile kimliği değiştirilmiş metin doğrulamadan geçmemelidir.
+	key := randomKey(t)
+	v, _ := NewKeyring("k2", key, map[string]string{"k1": key})
+	ct, _ := v.Encrypt("10000000146")
+	forged := "k1$" + strings.TrimPrefix(ct, "k2$")
+	if _, err := v.Decrypt(forged); err == nil {
+		t.Fatal("kimliği değiştirilmiş şifreli metin çözüldü")
+	}
+}
+
+func TestSifrelemeVeAramaAnahtariAyridir(t *testing.T) {
+	// Aynı baytın hem AES hem HMAC anahtarı olması kriptografik olarak
+	// zayıftır; yeni arama anahtarı ham anahtarla üretilenle aynı OLMAMALI.
+	key := randomKey(t)
+	v, _ := New(key)
+	raw, _ := base64.StdEncoding.DecodeString(key)
+	if v.BlindIndex("10000000146") == blindIndex(raw, "10000000146") {
+		t.Fatal("arama anahtarı hâlâ ham şifreleme anahtarıyla üretiliyor")
+	}
+}
+
+func TestAdayAramaAnahtarlariEskiKayitlariKapsar(t *testing.T) {
+	oldKey, newKey := randomKey(t), randomKey(t)
+	before, _ := NewKeyring("k1", oldKey, nil)
+	raw, _ := base64.StdEncoding.DecodeString(oldKey)
+	stored := []string{
+		before.BlindIndex("10000000146"), // k1, yeni biçim
+		blindIndex(raw, "10000000146"),   // k1, eski biçim (2026-09-27 öncesi)
+	}
+
+	after, _ := NewKeyring("k2", newKey, map[string]string{"k1": oldKey})
+	cands := after.BlindIndexCandidates("100 000 001 46")
+	for _, s := range stored {
+		found := false
+		for _, c := range cands {
+			if c == s {
+				found = true
+			}
+		}
+		if !found {
+			t.Fatalf("aday küme döndürme öncesi arama anahtarını kapsamıyor: %s", s)
+		}
+	}
+	if cands[0] != after.BlindIndex("10000000146") {
+		t.Fatal("aday kümenin ilk elemanı birincil arama anahtarı değil")
+	}
+	if after.BlindIndexCandidates("") != nil {
+		t.Fatal("boş değer için aday üretildi")
+	}
+}
+
+func TestFromEnvAnahtarHalkasi(t *testing.T) {
+	oldKey, newKey := randomKey(t), randomKey(t)
+	t.Setenv(EnvKey, newKey)
+	t.Setenv(EnvKeyID, "k2")
+	t.Setenv(EnvPreviousKeys, " k1:"+oldKey+" ,")
+	v, err := FromEnv()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v.PrimaryKeyID() != "k2" {
+		t.Fatalf("birincil kimlik: %s", v.PrimaryKeyID())
+	}
+	before, _ := NewKeyring("k1", oldKey, nil)
+	ct, _ := before.Encrypt("10000000146")
+	if got, err := v.Decrypt(ct); err != nil || got != "10000000146" {
+		t.Fatalf("ortamdan kurulan halka eski anahtarı okumuyor: %v", err)
+	}
+
+	bad := []struct{ id, prev string }{
+		{"k2", "k1" + oldKey},  // ":" yok
+		{"k2", "k2:" + oldKey}, // kimlik birincille aynı
+		{"K2", ""},             // büyük harf
+		{"k2", "k1:kisa"},      // geçersiz eski anahtar
+		{"k$", ""},             // ayırıcı karakter
+	}
+	for _, b := range bad {
+		t.Setenv(EnvKeyID, b.id)
+		t.Setenv(EnvPreviousKeys, b.prev)
+		if _, err := FromEnv(); !errors.Is(err, ErrNoKey) {
+			t.Errorf("hatalı yapılandırma kabul edildi (%q, %q): %v", b.id, b.prev, err)
+		}
 	}
 }

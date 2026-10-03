@@ -144,6 +144,24 @@ func (r *Repository) CreateEmployee(ctx context.Context, propertyID string, in m
 		}
 		idx := r.vault.BlindIndex(t)
 		tcEnc, tcIdx = &ct, &idx
+
+		// Benzersiz indeks yalnızca AYNI anahtarla üretilmiş arama anahtarlarını
+		// karşılaştırır. Anahtar döndürme sürerken (ya da eski biçimdeki kayıtlar
+		// `cmd/rotate-pii` ile taşınmadan önce) mevcut kaydın arama anahtarı
+		// farklıdır; yalnızca indekse güvenmek ikinci aktif kaydı sessizce açardı.
+		// Eşzamanlı iki yeni kayıt birincil anahtarı paylaştığı için indeks yakalar.
+		var dup bool
+		if err := r.scope(propertyID).QueryRow(ctx, `
+			SELECT EXISTS (
+				SELECT 1 FROM employees
+				WHERE property_id = $1 AND COALESCE(is_active, true)
+				  AND tc_number_index::text = ANY($2::text[]))`,
+			propertyID, r.vault.BlindIndexCandidates(t)).Scan(&dup); err != nil {
+			return "", err
+		}
+		if dup {
+			return "", ErrDuplicateTC
+		}
 	}
 	if b := strings.TrimSpace(in.BankIBAN); b != "" {
 		if err := pii.ValidateIBAN(b); err != nil {

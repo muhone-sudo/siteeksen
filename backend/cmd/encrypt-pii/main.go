@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/siteeksen/backend/pkg/dbscope"
 	"github.com/siteeksen/backend/pkg/pii"
 )
 
@@ -58,6 +59,10 @@ func main() {
 		log.Fatalf("Veritabanına bağlanılamadı: %v", err)
 	}
 	defer pool.Close()
+
+	if err := dbscope.RequireAllSitesRole(ctx, pool); err != nil {
+		log.Fatalf("Şifreleme başlatılmadı: %v", err)
+	}
 
 	if err := run(ctx, pool, vault, *dryRun); err != nil {
 		log.Fatalf("Şifreleme başarısız: %v", err)

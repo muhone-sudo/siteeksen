@@ -32,13 +32,19 @@
 package pii
 
 import (
+	"crypto/aes"
+	"crypto/cipher"
+	"crypto/hkdf"
 	"crypto/hmac"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
+	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/siteeksen/backend/pkg/encryption"
@@ -51,18 +57,78 @@ var (
 	ErrInvalidTCKN = errors.New("geçersiz T.C. kimlik numarası")
 	// ErrInvalidIBAN, IBAN doğrulamadan geçmezse döner.
 	ErrInvalidIBAN = errors.New("geçersiz IBAN")
+	// ErrUnknownKey, şifreli metnin anahtarı halkada yoksa döner.
+	ErrUnknownKey = errors.New("şifreleme anahtarı halkada yok")
 )
 
-// EnvKey, anahtarın okunduğu ortam değişkeni.
-const EnvKey = "PII_ENCRYPTION_KEY"
+// Ortam değişkenleri.
+//
+// ANAHTAR DÖNDÜRME (2026-09-27): önceden tek anahtar vardı ve şifreli metin
+// hangi anahtarla yazıldığını taşımıyordu; anahtar değiştirilirse bütün kayıtlar
+// okunamaz olurdu. Artık:
+//   - PII_ENCRYPTION_KEY      : BİRİNCİL anahtar (yeni yazımlar bununla).
+//   - PII_ENCRYPTION_KEY_ID   : birincil anahtarın kimliği (varsayılan "k1").
+//   - PII_ENCRYPTION_PREVIOUS_KEYS: "k0:<base64>,..." — YALNIZCA ÇÖZMEK için.
+//
+// Döndürme: yeni anahtar birincil yapılır, eskisi PREVIOUS'a taşınır, servisler
+// yeniden başlatılır, `go run ./cmd/rotate-pii` bütün kayıtları yeni anahtara
+// geçirir; ardından eski anahtar PREVIOUS'tan çıkarılır (docs/runbook-anahtar-dondurme.md).
+const (
+	EnvKey          = "PII_ENCRYPTION_KEY"
+	EnvKeyID        = "PII_ENCRYPTION_KEY_ID"
+	EnvPreviousKeys = "PII_ENCRYPTION_PREVIOUS_KEYS"
+	DefaultKeyID    = "k1"
+
+	// keySep, şifreli metinde anahtar kimliğini ayırır. Base64 alfabesinde
+	// olmadığı için eski (kimliksiz) biçimle karışmaz.
+	keySep = "$"
+)
+
+var keyIDPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9_-]{0,15}$`)
+
+// keyMaterial, tek bir ana anahtardan TÜRETİLEN alt anahtarlardır.
+//
+// Anahtar ayrımı: önceden aynı 32 bayt hem AES-GCM hem HMAC anahtarı olarak
+// kullanılıyordu. Yeni biçimde ikisi HKDF ile ayrı türetilir; eski biçimi
+// okuyabilmek için ham anahtar da tutulur.
+type keyMaterial struct {
+	id        string
+	encKey    []byte              // HKDF("pii-enc")
+	macKey    []byte              // HKDF("pii-blind-index")
+	legacyEnc *encryption.Service // kimliksiz eski şifreli metinler
+	legacyMac []byte              // eski arama anahtarları (ham anahtarla HMAC)
+}
+
+func newKeyMaterial(id, keyBase64 string) (*keyMaterial, error) {
+	if !keyIDPattern.MatchString(id) {
+		return nil, fmt.Errorf("%w: geçersiz anahtar kimliği %q (küçük harf/rakam, en çok 16)", ErrNoKey, id)
+	}
+	legacy, err := encryption.NewService(keyBase64)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %s: %v", ErrNoKey, id, err)
+	}
+	raw, err := base64.StdEncoding.DecodeString(keyBase64)
+	if err != nil {
+		return nil, ErrNoKey
+	}
+	encKey, err := hkdf.Key(sha256.New, raw, nil, "siteeksen/pii-enc/v2", 32)
+	if err != nil {
+		return nil, err
+	}
+	macKey, err := hkdf.Key(sha256.New, raw, nil, "siteeksen/pii-blind-index/v2", 32)
+	if err != nil {
+		return nil, err
+	}
+	return &keyMaterial{id: id, encKey: encKey, macKey: macKey, legacyEnc: legacy, legacyMac: raw}, nil
+}
 
 // Vault, kişisel verileri şifreler ve çözer.
 type Vault struct {
-	enc *encryption.Service
-	key []byte
+	primary *keyMaterial
+	keys    []*keyMaterial // birincil önce
 }
 
-// FromEnv, anahtarı ortamdan okur.
+// FromEnv, anahtarları ortamdan okur.
 //
 // Anahtar yoksa ya da geçersizse HATA döner. Çağıran servis bu hatada
 // AÇILMAMALIDIR: kişisel veriyi şifresiz yazmaya devam etmek, korumanın
@@ -72,43 +138,152 @@ func FromEnv() (*Vault, error) {
 	if raw == "" {
 		return nil, ErrNoKey
 	}
-	return New(raw)
+	id := strings.TrimSpace(os.Getenv(EnvKeyID))
+	if id == "" {
+		id = DefaultKeyID
+	}
+	previous := map[string]string{}
+	for _, part := range strings.Split(os.Getenv(EnvPreviousKeys), ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		pid, key, ok := strings.Cut(part, ":")
+		if !ok {
+			return nil, fmt.Errorf("%w: %s girdisi 'kimlik:base64' biçiminde olmalı", ErrNoKey, EnvPreviousKeys)
+		}
+		previous[strings.TrimSpace(pid)] = strings.TrimSpace(key)
+	}
+	return NewKeyring(id, raw, previous)
 }
 
-// New, base64 kodlu 32 baytlık anahtarla kasa kurar.
+// New, tek (birincil) anahtarla kasa kurar; kimliği DefaultKeyID'dir.
 func New(keyBase64 string) (*Vault, error) {
-	enc, err := encryption.NewService(keyBase64)
-	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrNoKey, err)
-	}
-	key, err := base64.StdEncoding.DecodeString(keyBase64)
-	if err != nil {
-		return nil, ErrNoKey
-	}
-	return &Vault{enc: enc, key: key}, nil
+	return NewKeyring(DefaultKeyID, keyBase64, nil)
 }
 
-// Encrypt, düz metni şifreler.
+// NewKeyring, birincil anahtar ve yalnızca çözmek için eski anahtarlarla kasa kurar.
+func NewKeyring(primaryID, primaryKey string, previous map[string]string) (*Vault, error) {
+	p, err := newKeyMaterial(primaryID, primaryKey)
+	if err != nil {
+		return nil, err
+	}
+	v := &Vault{primary: p, keys: []*keyMaterial{p}}
+	ids := make([]string, 0, len(previous))
+	for id := range previous {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	for _, id := range ids {
+		if id == primaryID {
+			return nil, fmt.Errorf("%w: %q hem birincil hem eski anahtar", ErrNoKey, id)
+		}
+		k, err := newKeyMaterial(id, previous[id])
+		if err != nil {
+			return nil, err
+		}
+		v.keys = append(v.keys, k)
+	}
+	return v, nil
+}
+
+// PrimaryKeyID, yeni yazımlarda kullanılan anahtarın kimliğidir.
+func (v *Vault) PrimaryKeyID() string {
+	if v == nil {
+		return ""
+	}
+	return v.primary.id
+}
+
+// Encrypt, düz metni birincil anahtarla şifreler: "<kimlik>$<base64(nonce|şifreli)>".
+// Anahtar kimliği ek doğrulanmış veri (AAD) olarak bağlanır: kimliği başka
+// anahtarınkiyle değiştirilen metin çözülmez.
 func (v *Vault) Encrypt(plain string) (string, error) {
 	if v == nil {
 		return "", ErrNoKey
 	}
-	return v.enc.Encrypt(plain)
+	gcm, err := newGCM(v.primary.encKey)
+	if err != nil {
+		return "", err
+	}
+	nonce := make([]byte, gcm.NonceSize())
+	if _, err := rand.Read(nonce); err != nil {
+		return "", err
+	}
+	sealed := gcm.Seal(nonce, nonce, []byte(plain), []byte(v.primary.id))
+	return v.primary.id + keySep + base64.StdEncoding.EncodeToString(sealed), nil
 }
 
-// Decrypt, şifreli metni çözer.
+// Decrypt, şifreli metni çözer. Kimlikli metin yalnızca o anahtarla; eski
+// (kimliksiz) metin halkadaki anahtarlar sırayla denenerek çözülür — GCM
+// doğrulaması yanlış anahtarda kesin olarak başarısız olur.
 func (v *Vault) Decrypt(cipherText string) (string, error) {
 	if v == nil {
 		return "", ErrNoKey
 	}
-	if strings.TrimSpace(cipherText) == "" {
+	cipherText = strings.TrimSpace(cipherText)
+	if cipherText == "" {
 		return "", nil
 	}
-	return v.enc.Decrypt(cipherText)
+	if id, body, ok := strings.Cut(cipherText, keySep); ok {
+		k := v.key(id)
+		if k == nil {
+			return "", fmt.Errorf("%w: veri %q anahtarıyla şifrelenmiş ama bu anahtar tanımlı değil (%s)",
+				ErrUnknownKey, id, EnvPreviousKeys)
+		}
+		data, err := base64.StdEncoding.DecodeString(body)
+		if err != nil {
+			return "", err
+		}
+		gcm, err := newGCM(k.encKey)
+		if err != nil {
+			return "", err
+		}
+		if len(data) < gcm.NonceSize() {
+			return "", errors.New("şifreli veri çok kısa")
+		}
+		plain, err := gcm.Open(nil, data[:gcm.NonceSize()], data[gcm.NonceSize():], []byte(id))
+		if err != nil {
+			return "", fmt.Errorf("şifreli veri çözülemedi (%s): %w", id, err)
+		}
+		return string(plain), nil
+	}
+	var lastErr error
+	for _, k := range v.keys {
+		plain, err := k.legacyEnc.Decrypt(cipherText)
+		if err == nil {
+			return plain, nil
+		}
+		lastErr = err
+	}
+	return "", fmt.Errorf("eski biçimli şifreli veri halkadaki hiçbir anahtarla çözülemedi: %w", lastErr)
+}
+
+// NeedsRotation, şifreli metnin birincil anahtarla YENİ biçimde yazılmadığını söyler.
+func (v *Vault) NeedsRotation(cipherText string) bool {
+	cipherText = strings.TrimSpace(cipherText)
+	return cipherText != "" && !strings.HasPrefix(cipherText, v.primary.id+keySep)
+}
+
+func (v *Vault) key(id string) *keyMaterial {
+	for _, k := range v.keys {
+		if k.id == id {
+			return k
+		}
+	}
+	return nil
+}
+
+func newGCM(key []byte) (cipher.AEAD, error) {
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
+	return cipher.NewGCM(block)
 }
 
 // BlindIndex, şifreli veri üzerinde EŞİTLİK ARAMASI yapabilmek için üretilen
-// arama anahtarıdır.
+// arama anahtarıdır (birincil anahtarın HMAC alt anahtarıyla).
 //
 // HMAC-SHA256 kullanılır, düz SHA-256 değil: TCKN'nin değer uzayı küçüktür ve
 // anahtarsız bir özet kaba kuvvetle geri çevrilebilir. HMAC'te anahtarı
@@ -120,11 +295,32 @@ func (v *Vault) BlindIndex(value string) string {
 	if v == nil {
 		return ""
 	}
+	return blindIndex(v.primary.macKey, value)
+}
+
+// BlindIndexCandidates, değerin halkadaki BÜTÜN anahtarlarla (eski biçim dahil)
+// üretilebilecek arama anahtarlarıdır.
+//
+// Döndürme sürerken bazı kayıtların arama anahtarı eski anahtarla üretilmiştir;
+// yalnızca birincil anahtarla aramak, aynı TCKN'li ikinci kaydı "yok" sanıp
+// yinelenen kayda izin verirdi. Eşitlik denetimleri bu kümeyle yapılmalıdır.
+func (v *Vault) BlindIndexCandidates(value string) []string {
+	if v == nil || Normalize(value) == "" {
+		return nil
+	}
+	out := make([]string, 0, 2*len(v.keys))
+	for _, k := range v.keys {
+		out = append(out, blindIndex(k.macKey, value), blindIndex(k.legacyMac, value))
+	}
+	return out
+}
+
+func blindIndex(key []byte, value string) string {
 	normalized := Normalize(value)
 	if normalized == "" {
 		return ""
 	}
-	mac := hmac.New(sha256.New, v.key)
+	mac := hmac.New(sha256.New, key)
 	mac.Write([]byte(normalized))
 	return hex.EncodeToString(mac.Sum(nil))
 }

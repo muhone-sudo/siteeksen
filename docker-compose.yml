@@ -272,6 +272,8 @@ services:
     environment:
       <<: *app-env
       PII_ENCRYPTION_KEY: ${PII_ENCRYPTION_KEY:?PII_ENCRYPTION_KEY gerekli (32 bayt, base64)}
+      PII_ENCRYPTION_KEY_ID: ${PII_ENCRYPTION_KEY_ID:-k1}
+      PII_ENCRYPTION_PREVIOUS_KEYS: ${PII_ENCRYPTION_PREVIOUS_KEYS:-}
     depends_on: *after-migrate
     restart: unless-stopped
 

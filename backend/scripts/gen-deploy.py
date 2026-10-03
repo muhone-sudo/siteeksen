@@ -203,7 +203,11 @@ def compose():
             out += ["      DB_USER: siteeksen_identity",
                     f"      DB_PASSWORD: {req('IDENTITY_DB_PASSWORD', 'IDENTITY_DB_PASSWORD gerekli')}"]
         if directory == "personnel":
-            out += [f"      PII_ENCRYPTION_KEY: {req('PII_ENCRYPTION_KEY', 'PII_ENCRYPTION_KEY gerekli (32 bayt, base64)')}"]
+            # Anahtar döndürme (docs/runbook-anahtar-dondurme.md): kimlik şifreli
+            # metne yazılır; eski anahtarlar yalnızca çözmek için verilir.
+            out += [f"      PII_ENCRYPTION_KEY: {req('PII_ENCRYPTION_KEY', 'PII_ENCRYPTION_KEY gerekli (32 bayt, base64)')}",
+                    "      PII_ENCRYPTION_KEY_ID: ${PII_ENCRYPTION_KEY_ID:-k1}",
+                    "      PII_ENCRYPTION_PREVIOUS_KEYS: ${PII_ENCRYPTION_PREVIOUS_KEYS:-}"]
         if directory == "document":
             out += ["      STORAGE_BACKEND: ${STORAGE_BACKEND:-local}",
                     "      STORAGE_LOCAL_DIR: /data/files",
@@ -298,12 +302,15 @@ def compose():
 
 
 # --------------------------------------------------------------------------- k8s
-def k8s_env_secret(name, secret, key):
-    return [f"            - name: {name}",
-            "              valueFrom:",
-            "                secretKeyRef:",
-            f"                  name: {secret}",
-            f"                  key: {key}"]
+def k8s_env_secret(name, secret, key, optional=False):
+    out = [f"            - name: {name}",
+           "              valueFrom:",
+           "                secretKeyRef:",
+           f"                  name: {secret}",
+           f"                  key: {key}"]
+    if optional:
+        out.append("                  optional: true")
+    return out
 
 
 def k8s_env_value(name, value):
@@ -386,6 +393,7 @@ SECRETS_DOC = ["#",
                "#   db-app        : password                 → siteeksen_app (23 servis)",
                "#   db-identity   : password                 → siteeksen_identity (kimlik servisi)",
                "#   app-secrets   : jwt-secret, nextauth-secret, pii-encryption-key",
+               "#                   (isteğe bağlı: pii-encryption-key-id, pii-encryption-previous-keys)",
                "#   storage       : endpoint, region, bucket, access-key-id, secret-access-key",
                "#",
                "# Sıra: önce k8s/migrate-job.yaml tamamlanmalı (şemayı günceller ve rol",
@@ -443,6 +451,9 @@ def k8s():
         env += k8s_env_secret("JWT_SECRET", "app-secrets", "jwt-secret")
         if directory == "personnel":
             env += k8s_env_secret("PII_ENCRYPTION_KEY", "app-secrets", "pii-encryption-key")
+            # Döndürme sırasında doldurulur; yoksa birincil kimlik "k1", eski anahtar yok.
+            env += k8s_env_secret("PII_ENCRYPTION_KEY_ID", "app-secrets", "pii-encryption-key-id", optional=True)
+            env += k8s_env_secret("PII_ENCRYPTION_PREVIOUS_KEYS", "app-secrets", "pii-encryption-previous-keys", optional=True)
         if directory == "document":
             # Kümede yerel disk kalıcı değildir; belge servisi S3 uyumlu depolama
             # ister ve yapılandırma eksikse AÇILMAZ (sessiz dosya kaybı olmasın).

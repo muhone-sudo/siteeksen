@@ -5503,6 +5503,134 @@ else
 fi
 rm -f "$BK"
 
+step "42) Kişisel veri anahtarı döndürme (todo 8 · docs/runbook-anahtar-dondurme.md)"
+# Önceden tek anahtar vardı ve şifreli metin hangi anahtarla yazıldığını
+# taşımıyordu: anahtar sızsa bile değiştirilemezdi, değiştirilirse bütün
+# personel kayıtları okunamaz olurdu. Bu adım gerçek bir döndürmeyi baştan
+# sona yürütür: k1 → (k2 + eski k1) → rotate-pii → yalnızca k2.
+PIIKEY2=$(head -c 32 /dev/urandom | base64 -w0)
+PIIKEY3=$(head -c 32 /dev/urandom | base64 -w0)
+SUPER_DSN="postgres://siteeksen:${PW}@127.0.0.1:${DBPORT}/siteeksen?sslmode=disable"
+start_personnel() { # $1 birincil anahtar, $2 kimlik, $3 eski anahtarlar
+  kill_tree "$PER2_PID"; free_port "$PER2PORT"
+  DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_app DB_PASSWORD="$APPPW" DB_NAME=siteeksen \
+  DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${PER2PORT} \
+  PII_ENCRYPTION_KEY="$1" PII_ENCRYPTION_KEY_ID="$2" PII_ENCRYPTION_PREVIOUS_KEYS="$3" \
+    go run ./services/personnel >/tmp/verify-personnel-rot.log 2>&1 &
+  PER2_PID=$!
+  for _ in $(seq 1 45); do
+    curl -fsS "http://127.0.0.1:${PER2PORT}/health" >/dev/null 2>&1 && return 0; sleep 1
+  done
+  return 1
+}
+not_primary() { # $1 kimlik: o kimlikle yazılmamış şifreli alan sayısı (bütün siteler)
+  $PSQL -t -A -c "SELECT count(*) FROM employees, LATERAL (VALUES (tc_number_encrypted), (bank_iban_encrypted)) f(v)
+    WHERE v IS NOT NULL AND v <> '' AND v NOT LIKE '$1\$%';"
+}
+MGR42=$(curl -s -X POST "http://127.0.0.1:${SVCPORT}/api/v1/auth/login" -H 'Content-Type: application/json' \
+  -d '{"phone":"5551234567","password":"Demo123!"}' | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+A42="Authorization: Bearer $MGR42"
+P42="http://127.0.0.1:${PER2PORT}/api/v1"
+ROT_ID="${E1ID:-}"   # 31. adımda TCKN 10000000146 ile açılan aktif personel
+ROT_TC=$($PSQL -t -A -c "SELECT split_part(tc_number_encrypted,'\$',1) FROM employees WHERE id='$ROT_ID';")
+[ -n "$ROT_ID" ] && [ "$ROT_TC" = "k1" ] && ok "şifreli metin anahtar kimliğini taşıyor (k1\$...)" \
+  || bad "döndürme sınaması için k1 kaydı yok: id=$ROT_ID kimlik=$ROT_TC"
+
+if [ -n "$ROT_ID" ] && [ -n "$MGR42" ]; then
+  # 1) Yeni birincil anahtar k2, eski k1 yalnızca çözmek için
+  if start_personnel "$PIIKEY2" k2 "k1:$PIIKEY"; then
+    G=$(curl -s "$P42/employees/$ROT_ID?reveal=true" -H "$A42")
+    echo "$G" | grep -q '10000000146' && ok "döndürme sırasında eski anahtarla (k1) yazılmış kayıt okunuyor" \
+      || bad "k2+k1 halkasıyla eski kayıt okunamadı: $(echo "$G" | head -c 200)"
+    # Arama anahtarı k1 ile üretilmiş; benzersiz indeks bunu yakalamaz. Denetim adayları kullanmalı.
+    SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$P42/employees" -H "$A42" -H 'Content-Type: application/json' \
+      -d '{"first_name":"Dondurme","last_name":"Kopya","position":"Test","hire_date":"2026-03-01","tc_number":"10000000146"}')
+    [ "$SC" = "409" ] && ok "döndürme sırasında aynı TCKN ile ikinci aktif personel açılamıyor → 409" \
+      || bad "farklı anahtarlı arama anahtarı yinelenen kaydı kaçırdı → $SC"
+    NEW=$(curl -s -X POST "$P42/employees" -H "$A42" -H 'Content-Type: application/json' \
+      -d '{"first_name":"Yeni","last_name":"Anahtar","position":"Test","hire_date":"2026-03-01","tc_number":"22222222220"}')
+    NEWID=$(echo "$NEW" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+    NK=$($PSQL -t -A -c "SELECT split_part(tc_number_encrypted,'\$',1) FROM employees WHERE id='${NEWID:-00000000-0000-0000-0000-000000000000}';")
+    [ "$NK" = "k2" ] && ok "yeni kayıt birincil anahtarla (k2) yazılıyor" || bad "yeni kayıt anahtarı: '$NK' ($NEW)"
+  else
+    bad "personel servisi k2+k1 halkasıyla açılmadı: $(tail -3 /tmp/verify-personnel-rot.log)"
+  fi
+
+  # 2) rotate-pii: uygulama rolüyle ÇALIŞMAMALI (siteleri göremez, "kalmadı" diye yalan söylerdi)
+  PII_ENCRYPTION_KEY="$PIIKEY2" PII_ENCRYPTION_KEY_ID=k2 PII_ENCRYPTION_PREVIOUS_KEYS="k1:$PIIKEY" \
+  DATABASE_URL="host=127.0.0.1 port=${DBPORT} user=siteeksen_app password='${APPPW}' dbname=siteeksen sslmode=disable" \
+    go run ./cmd/rotate-pii >/tmp/verify-rot-app.log 2>&1; RC=$?
+  [ "$RC" != "0" ] && grep -q 'RLS' /tmp/verify-rot-app.log \
+    && ok "rotate-pii uygulama rolüyle başlamıyor (görmediği kayıtları yok sayardı)" \
+    || bad "rotate-pii uygulama rolüyle çalıştı: çıkış $RC, $(tail -2 /tmp/verify-rot-app.log)"
+  PII_ENCRYPTION_KEY="$PIIKEY" DATABASE_URL="host=127.0.0.1 port=${DBPORT} user=siteeksen_app password='${APPPW}' dbname=siteeksen sslmode=disable" \
+    go run ./cmd/encrypt-pii >/tmp/verify-enc-app.log 2>&1; RC=$?
+  [ "$RC" != "0" ] && grep -q 'RLS' /tmp/verify-enc-app.log \
+    && ok "encrypt-pii de uygulama rolüyle başlamıyor (sahte 'düz metin kalmadı' raporu)" \
+    || bad "encrypt-pii uygulama rolüyle çalıştı: çıkış $RC"
+
+  # 3) Yanlış halka: k1 anahtarı verilmezse kayıt ATLANMAZ, hiçbir şey yazılmaz
+  BEFORE=$(not_primary k2)
+  PII_ENCRYPTION_KEY="$PIIKEY2" PII_ENCRYPTION_KEY_ID=k2 DATABASE_URL="$SUPER_DSN" \
+    go run ./cmd/rotate-pii >/tmp/verify-rot-bad.log 2>&1; RC=$?
+  [ "$RC" != "0" ] && grep -q 'tanımlı değil' /tmp/verify-rot-bad.log && [ "$(not_primary k2)" = "$BEFORE" ] \
+    && ok "eski anahtar eksikken döndürme hata veriyor ve hiçbir kaydı değiştirmiyor ($BEFORE alan)" \
+    || bad "eksik anahtarla döndürme: çıkış $RC, kalan $(not_primary k2)/$BEFORE"
+
+  # 4) -dry-run yazmaz
+  PII_ENCRYPTION_KEY="$PIIKEY2" PII_ENCRYPTION_KEY_ID=k2 PII_ENCRYPTION_PREVIOUS_KEYS="k1:$PIIKEY" \
+  DATABASE_URL="$SUPER_DSN" go run ./cmd/rotate-pii -dry-run >/tmp/verify-rot-dry.log 2>&1; RC=$?
+  [ "$RC" = "0" ] && [ "$(not_primary k2)" = "$BEFORE" ] && [ "${BEFORE:-0}" -ge 1 ] \
+    && ok "-dry-run hiçbir kaydı değiştirmiyor ($BEFORE alan taşınacak)" \
+    || bad "-dry-run: çıkış $RC, önce $BEFORE sonra $(not_primary k2)"
+
+  # 5) Gerçek döndürme
+  IDX_BEFORE=$($PSQL -t -A -c "SELECT tc_number_index FROM employees WHERE id='$ROT_ID';")
+  PII_ENCRYPTION_KEY="$PIIKEY2" PII_ENCRYPTION_KEY_ID=k2 PII_ENCRYPTION_PREVIOUS_KEYS="k1:$PIIKEY" \
+  DATABASE_URL="$SUPER_DSN" go run ./cmd/rotate-pii >/tmp/verify-rot.log 2>&1; RC=$?
+  [ "$RC" = "0" ] && [ "$(not_primary k2)" = "0" ] && grep -q 'Eski anahtarla yazılmış kayıt kalmadı' /tmp/verify-rot.log \
+    && ok "rotate-pii bütün şifreli alanları k2'ye taşıdı ve bunu raporladı" \
+    || bad "döndürme: çıkış $RC, kalan $(not_primary k2): $(tail -4 /tmp/verify-rot.log)"
+  IDXCHG=$($PSQL -t -A -c "SELECT count(*) FROM employees WHERE id='$ROT_ID'
+    AND length(tc_number_index) = 64 AND tc_number_index <> '$IDX_BEFORE';")
+  PLAIN42=$($PSQL -t -A -c "SELECT count(*) FROM employees WHERE tc_number IS NOT NULL OR bank_iban IS NOT NULL;")
+  [ "$IDXCHG" = "1" ] && [ "$PLAIN42" = "0" ] && ok "döndürme düz metin bırakmadı; arama anahtarı yeni anahtarla yeniden üretildi (öncekinden farklı)" \
+    || bad "döndürme sonrası: index=$IDXCHG düz=$PLAIN42"
+  PII_ENCRYPTION_KEY="$PIIKEY2" PII_ENCRYPTION_KEY_ID=k2 PII_ENCRYPTION_PREVIOUS_KEYS="k1:$PIIKEY" \
+  DATABASE_URL="$SUPER_DSN" go run ./cmd/rotate-pii >/tmp/verify-rot2.log 2>&1
+  grep -q 'Toplam 0 kayıt' /tmp/verify-rot2.log && ok "ikinci çalıştırma hiçbir kayda dokunmuyor (tekrarlanabilir)" \
+    || bad "ikinci döndürme: $(tail -3 /tmp/verify-rot2.log)"
+
+  # 6) Eski anahtar halkadan çıkarıldı: yalnızca k2 ile her şey okunuyor, yinelenen kayıt indeksle de yakalanıyor
+  if start_personnel "$PIIKEY2" k2 ""; then
+    G=$(curl -s "$P42/employees/$ROT_ID?reveal=true" -H "$A42")
+    echo "$G" | grep -q '10000000146' && ok "eski anahtar çıkarıldıktan sonra kayıt yalnızca k2 ile okunuyor" \
+      || bad "yalnızca k2 ile okunamadı: $(echo "$G" | head -c 200)"
+    SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$P42/employees" -H "$A42" -H 'Content-Type: application/json' \
+      -d '{"first_name":"Dondurme","last_name":"Kopya","position":"Test","hire_date":"2026-03-01","tc_number":"10000000146"}')
+    [ "$SC" = "409" ] && ok "döndürmeden sonra da aynı TCKN ikinci kez açılamıyor → 409" || bad "döndürme sonrası yinelenen → $SC"
+  else
+    bad "personel servisi yalnızca k2 ile açılmadı: $(tail -3 /tmp/verify-personnel-rot.log)"
+  fi
+
+  # 7) Yanlış anahtarla açılan servis veriyi SESSİZCE boş göstermemeli
+  if start_personnel "$PIIKEY3" k3 ""; then
+    G=$(curl -s -w '\n%{http_code}' "$P42/employees/$ROT_ID" -H "$A42")
+    GC=$(echo "$G" | tail -1)
+    [ "$GC" = "500" ] && ! echo "$G" | grep -q '"tc_number":""' \
+      && ok "tanımsız anahtarla yazılmış kayıt boş alan olarak değil hata olarak dönüyor → 500" \
+      || bad "anahtarı olmayan kayıt: $GC $(echo "$G" | head -c 200)"
+    # Günlük JSON'dur; tırnaklar kaçışlı yazılır (\"k2\"), desen bunu kapsar.
+    grep -q 'k2\\\?" anahtarıyla şifrelenmiş ama bu anahtar tanımlı değil' /tmp/verify-personnel-rot.log \
+      && ok "sunucu günlüğü eksik anahtarın kimliğini (k2) söylüyor" || bad "günlükte eksik anahtar bilgisi yok: $(tail -2 /tmp/verify-personnel-rot.log)"
+  else
+    bad "personel servisi k3 ile açılmadı"
+  fi
+  kill_tree "$PER2_PID"; PER2_PID=""
+else
+  bad "döndürme sınanamadı (kayıt ya da yönetici jetonu yok)"
+fi
+
 step "SONUÇ"
 echo "  Geçen: $PASS   Başarısız: $FAIL"
 [ "$FAIL" -eq 0 ] && { echo "  TÜM KONTROLLER GEÇTİ"; exit 0; } || { echo "  BAŞARISIZ KONTROL VAR"; exit 1; }

@@ -143,7 +143,7 @@ Bugün bu mümkün değil; mevcut ortam elle müdahalelerin toplamı ve kaybolur
 | 2.15 | `CreateResident`'ın başka siteye ait kullanıcıyı sessizce bağlamasını engelle | `[D0]` | B25 |
 | 2.16 | TCKN/telefon şifreleme (`pkg/encryption`'ı bağla) + maskeleme + erişim denetimi | `[D0]` | B36 |
 | 2.17 | Ham veritabanı hatalarının istemciye dönmesini engelle | `[D0]` | B37 |
-| 2.18 | `DB_SSLMODE` tanımla; sabit şifreleme anahtarını kaldır (KDF + rotasyon) | `[D0]` | B21, B44 |
+| 2.18 | `DB_SSLMODE` tanımla; sabit şifreleme anahtarını kaldır (KDF + rotasyon) | `[D4]` 2026-10-03 — HKDF ile ayrı alt anahtarlar, kimlikli anahtar halkası, `cmd/rotate-pii` (verify adım 42); k8s `DB_SSLMODE=require`; sabit anahtarlı kimlik bilgisi kodu kaldırıldı (modül 501). Kalan: vault/KMS seçimi (S-19) | B21, B44 |
 | 2.19 | Şifremi unuttum + OTP + şifre politikası + hesap kilitleme | `[D0]` | C.1 — rakibin en çok şikayet edilen noktası |
 
 **Çıkış ölçütü:** Kimliksiz hiçbir uç nokta kalmaz; bir tenant'ın token'ıyla diğerinin verisine erişim

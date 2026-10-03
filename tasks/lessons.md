@@ -515,3 +515,36 @@ düşer ve `pipefail` altında boru hattı başarısız görünür. Komutun çı
 yeni bir satır eklenmesi (rol ataması), dokunulmamış bir kontrolü bozdu.
 
 **Kural:** Doğrulama betiklerinde çıktıyı önce dosyaya al, sonra grep'le.
+
+
+### Ders 33 — Bakım aracının "iş kalmadı" demesi, hiçbir şey görmediği anlamına gelebilir
+
+`cmd/encrypt-pii` site listesini `properties`'ten okuyordu. `properties` RLS
+altında olduğu için uygulama rolüyle çalıştırılan araç SIFIR site görüyor ve
+"şifrelenecek düz metin kayıt yok" diyordu. Aynı kalıbı kopyalayan anahtar
+döndürme aracı "eski anahtarla kayıt kalmadı" diyecek, operatör eski anahtarı
+silecek ve veri okunamaz kalacaktı.
+
+**Kural:** Tüm siteleri dolaşan araç, başlamadan önce rolünün bütün siteleri
+görebildiğini doğrular (`dbscope.RequireAllSitesRole`); göremiyorsa çalışmaz.
+"Sıfır sonuç" raporu ancak taramanın kapsamı kanıtlandıysa anlamlıdır.
+
+### Ders 34 — Anahtar türetmesini değiştirmek, anahtarı değiştirmek demektir
+
+Arama anahtarını (blind index) HKDF ile ayrı türetmek doğru bir düzeltmeydi ama
+anahtar aynı kalsa bile mevcut kayıtların arama anahtarı yeni koddan farklı
+çıkıyordu. Benzersiz indeks yalnızca aynı anahtarla üretilmiş değerleri
+karşılaştırdığı için, aynı TCKN'li ikinci aktif personel SESSİZCE açılabilirdi.
+
+**Kural:** Şifreleme/özet biçimi değişen her alanda eşitlik denetimi, halkadaki
+bütün anahtarların (eski biçim dahil) aday değerleriyle yapılır
+(`BlindIndexCandidates`); indeks yalnızca aynı anahtarlı eşzamanlı yazımları yakalar.
+
+### Ders 35 — WSL'e komut geçirirken `$` dış kabukta açılır
+
+`wsl -- bash script 'cmd; echo $?'` biçiminde `$?` ve `$PATH` WSL'in varsayılan
+kabuğunda, komut ÇALIŞMADAN önce açıldı: doğrulama başarısızken "EXIT=0" yazdı.
+
+**Kural:** WSL'de `wsl -e bash <betik>` kullan; komutu argüman olarak değil
+betik dosyası olarak ver. Ayrıca servis günlükleri JSON'dur: tırnaklı metin
+günlükte `\"` olarak geçer, grep deseni bunu kapsamalıdır.

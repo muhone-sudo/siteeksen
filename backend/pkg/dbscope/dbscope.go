@@ -18,6 +18,7 @@ package dbscope
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -57,6 +58,39 @@ func WithProperty(ctx context.Context, pool *pgxpool.Pool, propertyID string, fn
 		return err
 	}
 	return tx.Commit(ctx)
+}
+
+// ErrCannotSeeAllSites, bütün siteleri dolaşması gereken bir bakım aracı
+// RLS'e tabi bir rolle bağlandığında döner.
+var ErrCannotSeeAllSites = errors.New("bu rol bütün siteleri göremiyor (RLS)")
+
+// RequireAllSitesRole, bağlantı rolünün site listesinin (`properties`)
+// TAMAMINI kapsamsız okuyabildiğini doğrular.
+//
+// Site listesini dolaşan bakım araçları (cmd/encrypt-pii, cmd/rotate-pii)
+// uygulama rolüyle çalıştırılırsa kapsamsız sorgu SIFIR site döndürür; araç
+// hiçbir şey yapmadan "taşınacak kayıt kalmadı" der. Bu sessiz başarısızlık,
+// eski bir anahtarın halkadan çıkarılıp verinin okunamaz kalmasına yol açabilir.
+//
+// Görebilen roller: süper kullanıcı, BYPASSRLS, ya da tablonun sahibi (tabloda
+// FORCE ROW LEVEL SECURITY yoksa). Site içi tablolar araçlarda zaten site
+// kapsamıyla sorgulandığı için FORCE'lu tablolarda da sahip doğru satırları görür.
+func RequireAllSitesRole(ctx context.Context, pool *pgxpool.Pool) error {
+	var role string
+	var ok bool
+	if err := pool.QueryRow(ctx, `
+		SELECT current_user::text,
+		       r.rolsuper OR r.rolbypassrls OR NOT c.relrowsecurity
+		       OR (pg_has_role(current_user, c.relowner, 'USAGE') AND NOT c.relforcerowsecurity)
+		FROM pg_roles r, pg_class c
+		WHERE r.rolname = current_user AND c.oid = 'public.properties'::regclass`).Scan(&role, &ok); err != nil {
+		return err
+	}
+	if !ok {
+		return fmt.Errorf("%w: %q ile bağlanıldı; bu komut RLS'i aşan migration rolüyle "+
+			"çalıştırılmalıdır, aksi hâlde göremediği kayıtları yok sayar", ErrCannotSeeAllSites, role)
+	}
+	return nil
 }
 
 // WithPropertyValue, tek bir değer döndüren işler için kolaylık sarmalayıcısıdır.

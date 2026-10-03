@@ -12,6 +12,34 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-03 — KİŞİSEL VERİ ANAHTARI DÖNDÜRME (todo 8, roadmap 2.18) (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **1012/1012**; yeni adım 42 (15 kontrol) gerçek bir döndürmeyi
+> yürütür: k1 → k2+k1 (eski kayıt okunuyor, yinelenen TCKN 409) → uygulama rolüyle araç
+> başlamıyor → eksik anahtarla hata + sıfır değişiklik → `-dry-run` → döndürme → tekrar
+> (0 kayıt) → yalnızca k2 → tanımsız anahtarla 500 (veri boş gösterilmiyor).
+> `go test ./pkg/pii/...` → eski biçim, AAD, aday indeksler, ortam ayrıştırma (8 yeni test).
+
+- **Önce:** tek anahtar vardı, şifreli metin hangi anahtarla yazıldığını taşımıyordu; anahtar
+  sızsa bile değiştirilemezdi (değişirse bütün personel kayıtları okunamazdı). Aynı 32 bayt hem
+  AES-GCM hem HMAC anahtarıydı.
+- `pkg/pii` anahtar halkası: `PII_ENCRYPTION_KEY_ID` (varsayılan `k1`),
+  `PII_ENCRYPTION_PREVIOUS_KEYS` (yalnızca çözmek için). Biçim `k2$<base64>`; kimlik AAD olarak
+  bağlı. Şifreleme ve arama anahtarı HKDF ile ayrı türetilir. Eski kimliksiz biçim okunmaya devam eder.
+- `cmd/rotate-pii`: siteyi kendi işleminde taşır, çözülemeyen kaydı ATLAMAZ (işlemi geri alır),
+  sonunda anahtar kimliğine göre sayar; "eski anahtar boşaltılabilir" yalnızca sayım sıfırsa.
+- **Bulunan iki sessiz hata:**
+  1. Arama anahtarı türetmesi değiştiği için (anahtar aynı kalsa bile) benzersiz indeks eski
+     kayıtları yakalamıyordu → aynı TCKN'li ikinci aktif personel açılabilirdi. Personel
+     servisi artık halkadaki bütün anahtarların aday değerleriyle denetler.
+  2. `cmd/encrypt-pii` uygulama rolüyle çalıştırılırsa `properties` RLS yüzünden SIFIR site
+     görüp "düz metin kalmadı" diyordu. İki araç da artık rolün bütün siteleri gördüğünü
+     doğrulamadan başlamaz (`dbscope.RequireAllSitesRole`).
+- Dağıtım: compose/k8s'e iki isteğe bağlı değişken (`gen-deploy.py`), `.env.example`.
+- Yordam: `docs/runbook-anahtar-dondurme.md`.
+- **Kalan (kullanıcı kararı, questions S-19):** anahtar deposu (vault/KMS) seçimi. Bugün
+  anahtarlar ortam değişkeni / k8s Secret ile verilir.
+
 ### 2026-09-27 — MIGRATION GERİ ALMA YORDAMI (1.6) (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **997/997**; adım 41: yedek → tablo silme + ödemeleri silme +
