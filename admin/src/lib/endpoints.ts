@@ -47,6 +47,8 @@ export function endpoints(http: Http) {
             updateResident: (id: string, b: { role?: string; is_active?: boolean }) => http.patch<T.Resident>(`/residents/${id}`, b),
             issueActivationCode: (id: string) => http.post<T.Activation>(`/residents/${id}/activation-code`),
             invitations: () => g<T.List<T.Invitation>>("/residents/invitations"),
+            bulkResidents: (residents: { first_name: string; last_name: string; phone: string; unit_id: string; role: string }[]) =>
+                http.post<{ data: T.BulkResidentRow[]; summary: Record<string, number>; note: string }>("/residents/bulk", { residents }),
             siteRoles: () => g<T.List<T.SiteRole>>("/property-roles"),
             grantRole: (b: T.GrantRoleInput) => http.post<{ role: T.SiteRole; activation?: T.Activation; note?: string }>("/property-roles", b),
             endRole: (id: string) => http.post<{ role: T.SiteRole; note?: string }>(`/property-roles/${id}/end`),

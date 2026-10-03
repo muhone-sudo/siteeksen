@@ -12,6 +12,18 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-04 — TOPLU SAKİN İÇE AKTARMA (FAZ 8.1) (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **1072/1072** (tek istekte 5 satır: hesap açıldı + kod, var olan hesap
+> bağlandı, başka sitedeki kişiye davet, eksik alan, yönetim rolü reddi — hatalı satırlarda hesap açılmadı).
+> Panel `tsc`/`lint`/`build` temiz.
+
+- `POST /residents/bulk` (en çok 500): satırlar bağımsız işlenir ve her birinin sonucu döner; hiçbir satır
+  sessizce atlanmaz. Etkinleştirme kodları yalnızca bu yanıtta görünür.
+- Panel: sakinler sayfasında "Toplu ekle" (`ad;soyad;telefon;daire;sıfat`, Excel'den yapıştırma; daire
+  bulunamayan satır gönderilmeden bildirilir) ve sonuç penceresi (kodlar bir kez).
+- Hata eşlemesi tek yerde (`residentError`); tekil ve toplu uç aynı mesajları verir.
+
 ### 2026-10-04 — GÖREVLENDİRME (yönetici/kurul/denetçi/görevli) + İŞ SAAT DİLİMİ (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **1071/1071** (8 yeni kontrol; ayrıca Türkiye saatiyle 01:00'de koşuldu);

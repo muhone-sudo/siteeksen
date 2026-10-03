@@ -5667,6 +5667,19 @@ R33=$($PSQL -t -A -c "SELECT (SELECT deleted FROM units WHERE id='$FK') || '|' |
 $PSQL -c "UPDATE property_roles SET is_active = false WHERE user_id='$G80' AND property_id='$NPID';" >/dev/null
 SC=$(code -X POST "$ID39/users/me/active-property" -H "Authorization: Bearer $NT" -H "$J" -d "{\"property_id\":\"$DEMO_PROPERTY\"}")
 [ "$SC" = "200" ] || bad "demo siteye geri dönülemedi → $SC"
+# Toplu sakin içe aktarma (FAZ 8.1): satırlar bağımsız, her birinin sonucu döner.
+U2=$($PSQL -t -A -c "SELECT id FROM units WHERE property_id='$DEMO_PROPERTY' AND deleted=0 ORDER BY door_number LIMIT 1 OFFSET 2;")
+BK=$(curl -s -w '\n%{http_code}' -X POST "$ID39/residents/bulk" -H "Authorization: Bearer $MGR39" -H "$J" -d "{\"residents\":[
+  {\"first_name\":\"Toplu\",\"last_name\":\"Bir\",\"phone\":\"0555 000 00 91\",\"unit_id\":\"$U2\",\"role\":\"TENANT\"},
+  {\"first_name\":\"Demo\",\"last_name\":\"Kiraci\",\"phone\":\"5559876543\",\"unit_id\":\"$U2\",\"role\":\"PROXY\"},
+  {\"first_name\":\"Gizli\",\"last_name\":\"Iki\",\"phone\":\"5550000080\",\"unit_id\":\"$U2\",\"role\":\"OWNER\"},
+  {\"first_name\":\"\",\"last_name\":\"Eksik\",\"phone\":\"5550000092\",\"unit_id\":\"$U2\",\"role\":\"TENANT\"},
+  {\"first_name\":\"Yetki\",\"last_name\":\"Denemesi\",\"phone\":\"5550000093\",\"unit_id\":\"$U2\",\"role\":\"MANAGER\"}]}")
+BKS=$(echo "$BK" | sed '$d' | jfield '",".join(x["status"]+("+kod" if x.get("activation") else "") for x in d["data"])')
+N93=$($PSQL -t -A -c "SELECT count(*) FROM users WHERE phone IN ('+905550000092','+905550000093');")
+[ "$(echo "$BK" | tail -1)" = "200" ] && [ "$BKS" = "created+kod,linked,invited,error,error" ] && [ "$N93" = "0" ] \
+  && ok "toplu içe aktarma satır satır raporluyor (hesap açıldı+kod, bağlandı, davet, eksik alan, yönetim rolü reddi)" \
+  || bad "toplu sakin: $(echo "$BK" | tail -1) '$BKS', yanlışlıkla açılan hesap $N93"
 # Görevlendirme (2026-10-03): property_roles'a yazan uç yoktu; kurucu dışında
 # kimseye yönetici/kurul/denetçi/görevli rolü verilemiyor, kaldırılamıyordu.
 RURL="$ID39/property-roles"

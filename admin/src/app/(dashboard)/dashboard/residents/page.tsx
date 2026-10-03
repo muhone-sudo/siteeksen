@@ -1,13 +1,41 @@
 "use client";
 
 import { useState } from "react";
-import { KeyRound, Plus } from "lucide-react";
+import { KeyRound, Plus, Upload } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAction, useApi, useRoles } from "@/lib/use-api";
-import { ActionFeedback, Badge, Button, Card, Field, FormModal, Grid, Input, Modal, Notice, Page, QueryView, Select, Table } from "@/components/ui/kit";
+import { ActionFeedback, Badge, Button, Card, Field, FormModal, Grid, Input, Modal, Notice, Page, QueryView, Select, Table, Textarea } from "@/components/ui/kit";
 import { dateTime } from "@/lib/format";
 import { RESIDENT_ROLES, ROLE_LABEL } from "@/lib/labels";
-import type { Activation, Invitation, Resident } from "@/lib/types";
+import type { Activation, BulkResidentRow, Invitation, Resident } from "@/lib/types";
+
+const BULK_STATUS: Record<BulkResidentRow["status"], string> = {
+    created: "Hesap açıldı", linked: "Var olan hesap bağlandı", invited: "Davet gönderildi", error: "Eklenmedi",
+};
+const ROLE_ALIASES: Record<string, string> = {
+    MALIK: "OWNER", "KAT MALIKI": "OWNER", OWNER: "OWNER", KIRACI: "TENANT", TENANT: "TENANT", VEKIL: "PROXY", PROXY: "PROXY",
+};
+
+/**
+ * Satır: `ad;soyad;telefon;daire;sıfat` — daire "A-3" biçiminde (blok-kapı; bloksuzsa "-3"),
+ * sıfat malik/kiracı/vekil. Daire bulunamayan satır gönderilmeden bildirilir.
+ */
+function parseResidents(text: string, unitByLabel: Map<string, string>) {
+    const rows: { first_name: string; last_name: string; phone: string; unit_id: string; role: string }[] = [];
+    const errors: string[] = [];
+    const norm = (s: string) => s.trim().toLocaleUpperCase("tr-TR").replace(/İ/g, "I").replace(/\s+/g, " ");
+    text.split(/\r?\n/).forEach((line, i) => {
+        if (!line.trim() || line.trim().startsWith("#")) return;
+        const [first = "", last = "", phone = "", unit = "", role = "malik"] = line.split(/[;\t]/);
+        const unitId = unitByLabel.get(norm(unit).replace(/\s*-\s*/, "-"));
+        const r = ROLE_ALIASES[norm(role)];
+        if (!first.trim() || !last.trim() || !phone.trim()) return errors.push(`${i + 1}. satır: ad, soyad ve telefon gerekli`);
+        if (!unitId) return errors.push(`${i + 1}. satır: "${unit.trim()}" dairesi bulunamadı`);
+        if (!r) return errors.push(`${i + 1}. satır: sıfat malik, kiracı ya da vekil olmalı`);
+        rows.push({ first_name: first.trim(), last_name: last.trim(), phone: phone.trim(), unit_id: unitId, role: r });
+    });
+    return { rows, errors };
+}
 
 const INVITATION_STATUS: Record<Invitation["status"], string> = {
     PENDING: "Yanıt bekliyor", ACCEPTED: "Kabul edildi", DECLINED: "Reddedildi", CANCELLED: "İptal edildi", EXPIRED: "Süresi doldu",
@@ -67,14 +95,24 @@ export default function ResidentsPage() {
     const [form, setForm] = useState({ first_name: "", last_name: "", phone: "", email: "", unit_id: "", role: "OWNER" });
     const [edit, setEdit] = useState<Resident | null>(null);
     const [shown, setShown] = useState<{ who: string; phone: string; act: Activation } | null>(null);
+    const [bulkOpen, setBulkOpen] = useState(false);
+    const [bulkText, setBulkText] = useState("");
+    const [bulkResult, setBulkResult] = useState<BulkResidentRow[] | null>(null);
 
     const unitOptions = (units.data?.data ?? []).map((u) => ({ value: u.id, label: `${u.block}-${u.door_number}` }));
+    const unitByLabel = new Map((units.data?.data ?? []).map((u) => [`${u.block}-${u.door_number}`.toLocaleUpperCase("tr-TR").replace(/İ/g, "I"), u.id]));
+    const bulk = parseResidents(bulkText, unitByLabel);
 
     return (
         <Page
             title="Sakinler"
             description="Malik, kiracı ve vekil kayıtları. Kişisel veriler KVKK kapsamında yalnızca yetkili rollere gösterilir."
-            actions={canWrite && <Button onClick={() => setOpen(true)}><Plus className="h-4 w-4" /> Sakin ekle</Button>}
+            actions={canWrite && (
+                <div className="flex gap-2">
+                    <Button variant="secondary" onClick={() => setBulkOpen(true)}><Upload className="h-4 w-4" /> Toplu ekle</Button>
+                    <Button onClick={() => setOpen(true)}><Plus className="h-4 w-4" /> Sakin ekle</Button>
+                </div>
+            )}
         >
             <ActionFeedback action={act} />
             <Card>
@@ -192,6 +230,50 @@ export default function ResidentsPage() {
             </FormModal>
 
             <ActivationModal value={shown} onClose={() => setShown(null)} />
+
+            <FormModal
+                open={bulkOpen}
+                onClose={() => setBulkOpen(false)}
+                title="Toplu sakin ekle"
+                pending={act.pending}
+                error={act.error}
+                onSubmit={async () => {
+                    if (bulk.errors.length || bulk.rows.length === 0) return;
+                    const r = await act.run(() => api.identity.bulkResidents(bulk.rows), {
+                        invalidate: ["residents"],
+                        success: (x) => `${x.data.filter((d) => d.status !== "error").length} / ${x.data.length} satır işlendi`,
+                    });
+                    if (r) { setBulkOpen(false); setBulkText(""); setBulkResult(r.data); }
+                }}
+            >
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Her satıra bir sakin: <code>ad;soyad;telefon;daire;sıfat</code> (daire &quot;A-3&quot; biçiminde; sıfat malik, kiracı ya da vekil).
+                    Satırlar ayrı ayrı işlenir; sonuç ve etkinleştirme kodları sonraki pencerede bir kez gösterilir.
+                </p>
+                <Textarea rows={10} value={bulkText} onChange={(e) => setBulkText(e.target.value)} placeholder={"Ayşe;Yılmaz;0555 111 22 33;A-3;malik\nMehmet;Kaya;05551112244;A-3;kiracı"} />
+                {bulk.errors.length > 0
+                    ? <Notice tone="red" title="Düzeltilmesi gereken satırlar">{bulk.errors.slice(0, 10).join(" · ")}</Notice>
+                    : bulk.rows.length > 0 && <Notice tone="blue">{bulk.rows.length} satır gönderilecek.</Notice>}
+            </FormModal>
+
+            {bulkResult && (
+                <Modal open onClose={() => setBulkResult(null)} title="Toplu ekleme sonucu">
+                    <div className="space-y-3">
+                        <Notice tone="amber" title="Kodlar bir daha gösterilmez">Etkinleştirme kodlarını sakinlere iletin; bu pencere kapanınca kodlar görüntülenemez (gerekirse &quot;Kod üret&quot; ile yenisi alınır).</Notice>
+                        <Table
+                            rows={bulkResult}
+                            rowKey={(r) => String(r.row)}
+                            columns={[
+                                { header: "Satır", cell: (r) => r.row },
+                                { header: "Telefon", cell: (r) => r.phone },
+                                { header: "Sonuç", cell: (r) => <Badge tone={r.status === "error" ? "red" : r.status === "invited" ? "blue" : "green"}>{BULK_STATUS[r.status]}</Badge> },
+                                { header: "Kod / neden", cell: (r) => (r.activation ? <code className="font-mono">{r.activation.activation_code}</code> : r.error ?? "—") },
+                            ]}
+                        />
+                        <div className="flex justify-end"><Button onClick={() => setBulkResult(null)}>Kodları ilettim, kapat</Button></div>
+                    </div>
+                </Modal>
+            )}
 
             <FormModal
                 open={!!edit}

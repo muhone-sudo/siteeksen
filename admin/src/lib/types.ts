@@ -319,3 +319,9 @@ export interface SiteRole {
 export interface GrantRoleInput {
     phone: string; role: string; decision_ref?: string; valid_from?: string; valid_to?: string; first_name?: string; last_name?: string;
 }
+
+/** Toplu sakin içe aktarma satır sonucu. */
+export interface BulkResidentRow {
+    row: number; status: "created" | "linked" | "invited" | "error"; phone: string;
+    resident_id?: Id; invitation_id?: Id; activation?: Activation; error?: string;
+}

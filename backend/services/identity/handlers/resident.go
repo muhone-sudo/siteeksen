@@ -5,8 +5,10 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/siteeksen/backend/pkg/middleware"
 	"github.com/siteeksen/backend/services/identity/models"
 	"github.com/siteeksen/backend/services/identity/repository"
@@ -22,50 +24,58 @@ func getRoles(c *gin.Context) []string {
 	return roles
 }
 
-func mapResidentError(c *gin.Context, err error, fallback string) {
+// residentError, bilinen hata için HTTP durumunu ve kullanıcıya gösterilecek
+// mesajı döner (toplu içe aktarmada satır sonucu olarak da kullanılır).
+func residentError(err error) (int, string, bool) {
 	switch {
 	case errors.Is(err, service.ErrResidentForbidden):
-		c.JSON(http.StatusForbidden, gin.H{"error": "Bu işlem için yetkiniz yok"})
+		return http.StatusForbidden, "Bu işlem için yetkiniz yok", true
 	case errors.Is(err, service.ErrInvalidResidentRole):
-		c.JSON(http.StatusUnprocessableEntity, gin.H{
-			"error": "Sakinlik rolü OWNER, TENANT ya da PROXY olmalı; yönetim rolleri görevlendirmeyle verilir"})
+		return http.StatusUnprocessableEntity, "Sakinlik rolü OWNER, TENANT ya da PROXY olmalı; yönetim rolleri görevlendirmeyle verilir", true
 	case errors.Is(err, repository.ErrResidentNotFound):
-		c.JSON(http.StatusNotFound, gin.H{"error": "Sakin bulunamadı"})
+		return http.StatusNotFound, "Sakin bulunamadı", true
 	case errors.Is(err, repository.ErrUnitNotFound):
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Belirtilen birim bu siteye ait değil"})
+		return http.StatusBadRequest, "Belirtilen birim bu siteye ait değil", true
 	case errors.Is(err, repository.ErrPhoneAlreadyExists):
-		c.JSON(http.StatusConflict, gin.H{"error": "Bu telefon numarası başka bir kullanıcıya ait"})
+		return http.StatusConflict, "Bu telefon numarası başka bir kullanıcıya ait", true
 	case errors.Is(err, service.ErrInvalidRoleInput):
-		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+		return http.StatusUnprocessableEntity, err.Error(), true
 	case errors.Is(err, repository.ErrRoleExists), errors.Is(err, repository.ErrRoleNotActive),
 		errors.Is(err, repository.ErrLastManager):
-		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+		return http.StatusConflict, err.Error(), true
 	case errors.Is(err, repository.ErrUserOtherSite):
-		c.JSON(http.StatusConflict, gin.H{"error": "Bu telefon numarası bu siteyle bağı olmayan bir hesaba ait; kişi önce sakin olarak davet edilmeli (kişisel veri gösterilmez)"})
+		return http.StatusConflict, "Bu telefon numarası bu siteyle bağı olmayan bir hesaba ait; kişi önce sakin olarak davet edilmeli (kişisel veri gösterilmez)", true
 	case errors.Is(err, repository.ErrNameRequiredNew):
-		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+		return http.StatusUnprocessableEntity, err.Error(), true
 	case errors.Is(err, repository.ErrRoleNotFound):
-		c.JSON(http.StatusNotFound, gin.H{"error": "Görevlendirme bulunamadı"})
+		return http.StatusNotFound, "Görevlendirme bulunamadı", true
 	case errors.Is(err, service.ErrInvalidUnit):
 		// Mesaj bizim yazdığımız doğrulama metnidir (satır numarasıyla).
-		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+		return http.StatusUnprocessableEntity, err.Error(), true
 	case errors.Is(err, repository.ErrUnitExists):
-		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+		return http.StatusConflict, err.Error(), true
 	case errors.Is(err, repository.ErrInvitationPending):
-		c.JSON(http.StatusConflict, gin.H{"error": "Bu kişiye bu daire ve rol için yanıt bekleyen bir davet zaten var"})
+		return http.StatusConflict, "Bu kişiye bu daire ve rol için yanıt bekleyen bir davet zaten var", true
 	case errors.Is(err, repository.ErrInvitationNotFound):
-		c.JSON(http.StatusNotFound, gin.H{"error": "Davet bulunamadı"})
+		return http.StatusNotFound, "Davet bulunamadı", true
 	case errors.Is(err, repository.ErrInvitationNotPending):
-		c.JSON(http.StatusConflict, gin.H{"error": "Davet artık yanıtlanamaz: yanıtlanmış, iptal edilmiş ya da süresi dolmuş"})
-	default:
-		// Aynı daireye aynı kişinin ikinci kaydı (benzersizlik) ve biçimi bozuk
-		// kimlik gibi istemci hataları 500 değildir.
-		if middleware.DBErrorResponse(c, err) {
-			return
-		}
-		log.Printf("[identity] sakin işlemi başarısız: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fallback})
+		return http.StatusConflict, "Davet artık yanıtlanamaz: yanıtlanmış, iptal edilmiş ya da süresi dolmuş", true
 	}
+	return 0, "", false
+}
+
+func mapResidentError(c *gin.Context, err error, fallback string) {
+	if status, msg, ok := residentError(err); ok {
+		c.JSON(status, gin.H{"error": msg})
+		return
+	}
+	// Aynı daireye aynı kişinin ikinci kaydı (benzersizlik) ve biçimi bozuk
+	// kimlik gibi istemci hataları 500 değildir.
+	if middleware.DBErrorResponse(c, err) {
+		return
+	}
+	log.Printf("[identity] sakin işlemi başarısız: %v", err)
+	c.JSON(http.StatusInternalServerError, gin.H{"error": fallback})
 }
 
 // ListResidents bir sitedeki sakinleri arama/blok/rol filtreleriyle listeler
@@ -309,5 +319,79 @@ func EndSiteRole(svc *service.RoleService) gin.HandlerFunc {
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{"role": sr, "note": "Kişinin açık oturumları kapatıldı; yeniden girişte yetkisi olmaz."})
+	}
+}
+
+// BulkResidentRow, toplu içe aktarmada bir satırın sonucudur.
+type BulkResidentRow struct {
+	Row          int                `json:"row"`
+	Status       string             `json:"status"` // created, linked, invited, error
+	Phone        string             `json:"phone"`
+	ResidentID   string             `json:"resident_id,omitempty"`
+	InvitationID string             `json:"invitation_id,omitempty"`
+	Activation   *models.Activation `json:"activation,omitempty"`
+	Error        string             `json:"error,omitempty"`
+}
+
+// BulkCreateResidents, sakinleri toplu ekler (site kurulumu / rakipten geçiş).
+//
+// Satırlar BİRBİRİNDEN BAĞIMSIZ işlenir ve her birinin sonucu döner: hesap açıldı
+// (etkinleştirme kodu bir kez döner), var olan hesap bağlandı, başka sitede
+// kayıtlı kişiye davet gönderildi ya da hata (nedeniyle). Tek işlem yapılmaz:
+// başka sitede kayıtlı tek bir kişi yüzünden yüz satırlık listenin reddedilmesi
+// kullanıcının işine yaramazdı. Hiçbir satır sessizce atlanmaz.
+func BulkCreateResidents(svc *service.ResidentService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var in struct {
+			Residents []models.CreateResidentInput `json:"residents"`
+		}
+		if err := c.ShouldBindJSON(&in); err != nil || len(in.Residents) == 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "residents listesi gerekli"})
+			return
+		}
+		if len(in.Residents) > 500 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "tek seferde en çok 500 sakin eklenebilir"})
+			return
+		}
+		propertyID, actor, roles := c.GetString("property_id"), c.GetString("user_id"), getRoles(c)
+		out := make([]BulkResidentRow, 0, len(in.Residents))
+		counts := map[string]int{}
+		for i, r := range in.Residents {
+			row := BulkResidentRow{Row: i + 1, Phone: normalizePhone(r.Phone)}
+			r.Phone = row.Phone
+			switch {
+			case strings.TrimSpace(r.FirstName) == "" || strings.TrimSpace(r.LastName) == "" || row.Phone == "" || r.UnitID == "":
+				row.Status, row.Error = "error", "ad, soyad, telefon ve daire zorunlu"
+			default:
+				res, err := svc.Create(c.Request.Context(), propertyID, actor, roles, r)
+				switch {
+				case errors.Is(err, service.ErrResidentForbidden):
+					c.JSON(http.StatusForbidden, gin.H{"error": "Bu işlem için yetkiniz yok"})
+					return
+				case err != nil:
+					row.Status = "error"
+					if _, msg, ok := residentError(err); ok {
+						row.Error = msg
+					} else if pgErr := (*pgconn.PgError)(nil); errors.As(err, &pgErr) && pgErr.Code == "23505" {
+						row.Error = "bu kişi bu dairede bu sıfatla zaten kayıtlı"
+					} else {
+						log.Printf("[identity] toplu sakin satırı %d: %v", i+1, err)
+						row.Error = "kaydedilemedi"
+					}
+				case res.Invitation != nil:
+					row.Status, row.InvitationID = "invited", res.Invitation.ID
+				case res.Activation != nil:
+					row.Status, row.Activation = "created", res.Activation
+					row.ResidentID = res.Resident.ID
+				default:
+					row.Status = "linked"
+					row.ResidentID = res.Resident.ID
+				}
+			}
+			counts[row.Status]++
+			out = append(out, row)
+		}
+		c.JSON(http.StatusOK, gin.H{"data": out, "summary": counts,
+			"note": "Etkinleştirme kodları yalnızca bu yanıtta görünür; sakinlere iletin."})
 	}
 }

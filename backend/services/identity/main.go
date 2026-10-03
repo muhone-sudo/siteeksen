@@ -81,6 +81,7 @@ func main() {
 	{
 		residents.GET("", handlers.ListResidents(residentService))
 		residents.POST("", handlers.CreateResident(residentService))
+		residents.POST("/bulk", handlers.BulkCreateResidents(residentService))
 		residents.GET("/invitations", handlers.ListInvitations(residentService))
 		residents.POST("/invitations/:id/cancel", handlers.CancelInvitation(residentService))
 		residents.GET("/:id", handlers.GetResident(residentService))
