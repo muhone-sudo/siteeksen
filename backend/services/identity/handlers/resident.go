@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"errors"
 	"log"
 	"net/http"
@@ -34,6 +35,11 @@ func mapResidentError(c *gin.Context, err error, fallback string) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Belirtilen birim bu siteye ait değil"})
 	case errors.Is(err, repository.ErrPhoneAlreadyExists):
 		c.JSON(http.StatusConflict, gin.H{"error": "Bu telefon numarası başka bir kullanıcıya ait"})
+	case errors.Is(err, service.ErrInvalidUnit):
+		// Mesaj bizim yazdığımız doğrulama metnidir (satır numarasıyla).
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+	case errors.Is(err, repository.ErrUnitExists):
+		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
 	case errors.Is(err, repository.ErrInvitationPending):
 		c.JSON(http.StatusConflict, gin.H{"error": "Bu kişiye bu daire ve rol için yanıt bekleyen bir davet zaten var"})
 	case errors.Is(err, repository.ErrInvitationNotFound):
@@ -199,5 +205,56 @@ func RespondInvitation(svc *service.ResidentService, accept bool) gin.HandlerFun
 			msg = "Davet kabul edildi; site, site seçiminizde görünür"
 		}
 		c.JSON(http.StatusOK, gin.H{"property_id": propertyID, "accepted": accept, "message": msg})
+	}
+}
+
+// CreateUnits bağımsız bölüm ekler. Gövde tek bölüm nesnesi ya da
+// {"units": [...]} (toplu, site kurulumu) olabilir; hepsi tek işlemde eklenir.
+func CreateUnits(svc *service.ResidentService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var raw map[string]json.RawMessage
+		body, err := c.GetRawData()
+		if err == nil {
+			err = json.Unmarshal(body, &raw)
+		}
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Geçersiz istek formatı"})
+			return
+		}
+		var in []models.UnitInput
+		if list, ok := raw["units"]; ok {
+			err = json.Unmarshal(list, &in)
+		} else {
+			var one models.UnitInput
+			err = json.Unmarshal(body, &one)
+			in = []models.UnitInput{one}
+		}
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Geçersiz istek formatı"})
+			return
+		}
+		units, err := svc.CreateUnits(c.Request.Context(), c.GetString("property_id"), getRoles(c), in)
+		if err != nil {
+			mapResidentError(c, err, "Bölümler eklenemedi")
+			return
+		}
+		c.JSON(http.StatusCreated, gin.H{"data": units, "created": len(units)})
+	}
+}
+
+// UpdateUnit bölümü günceller.
+func UpdateUnit(svc *service.ResidentService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var in models.UnitInput
+		if err := c.ShouldBindJSON(&in); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Geçersiz istek formatı"})
+			return
+		}
+		u, err := svc.UpdateUnit(c.Request.Context(), c.GetString("property_id"), c.Param("id"), getRoles(c), in)
+		if err != nil {
+			mapResidentError(c, err, "Bölüm güncellenemedi")
+			return
+		}
+		c.JSON(http.StatusOK, u)
 	}
 }

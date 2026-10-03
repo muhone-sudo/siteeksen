@@ -36,7 +36,12 @@ export interface Invitation {
 export type CreateResidentResult = Partial<Resident> & { activation?: Activation; invitation?: Invitation; note?: string };
 export interface Unit {
     id: Id; property_id: Id; block: string; floor: number; door_number: string; share_ratio: number;
-    gross_area_m2: number; unit_type: string; is_commercial: boolean;
+    gross_area_m2: number; unit_type: string; is_commercial: boolean; is_ground_floor?: boolean;
+}
+/** Bölüm ekleme/güncelleme girdisi; güncellemede verilmeyen alan değişmez. */
+export interface UnitInput {
+    block?: string; floor?: number; door_number?: string; share_ratio?: number; gross_area_m2?: number;
+    unit_type?: string; is_commercial?: boolean; is_ground_floor?: boolean;
 }
 
 // ---------------------------------------------------------------- finance

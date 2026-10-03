@@ -268,7 +268,7 @@ var validPropertyTypes = map[string]bool{
 	"BUILDING":  true,
 }
 
-// CreateProperty yeni site oluşturur ve kullanıcıyı bu siteye OWNER olarak bağlar
+// CreateProperty yeni site oluşturur; kurucu sitenin geçici yöneticisi olur (property_roles).
 func (s *AuthService) CreateProperty(ctx context.Context, userID string, req models.CreatePropertyRequest) (*models.Property, error) {
 	if !validPropertyTypes[req.Type] {
 		req.Type = "SITE"

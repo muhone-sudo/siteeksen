@@ -54,6 +54,8 @@ export function endpoints(http: Http) {
             activate: (phone: string, code: string, new_password: string) =>
                 http.post<Msg>("/auth/activate", { phone, code, new_password }),
             units: () => g<T.List<T.Unit>>("/units"),
+            createUnits: (units: T.UnitInput[]) => http.post<{ data: T.Unit[]; created: number }>("/units", { units }),
+            updateUnit: (id: string, b: T.UnitInput) => http.patch<T.Unit>(`/units/${id}`, b),
         },
         finance: {
             overview: (year?: number) => g<T.List<T.AssessmentPeriod>>("/finance/assessments/overview", { year }),

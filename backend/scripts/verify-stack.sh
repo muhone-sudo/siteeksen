@@ -5614,6 +5614,55 @@ DBEXP=$($PSQL -t -A -c "SELECT status FROM resident_invitations WHERE id='${INV3
 [ "$SC" = "202" ] && [ "$DBEXP" = "EXPIRED" ] && ok "süresi dolan davet kapatılıp yenisi açılabiliyor" || bad "yeniden davet: $SC (eski $DBEXP)"
 L80=$($PSQL -t -A -c "SELECT count(*) FROM resident_units ru JOIN users u ON u.id = ru.resident_id WHERE u.phone='+905550000080';")
 [ "$L80" = "0" ] && ok "kabul edilmeyen davetler hiçbir daire bağı kurmadı" || bad "kabulsüz bağ: $L80"
+# Site kurulumu (FAZ 8.1): kurucu önceden sahte bir "YÖNETİM" dairesine malik
+# yapılıyor, yönetim rolü almıyordu → yeni site yönetilemiyordu; daire eklemenin
+# de hiçbir yolu yoktu.
+NP=$(curl -s -w '\n%{http_code}' -X POST "$ID39/users/me/properties" -H "Authorization: Bearer $MGR39" -H "$J" \
+  -d '{"name":"Kurulum Sinama Sitesi","type":"SITE","address":"Deneme Cad. 1","city":"Ankara","district":"Cankaya"}')
+NPID=$(echo "$NP" | sed '$d' | jfield 'd["id"]')
+MUID=$($PSQL -t -A -c "SELECT id FROM users WHERE phone='+905551234567';")
+NPROLE=$($PSQL -t -A -c "SELECT string_agg(role, ',') FROM property_roles WHERE property_id='${NPID:-00000000-0000-0000-0000-000000000000}' AND user_id='$MUID' AND is_active;")
+NPU=$($PSQL -t -A -c "SELECT count(*) FROM units WHERE property_id='${NPID:-00000000-0000-0000-0000-000000000000}';")
+[ "$(echo "$NP" | tail -1)" = "201" ] && [ "$NPROLE" = "MANAGER" ] && [ "$NPU" = "0" ] \
+  && ok "yeni site kurucusu geçici yönetici oluyor; sahte 'YÖNETİM' dairesi açılmıyor" \
+  || bad "site kurulumu: $(echo "$NP" | tail -1), rol '$NPROLE', bölüm $NPU"
+SC=$(code -X POST "$ID39/users/me/active-property" -H "Authorization: Bearer $MGR39" -H "$J" -d "{\"property_id\":\"$NPID\"}")
+NT=$(curl -s -X POST "$ID39/auth/login" -H "$J" -d '{"phone":"5551234567","password":"Demo123!"}' | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+UB=$(curl -s -w '\n%{http_code}' -X POST "$ID39/units" -H "Authorization: Bearer $NT" -H "$J" \
+  -d '{"units":[{"block":"A","floor":0,"door_number":"1","share_ratio":120.5,"gross_area_m2":95},{"block":"A","floor":1,"door_number":"2","share_ratio":130},{"block":"B","floor":2,"door_number":"1","share_ratio":149.5,"unit_type":"SHOP","is_commercial":true}]}')
+NPU=$($PSQL -t -A -c "SELECT count(*) || '|' || SUM(share_ratio)::text FROM units WHERE property_id='$NPID' AND deleted = 0;")
+GF=$($PSQL -t -A -c "SELECT is_ground_floor FROM units WHERE property_id='$NPID' AND block='A' AND door_number='1';")
+[ "$SC" = "200" ] && [ "$(echo "$UB" | tail -1)" = "201" ] && [ "$NPU" = "3|400.0000" ] && [ "$GF" = "t" ] \
+  && ok "yönetici yeni siteye toplu bağımsız bölüm ekledi (3 bölüm, arsa payı 400; zemin kat çıkarımı)" \
+  || bad "toplu bölüm: geçiş $SC, $(echo "$UB" | tail -1) $(echo "$UB" | head -c 200), $NPU, zemin '$GF'"
+SC=$(code -X POST "$ID39/units" -H "Authorization: Bearer $NT" -H "$J" -d '{"units":[{"block":"C","door_number":"9","share_ratio":10},{"block":"a","door_number":"2","share_ratio":10}]}')
+SC2=$(code -X POST "$ID39/units" -H "Authorization: Bearer $NT" -H "$J" -d '{"units":[{"block":"C","door_number":"8","share_ratio":10},{"block":"A","door_number":"1","share_ratio":10}]}')
+NPU2=$($PSQL -t -A -c "SELECT count(*) FROM units WHERE property_id='$NPID';")
+[ "$SC" = "409" ] && [ "$SC2" = "409" ] && [ "$NPU2" = "3" ] && ok "var olan blok/kapı (harf farkı dahil: a-2 ≈ A-2) → 409 ve toplu eklemenin HİÇBİRİ yazılmadı" \
+  || bad "çakışan toplu ekleme: $SC / $SC2, bölüm $NPU2"
+SC=$(code -X POST "$ID39/units" -H "Authorization: Bearer $NT" -H "$J" -d '{"door_number":"5","share_ratio":0}')
+SC3=$(code -X POST "$ID39/units" -H "Authorization: Bearer $NT" -H "$J" -d '{"units":[{"door_number":"7","share_ratio":5},{"door_number":"7","share_ratio":5}]}')
+[ "$SC" = "422" ] && [ "$SC3" = "422" ] && ok "arsa payı 0 ve aynı istekte yinelenen kapı numarası → 422" || bad "bölüm doğrulaması: $SC / $SC3"
+UID1=$($PSQL -t -A -c "SELECT id FROM units WHERE property_id='$NPID' AND block='A' AND door_number='2';")
+SC=$(code -X PATCH "$ID39/units/$UID1" -H "Authorization: Bearer $NT" -H "$J" -d '{"share_ratio":131.25,"gross_area_m2":101}')
+SR=$($PSQL -t -A -c "SELECT share_ratio::text || '|' || gross_area_m2::text || '|' || door_number FROM units WHERE id='$UID1';")
+[ "$SC" = "200" ] && [ "$SR" = "131.2500|101.00|2" ] && ok "bölüm güncellemesi yalnızca verilen alanları değiştiriyor" || bad "bölüm güncelleme: $SC, $SR"
+SC=$(code -X POST "$ID39/units" -H "Authorization: Bearer $TENL" -H "$J" -d '{"door_number":"99","share_ratio":1}')
+[ "$SC" = "403" ] && ok "kiracı bağımsız bölüm ekleyemiyor → 403" || bad "kiracı bölüm ekleme → $SC"
+
+# 033: önceden açılmış sitelerdeki sahte "YÖNETİM" bölümü dönüştürülür
+FK=$($PSQL -t -A -c "INSERT INTO units (property_id, block, floor, door_number, share_ratio, unit_type)
+  VALUES ('$NPID', 'A', 0, 'YÖNETİM', 0, 'OFFICE') RETURNING id;" | grep -E '^[0-9a-f-]{36}$')
+G80=$($PSQL -t -A -c "SELECT id FROM users WHERE phone='+905550000080';")
+$PSQL -c "INSERT INTO resident_units (resident_id, unit_id, role) VALUES ('$G80', '$FK', 'OWNER');" >/dev/null
+$PSQL -f "$MIG_DIR/033_site_founder_manager.sql" >/dev/null 2>&1
+R33=$($PSQL -t -A -c "SELECT (SELECT deleted FROM units WHERE id='$FK') || '|' ||
+  (SELECT is_active FROM resident_units WHERE unit_id='$FK') || '|' ||
+  (SELECT count(*) FROM property_roles WHERE user_id='$G80' AND property_id='$NPID' AND role='MANAGER' AND is_active);")
+[ "$R33" = "1|false|1" ] && ok "033: sahte bölüm silindi işaretlendi, bağ pasif, kurucu yönetici rolünü aldı" || bad "033: '$R33'"
+$PSQL -c "UPDATE property_roles SET is_active = false WHERE user_id='$G80' AND property_id='$NPID';" >/dev/null
+SC=$(code -X POST "$ID39/users/me/active-property" -H "Authorization: Bearer $NT" -H "$J" -d "{\"property_id\":\"$DEMO_PROPERTY\"}")
+[ "$SC" = "200" ] || bad "demo siteye geri dönülemedi → $SC"
 # YETKİ YÜKSELTME (migration 031): daire bağının rolü jetona olduğu gibi girer.
 # Önceden 'MANAGER' / 'SUPER_ADMIN' gibi değerler kabul ediliyordu: sakin yazabilen
 # yönetim kurulu üyesi kendini yönetici yapabiliyordu.

@@ -229,7 +229,7 @@ func (r *UserRepository) SetKVKKConsent(ctx context.Context, userID string) erro
 	return err
 }
 
-// CreateProperty yeni site oluşturur ve oluşturan kullanıcıyı OWNER olarak bağlar
+// CreateProperty yeni site oluşturur ve oluşturan kullanıcıyı geçici YÖNETİCİ yapar
 func (r *UserRepository) CreateProperty(ctx context.Context, userID string, req models.CreatePropertyRequest) (*models.Property, error) {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
@@ -249,21 +249,17 @@ func (r *UserRepository) CreateProperty(ctx context.Context, userID string, req 
 		return nil, err
 	}
 
-	var unitID string
-	err = tx.QueryRow(ctx, `
-		INSERT INTO units (property_id, block, floor, door_number, share_ratio, unit_type)
-		VALUES ($1, 'A', 0, 'YÖNETİM', 0, 'OFFICE')
-		RETURNING id
-	`, property.ID).Scan(&unitID)
-	if err != nil {
-		return nil, err
-	}
-
-	_, err = tx.Exec(ctx, `
-		INSERT INTO resident_units (resident_id, unit_id, role)
-		VALUES ($1, $2, 'OWNER')
-	`, userID, unitID)
-	if err != nil {
+	// Kurucu, sitenin GEÇİCİ yöneticisi olur (2026-10-03). Önceden sahte bir
+	// "YÖNETİM" bağımsız bölümü (arsa payı 0) açılıp kurucu ona MALİK olarak
+	// bağlanıyordu: (1) kurucunun yönetim rolü olmadığı için yeni site hiç
+	// yönetilemiyordu (sakin/daire eklenemiyordu); (2) sahte bölüm eşit
+	// dağıtılan giderlerden pay alıyordu. Atama izi property_roles'tadır;
+	// KMK m.34 uyarınca kat malikleri kurulu kararıyla teyit edilmelidir.
+	if _, err = tx.Exec(ctx, `
+		INSERT INTO property_roles (user_id, property_id, role, granted_by, decision_ref)
+		VALUES ($1, $2, 'MANAGER', $1,
+		        'Site kurulumu: kurucu geçici yönetici — KMK m.34 uyarınca kat malikleri kurulu kararıyla teyit edilmeli')
+	`, userID, property.ID); err != nil {
 		return nil, err
 	}
 

@@ -205,7 +205,12 @@ func CreateProperty(svc *service.AuthService) gin.HandlerFunc {
 		userID := c.GetString("user_id")
 		property, err := svc.CreateProperty(c.Request.Context(), userID, req)
 		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Site oluşturulamadı"})
+			// Önceden her hata 400 ve günlüksüzdü: sunucu hatası istemci hatası gibi görünüyordu.
+			if middleware.DBErrorResponse(c, err) {
+				return
+			}
+			log.Printf("[identity] site oluşturulamadı (user=%s): %v", userID, err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Site oluşturulamadı"})
 			return
 		}
 

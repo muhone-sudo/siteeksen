@@ -255,7 +255,7 @@ Bugün tamamen yok. Aidatın yasal dayanağı ve icra gücü buradan doğar.
 
 | # | Dilim | Durum |
 |---|---|---|
-| 8.1 | **Onboarding ve veri aktarımı** (rakipten geçiş) — kurulum sihirbazı, doğrulamalı toplu içe aktarma, açılış bakiyesi | `[D0]` |
+| 8.1 | **Onboarding ve veri aktarımı** (rakipten geçiş) — kurulum sihirbazı, doğrulamalı toplu içe aktarma, açılış bakiyesi | `[D4]` ilk dilim 2026-10-03: kurucu yönetici rolü, bölüm ekleme/toplu içe aktarma (033, verify §39). Kalan: sakin toplu içe aktarma, açılış bakiyesi |
 | 8.2 | Test altyapısı: birim + entegrasyon (testcontainers) + sözleşme testi + mobil golden test | `[D0]` |
 | 8.3 | Ölü kod ve ölü şema temizliği (~3.900 satır, 47 tablo) | `[D0]` |
 | 8.4 | Tek giriş kapısı kararı (Kong ↔ gateway birleştirme) — **karar (2026-09-27):** tek giriş gateway; Kong isteğe bağlı kenar katmanı, tek yukarı akış gateway | `[D2]` |

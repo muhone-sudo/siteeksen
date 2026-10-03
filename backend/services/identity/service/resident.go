@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/siteeksen/backend/pkg/middleware"
@@ -219,4 +220,110 @@ func (s *ResidentService) MyInvitations(ctx context.Context, userID string) ([]*
 // RespondInvitation, çağıranın davete yanıtını işler.
 func (s *ResidentService) RespondInvitation(ctx context.Context, userID, id string, accept bool) (string, error) {
 	return s.repo.RespondInvitation(ctx, userID, id, accept)
+}
+
+// ErrInvalidUnit bölüm girdisi geçersiz; mesaj kullanıcıya gösterilir.
+var ErrInvalidUnit = errors.New("bağımsız bölüm bilgisi geçersiz")
+
+var unitTypes = map[string]bool{"APARTMENT": true, "SHOP": true, "OFFICE": true, "PARKING": true, "STORAGE": true}
+
+// validateUnit, create=true ise zorunlu alanları da denetler ve varsayılanları doldurur.
+func validateUnit(u *models.UnitInput, create bool, row int) error {
+	where := ""
+	if row > 0 {
+		where = fmt.Sprintf("%d. satır: ", row)
+	}
+	bad := func(msg string) error { return fmt.Errorf("%w: %s%s", ErrInvalidUnit, where, msg) }
+	if u.DoorNumber != nil {
+		d := strings.TrimSpace(*u.DoorNumber)
+		u.DoorNumber = &d
+	}
+	if u.Block != nil {
+		b := strings.TrimSpace(*u.Block)
+		u.Block = &b
+	}
+	if create {
+		if u.DoorNumber == nil || *u.DoorNumber == "" {
+			return bad("kapı numarası zorunlu")
+		}
+		if u.ShareRatio == nil {
+			return bad("arsa payı zorunlu (tapudaki pay; KMK m.20 dağıtımının temeli)")
+		}
+		if u.Floor == nil {
+			zero := 0
+			u.Floor = &zero
+		}
+		if u.UnitType == nil || *u.UnitType == "" {
+			t := "APARTMENT"
+			u.UnitType = &t
+		}
+		f := false
+		if u.IsCommercial == nil {
+			u.IsCommercial = &f
+		}
+		if u.IsGroundFloor == nil {
+			g := *u.Floor == 0
+			u.IsGroundFloor = &g
+		}
+	}
+	if u.DoorNumber != nil && (*u.DoorNumber == "" || len(*u.DoorNumber) > 20) {
+		return bad("kapı numarası 1-20 karakter olmalı")
+	}
+	if u.Block != nil && len(*u.Block) > 50 {
+		return bad("blok adı en çok 50 karakter")
+	}
+	if u.ShareRatio != nil && (*u.ShareRatio <= 0 || *u.ShareRatio >= 1e6) {
+		return bad("arsa payı sıfırdan büyük olmalı")
+	}
+	if u.GrossAreaM2 != nil && (*u.GrossAreaM2 < 0 || *u.GrossAreaM2 >= 1e6) {
+		return bad("brüt alan negatif olamaz")
+	}
+	if u.UnitType != nil && !unitTypes[*u.UnitType] {
+		return bad("bölüm türü APARTMENT, SHOP, OFFICE, PARKING ya da STORAGE olmalı")
+	}
+	return nil
+}
+
+// CreateUnits, site kurulumunda bağımsız bölümleri ekler (tek ya da toplu; en çok 2000).
+func (s *ResidentService) CreateUnits(ctx context.Context, propertyID string, roles []string, in []models.UnitInput) ([]*models.Unit, error) {
+	if !canWriteResidents(roles) {
+		return nil, ErrResidentForbidden
+	}
+	if len(in) == 0 || len(in) > 2000 {
+		return nil, fmt.Errorf("%w: tek seferde 1-2000 bölüm eklenebilir", ErrInvalidUnit)
+	}
+	seen := map[string]int{}
+	for i := range in {
+		row := 0
+		if len(in) > 1 {
+			row = i + 1
+		}
+		if err := validateUnit(&in[i], true, row); err != nil {
+			return nil, err
+		}
+		key := strings.ToUpper(deref(in[i].Block)) + "|" + strings.ToUpper(*in[i].DoorNumber)
+		if prev, ok := seen[key]; ok {
+			return nil, fmt.Errorf("%w: %d. ve %d. satır aynı blok/kapı numarası", ErrInvalidUnit, prev, i+1)
+		}
+		seen[key] = i + 1
+	}
+	return s.repo.CreateUnits(ctx, propertyID, in)
+}
+
+// UpdateUnit bölümü günceller.
+func (s *ResidentService) UpdateUnit(ctx context.Context, propertyID, id string, roles []string, in models.UnitInput) (*models.Unit, error) {
+	if !canWriteResidents(roles) {
+		return nil, ErrResidentForbidden
+	}
+	if err := validateUnit(&in, false, 0); err != nil {
+		return nil, err
+	}
+	return s.repo.UpdateUnit(ctx, propertyID, id, in)
+}
+
+func deref(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
 }

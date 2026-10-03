@@ -88,9 +88,12 @@ func main() {
 	}
 
 	units := api.Group("/units")
-	units.Use(middleware.AuthMiddleware(pool))
+	units.Use(middleware.AuthMiddleware(pool), middleware.AuditLog(pool, "unit"))
 	{
 		units.GET("", handlers.ListUnits(residentService))
+		// Site kurulumu (FAZ 8.1): tek ya da toplu bölüm ekleme, güncelleme.
+		units.POST("", handlers.CreateUnits(residentService))
+		units.PATCH("/:id", handlers.UpdateUnit(residentService))
 	}
 
 	// Sunucuyu başlat

@@ -35,7 +35,7 @@
 | `POST /auth/logout` | jeton | `refresh_token` (verin — yoksa 7 gün geçerli kalır) | `{message, access_token_revoked, refresh_token_revoked, warning?}` |
 | `GET /users/me` | herkes | — | kullanıcı nesnesi |
 | `GET /users/me/properties` | herkes | — | **düz dizi** `[{property_id,property_name,unit_id,unit_name,role}]` |
-| `POST /users/me/properties` | M, OWNER | `name`*,`type`(SITE/APARTMENT/BUILDING),`address`*,`city`*,`district` | 201 site |
+| `POST /users/me/properties` | M, OWNER | `name`*,`type`(SITE/APARTMENT/BUILDING),`address`*,`city`*,`district` | 201 site; kurucu `property_roles`'ta geçici **MANAGER** olur (2026-10-03; önceden sahte "YÖNETİM" dairesi açılıyordu). Yeni rol için siteye geçip jeton yenilenir |
 | `POST /users/me/active-property` | herkes | `property_id`* | `{message}` · 403 bağlı değil |
 | `POST /users/me/kvkk-consent` | herkes | — | `{message}` |
 | `POST /users/me/logout-all` | herkes | — | `{message,note}` |
@@ -52,7 +52,9 @@
 
 Şifre politikası: en az 8 karakter, en az bir harf ve bir rakam, telefon numarasını içeremez.
 Giriş kilidi: art arda 5 hatalı girişte hesap 15 dk kilitlenir (kilitliyken doğru şifre de 401).
-| `GET /units` | M,A,S | — | `{data:[{id,property_id,block,floor,door_number,share_ratio,gross_area_m2,unit_type,is_commercial}]}` |
+| `GET /units` | M,B,A,S | — | `{data:[{id,property_id,block,floor,door_number,share_ratio,gross_area_m2,unit_type,is_commercial,is_ground_floor}]}` (silinmişler hariç) |
+| `POST /units` | M,B | tek bölüm nesnesi ya da `{units:[…]}` (en çok 2000): `door_number`*,`share_ratio`* (>0),`block`,`floor`(vars. 0),`gross_area_m2`,`unit_type`(APARTMENT/SHOP/OFFICE/PARKING/STORAGE),`is_commercial`,`is_ground_floor`(vars. kat 0) | 201 `{data:[…],created}` — hepsi tek işlemde; aynı blok/kapı (harf duyarsız) 409, doğrulama 422 (satır numarasıyla) |
+| `PATCH /units/:id` | M,B | aynı alanlar, hepsi isteğe bağlı | 200 bölüm; verilmeyen alan değişmez |
 
 ## finance (8082) — önek `/finance`
 

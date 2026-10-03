@@ -3,8 +3,10 @@ package repository
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/siteeksen/backend/services/identity/models"
 )
@@ -231,9 +233,10 @@ func (r *ResidentRepository) Update(ctx context.Context, propertyID, id string, 
 func (r *ResidentRepository) ListUnits(ctx context.Context, propertyID string) ([]*models.Unit, error) {
 	query := `
 		SELECT id, property_id, COALESCE(block, ''), floor, door_number, share_ratio,
-		       COALESCE(gross_area_m2, 0), unit_type, is_commercial
+		       COALESCE(gross_area_m2, 0), COALESCE(unit_type, 'APARTMENT'),
+		       COALESCE(is_commercial, false), COALESCE(is_ground_floor, false)
 		FROM units
-		WHERE property_id = $1
+		WHERE property_id = $1 AND deleted = 0
 		ORDER BY block, floor, door_number
 	`
 	rows, err := r.pool.Query(ctx, query, propertyID)
@@ -246,7 +249,7 @@ func (r *ResidentRepository) ListUnits(ctx context.Context, propertyID string) (
 	for rows.Next() {
 		u := &models.Unit{}
 		if err := rows.Scan(&u.ID, &u.PropertyID, &u.Block, &u.Floor, &u.DoorNumber, &u.ShareRatio,
-			&u.GrossAreaM2, &u.UnitType, &u.IsCommercial); err != nil {
+			&u.GrossAreaM2, &u.UnitType, &u.IsCommercial, &u.IsGroundFloor); err != nil {
 			return nil, err
 		}
 		units = append(units, u)
@@ -391,4 +394,130 @@ func (r *ResidentRepository) RespondInvitation(ctx context.Context, userID, id s
 		return "", err
 	}
 	return propertyID, tx.Commit(ctx)
+}
+
+// -----------------------------------------------------------------------------
+// BAĞIMSIZ BÖLÜMLER (site kurulumu, FAZ 8.1)
+// -----------------------------------------------------------------------------
+
+// ErrUnitExists aynı blok ve kapı numarasıyla bölüm zaten varsa döner.
+var ErrUnitExists = errors.New("bu blok ve kapı numarasıyla bir bağımsız bölüm zaten var")
+
+const unitReturning = `RETURNING id, property_id, COALESCE(block, ''), floor, door_number, share_ratio,
+	COALESCE(gross_area_m2, 0), COALESCE(unit_type, 'APARTMENT'),
+	COALESCE(is_commercial, false), COALESCE(is_ground_floor, false)`
+
+func scanUnit(row pgx.Row) (*models.Unit, error) {
+	u := &models.Unit{}
+	err := row.Scan(&u.ID, &u.PropertyID, &u.Block, &u.Floor, &u.DoorNumber, &u.ShareRatio,
+		&u.GrossAreaM2, &u.UnitType, &u.IsCommercial, &u.IsGroundFloor)
+	return u, err
+}
+
+func isUniqueViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23505"
+}
+
+// CreateUnits bölümleri TEK işlemde ekler: biri başarısızsa hiçbiri eklenmez
+// (yarım kalmış bir site kurulumu, eksik daireyle tahakkuk demektir).
+// Girdiler serviste doğrulanmış olmalıdır.
+func (r *ResidentRepository) CreateUnits(ctx context.Context, propertyID string, in []models.UnitInput) ([]*models.Unit, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+
+	out := make([]*models.Unit, 0, len(in))
+	for i, u := range in {
+		if dup, err := unitTaken(ctx, tx, propertyID, "", deref(u.Block), *u.DoorNumber); err != nil {
+			return nil, err
+		} else if dup {
+			return nil, fmt.Errorf("%w (%d. satır: %s-%s)", ErrUnitExists, i+1, deref(u.Block), *u.DoorNumber)
+		}
+		created, err := scanUnit(tx.QueryRow(ctx, `
+			INSERT INTO units (property_id, block, floor, door_number, share_ratio, gross_area_m2,
+			                   unit_type, is_commercial, is_ground_floor)
+			VALUES ($1, NULLIF($2, ''), $3, $4, $5, $6, $7, $8, $9) `+unitReturning,
+			propertyID, deref(u.Block), *u.Floor, *u.DoorNumber, *u.ShareRatio, u.GrossAreaM2,
+			*u.UnitType, *u.IsCommercial, *u.IsGroundFloor))
+		if isUniqueViolation(err) {
+			return nil, fmt.Errorf("%w (%d. satır: %s-%s)", ErrUnitExists, i+1, deref(u.Block), *u.DoorNumber)
+		}
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, created)
+	}
+	return out, tx.Commit(ctx)
+}
+
+// UpdateUnit bölümü günceller; verilmeyen alan değişmez.
+func (r *ResidentRepository) UpdateUnit(ctx context.Context, propertyID, id string, in models.UnitInput) (*models.Unit, error) {
+	if in.Block != nil || in.DoorNumber != nil {
+		var block, door string
+		if err := r.pool.QueryRow(ctx, `SELECT COALESCE(block, ''), door_number FROM units
+			WHERE id = $1 AND property_id = $2 AND deleted = 0`, id, propertyID).Scan(&block, &door); err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return nil, ErrUnitNotFound
+			}
+			return nil, err
+		}
+		if in.Block != nil {
+			block = *in.Block
+		}
+		if in.DoorNumber != nil {
+			door = *in.DoorNumber
+		}
+		if dup, err := unitTaken(ctx, r.pool, propertyID, id, block, door); err != nil {
+			return nil, err
+		} else if dup {
+			return nil, ErrUnitExists
+		}
+	}
+	u, err := scanUnit(r.pool.QueryRow(ctx, `
+		UPDATE units SET
+		    block           = CASE WHEN $3::text IS NULL THEN block ELSE NULLIF($3, '') END,
+		    floor           = COALESCE($4, floor),
+		    door_number     = COALESCE($5, door_number),
+		    share_ratio     = COALESCE($6, share_ratio),
+		    gross_area_m2   = COALESCE($7, gross_area_m2),
+		    unit_type       = COALESCE($8, unit_type),
+		    is_commercial   = COALESCE($9, is_commercial),
+		    is_ground_floor = COALESCE($10, is_ground_floor),
+		    updated_at      = NOW()
+		WHERE id = $1 AND property_id = $2 AND deleted = 0 `+unitReturning,
+		id, propertyID, in.Block, in.Floor, in.DoorNumber, in.ShareRatio, in.GrossAreaM2,
+		in.UnitType, in.IsCommercial, in.IsGroundFloor))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrUnitNotFound
+	}
+	if isUniqueViolation(err) {
+		return nil, ErrUnitExists
+	}
+	return u, err
+}
+
+// unitTaken, aynı sitede aynı blok + kapı numarasının (büyük/küçük harf ve boş
+// blok fark etmeksizin) başka bir bölümde kullanılıp kullanılmadığını söyler.
+// Veritabanı kısıtı (property_id, block, door_number) "A"/"a" farkını ve boş
+// bloğu (NULL'lar birbirinden farklı sayılır) yakalamıyordu.
+func unitTaken(ctx context.Context, q interface {
+	QueryRow(context.Context, string, ...any) pgx.Row
+}, propertyID, exceptID, block, door string) (bool, error) {
+	var taken bool
+	err := q.QueryRow(ctx, `
+		SELECT EXISTS (SELECT 1 FROM units
+		WHERE property_id = $1 AND deleted = 0 AND id::text <> $2
+		  AND upper(COALESCE(block, '')) = upper($3) AND upper(door_number) = upper($4))`,
+		propertyID, exceptID, block, door).Scan(&taken)
+	return taken, err
+}
+
+func deref(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
 }

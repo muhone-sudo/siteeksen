@@ -12,6 +12,22 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-03 — SİTE KURULUMU: YENİ SİTE YÖNETİLEMİYORDU (migration 033, FAZ 8.1 ilk dilim) (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **1063/1063** (8 yeni kontrol: kurucu MANAGER + sahte daire yok, toplu
+> bölüm ekleme, harf duyarsız çakışma 409 ve hiçbiri yazılmıyor, doğrulama 422, kısmi güncelleme, kiracı 403,
+> 033 dönüşümü). Panel `tsc`/`lint`/`build` temiz.
+
+- Site oluşturma kurucuyu sahte bir "YÖNETİM" bölümüne (arsa payı 0) **malik** yapıyordu: kurucunun yönetim
+  rolü olmadığı için yeni site hiç yönetilemiyordu (sakin/daire eklenemiyordu) ve sahte bölüm eşit
+  dağıtılan giderlerden pay alıyordu. Artık kurucu `property_roles`'ta geçici MANAGER (KMK m.34 teyit notuyla).
+- Bağımsız bölüm eklemenin hiçbir yolu yoktu: `POST /units` (tek/toplu, tek işlem), `PATCH /units/:id`.
+  Blok/kapı çakışması harf duyarsız denetlenir (veritabanı kısıtı "A"/"a" ve bloksuz bölümleri kaçırıyordu).
+  `GET /units` silinmiş bölümleri artık göstermiyor; birim uçları denetim izine yazılıyor.
+- 033: önceden açılmış sitelerdeki sahte bölümler silindi işaretlenir, kurucuya yönetici rolü verilir;
+  sahte bölüme yazılmış tahakkuk silinmez, uyarı verilir.
+- Panel: "Bağımsız Bölümler" sayfası (liste, ekle, düzenle, Excel'den toplu yapıştırma).
+
 ### 2026-10-03 — SAKİN DAVETİ (S-20 kararı, migration 032) (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **1055/1055** (§39'da 13 kontrol: 202 + bağ yok + kişisel veri yok,
