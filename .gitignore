@@ -92,6 +92,17 @@ temp/
 /backend/smart_collection
 /backend/survey
 /backend/visitor
+/backend/banking
+/backend/community
+/backend/finance
+/backend/governance
+/backend/identity
+/backend/iot
+/backend/notification
+/backend/scheduler
+/backend/migrate
+/backend/encrypt-pii
+/backend/rotate-pii
 
 # TypeScript build info
 *.tsbuildinfo
