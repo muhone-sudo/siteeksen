@@ -95,6 +95,8 @@ export const ROUTE_ROLES: { prefix: string; roles: Role[]; reason: string }[] = 
     { prefix: "/dashboard/residents", roles: MANAGEMENT_AND_STAFF, reason: "Sakin kimlik bilgileri" },
     // Bağımsız bölümler ve arsa payları: dağıtımın temeli; denetçi okur (KMK m.41).
     { prefix: "/dashboard/units", roles: MANAGEMENT_AND_AUDIT, reason: "Bağımsız bölüm ve arsa payı kayıtları" },
+    // Görevlendirmeler: atama yalnızca yöneticinindir (sunucu da denetler); denetçi okur.
+    { prefix: "/dashboard/roles", roles: MANAGEMENT_AND_AUDIT, reason: "Yönetim görevlendirmeleri" },
 
     // Operasyonel ekranlar: görevli personel de kullanır.
     { prefix: "/dashboard/meters", roles: MANAGEMENT_AND_STAFF, reason: "Sayaç okuma" },

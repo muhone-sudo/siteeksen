@@ -310,3 +310,12 @@ export interface DashboardStats {
     totalResidents?: number; totalUnits?: number; pendingRequests?: number; period?: string;
     monthlyIncome?: number; monthlyAssessed?: number; collectionRate?: number;
 }
+
+/** Site görevlendirmesi (property_roles). */
+export interface SiteRole {
+    id: Id; user_id: Id; first_name: string; last_name: string; phone: string; role: string;
+    valid_from: string; valid_to?: string; decision_ref: string; active: boolean; granted_by_name: string; granted_at: string;
+}
+export interface GrantRoleInput {
+    phone: string; role: string; decision_ref?: string; valid_from?: string; valid_to?: string; first_name?: string; last_name?: string;
+}

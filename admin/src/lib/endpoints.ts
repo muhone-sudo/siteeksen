@@ -47,6 +47,9 @@ export function endpoints(http: Http) {
             updateResident: (id: string, b: { role?: string; is_active?: boolean }) => http.patch<T.Resident>(`/residents/${id}`, b),
             issueActivationCode: (id: string) => http.post<T.Activation>(`/residents/${id}/activation-code`),
             invitations: () => g<T.List<T.Invitation>>("/residents/invitations"),
+            siteRoles: () => g<T.List<T.SiteRole>>("/property-roles"),
+            grantRole: (b: T.GrantRoleInput) => http.post<{ role: T.SiteRole; activation?: T.Activation; note?: string }>("/property-roles", b),
+            endRole: (id: string) => http.post<{ role: T.SiteRole; note?: string }>(`/property-roles/${id}/end`),
             cancelInvitation: (id: string) => http.post<T.Invitation>(`/residents/invitations/${id}/cancel`),
             changePassword: (current_password: string, new_password: string) =>
                 http.post<Msg>("/users/me/password", { current_password, new_password }),
@@ -282,6 +285,7 @@ export const READS: { path: string; keys: string[]; list?: boolean }[] = [
     { path: "/dashboard/recent-requests", keys: ["data"] },
     { path: "/residents", keys: ["id", "first_name", "last_name", "phone", "unit", "role", "is_active"], list: true },
     { path: "/residents/invitations", keys: ["data"] },
+    { path: "/property-roles", keys: ["id", "role", "first_name", "active", "decision_ref"], list: true },
     { path: "/units", keys: ["id", "block", "door_number", "share_ratio"], list: true },
     { path: "/finance/assessments/overview", keys: ["period", "total_amount", "collected_amount", "rate"], list: true },
     { path: "/finance/debtors", keys: ["unit_id", "resident_id", "name", "unit", "amount"], list: true },

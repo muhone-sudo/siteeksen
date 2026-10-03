@@ -22,6 +22,7 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
   `POST /property-roles/:id/end`: yalnızca yönetici atar; yönetici/kurul/denetçi için karar bilgisi
   zorunlu (KMK m.34/41); bağsız hesaba görev verilmez; görev sonlandırılınca kişinin oturumları hemen
   kapanır; sitenin tek yöneticisi sonlandırılamaz (eşzamanlı sonlandırmaya karşı kilitli); geçmiş silinmez.
+  Panel: "Görevlendirmeler" sayfası (liste, görev ver, sonlandır; sözleşme denetimi 63 uç).
 - **Saat dilimi hiçbir yerde ayarlı değildi:** veritabanı "bugün"ü UTC ile, Go süreçleri yerel saatle
   hesaplıyordu; Türkiye'de her gece 00:00–03:00 arasında farklı gün görüyorlardı (bugün başlayan görev
   "yarın başlıyor" sayıldı). Artık `pkg/database` Go sürecini ve her veritabanı oturumunu `APP_TIMEZONE`
