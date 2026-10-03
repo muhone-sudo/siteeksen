@@ -632,6 +632,23 @@ yaygınlaştırılmasına kayıyor.
 
 # İnceleme notları
 
+## 2026-10-03 — Anahtar döndürme, para doğruluğu ve güvenlik turu (otonom)
+
+**Doğrulama (son durum):** `verify-stack.sh` **1042/1042**, `verify-mobile.sh` **10/10**
+(sakin 24, yönetici 26 test), panel `tsc` + `lint` + `build` temiz. Her madde ayrı commit.
+
+**Yapılan:** PII anahtar halkası + `cmd/rotate-pii` (todo 8); sakin bakiyesi herkes için 0'dı
+(030); borçlu listesi daire bazlı (B55); çift bekleyen ödeme (4.5); tahsilat oranı kayan nokta
+(B54); ödeme listesi ödemenin sitesine bağlı (B56) ve sayfalı (B69); tahakkuk dağıtımı kuruş +
+sayaç kalemi sessiz dağıtımı (4.4/B70); **yetki yükseltme: daire bağı rolü jetona doğrulanmadan
+giriyordu (031)**; başka sitenin hesabını sessizce bağlama (B25); talep `unit_id` (B63), talep/sakin
+yarışları (B65), talep numarası çakışması (B71), tip dönüşümü panic (B75); okuma kaydı kanıtı (3.4);
+mobil: release manifestinde INTERNET izni yoktu, belge açma, analiz uyarıları sıfır (0.C.6),
+yönetici menüsü fail-closed (B26); sahte testler kaldırıldı (B96); 37 MB ikili depodan çıkarıldı.
+
+**Kullanıcı kararı bekleyen:** S-19 (vault/KMS), S-20 (başka sitedeki kişiyi davetle ekleme),
+`servicecore-api-doc/` klasörünün amacı, `ios/` için paket kimliği, git push kimlik bilgisi.
+
 ## 2026-09-13 — Dürüstlük tamamlandı, güvenlik ve yönetişim turu
 
 **Yapılan:** `questions.md`'deki 18 sorunun tamamı yanıtlandıktan sonra kararlar
