@@ -734,7 +734,13 @@ func (r *FinanceRepository) ListDebtors(ctx context.Context, propertyID string) 
 	return debtors, rows.Err()
 }
 
-// ListPropertyPayments sitedeki tüm sakinlerin ödeme kayıtlarını listeler (yönetim görünümü)
+// ListPropertyPayments sitedeki ödeme kayıtlarını listeler (yönetim görünümü).
+//
+// DÜZELTME (2026-10-03, B56): ödemeler, ödeyenin BUGÜNKÜ site üyeliğine göre
+// süzülüyordu: siteden taşınan sakinin geçmiş ödemeleri yönetici listesinden
+// kayboluyor, daire de sakinin rastgele bir dairesinden (`LIMIT 1`, sırasız)
+// gösteriliyordu. Ödemenin kendi sitesi (`payments.property_id`, 023) ve
+// dairesi (`payments.unit_id`) kullanılır.
 func (r *FinanceRepository) ListPropertyPayments(ctx context.Context, propertyID string) ([]models.PropertyPayment, error) {
 	query := `
 		SELECT p.id, p.user_id, p.amount, p.payment_method, p.status, COALESCE(p.transaction_id, ''),
@@ -743,16 +749,8 @@ func (r *FinanceRepository) ListPropertyPayments(ctx context.Context, propertyID
 		       COALESCE(COALESCE(un.block, '') || ' Blok D.' || un.door_number, '')
 		FROM payments p
 		JOIN users u ON u.id = p.user_id
-		LEFT JOIN units un ON un.id = (
-			SELECT ru.unit_id FROM resident_units ru
-			WHERE ru.resident_id = u.id AND ru.is_active = true
-			LIMIT 1
-		)
-		WHERE p.deleted = 0 AND EXISTS (
-			SELECT 1 FROM resident_units ru2
-			JOIN units un2 ON un2.id = ru2.unit_id
-			WHERE ru2.resident_id = u.id AND ru2.is_active = true AND un2.property_id = $1
-		)
+		LEFT JOIN units un ON un.id = p.unit_id
+		WHERE p.deleted = 0 AND p.property_id = $1
 		ORDER BY p.created_at DESC
 		LIMIT 50
 	`

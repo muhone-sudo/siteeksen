@@ -767,6 +767,21 @@ print("ok" if Decimal(str(row["rate"])) == want and row["status"] == st else "fa
     $PSQL -c "UPDATE monthly_assessments SET paid_amount=1199.99, status='PARTIAL' WHERE id='$ASSESS';" >/dev/null
     rate_check
 
+    # B56 Site ödeme listesi ödemenin KENDİ sitesine bağlı olmalı. Önceden ödeyenin
+    # bugünkü üyeliğine bakılıyordu: siteden ayrılan sakinin geçmiş ödemeleri kayboluyordu.
+    PAYUNIT=$($PSQL -t -A -c "SELECT COALESCE(block,'') || ' Blok D.' || door_number FROM units WHERE id='$A3UNIT';")
+    MYRU=$($PSQL -t -A -c "SELECT string_agg(id::text, ',') FROM resident_units WHERE resident_id='$MGRID' AND is_active;")
+    $PSQL -c "UPDATE resident_units SET is_active=false WHERE id = ANY(string_to_array('$MYRU', ',')::uuid[]);" >/dev/null
+    curl -s -H "Authorization: Bearer $MGR" "http://127.0.0.1:${FINPORT}/api/v1/finance/payments" >/tmp/verify-proppay.json
+    $PSQL -c "UPDATE resident_units SET is_active=true WHERE id = ANY(string_to_array('$MYRU', ',')::uuid[]);" >/dev/null
+    PP=$(python3 -c 'import json,sys
+d=json.load(open("/tmp/verify-proppay.json")).get("data") or []
+r=[x for x in d if x.get("id")==sys.argv[1]]
+print(r[0].get("unit","") if r else "YOK")' "$PAYID")
+    [ "$PP" = "$PAYUNIT" ] \
+      && ok "siteden ayrılan sakinin ödemesi yönetici listesinde kalıyor, ödemenin dairesiyle ($PP)" \
+      || bad "site ödeme listesi: '$PP' ('$PAYUNIT' bekleniyordu)"
+
     # Geri al: betik tekrar çalıştırılabilir kalsın
     $PSQL -c "UPDATE monthly_assessments SET paid_amount=0, status='PENDING' WHERE id='$ASSESS';" >/dev/null 2>&1
   fi

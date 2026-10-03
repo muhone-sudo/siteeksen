@@ -12,6 +12,15 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-03 — SİTE ÖDEME LİSTESİ ÖDEMENİN KENDİ SİTESİNE BAĞLI (B56, roadmap 4.8) (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **1026/1026**; §10: ödeyenin site üyeliği pasifleşince ödeme
+> yönetici listesinde kalıyor ve ödemenin dairesiyle (A Blok D.3) gösteriliyor.
+
+- Liste ödeyenin **bugünkü** üyeliğine göre süzülüyordu: siteden taşınan sakinin geçmiş ödemeleri
+  yönetici listesinden kayboluyor, daire sakinin rastgele bir dairesinden (`LIMIT 1`, sırasız)
+  geliyordu. Artık `payments.property_id` (023) ve `payments.unit_id`.
+
 ### 2026-10-03 — TAHSİLAT ORANI KAYAN NOKTA HATASI (B54, roadmap 4.6) (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **1025/1025**; §10: oran ve durum bağımsız `Decimal` hesabıyla

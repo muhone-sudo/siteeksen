@@ -184,7 +184,7 @@ denemesi otomatik testte başarısız olur.
 | 4.5 | Ödeme idempotency (`Idempotency-Key`) | `[D4]` 2026-10-03 — aynı tahakkuk için ikinci PENDING ödeme 409 (kilit altında denetim), verify §10. `Idempotency-Key` başlığı yok; sağlayıcı (S-06) gelince webhook için gerekir | B48 |
 | 4.6 | `CalculateTotalAmount`'a `deleted = 0`; tahsilat oranı kesme hatası | `[D4]` 2026-10-03 — oran SQL numeric, tek ondalık aşağı; 348/1200 → %29,0 (eski %28), 1199,99/1200 → %99,9 active; verify §10 | B53, B54 |
 | 4.7 | `ListDebtors`'ı daire bazlı yap (kiracılı/boş daireler de görünsün) | `[D4]` 2026-10-03, verify §10 (hisseli daire tek satır, maliksiz daire görünür) | B55 |
-| 4.8 | `ListPropertyPayments` tenant filtresini ödeme üzerinden kur | `[D0]` | B56 |
+| 4.8 | `ListPropertyPayments` tenant filtresini ödeme üzerinden kur | `[D4]` 2026-10-03 — `payments.property_id`/`unit_id`; ayrılan sakinin ödemesi listede kalıyor, verify §10 | B56 |
 | 4.9 | Gecikme tazminatı (KMK m.20/2, aylık %5 — **parametrik**) | `[D4]` `legal_parameters`, verify §10 | B52, S-05 |
 | 4.10 | Mobil ödeme ekranını gerçek API'ye bağla ya da kaldır | `[D4]` todo 0.C.1 | B49 |
 | 4.11 | Ödeme sağlayıcısı adaptörü (port/adapter, sandbox-stub ile) | `[BLOKE]` S-06 | C.4 |
