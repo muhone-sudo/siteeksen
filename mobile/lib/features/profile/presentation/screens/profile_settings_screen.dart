@@ -125,7 +125,7 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
         const SectionTitle(title: 'Yasal'),
         _buildLegal(),
         _buildLogoutButton(),
-        Center(
+        const Center(
           child: Text('SiteEksen v1.0.0',
               style: TextStyle(fontSize: 13, color: AppleTheme.tertiaryLabel)),
         ),
@@ -160,7 +160,7 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
           for (final p in _properties.whereType<Map>())
             Text(
               [p['property_name'], p['unit_name']].where((v) => v != null && '$v'.isNotEmpty).join(' · '),
-              style: TextStyle(fontSize: 15, color: AppleTheme.secondaryLabel),
+              style: const TextStyle(fontSize: 15, color: AppleTheme.secondaryLabel),
             ),
         ],
       ),
@@ -201,7 +201,7 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
         children: [
           SwitchListTile(
             title: const Text('Biyometrik Giriş', style: TextStyle(fontSize: 16)),
-            subtitle: Text(
+            subtitle: const Text(
               'Parmak izi veya Face ID ile giriş (bu cihazda saklanır)',
               style: TextStyle(fontSize: 13, color: AppleTheme.secondaryLabel),
             ),
@@ -309,14 +309,14 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
                 e.key == 'IN_APP'
                     ? 'Aidat, duyuru, kargo gibi hizmet bildirimleri'
                     : 'Sağlayıcı henüz bağlı değil; açık olsa da bildirim kuyrukta bekler',
-                style: TextStyle(fontSize: 13, color: AppleTheme.secondaryLabel),
+                style: const TextStyle(fontSize: 13, color: AppleTheme.secondaryLabel),
               ),
               value: _prefValue(e.key, 'TRANSACTIONAL'),
               onChanged: (v) => _setPref(e.key, 'TRANSACTIONAL', v),
             ),
           SwitchListTile(
             title: const Text('Tanıtım ve kampanya iletileri', style: TextStyle(fontSize: 16)),
-            subtitle: Text(
+            subtitle: const Text(
               'Açarsanız ticari elektronik ileti almaya onay vermiş olursunuz (6563 s. Kanun m.6). '
               'İstediğiniz zaman kapatabilirsiniz.',
               style: TextStyle(fontSize: 13, color: AppleTheme.secondaryLabel),

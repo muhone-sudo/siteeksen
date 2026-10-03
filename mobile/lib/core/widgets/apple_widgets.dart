@@ -40,14 +40,15 @@ class _ServiceCardState extends State<ServiceCard> {
       child: AnimatedContainer(
         duration: AppleTheme.fastAnimation,
         curve: AppleTheme.defaultCurve,
-        transform: Matrix4.identity()..scale(_isPressed ? 0.95 : 1.0),
+        transform: Matrix4.identity()
+          ..scaleByDouble(_isPressed ? 0.95 : 1.0, _isPressed ? 0.95 : 1.0, 1.0, 1.0),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(_isPressed ? 0.08 : 0.04),
+              color: Colors.black.withValues(alpha: _isPressed ? 0.08 : 0.04),
               blurRadius: _isPressed ? 15 : 10,
               offset: Offset(0, _isPressed ? 4 : 2),
             ),
@@ -60,7 +61,7 @@ class _ServiceCardState extends State<ServiceCard> {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: widget.color.withOpacity(0.12),
+                color: widget.color.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(widget.icon, color: widget.color, size: 24),
@@ -73,7 +74,7 @@ class _ServiceCardState extends State<ServiceCard> {
             if (widget.subtitle != null)
               Text(
                 widget.subtitle!,
-                style: TextStyle(fontSize: 13, color: AppleTheme.secondaryLabel),
+                style: const TextStyle(fontSize: 13, color: AppleTheme.secondaryLabel),
               ),
           ],
         ),
@@ -112,7 +113,7 @@ class BalanceCard extends StatelessWidget {
             children: [
               Text(
                 title,
-                style: TextStyle(fontSize: 15, color: AppleTheme.secondaryLabel),
+                style: const TextStyle(fontSize: 15, color: AppleTheme.secondaryLabel),
               ),
               if (action != null) action!,
             ],
@@ -131,7 +132,7 @@ class BalanceCard extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               subtitle!,
-              style: TextStyle(fontSize: 13, color: AppleTheme.tertiaryLabel),
+              style: const TextStyle(fontSize: 13, color: AppleTheme.tertiaryLabel),
             ),
           ],
         ],
@@ -170,7 +171,7 @@ class NotificationCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: (color ?? AppleTheme.systemBlue).withOpacity(0.12),
+                color: (color ?? AppleTheme.systemBlue).withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(icon, color: color ?? AppleTheme.systemBlue, size: 20),
@@ -181,12 +182,12 @@ class NotificationCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
-                  Text(message, style: TextStyle(fontSize: 14, color: AppleTheme.secondaryLabel), maxLines: 2, overflow: TextOverflow.ellipsis),
+                  Text(message, style: const TextStyle(fontSize: 14, color: AppleTheme.secondaryLabel), maxLines: 2, overflow: TextOverflow.ellipsis),
                 ],
               ),
             ),
             const SizedBox(width: 8),
-            Text(time, style: TextStyle(fontSize: 12, color: AppleTheme.tertiaryLabel)),
+            Text(time, style: const TextStyle(fontSize: 12, color: AppleTheme.tertiaryLabel)),
           ],
         ),
       ),
@@ -245,7 +246,7 @@ class QuickActionButton extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: color.withOpacity(0.12),
+                color: color.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Icon(icon, color: color, size: 28),
@@ -297,7 +298,7 @@ class ListItem extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: (iconColor ?? AppleTheme.systemBlue).withOpacity(0.12),
+                    color: (iconColor ?? AppleTheme.systemBlue).withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Icon(icon, color: iconColor ?? AppleTheme.systemBlue, size: 20),
@@ -309,14 +310,14 @@ class ListItem extends StatelessWidget {
                     children: [
                       Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
                       if (subtitle != null)
-                        Text(subtitle!, style: TextStyle(fontSize: 14, color: AppleTheme.secondaryLabel)),
+                        Text(subtitle!, style: const TextStyle(fontSize: 14, color: AppleTheme.secondaryLabel)),
                     ],
                   ),
                 ),
                 if (trailing != null)
                   trailing!
                 else
-                  Icon(Icons.chevron_right_rounded, color: AppleTheme.systemGray3),
+                  const Icon(Icons.chevron_right_rounded, color: AppleTheme.systemGray3),
               ],
             ),
           ),

@@ -66,7 +66,7 @@ class _AddResidentScreenState extends State<AddResidentScreen> {
                 padding: const EdgeInsets.all(16),
                 children: [
                   DropdownButtonFormField<String>(
-                    value: _selectedUnitId,
+                    initialValue: _selectedUnitId,
                     decoration: const InputDecoration(labelText: 'Daire Seçin *'),
                     items: _units
                         .map((u) => u as Map<String, dynamic>)
@@ -111,7 +111,7 @@ class _AddResidentScreenState extends State<AddResidentScreen> {
 
                   DropdownButtonFormField<String>(
                     decoration: const InputDecoration(labelText: 'Oturum Tipi'),
-                    value: _role,
+                    initialValue: _role,
                     items: _roleLabels.entries
                         .map((e) => DropdownMenuItem(value: e.key, child: Text(e.value)))
                         .toList(),

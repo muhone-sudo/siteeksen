@@ -47,11 +47,13 @@ for APP in mobile admin_app; do
   fi
 
   # Hata ve uyarılar kapıdır; bilgi (info) düzeyi henüz temizlenmedi (todo 0.C.6).
-  if flutter analyze --no-fatal-infos >/tmp/verify-analyze-$APP.log 2>&1; then
-    ok "$APP: flutter analyze (hata/uyarı yok)"
+  # Bilgi (info) düzeyi de kapıdır (2026-10-03, 0.C.6): iki uygulamada sıfıra indirildi;
+  # yeni bir kullanımdan kalkmış API ya da eksik const yeniden birikmesin.
+  if flutter analyze >/tmp/verify-analyze-$APP.log 2>&1; then
+    ok "$APP: flutter analyze (hata/uyarı/bilgi yok)"
   else
     bad "$APP: flutter analyze"
-    grep -E "error •|warning •" /tmp/verify-analyze-$APP.log | head -10 | sed 's/^/      /'
+    grep -E "error •|warning •|info •" /tmp/verify-analyze-$APP.log | head -10 | sed 's/^/      /'
   fi
 
   if flutter test >/tmp/verify-test-$APP.log 2>&1; then

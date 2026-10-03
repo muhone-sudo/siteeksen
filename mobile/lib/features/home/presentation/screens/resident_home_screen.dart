@@ -169,7 +169,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen> {
                 ),
                 Text(
                   (_user?['email'] as String?) ?? (_user?['phone'] as String?) ?? '',
-                  style: TextStyle(fontSize: 15, color: AppleTheme.secondaryLabel),
+                  style: const TextStyle(fontSize: 15, color: AppleTheme.secondaryLabel),
                 ),
               ],
             ),

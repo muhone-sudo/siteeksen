@@ -15,8 +15,8 @@ class BankIntegrationScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Banka')),
       body: ListView(
-        children: [
-          const NotImplementedNotice(
+        children: const [
+          NotImplementedNotice(
             title: 'Banka entegrasyonu bu sürümde yok',
             detail: 'Hesap hareketlerinin otomatik çekilmesi ve aidat eşlemesi sonraki sürüme bırakıldı (karar S-07). Havale/EFT ile gelen ödemeleri Finans > Onay bekleyen ödemeler ekranından elle onaylayın.',
           ),

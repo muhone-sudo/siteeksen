@@ -15,8 +15,8 @@ class ReportsScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Raporlar')),
       body: ListView(
-        children: [
-          const NotImplementedNotice(
+        children: const [
+          NotImplementedNotice(
             title: 'Rapor üretimi henüz yok',
             detail: 'PDF/Excel rapor üretimi sunucuda yazılmadı. Tahakkuk/tahsilat özeti için Finans, gider dökümü için Giderler ve karar kayıtları için Yönetişim ekranlarını kullanın.',
           ),

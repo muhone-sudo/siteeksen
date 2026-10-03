@@ -99,7 +99,7 @@ class _AppleCardState extends State<AppleCard> with SingleTickerProviderStateMix
             boxShadow: widget.showShadow
                 ? [
                     BoxShadow(
-                      color: Colors.black.withOpacity(_isPressed ? 0.08 : 0.05),
+                      color: Colors.black.withValues(alpha: _isPressed ? 0.08 : 0.05),
                       blurRadius: _isPressed ? 8 : 12,
                       offset: Offset(0, _isPressed ? 2 : 4),
                     ),
@@ -156,7 +156,7 @@ class AppleStatCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.1),
+                  color: color.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(icon, color: color, size: 22),
@@ -166,8 +166,8 @@ class AppleStatCard extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: trendUp 
-                        ? AppleTheme.systemGreen.withOpacity(0.1)
-                        : AppleTheme.systemRed.withOpacity(0.1),
+                        ? AppleTheme.systemGreen.withValues(alpha: 0.1)
+                        : AppleTheme.systemRed.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Row(
@@ -204,7 +204,7 @@ class AppleStatCard extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             title,
-            style: TextStyle(
+            style: const TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.w500,
               color: AppleTheme.secondaryLabel,
@@ -214,7 +214,7 @@ class AppleStatCard extends StatelessWidget {
             const SizedBox(height: 2),
             Text(
               subtitle!,
-              style: TextStyle(
+              style: const TextStyle(
                 fontSize: 13,
                 color: AppleTheme.tertiaryLabel,
               ),
@@ -290,7 +290,7 @@ class _AppleListTileState extends State<AppleListTile> {
                           const SizedBox(height: 2),
                           Text(
                             widget.subtitle!,
-                            style: TextStyle(
+                            style: const TextStyle(
                               fontSize: 15,
                               color: AppleTheme.secondaryLabel,
                             ),
@@ -302,7 +302,7 @@ class _AppleListTileState extends State<AppleListTile> {
                   if (widget.trailing != null) widget.trailing!,
                   if (widget.showChevron && widget.onTap != null) ...[
                     const SizedBox(width: 8),
-                    Icon(
+                    const Icon(
                       Icons.chevron_right_rounded,
                       color: AppleTheme.systemGray3,
                       size: 22,
@@ -348,7 +348,7 @@ class AppleSectionHeader extends StatelessWidget {
         children: [
           Text(
             title.toUpperCase(),
-            style: TextStyle(
+            style: const TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w600,
               color: AppleTheme.secondaryLabel,
@@ -360,7 +360,7 @@ class AppleSectionHeader extends StatelessWidget {
               onTap: onAction,
               child: Text(
                 action!,
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 15,
                   fontWeight: FontWeight.w600,
                   color: AppleTheme.systemBlue,
@@ -401,11 +401,11 @@ class AppleSearchBar extends StatelessWidget {
         onChanged: onChanged,
         decoration: InputDecoration(
           hintText: placeholder,
-          hintStyle: TextStyle(color: AppleTheme.systemGray),
-          prefixIcon: Icon(Icons.search, color: AppleTheme.systemGray),
+          hintStyle: const TextStyle(color: AppleTheme.systemGray),
+          prefixIcon: const Icon(Icons.search, color: AppleTheme.systemGray),
           suffixIcon: controller != null && controller!.text.isNotEmpty
               ? IconButton(
-                  icon: Icon(Icons.cancel, color: AppleTheme.systemGray3, size: 20),
+                  icon: const Icon(Icons.cancel, color: AppleTheme.systemGray3, size: 20),
                   onPressed: () {
                     controller?.clear();
                     onClear?.call();
@@ -488,7 +488,7 @@ class _AppleFABState extends State<AppleFAB> with SingleTickerProviderStateMixin
             borderRadius: BorderRadius.circular(widget.label != null ? 25 : 16),
             boxShadow: [
               BoxShadow(
-                color: (widget.backgroundColor ?? AppleTheme.systemBlue).withOpacity(0.3),
+                color: (widget.backgroundColor ?? AppleTheme.systemBlue).withValues(alpha: 0.3),
                 blurRadius: 12,
                 offset: const Offset(0, 4),
               ),
@@ -544,7 +544,7 @@ class AppleEmptyState extends StatelessWidget {
           children: [
             Container(
               padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
+              decoration: const BoxDecoration(
                 color: AppleTheme.systemGray6,
                 shape: BoxShape.circle,
               ),
@@ -567,7 +567,7 @@ class AppleEmptyState extends StatelessWidget {
               const SizedBox(height: 8),
               Text(
                 subtitle!,
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 17,
                   color: AppleTheme.secondaryLabel,
                 ),
@@ -580,7 +580,7 @@ class AppleEmptyState extends StatelessWidget {
                 onPressed: onAction,
                 child: Text(
                   actionText!,
-                  style: TextStyle(
+                  style: const TextStyle(
                     fontSize: 17,
                     fontWeight: FontWeight.w600,
                     color: AppleTheme.systemBlue,

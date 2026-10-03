@@ -418,8 +418,10 @@ Backend'e dokunan her değişiklikten sonra çalıştırılır.
 - [x] **[D4] 0.C.5 🟠 Yanlış güvence metni kaldırıldı** *(B85)*
       `api_settings_screen` "şifrelenmiş saklanır, her değişiklik kayıt altındadır" derken
       ekranın tamamı mock'tu ve 7 entegrasyon "aktif" görünüyordu. Gerçek duruma çevrildi.
-- [ ] **0.C.6 🟡 `flutter analyze` bilgi (info) düzeyi uyarıları** — iki uygulamada ~450
-      `prefer_const` / `withOpacity` uyarısı. CI'da kapı DEĞİL (`--no-fatal-infos`).
+- [x] **[D4] 0.C.6 `flutter analyze` bilgi (info) uyarıları sıfırlandı (2026-10-03)** — kalan 63
+      uyarı (`prefer_const`, `withOpacity`, `Matrix4.scale`, `Radio.groupValue` → `RadioGroup`)
+      giderildi; info düzeyi artık verify-mobile ve CI'da KAPI (`--no-fatal-infos` kaldırıldı).
+      **Kanıt:** `verify-mobile.sh` → 8/8, iki uygulamada "hata/uyarı/bilgi yok".
 
 ## 0.D — Hukuki metinler — tamamlandı
 
@@ -493,7 +495,7 @@ Ayrıntı: `tasks/roadmap.md`
 | FAZ 0 | Dürüstlük onarımı | **Tamamlandı** — uydurma veri ve sahte başarı mesajı kalmadı |
 | FAZ 1 | Kurulabilirlik — migration çalıştırıcı, idempotency, portlar, CI | **Tamamlandı** (1.6: geri alma yedekten geri yükleme ile, 2026-09-27) |
 | FAZ 2 | Kimlik/yetki/izolasyon | **Tamamlandı (2026-09-14)** — gateway auth, site bazlı roller, sahiplik doğrulaması, RBAC, **jeton iptali (2.7)**, **TCKN/IBAN şifrelemesi (2.8)**, **RLS birinci dilimi (2.6)**. RLS kalan tablolara servis servis genişletilecek |
-| FAZ 3 | Denetim izi + gözlemlenebilirlik | Çalışıyor. Hassas veri okuma logu (3.4) **belgeler için yapıldı** (`document_access_logs`); diğer hassas uçlar ve yapılandırılmış log (3.5) kaldı |
+| FAZ 3 | Denetim izi + gözlemlenebilirlik | **Tamamlandı (2026-10-03).** Okuma kaydı (3.4) ve yapılandırılmış log (3.5) uçtan uca sınanıyor |
 | FAZ 4 | Para doğruluğu | **Çekirdek tamam** — ödeme borçtan düşüyor, kuruş dağıtımı, gecikme tazminatı. Kalan: bakiye testi (4.12), tam kuruş göçü (4.13) |
 | FAZ 5 | 22 mock servisi gerçeğe çevirme | **TAMAMLANDI (2026-09-14)** — 20 servis gerçek veri katmanında; 2 servis (banka, toplantı sihirbazı) gerekçeli kapsam kararıyla 501 |
 | FAZ 6 | Yönetişim katmanı (KMK) | **Çekirdek tamam** — işletme projesi, genel kurul, defterler, icra. Kalan: arayüzler (6.7) |

@@ -12,6 +12,13 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-03 — MOBİL: ANALİZ UYARILARI SIFIR, BİLGİ DÜZEYİ KAPI OLDU (0.C.6) (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-mobile.sh` → **8/8** (sakin 17, yönetici 21 test; analyze "hata/uyarı/bilgi yok").
+
+- 63 bilgi uyarısı giderildi (`dart fix` + elle: `Matrix4.scaleByDouble`, ödeme yöntemi seçimi
+  `RadioGroup`'a taşındı). `--no-fatal-infos` verify-mobile ve CI'dan kaldırıldı.
+
 ### 2026-10-03 — HASSAS VERİ OKUMA KAYDI KANITLANDI (3.4) (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **1019/1019** (§31'e 3 kontrol).

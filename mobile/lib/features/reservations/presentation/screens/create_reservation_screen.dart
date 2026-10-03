@@ -153,7 +153,7 @@ class _CreateReservationScreenState extends State<CreateReservationScreen> {
           if ((_facility['rules'] ?? '').toString().isNotEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Text('Kurallar: ${_facility['rules']}', style: TextStyle(color: AppleTheme.secondaryLabel)),
+              child: Text('Kurallar: ${_facility['rules']}', style: const TextStyle(color: AppleTheme.secondaryLabel)),
             ),
           const SectionTitle(title: 'Tarih'),
           SizedBox(
@@ -206,7 +206,7 @@ class _CreateReservationScreenState extends State<CreateReservationScreen> {
             Padding(
               padding: const EdgeInsets.all(16),
               child: Text('Ücret: ${formatTry(fee)}/saat. Uygulamada tahsilat yapılmaz; ödeme yönetimle yapılır.',
-                  style: TextStyle(color: AppleTheme.secondaryLabel)),
+                  style: const TextStyle(color: AppleTheme.secondaryLabel)),
             ),
         ],
       ),

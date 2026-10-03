@@ -163,7 +163,7 @@ jobs:
       # bkz. tasks/todo.md 0.C.6.
       - name: Analyze
         working-directory: ./${{ matrix.app }}
-        run: flutter analyze --no-fatal-infos
+        run: flutter analyze   # info düzeyi de kapı (0.C.6)
 
       - name: Test
         working-directory: ./${{ matrix.app }}

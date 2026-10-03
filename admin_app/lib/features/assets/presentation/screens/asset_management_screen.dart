@@ -124,7 +124,7 @@ class _AssetManagementScreenState extends State<AssetManagementScreen> {
               padding: const EdgeInsets.only(top: 8),
               child: Text(
                 '${_assets.length - valued} kaydın değeri girilmemiş; toplam eksik olabilir.',
-                style: TextStyle(fontSize: 12, color: AppleTheme.systemOrange),
+                style: const TextStyle(fontSize: 12, color: AppleTheme.systemOrange),
               ),
             ),
           const SizedBox(height: 16),
@@ -141,7 +141,7 @@ class _AssetManagementScreenState extends State<AssetManagementScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: TextStyle(fontSize: 12, color: AppleTheme.secondaryLabel)),
+          Text(label, style: const TextStyle(fontSize: 12, color: AppleTheme.secondaryLabel)),
           const SizedBox(height: 6),
           Text(value, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: color)),
         ],
@@ -162,7 +162,7 @@ class _AssetManagementScreenState extends State<AssetManagementScreen> {
               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
           if (a['location'] != null)
             Text(a['location'].toString(),
-                style: TextStyle(fontSize: 13, color: AppleTheme.secondaryLabel)),
+                style: const TextStyle(fontSize: 13, color: AppleTheme.secondaryLabel)),
           const SizedBox(height: 6),
           Row(
             children: [
@@ -172,7 +172,7 @@ class _AssetManagementScreenState extends State<AssetManagementScreen> {
               const Spacer(),
               if (warranty != null)
                 Text('Garanti: ${formatDate(warranty)}',
-                    style: TextStyle(fontSize: 12, color: AppleTheme.tertiaryLabel)),
+                    style: const TextStyle(fontSize: 12, color: AppleTheme.tertiaryLabel)),
             ],
           ),
         ],

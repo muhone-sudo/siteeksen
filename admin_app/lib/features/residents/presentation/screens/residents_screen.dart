@@ -193,7 +193,7 @@ class _StatChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
@@ -230,7 +230,7 @@ class _ResidentCard extends StatelessWidget {
           child: Row(
             children: [
               CircleAvatar(
-                backgroundColor: AppTheme.primaryColor.withOpacity(0.1),
+                backgroundColor: AppTheme.primaryColor.withValues(alpha: 0.1),
                 child: Text(
                   name.isNotEmpty ? name.substring(0, 1) : '?',
                   style: const TextStyle(color: AppTheme.primaryColor),
@@ -249,7 +249,7 @@ class _ResidentCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: (isActive ? AppTheme.successColor : AppTheme.textSecondary).withOpacity(0.1),
+                  color: (isActive ? AppTheme.successColor : AppTheme.textSecondary).withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(

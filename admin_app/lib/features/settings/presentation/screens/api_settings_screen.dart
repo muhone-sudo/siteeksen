@@ -15,8 +15,8 @@ class APISettingsScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('API Anahtarları')),
       body: ListView(
-        children: [
-          const NotImplementedNotice(
+        children: const [
+          NotImplementedNotice(
             title: 'Kimlik bilgisi kasası yok',
             detail: 'Üçüncü taraf API anahtarlarının güvenli saklanması (kasa, döndürme) henüz kurulmadı. Anahtarlar sunucu tarafında ortam değişkeniyle verilir; uygulamadan girilmez ve gösterilmez.',
           ),

@@ -145,7 +145,7 @@ class _DuesPaymentScreenState extends State<DuesPaymentScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Toplam Borç',
+              const Text('Toplam Borç',
                   style: TextStyle(fontSize: 15, color: AppleTheme.secondaryLabel)),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -173,7 +173,7 @@ class _DuesPaymentScreenState extends State<DuesPaymentScreen> {
           if (overdueMonths > 0) ...[
             const SizedBox(height: 4),
             Text('$overdueMonths ay gecikmiş ödeme var',
-                style: TextStyle(fontSize: 14, color: AppleTheme.tertiaryLabel)),
+                style: const TextStyle(fontSize: 14, color: AppleTheme.tertiaryLabel)),
           ],
         ],
       ),
@@ -247,7 +247,7 @@ class _DuesPaymentScreenState extends State<DuesPaymentScreen> {
                     style: const TextStyle(fontWeight: FontWeight.w600)),
                 if (lateFee > 0)
                   Text('Gecikme tazminatı dahil: ${formatTry(lateFee)}',
-                      style: TextStyle(
+                      style: const TextStyle(
                           fontSize: 12, color: AppleTheme.tertiaryLabel)),
               ],
             ),
@@ -276,18 +276,20 @@ class _DuesPaymentScreenState extends State<DuesPaymentScreen> {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       decoration: AppleTheme.cardDecoration,
-      child: Column(
-        children: [
-          for (var i = 0; i < _paymentMethods.length; i++)
-            RadioListTile<int>(
-              value: i,
-              groupValue: _selectedPaymentMethod,
-              onChanged: (v) => setState(() => _selectedPaymentMethod = v ?? 0),
-              title: Text(_paymentMethods[i].label),
-              secondary: Icon(_paymentMethods[i].icon,
-                  color: _paymentMethods[i].color),
-            ),
-        ],
+      child: RadioGroup<int>(
+        groupValue: _selectedPaymentMethod,
+        onChanged: (v) => setState(() => _selectedPaymentMethod = v ?? 0),
+        child: Column(
+          children: [
+            for (var i = 0; i < _paymentMethods.length; i++)
+              RadioListTile<int>(
+                value: i,
+                title: Text(_paymentMethods[i].label),
+                secondary: Icon(_paymentMethods[i].icon,
+                    color: _paymentMethods[i].color),
+              ),
+          ],
+        ),
       ),
     );
   }
