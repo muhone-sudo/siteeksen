@@ -75,7 +75,7 @@ Giriş kilidi: art arda 5 hatalı girişte hesap 15 dk kilitlenir (kilitliyken d
 | Uç | Rol | Gövde / Sorgu | Yanıt |
 |---|---|---|---|
 | `GET /requests` | herkes (M/A/S tüm site, diğer: kendi) | `status` | `{data:[{id,property_id,unit_id,resident_id,category_id,ticket_number,title,description,location,priority,status,photo_urls,resolved_at,closed_at,user_confirmed_at,created_at,updated_at}]}` |
-| `POST /requests` | herkes | `title`*,`description`*,`category_id`,`location`,`photos`[],`priority`(LOW/NORMAL/HIGH/URGENT) | 201 talep (`TLP-XXXXXXXX`, OPEN) |
+| `POST /requests` | herkes | `title`*,`description`*,`category_id`,`location`,`photos`[],`priority`(LOW/NORMAL/HIGH/URGENT),`unit_id` (çağıranın aktif dairesi; yoksa tek dairesi) | 201 talep (`TLP-XXXXXXXX`, OPEN) · başkasının dairesi 422 |
 | `PATCH /requests/:id/status` | M,A,S | `status`* (OPEN→IN_PROGRESS→RESOLVED) | talep · 400 geçersiz geçiş |
 | `POST /requests/:id/confirm-resolution` | talep sahibi | `approved` | talep (CLOSED / IN_PROGRESS) |
 | `GET /announcements` | herkes | `category`,`include_expired`(yönetim) | `{data:[{id,title,content,category,priority,is_pinned,published_at,expires_at,created_by_name,created_at,is_read,read_count?}]}` |

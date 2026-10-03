@@ -39,6 +39,10 @@ type CreateRequestInput struct {
 	Location    string   `json:"location"`
 	Photos      []string `json:"photos"`
 	Priority    string   `json:"priority"`
+	// UnitID isteğe bağlı: talebin ilgili olduğu daire. Verilirse çağıranın bu
+	// sitedeki aktif dairelerinden biri olmalıdır; verilmezse ve çağıranın tek
+	// dairesi varsa o kullanılır (B63).
+	UnitID string `json:"unit_id"`
 }
 
 // UpdateStatusInput yönetici talep durumu güncelleme isteği

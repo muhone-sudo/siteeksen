@@ -53,6 +53,11 @@ func CreateRequest(svc *service.RequestService) gin.HandlerFunc {
 
 		req, err := svc.Create(c.Request.Context(), userID, propertyID, input)
 		if err != nil {
+			if errors.Is(err, repository.ErrUnitNotYours) {
+				c.JSON(http.StatusUnprocessableEntity, gin.H{
+					"error": "Belirtilen daire bu sitedeki aktif daireleriniz arasında değil"})
+				return
+			}
 			if middleware.DBErrorResponse(c, err) {
 				return
 			}

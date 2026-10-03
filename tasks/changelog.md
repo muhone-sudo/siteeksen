@@ -12,6 +12,15 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-03 — TALEP KAYDINDA DAİRE YAZILIYOR (B63) (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **1031/1031**; tek daireli kiracının talebi dairesine bağlanıyor,
+> başkasının dairesi belirtilirse 422 ve kayıt yok.
+
+- `requests.unit_id` hiç yazılmıyordu; daire bazlı talep raporu yapılamıyordu. Artık isteğe bağlı
+  `unit_id` (çağıranın aktif dairesi olmak zorunda) ya da tek dairesi; birden çok dairesi olup
+  daire belirtmeyenin ve görevli/yöneticinin (ortak alan) talebi dairesiz kalır.
+
 ### 2026-10-03 — YÖNETİCİ UYGULAMASI MENÜSÜ FAIL-CLOSED (B26, roadmap 2.10) (DOĞRULANMIŞ, D3)
 
 > **Kanıt:** `verify-mobile.sh` → **10/10** (yönetici testleri 21 → 25, `nav_access_test.dart`).

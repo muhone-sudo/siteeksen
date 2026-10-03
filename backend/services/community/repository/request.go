@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -14,6 +15,9 @@ import (
 
 // ErrRequestNotFound talep bulunamadığında döner
 var ErrRequestNotFound = errors.New("talep bulunamadı")
+
+// ErrUnitNotYours talepte belirtilen daire çağıranın bu sitedeki aktif dairesi değil.
+var ErrUnitNotYours = errors.New("belirtilen daire size ait değil")
 
 // RequestRepository talep veritabanı işlemleri
 type RequestRepository struct {
@@ -114,18 +118,58 @@ func (r *RequestRepository) GetByID(ctx context.Context, propertyID, id string) 
 }
 
 // Create yeni talep oluşturur
+//
+// DAİRE (2026-10-03, B63): `unit_id` önceden HİÇ yazılmıyordu; daire bazlı talep
+// raporu ve "bu dairenin açık talepleri" sorusu yanıtlanamıyordu. Daire,
+// çağıranın bu sitedeki AKTİF dairelerinden çözülür (başkasının dairesine talep
+// bağlanamaz). Birden çok dairesi olan ve daire belirtmeyen ya da hiç dairesi
+// olmayan çağıranın (ortak alan bildiren görevli/yönetici) talebi dairesiz kalır.
 func (r *RequestRepository) Create(ctx context.Context, propertyID, residentID, ticketNumber string, input models.CreateRequestInput) (*models.Request, error) {
+	tx, err := r.scope(propertyID).Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+
+	rows, err := tx.Query(ctx, `
+		SELECT ru.unit_id::text
+		FROM resident_units ru JOIN units un ON un.id = ru.unit_id
+		WHERE ru.resident_id = $1 AND ru.is_active = true AND un.property_id = $2
+		GROUP BY ru.unit_id`, residentID, propertyID)
+	if err != nil {
+		return nil, err
+	}
+	mine, err := pgx.CollectRows(rows, pgx.RowTo[string])
+	if err != nil {
+		return nil, err
+	}
+	var unitID *string
+	if want := strings.TrimSpace(input.UnitID); want != "" {
+		for i := range mine {
+			if mine[i] == want {
+				unitID = &mine[i]
+			}
+		}
+		if unitID == nil {
+			return nil, ErrUnitNotYours
+		}
+	} else if len(mine) == 1 {
+		unitID = &mine[0]
+	}
+
 	query := `
-		INSERT INTO requests (property_id, resident_id, category_id, ticket_number, title, description, location, priority, photo_urls, status)
-		VALUES ($1, $2, NULLIF($3, '')::uuid, $4, $5, $6, $7, COALESCE(NULLIF($8, ''), 'NORMAL'), $9, 'OPEN')
+		INSERT INTO requests (property_id, resident_id, unit_id, category_id, ticket_number, title, description, location, priority, photo_urls, status)
+		VALUES ($1, $2, $10::uuid, NULLIF($3, '')::uuid, $4, $5, $6, $7, COALESCE(NULLIF($8, ''), 'NORMAL'), $9, 'OPEN')
 		RETURNING ` + requestColumns
 
-	priority := input.Priority
-	row := r.scope(propertyID).QueryRow(ctx, query,
+	req, err := scanRequest(tx.QueryRow(ctx, query,
 		propertyID, residentID, input.CategoryID, ticketNumber, input.Title, input.Description,
-		input.Location, priority, input.Photos,
-	)
-	return scanRequest(row)
+		input.Location, input.Priority, input.Photos, unitID,
+	))
+	if err != nil {
+		return nil, err
+	}
+	return req, tx.Commit(ctx)
 }
 
 // UpdateStatus yönetici tarafından talep durumunu günceller (OPEN -> IN_PROGRESS -> RESOLVED)

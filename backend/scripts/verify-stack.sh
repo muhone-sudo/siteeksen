@@ -4625,6 +4625,24 @@ if [ "$CUP" = "1" ]; then
   # Kimlik boşsa aşağıdaki "görmüyor" kontrolleri boş dizgeyle anlamsızca eşleşirdi
   RQID=${RQID:-00000000-0000-0000-0000-000000000000}
 
+  # B63: talebin dairesi önceden HİÇ yazılmıyordu. Kiracının bu sitede tek aktif
+  # dairesi varsa talep ona bağlanmalı; başkasının dairesi belirtilirse 422.
+  TENUNITS=$($PSQL -t -A -c "SELECT count(DISTINCT ru.unit_id) FROM resident_units ru JOIN units un ON un.id = ru.unit_id
+    JOIN users u ON u.id = ru.resident_id WHERE u.phone='+905559876543' AND ru.is_active AND un.property_id='$DEMO_PROPERTY';")
+  TENUNIT=$($PSQL -t -A -c "SELECT min(ru.unit_id::text) FROM resident_units ru JOIN units un ON un.id = ru.unit_id
+    JOIN users u ON u.id = ru.resident_id WHERE u.phone='+905559876543' AND ru.is_active AND un.property_id='$DEMO_PROPERTY';")
+  RQUNIT=$($PSQL -t -A -c "SELECT COALESCE(unit_id::text, '') FROM requests WHERE id='$RQID';")
+  [ "$TENUNITS" = "1" ] && [ "$RQUNIT" = "$TENUNIT" ] \
+    && ok "tek daireli sakinin talebi dairesine bağlandı (unit_id yazılıyor)" \
+    || bad "talep dairesi: '$RQUNIT' (kiracının $TENUNITS dairesi, beklenen $TENUNIT)"
+  OTHERUNIT=$($PSQL -t -A -c "SELECT id FROM units WHERE property_id='$DEMO_PROPERTY' AND id <> '$TENUNIT' LIMIT 1;")
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$CURL2/requests" -H "Authorization: Bearer $TEN" \
+    -H 'Content-Type: application/json' \
+    -d "{\"title\":\"Baskasinin dairesi\",\"description\":\"deneme\",\"unit_id\":\"$OTHERUNIT\"}")
+  NREQ=$($PSQL -t -A -c "SELECT count(*) FROM requests WHERE title='Baskasinin dairesi';")
+  [ "$SC" = "422" ] && [ "$NREQ" = "0" ] && ok "başkasının dairesine talep bağlanamıyor → 422, kayıt yok" \
+    || bad "başkasının dairesine talep: $SC (kayıt $NREQ)"
+
   # Kiracı kendi talebini listede görür
   RL=$(curl -s "$CURL2/requests" -H "Authorization: Bearer $TEN")
   echo "$RL" | grep -q "$RQID" && ok "sakin kendi talebini listede görüyor" \
