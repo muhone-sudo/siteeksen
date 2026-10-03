@@ -141,7 +141,7 @@ Bugün bu mümkün değil; mevcut ortam elle müdahalelerin toplamı ve kaybolur
 | 2.13 | Refresh/access token türü ayrımı (`typ` claim) + rotasyon + yeniden kullanım tespiti | `[D0]` | B30 |
 | 2.14 | IDOR kapatma: `GET /assessments/:id`, ödeme sahipliği, talep site kontrolü | `[D0]` | B23, B24, B64 |
 | 2.15 | `CreateResident`'ın başka siteye ait kullanıcıyı sessizce bağlamasını engelle | `[D0]` | B25 |
-| 2.16 | TCKN/telefon şifreleme (`pkg/encryption`'ı bağla) + maskeleme + erişim denetimi | `[D0]` | B36 |
+| 2.16 | TCKN/telefon şifreleme (`pkg/encryption`'ı bağla) + maskeleme + erişim denetimi | `[D4]` personel TCKN/IBAN (`pkg/pii`, verify §31); kullanıcı telefonu düz metin (giriş anahtarı) | B36 |
 | 2.17 | Ham veritabanı hatalarının istemciye dönmesini engelle | `[D0]` | B37 |
 | 2.18 | `DB_SSLMODE` tanımla; sabit şifreleme anahtarını kaldır (KDF + rotasyon) | `[D4]` 2026-10-03 — HKDF ile ayrı alt anahtarlar, kimlikli anahtar halkası, `cmd/rotate-pii` (verify adım 42); k8s `DB_SSLMODE=require`; sabit anahtarlı kimlik bilgisi kodu kaldırıldı (modül 501). Kalan: vault/KMS seçimi (S-19) | B21, B44 |
 | 2.19 | Şifremi unuttum + OTP + şifre politikası + hesap kilitleme | `[D0]` | C.1 — rakibin en çok şikayet edilen noktası |
@@ -149,26 +149,27 @@ Bugün bu mümkün değil; mevcut ortam elle müdahalelerin toplamı ve kaybolur
 **Çıkış ölçütü:** Kimliksiz hiçbir uç nokta kalmaz; bir tenant'ın token'ıyla diğerinin verisine erişim
 denemesi otomatik testte başarısız olur.
 
-## FAZ 3 — Denetim İzi ve Gözlemlenebilirlik `[çekirdek çalışıyor]`
+## FAZ 3 — Denetim İzi ve Gözlemlenebilirlik `[TAMAMLANDI — 2026-10-03, 3.6 hariç]`
 
-> Denetim izi yazıyor; `request_id` üretiliyor. **Kalan:** hassas veri okuma logu (3.4),
-> yapılandırılmış log (3.5).
+> Denetim izi, okuma kaydı, yapılandırılmış log ve geri yükleme provası çalışıyor ve
+> `verify-stack.sh` ile sınanıyor (ayrıntı: `tasks/todo.md` FAZ 3). **Kalan:** 3.6 (metrik, hata takibi).
 
 | # | İş | Durum | Kanıt / not |
 |---|---|---|---|
-| 3.1 | `audit_logs` kolon uyuşmazlığını gider (kod ⟷ şema) | `[D0]` | B59 — KVKK taahhüdü bugün karşılanmıyor |
-| 3.2 | `old_values`/`new_values` gerçekten yaz | `[D0]` | — |
-| 3.3 | Audit hatasının yutulmasını durdur (log + uyarı) | `[D0]` | KN-2 |
-| 3.4 | Hassas veri **okuma** logu (TCKN, maaş, sır gösterme) | `[D0]` | M-03 |
-| 3.5 | Yapılandırılmış log + istek kimliği + status/süre | `[D0]` | M-10 |
+| 3.1 | `audit_logs` kolon uyuşmazlığını gider (kod ⟷ şema) | `[D4]` migration 011 | B59 — KVKK taahhüdü bugün karşılanmıyor |
+| 3.2 | `old_values`/`new_values` gerçekten yaz | `[D3]` tipli `audit.Entry` | — |
+| 3.3 | Audit hatasının yutulmasını durdur (log + uyarı) | `[D4]` `pkg/middleware` | KN-2 |
+| 3.4 | Hassas veri **okuma** logu (TCKN, maaş, sır gösterme) | `[D4]` 2026-10-03, verify §31 | M-03 |
+| 3.5 | Yapılandırılmış log + istek kimliği + status/süre | `[D4]` 2026-09-26, verify §37 | M-10 |
 | 3.6 | Sağlık kontrolü, metrik, hata takibi (mobil çökme raporu dahil) | `[D0]` | M-10 |
-| 3.7 | Yedekleme + **geri yükleme provası** | `[D0]` | M-12 |
+| 3.7 | Yedekleme + **geri yükleme provası** | `[D4]` 2026-09-27, verify §41 | M-12 |
 
 ## FAZ 4 — Para Doğruluğu `[ÇEKİRDEK TAMAM — 2026-09-13]`
 
 > S-02 dondurması kullanıcı tarafından kaldırıldı. Bakiye düzeltildi, ödeme borçtan
 > düşüyor, para kuruş cinsinden ve dağıtımda kuruş kaybı yok, gecikme tazminatı
-> (KMK m.20/2) hesaplanıyor. **Kalan:** bakiye sayısal testi (4.12), tam kuruş göçü (4.13).
+> (KMK m.20/2) hesaplanıyor. Bakiye sayısal testi yazıldı ve asıl hatayı buldu (migration 030,
+> 2026-10-03). **Kalan:** ödeme idempotency anahtarı (4.5), tam kuruş göçü (todo 4.13), sağlayıcı (4.11, S-06).
 > **Kanıt:** `verify-stack.sh` §5b, §10, §11.
 
 **Amaç:** Gösterilen her tutarın doğru olması. Bugün bakiye kullanıcı sayısıyla çarpılıyor ve
@@ -176,16 +177,16 @@ denemesi otomatik testte başarısız olur.
 
 | # | İş | Durum | Kanıt / not |
 |---|---|---|---|
-| 4.1 | `GetUnitBalance` kartezyen join'ini düzelt (hazır `unit_balances` view'ını kullan) | `[D0]` | B45 — şema değişikliği gerektirmez |
-| 4.2 | Ödemeyi tamamla: `paid_amount` + tahakkuk durumu, tek transaction, `FOR UPDATE` | `[BLOKE]` S-02 | B46, B47 |
-| 4.3 | Para tipini `float64`'ten kuruş (`int64`) veya `decimal`'e çevir | `[D0]` | B50 — şema zaten `DECIMAL` |
-| 4.4 | Tahakkukta kuruş yuvarlama + kalan dağıtımı (largest remainder) | `[D0]` | B51 |
+| 4.1 | `GetUnitBalance` kartezyen join'ini düzelt (hazır `unit_balances` view'ını kullan) | `[D4]` + 030 (görünüm boş defterden okuyordu), verify §10 | B45 — şema değişikliği gerektirmez |
+| 4.2 | Ödemeyi tamamla: `paid_amount` + tahakkuk durumu, tek transaction, `FOR UPDATE` | `[D4]` yönetici onay akışı, verify §10 | B46, B47 |
+| 4.3 | Para tipini `float64`'ten kuruş (`int64`) veya `decimal`'e çevir | `[D4]` yeni kod `pkg/money`; eski alanların göçü kaldı (todo 4.13) | B50 — şema zaten `DECIMAL` |
+| 4.4 | Tahakkukta kuruş yuvarlama + kalan dağıtımı (largest remainder) | `[D4]` | B51 |
 | 4.5 | Ödeme idempotency (`Idempotency-Key`) | `[BLOKE]` S-02 | B48 |
 | 4.6 | `CalculateTotalAmount`'a `deleted = 0`; tahsilat oranı kesme hatası | `[D0]` | B53, B54 |
-| 4.7 | `ListDebtors`'ı daire bazlı yap (kiracılı/boş daireler de görünsün) | `[D0]` | B55 |
+| 4.7 | `ListDebtors`'ı daire bazlı yap (kiracılı/boş daireler de görünsün) | `[D4]` 2026-10-03, verify §10 (hisseli daire tek satır, maliksiz daire görünür) | B55 |
 | 4.8 | `ListPropertyPayments` tenant filtresini ödeme üzerinden kur | `[D0]` | B56 |
-| 4.9 | Gecikme tazminatı (KMK m.20/2, aylık %5 — **parametrik**) | `[BLOKE]` S-02 | B52, S-05 |
-| 4.10 | Mobil ödeme ekranını gerçek API'ye bağla ya da kaldır | `[D0]` | B49 |
+| 4.9 | Gecikme tazminatı (KMK m.20/2, aylık %5 — **parametrik**) | `[D4]` `legal_parameters`, verify §10 | B52, S-05 |
+| 4.10 | Mobil ödeme ekranını gerçek API'ye bağla ya da kaldır | `[D4]` todo 0.C.1 | B49 |
 | 4.11 | Ödeme sağlayıcısı adaptörü (port/adapter, sandbox-stub ile) | `[BLOKE]` S-06 | C.4 |
 
 ## FAZ 5 — Mevcut Modülleri Uçtan Uca Bitirme `[SIRADAKİ ANA İŞ]`

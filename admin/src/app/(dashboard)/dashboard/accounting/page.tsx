@@ -71,7 +71,7 @@ export default function AccountingPage() {
                         {(d) => (
                             <Table
                                 rows={d.data}
-                                rowKey={(x) => `${x.resident_id}-${x.unit}`}
+                                rowKey={(x) => x.unit_id}
                                 columns={[
                                     { header: "Kişi", cell: (x) => x.name },
                                     { header: "Daire", cell: (x) => x.unit },

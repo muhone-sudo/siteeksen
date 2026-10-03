@@ -279,7 +279,7 @@ export const READS: { path: string; keys: string[]; list?: boolean }[] = [
     { path: "/residents", keys: ["id", "first_name", "last_name", "phone", "unit", "role", "is_active"], list: true },
     { path: "/units", keys: ["id", "block", "door_number", "share_ratio"], list: true },
     { path: "/finance/assessments/overview", keys: ["period", "total_amount", "collected_amount", "rate"], list: true },
-    { path: "/finance/debtors", keys: ["resident_id", "name", "unit", "amount"], list: true },
+    { path: "/finance/debtors", keys: ["unit_id", "resident_id", "name", "unit", "amount"], list: true },
     { path: "/finance/payments", keys: ["id", "amount", "status", "name", "unit", "created_at"], list: true },
     { path: "/finance/payments/pending", keys: ["id", "amount", "status"], list: true },
     { path: "/finance/expense-categories", keys: ["id", "name", "distribution_type"], list: true },

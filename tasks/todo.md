@@ -584,7 +584,7 @@ yaygınlaştırılmasına kayıyor.
    - ~~`legal_parameters` site bazlı istisna satırları RLS dışında (salt-okur).~~ **TAMAMLANDI (2026-09-27, 029)** — çözümleyici kapsamlı; RLS 82 tablo.
      `pkg/legalparams` çözümleyicisi kapsamsız havuz kullanıyor; RLS açılırsa
      site istisnaları SESSİZCE yok sayılırdı. Önce çözümleyici kapsamlı olmalı.
-2. **FAZ 6.7 — yönetişim arayüzleri.** Governance servisi API olarak hazır ama
+2. ~~**FAZ 6.7 — yönetişim arayüzleri.**~~ **TAMAMLANDI** (`8d9528d`: işletme projesi, genel kurul, defterler, mevzuat ekranları; 2026-10-03 tsc/lint/build temiz). Eski not: Governance servisi API olarak hazır ama
    panelde ekranı yok: işletme projesi, genel kurul, karar defteri.
 3. ~~**Modülleri bildirim altyapısına bağlama.**~~ **TAMAMLANDI (2026-09-14).**
    Duyuru, rezervasyon onay/red, kargo, anket yayını, ziyaretçi girişi ve
@@ -601,7 +601,7 @@ yaygınlaştırılmasına kayıyor.
    turda sıfır yeni kayıt. **Bilinçli sınır:** planlı tur saatleri
    (`patrol_routes.schedule_times`) API'de tanımlanamıyor; "hiç başlatılmamış
    planlı tur" ölçülemez ve uydurulmaz.
-4. **Panel ve mobil arayüzler.** 20 gerçek modülün çoğunun panelde karşılığı yok.
+4. ~~**Panel ve mobil arayüzler.**~~ **TAMAMLANDI** — panel: 34 ekran gerçek API sözleşmesine bağlı (`8d9528d`). Eski not: 20 gerçek modülün çoğunun panelde karşılığı yok.
    **Mobil TAMAMLANDI (2026-09-27):** iki uygulama da gerçek API sözleşmesine bağlı
    (sakin 24, yönetici 21 test; `verify-mobile.sh` 10/10). **Belge açma TAMAMLANDI (2026-10-03, D3):**
    indir → SHA-256 doğrula → geçici dizin → cihaz uygulaması. Cihazda elle denenmedi (emülatör yok).

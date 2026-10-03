@@ -60,7 +60,7 @@ Giriş kilidi: art arda 5 hatalı girişte hesap 15 dk kilitlenir (kilitliyken d
 | `POST /finance/payments` | herkes | `assessment_ids`*[],`payment_method`*,`card_token`,`save_card` | `{payment_id,amount,status:"PENDING",payment_gateway_ready:false}` (tahsilat YAPILMAZ) |
 | `GET /finance/my-payments` | herkes | — | `{data:[…kendi ödemeleri]}` |
 | `GET /finance/consumption/summary` | herkes | `meter_type` | `{meter_type,unit,data:[{period,consumption,amount,status}]}` |
-| `GET /finance/debtors` | M,B,A | — | `{data:[{resident_id,name,unit,amount}]}` |
+| `GET /finance/debtors` | M,B,A | — | `{data:[{unit_id,resident_id,name,unit,amount}]}` — daire başına tek satır (2026-10-03); `resident_id` malik/sakin yoksa boş |
 | `GET /finance/payments` | M,B,A | — | `{data:[{id,user_id,amount,payment_method,status,transaction_id?,created_at,completed_at,name,unit}]}` |
 | `GET /finance/payments/pending` | M,B,A | — | aynı biçim |
 | `GET /finance/assessments/overview` | M,B,A | `year` | `{data:[{period,due_date,total_amount,collected_amount,rate,status}]}` |

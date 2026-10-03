@@ -650,19 +650,46 @@ func (r *FinanceRepository) GetPaymentHistory(ctx context.Context, propertyID, u
 	return payments, nil
 }
 
-// ListDebtors sitede borcu olan birimlerin sahiplerini borç tutarına göre listeler (yönetim görünümü)
+// ListDebtors sitede borcu olan DAİRELERİ borç tutarına göre listeler (yönetim görünümü).
+//
+// DÜZELTME (2026-10-03, B55): liste aktif MALİK üzerinden kuruluyordu:
+//   - maliki sisteme kayıtlı olmayan dairenin borcu listede HİÇ görünmüyordu;
+//   - iki malikli (hisseli) dairenin borcu her malik için ayrı satırda, yani
+//     İKİ KEZ çıkıyordu — listenin toplamı gerçek alacaktan büyüktü.
+//
+// Artık her borçlu daire tek satırdır ve tutar daireye aittir. Kişi alanı aktif
+// maliklerdir (virgülle); malik kayıtlı değilse sakin/kiracı gösterilir ve bu
+// işaretlenir (KMK m.22: kiracı ortak giderden malikle birlikte sorumludur ama
+// asıl borçlu malik değildir); kimse kayıtlı değilse bu açıkça yazılır. Vekil
+// (PROXY) borçlu sayılmaz.
 func (r *FinanceRepository) ListDebtors(ctx context.Context, propertyID string) ([]models.Debtor, error) {
 	query := `
-		SELECT u.id, u.first_name, u.last_name,
-		       COALESCE(un.block, '') || ' Blok D.' || un.door_number AS unit,
-		       SUM(ma.total_amount - ma.paid_amount) AS amount
-		FROM monthly_assessments ma
-		JOIN units un ON un.id = ma.unit_id
-		JOIN resident_units ru ON ru.unit_id = un.id AND ru.is_active = true AND ru.role = 'OWNER'
-		JOIN users u ON u.id = ru.resident_id
-		WHERE ma.property_id = $1 AND ma.deleted = 0 AND ma.total_amount > ma.paid_amount
-		GROUP BY u.id, u.first_name, u.last_name, un.block, un.door_number
-		ORDER BY amount DESC
+		WITH debt AS (
+			SELECT ma.unit_id, SUM(ma.total_amount - COALESCE(ma.paid_amount, 0)) AS amount
+			FROM monthly_assessments ma
+			WHERE ma.property_id = $1 AND ma.deleted = 0
+			  AND ma.total_amount > COALESCE(ma.paid_amount, 0)
+			GROUP BY ma.unit_id
+		)
+		SELECT d.unit_id::text,
+		       COALESCE(p.resident_id, ''),
+		       COALESCE(p.names, 'Kayıtlı malik/sakin yok'),
+		       COALESCE(un.block, '') || ' Blok D.' || un.door_number,
+		       d.amount
+		FROM debt d
+		JOIN units un ON un.id = d.unit_id
+		LEFT JOIN LATERAL (
+			SELECT (array_agg(u.id::text ORDER BY u.last_name, u.first_name))[1] AS resident_id,
+			       string_agg(u.first_name || ' ' || u.last_name, ', ' ORDER BY u.last_name, u.first_name)
+			         || CASE WHEN bool_and(ru.role <> 'OWNER') THEN ' (malik kayıtlı değil)' ELSE '' END AS names
+			FROM resident_units ru
+			JOIN users u ON u.id = ru.resident_id
+			WHERE ru.unit_id = un.id AND ru.is_active = true AND ru.role <> 'PROXY'
+			  AND (ru.role = 'OWNER' OR NOT EXISTS (
+			        SELECT 1 FROM resident_units o
+			        WHERE o.unit_id = un.id AND o.is_active = true AND o.role = 'OWNER'))
+		) p ON true
+		ORDER BY d.amount DESC, un.block, un.door_number
 	`
 	rows, err := r.scope(propertyID).Query(ctx, query, propertyID)
 	if err != nil {
@@ -673,14 +700,12 @@ func (r *FinanceRepository) ListDebtors(ctx context.Context, propertyID string) 
 	debtors := []models.Debtor{}
 	for rows.Next() {
 		var d models.Debtor
-		var firstName, lastName string
-		if err := rows.Scan(&d.ResidentID, &firstName, &lastName, &d.Unit, &d.Amount); err != nil {
+		if err := rows.Scan(&d.UnitID, &d.ResidentID, &d.Name, &d.Unit, &d.Amount); err != nil {
 			return nil, err
 		}
-		d.Name = firstName + " " + lastName
 		debtors = append(debtors, d)
 	}
-	return debtors, nil
+	return debtors, rows.Err()
 }
 
 // ListPropertyPayments sitedeki tüm sakinlerin ödeme kayıtlarını listeler (yönetim görünümü)

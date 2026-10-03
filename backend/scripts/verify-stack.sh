@@ -646,6 +646,37 @@ if [ "$FUP" = "1" ] && [ -n "${MGR:-}" ]; then
     && ok "ödenmemiş 1.200 TL tahakkuku olan sakin borçlu görünüyor (has_debt:true)" \
     || bad "borçlu sakin borçsuz görünüyor: $DS0"
 
+  # B55 Borçlu listesi DAİRE bazlı olmalı. Önceden aktif malik üzerinden kuruluyordu:
+  # maliki kayıtlı olmayan dairenin borcu görünmüyor, hisseli dairenin borcu malik
+  # sayısı kadar tekrarlanıyordu (listenin toplamı gerçek alacaktan büyük).
+  A3UNIT=$($PSQL -t -A -c "SELECT unit_id FROM monthly_assessments WHERE id='$ASSESS';")
+  UDEBT=$($PSQL -t -A -c "SELECT to_char(SUM(total_amount - COALESCE(paid_amount,0)),'FM9999999990.00')
+    FROM monthly_assessments WHERE unit_id='$A3UNIT' AND deleted=0 AND total_amount > COALESCE(paid_amount,0);")
+  debtor_rows() { # çıktı: "<satır sayısı>|<toplam>|<ad>"
+    curl -s -H "Authorization: Bearer $MGR" "http://127.0.0.1:${FINPORT}/api/v1/finance/debtors" >/tmp/verify-debtors.json
+    python3 -c 'import json,sys
+d=json.load(open("/tmp/verify-debtors.json")).get("data") or []
+r=[x for x in d if x.get("unit_id")==sys.argv[1]]
+print("%d|%.2f|%s" % (len(r), sum(x["amount"] for x in r), r[0]["name"] if r else ""))' "$A3UNIT"
+  }
+  TENID=$($PSQL -t -A -c "SELECT id FROM users WHERE phone='+905559876543';")
+  RU2=$($PSQL -t -A -c "INSERT INTO resident_units (resident_id, unit_id, role) VALUES ('$TENID', '$A3UNIT', 'OWNER')
+    ON CONFLICT DO NOTHING RETURNING id;" | grep -E '^[0-9a-f-]{36}$' | head -1)
+  DR=$(debtor_rows)
+  [ "${DR%%|*}" = "1" ] && [ "$(echo "$DR" | cut -d'|' -f2)" = "$UDEBT" ] && echo "$DR" | grep -q ', ' \
+    && ok "iki malikli daire borçlu listesinde TEK satır, borç bir kez ($UDEBT TL; $(echo "$DR" | cut -d'|' -f3))" \
+    || bad "hisseli daire: '$DR' (1 satır ve $UDEBT bekleniyordu)"
+  [ -n "$RU2" ] && $PSQL -c "DELETE FROM resident_units WHERE id='$RU2';" >/dev/null
+  OWNERS=$($PSQL -t -A -c "SELECT string_agg(id::text, ',') FROM resident_units
+    WHERE unit_id='$A3UNIT' AND role='OWNER' AND is_active;")
+  $PSQL -c "UPDATE resident_units SET is_active=false WHERE id = ANY(string_to_array('$OWNERS', ',')::uuid[]);" >/dev/null
+  DR=$(debtor_rows)
+  [ "${DR%%|*}" = "1" ] && [ "$(echo "$DR" | cut -d'|' -f2)" = "$UDEBT" ] \
+    && echo "$DR" | grep -qE 'malik kayıtlı değil|Kayıtlı malik/sakin yok' \
+    && ok "maliki kayıtlı olmayan dairenin borcu listeden kaybolmuyor ve bu işaretleniyor ($(echo "$DR" | cut -d'|' -f3))" \
+    || bad "maliksiz daire: '$DR'"
+  $PSQL -c "UPDATE resident_units SET is_active=true WHERE id = ANY(string_to_array('$OWNERS', ',')::uuid[]);" >/dev/null
+
   # Ödeme yöntemi doğrulanır (önceden 'CARD' gibi bilinmeyen değer kaydediliyordu)
   SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "http://127.0.0.1:${FINPORT}/api/v1/finance/payments" \
     -H "Authorization: Bearer $MGR" -H 'Content-Type: application/json' \

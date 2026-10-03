@@ -12,6 +12,18 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-03 — BORÇLU LİSTESİ DAİRE BAZLI (B55, roadmap 4.7) (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **1021/1021**; §10: iki malikli daire tek satır ve borç bir kez
+> (1200.00), malik pasifleşince daire listede kalıyor ve "Kayıtlı malik/sakin yok" diyor.
+> Panel `tsc`/`lint`/`build` temiz.
+
+- Liste aktif MALİK üzerinden kuruluyordu: maliki kayıtlı olmayan dairenin borcu **hiç görünmüyor**,
+  hisseli dairenin borcu malik sayısı kadar **tekrarlanıyordu** — yönetici uygulamasının "Toplam borç"u
+  bu listeyi topladığı için gerçek alacaktan büyük çıkıyordu.
+- Artık daire başına tek satır (`unit_id` eklendi); kişi = aktif malikler, malik yoksa sakin
+  ("malik kayıtlı değil" işaretiyle), vekil borçlu sayılmaz. Panel satır anahtarı `unit_id`.
+
 ### 2026-10-03 — MOBİL: YAYIN SÜRÜMÜ AĞA ÇIKAMIYORDU + BELGE AÇMA (DOĞRULANMIŞ, D3)
 
 > **Kanıt:** `verify-mobile.sh` → **10/10** (sakin testleri 17 → 24; yeni "release manifestinde

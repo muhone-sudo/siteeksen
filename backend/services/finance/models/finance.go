@@ -98,7 +98,8 @@ type OverdueInfo struct {
 
 // Debtor borçlu sakin özeti (yönetim görünümü)
 type Debtor struct {
-	ResidentID string  `json:"resident_id"`
+	UnitID     string  `json:"unit_id"`
+	ResidentID string  `json:"resident_id"` // ilk malik (yoksa sakin); kayıtlı kimse yoksa boş
 	Name       string  `json:"name"`
 	Unit       string  `json:"unit"`
 	Amount     float64 `json:"amount"`
