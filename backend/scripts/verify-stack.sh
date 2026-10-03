@@ -782,6 +782,15 @@ print(r[0].get("unit","") if r else "YOK")' "$PAYID")
       && ok "siteden ayrılan sakinin ödemesi yönetici listesinde kalıyor, ödemenin dairesiyle ($PP)" \
       || bad "site ödeme listesi: '$PP' ('$PAYUNIT' bekleniyordu)"
 
+    # B69: liste sayfalı ve toplamı söylüyor (önceden sabit LIMIT 50 sessizce kesiyordu)
+    NPAY=$($PSQL -t -A -c "SELECT count(*) FROM payments WHERE property_id='$DEMO_PROPERTY' AND deleted=0;")
+    curl -s -H "Authorization: Bearer $MGR" "http://127.0.0.1:${FINPORT}/api/v1/finance/payments?limit=1" >/tmp/verify-page.json
+    PG=$(python3 -c 'import json; d=json.load(open("/tmp/verify-page.json")); print("%d|%s|%s" % (len(d["data"]), d.get("total"), d.get("limit")))')
+    SC1=$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $MGR" "http://127.0.0.1:${FINPORT}/api/v1/finance/payments?limit=501")
+    [ "$PG" = "1|$NPAY|1" ] && [ "$SC1" = "400" ] \
+      && ok "ödeme listesi sayfalı ve toplamı bildiriyor (1 / $NPAY), aşırı limit → 400" \
+      || bad "sayfalama: '$PG' (1|$NPAY|1 bekleniyordu), limit=501 → $SC1"
+
     # Geri al: betik tekrar çalıştırılabilir kalsın
     $PSQL -c "UPDATE monthly_assessments SET paid_amount=0, status='PENDING' WHERE id='$ASSESS';" >/dev/null 2>&1
   fi

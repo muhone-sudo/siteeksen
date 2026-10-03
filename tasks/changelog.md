@@ -12,6 +12,16 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-03 — ÖDEME LİSTELERİ SAYFALI (B69) (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **1041/1041** (`?limit=1` → 1 kayıt + doğru `total`, `limit=501` → 400);
+> `verify-mobile.sh` 10/10; panel `build` temiz.
+
+- Yönetici ödeme listesi ve sakinin ödeme geçmişi sabit `LIMIT 50` ile **sessizce** kesiliyordu.
+  Artık `limit` (varsayılan 50, en çok 500) / `offset` ve yanıtta `total`. Panel "daha eskileri göster"
+  ve kesilme notu; yönetici uygulaması 500 ister, tavanda not gösterir. Diğer listelerdeki 200–2000
+  güvenlik tavanları kaldı (todo).
+
 ### 2026-10-03 — SAHTE GÜVENCE VEREN TESTLER KALDIRILDI (B96) (DOĞRULANMIŞ)
 
 > **Kanıt:** `go build ./...` + `go vet ./...` temiz; `verify-stack.sh` → **1040/1040**.

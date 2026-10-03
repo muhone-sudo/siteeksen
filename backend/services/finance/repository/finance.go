@@ -645,18 +645,26 @@ func (r *FinanceRepository) ApplyLateFee(
 	return tx.Commit(ctx)
 }
 
-// GetPaymentHistory ödeme geçmişi
-func (r *FinanceRepository) GetPaymentHistory(ctx context.Context, propertyID, userID string) ([]models.Payment, error) {
+// GetPaymentHistory sakinin kendi ödeme geçmişi (sayfalı; ikinci dönüş toplam kayıt sayısı).
+//
+// SAYFALAMA (2026-10-03, B69): önceden sabit `LIMIT 50` vardı ve kesildiği
+// söylenmiyordu; aylık ödeyen sakinin dört yıldan eski ödemeleri hiç görünmüyordu.
+func (r *FinanceRepository) GetPaymentHistory(ctx context.Context, propertyID, userID string, page models.Page) ([]models.Payment, int, error) {
+	var total int
+	if err := r.scope(propertyID).QueryRow(ctx, `SELECT count(*) FROM payments
+		WHERE user_id = $1 AND property_id = $2 AND deleted = 0`, userID, propertyID).Scan(&total); err != nil {
+		return nil, 0, err
+	}
 	query := `
 		SELECT id, user_id, amount, payment_method, status, transaction_id, created_at, completed_at
 		FROM payments
-		WHERE user_id = $1
-		ORDER BY created_at DESC
-		LIMIT 50
+		WHERE user_id = $1 AND property_id = $2 AND deleted = 0
+		ORDER BY created_at DESC, id
+		LIMIT $3 OFFSET $4
 	`
-	rows, err := r.scope(propertyID).Query(ctx, query, userID)
+	rows, err := r.scope(propertyID).Query(ctx, query, userID, propertyID, page.Limit, page.Offset)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
 
@@ -669,7 +677,7 @@ func (r *FinanceRepository) GetPaymentHistory(ctx context.Context, propertyID, u
 		var txID *string
 		var completedAt *time.Time
 		if err := rows.Scan(&p.ID, &p.UserID, &p.Amount, &p.PaymentMethod, &p.Status, &txID, &p.CreatedAt, &completedAt); err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		if txID != nil {
 			p.TransactionID = *txID
@@ -679,7 +687,7 @@ func (r *FinanceRepository) GetPaymentHistory(ctx context.Context, propertyID, u
 		}
 		payments = append(payments, p)
 	}
-	return payments, rows.Err()
+	return payments, total, rows.Err()
 }
 
 // ListDebtors sitede borcu olan DAİRELERİ borç tutarına göre listeler (yönetim görünümü).
@@ -747,7 +755,7 @@ func (r *FinanceRepository) ListDebtors(ctx context.Context, propertyID string) 
 // kayboluyor, daire de sakinin rastgele bir dairesinden (`LIMIT 1`, sırasız)
 // gösteriliyordu. Ödemenin kendi sitesi (`payments.property_id`, 023) ve
 // dairesi (`payments.unit_id`) kullanılır.
-func (r *FinanceRepository) ListPropertyPayments(ctx context.Context, propertyID string) ([]models.PropertyPayment, error) {
+func (r *FinanceRepository) ListPropertyPayments(ctx context.Context, propertyID string, page models.Page) ([]models.PropertyPayment, int, error) {
 	query := `
 		SELECT p.id, p.user_id, p.amount, p.payment_method, p.status, COALESCE(p.transaction_id, ''),
 		       p.created_at, p.completed_at,
@@ -757,12 +765,17 @@ func (r *FinanceRepository) ListPropertyPayments(ctx context.Context, propertyID
 		JOIN users u ON u.id = p.user_id
 		LEFT JOIN units un ON un.id = p.unit_id
 		WHERE p.deleted = 0 AND p.property_id = $1
-		ORDER BY p.created_at DESC
-		LIMIT 50
+		ORDER BY p.created_at DESC, p.id
+		LIMIT $2 OFFSET $3
 	`
-	rows, err := r.scope(propertyID).Query(ctx, query, propertyID)
+	var total int
+	if err := r.scope(propertyID).QueryRow(ctx, `SELECT count(*) FROM payments
+		WHERE deleted = 0 AND property_id = $1`, propertyID).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+	rows, err := r.scope(propertyID).Query(ctx, query, propertyID, page.Limit, page.Offset)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
 
@@ -774,7 +787,7 @@ func (r *FinanceRepository) ListPropertyPayments(ctx context.Context, propertyID
 		var completedAt *time.Time
 		if err := rows.Scan(&pp.ID, &pp.UserID, &pp.Amount, &pp.PaymentMethod, &pp.Status, &txID,
 			&pp.CreatedAt, &completedAt, &firstName, &lastName, &pp.Unit); err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		if txID != nil {
 			pp.TransactionID = *txID
@@ -785,7 +798,7 @@ func (r *FinanceRepository) ListPropertyPayments(ctx context.Context, propertyID
 		pp.Name = firstName + " " + lastName
 		payments = append(payments, pp)
 	}
-	return payments, rows.Err()
+	return payments, total, rows.Err()
 }
 
 // GetConsumptionData tüketim verisi (grafik için)

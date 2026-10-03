@@ -132,3 +132,9 @@ type MeterReading struct {
 	PhotoEvidence string    `json:"photo_evidence_url,omitempty"`
 	ReaderUserID  string    `json:"reader_user_id,omitempty"`
 }
+
+// Page, liste uçlarının sayfalama parametresidir (B69).
+type Page struct {
+	Limit  int
+	Offset int
+}

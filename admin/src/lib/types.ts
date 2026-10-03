@@ -5,6 +5,8 @@
  */
 
 export type List<T> = { data: T[] };
+/** Sayfalı liste (B69): `total` kesilmiş listeyi fark ettirmek için. */
+export type Paged<T> = { data: T[]; total: number; limit: number; offset: number };
 export type Id = string;
 
 export interface BroadcastResult {

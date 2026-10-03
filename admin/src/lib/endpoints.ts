@@ -56,7 +56,7 @@ export function endpoints(http: Http) {
         finance: {
             overview: (year?: number) => g<T.List<T.AssessmentPeriod>>("/finance/assessments/overview", { year }),
             debtors: () => g<T.List<T.Debtor>>("/finance/debtors"),
-            payments: () => g<T.List<T.Payment>>("/finance/payments"),
+            payments: (limit = 50) => g<T.Paged<T.Payment>>(`/finance/payments?limit=${limit}`),
             pendingPayments: () => g<T.List<T.Payment>>("/finance/payments/pending"),
             categories: () => g<T.List<T.FinanceCategory>>("/finance/expense-categories"),
             createAssessment: (b: { period_year: number; period_month: number; due_date: string; expense_items: { category_id: string; amount: number }[] }) =>

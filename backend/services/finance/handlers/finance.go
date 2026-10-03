@@ -339,7 +339,11 @@ func mapPaymentConfirmError(c *gin.Context, err error, paymentID string) {
 // GetMyPayments, çağıranın kendi ödeme geçmişi (sakin uygulaması için).
 func GetMyPayments(svc *service.FinanceService) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		payments, err := svc.GetMyPayments(c.Request.Context(), c.GetString("user_id"), c.GetString("property_id"))
+		page, ok := parsePage(c)
+		if !ok {
+			return
+		}
+		payments, total, err := svc.GetMyPayments(c.Request.Context(), c.GetString("user_id"), c.GetString("property_id"), page)
 		if err != nil {
 			if middleware.DBErrorResponse(c, err) {
 				return
@@ -348,7 +352,7 @@ func GetMyPayments(svc *service.FinanceService) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Ödeme geçmişi alınamadı"})
 			return
 		}
-		c.JSON(http.StatusOK, gin.H{"data": payments})
+		c.JSON(http.StatusOK, gin.H{"data": payments, "total": total, "limit": page.Limit, "offset": page.Offset})
 	}
 }
 
@@ -358,7 +362,11 @@ func GetPaymentHistory(svc *service.FinanceService) gin.HandlerFunc {
 		userID := c.GetString("user_id")
 		propertyID := c.GetString("property_id")
 
-		payments, err := svc.GetPaymentHistory(c.Request.Context(), userID, propertyID, getRoles(c))
+		page, ok := parsePage(c)
+		if !ok {
+			return
+		}
+		payments, total, err := svc.GetPaymentHistory(c.Request.Context(), userID, propertyID, getRoles(c), page)
 		if err != nil {
 			if middleware.DBErrorResponse(c, err) {
 				return
@@ -366,7 +374,7 @@ func GetPaymentHistory(svc *service.FinanceService) gin.HandlerFunc {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Ödeme geçmişi alınamadı"})
 			return
 		}
-		c.JSON(http.StatusOK, gin.H{"data": payments})
+		c.JSON(http.StatusOK, gin.H{"data": payments, "total": total, "limit": page.Limit, "offset": page.Offset})
 	}
 }
 
@@ -400,4 +408,29 @@ func GetConsumptionSummary(svc *service.FinanceService) gin.HandlerFunc {
 		}
 		c.JSON(http.StatusOK, summary)
 	}
+}
+
+// parsePage, `limit` (varsayılan 50, en çok 500) ve `offset` sorgu
+// parametrelerini okur. Geçersizse 400 yazar ve false döner. Yanıtta `total`
+// döndüğü için istemci listenin kesildiğini bilir (B69: önceden sabit LIMIT 50
+// sessizce uygulanıyordu).
+func parsePage(c *gin.Context) (models.Page, bool) {
+	p := models.Page{Limit: 50}
+	if v := c.Query("limit"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 1 || n > 500 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "limit 1 ile 500 arasında olmalı"})
+			return p, false
+		}
+		p.Limit = n
+	}
+	if v := c.Query("offset"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 0 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "offset sıfır ya da pozitif olmalı"})
+			return p, false
+		}
+		p.Offset = n
+	}
+	return p, true
 }

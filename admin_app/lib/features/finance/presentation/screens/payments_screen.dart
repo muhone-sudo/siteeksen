@@ -133,8 +133,16 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
           ),
           ApiList(
             token: _token,
-            load: () => apiClient.getList('/finance/payments'),
+            // Sunucu sayfalıdır (varsayılan 50); en çok 500 istenir ve tavana
+            // ulaşıldıysa listenin kesildiği söylenir (B69).
+            load: () => apiClient.getList('/finance/payments?limit=500'),
             empty: 'Ödeme kaydı yok',
+            header: (items) => items.length >= 500
+                ? const Padding(
+                    padding: EdgeInsets.all(12),
+                    child: Text('En yeni 500 ödeme gösteriliyor; daha eski kayıtlar bu ekranda listelenmez.'),
+                  )
+                : const SizedBox.shrink(),
             itemBuilder: (context, p, _) => _tile(p),
           ),
         ]),

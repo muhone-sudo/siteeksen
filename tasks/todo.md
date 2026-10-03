@@ -389,7 +389,8 @@ Backend'e dokunan her değişiklikten sonra çalıştırılır.
       tahakkuklara bağladı (panel borçlu listesiyle aynı kaynak).
       **Kanıt:** `verify-stack.sh` §10 → API bakiyesi bağımsız SQL toplamına birebir eşit (1200.00),
       onaydan sonra tam 1.200,00 düşüyor (→ 0.00); 1016/1016.
-- [ ] **4.13 Mevcut `float64` para alanlarının kuruşa göçü** — yeni kod kuruş kullanıyor,
+- [ ] **B69 kalanı:** ödeme listeleri sayfalı (2026-10-03); diğer listelerde 200–2000 güvenlik tavanı var, kesilme bildirilmiyor.
+- [ ] **4.13 Mevcut `float64` para alanlarının kuruşa göçü** (not 2026-10-03: tahakkuk dağıtımı kuruşa geçti; kalan float alanlar yalnızca DECIMAL değerlerin taşınması/gösterimi) — yeni kod kuruş kullanıyor,
       `monthly_assessments`/`payments` tablolarındaki `DECIMAL` alanlar korunuyor.
       Tam göç ayrı bir migration ve istemci uyumu gerektirir.
 

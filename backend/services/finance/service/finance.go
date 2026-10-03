@@ -253,18 +253,18 @@ func (s *FinanceService) ListPendingPayments(ctx context.Context, propertyID str
 
 // GetPaymentHistory ödeme geçmişi getirir — yönetim rolleri site genelindeki tüm ödemeleri,
 // sakinler yalnızca kendi ödemelerini görür
-func (s *FinanceService) GetPaymentHistory(ctx context.Context, userID, propertyID string, roles []string) (interface{}, error) {
+func (s *FinanceService) GetPaymentHistory(ctx context.Context, userID, propertyID string, roles []string, page models.Page) (interface{}, int, error) {
 	if isFinanceManagement(roles) {
-		return s.repo.ListPropertyPayments(ctx, propertyID)
+		return s.repo.ListPropertyPayments(ctx, propertyID, page)
 	}
-	return s.repo.GetPaymentHistory(ctx, propertyID, userID)
+	return s.repo.GetPaymentHistory(ctx, propertyID, userID, page)
 }
 
 // GetMyPayments, çağıranın KENDİ ödemelerini döner — rolünden bağımsız.
 // Önceden sakinin kendi ödeme geçmişine ulaşabileceği bir uç yoktu: servis
 // kodu vardı ama rota yalnızca yönetime açıktı.
-func (s *FinanceService) GetMyPayments(ctx context.Context, userID, propertyID string) (interface{}, error) {
-	return s.repo.GetPaymentHistory(ctx, propertyID, userID)
+func (s *FinanceService) GetMyPayments(ctx context.Context, userID, propertyID string, page models.Page) (interface{}, int, error) {
+	return s.repo.GetPaymentHistory(ctx, propertyID, userID, page)
 }
 
 // ListDebtors sitede borcu olan sakinlerin özetini getirir (yalnızca yönetim rolleri)

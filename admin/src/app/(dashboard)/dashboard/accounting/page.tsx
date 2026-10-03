@@ -18,7 +18,8 @@ import type { Payment } from "@/lib/types";
 export default function AccountingPage() {
     const [tab, setTab] = useState<"pending" | "all" | "debtors">("pending");
     const pending = useApi(["payments", "pending"], api.finance.pendingPayments, tab === "pending");
-    const all = useApi(["payments", "all"], api.finance.payments, tab === "all");
+    const [allLimit, setAllLimit] = useState(50);
+    const all = useApi(["payments", "all", allLimit], () => api.finance.payments(allLimit), tab === "all");
     const debtors = useApi(["debtors"], api.finance.debtors, tab === "debtors");
     const act = useAction();
     const { canWrite } = useRoles();
@@ -63,7 +64,21 @@ export default function AccountingPage() {
                 )}
                 {tab === "all" && (
                     <QueryView q={all} empty="Ödeme kaydı yok">
-                        {(d) => <Table rows={d.data} rowKey={(p) => p.id} columns={paymentColumns(false)} />}
+                        {(d) => (
+                            <>
+                                <Table rows={d.data} rowKey={(p) => p.id} columns={paymentColumns(false)} />
+                                {d.total > d.data.length && (
+                                    <div className="flex items-center justify-between gap-3 border-t p-3 text-sm text-gray-600">
+                                        <span>Toplam {d.total} ödemenin en yeni {d.data.length} tanesi gösteriliyor.</span>
+                                        {allLimit < 500 ? (
+                                            <Button size="sm" variant="secondary" onClick={() => setAllLimit(Math.min(allLimit + 100, 500))}>Daha eskileri göster</Button>
+                                        ) : (
+                                            <span>Tek seferde en çok 500 kayıt gösterilir.</span>
+                                        )}
+                                    </div>
+                                )}
+                            </>
+                        )}
                     </QueryView>
                 )}
                 {tab === "debtors" && (
