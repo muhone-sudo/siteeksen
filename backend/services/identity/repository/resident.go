@@ -18,6 +18,10 @@ var ErrUnitNotFound = errors.New("birim bulunamadı")
 // ErrPhoneAlreadyExists telefon numarası başka bir kullanıcıda kayıtlıysa döner
 var ErrPhoneAlreadyExists = errors.New("bu telefon numarası başka bir kullanıcıya ait")
 
+// ErrPhoneBelongsToOtherSite telefon, bu siteyle hiçbir bağı olmayan mevcut bir
+// hesaba aitse döner (B25). Hesap sahibinin onayı olmadan bağlanmaz.
+var ErrPhoneBelongsToOtherSite = errors.New("bu telefon numarası bu siteyle bağı olmayan bir hesaba ait")
+
 // ResidentRepository sakin (kullanıcı + birim ilişkisi) veritabanı işlemleri
 type ResidentRepository struct {
 	pool *pgxpool.Pool
@@ -114,7 +118,7 @@ func (r *ResidentRepository) Create(ctx context.Context, propertyID, passwordHas
 		return nil, false, ErrUnitNotFound
 	}
 
-	var userID, existingName string
+	var userID, existingName string // existingName yanıtta KULLANILMAZ (B25)
 	created := false
 	err = tx.QueryRow(ctx, `SELECT id, first_name FROM users WHERE phone = $1 AND deleted = 0`, input.Phone).Scan(&userID, &existingName)
 	switch {
@@ -130,6 +134,27 @@ func (r *ResidentRepository) Create(ctx context.Context, propertyID, passwordHas
 		}
 	case err != nil:
 		return nil, false, err
+	default:
+		// B25 (2026-10-03): telefon başka bir sitede kayıtlı bir hesaba aitse,
+		// hesap önceden SESSİZCE bu daireye bağlanıyor ve yanıtta o kişinin
+		// gerçek adı, soyadı ve e-postası yöneticiye gösteriliyordu (KVKK); kişinin
+		// uygulamasında da hiç ilgisi olmayan bir site beliriyordu. Artık yalnızca
+		// bu sitede zaten sakin ya da görevli olan hesap bağlanır (ikinci daire,
+		// rol değişikliği). Hesap sahibinin onayıyla bağlama (davet) ayrı bir
+		// akıştır — tasks/questions.md S-20.
+		var linked bool
+		if err := tx.QueryRow(ctx, `
+			SELECT EXISTS (
+				SELECT 1 FROM resident_units ru JOIN units un ON un.id = ru.unit_id
+				WHERE ru.resident_id = $1 AND un.property_id = $2
+			) OR EXISTS (
+				SELECT 1 FROM property_roles pr WHERE pr.user_id = $1 AND pr.property_id = $2
+			)`, userID, propertyID).Scan(&linked); err != nil {
+			return nil, false, err
+		}
+		if !linked {
+			return nil, false, ErrPhoneBelongsToOtherSite
+		}
 	}
 
 	var residentUnitID string

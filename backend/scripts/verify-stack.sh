@@ -5457,6 +5457,24 @@ SC=$(code -X POST "$ID39/auth/login" -H "$J" -d '{"phone":"5559876543","password
 echo "$CR" | grep -q activation_code && bad "var olan hesaba kod üretildi: $CR" \
   || { [ "$SC" = "200" ] && ok "var olan hesap ikinci daireye bağlanınca kod üretilmiyor, şifresi bozulmuyor" \
        || bad "var olan hesap bozuldu: giriş $SC"; }
+LINKED=$($PSQL -t -A -c "SELECT count(*) FROM resident_units ru JOIN users u ON u.id = ru.resident_id
+  WHERE u.phone='+905559876543' AND ru.unit_id='$FREEUNIT';")
+[ "$LINKED" = "1" ] && ok "bu sitede zaten sakin olan hesap ikinci daireye bağlanabiliyor" || bad "aynı site ikinci daire bağlantısı: $LINKED"
+
+# B25: telefon bu siteyle BAĞI OLMAYAN bir hesaba aitse sessizce bağlanmamalı ve
+# o kişinin adı/e-postası yöneticiye gösterilmemeli (önceden ikisi de oluyordu).
+$PSQL -c "INSERT INTO users (first_name, last_name, phone, email, password_hash, roles)
+  VALUES ('Gizli', 'Baskasitesakini', '+905550000077', 'gizli.kisi@example.com', 'x', ARRAY['RESIDENT'])
+  ON CONFLICT DO NOTHING;" >/dev/null 2>&1
+CR25=$(curl -s -w '\n%{http_code}' -X POST "$ID39/residents" -H "Authorization: Bearer $MGR39" -H "$J" \
+  -d "{\"first_name\":\"Tahmin\",\"last_name\":\"Edilen\",\"phone\":\"5550000077\",\"unit_id\":\"$FREEUNIT\",\"role\":\"OWNER\"}")
+L25=$($PSQL -t -A -c "SELECT count(*) FROM resident_units ru JOIN users u ON u.id = ru.resident_id WHERE u.phone='+905550000077';")
+[ "$(echo "$CR25" | tail -1)" = "409" ] && [ "$L25" = "0" ] \
+  && ok "başka sitenin hesabı onaysız bağlanmıyor → 409, bağlantı kaydı yok" \
+  || bad "B25: $(echo "$CR25" | tail -1), bağlantı $L25"
+echo "$CR25" | grep -qE 'Gizli|Baskasitesakini|gizli.kisi' \
+  && bad "yanıt başka sitenin sakininin kişisel verisini sızdırıyor: $CR25" \
+  || ok "yanıtta o hesabın adı/e-postası yok"
 
 step "40) Zamanlanmış bildirimler — gecikmiş aidat, sözleşme ihbarı, açık devriye (migration 028)"
 # Önceden bu bildirimleri kimse üretmiyordu: bir olaya değil zamanın geçmesine

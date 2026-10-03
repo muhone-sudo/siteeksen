@@ -12,6 +12,16 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-03 — SAKİN EKLERKEN BAŞKA SİTENİN HESABI SESSİZCE BAĞLANIYORDU (B25, roadmap 2.15) (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **1029/1029**; §39: bu siteyle bağı olmayan hesabın telefonu → 409,
+> bağlantı kaydı yok, yanıtta o kişinin adı/e-postası yok; aynı sitedeki kişi ikinci daireye bağlanıyor.
+
+- Telefon başka sitede kayıtlı bir hesaba aitse hesap yöneticinin dairesine sessizce bağlanıyor,
+  yanıtta kişinin **gerçek adı, soyadı ve e-postası** dönüyordu (KVKK); kişinin uygulamasında
+  ilgisiz bir site beliriyordu. Artık yalnızca bu sitede zaten sakin/görevli olan hesap bağlanır.
+- İşlevsel sonuç ve davet akışı seçenekleri: `tasks/questions.md` S-20.
+
 ### 2026-10-03 — SİTE ÖDEME LİSTESİ ÖDEMENİN KENDİ SİTESİNE BAĞLI (B56, roadmap 4.8) (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **1026/1026**; §10: ödeyenin site üyeliği pasifleşince ödeme

@@ -31,6 +31,13 @@ func mapResidentError(c *gin.Context, err error, fallback string) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Belirtilen birim bu siteye ait değil"})
 	case errors.Is(err, repository.ErrPhoneAlreadyExists):
 		c.JSON(http.StatusConflict, gin.H{"error": "Bu telefon numarası başka bir kullanıcıya ait"})
+	case errors.Is(err, repository.ErrPhoneBelongsToOtherSite):
+		// Kişinin adı/e-postası bilerek DÖNDÜRÜLMEZ.
+		c.JSON(http.StatusConflict, gin.H{
+			"error": "Bu telefon numarası, bu siteyle bağı olmayan mevcut bir hesaba ait. " +
+				"Kişisel verilerin korunması için hesap sahibinin onayı olmadan bağlanamaz; " +
+				"numara doğruysa: hesap sahibinin onayıyla bağlama (davet) henüz desteklenmiyor.",
+		})
 	default:
 		// Aynı daireye aynı kişinin ikinci kaydı (benzersizlik) ve biçimi bozuk
 		// kimlik gibi istemci hataları 500 değildir.

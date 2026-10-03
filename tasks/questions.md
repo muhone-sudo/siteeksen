@@ -52,6 +52,23 @@ Hedef bulut ve bütçe bilinmeden seçilemez:
 **Varsayılan (yanıt gelene kadar):** a) — kod tarafında değişiklik gerekmiyor;
 servisler anahtarı ortamdan okumaya devam eder.
 
+### S-20. Başka sitede kayıtlı kişiyi sakin olarak ekleme — davet akışı gerekli mi?
+
+Önceden yönetici, başka bir sitede kayıtlı kişinin telefonunu girince o hesap
+SESSİZCE kendi dairesine bağlanıyor ve kişinin adı/e-postası yöneticiye
+gösteriliyordu (B25, KVKK). 2026-10-03'ten beri bu durumda **409** dönüyor; aynı
+sitede zaten kayıtlı kişinin ikinci daireye bağlanması çalışıyor.
+
+**Sonuç:** iki farklı sitede dairesi olan kişi (yönetim şirketi müşterileri için
+yaygın) ikinci siteye bugün eklenemez. Seçenekler:
+
+| Seçenek | Not |
+|---|---|
+| a) Uygulama içi davet: kişi kendi uygulamasında onaylar | En doğru; mobil + backend işi |
+| b) SMS ile tek kullanımlık onay kodu | SMS sağlayıcısı gerekir (S-10) |
+| c) Bugünkü hâl (409) | Güvenli ama işlevsel boşluk |
+
+**Varsayılan (yanıt gelene kadar):** c).
 ### ⚠ Kullanıcıdan gereken tek şey: git push yetkisi
 
 `git push origin main` şu hatayı veriyor:

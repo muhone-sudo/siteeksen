@@ -140,7 +140,7 @@ Bugün bu mümkün değil; mevcut ortam elle müdahalelerin toplamı ve kaybolur
 | 2.12 | Gerçek çıkış: token denylist (Redis) + mobilde token silme | `[D0]` | B29 |
 | 2.13 | Refresh/access token türü ayrımı (`typ` claim) + rotasyon + yeniden kullanım tespiti | `[D0]` | B30 |
 | 2.14 | IDOR kapatma: `GET /assessments/:id`, ödeme sahipliği, talep site kontrolü | `[D0]` | B23, B24, B64 |
-| 2.15 | `CreateResident`'ın başka siteye ait kullanıcıyı sessizce bağlamasını engelle | `[D0]` | B25 |
+| 2.15 | `CreateResident`'ın başka siteye ait kullanıcıyı sessizce bağlamasını engelle | `[D4]` 2026-10-03 — bu siteyle bağı olmayan hesap 409, ad/e-posta sızmıyor; aynı sitede ikinci daire çalışıyor (verify §39). Davet akışı: S-20 | B25 |
 | 2.16 | TCKN/telefon şifreleme (`pkg/encryption`'ı bağla) + maskeleme + erişim denetimi | `[D4]` personel TCKN/IBAN (`pkg/pii`, verify §31); kullanıcı telefonu düz metin (giriş anahtarı) | B36 |
 | 2.17 | Ham veritabanı hatalarının istemciye dönmesini engelle | `[D0]` | B37 |
 | 2.18 | `DB_SSLMODE` tanımla; sabit şifreleme anahtarını kaldır (KDF + rotasyon) | `[D4]` 2026-10-03 — HKDF ile ayrı alt anahtarlar, kimlikli anahtar halkası, `cmd/rotate-pii` (verify adım 42); k8s `DB_SSLMODE=require`; sabit anahtarlı kimlik bilgisi kodu kaldırıldı (modül 501). Kalan: vault/KMS seçimi (S-19) | B21, B44 |
