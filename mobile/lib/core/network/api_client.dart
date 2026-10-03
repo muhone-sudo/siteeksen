@@ -1,6 +1,15 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
+/// İndirilen belge: baytlar ve sunucunun bildirdiği bütünlük özeti.
+class DownloadedDocument {
+  final List<int> bytes;
+  final String? sha256;
+  final String? contentType;
+
+  const DownloadedDocument({required this.bytes, this.sha256, this.contentType});
+}
+
 class ApiClient {
   /// API taban adresi.
   ///
@@ -384,6 +393,24 @@ class ApiClient {
   Future<List<dynamic>> getDocuments() async {
     final response = await _dio.get('/documents');
     return _list(response.data);
+  }
+
+  /// Belgenin kendisini indirir (`GET /documents/:id/download`). Sunucu her
+  /// indirmeyi erişim kaydına yazar ve bütünlük için `X-Document-SHA256` döner.
+  Future<DownloadedDocument> downloadDocument(String id) async {
+    final response = await _dio.get<List<int>>(
+      '/documents/$id/download',
+      options: Options(
+        responseType: ResponseType.bytes,
+        receiveTimeout: const Duration(minutes: 2),
+        headers: {'Accept': '*/*'},
+      ),
+    );
+    return DownloadedDocument(
+      bytes: response.data ?? const [],
+      sha256: response.headers.value('x-document-sha256'),
+      contentType: response.headers.value('content-type'),
+    );
   }
 
   // Packages

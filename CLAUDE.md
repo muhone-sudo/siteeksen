@@ -110,7 +110,7 @@ Next.js admin paneli, iki Flutter mobil uygulaması (sakin + yönetici) içerir.
 > Aşağıdaki notlar **çalıştırılarak** doğrulanmıştır. Bu bölümdeki hiçbir ifade "olması gerekeni"
 > değil, **bugün gerçekte olanı** anlatır.
 > Toplu kanıt: `bash backend/scripts/verify-stack.sh` → **1019/1019**,
-> `bash backend/scripts/verify-mobile.sh` → **8/8**.
+> `bash backend/scripts/verify-mobile.sh` → **10/10**.
 > Tarihçe ve `dosya:satır` kanıtı: `tasks/audit-raporu.md`, `tasks/changelog.md`.
 
 **Hızlı başlangıç**
@@ -223,8 +223,7 @@ cd admin && npm run dev            # http://localhost:3001
   `http://localhost:8888/api/v1`). `admin/.env.local` `dev-up.sh` ile birlikte kullanılır.
 - **Mobil taban adresleri düzeltildi:** her iki uygulama da
   `--dart-define=API_BASE_URL` ile yapılandırılabilir; varsayılan Android emülatöründen
-  local gateway'e gider. **Kalan sorun:** sakin uygulamasının release APK'sında INTERNET
-  izni yok ve `ios/` klasörü yok (todo FAZ 8).
+  local gateway'e gider. Release manifestlerinde INTERNET izni var (2026-10-03; verify-mobile denetler). **Kalan:** `ios/` klasörü yok (todo FAZ 8).
 
 ### Doğrulama ortamı — WSL kullan
 
@@ -248,7 +247,7 @@ Repo yolu WSL'de: `/mnt/c/Users/md064615/Documents/Projeler/proje99`
 | Betik | Kapsam | Ne zaman |
 |---|---|---|
 | `bash backend/scripts/verify-stack.sh` | **1019 kontrol** — dağıtım dosyası tutarlılığı, sıfırdan PostgreSQL, `cmd/migrate` ile 30 migration ve rol ataması, RLS (82 tablo, çapraz site uçtan uca testleri, rol yetkileri), şema denetimi, tam idempotency, `pkg/audit`+`pkg/legalparams`+`pkg/money`+`pkg/storage`+nisap testleri, ve uçtan uca: identity (giriş, roller, hesap etkinleştirme, şifre değiştirme, giriş kilidi), gateway (kimlik doğrulama), finance (ödeme→borç, gecikme tazminatı), governance (işletme projesi, nisap, defter zinciri), 501 dürüstlüğü ve 20 modülün uçtan uca sınanması (gider, personel, ziyaretçi, otopark, rezervasyon, kargo, sözleşme, belge, demirbaş, stok, anket, sayaç/ısı payı, bildirim, devriye, duyuru, ilan, ayarlar, enerji, tahsilat riski, NPS/ESG) zamanlanmış bildirimler (`cmd/scheduler`), yedekten geri yükleme ve kişisel veri anahtarı döndürme (`cmd/rotate-pii`) | **Backend'e dokunan her değişiklikten sonra** |
-| `bash backend/scripts/verify-mobile.sh` | **8 kontrol** — iki Flutter uygulaması için `pub get` + `analyze` + `test` ve arayüzde uydurma veri taraması | Mobil değişikliklerden sonra |
+| `bash backend/scripts/verify-mobile.sh` | **10 kontrol** — iki Flutter uygulaması için `pub get` + `analyze` (bilgi düzeyi dahil) + `test`, arayüzde uydurma veri taraması ve release manifestinde INTERNET izni | Mobil değişikliklerden sonra |
 | `cd admin && npx tsc --noEmit && npm run lint && npm run build` | Panel | Panel değişikliklerinden sonra |
 | `bash backend/scripts/dev-up.sh` | Geliştirme ortamını ayağa kaldırır | Elle deneme için |
 
@@ -385,7 +384,7 @@ Bildirilen ortak yığın: Riverpod, go_router, Dio, flutter_secure_storage.
   Push bildirim akışı hiç kurulmamıştır.
 - **`intl` kullanılmıyor** → para/tarih biçimlendirme elle yapılıyor ve hatalı (örn. `12.450.00`).
 - Sakin uygulamasında 13/22, yönetici uygulamasında 16 bağımlılık hiç import edilmemiş.
-- ~~Test sayısı: sakin 1 (derlenmiyor), yönetici 0~~ → **2026-09-27:** sakin 17, yönetici 21 test.
+- ~~Test sayısı: sakin 1 (derlenmiyor), yönetici 0~~ → **2026-09-27:** sakin 24, yönetici 21 test.
 - **İki uygulama da gerçek API sözleşmesine bağlı (2026-09-27).** Alan yöntemleri yerine
   genel `getList/getMap/post…` + yol sözleşmeden (`tasks/api-sozlesmesi.md`); yönetici
   uygulamasında yükleme/hata/boş/işlem davranışı `core/widgets/api_views.dart`'ta tek yerde.

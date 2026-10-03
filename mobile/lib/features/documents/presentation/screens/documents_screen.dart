@@ -4,15 +4,22 @@
 // oysa belge arşivi gerçek (document servisi) ve sakinler RESIDENTS/OWNERS
 // görünürlüğündeki belgeleri görebiliyor. Liste artık sunucudan gelir.
 //
-// Bilinçli sınır: mobilde dosyayı açacak bir görüntüleyici/indirme eklentisi
-// yok. Belge içeriği için yönetimden istenmesi söylenir; "indirildi" denmez.
-// Belge yükleme yalnızca yönetimindir (M/B).
+// BELGE AÇMA (2026-10-03): dokunulan belge `/documents/:id/download` ile indirilir,
+// sunucunun `X-Document-SHA256` özetiyle doğrulanır, uygulamanın geçici dizinine
+// yazılır ve cihazdaki uygun uygulamayla açılır. Özet tutmazsa dosya AÇILMAZ.
+// Her yeni indirmede önceki indirilenler silinir: kişisel veri içerebilecek
+// belgeler cihazda birikmesin. Belge yükleme yalnızca yönetimindir (M/B).
+
+import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:open_filex/open_filex.dart';
+import 'package:path_provider/path_provider.dart';
 
 import '../../../../core/network/api_client.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../../core/widgets/data_state.dart';
+import '../../domain/document_file.dart';
 
 const documentCategoryLabels = {
   'MANAGEMENT_PLAN': 'Yönetim planı',
@@ -46,6 +53,7 @@ class DocumentsScreen extends StatefulWidget {
 
 class _DocumentsScreenState extends State<DocumentsScreen> {
   late Future<List<dynamic>> _future;
+  String? _openingId;
 
   @override
   void initState() {
@@ -56,6 +64,47 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
   Future<void> _reload() async {
     setState(() => _future = apiClient.getDocuments());
     await _future;
+  }
+
+  void _say(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _open(Map d) async {
+    final id = '${d['id'] ?? ''}';
+    if (id.isEmpty || _openingId != null) return;
+    setState(() => _openingId = id);
+    try {
+      final doc = await apiClient.downloadDocument(id);
+      if (!sha256Matches(doc.bytes, doc.sha256)) {
+        _say('Belge eksik ya da bozuk indi (bütünlük doğrulanamadı); açılmadı. '
+            'Lütfen tekrar deneyin.');
+        return;
+      }
+
+      final dir = Directory('${(await getTemporaryDirectory()).path}/belgeler');
+      if (await dir.exists()) await dir.delete(recursive: true);
+      await dir.create(recursive: true);
+      final file = File('${dir.path}/${safeFileName('${d['file_name'] ?? d['title'] ?? ''}')}');
+      await file.writeAsBytes(doc.bytes, flush: true);
+
+      final result = await OpenFilex.open(file.path, type: doc.contentType);
+      switch (result.type) {
+        case ResultType.done:
+          break;
+        case ResultType.noAppToOpen:
+          _say('Bu dosya türünü açabilecek bir uygulama cihazda yok.');
+        case ResultType.permissionDenied:
+          _say('Dosyayı açmak için izin verilmedi.');
+        default:
+          _say('Belge açılamadı: ${result.message}');
+      }
+    } catch (e) {
+      _say(toUserMessage(e));
+    } finally {
+      if (mounted) setState(() => _openingId = null);
+    }
   }
 
   @override
@@ -72,12 +121,6 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
             onRefresh: _reload,
             child: ListView(
               children: [
-                const NotImplementedNotice(
-                  title: 'Belgeler mobilde yalnızca listelenir',
-                  detail: 'Dosyayı açmak bu sürümde desteklenmiyor. Bir belgenin içeriğine '
-                      'ihtiyacınız varsa site yönetiminden isteyin; kanun gereği (KMK m.36) '
-                      'kat maliklerine incelemeye açık tutulması gerekir.',
-                ),
                 if (items.isEmpty)
                   const Padding(
                     padding: EdgeInsets.only(top: 48),
@@ -93,6 +136,14 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
                       formatBytes(d['size_bytes']),
                       if (toNum(d['version']).toInt() > 1) 'sürüm ${d['version']}',
                     ].where((s) => s.isNotEmpty).join(' · ')),
+                    trailing: _openingId == '${d['id']}'
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.open_in_new),
+                    onTap: _openingId == null ? () => _open(d) : null,
                   ),
               ],
             ),

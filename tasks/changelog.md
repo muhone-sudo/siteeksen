@@ -12,6 +12,19 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-03 — MOBİL: YAYIN SÜRÜMÜ AĞA ÇIKAMIYORDU + BELGE AÇMA (DOĞRULANMIŞ, D3)
+
+> **Kanıt:** `verify-mobile.sh` → **10/10** (sakin testleri 17 → 24; yeni "release manifestinde
+> INTERNET izni" kontrolü). Belge açma cihazda elle denenmedi (WSL'de emülatör/Android SDK yok);
+> sunucunun `X-Document-SHA256` başlığı `verify-stack.sh` §19'da dosya baytlarıyla sınanıyor.
+
+- **İki uygulamanın da ana AndroidManifest'inde INTERNET izni yoktu.** Flutter şablonu izni yalnızca
+  debug/profile manifestlerine koyar: geliştirmede her şey çalışır, mağaza sürümü API'ye hiç
+  bağlanamazdı. Eklendi; verify-mobile artık denetliyor.
+- Sakin uygulamasında belgeler açılabiliyor: `/documents/:id/download` → `X-Document-SHA256` ile
+  bütünlük doğrulaması (tutmazsa açılmaz) → geçici dizin (önceki indirilenler silinir) →
+  `open_filex`. Dosya adı yol ayırıcılarından arındırılır. "Mobilde yalnızca listelenir" uyarısı kaldırıldı.
+
 ### 2026-10-03 — MOBİL: ANALİZ UYARILARI SIFIR, BİLGİ DÜZEYİ KAPI OLDU (0.C.6) (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-mobile.sh` → **8/8** (sakin 17, yönetici 21 test; analyze "hata/uyarı/bilgi yok").

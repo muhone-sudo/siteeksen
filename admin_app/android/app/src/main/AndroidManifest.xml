@@ -1,4 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Release derlemesi ağa çıkabilsin diye ZORUNLU. Flutter şablonu bu izni
+         yalnızca debug/profile manifestlerine koyar; ana manifestte olmadığında
+         mağaza sürümü API'ye hiç bağlanamaz (2026-10-03). -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:label="siteeksen_admin"
         android:name="${applicationName}"

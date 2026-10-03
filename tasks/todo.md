@@ -603,8 +603,9 @@ yaygınlaştırılmasına kayıyor.
    planlı tur" ölçülemez ve uydurulmaz.
 4. **Panel ve mobil arayüzler.** 20 gerçek modülün çoğunun panelde karşılığı yok.
    **Mobil TAMAMLANDI (2026-09-27):** iki uygulama da gerçek API sözleşmesine bağlı
-   (sakin 17, yönetici 21 test; `verify-mobile.sh` 8/8). Kalan: mobilde belge açma
-   (`/documents/:id/download` → dosyayı cihazda açma).
+   (sakin 24, yönetici 21 test; `verify-mobile.sh` 10/10). **Belge açma TAMAMLANDI (2026-10-03, D3):**
+   indir → SHA-256 doğrula → geçici dizin → cihaz uygulaması. Cihazda elle denenmedi (emülatör yok).
+   **Release manifestlerinde INTERNET izni yoktu** → eklendi, verify-mobile denetliyor.
 5. **FAZ 3 kalanı** — **3.4 TAMAMLANDI (2026-10-03).** Eski not: hassas veri okuma logu belge ve personel için yapıldı
    (`document_access_logs`, `PII_REVEAL`); sakin uçlarına da genişletilecek.
    Yapılandırılmış log (3.5).
