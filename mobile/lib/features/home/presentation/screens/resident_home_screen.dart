@@ -18,6 +18,7 @@ import '../../../../core/theme/apple_theme.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../../core/widgets/apple_widgets.dart';
 import '../../../../core/widgets/data_state.dart';
+import '../../../invitations/presentation/widgets/invitations_banner.dart';
 
 class ResidentHomeScreen extends StatefulWidget {
   const ResidentHomeScreen({super.key});
@@ -123,6 +124,7 @@ class _ResidentHomeScreenState extends State<ResidentHomeScreen> {
             padding: const EdgeInsets.only(bottom: 100),
             children: [
               _buildGreeting(),
+              const InvitationsBanner(),
               _buildBalanceCard(),
               _buildPayButton(),
               const SectionTitle(title: 'Hızlı İşlemler'),

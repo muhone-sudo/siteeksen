@@ -68,6 +68,10 @@ func main() {
 		// Tüm cihazlardan çıkış: hesabın ele geçirildiği şüphesinde kullanılır.
 		protected.POST("/me/logout-all", handlers.LogoutAll(revocationChecker))
 		protected.POST("/me/password", handlers.ChangePassword(authService))
+		// Sakin davetleri (S-20): kişi başka sitenin davetini kendisi kabul eder.
+		protected.GET("/me/invitations", handlers.MyInvitations(residentService))
+		protected.POST("/me/invitations/:id/accept", handlers.RespondInvitation(residentService, true))
+		protected.POST("/me/invitations/:id/decline", handlers.RespondInvitation(residentService, false))
 	}
 
 	// Sakinler ve birimler
@@ -76,6 +80,8 @@ func main() {
 	{
 		residents.GET("", handlers.ListResidents(residentService))
 		residents.POST("", handlers.CreateResident(residentService))
+		residents.GET("/invitations", handlers.ListInvitations(residentService))
+		residents.POST("/invitations/:id/cancel", handlers.CancelInvitation(residentService))
 		residents.GET("/:id", handlers.GetResident(residentService))
 		residents.PATCH("/:id", handlers.UpdateResident(residentService))
 		residents.POST("/:id/activation-code", handlers.IssueActivationCode(residentService))

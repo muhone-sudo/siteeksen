@@ -30,6 +30,9 @@ type Activation struct {
 type CreateResidentResult struct {
 	*Resident
 	Activation *Activation `json:"activation,omitempty"`
+	// Invitation, kişi bu siteyle bağı olmayan mevcut bir hesapsa açılan davettir
+	// (S-20). Bu durumda Resident boştur: bağ, kişi kabul edince kurulur.
+	Invitation *Invitation `json:"invitation,omitempty"`
 	Note       string      `json:"note,omitempty"`
 }
 
@@ -47,4 +50,29 @@ type CreateResidentInput struct {
 type UpdateResidentInput struct {
 	Role     *string `json:"role"`
 	IsActive *bool   `json:"is_active"`
+}
+
+// Invitation, sakin davetinin YÖNETİM görünümüdür (S-20, migration 032).
+// Kişinin adı/e-postası bilerek yoktur; telefon, yöneticinin kendi girdiği değerdir.
+type Invitation struct {
+	ID          string     `json:"id"`
+	UnitID      string     `json:"unit_id"`
+	Unit        string     `json:"unit"`
+	Phone       string     `json:"phone"`
+	Role        string     `json:"role"`
+	Status      string     `json:"status"` // PENDING, ACCEPTED, DECLINED, CANCELLED, EXPIRED
+	CreatedAt   time.Time  `json:"created_at"`
+	ExpiresAt   time.Time  `json:"expires_at"`
+	RespondedAt *time.Time `json:"responded_at,omitempty"`
+}
+
+// MyInvitation, davet edilen kişinin kendi uygulamasında gördüğü davettir.
+type MyInvitation struct {
+	ID           string    `json:"id"`
+	PropertyID   string    `json:"property_id"`
+	PropertyName string    `json:"property_name"`
+	Unit         string    `json:"unit"`
+	Role         string    `json:"role"`
+	CreatedAt    time.Time `json:"created_at"`
+	ExpiresAt    time.Time `json:"expires_at"`
 }

@@ -149,7 +149,17 @@ class _AddResidentScreenState extends State<AddResidentScreen> {
       });
       if (!mounted) return;
       final activation = res['activation'];
-      if (activation is Map) {
+      if (res['invitation'] is Map) {
+        // S-20: kişi başka sitede kayıtlı; bağ kurulmadı, davet gönderildi.
+        await showDialog<void>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Davet gönderildi'),
+            content: Text(invitationMessage(res)),
+            actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Tamam'))],
+          ),
+        );
+      } else if (activation is Map) {
         await showActivationCodeDialog(
           context,
           who: '${_firstNameController.text.trim()} ${_lastNameController.text.trim()}',
@@ -172,4 +182,13 @@ class _AddResidentScreenState extends State<AddResidentScreen> {
       if (mounted) setState(() => _isSaving = false);
     }
   }
+}
+
+/// Davet yanıtının yöneticiye gösterilecek metni. Sunucu notu kişinin bilgilerini
+/// içermez; not yoksa genel açıklama kullanılır.
+String invitationMessage(Map<String, dynamic> res) {
+  final note = res['note'];
+  if (note is String && note.trim().isNotEmpty) return note;
+  return 'Kişi bu siteyle bağı olmayan bir hesaba sahip. Davet kendi uygulamasına gönderildi; '
+      'kabul ettiğinde daireye bağlanır.';
 }

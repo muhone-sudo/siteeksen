@@ -12,6 +12,20 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-03 — SAKİN DAVETİ (S-20 kararı, migration 032) (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **1055/1055** (§39'da 13 kontrol: 202 + bağ yok + kişisel veri yok,
+> çift davet 409, yönetim listesi, kiracı 403, davetlinin listesi, başkasının daveti 404, kabul → bağ +
+> ACCEPTED + site listesinde, tekrar 409, iptal → 409, süre dolumu → görünmez/409/EXPIRED, yeniden davet;
+> panel sözleşmesi 62 uç; RLS 83 tablo). `verify-mobile.sh` 10/10 (sakin 25, yönetici 27 test). Panel build temiz.
+
+- Başka sitede kayıtlı kişinin telefonuyla sakin eklenince artık **davet** açılır (202); kişi sakin
+  uygulamasının ana sayfasında kabul/ret eder, kabulde daire bağı aynı işlemde kurulur. Yöneticiye kişinin
+  adı/e-postası gösterilmez. 14 gün geçerli, yönetim iptal edebilir, geçmiş silinmez.
+- Panel: sakinler sayfasında "Sakin davetleri" (durum, iptal); yönetici uygulaması "Davet gönderildi" penceresi.
+- `resident_invitations` yalnızca kimlik rolüne açık (uygulama rolünden yetki geri alındı), RLS açık.
+- S-19 (anahtar deposu): kullanıcı kararıyla şimdilik k8s Secret. `servicecore-api-doc/` kullanıcı isteğiyle silindi.
+
 ### 2026-10-03 — BİLDİRİMDE ALICI ÜYELİĞİ HER ZAMAN DENETLENİYOR (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **1042/1042** (§24: siteye kayıtlı olmayan kullanıcı + açık adres → 404, kayıt yok).

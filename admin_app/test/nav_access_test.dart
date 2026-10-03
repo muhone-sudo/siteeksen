@@ -3,6 +3,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:siteeksen_admin/features/finance/presentation/screens/create_assessment_screen.dart';
 import 'package:siteeksen_admin/features/main/presentation/screens/main_screen.dart';
+import 'package:siteeksen_admin/features/residents/presentation/screens/add_resident_screen.dart';
 
 void main() {
   test('roller boşsa (alınamadı / sakin) hiçbir menü öğesi görünmez', () {
@@ -33,5 +34,10 @@ void main() {
     expect(distributableCategory('METER_READING'), isFalse);
     expect(distributableCategory('CUSTOM'), isFalse);
     expect(distributableCategory(null), isFalse);
+  });
+
+  test('davet yanıtı sunucu notunu, yoksa genel açıklamayı gösterir', () {
+    expect(invitationMessage({'note': 'Davet gönderildi (14 gün)'}), 'Davet gönderildi (14 gün)');
+    expect(invitationMessage({'invitation': {'id': 'x'}}), contains('kabul ettiğinde'));
   });
 }

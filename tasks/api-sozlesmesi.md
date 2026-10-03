@@ -42,7 +42,11 @@
 | `POST /auth/activate` | açık | `phone`*,`code`*,`new_password`* | 200 `{message}` · 400 kod/telefon hatalı, kullanılmış ya da süresi dolmuş · 422 zayıf şifre · 429 kod 5 hatalı denemede kilitlendi. Başarılıysa kullanıcının açık bütün oturumları kapanır |
 | `POST /users/me/password` | herkes | `current_password`*,`new_password`* | 200 `{message,note}` · 400 mevcut şifre yanlış · 422 zayıf. Bütün oturumlar kapanır |
 | `GET /residents` | M,B,A,S | `search`,`block`,`role` | `{data:[{id,user_id,first_name,last_name,phone,email,unit_id,unit,role,is_active,created_at}]}` (`id`=resident_units.id) |
-| `POST /residents` | M,B | `first_name`*,`last_name`*,`phone`* (boşluk/tire atılır, +90'a çevrilir),`email`,`unit_id`*,`role`* | 201 sakin + yeni hesapsa `activation:{activation_code,purpose,expires_at,note}` (kod **bir kez** döner); telefon kayıtlıysa kod yok, `note` |
+| `POST /residents` | M,B | `first_name`*,`last_name`*,`phone`* (boşluk/tire atılır, +90'a çevrilir),`email`,`unit_id`*,`role`* (OWNER/TENANT/PROXY; diğeri 422) | 201 sakin + yeni hesapsa `activation:{activation_code,purpose,expires_at,note}` (kod **bir kez** döner); telefon bu sitede kayıtlıysa kod yok, `note`; telefon bu siteyle bağı olmayan hesaba aitse **202** `{invitation:{id,unit_id,unit,phone,role,status,created_at,expires_at},note}` (bağ kurulmaz; bekleyen davet varsa 409) |
+| `GET /residents/invitations` | M,B,A | — | `{data:[{id,unit_id,unit,phone,role,status(PENDING/ACCEPTED/DECLINED/CANCELLED/EXPIRED),created_at,expires_at,responded_at?}]}` — kişinin adı yok |
+| `POST /residents/invitations/:id/cancel` | M,B | — | 200 davet (CANCELLED) · yanıtlanmış/süresi dolmuş 409 |
+| `GET /users/me/invitations` | herkes | — | `{data:[{id,property_id,property_name,unit,role,created_at,expires_at}]}` yanıt bekleyen, süresi dolmamış |
+| `POST /users/me/invitations/:id/accept` · `/decline` | davet edilen | — | 200 `{property_id,accepted,message}`; kabulde daire bağı kurulur · başkasının daveti 404 · yanıtlanmış/iptal/süresi dolmuş 409 |
 | `POST /residents/:id/activation-code` | M,B | — | 201 `{activation_code,purpose:ACTIVATION\|RESET,expires_at,note}` · eski açık kod geçersizleşir · 404 |
 | `GET/PATCH /residents/:id` | GET M,B,A,S · PATCH M,B | PATCH: `role`,`is_active` | sakin |
 

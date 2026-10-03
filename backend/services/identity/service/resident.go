@@ -127,9 +127,16 @@ func (s *ResidentService) Create(ctx context.Context, propertyID, actorID string
 		return nil, err
 	}
 
-	res, created, err := s.repo.Create(ctx, propertyID, string(hash), input)
+	res, created, inv, err := s.repo.Create(ctx, propertyID, actorID, string(hash), input)
 	if err != nil {
 		return nil, err
+	}
+	if inv != nil {
+		return &models.CreateResidentResult{
+			Invitation: inv,
+			Note: "Bu telefon numarası bu siteyle bağı olmayan mevcut bir hesaba ait. Kişiye davet gönderildi; " +
+				"kendi uygulamasından kabul ettiğinde daireye bağlanır (14 gün geçerli). Kişinin bilgileri gösterilmez.",
+		}, nil
 	}
 	out := &models.CreateResidentResult{Resident: res}
 	if !created {
@@ -185,4 +192,31 @@ func (s *ResidentService) ListUnits(ctx context.Context, propertyID string, role
 		return nil, ErrResidentForbidden
 	}
 	return s.repo.ListUnits(ctx, propertyID)
+}
+
+// ListInvitations, sitenin sakin davetlerini getirir (yönetim okuma yetkisi).
+func (s *ResidentService) ListInvitations(ctx context.Context, propertyID string, roles []string) ([]*models.Invitation, error) {
+	if !canReadResidents(roles) {
+		return nil, ErrResidentForbidden
+	}
+	return s.repo.ListInvitations(ctx, propertyID)
+}
+
+// CancelInvitation, bekleyen daveti iptal eder (sakin yazma yetkisi).
+func (s *ResidentService) CancelInvitation(ctx context.Context, propertyID, id string, roles []string) (*models.Invitation, error) {
+	if !canWriteResidents(roles) {
+		return nil, ErrResidentForbidden
+	}
+	return s.repo.CancelInvitation(ctx, propertyID, id)
+}
+
+// MyInvitations, çağıranın yanıt bekleyen davetleri. Rol gerekmez: davet,
+// kişinin henüz hiçbir rolü olmayan bir siteden gelir.
+func (s *ResidentService) MyInvitations(ctx context.Context, userID string) ([]*models.MyInvitation, error) {
+	return s.repo.MyInvitations(ctx, userID)
+}
+
+// RespondInvitation, çağıranın davete yanıtını işler.
+func (s *ResidentService) RespondInvitation(ctx context.Context, userID, id string, accept bool) (string, error) {
+	return s.repo.RespondInvitation(ctx, userID, id, accept)
 }

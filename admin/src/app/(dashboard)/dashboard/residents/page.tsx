@@ -7,7 +7,11 @@ import { useAction, useApi, useRoles } from "@/lib/use-api";
 import { ActionFeedback, Badge, Button, Card, Field, FormModal, Grid, Input, Modal, Notice, Page, QueryView, Select, Table } from "@/components/ui/kit";
 import { dateTime } from "@/lib/format";
 import { RESIDENT_ROLES, ROLE_LABEL } from "@/lib/labels";
-import type { Activation, Resident } from "@/lib/types";
+import type { Activation, Invitation, Resident } from "@/lib/types";
+
+const INVITATION_STATUS: Record<Invitation["status"], string> = {
+    PENDING: "Yanıt bekliyor", ACCEPTED: "Kabul edildi", DECLINED: "Reddedildi", CANCELLED: "İptal edildi", EXPIRED: "Süresi doldu",
+};
 
 /**
  * Etkinleştirme kodu YALNIZCA BİR KEZ gösterilir: sunucu kodun kendisini değil
@@ -56,6 +60,7 @@ export default function ResidentsPage() {
     const [role, setRole] = useState("");
     const q = useApi(["residents", search, role], () => api.identity.residents({ search, role }));
     const units = useApi(["units"], api.identity.units);
+    const invitations = useApi(["residents", "invitations"], api.identity.invitations);
     const act = useAction();
     const { canWrite } = useRoles();
     const [open, setOpen] = useState(false);
@@ -119,6 +124,42 @@ export default function ResidentsPage() {
                 </QueryView>
             </Card>
 
+            <Card title="Sakin davetleri">
+                <p className="mb-3 text-sm text-gray-600 dark:text-gray-400">
+                    Telefonu başka bir sitede kayıtlı olan kişi doğrudan eklenmez; kişiye davet gider ve kendi uygulamasından
+                    kabul ettiğinde daireye bağlanır (14 gün geçerli). Kişisel verilerin korunması için kişinin adı burada gösterilmez.
+                </p>
+                <QueryView q={invitations} empty="Davet yok">
+                    {(d) => (
+                        <Table
+                            rows={d.data}
+                            rowKey={(i) => i.id}
+                            columns={[
+                                { header: "Telefon", cell: (i) => i.phone },
+                                { header: "Daire", cell: (i) => i.unit },
+                                { header: "Sıfat", cell: (i) => ROLE_LABEL[i.role] ?? i.role },
+                                { header: "Durum", cell: (i) => <Badge tone={i.status === "ACCEPTED" ? "green" : undefined}>{INVITATION_STATUS[i.status] ?? i.status}</Badge> },
+                                { header: "Gönderildi", cell: (i) => dateTime(i.created_at) },
+                                ...(canWrite
+                                    ? [{
+                                          header: "",
+                                          cell: (i: Invitation) =>
+                                              i.status === "PENDING" ? (
+                                                  <div className="flex justify-end">
+                                                      <Button size="sm" variant="ghost" disabled={act.pending}
+                                                          onClick={() => act.run(() => api.identity.cancelInvitation(i.id), { invalidate: ["residents"], success: "Davet iptal edildi" })}>
+                                                          İptal et
+                                                      </Button>
+                                                  </div>
+                                              ) : null,
+                                      }]
+                                    : []),
+                            ]}
+                        />
+                    )}
+                </QueryView>
+            </Card>
+
             <FormModal
                 open={open}
                 onClose={() => setOpen(false)}
@@ -126,10 +167,13 @@ export default function ResidentsPage() {
                 pending={act.pending}
                 error={act.error}
                 onSubmit={async () => {
-                    const r = await act.run(() => api.identity.createResident(form), { invalidate: ["residents"], success: "Sakin eklendi" });
+                    const r = await act.run(() => api.identity.createResident(form), {
+                        invalidate: ["residents"],
+                        success: (x) => (x.invitation ? "Davet gönderildi" : "Sakin eklendi"),
+                    });
                     if (r) {
                         setOpen(false);
-                        if (r.activation) setShown({ who: `${r.first_name} ${r.last_name}`, phone: r.phone, act: r.activation });
+                        if (r.activation) setShown({ who: `${r.first_name ?? ""} ${r.last_name ?? ""}`, phone: r.phone ?? form.phone, act: r.activation });
                     }
                 }}
             >

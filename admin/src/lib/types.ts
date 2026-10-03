@@ -27,7 +27,13 @@ export interface Resident {
 }
 /** Yöneticiye YALNIZCA BİR KEZ gösterilen etkinleştirme / şifre sıfırlama kodu. */
 export interface Activation { activation_code: string; purpose: "ACTIVATION" | "RESET"; expires_at: string; note: string }
-export type CreateResidentResult = Resident & { activation?: Activation; note?: string };
+/** Sakin daveti (S-20): kişinin adı/e-postası yönetime gösterilmez. */
+export interface Invitation {
+    id: Id; unit_id: Id; unit: string; phone: string; role: string;
+    status: "PENDING" | "ACCEPTED" | "DECLINED" | "CANCELLED" | "EXPIRED"; created_at: string; expires_at: string; responded_at?: string;
+}
+/** Bağ kurulduysa sakin alanları; kişi başka sitede kayıtlıysa yalnızca `invitation` döner (202). */
+export type CreateResidentResult = Partial<Resident> & { activation?: Activation; invitation?: Invitation; note?: string };
 export interface Unit {
     id: Id; property_id: Id; block: string; floor: number; door_number: string; share_ratio: number;
     gross_area_m2: number; unit_type: string; is_commercial: boolean;

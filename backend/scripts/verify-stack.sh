@@ -5079,8 +5079,8 @@ ok "kullanılmayan 13 site tablosu RLS ile korunuyor"
 
 # 9) Toplam durum — RLS DIŞINDA KALAN her tablo bilinçli ve gerekçeli olmalı
 RLSCOUNT=$($PSQL -t -A -c "SELECT count(*) FROM rls_enabled_tables;")
-[ "$RLSCOUNT" = "82" ] && ok "RLS toplam 82 tabloda açık" \
-  || bad "beklenmedik RLS tablo sayısı: $RLSCOUNT (beklenen 82)"
+[ "$RLSCOUNT" = "83" ] && ok "RLS toplam 83 tabloda açık" \
+  || bad "beklenmedik RLS tablo sayısı: $RLSCOUNT (beklenen 83)"
 NOTRLS=$($PSQL -t -A -c "SELECT string_agg(t.table_name, ' ' ORDER BY t.table_name)
   FROM information_schema.tables t
   WHERE t.table_schema='public' AND t.table_type='BASE TABLE'
@@ -5551,21 +5551,69 @@ LINKED=$($PSQL -t -A -c "SELECT count(*) FROM resident_units ru JOIN users u ON 
   WHERE u.phone='+905559876543' AND ru.unit_id='$FREEUNIT';")
 [ "$LINKED" = "1" ] && ok "bu sitede zaten sakin olan hesap ikinci daireye bağlanabiliyor" || bad "aynı site ikinci daire bağlantısı: $LINKED"
 
-# B25: telefon bu siteyle BAĞI OLMAYAN bir hesaba aitse sessizce bağlanmamalı ve
-# o kişinin adı/e-postası yöneticiye gösterilmemeli (önceden ikisi de oluyordu).
-$PSQL -c "INSERT INTO users (first_name, last_name, phone, email, password_hash, roles)
-  VALUES ('Gizli', 'Baskasitesakini', '+905550000077', 'gizli.kisi@example.com', 'x', ARRAY['RESIDENT'])
-  ON CONFLICT DO NOTHING;" >/dev/null 2>&1
-CR25=$(curl -s -w '\n%{http_code}' -X POST "$ID39/residents" -H "Authorization: Bearer $MGR39" -H "$J" \
-  -d "{\"first_name\":\"Tahmin\",\"last_name\":\"Edilen\",\"phone\":\"5550000077\",\"unit_id\":\"$FREEUNIT\",\"role\":\"OWNER\"}")
+# B25 + S-20: telefon bu siteyle BAĞI OLMAYAN bir hesaba aitse bağ KURULMAZ ve
+# kişinin adı/e-postası gösterilmez (önceden ikisi de oluyordu); DAVET açılır,
+# kişi kendi uygulamasından kabul edince daireye bağlanır.
+for P in 77 80; do
+  $PSQL -c "INSERT INTO users (first_name, last_name, phone, email, password_hash, password_set_at, roles)
+    SELECT 'Gizli', 'Baskasitesakini', '+9055500000$P', 'gizli.kisi$P@example.com', password_hash, now(), ARRAY['RESIDENT']
+    FROM users WHERE phone='+905551234567' ON CONFLICT DO NOTHING;" >/dev/null 2>&1
+done
+invite() { curl -s -w '\n%{http_code}' -X POST "$ID39/residents" -H "Authorization: Bearer $MGR39" -H "$J" \
+  -d "{\"first_name\":\"Tahmin\",\"last_name\":\"Edilen\",\"phone\":\"$1\",\"unit_id\":\"$FREEUNIT\",\"role\":\"$2\"}"; }
+jfield() { python3 -c 'import json,sys; d=json.loads(sys.stdin.read() or "{}"); print(eval(sys.argv[1]))' "$1" 2>/dev/null; }
+CR25=$(invite 5550000077 OWNER)
 L25=$($PSQL -t -A -c "SELECT count(*) FROM resident_units ru JOIN users u ON u.id = ru.resident_id WHERE u.phone='+905550000077';")
-[ "$(echo "$CR25" | tail -1)" = "409" ] && [ "$L25" = "0" ] \
-  && ok "başka sitenin hesabı onaysız bağlanmıyor → 409, bağlantı kaydı yok" \
-  || bad "B25: $(echo "$CR25" | tail -1), bağlantı $L25"
+INV1=$(echo "$CR25" | sed '$d' | jfield 'd["invitation"]["id"]')
+[ "$(echo "$CR25" | tail -1)" = "202" ] && [ "$L25" = "0" ] && [ -n "$INV1" ] \
+  && ok "başka sitenin hesabı bağlanmıyor, davet açılıyor → 202, daire bağı yok" \
+  || bad "B25/S-20: $(echo "$CR25" | tail -1), bağ $L25, davet '$INV1'"
 echo "$CR25" | grep -qE 'Gizli|Baskasitesakini|gizli.kisi' \
   && bad "yanıt başka sitenin sakininin kişisel verisini sızdırıyor: $CR25" \
-  || ok "yanıtta o hesabın adı/e-postası yok"
+  || ok "davet yanıtında o hesabın adı/e-postası yok"
+SC=$(invite 5550000077 OWNER | tail -1)
+[ "$SC" = "409" ] && ok "aynı kişiye aynı daire için ikinci bekleyen davet açılamıyor → 409" || bad "ikinci davet → $SC"
+LI=$(curl -s "$ID39/residents/invitations" -H "Authorization: Bearer $MGR39" | jfield '[x["status"]+"|"+x["phone"] for x in d["data"] if x["id"]=="'"$INV1"'"][0]')
+[ "$LI" = "PENDING|+905550000077" ] && ok "yönetici davetleri listeliyor (bekliyor, girdiği telefonla)" || bad "davet listesi: '$LI'"
+TENL=$(curl -s -X POST "$ID39/auth/login" -H "$J" -d '{"phone":"5559876543","password":"Demo123!"}' | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+SC=$(code "$ID39/residents/invitations" -H "Authorization: Bearer $TENL")
+[ "$SC" = "403" ] && ok "kiracı site davetlerini göremiyor → 403" || bad "kiracı davet listesi → $SC"
 
+GZ=$(curl -s -X POST "$ID39/auth/login" -H "$J" -d '{"phone":"5550000077","password":"Demo123!"}' | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+MY=$(curl -s "$ID39/users/me/invitations" -H "Authorization: Bearer $GZ" | jfield '[x["property_name"] for x in d["data"] if x["id"]=="'"$INV1"'"]')
+[ -n "$GZ" ] && [ "$MY" != "[]" ] && [ -n "$MY" ] && ok "davet edilen kişi daveti kendi uygulamasında görüyor ($MY)" || bad "kendi davetleri: '$MY'"
+SC=$(code -X POST "$ID39/users/me/invitations/$INV1/accept" -H "Authorization: Bearer $TENL")
+[ "$SC" = "404" ] && ok "başkasının davetini kabul etmek mümkün değil → 404" || bad "başkasının daveti → $SC"
+SC=$(code -X POST "$ID39/users/me/invitations/$INV1/accept" -H "Authorization: Bearer $GZ")
+L25=$($PSQL -t -A -c "SELECT count(*) FROM resident_units ru JOIN users u ON u.id = ru.resident_id
+  WHERE u.phone='+905550000077' AND ru.unit_id='$FREEUNIT' AND ru.role='OWNER' AND ru.is_active;")
+IST=$($PSQL -t -A -c "SELECT status || '|' || (responded_at IS NOT NULL) FROM resident_invitations WHERE id='$INV1';")
+[ "$SC" = "200" ] && [ "$L25" = "1" ] && [ "$IST" = "ACCEPTED|true" ] \
+  && ok "kabul edilince daireye bağlandı, davet ACCEPTED ve yanıt zamanı kayıtlı" || bad "kabul: $SC, bağ $L25, davet $IST"
+SC=$(code -X POST "$ID39/users/me/invitations/$INV1/accept" -H "Authorization: Bearer $GZ")
+[ "$SC" = "409" ] && ok "yanıtlanmış davet yeniden kullanılamıyor → 409" || bad "ikinci kabul → $SC"
+PROPS=$(curl -s "$ID39/users/me/properties" -H "Authorization: Bearer $GZ")
+echo "$PROPS" | grep -q "$DEMO_PROPERTY" && ok "kabulden sonra site, kişinin site listesinde" || bad "site listesi: $(echo "$PROPS" | head -c 200)"
+
+# İptal ve süre dolumu
+CR=$(invite 5550000080 TENANT); INV2=$(echo "$CR" | sed '$d' | jfield 'd["invitation"]["id"]')
+SC=$(code -X POST "$ID39/residents/invitations/$INV2/cancel" -H "Authorization: Bearer $MGR39")
+GZ2=$(curl -s -X POST "$ID39/auth/login" -H "$J" -d '{"phone":"5550000080","password":"Demo123!"}' | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+SC2=$(code -X POST "$ID39/users/me/invitations/$INV2/accept" -H "Authorization: Bearer $GZ2")
+[ "$SC" = "200" ] && [ "$SC2" = "409" ] && ok "yönetimin iptal ettiği davet kabul edilemiyor → 409" || bad "iptal: $SC, iptal sonrası kabul $SC2"
+CR=$(invite 5550000080 TENANT); INV3=$(echo "$CR" | sed '$d' | jfield 'd["invitation"]["id"]')
+$PSQL -c "UPDATE resident_invitations SET expires_at = now() - interval '1 minute' WHERE id='${INV3:-00000000-0000-0000-0000-000000000000}';" >/dev/null
+NMY=$(curl -s "$ID39/users/me/invitations" -H "Authorization: Bearer $GZ2" | jfield 'len(d["data"])')
+SC=$(code -X POST "$ID39/users/me/invitations/$INV3/accept" -H "Authorization: Bearer $GZ2")
+EXP=$(curl -s "$ID39/residents/invitations" -H "Authorization: Bearer $MGR39" | jfield '[x["status"] for x in d["data"] if x["id"]=="'"$INV3"'"][0]')
+[ -n "$INV3" ] && [ "$NMY" = "0" ] && [ "$SC" = "409" ] && [ "$EXP" = "EXPIRED" ] \
+  && ok "süresi dolan davet kişiye görünmüyor, kabul edilemiyor (409), yönetimde EXPIRED" \
+  || bad "süre dolumu: davet '$INV3', görünen $NMY, kabul $SC, durum $EXP"
+SC=$(invite 5550000080 TENANT | tail -1)
+DBEXP=$($PSQL -t -A -c "SELECT status FROM resident_invitations WHERE id='${INV3:-00000000-0000-0000-0000-000000000000}';")
+[ "$SC" = "202" ] && [ "$DBEXP" = "EXPIRED" ] && ok "süresi dolan davet kapatılıp yenisi açılabiliyor" || bad "yeniden davet: $SC (eski $DBEXP)"
+L80=$($PSQL -t -A -c "SELECT count(*) FROM resident_units ru JOIN users u ON u.id = ru.resident_id WHERE u.phone='+905550000080';")
+[ "$L80" = "0" ] && ok "kabul edilmeyen davetler hiçbir daire bağı kurmadı" || bad "kabulsüz bağ: $L80"
 # YETKİ YÜKSELTME (migration 031): daire bağının rolü jetona olduğu gibi girer.
 # Önceden 'MANAGER' / 'SUPER_ADMIN' gibi değerler kabul ediliyordu: sakin yazabilen
 # yönetim kurulu üyesi kendini yönetici yapabiliyordu.

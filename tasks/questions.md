@@ -49,7 +49,7 @@ Hedef bulut ve bütçe bilinmeden seçilemez:
 | b) HashiCorp Vault / OpenBao | Bulut bağımsız; işletmesi ayrı iş |
 | c) Bulut KMS (Oracle Cloud Vault, AWS KMS) | S-09'daki depolama sağlayıcısıyla aynı bulut seçilirse doğal |
 
-**Varsayılan (yanıt gelene kadar):** a) — kod tarafında değişiklik gerekmiyor;
+**KARAR (kullanıcı, 2026-10-03):** şimdilik a) kalsın; sonra değerlendirilecek. Kod tarafında değişiklik gerekmiyor;
 servisler anahtarı ortamdan okumaya devam eder.
 
 ### S-20. Başka sitede kayıtlı kişiyi sakin olarak ekleme — davet akışı gerekli mi?
@@ -68,7 +68,13 @@ yaygın) ikinci siteye bugün eklenemez. Seçenekler:
 | b) SMS ile tek kullanımlık onay kodu | SMS sağlayıcısı gerekir (S-10) |
 | c) Bugünkü hâl (409) | Güvenli ama işlevsel boşluk |
 
-**Varsayılan (yanıt gelene kadar):** c).
+**KARAR (2026-10-03):** kullanıcı kararı bana bıraktı → **a) uygulama içi davet** uygulandı (migration 032).
+Gerekçe: (1) KVKK — kişi kendi uygulamasında onay vermeden başka bir siteye bağlanmaz,
+yöneticiye adı/e-postası gösterilmez; (2) SMS sağlayıcısı (S-10) ve maliyeti gerekmez;
+(3) iki sitede dairesi olan kişinin işini bugün çözer; (4) davet 14 gün geçerli, iptal
+edilebilir, kim-kimi-ne zaman izi silinmez. Bilinen sınır: yönetici, telefonun sistemde
+kayıtlı olduğunu öğrenir (kişisel veri değil, 409 döneminde de böyleydi). Kişiye anlık
+bildirim yok; davet sakin uygulamasının ana sayfasında görünür.
 ### ⚠ Kullanıcıdan gereken tek şey: git push yetkisi
 
 `git push origin main` şu hatayı veriyor:

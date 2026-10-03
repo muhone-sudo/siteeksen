@@ -34,13 +34,12 @@ func mapResidentError(c *gin.Context, err error, fallback string) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Belirtilen birim bu siteye ait değil"})
 	case errors.Is(err, repository.ErrPhoneAlreadyExists):
 		c.JSON(http.StatusConflict, gin.H{"error": "Bu telefon numarası başka bir kullanıcıya ait"})
-	case errors.Is(err, repository.ErrPhoneBelongsToOtherSite):
-		// Kişinin adı/e-postası bilerek DÖNDÜRÜLMEZ.
-		c.JSON(http.StatusConflict, gin.H{
-			"error": "Bu telefon numarası, bu siteyle bağı olmayan mevcut bir hesaba ait. " +
-				"Kişisel verilerin korunması için hesap sahibinin onayı olmadan bağlanamaz; " +
-				"numara doğruysa: hesap sahibinin onayıyla bağlama (davet) henüz desteklenmiyor.",
-		})
+	case errors.Is(err, repository.ErrInvitationPending):
+		c.JSON(http.StatusConflict, gin.H{"error": "Bu kişiye bu daire ve rol için yanıt bekleyen bir davet zaten var"})
+	case errors.Is(err, repository.ErrInvitationNotFound):
+		c.JSON(http.StatusNotFound, gin.H{"error": "Davet bulunamadı"})
+	case errors.Is(err, repository.ErrInvitationNotPending):
+		c.JSON(http.StatusConflict, gin.H{"error": "Davet artık yanıtlanamaz: yanıtlanmış, iptal edilmiş ya da süresi dolmuş"})
 	default:
 		// Aynı daireye aynı kişinin ikinci kaydı (benzersizlik) ve biçimi bozuk
 		// kimlik gibi istemci hataları 500 değildir.
@@ -97,6 +96,11 @@ func CreateResident(svc *service.ResidentService) gin.HandlerFunc {
 			mapResidentError(c, err, "Sakin oluşturulamadı")
 			return
 		}
+		if result.Invitation != nil {
+			// Bağ kurulmadı; davet açıldı (S-20). 202: istek kabul edildi, sonuç kişinin yanıtına bağlı.
+			c.JSON(http.StatusAccepted, result)
+			return
+		}
 		c.JSON(http.StatusCreated, result)
 	}
 }
@@ -143,5 +147,57 @@ func IssueActivationCode(svc *service.ResidentService) gin.HandlerFunc {
 			return
 		}
 		c.JSON(http.StatusCreated, act)
+	}
+}
+
+// ListInvitations sitenin sakin davetlerini listeler (yönetim).
+func ListInvitations(svc *service.ResidentService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		list, err := svc.ListInvitations(c.Request.Context(), c.GetString("property_id"), getRoles(c))
+		if err != nil {
+			mapResidentError(c, err, "Davetler alınamadı")
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"data": list})
+	}
+}
+
+// CancelInvitation bekleyen daveti iptal eder (yönetim).
+func CancelInvitation(svc *service.ResidentService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		inv, err := svc.CancelInvitation(c.Request.Context(), c.GetString("property_id"), c.Param("id"), getRoles(c))
+		if err != nil {
+			mapResidentError(c, err, "Davet iptal edilemedi")
+			return
+		}
+		c.JSON(http.StatusOK, inv)
+	}
+}
+
+// MyInvitations çağıranın yanıt bekleyen davetlerini listeler.
+func MyInvitations(svc *service.ResidentService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		list, err := svc.MyInvitations(c.Request.Context(), c.GetString("user_id"))
+		if err != nil {
+			mapResidentError(c, err, "Davetler alınamadı")
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"data": list})
+	}
+}
+
+// RespondInvitation çağıranın davete kabul/ret yanıtını işler.
+func RespondInvitation(svc *service.ResidentService, accept bool) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		propertyID, err := svc.RespondInvitation(c.Request.Context(), c.GetString("user_id"), c.Param("id"), accept)
+		if err != nil {
+			mapResidentError(c, err, "Davet yanıtlanamadı")
+			return
+		}
+		msg := "Davet reddedildi; daireye bağlanmadınız"
+		if accept {
+			msg = "Davet kabul edildi; site, site seçiminizde görünür"
+		}
+		c.JSON(http.StatusOK, gin.H{"property_id": propertyID, "accepted": accept, "message": msg})
 	}
 }

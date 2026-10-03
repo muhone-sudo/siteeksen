@@ -212,6 +212,18 @@ class ApiClient {
     await _dio.post('/users/me/kvkk-consent');
   }
 
+  /// Kişinin yanıt bekleyen site davetleri (S-20): başka bir sitenin yönetimi
+  /// kişiyi sakin olarak eklemek istediğinde bağ, kişi kabul edene kadar kurulmaz.
+  Future<List<dynamic>> getMyInvitations() async {
+    final response = await _dio.get('/users/me/invitations');
+    return _list(response.data);
+  }
+
+  Future<Map<String, dynamic>> respondInvitation(String id, {required bool accept}) async {
+    final response = await _dio.post('/users/me/invitations/$id/${accept ? 'accept' : 'decline'}');
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
   Future<List<dynamic>> getUserProperties() async {
     final response = await _dio.get('/users/me/properties');
     return _list(response.data);

@@ -46,6 +46,8 @@ export function endpoints(http: Http) {
                 http.post<T.CreateResidentResult>("/residents", b),
             updateResident: (id: string, b: { role?: string; is_active?: boolean }) => http.patch<T.Resident>(`/residents/${id}`, b),
             issueActivationCode: (id: string) => http.post<T.Activation>(`/residents/${id}/activation-code`),
+            invitations: () => g<T.List<T.Invitation>>("/residents/invitations"),
+            cancelInvitation: (id: string) => http.post<T.Invitation>(`/residents/invitations/${id}/cancel`),
             changePassword: (current_password: string, new_password: string) =>
                 http.post<Msg>("/users/me/password", { current_password, new_password }),
             /** Oturum gerektirmez: kodla ilk şifre belirleme ya da sıfırlama. */
@@ -277,6 +279,7 @@ export const READS: { path: string; keys: string[]; list?: boolean }[] = [
     { path: "/dashboard/recent-payments", keys: ["data"] },
     { path: "/dashboard/recent-requests", keys: ["data"] },
     { path: "/residents", keys: ["id", "first_name", "last_name", "phone", "unit", "role", "is_active"], list: true },
+    { path: "/residents/invitations", keys: ["data"] },
     { path: "/units", keys: ["id", "block", "door_number", "share_ratio"], list: true },
     { path: "/finance/assessments/overview", keys: ["period", "total_amount", "collected_amount", "rate"], list: true },
     { path: "/finance/debtors", keys: ["unit_id", "resident_id", "name", "unit", "amount"], list: true },

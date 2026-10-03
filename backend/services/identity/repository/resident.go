@@ -18,9 +18,12 @@ var ErrUnitNotFound = errors.New("birim bulunamadı")
 // ErrPhoneAlreadyExists telefon numarası başka bir kullanıcıda kayıtlıysa döner
 var ErrPhoneAlreadyExists = errors.New("bu telefon numarası başka bir kullanıcıya ait")
 
-// ErrPhoneBelongsToOtherSite telefon, bu siteyle hiçbir bağı olmayan mevcut bir
-// hesaba aitse döner (B25). Hesap sahibinin onayı olmadan bağlanmaz.
-var ErrPhoneBelongsToOtherSite = errors.New("bu telefon numarası bu siteyle bağı olmayan bir hesaba ait")
+// Davet hataları (S-20, migration 032).
+var (
+	ErrInvitationPending    = errors.New("bu kişiye bu daire için bekleyen bir davet zaten var")
+	ErrInvitationNotFound   = errors.New("davet bulunamadı")
+	ErrInvitationNotPending = errors.New("davet artık yanıtlanamaz (yanıtlanmış, iptal edilmiş ya da süresi dolmuş)")
+)
 
 // ResidentRepository sakin (kullanıcı + birim ilişkisi) veritabanı işlemleri
 type ResidentRepository struct {
@@ -103,19 +106,19 @@ func (r *ResidentRepository) GetByID(ctx context.Context, propertyID, id string)
 // yoksa kullanılamaz bir parola özetiyle yeni hesap açıp bağlar (tek transaction).
 // İkinci dönüş değeri, bu işlemde YENİ bir kullanıcı
 // hesabı açılıp açılmadığıdır (açıldıysa etkinleştirme kodu üretilmelidir).
-func (r *ResidentRepository) Create(ctx context.Context, propertyID, passwordHash string, input models.CreateResidentInput) (*models.Resident, bool, error) {
+func (r *ResidentRepository) Create(ctx context.Context, propertyID, actorID, passwordHash string, input models.CreateResidentInput) (*models.Resident, bool, *models.Invitation, error) {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
-		return nil, false, err
+		return nil, false, nil, err
 	}
 	defer tx.Rollback(ctx)
 
 	var unitExists bool
 	if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM units WHERE id = $1 AND property_id = $2)`, input.UnitID, propertyID).Scan(&unitExists); err != nil {
-		return nil, false, err
+		return nil, false, nil, err
 	}
 	if !unitExists {
-		return nil, false, ErrUnitNotFound
+		return nil, false, nil, ErrUnitNotFound
 	}
 
 	var userID, existingName string // existingName yanıtta KULLANILMAZ (B25)
@@ -130,10 +133,10 @@ func (r *ResidentRepository) Create(ctx context.Context, propertyID, passwordHas
 			RETURNING id
 		`, input.FirstName, input.LastName, input.Phone, input.Email, passwordHash).Scan(&userID)
 		if err != nil {
-			return nil, false, err
+			return nil, false, nil, err
 		}
 	case err != nil:
-		return nil, false, err
+		return nil, false, nil, err
 	default:
 		// B25 (2026-10-03): telefon başka bir sitede kayıtlı bir hesaba aitse,
 		// hesap önceden SESSİZCE bu daireye bağlanıyor ve yanıtta o kişinin
@@ -150,10 +153,35 @@ func (r *ResidentRepository) Create(ctx context.Context, propertyID, passwordHas
 			) OR EXISTS (
 				SELECT 1 FROM property_roles pr WHERE pr.user_id = $1 AND pr.property_id = $2
 			)`, userID, propertyID).Scan(&linked); err != nil {
-			return nil, false, err
+			return nil, false, nil, err
 		}
 		if !linked {
-			return nil, false, ErrPhoneBelongsToOtherSite
+			// S-20: bağ kurulmaz, DAVET açılır; kişi kendi uygulamasında kabul edince
+			// bağlanır. Süresi dolmuş bekleyen davet önce kapatılır (yenisine yer açılır).
+			if _, err := tx.Exec(ctx, `
+				UPDATE resident_invitations SET status = 'EXPIRED'
+				WHERE user_id = $1 AND unit_id = $2 AND role = $3
+				  AND status = 'PENDING' AND expires_at <= now()`,
+				userID, input.UnitID, input.Role); err != nil {
+				return nil, false, nil, err
+			}
+			var invID string
+			err := tx.QueryRow(ctx, `
+				INSERT INTO resident_invitations (property_id, unit_id, user_id, role, invited_by)
+				VALUES ($1, $2, $3, $4, NULLIF($5, '')::uuid)
+				ON CONFLICT (user_id, unit_id, role) WHERE status = 'PENDING' DO NOTHING
+				RETURNING id`, propertyID, input.UnitID, userID, input.Role, actorID).Scan(&invID)
+			if errors.Is(err, pgx.ErrNoRows) {
+				return nil, false, nil, ErrInvitationPending
+			}
+			if err != nil {
+				return nil, false, nil, err
+			}
+			if err := tx.Commit(ctx); err != nil {
+				return nil, false, nil, err
+			}
+			inv, err := r.getInvitation(ctx, propertyID, invID)
+			return nil, false, inv, err
 		}
 	}
 
@@ -164,15 +192,15 @@ func (r *ResidentRepository) Create(ctx context.Context, propertyID, passwordHas
 		RETURNING id
 	`, userID, input.UnitID, input.Role).Scan(&residentUnitID)
 	if err != nil {
-		return nil, false, err
+		return nil, false, nil, err
 	}
 
 	if err := tx.Commit(ctx); err != nil {
-		return nil, false, err
+		return nil, false, nil, err
 	}
 
 	res, err := r.GetByID(ctx, propertyID, residentUnitID)
-	return res, created, err
+	return res, created, nil, err
 }
 
 // Update sakinin birim ilişkisindeki rol/aktiflik bilgisini günceller.
@@ -224,4 +252,143 @@ func (r *ResidentRepository) ListUnits(ctx context.Context, propertyID string) (
 		units = append(units, u)
 	}
 	return units, rows.Err()
+}
+
+// -----------------------------------------------------------------------------
+// DAVETLER (S-20, migration 032)
+// -----------------------------------------------------------------------------
+
+// invitationSelect, yönetim görünümü. Süresi dolan bekleyen davet EXPIRED görünür.
+const invitationSelect = `
+	SELECT i.id::text, i.unit_id::text, COALESCE(NULLIF(un.block, ''), '') || '-' || un.door_number,
+	       u.phone, i.role,
+	       CASE WHEN i.status = 'PENDING' AND i.expires_at <= now() THEN 'EXPIRED' ELSE i.status END,
+	       i.created_at, i.expires_at, i.responded_at
+	FROM resident_invitations i
+	JOIN units un ON un.id = i.unit_id
+	JOIN users u ON u.id = i.user_id`
+
+func scanInvitation(row pgx.Row) (*models.Invitation, error) {
+	inv := &models.Invitation{}
+	err := row.Scan(&inv.ID, &inv.UnitID, &inv.Unit, &inv.Phone, &inv.Role, &inv.Status,
+		&inv.CreatedAt, &inv.ExpiresAt, &inv.RespondedAt)
+	return inv, err
+}
+
+func (r *ResidentRepository) getInvitation(ctx context.Context, propertyID, id string) (*models.Invitation, error) {
+	inv, err := scanInvitation(r.pool.QueryRow(ctx, invitationSelect+`
+		WHERE i.id = $1 AND i.property_id = $2`, id, propertyID))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrInvitationNotFound
+	}
+	return inv, err
+}
+
+// ListInvitations, sitenin davetlerini (en yeni önce) getirir.
+func (r *ResidentRepository) ListInvitations(ctx context.Context, propertyID string) ([]*models.Invitation, error) {
+	rows, err := r.pool.Query(ctx, invitationSelect+`
+		WHERE i.property_id = $1 ORDER BY i.created_at DESC LIMIT 200`, propertyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []*models.Invitation{}
+	for rows.Next() {
+		inv, err := scanInvitation(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, inv)
+	}
+	return out, rows.Err()
+}
+
+// CancelInvitation, bekleyen daveti yönetim adına iptal eder.
+func (r *ResidentRepository) CancelInvitation(ctx context.Context, propertyID, id string) (*models.Invitation, error) {
+	tag, err := r.pool.Exec(ctx, `
+		UPDATE resident_invitations SET status = 'CANCELLED'
+		WHERE id = $1 AND property_id = $2 AND status = 'PENDING' AND expires_at > now()`, id, propertyID)
+	if err != nil {
+		return nil, err
+	}
+	if tag.RowsAffected() == 0 {
+		if _, gerr := r.getInvitation(ctx, propertyID, id); gerr != nil {
+			return nil, gerr
+		}
+		return nil, ErrInvitationNotPending
+	}
+	return r.getInvitation(ctx, propertyID, id)
+}
+
+// MyInvitations, kişinin yanıt bekleyen (süresi dolmamış) davetleri.
+func (r *ResidentRepository) MyInvitations(ctx context.Context, userID string) ([]*models.MyInvitation, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT i.id::text, i.property_id::text, p.name,
+		       COALESCE(NULLIF(un.block, ''), '') || '-' || un.door_number,
+		       i.role, i.created_at, i.expires_at
+		FROM resident_invitations i
+		JOIN properties p ON p.id = i.property_id
+		JOIN units un ON un.id = i.unit_id
+		WHERE i.user_id = $1 AND i.status = 'PENDING' AND i.expires_at > now()
+		ORDER BY i.created_at DESC`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []*models.MyInvitation{}
+	for rows.Next() {
+		m := &models.MyInvitation{}
+		if err := rows.Scan(&m.ID, &m.PropertyID, &m.PropertyName, &m.Unit, &m.Role,
+			&m.CreatedAt, &m.ExpiresAt); err != nil {
+			return nil, err
+		}
+		out = append(out, m)
+	}
+	return out, rows.Err()
+}
+
+// RespondInvitation, kişinin davete yanıtını işler. Kabulde daire bağı AYNI
+// işlemde kurulur (daha önce pasifleşmiş bağ yeniden etkinleşir). Davet
+// yalnızca davet edilen kişi tarafından ve süresi dolmadan yanıtlanabilir.
+// Dönen değer davetin sitesidir.
+func (r *ResidentRepository) RespondInvitation(ctx context.Context, userID, id string, accept bool) (string, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return "", err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+
+	var propertyID, unitID, role, status string
+	var expired bool
+	err = tx.QueryRow(ctx, `
+		SELECT property_id::text, unit_id::text, role, status, expires_at <= now()
+		FROM resident_invitations WHERE id = $1 AND user_id = $2
+		FOR UPDATE`, id, userID).Scan(&propertyID, &unitID, &role, &status, &expired)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", ErrInvitationNotFound
+	}
+	if err != nil {
+		return "", err
+	}
+	if status != "PENDING" || expired {
+		return "", ErrInvitationNotPending
+	}
+
+	newStatus := "DECLINED"
+	if accept {
+		newStatus = "ACCEPTED"
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO resident_units (resident_id, unit_id, role)
+			VALUES ($1, $2, $3)
+			ON CONFLICT (resident_id, unit_id, role)
+			DO UPDATE SET is_active = true, end_date = NULL`, userID, unitID, role); err != nil {
+			return "", err
+		}
+	}
+	if _, err := tx.Exec(ctx, `
+		UPDATE resident_invitations SET status = $2, responded_at = now() WHERE id = $1`,
+		id, newStatus); err != nil {
+		return "", err
+	}
+	return propertyID, tx.Commit(ctx)
 }
