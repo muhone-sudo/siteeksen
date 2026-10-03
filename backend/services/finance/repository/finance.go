@@ -70,8 +70,10 @@ func NewFinanceRepository(pool *pgxpool.Pool) *FinanceRepository {
 // dairesinin hesaplandığı belirsizdi; artık sakinin TÜM aktif bağımsız bölümlerinin
 // bakiyesi toplanıyor.
 //
-// Hesap, 001_initial_schema.sql'de tanımlı ve doğru yazılmış olan `unit_balances`
-// view'ı üzerinden yapılır (tek doğruluk kaynağı).
+// Hesap `unit_balances` görünümü üzerinden yapılır (tek doğruluk kaynağı).
+// 030'a kadar görünüm hiç yazılmayan `ledger_lines`'tan okuyordu ve herkes için
+// 0 dönüyordu; artık tahakkuklardan (`monthly_assessments`) hesaplanır —
+// panelin borçlu listesiyle (ListDebtors) aynı kaynak.
 func (r *FinanceRepository) GetUnitBalance(ctx context.Context, propertyID, userID string) (float64, error) {
 	query := `
 		SELECT COALESCE(SUM(ub.balance), 0) AS balance

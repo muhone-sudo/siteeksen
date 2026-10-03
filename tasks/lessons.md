@@ -548,3 +548,14 @@ kabuğunda, komut ÇALIŞMADAN önce açıldı: doğrulama başarısızken "EXIT
 **Kural:** WSL'de `wsl -e bash <betik>` kullan; komutu argüman olarak değil
 betik dosyası olarak ver. Ayrıca servis günlükleri JSON'dur: tırnaklı metin
 günlükte `\"` olarak geçer, grep deseni bunu kapsamalıdır.
+
+### Ders 36 — Durum değişmeden de geçen kontrol, kontrol değildir
+
+"Ödeme sonrası has_debt:false" kontrolü yıllarca geçti; çünkü bakiye hiç
+yazılmayan bir tablodan okunuyordu ve ödemeden ÖNCE de false'tu. Kontrol
+çıktıyı sınadı ama değişimi sınamadı.
+
+**Kural:** Bir durum değişikliği sınanırken hem ÖNCEKİ hem SONRAKİ değer
+ölçülür ve fark beklenen tutara eşit olmalıdır. Hesaplanan değer, sistemden
+BAĞIMSIZ bir hesapla (doğrudan SQL) karşılaştırılır. Bir görünüm/tablo
+okunuyorsa, ona gerçekten yazan bir kod yolu olduğu `git grep` ile doğrulanır.

@@ -376,8 +376,13 @@ Backend'e dokunan her değişiklikten sonra çalıştırılır.
       **asıl** borç (tazminat üzerinden tazminat işlenmez); **idempotent** (yeniden yazılır,
       eklenmez); `late_fee_accruals` tablosuna gün/oran/anapara izi.
       **Kanıt:** 30 gün → **60,00 TL**, toplam **1.260,00 TL**, ikinci çalıştırmada değişmiyor.
-- [ ] **4.12 Bakiye için sayısal doğruluk testi** — dağıtım testleri yazıldı; `unit_balances`
-      view'ı için veritabanı destekli sayısal test hâlâ eksik.
+- [x] **[D4] 4.12 Bakiye için sayısal doğruluk testi (2026-10-03)** — test yazılınca asıl hata
+      çıktı: `unit_balances` hiç yazılmayan `ledger_lines`'tan okuyordu; sakinin
+      `/finance/debt-status`'u borcu ne olursa olsun **0 / has_debt:false** diyordu (mobil "borç yok").
+      Eski "ödeme sonrası has_debt:false" kontrolü ödemeden önce de geçerdi. Migration 030 görünümü
+      tahakkuklara bağladı (panel borçlu listesiyle aynı kaynak).
+      **Kanıt:** `verify-stack.sh` §10 → API bakiyesi bağımsız SQL toplamına birebir eşit (1200.00),
+      onaydan sonra tam 1.200,00 düşüyor (→ 0.00); 1016/1016.
 - [ ] **4.13 Mevcut `float64` para alanlarının kuruşa göçü** — yeni kod kuruş kullanıyor,
       `monthly_assessments`/`payments` tablolarındaki `DECIMAL` alanlar korunuyor.
       Tam göç ayrı bir migration ve istemci uyumu gerektirir.

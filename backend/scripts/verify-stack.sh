@@ -627,6 +627,25 @@ if [ "$FUP" = "1" ] && [ -n "${MGR:-}" ]; then
   ASSESS='66666666-6666-6666-6666-666666666601'   # demo: A-3, 1200,00 TL, PENDING
   BEFORE=$($PSQL -t -A -c "SELECT COALESCE(paid_amount,0)::text FROM monthly_assessments WHERE id='$ASSESS';")
 
+  # 4.12 Bakiye sayısal doğruluğu. API'nin bakiyesi tahakkuklardan BAĞIMSIZ
+  # hesaplanan değere birebir eşit olmalı. Önceden görünüm hiç yazılmayan
+  # ledger_lines'tan okuyordu: herkes için 0 / has_debt:false (migration 030).
+  MGRID=$($PSQL -t -A -c "SELECT id FROM users WHERE phone='+905551234567';")
+  expected_balance() {
+    $PSQL -t -A -c "SELECT to_char(COALESCE(SUM(ma.total_amount - COALESCE(ma.paid_amount,0)),0),'FM9999999990.00')
+      FROM monthly_assessments ma JOIN resident_units ru ON ru.unit_id = ma.unit_id
+      WHERE ru.resident_id='$MGRID' AND ru.is_active AND ma.deleted = 0 AND ma.property_id='$DEMO_PROPERTY';"
+  }
+  debt_status() { curl -s -H "Authorization: Bearer $MGR" "http://127.0.0.1:${FINPORT}/api/v1/finance/debt-status"; }
+  api_balance() { echo "$1" | sed -n 's/.*"current_balance":\([-0-9.eE+]*\).*/\1/p' | awk '{printf "%.2f", $1}'; }
+  DS0=$(debt_status); B0API=$(api_balance "$DS0"); B0EXP=$(expected_balance)
+  [ -n "$B0API" ] && [ "$B0API" = "$B0EXP" ] \
+    && ok "sakin bakiyesi tahakkuklardan bağımsız hesaplanan değere birebir eşit ($B0API TL)" \
+    || bad "bakiye uyuşmuyor: API '$B0API', tahakkuklar '$B0EXP' ($DS0)"
+  awk "BEGIN{exit !($B0EXP >= 1200)}" && echo "$DS0" | grep -q '"has_debt":true' \
+    && ok "ödenmemiş 1.200 TL tahakkuku olan sakin borçlu görünüyor (has_debt:true)" \
+    || bad "borçlu sakin borçsuz görünüyor: $DS0"
+
   # Ödeme yöntemi doğrulanır (önceden 'CARD' gibi bilinmeyen değer kaydediliyordu)
   SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "http://127.0.0.1:${FINPORT}/api/v1/finance/payments" \
     -H "Authorization: Bearer $MGR" -H 'Content-Type: application/json' \
@@ -667,11 +686,15 @@ if [ "$FUP" = "1" ] && [ -n "${MGR:-}" ]; then
       -H "Authorization: Bearer $MGR" -H 'Content-Type: application/json' -d '{}')
     [ "$SC" = "409" ] && ok "çift onaylama engellendi → 409" || bad "çift onaylama → $SC (409 bekleniyordu)"
 
-    # Borç durumu da düşmüş olmalı
-    DEBT=$(curl -s -H "Authorization: Bearer $MGR" "http://127.0.0.1:${FINPORT}/api/v1/finance/debt-status")
-    echo "$DEBT" | grep -q '"has_debt":false' \
-      && ok "ödeme sonrası borç durumu güncellendi (has_debt:false)" \
-      || bad "ödeme sonrası hâlâ borçlu görünüyor: $DEBT"
+    # Borç durumu tam olarak ödenen tutar kadar düşmüş olmalı (kuruşu kuruşuna)
+    DS1=$(debt_status); B1API=$(api_balance "$DS1"); B1EXP=$(expected_balance)
+    DIFF=$(awk "BEGIN{printf \"%.2f\", $B0API - $B1API}")
+    [ "$B1API" = "$B1EXP" ] && [ "$DIFF" = "1200.00" ] \
+      && ok "onaydan sonra bakiye tam 1.200,00 TL düştü ($B0API → $B1API) ve tahakkuklarla tutarlı" \
+      || bad "onay sonrası bakiye: API $B0API → $B1API (fark $DIFF), tahakkuklar $B1EXP"
+    WANT=$(awk "BEGIN{print ($B1EXP > 0) ? \"true\" : \"false\"}")
+    echo "$DS1" | grep -q "\"has_debt\":$WANT" \
+      && ok "has_debt kalan bakiyeyle tutarlı ($WANT)" || bad "has_debt tutarsız: $DS1"
 
     # Geri al: betik tekrar çalıştırılabilir kalsın
     $PSQL -c "UPDATE monthly_assessments SET paid_amount=0, status='PENDING' WHERE id='$ASSESS';" >/dev/null 2>&1

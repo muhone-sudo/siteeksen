@@ -12,6 +12,22 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-03 — SAKİN BAKİYESİ HERKES İÇİN 0 GÖRÜNÜYORDU (migration 030, 4.12) (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **1016/1016**; §10: API `current_balance` bağımsız SQL toplamına
+> birebir eşit (1200.00 TL, `has_debt:true`), onaydan sonra tam 1.200,00 düşüyor (→ 0.00).
+
+- `unit_balances` (001) bakiyeyi `ledger_lines`'tan hesaplıyordu; bu tabloya **hiçbir kod
+  yazmıyor**. Sakinin borç durumu ucu herkes için `current_balance:0`, `has_debt:false`
+  dönüyor, mobil uygulama borçlu sakine "borç yok" gösteriyordu.
+- Doğrulamadaki "ödeme sonrası has_debt:false" kontrolü ödeme öncesinde de geçerdi — hiçbir şey
+  kanıtlamıyordu. Yerine bağımsız sayısal karşılaştırma yazıldı (4.12).
+- 030: görünüm tahakkuklardan (`monthly_assessments`, silinmişler hariç) hesaplanır; panel
+  borçlu listesiyle aynı kaynak. Kolon adları/anlamları korundu, `security_invoker` korundu.
+  `ledger_*` tabloları ileride çift taraflı muhasebe için duruyor.
+- Ayrıca: yanlışlıkla izlenen iki servis ikilisi (`backend/finance`, `backend/identity`,
+  toplam ~37 MB) depodan çıkarıldı, `.gitignore` tamamlandı.
+
 ### 2026-10-03 — KİŞİSEL VERİ ANAHTARI DÖNDÜRME (todo 8, roadmap 2.18) (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **1012/1012**; yeni adım 42 (15 kontrol) gerçek bir döndürmeyi
