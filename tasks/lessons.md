@@ -582,3 +582,15 @@ hiçbir doğrulama onu çağırmıyordu.
 **Kural:** Bir hesap kuralı (kuruş, nisap, oran) merkezîleştirildiğinde aynı
 hesabı yapan BÜTÜN yollar `git grep` ile bulunur ve ya merkeze bağlanır ya da
 silinir. Doğrulama, ucu çağırmayan bir kontrolle "geçti" sayılamaz.
+
+### Ders 39 — "Bugün" iki ayrı saatle hesaplanıyorsa, gece yarısı hata çıkar
+
+Görev başlangıcı Go'da `time.Now()` ile (UTC+3), geçerlilik denetimi veritabanında
+`CURRENT_DATE` ile (UTC) yapılıyordu. Gündüz koşan doğrulama hep geçti; gece 01:00'de
+koşunca bugün verilen rol "yarın başlıyor" sayıldı. Saat dilimi hiçbir yerde
+ayarlanmamıştı.
+
+**Kural:** İş günü TEK saat diliminden gelir (`APP_TIMEZONE`); Go süreci ve her
+veritabanı oturumu ona sabitlenir. Tarih varsayılanı mümkünse veritabanında verilir
+(`COALESCE($1, CURRENT_DATE)`). Tarihe bağlı doğrulamalar gece yarısı civarında da
+koşulur.

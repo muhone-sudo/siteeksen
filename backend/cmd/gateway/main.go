@@ -310,7 +310,7 @@ func main() {
 		url      string
 		prefixes []string
 	}{
-		{identityURL, []string{"/api/v1/auth", "/api/v1/users", "/api/v1/residents", "/api/v1/units"}},
+		{identityURL, []string{"/api/v1/auth", "/api/v1/users", "/api/v1/residents", "/api/v1/units", "/api/v1/property-roles"}},
 		{financeURL, []string{"/api/v1/finance"}},
 		{communityURL, []string{"/api/v1/announcements", "/api/v1/requests"}},
 		{iotURL, []string{"/api/v1/meters", "/api/v1/meter-readings", "/api/v1/consumption",

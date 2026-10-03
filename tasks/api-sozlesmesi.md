@@ -55,6 +55,9 @@ Giriş kilidi: art arda 5 hatalı girişte hesap 15 dk kilitlenir (kilitliyken d
 | `GET /units` | M,B,A,S | — | `{data:[{id,property_id,block,floor,door_number,share_ratio,gross_area_m2,unit_type,is_commercial,is_ground_floor}]}` (silinmişler hariç) |
 | `POST /units` | M,B | tek bölüm nesnesi ya da `{units:[…]}` (en çok 2000): `door_number`*,`share_ratio`* (>0),`block`,`floor`(vars. 0),`gross_area_m2`,`unit_type`(APARTMENT/SHOP/OFFICE/PARKING/STORAGE),`is_commercial`,`is_ground_floor`(vars. kat 0) | 201 `{data:[…],created}` — hepsi tek işlemde; aynı blok/kapı (harf duyarsız) 409, doğrulama 422 (satır numarasıyla) |
 | `PATCH /units/:id` | M,B | aynı alanlar, hepsi isteğe bağlı | 200 bölüm; verilmeyen alan değişmez |
+| `GET /property-roles` | M,B,A,S | — | `{data:[{id,user_id,first_name,last_name,phone,role,valid_from,valid_to?,decision_ref,active,granted_by_name,granted_at}]}` (geçmiş dahil) |
+| `POST /property-roles` | **M** | `phone`*,`role`*(MANAGER/BOARD_MEMBER/AUDITOR/STAFF),`decision_ref` (M/B/A için zorunlu — KMK m.34/41),`valid_from`,`valid_to`,`first_name`/`last_name` (hesap yoksa) | 201 `{role,activation?,note}` · bağsız hesap 409 · aynı etkin görev 409 · eksik karar 422. Yetki bir sonraki girişte geçerli |
+| `POST /property-roles/:id/end` | **M** | — | 200 `{role,note}`; kişinin bütün oturumları kapatılır · sitenin tek yöneticisi 409 |
 
 ## finance (8082) — önek `/finance`
 

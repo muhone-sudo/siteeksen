@@ -29,6 +29,7 @@ func main() {
 		WithRevocations(revocationChecker)
 	residentRepo := repository.NewResidentRepository(pool)
 	residentService := service.NewResidentService(residentRepo).WithActivation(authService, userRepo)
+	roleService := service.NewRoleService(repository.NewRoleRepository(pool), authService, revocationChecker)
 
 	// Gin router
 	r := middleware.NewRouter("identity")
@@ -85,6 +86,15 @@ func main() {
 		residents.GET("/:id", handlers.GetResident(residentService))
 		residents.PATCH("/:id", handlers.UpdateResident(residentService))
 		residents.POST("/:id/activation-code", handlers.IssueActivationCode(residentService))
+	}
+
+	// Site görevlendirmeleri: yönetici, kurul üyesi, denetçi, görevli (2026-10-03).
+	siteRoles := api.Group("/property-roles")
+	siteRoles.Use(middleware.AuthMiddleware(pool), middleware.AuditLog(pool, "property_role"))
+	{
+		siteRoles.GET("", handlers.ListSiteRoles(roleService))
+		siteRoles.POST("", handlers.GrantSiteRole(roleService))
+		siteRoles.POST("/:id/end", handlers.EndSiteRole(roleService))
 	}
 
 	units := api.Group("/units")

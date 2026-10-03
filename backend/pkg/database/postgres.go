@@ -7,6 +7,7 @@ import (
 	"os"
 	"strconv"
 	"time"
+	_ "time/tzdata" // kapta zoneinfo olmasa da saat dilimi yüklenebilsin
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -24,6 +25,9 @@ type Config struct {
 	// MaxConns / MinConns, servis başına havuz sınırlarıdır.
 	MaxConns int32
 	MinConns int32
+	// TimeZone, uygulamanın İŞ GÜNÜNÜ belirleyen saat dilimidir (APP_TIMEZONE,
+	// varsayılan Europe/Istanbul). Bkz. ApplyTimeZone.
+	TimeZone string
 }
 
 // NewConfigFromEnv ortam değişkenlerinden config oluşturur.
@@ -46,7 +50,32 @@ func NewConfigFromEnv() *Config {
 		SSLMode:  getEnv("DB_SSLMODE", "disable"),
 		MaxConns: int32(getInt("DB_MAX_CONNS", 8)),
 		MinConns: int32(getInt("DB_MIN_CONNS", 0)),
+		TimeZone: getEnv("APP_TIMEZONE", DefaultTimeZone),
 	}
+}
+
+// DefaultTimeZone: ürün Türkiye'deki siteler içindir (KMK).
+const DefaultTimeZone = "Europe/Istanbul"
+
+// ApplyTimeZone, Go sürecinin yerel saatini iş saat dilimine sabitler.
+//
+// NEDEN (2026-10-03): saat dilimi hiçbir yerde ayarlanmamıştı. Veritabanı
+// `CURRENT_DATE`'i sunucunun saat dilimiyle (kapta UTC), Go `time.Now()`'u
+// sürecin yerel saatiyle hesaplıyordu. Türkiye'de her gece 00:00–03:00 arasında
+// iki taraf farklı gün görüyordu: bugün başlayan bir görev `valid_from`'u
+// veritabanına göre YARIN olduğu için hiç geçerli sayılmadı (doğrulama yakaladı);
+// gecikme günleri, vade ve süre dolumu da aynı pencerede bir gün kayabiliyordu.
+// Artık hem Go süreci hem her veritabanı oturumu aynı iş saat dilimini kullanır.
+func ApplyTimeZone(name string) (*time.Location, error) {
+	if name == "" {
+		name = DefaultTimeZone
+	}
+	loc, err := time.LoadLocation(name)
+	if err != nil {
+		return nil, fmt.Errorf("geçersiz APP_TIMEZONE %q: %w", name, err)
+	}
+	time.Local = loc
+	return loc, nil
 }
 
 // DSN, bağlantı adresini kurar. Kullanıcı adı ve parola URL KAÇIŞIYLA eklenir:
@@ -69,6 +98,13 @@ func Connect(cfg *Config) (*pgxpool.Pool, error) {
 	if err != nil {
 		return nil, fmt.Errorf("config parse hatası: %w", err)
 	}
+
+	loc, err := ApplyTimeZone(cfg.TimeZone)
+	if err != nil {
+		return nil, err
+	}
+	// Her oturum aynı saat dilimiyle: CURRENT_DATE / now()::date iş gününü verir.
+	config.ConnConfig.RuntimeParams["timezone"] = loc.String()
 
 	config.MaxConns = cfg.MaxConns
 	if config.MaxConns <= 0 {

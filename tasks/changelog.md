@@ -12,6 +12,21 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-04 — GÖREVLENDİRME (yönetici/kurul/denetçi/görevli) + İŞ SAAT DİLİMİ (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **1071/1071** (8 yeni kontrol; ayrıca Türkiye saatiyle 01:00'de koşuldu);
+> `go test ./pkg/database/...` (saat dilimi).
+
+- `property_roles`'a yazan hiçbir uç yoktu: kurucu dışında kimseye yönetim/kurul/denetçi/görevli rolü
+  verilemiyor, görevi biten birinin yetkisi kaldırılamıyordu. `GET/POST /property-roles`,
+  `POST /property-roles/:id/end`: yalnızca yönetici atar; yönetici/kurul/denetçi için karar bilgisi
+  zorunlu (KMK m.34/41); bağsız hesaba görev verilmez; görev sonlandırılınca kişinin oturumları hemen
+  kapanır; sitenin tek yöneticisi sonlandırılamaz (eşzamanlı sonlandırmaya karşı kilitli); geçmiş silinmez.
+- **Saat dilimi hiçbir yerde ayarlı değildi:** veritabanı "bugün"ü UTC ile, Go süreçleri yerel saatle
+  hesaplıyordu; Türkiye'de her gece 00:00–03:00 arasında farklı gün görüyorlardı (bugün başlayan görev
+  "yarın başlıyor" sayıldı). Artık `pkg/database` Go sürecini ve her veritabanı oturumunu `APP_TIMEZONE`
+  (varsayılan Europe/Istanbul) ile sabitler; tzdata ikiliye gömülü. Doğrulama betiği de `PGTZ` kullanır.
+
 ### 2026-10-03 — SİTE KURULUMU: YENİ SİTE YÖNETİLEMİYORDU (migration 033, FAZ 8.1 ilk dilim) (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **1063/1063** (8 yeni kontrol: kurucu MANAGER + sahte daire yok, toplu

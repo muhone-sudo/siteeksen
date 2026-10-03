@@ -35,6 +35,17 @@ func mapResidentError(c *gin.Context, err error, fallback string) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Belirtilen birim bu siteye ait değil"})
 	case errors.Is(err, repository.ErrPhoneAlreadyExists):
 		c.JSON(http.StatusConflict, gin.H{"error": "Bu telefon numarası başka bir kullanıcıya ait"})
+	case errors.Is(err, service.ErrInvalidRoleInput):
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+	case errors.Is(err, repository.ErrRoleExists), errors.Is(err, repository.ErrRoleNotActive),
+		errors.Is(err, repository.ErrLastManager):
+		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+	case errors.Is(err, repository.ErrUserOtherSite):
+		c.JSON(http.StatusConflict, gin.H{"error": "Bu telefon numarası bu siteyle bağı olmayan bir hesaba ait; kişi önce sakin olarak davet edilmeli (kişisel veri gösterilmez)"})
+	case errors.Is(err, repository.ErrNameRequiredNew):
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+	case errors.Is(err, repository.ErrRoleNotFound):
+		c.JSON(http.StatusNotFound, gin.H{"error": "Görevlendirme bulunamadı"})
 	case errors.Is(err, service.ErrInvalidUnit):
 		// Mesaj bizim yazdığımız doğrulama metnidir (satır numarasıyla).
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
@@ -256,5 +267,47 @@ func UpdateUnit(svc *service.ResidentService) gin.HandlerFunc {
 			return
 		}
 		c.JSON(http.StatusOK, u)
+	}
+}
+
+// ListSiteRoles sitenin görevlendirmelerini listeler.
+func ListSiteRoles(svc *service.RoleService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		list, err := svc.List(c.Request.Context(), c.GetString("property_id"), getRoles(c))
+		if err != nil {
+			mapResidentError(c, err, "Görevlendirmeler alınamadı")
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"data": list})
+	}
+}
+
+// GrantSiteRole görev verir (yalnızca yönetici).
+func GrantSiteRole(svc *service.RoleService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var in models.GrantRoleInput
+		if err := c.ShouldBindJSON(&in); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "phone ve role zorunlu"})
+			return
+		}
+		in.Phone = normalizePhone(in.Phone)
+		res, err := svc.Grant(c.Request.Context(), c.GetString("property_id"), c.GetString("user_id"), getRoles(c), in)
+		if err != nil {
+			mapResidentError(c, err, "Görev verilemedi")
+			return
+		}
+		c.JSON(http.StatusCreated, res)
+	}
+}
+
+// EndSiteRole görevi sonlandırır (yalnızca yönetici).
+func EndSiteRole(svc *service.RoleService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		sr, err := svc.End(c.Request.Context(), c.GetString("property_id"), c.Param("id"), getRoles(c))
+		if err != nil {
+			mapResidentError(c, err, "Görev sonlandırılamadı")
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"role": sr, "note": "Kişinin açık oturumları kapatıldı; yeniden girişte yetkisi olmaz."})
 	}
 }

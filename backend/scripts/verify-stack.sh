@@ -26,6 +26,10 @@ CNAME=${VERIFY_CONTAINER:-siteeksen-verify}
 DBPORT=${VERIFY_DB_PORT:-55440}
 SVCPORT=${VERIFY_SVC_PORT:-18090}
 PW=${VERIFY_DB_PASSWORD:-verifypw}
+# Servisler veritabanı oturumlarını iş saat dilimine (APP_TIMEZONE, varsayılan
+# Europe/Istanbul) sabitler; doğrulamanın psql oturumları da aynı günü görmeli.
+# Aksi hâlde Türkiye'de 00:00–03:00 arasında beklenen değerler bir gün kayar.
+export PGTZ=${APP_TIMEZONE:-Europe/Istanbul}
 
 PASS=0
 FAIL=0
@@ -5663,6 +5667,46 @@ R33=$($PSQL -t -A -c "SELECT (SELECT deleted FROM units WHERE id='$FK') || '|' |
 $PSQL -c "UPDATE property_roles SET is_active = false WHERE user_id='$G80' AND property_id='$NPID';" >/dev/null
 SC=$(code -X POST "$ID39/users/me/active-property" -H "Authorization: Bearer $NT" -H "$J" -d "{\"property_id\":\"$DEMO_PROPERTY\"}")
 [ "$SC" = "200" ] || bad "demo siteye geri dönülemedi → $SC"
+# Görevlendirme (2026-10-03): property_roles'a yazan uç yoktu; kurucu dışında
+# kimseye yönetici/kurul/denetçi/görevli rolü verilemiyor, kaldırılamıyordu.
+RURL="$ID39/property-roles"
+G1=$(curl -s -w '\n%{http_code}' -X POST "$RURL" -H "Authorization: Bearer $MGR39" -H "$J" \
+  -d '{"phone":"0555 000 00 81","role":"STAFF","first_name":"Yeni","last_name":"Gorevli"}')
+[ "$(echo "$G1" | tail -1)" = "201" ] && echo "$G1" | grep -q '"activation_code"' \
+  && ok "yönetici yeni kişiye görevli rolü verdi; hesap açıldı, etkinleştirme kodu bir kez döndü" \
+  || bad "görevli atama: $(echo "$G1" | tail -1) $(echo "$G1" | head -c 200)"
+SC=$(code -X POST "$RURL" -H "Authorization: Bearer $MGR39" -H "$J" -d '{"phone":"5559876543","role":"BOARD_MEMBER"}')
+[ "$SC" = "422" ] && ok "kurul üyesi/denetçi/yönetici ataması karar bilgisi olmadan yapılamıyor → 422 (KMK m.34/41)" || bad "kararsız atama → $SC"
+SC=$(code -X POST "$RURL" -H "Authorization: Bearer $MGR39" -H "$J" -d '{"phone":"5550000080","role":"STAFF"}')
+[ "$SC" = "409" ] && ok "bu siteyle bağı olmayan hesaba görev verilemiyor → 409" || bad "bağsız hesaba görev → $SC"
+G2=$(curl -s -w '\n%{http_code}' -X POST "$RURL" -H "Authorization: Bearer $MGR39" -H "$J" \
+  -d '{"phone":"5559876543","role":"AUDITOR","decision_ref":"2026/3 sayılı kat malikleri kurulu kararı"}')
+RID=$(echo "$G2" | sed '$d' | jfield 'd["role"]["id"]')
+SC=$(code -X POST "$RURL" -H "Authorization: Bearer $MGR39" -H "$J" -d '{"phone":"5559876543","role":"AUDITOR","decision_ref":"tekrar"}')
+[ "$(echo "$G2" | tail -1)" = "201" ] && [ "$SC" = "409" ] && ok "kiracıya denetçi görevi verildi; aynı görev ikinci kez verilemiyor → 409" \
+  || bad "denetçi atama: $(echo "$G2" | tail -1), tekrar $SC"
+TA=$(curl -s -X POST "$ID39/auth/login" -H "$J" -d '{"phone":"5559876543","password":"Demo123!"}' | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+SC=$(code "$ID39/residents/invitations" -H "Authorization: Bearer $TA")
+SC2=$(code -X POST "$RURL" -H "Authorization: Bearer $TA" -H "$J" -d '{"phone":"5550000081","role":"STAFF"}')
+[ "$SC" = "200" ] && [ "$SC2" = "403" ] && ok "denetçi rolü yeni girişte geçerli (okuma 200); denetçi görev dağıtamıyor → 403" \
+  || bad "denetçi yetkisi: okuma $SC, atama $SC2"
+SC=$(code -X POST "$RURL/$RID/end" -H "Authorization: Bearer $MGR39")
+SC2=$(code "$ID39/residents/invitations" -H "Authorization: Bearer $TA")
+TA2=$(curl -s -X POST "$ID39/auth/login" -H "$J" -d '{"phone":"5559876543","password":"Demo123!"}' | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+SC3=$(code "$ID39/residents/invitations" -H "Authorization: Bearer $TA2")
+HIST=$($PSQL -t -A -c "SELECT is_active || '|' || (valid_to IS NOT NULL) FROM property_roles WHERE id='${RID:-00000000-0000-0000-0000-000000000000}';")
+[ "$SC" = "200" ] && [ "$SC2" = "401" ] && [ "$SC3" = "403" ] && [ "$HIST" = "false|true" ] \
+  && ok "görev sonlandırılınca eski jeton hemen geçersiz (401), yeni girişte yetki yok (403), kayıt geçmişte kalıyor" \
+  || bad "görev sonlandırma: $SC, eski jeton $SC2, yeni giriş $SC3, kayıt $HIST"
+NMGR=$($PSQL -t -A -c "SELECT count(*) FROM property_roles WHERE property_id='$DEMO_PROPERTY' AND role='MANAGER' AND is_active;")
+MYMR=$($PSQL -t -A -c "SELECT id FROM property_roles WHERE property_id='$DEMO_PROPERTY' AND role='MANAGER' AND is_active AND user_id='$MUID' LIMIT 1;")
+if [ "$NMGR" = "1" ] && [ -n "$MYMR" ]; then
+  SC=$(code -X POST "$RURL/$MYMR/end" -H "Authorization: Bearer $MGR39")
+  [ "$SC" = "409" ] && ok "sitenin tek yöneticisinin görevi sonlandırılamıyor → 409" || bad "tek yönetici sonlandırma → $SC"
+fi
+TENL=$(curl -s -X POST "$ID39/auth/login" -H "$J" -d '{"phone":"5559876543","password":"Demo123!"}' | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+SC=$(code "$RURL" -H "Authorization: Bearer $TENL")
+[ "$SC" = "403" ] && ok "kiracı görevlendirmeleri göremiyor → 403" || bad "kiracı görev listesi → $SC"
 # YETKİ YÜKSELTME (migration 031): daire bağının rolü jetona olduğu gibi girer.
 # Önceden 'MANAGER' / 'SUPER_ADMIN' gibi değerler kabul ediliyordu: sakin yazabilen
 # yönetim kurulu üyesi kendini yönetici yapabiliyordu.
