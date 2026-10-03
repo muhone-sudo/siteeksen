@@ -12,6 +12,14 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-03 — BİLDİRİMDE ALICI ÜYELİĞİ HER ZAMAN DENETLENİYOR (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **1042/1042** (§24: siteye kayıtlı olmayan kullanıcı + açık adres → 404, kayıt yok).
+
+- `recipient_user_id` ile birlikte açık adres verilirse kişinin bu sitede kayıtlı olduğu denetlenmiyordu;
+  başka sitenin kullanıcısı adına bildirim kaydı açılabiliyordu. Ayrıca `api/openapi.yaml` bayat olarak
+  işaretlendi (B97; geçerli sözleşme `tasks/api-sozlesmesi.md`).
+
 ### 2026-10-03 — ÖDEME LİSTELERİ SAYFALI (B69) (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **1041/1041** (`?limit=1` → 1 kayıt + doğru `total`, `limit=501` → 400);

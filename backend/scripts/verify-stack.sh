@@ -2966,6 +2966,14 @@ if [ "$NUP" = "1" ] && [ -n "${MGR:-}" ] && [ -n "${TEN:-}" ]; then
 
   # Sağlık ucu hangi kanalların sağlayıcısı olmadığını DÜRÜSTÇE söylemeli
   NH=$(curl -s "http://127.0.0.1:${NTFPORT}/health")
+  # Başka sitenin (hiçbir siteye bağlı olmayan) kullanıcısı adına, açık adres verilse bile kayıt açılmamalı
+  FORN=$($PSQL -t -A -c "INSERT INTO users (first_name, last_name, phone, password_hash, roles)
+    VALUES ('Yabanci', 'Kullanici', '+905550000079', 'x', ARRAY['RESIDENT']) ON CONFLICT (phone) DO UPDATE SET first_name = EXCLUDED.first_name RETURNING id;" | grep -E '^[0-9a-f-]{36}$')
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$NURL/notifications" -H "$NA" -H 'Content-Type: application/json' \
+    -d "{\"recipient_user_id\":\"$FORN\",\"recipient\":\"+905550000079\",\"channel\":\"SMS\",\"body\":\"yabanci deneme\"}")
+  NF=$($PSQL -t -A -c "SELECT count(*) FROM notifications WHERE recipient_user_id='${FORN:-00000000-0000-0000-0000-000000000000}';")
+  [ "$SC" = "404" ] && [ "$NF" = "0" ] && ok "siteye kayıtlı olmayan kullanıcı adına (açık adresle de) bildirim açılamıyor → 404" \
+    || bad "yabancı kullanıcıya bildirim: $SC (kayıt $NF)"
   echo "$NH" | grep -q 'channels_without_provider' && ok "sağlayıcısı olmayan kanallar bildiriliyor" \
     || bad "sağlık ucu sağlayıcı bilgisi vermiyor: $NH"
   echo "$NH" | grep -q 'GÖNDERİLMEZ' && ok "gönderilmeyeceği açıkça yazılıyor" || bad "dürüstlük notu yok"

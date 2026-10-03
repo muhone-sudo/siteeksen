@@ -148,14 +148,24 @@ func main() {
 			// Alıcı adresi verilmediyse kullanıcının kayıtlı telefonundan
 			// çözülür. Çözülemezse bildirim OLUŞTURULMAZ — boş adrese
 			// "gönderdim" demek en kaba yalan olurdu.
-			if recipient == "" && in.RecipientUserID != "" {
+			//
+			// Alıcı kimliği verildiyse kişinin BU SİTEDE kayıtlı olduğu her zaman
+			// denetlenir (2026-10-03): önceden açık adres de verilince denetim
+			// atlanıyor, başka sitenin kullanıcısı adına kayıt açılabiliyordu.
+			if in.RecipientUserID != "" {
 				addr, rerr := repo.RecipientAddress(c.Request.Context(),
 					propertyID, in.RecipientUserID, in.Channel)
-				if rerr != nil {
+				switch {
+				case rerr == nil:
+					if recipient == "" {
+						recipient = addr
+					}
+				case errors.Is(rerr, repository.ErrNoAddress) && recipient != "":
+					// Üye ama kayıtlı adresi yok; açık adres kullanılır.
+				default:
 					fail(c, rerr, "alıcı adresi")
 					return
 				}
-				recipient = addr
 			}
 
 			res, err := notifier.Enqueue(c.Request.Context(), notify.Message{
