@@ -2,6 +2,12 @@ openapi: 3.1.0
 info:
   title: SiteEksen API
   description: |
+    > **UYARI (2026-10-03): BU DOSYA BAYATTIR VE SÖZLEŞME DEĞİLDİR** (gap-analizi B97).
+    > İlk commit'ten beri güncellenmedi: kodda olmayan uçlar ve gerçekte
+    > uygulanmayan hız sınırları içerir, sonradan eklenen birçok uç ise eksiktir. Geçerli sözleşme `tasks/api-sozlesmesi.md`'dir
+    > (panel `admin/src/lib/endpoints.ts` ve `verify-stack.sh` §38 ile gerçek gateway'e karşı sınanır).
+    > Kod üretimi ya da istemci yazımı için KULLANMAYIN.
+
     Türkiye'deki Kat Mülkiyeti Kanunu'na uyumlu site yönetim platformu API'si.
     
     ## Kimlik Doğrulama

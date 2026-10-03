@@ -259,7 +259,7 @@ Bugün tamamen yok. Aidatın yasal dayanağı ve icra gücü buradan doğar.
 | 8.2 | Test altyapısı: birim + entegrasyon (testcontainers) + sözleşme testi + mobil golden test | `[D0]` |
 | 8.3 | Ölü kod ve ölü şema temizliği (~3.900 satır, 47 tablo) | `[D0]` |
 | 8.4 | Tek giriş kapısı kararı (Kong ↔ gateway birleştirme) — **karar (2026-09-27):** tek giriş gateway; Kong isteğe bağlı kenar katmanı, tek yukarı akış gateway | `[D2]` |
-| 8.5 | OpenAPI'yi gerçek uçlarla senkronize et + sözleşme testi | `[D0]` |
+| 8.5 | OpenAPI'yi gerçek uçlarla senkronize et + sözleşme testi | `[D1]` sözleşme `tasks/api-sozlesmesi.md` + panel sözleşme testi (verify §38); `api/openapi.yaml` bayat olarak işaretlendi (2026-10-03), senkron yapılmadı |
 | 8.6 | Yönetim organizasyonu (portföy) katmanı | `[D0]` |
 | 8.7 | Çok dillilik, erişilebilirlik, offline | `[D0]` |
 | 8.8 | Akıllı tahsilat, ESG, AI yetenekleri (gerçek entegrasyonla) | `[D0]` |
