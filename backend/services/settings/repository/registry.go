@@ -93,10 +93,12 @@ func Lookup(key string) (Definition, bool) {
 }
 
 // legalPrefixes, mevzuat parametrelerinin ön ekleridir. Bu ön eklerle başlayan
-// bir anahtar site ayarı olarak kaydedilemez; veritabanında da aynı kısıt vardır.
+// bir anahtar site ayarı olarak kaydedilemez. Veritabanında ayrıca 038 tetikleyicisi,
+// legal_parameters'ta KOD olarak bulunan her anahtarı reddeder (liste unutulsa bile).
 var legalPrefixes = []string{
 	"LATE_FEE", "HEATING_", "GA_", "PROXY_", "MAJORITY_",
-	"BUDGET_OBJECTION", "AUDIT_INTERVAL", "DECISION_BOOK",
+	"BUDGET_", "AUDIT_INTERVAL", "DECISION_BOOK", "REVALUATION", "KVKK_",
+	"MANAGER_MANDATORY", "ANNUAL_ACCOUNT", "TENANT_LIABILITY", "NEW_OWNER", "EXPENSE_DIST",
 }
 
 // IsLegalKey, anahtarın mevzuat parametresi alanına girip girmediğini söyler.
