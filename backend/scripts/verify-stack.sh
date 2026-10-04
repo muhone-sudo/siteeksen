@@ -506,6 +506,8 @@ if [ "$GUP" = "1" ]; then
 
   SC=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:${GWPORT}/api/v1/users/me")
   [ "$SC" = "401" ] && ok "gateway: token'sız /users/me → 401" || bad "gateway: token'sız /users/me → $SC (401 bekleniyordu)"
+  MB=$(curl -s "http://127.0.0.1:${GWPORT}/metrics")
+  grep -q 'siteeksen_http_requests_total' <<<"$MB" && bad "gateway servis metriklerini dışarı açıyor" || ok "gateway /metrics'i dışarı açmıyor (yalnızca küme içinden kazınır)"
 
   SC=$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer sahte.jeton.dizesi" \
     "http://127.0.0.1:${GWPORT}/api/v1/users/me")
@@ -3681,13 +3683,13 @@ if [ "$SUP2" = "1" ] && [ -n "${MGR:-}" ] && [ -n "${TEN:-}" ]; then
 
   # KVKK saklama ve periyodik imha (FAZ 7.8, 043)
   RR=$(curl -s "$TURL/retention-rules" -H "$TA")
-  echo "$RR" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["periodic_months"]==6 and [r["category"] for r in d["data"]]==["VISITOR","PARKING_LOG","PACKAGE"]' 2>/dev/null; PY=$?
+  echo "$RR" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["periodic_months"]==6 and [r["category"] for r in d["data"]]==["VISITOR","PARKING_LOG","PACKAGE","CLIENT_ERROR"]' 2>/dev/null; PY=$?
   SC1=$(curl -s -o /dev/null -w '%{http_code}' -X PUT "$TURL/retention-rules/VISITOR" -H "$TA" -H "$TJ" -d '{"retention_months":0,"justification":"x"}')
   SC2=$(curl -s -o /dev/null -w '%{http_code}' -X PUT "$TURL/retention-rules/VISITOR" -H "$TA" -H "$TJ" -d '{"retention_months":12}')
   SC3=$(curl -s -o /dev/null -w '%{http_code}' -X PUT "$TURL/retention-rules/VISITOR" -H "$TA" -H "$TJ" -d '{"retention_months":12,"justification":"Güvenlik amacıyla bir yıl; olay incelemesi için yeterli"}')
   SC4=$(curl -s -o /dev/null -w '%{http_code}' "$TURL/retention-rules" -H "Authorization: Bearer $TEN")
   [ "$PY" = "0" ] && [ "$SC1" = "422" ] && [ "$SC2" = "422" ] && [ "$SC3" = "200" ] && [ "$SC4" = "403" ] \
-    && ok "saklama süresi: 3 kategori, periyodik imha 6 ay (İmha Yön. m.11); süre/gerekçe doğrulaması; sakin göremez" || bad "saklama kuralları: py $PY / $SC1 / $SC2 / $SC3 / $SC4"
+    && ok "saklama süresi: 4 kategori, periyodik imha 6 ay (İmha Yön. m.11); süre/gerekçe doğrulaması; sakin göremez" || bad "saklama kuralları: py $PY / $SC1 / $SC2 / $SC3 / $SC4"
   DP='11111111-1111-1111-1111-111111111111'
   VO=$($PSQL -t -A -c "INSERT INTO visitors (property_id, visitor_name, visitor_phone, visitor_id_number, vehicle_plate, status, checked_in_at)
     VALUES ('$DP','Eski Ziyaretci','5550001111','12345678901','34ABC123','CHECKED_OUT', now() - interval '400 days') RETURNING id;" | head -1)
@@ -3697,7 +3699,7 @@ if [ "$SUP2" = "1" ] && [ -n "${MGR:-}" ] && [ -n "${TEN:-}" ]; then
   ROW=$($PSQL -t -A -c "SELECT visitor_name || '|' || COALESCE(visitor_phone,'-') || '|' || COALESCE(visitor_id_number,'-') || '|' || COALESCE(vehicle_plate,'-') FROM visitors WHERE id='$VO';")
   KEEP=$($PSQL -t -A -c "SELECT count(*) FROM visitors WHERE id IN ('$VN','$VI') AND visitor_name <> '[imha edildi]';")
   LG=$($PSQL -t -A -c "SELECT count(*) FROM data_destruction_log WHERE property_id='$DP' AND category='VISITOR' AND record_count >= 1;")
-  NOR=$($PSQL -t -A -c "SELECT count(*) FROM data_destruction_log WHERE property_id='$DP' AND category IN ('PARKING_LOG','PACKAGE');")
+  NOR=$($PSQL -t -A -c "SELECT count(*) FROM data_destruction_log WHERE property_id='$DP' AND category IN ('PARKING_LOG','PACKAGE','CLIENT_ERROR');")
   [ "$ROW" = "[imha edildi]|-|-|-" ] && [ "$KEEP" = "2" ] && [ "${LG:-0}" -ge 1 ] && [ "$NOR" = "0" ] \
     && ok "süresi dolan ziyaretçi kaydı anonimleştirildi; yeni ve hâlâ içerideki kayıt korundu; imha kaydı yazıldı; süresi tanımsız kategori imha edilmedi" \
     || bad "periyodik imha: '$ROW' / korunan $KEEP / kayıt $LG / tanımsız $NOR — $RUN"
@@ -5044,6 +5046,21 @@ if [ "$CUP" = "1" ]; then
   SC1=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$EU/checks/$CK/close" -H "Authorization: Bearer $MGR")
   SC2=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$EU/checks/$CK/respond" -H "Authorization: Bearer $TEN" -H "$JH" -d '{"status":"SAFE"}')
   [ "$SC1" = "200" ] && [ "$SC2" = "409" ] && ok "kapatılan çağrıya yanıt verilemiyor → 409" || bad "çağrı kapatma: $SC1 / $SC2"
+  # İstemci hata raporu ve metrikler (3.6, 044)
+  LONG=$(python3 -c "print('x'*2500)")
+  CE=$(curl -s -w '\n%{http_code}' -X POST "$CURL2/client-errors" -H "Authorization: Bearer $TEN" -H "$JH" \
+    -d "{\"app\":\"mobile\",\"app_version\":\"1.0.0+1\",\"platform\":\"android\",\"fatal\":true,\"message\":\"$LONG\",\"stack\":\"#0 main\"}")
+  SC2=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$CURL2/client-errors" -H "Authorization: Bearer $TEN" -H "$JH" -d '{"app":"uydurma","message":"x"}')
+  ML=$($PSQL -t -A -c "SELECT length(message) FROM client_error_reports WHERE user_id='$TENUID' ORDER BY created_at DESC LIMIT 1;")
+  $PSQL -c "INSERT INTO client_error_reports (property_id, user_id, app, message) SELECT '$DEMO_PROPERTY','$TENUID','mobile','dongu' FROM generate_series(1,30);" >/dev/null
+  SC3=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$CURL2/client-errors" -H "Authorization: Bearer $TEN" -H "$JH" -d '{"app":"mobile","message":"bir daha"}')
+  [ "$(echo "$CE" | tail -1)" = "201" ] && [ "$SC2" = "422" ] && [ "$ML" = "2000" ] && [ "$SC3" = "429" ] \
+    && ok "mobil hata raporu kaydedildi (metin 2000 karaktere kısaltıldı); geçersiz uygulama 422; saatlik sınır aşımı 429" || bad "hata raporu: $CE / $SC2 / $ML / $SC3"
+  MT=$(curl -s "http://127.0.0.1:${COMPORT}/metrics")
+  # grep -q büyük girdide erken çıkar; pipefail altında echo SIGPIPE alır — bu yüzden here-string.
+  grep -q 'siteeksen_http_requests_total{service="community",route="/api/v1/kvkk-requests/:id/respond",method="POST",status="2xx"}' <<<"$MT" \
+    && grep -q 'siteeksen_http_request_duration_seconds_bucket' <<<"$MT" && ! grep -Eq "[0-9a-f]{8}-[0-9a-f]{4}-" <<<"$MT" \
+    && ok "/metrics: rota şablonu bazında istek sayısı ve gecikme histogramı; ham yol/kimlik yok" || bad "metrikler: $(echo "$MT" | grep -E "kvkk|[0-9a-f]{8}-" | head -5)"
   # Kiracı kendi talebini listede görür
   RL=$(curl -s "$CURL2/requests" -H "Authorization: Bearer $TEN")
   echo "$RL" | grep -q "$RQID" && ok "sakin kendi talebini listede görüyor" \
@@ -5408,8 +5425,8 @@ ok "kullanılmayan 13 site tablosu RLS ile korunuyor"
 
 # 9) Toplam durum — RLS DIŞINDA KALAN her tablo bilinçli ve gerekçeli olmalı
 RLSCOUNT=$($PSQL -t -A -c "SELECT count(*) FROM rls_enabled_tables;")
-[ "$RLSCOUNT" = "100" ] && ok "RLS toplam 100 tabloda açık" \
-  || bad "beklenmedik RLS tablo sayısı: $RLSCOUNT (beklenen 100)"
+[ "$RLSCOUNT" = "101" ] && ok "RLS toplam 101 tabloda açık" \
+  || bad "beklenmedik RLS tablo sayısı: $RLSCOUNT (beklenen 101)"
 NOTRLS=$($PSQL -t -A -c "SELECT string_agg(t.table_name, ' ' ORDER BY t.table_name)
   FROM information_schema.tables t
   WHERE t.table_schema='public' AND t.table_type='BASE TABLE'

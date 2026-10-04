@@ -68,6 +68,11 @@ func main() {
 	// Acil durum ve afet (FAZ 7.3).
 	registerEmergency(r, pool, notifier)
 
+	// İstemci hata raporları (3.6).
+	clientErrors := r.Group("/api/v1/client-errors")
+	clientErrors.Use(middleware.AuthMiddleware(pool))
+	clientErrors.POST("", reportClientError(pool))
+
 	// Requests (gerçek DB'ye bağlı)
 	requests := r.Group("/api/v1/requests")
 	requests.Use(middleware.AuthMiddleware(pool), middleware.AuditLog(pool, "request"))

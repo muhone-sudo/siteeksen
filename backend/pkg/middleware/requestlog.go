@@ -47,7 +47,10 @@ func InitLogging(service string) {
 func NewRouter(service string) *gin.Engine {
 	InitLogging(service)
 	r := gin.New()
-	r.Use(RequestLog(), gin.Recovery())
+	m := NewMetrics(service)
+	r.Use(RequestLog(), m.Middleware(), gin.Recovery())
+	// İstek metrikleri (3.6): gateway bu yolu yönlendirmez, yalnızca küme içinden kazınır.
+	r.GET("/metrics", m.Handler())
 	return r
 }
 

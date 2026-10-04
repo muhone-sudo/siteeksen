@@ -638,8 +638,8 @@ yaygınlaştırılmasına kayıyor.
 **Bitti (commit d71a4ea):** İşletme projesi 7579 s. Kanuna uyumlu (036): genel kurul onayı, geçici proje
 3 ay, yeniden değerleme tavanı, zamanlayıcı hatırlatması. verify-stack 1098/1098, verify-mobile 10/10.
 
-**Bitti:** FAZ 7.5 tadilat izni (037), ayar koruması (038), kural ihlali (039), acil durum ve afet (040), vergi/SGK takvimi (041), ortak alan geliri (042), KVKK saklama/imha (043), 4.13 para aritmetiği — verify-stack 1154/1154, verify-mobile 10/10.
-- Sonra: 7.4 bordro (S-22 kararı bekliyor), 3.6 metrik/hata takibi, 7.8 kamera envanteri, 7.2 DASK/hasar.
+**Bitti:** FAZ 7.5 tadilat izni (037), ayar koruması (038), kural ihlali (039), acil durum ve afet (040), vergi/SGK takvimi (041), ortak alan geliri (042), KVKK saklama/imha (043), 4.13 para aritmetiği, 3.6 metrik/hata takibi (044) — verify-stack 1158/1158, verify-mobile 10/10.
+- Sonra: 7.4 bordro (S-22 kararı bekliyor), 7.8 kamera envanteri, 7.2 DASK/hasar.
 
 **Not:** dev-up ve panel (`npm run dev`) arka planda çalışıyor; dev DB 036/037'yi içermiyor (yeniden başlatınca uygulanır).
 ## 2026-10-04 — Kurulum, görevlendirme, devir, KVKK, saat dilimi (otonom, ikinci tur)

@@ -620,3 +620,11 @@ PowerShell here-string son satır sonunu taşımaz; verify-stack'e eklediğim bl
 komutla aynı satıra yapıştı (`...head -1)N=$(qapp ...`) ve ilgisiz bir kontrol düştü.
 
 **Kural:** Eklemeden sonra eklenen bloğun son ve sonraki satırı `git diff` ile gözle kontrol edilir.
+
+### Ders 43 — `pipefail` altında `echo büyük | grep -q` yanlış negatif verir
+
+`grep -q` eşleşmeyi bulunca erken çıkar; büyük girdide `echo` SIGPIPE (141) alır ve
+`set -o pipefail` boru hattını başarısız sayar. Metrik çıktısı sınamasında doğru çıktı
+"başarısız" göründü.
+
+**Kural:** Doğrulama betiğinde büyük metinde arama `grep -q … <<<"$VAR"` ile yapılır.

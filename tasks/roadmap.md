@@ -149,7 +149,7 @@ Bugün bu mümkün değil; mevcut ortam elle müdahalelerin toplamı ve kaybolur
 **Çıkış ölçütü:** Kimliksiz hiçbir uç nokta kalmaz; bir tenant'ın token'ıyla diğerinin verisine erişim
 denemesi otomatik testte başarısız olur.
 
-## FAZ 3 — Denetim İzi ve Gözlemlenebilirlik `[TAMAMLANDI — 2026-10-03, 3.6 hariç]`
+## FAZ 3 — Denetim İzi ve Gözlemlenebilirlik `[TAMAMLANDI — 2026-10-04]`
 
 > Denetim izi, okuma kaydı, yapılandırılmış log ve geri yükleme provası çalışıyor ve
 > `verify-stack.sh` ile sınanıyor (ayrıntı: `tasks/todo.md` FAZ 3). **Kalan:** 3.6 (metrik, hata takibi).
@@ -161,7 +161,7 @@ denemesi otomatik testte başarısız olur.
 | 3.3 | Audit hatasının yutulmasını durdur (log + uyarı) | `[D4]` `pkg/middleware` | KN-2 |
 | 3.4 | Hassas veri **okuma** logu (TCKN, maaş, sır gösterme) | `[D4]` 2026-10-03, verify §31 | M-03 |
 | 3.5 | Yapılandırılmış log + istek kimliği + status/süre | `[D4]` 2026-09-26, verify §37 | M-10 |
-| 3.6 | Sağlık kontrolü, metrik, hata takibi (mobil çökme raporu dahil) | `[D0]` | M-10 |
+| 3.6 | Sağlık kontrolü, metrik, hata takibi (mobil çökme raporu dahil) | `[D4]` 2026-10-04 (`/metrics`, `POST /client-errors`, 044) | M-10 |
 | 3.7 | Yedekleme + **geri yükleme provası** | `[D4]` 2026-09-27, verify §41 | M-12 |
 
 ## FAZ 4 — Para Doğruluğu `[ÇEKİRDEK TAMAM — 2026-09-13]`

@@ -12,6 +12,20 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-04 — METRİK VE HATA TAKİBİ (migration 044, todo 3.6) (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **1158/1158** (mobil hata raporu kaydı, 2000 karakter kısaltma, geçersiz uygulama 422,
+> saatlik sınır 429; `/metrics` rota şablonu bazında sayaç ve histogram, ham kimlik yok; gateway `/metrics` açmıyor;
+> CLIENT_ERROR imha kategorisi); `go test ./pkg/middleware` (metrik); `verify-mobile.sh` 10/10 (sakin 36, yönetici 29
+> test); panel tsc/lint temiz.
+
+- Her servis `GET /metrics` (Prometheus metin biçimi, harici bağımlılık yok): rota şablonu + yöntem + durum sınıfı
+  başına istek sayısı ve gecikme histogramı, çalışma süresi. Ham yol yazılmaz (kişisel veri); gateway yönlendirmez.
+- `POST /client-errors` (community, 044): mobil uygulamalar (`installErrorReporting` — FlutterError ve platform
+  hataları) ve panel (`(dashboard)/error.tsx`) yakalanmayan hatayı bildirir. Metin/yığın kısaltılır, kişi bilgisi
+  alınmaz, kişi başı saatte 30 sınırı; KVKK imha kategorisi `CLIENT_ERROR` (silme).
+- Ders 43: `pipefail` + `echo | grep -q` yanlış negatif.
+
 ### 2026-10-04 — PARA ARİTMETİĞİ: SON KAYAN NOKTA TOPLAMI KALDIRILDI (todo 4.13) (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **1154/1154** (yeni değişmez: her ödemenin tutarı bağlı tahakkukların toplamına eşit).
