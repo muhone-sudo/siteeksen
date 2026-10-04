@@ -28,15 +28,23 @@ ROUTE = re.compile(r"\b(\w+)\.(GET|POST|PUT|PATCH|DELETE|Any)\(\"([^\"]*)\"")
 
 
 def service_routes(name):
-    src = open(os.path.join(SERVICES, name, "main.go"), encoding="utf-8").read()
-    prefix = {"r": ""}
-    for var, parent, path in GROUP.findall(src):
-        prefix[var] = prefix.get(parent, "") + path
+    # main paketinin bütün dosyaları (rota kaydı main.go dışına da taşınabilir,
+    # ör. community/kvkk.go). Grup değişken adları dosyaya özeldir.
+    d = os.path.join(SERVICES, name)
     out = set()
-    for var, method, path in ROUTE.findall(src):
-        full = prefix.get(var, "") + path
-        if full.startswith("/api/v1/"):
-            out.add((method, full))
+    for fn in sorted(os.listdir(d)):
+        if not fn.endswith(".go") or fn.endswith("_test.go"):
+            continue
+        src = open(os.path.join(d, fn), encoding="utf-8").read()
+        if not src.lstrip().startswith("package main") and "\npackage main" not in src:
+            continue
+        prefix = {"r": ""}
+        for var, parent, path in GROUP.findall(src):
+            prefix[var] = prefix.get(parent, "") + path
+        for var, method, path in ROUTE.findall(src):
+            full = prefix.get(var, "") + path
+            if full.startswith("/api/v1/"):
+                out.add((method, full))
     return out
 
 

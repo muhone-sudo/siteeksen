@@ -12,6 +12,17 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-04 — KVKK İLGİLİ KİŞİ BAŞVURULARI (migration 035, FAZ 7.8) (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **1090/1090** (başvuru, 30 günlük son gün, doğrulama, yönetim bildirimi,
+> yetki, gerekçesiz ret yok, sahibine yanıt bildirimi, silinemezlik, zamanlayıcı süre hatırlatması; RLS 84 tablo).
+
+- KVKK m.11 başvurusunu almanın, m.13/2'deki 30 günlük süreyi izlemenin ve yanıtı kayda geçirmenin yolu yoktu.
+  `GET/POST /kvkk-requests`, `POST /kvkk-requests/:id/respond` (community). Süre `legal_parameters`
+  (`KVKK_RESPONSE_DAYS`, kanunla sabit); son gün başvuru anında yazılır; kayıt uygulama rolünce silinemez.
+- `cmd/scheduler`: son 5 gün ve süre aşımı için yönetime hatırlatma.
+- `check-gateway-routes.py` artık main paketinin bütün dosyalarını okur (rota main.go dışında kaydedilebilir).
+
 ### 2026-10-04 — YÖNETİŞİM: KİŞİ–DAİRE BAĞI DENETİMİ (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **1081/1081**.

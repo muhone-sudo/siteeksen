@@ -4758,6 +4758,35 @@ if [ "$CUP" = "1" ]; then
     bad "yarış sınaması için talep açılamadı"
   fi
 
+  # KVKK ilgili kişi başvurusu (FAZ 7.8, 035): m.11 hakları, m.13/2 en geç 30 gün
+  KU="$CURL2/kvkk-requests"
+  TENUID=$($PSQL -t -A -c "SELECT id FROM users WHERE phone='+905559876543';")
+  K1=$(curl -s -w '\n%{http_code}' -X POST "$KU" -H "Authorization: Bearer $TEN" -H 'Content-Type: application/json' \
+    -d '{"request_type":"INFO","description":"Hangi kişisel verilerimin işlendiğini öğrenmek istiyorum."}')
+  KID=$(echo "$K1" | sed '$d' | python3 -c 'import json,sys; print(json.load(sys.stdin)["request"]["id"])' 2>/dev/null)
+  KDUE=$($PSQL -t -A -c "SELECT due_date = CURRENT_DATE + 30 FROM kvkk_requests WHERE id='${KID:-00000000-0000-0000-0000-000000000000}';")
+  [ "$(echo "$K1" | tail -1)" = "201" ] && [ "$KDUE" = "t" ] && ok "KVKK başvurusu kaydedildi; son gün yasal süreyle (30 gün, KVKK m.13/2) yazıldı" \
+    || bad "KVKK başvurusu: $(echo "$K1" | tail -1), son gün $KDUE"
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$KU" -H "Authorization: Bearer $TEN" -H 'Content-Type: application/json' -d '{"request_type":"INFO","description":"kisa"}')
+  SC2=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$KU" -H "Authorization: Bearer $TEN" -H 'Content-Type: application/json' -d '{"request_type":"UYDURMA","description":"geçersiz tür denemesi metni"}')
+  [ "$SC" = "422" ] && [ "$SC2" = "422" ] && ok "açıklamasız ya da geçersiz türde başvuru → 422" || bad "başvuru doğrulaması: $SC / $SC2"
+  NM=$($PSQL -t -A -c "SELECT count(*) FROM notifications WHERE topic='kvkk.request' AND payload->>'kvkk_request_id'='$KID';")
+  [ "${NM:-0}" -ge 1 ] && ok "yönetime KVKK başvurusu bildirildi ($NM alıcı)" || bad "yönetim bildirimi yok"
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$KU/$KID/respond" -H "Authorization: Bearer $TEN" -H 'Content-Type: application/json' -d '{"status":"ANSWERED","response":"x"}')
+  SC2=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$KU/$KID/respond" -H "Authorization: Bearer $MGR" -H 'Content-Type: application/json' -d '{"status":"REJECTED","response":""}')
+  [ "$SC" = "403" ] && [ "$SC2" = "422" ] && ok "sakin başvuruyu kendisi sonuçlandıramıyor (403); gerekçesiz ret yok (422)" || bad "yanıt yetkisi: $SC / $SC2"
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$KU/$KID/respond" -H "Authorization: Bearer $MGR" -H 'Content-Type: application/json' \
+    -d '{"status":"ANSWERED","response":"Ad, soyad, telefon ve daire bilginiz aidat yönetimi amacıyla işlenmektedir."}')
+  SC2=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$KU/$KID/respond" -H "Authorization: Bearer $MGR" -H 'Content-Type: application/json' -d '{"status":"ANSWERED","response":"tekrar"}')
+  NR=$($PSQL -t -A -c "SELECT count(*) FROM notifications WHERE topic='kvkk.response' AND recipient_user_id='$TENUID';")
+  [ "$SC" = "200" ] && [ "$SC2" = "409" ] && [ "${NR:-0}" -ge 1 ] && ok "yönetim yanıtladı, başvuru sahibine bildirildi; ikinci yanıt → 409" \
+    || bad "KVKK yanıtı: $SC, tekrar $SC2, bildirim $NR"
+  TL=$(curl -s "$KU" -H "Authorization: Bearer $TEN" | python3 -c 'import json,sys; d=json.load(sys.stdin)["data"]; print(len(d), d[0]["status"] if d else "")' 2>/dev/null)
+  [ "$TL" = "1 ANSWERED" ] && ok "sakin yalnızca kendi başvurusunu ve sonucunu görüyor" || bad "sakin başvuru listesi: '$TL'"
+  KD=$(qscoped "DELETE FROM kvkk_requests WHERE id='$KID' RETURNING id;")
+  KN=$($PSQL -t -A -c "SELECT count(*) FROM kvkk_requests WHERE id='$KID';")
+  [ "$KN" = "1" ] && ok "uygulama rolü KVKK başvuru kaydını silemiyor (hesap verebilirlik)" || bad "başvuru silinebildi"
+
   # Kiracı kendi talebini listede görür
   RL=$(curl -s "$CURL2/requests" -H "Authorization: Bearer $TEN")
   echo "$RL" | grep -q "$RQID" && ok "sakin kendi talebini listede görüyor" \
@@ -5122,8 +5151,8 @@ ok "kullanılmayan 13 site tablosu RLS ile korunuyor"
 
 # 9) Toplam durum — RLS DIŞINDA KALAN her tablo bilinçli ve gerekçeli olmalı
 RLSCOUNT=$($PSQL -t -A -c "SELECT count(*) FROM rls_enabled_tables;")
-[ "$RLSCOUNT" = "83" ] && ok "RLS toplam 83 tabloda açık" \
-  || bad "beklenmedik RLS tablo sayısı: $RLSCOUNT (beklenen 83)"
+[ "$RLSCOUNT" = "84" ] && ok "RLS toplam 84 tabloda açık" \
+  || bad "beklenmedik RLS tablo sayısı: $RLSCOUNT (beklenen 84)"
 NOTRLS=$($PSQL -t -A -c "SELECT string_agg(t.table_name, ' ' ORDER BY t.table_name)
   FROM information_schema.tables t
   WHERE t.table_schema='public' AND t.table_type='BASE TABLE'
@@ -5839,6 +5868,13 @@ AM3=$($PSQL -t -A -c "INSERT INTO assets (property_id, name, next_maintenance_da
   VALUES ('$DEMO_PROPERTY','Jenerator',CURRENT_DATE + 60) RETURNING id;" | head -1)
 AM4=$($PSQL -t -A -c "INSERT INTO assets (property_id, name, next_maintenance_date, status)
   VALUES ('$DEMO_PROPERTY','Eski pompa',CURRENT_DATE - 10,'DISPOSED') RETURNING id;" | head -1)
+# KVKK yanıt süresi (FAZ 7.8): 3 gün kalan ve 2 gün geçen açık başvuru; sonuçlanmış olana yok
+KS1=$($PSQL -t -A -c "INSERT INTO kvkk_requests (property_id, user_id, request_type, description, due_date)
+  VALUES ('$DEMO_PROPERTY','$MGRID','INFO','yakin sureli basvuru',CURRENT_DATE + 3) RETURNING id;" | head -1)
+KS2=$($PSQL -t -A -c "INSERT INTO kvkk_requests (property_id, user_id, request_type, description, due_date)
+  VALUES ('$DEMO_PROPERTY','$MGRID','ERASURE','suresi gecmis basvuru',CURRENT_DATE - 2) RETURNING id;" | head -1)
+KS3=$($PSQL -t -A -c "INSERT INTO kvkk_requests (property_id, user_id, request_type, description, due_date, status, response)
+  VALUES ('$DEMO_PROPERTY','$MGRID','INFO','sonuclanmis',CURRENT_DATE - 2,'ANSWERED','yanit verildi') RETURNING id;" | head -1)
 N=$(qapp "SELECT count(*) FROM scheduler_property_ids();")
 P=$(qapp "SELECT count(*) FROM properties;")
 [ "${N:-0}" -ge 2 ] && [ "$P" = "0" ] && ok "uygulama rolü site KİMLİKLERİNİ alabiliyor ($N) ama properties tablosu kapsamsız hâlâ kapalı" \
@@ -5873,6 +5909,11 @@ NN=$($PSQL -t -A -c "SELECT count(*) FROM notifications WHERE payload->>'asset_i
 [ "${UP%%|*}" -ge 1 ] && echo "$UP" | grep -q "5 gün kaldı" && [ "${OV%%|*}" -ge 1 ] && echo "$OV" | grep -q "3 gün geçti" && [ "$NN" = "0" ] \
   && ok "bakım tarihi yaklaşan (5 gün) ve geçen (3 gün) demirbaş yönetime bildirildi; uzak ve hurdaya ayrılmış olana yok" \
   || bad "bakım hatırlatması: yaklaşan '$UP', geçen '$OV', gereksiz $NN"
+KA=$($PSQL -t -A -c "SELECT count(*) FROM notifications WHERE payload->>'kvkk_request_id'='$KS1' AND topic='kvkk.due.soon';")
+KB=$($PSQL -t -A -c "SELECT count(*) FROM notifications WHERE payload->>'kvkk_request_id'='$KS2' AND topic='kvkk.due.overdue';")
+KC=$($PSQL -t -A -c "SELECT count(*) FROM notifications WHERE payload->>'kvkk_request_id'='$KS3';")
+[ "${KA:-0}" -ge 1 ] && [ "${KB:-0}" -ge 1 ] && [ "$KC" = "0" ] \
+  && ok "KVKK yanıt süresi dolmak üzere/dolmuş açık başvuru yönetime bildirildi; sonuçlanmış olana yok" || bad "KVKK süre hatırlatması: $KA / $KB / $KC"
 
 # Sözleşme: ihbar son günü geçmiş → yönetim; uzak sözleşme → yok; süresi dolmuş ACTIVE → yönetim
 NMGR=$($PSQL -t -A -c "SELECT count(*) FROM notifications WHERE payload->>'contract_id'='$CN' AND topic='contract.notice';")

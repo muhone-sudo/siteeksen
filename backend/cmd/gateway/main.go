@@ -312,7 +312,7 @@ func main() {
 	}{
 		{identityURL, []string{"/api/v1/auth", "/api/v1/users", "/api/v1/residents", "/api/v1/units", "/api/v1/property-roles"}},
 		{financeURL, []string{"/api/v1/finance"}},
-		{communityURL, []string{"/api/v1/announcements", "/api/v1/requests"}},
+		{communityURL, []string{"/api/v1/announcements", "/api/v1/requests", "/api/v1/kvkk-requests"}},
 		{iotURL, []string{"/api/v1/meters", "/api/v1/meter-readings", "/api/v1/consumption",
 			"/api/v1/sensors", "/api/v1/iot"}},
 		{notificationURL, []string{"/api/v1/notifications", "/api/v1/notification-preferences"}},

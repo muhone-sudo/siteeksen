@@ -45,6 +45,7 @@ func jobs() []job {
 		{name: "contract.expired", what: "Süresi dolduğu hâlde ACTIVE kalan sözleşme → yönetim", run: expiredContracts},
 		{name: "patrol.overdue", what: "Beklenen süre + tolerans aşıldığı hâlde açık kalan devriye → yönetim", run: overduePatrols},
 		{name: "asset.maintenance", what: "Bakım/periyodik kontrol tarihi yaklaşan ya da geçen demirbaş → yönetim", run: maintenanceDue},
+		{name: "kvkk.due", what: "Yasal yanıt süresi (KVKK m.13) dolmak üzere ya da dolmuş açık başvuru → yönetim", run: kvkkDue},
 	}
 }
 
@@ -412,6 +413,65 @@ func maintenanceDue(ctx context.Context, pool *pgxpool.Pool, propertyID string) 
 			Body:       body,
 			Payload:    map[string]any{"asset_id": r.id, "due_date": r.due.Format("2006-01-02"), "state": state},
 			DedupeKey:  "asset.maintenance:" + r.id + ":" + r.due.Format("2006-01-02") + ":" + state,
+		}})
+	}
+	return out, nil
+}
+
+// kvkkDue: yasal yanıt süresinin (KVKK m.13/2) son 5 gününe giren ya da süresi
+// geçen AÇIK ilgili kişi başvurusu → yönetim. Süre aşımı Kurul'a şikâyet ve
+// idari para cezası riskidir; son gün kayda başvuru anında yazılmıştır.
+func kvkkDue(ctx context.Context, pool *pgxpool.Pool, propertyID string) ([]notice, error) {
+	rows, err := dbscope.For(pool, propertyID).Query(ctx, `
+		SELECT id::text, request_type, due_date, (due_date - CURRENT_DATE)::int
+		FROM kvkk_requests
+		WHERE property_id = $1 AND status = 'OPEN' AND due_date <= CURRENT_DATE + 5
+		ORDER BY due_date`, propertyID)
+	if err != nil {
+		return nil, err
+	}
+	type row struct {
+		id, kind string
+		due      time.Time
+		daysLeft int
+	}
+	var list []row
+	for rows.Next() {
+		var r row
+		if err := rows.Scan(&r.id, &r.kind, &r.due, &r.daysLeft); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		list = append(list, r)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if len(list) == 0 {
+		return nil, nil
+	}
+	managers, err := notify.Managers(ctx, pool, propertyID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]notice, 0, len(list))
+	for _, r := range list {
+		state, body := "soon", fmt.Sprintf("Açık bir KVKK başvurusunun yasal yanıt süresi %s tarihinde doluyor (%d gün kaldı; KVKK m.13/2).",
+			trDate(r.due), r.daysLeft)
+		if r.daysLeft < 0 {
+			state, body = "overdue", fmt.Sprintf("Açık bir KVKK başvurusunun yasal yanıt süresi %s tarihinde doldu (%d gün geçti). "+
+				"Süre aşımı ilgili kişinin Kurul'a şikâyet hakkını doğurur; başvuruyu hemen sonuçlandırın.", trDate(r.due), -r.daysLeft)
+		}
+		out = append(out, notice{recipients: managers, msg: notify.Message{
+			PropertyID: propertyID,
+			Channel:    notify.ChannelInApp,
+			Category:   notify.CategoryTransactional,
+			Topic:      "kvkk.due." + state,
+			Subject:    "KVKK başvurusu yanıt süresi",
+			Body:       body,
+			Payload:    map[string]any{"kvkk_request_id": r.id, "due_date": r.due.Format("2006-01-02"), "state": state},
+			DedupeKey:  "kvkk.due:" + r.id + ":" + state,
 		}})
 	}
 	return out, nil

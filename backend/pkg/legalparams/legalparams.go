@@ -63,6 +63,9 @@ const (
 
 	TenantLiabilityScope   = "TENANT_LIABILITY_SCOPE"
 	NewOwnerJointLiability = "NEW_OWNER_JOINT_LIABILITY"
+
+	// KVKKResponseDays: ilgili kişi başvurusunun en geç sonuçlandırılacağı gün (6698 s. KVKK m.13/2).
+	KVKKResponseDays = "KVKK_RESPONSE_DAYS"
 )
 
 // Parameter, tek bir parametrenin çözümlenmiş hâlidir.

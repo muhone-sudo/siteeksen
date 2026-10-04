@@ -359,3 +359,11 @@ Roller: okuma M,B,A · yazma M,B. İtiraz: kat maliki/vekil ya da yönetim.
 
 `banking` (S-07), `meeting_wizard` (governance ile tekrar), `iot` sensör uçları, `settings.credentials`,
 `esg/sustainability-score`, `reports`.
+
+### KVKK ilgili kişi başvuruları (community, 2026-10-04, migration 035)
+
+| Uç | Rol | Gövde | Yanıt |
+|---|---|---|---|
+| `GET /kvkk-requests` | herkes (kendi) · M,B,A (site geneli) | — | `{data:[{id,user_id,applicant_name,request_type,description,status,due_date,days_left,response?,responded_at?,created_at}]}` |
+| `POST /kvkk-requests` | herkes | `request_type`*(INFO/CORRECTION/ERASURE/OBJECTION/COMPENSATION/OTHER),`description`*(≥10) | 201 `{request,notification,note}`; son gün = bugün + KVKK_RESPONSE_DAYS (30, m.13/2) |
+| `POST /kvkk-requests/:id/respond` | M,B | `status`*(ANSWERED/REJECTED),`response`* | 200; sahibine bildirim · sonuçlanmış 409 |

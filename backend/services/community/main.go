@@ -56,6 +56,9 @@ func main() {
 		})
 	})
 
+	// KVKK ilgili kişi başvuruları (FAZ 7.8).
+	registerKVKK(r, pool, notifier)
+
 	// Requests (gerçek DB'ye bağlı)
 	requests := r.Group("/api/v1/requests")
 	requests.Use(middleware.AuthMiddleware(pool), middleware.AuditLog(pool, "request"))
