@@ -8,6 +8,7 @@ import { ActionFeedback, Badge, Button, Card, Field, FormModal, Grid, Input, Mod
 import { date, num, tl, today } from "@/lib/format";
 import { LEAVE_STATUS } from "@/lib/labels";
 import type { Employee, Leave } from "@/lib/types";
+import { ComplianceCard } from "@/components/personnel/compliance-card";
 
 const CONTRACT_TYPES = [
     { value: "FULL_TIME", label: "Tam zamanlı" }, { value: "PART_TIME", label: "Yarı zamanlı" },
@@ -61,6 +62,7 @@ export default function PersonnelPage() {
                 { label: "Bekleyen izin", value: num(s?.pending_leaves), tone: "amber" },
                 { label: "Aylık maaş maliyeti", value: s?.monthly_salary_cost === undefined ? "Yetki yok" : tl(s.monthly_salary_cost), tone: "purple" },
             ]} />
+            {!roles.includes("STAFF") && <ComplianceCard canWrite={canWrite} />}
             <Tabs tabs={[{ id: "employees", label: "Personel" }, { id: "leaves", label: "İzinler" }]} value={tab} onChange={setTab} />
             {tab === "employees" && (
                 <Card padded={false} actions={<label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} /> Ayrılanları da göster</label>} title="Personel listesi">

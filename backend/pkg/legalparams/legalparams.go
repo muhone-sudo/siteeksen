@@ -72,6 +72,11 @@ const (
 
 	// KVKKResponseDays: ilgili kişi başvurusunun en geç sonuçlandırılacağı gün (6698 s. KVKK m.13/2).
 	KVKKResponseDays = "KVKK_RESPONSE_DAYS"
+
+	// İşveren yükümlülük takvimi (041).
+	MUHSGKDueDay      = "MUHSGK_DUE_DAY"
+	SGKPremiumDue     = "SGK_PREMIUM_DUE"
+	SGKExitNoticeDays = "SGK_EXIT_NOTICE_DAYS"
 )
 
 // Parameter, tek bir parametrenin çözümlenmiş hâlidir.

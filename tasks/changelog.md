@@ -12,6 +12,22 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-04 — VERGİ/SGK YÜKÜMLÜLÜK TAKVİMİ (migration 041, FAZ 7.7 / M-29) (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **1144/1144** (`go test ./pkg/compliance` hafta sonu/ay sonu kaydırma; ayrılış
+> bildirgesi bitiş+10 gün gecikmiş, işe giriş bildirgesi bugün, MUHSGK 26'sı, prim ay sonu; bildirge kaydı yükümlülüğü
+> kapatır, gelecek tarih ve ayrılmamış personele ayrılış 422, sakin 403; MUHSGK takvimi ayarla kapanır; zamanlayıcı
+> gecikmiş ayrılış bildirgesini hatırlatır); panel tsc/lint temiz.
+
+- Personel çalıştıran yönetim işverendir; süreler hiç izlenmiyordu. `pkg/compliance` (ekran ve zamanlayıcı aynı hesap):
+  SGK işe giriş (başlamadan önce, 5510 m.8), işten ayrılış (10 gün, m.9), MUHSGK beyan ve vergi ödemesi (izleyen ayın
+  26'sı, GVK m.98 / 5510 m.86), SGK primi (izleyen ayın sonu, m.88 — Kurumca belirlenen gün). Süreler
+  `legal_parameters`'ta (`MUHSGK_DUE_DAY`, `SGK_PREMIUM_DUE`, `SGK_EXIT_NOTICE_DAYS`); hafta sonu VUK m.18 ile kayar.
+- Sistem verginin doğup doğmadığına karar vermez (kapıcı istisnası, ticari bölüm, Kolay İşverenlik — mali müşavir);
+  resmî tatil/idari uzatma bilinmez, ekranda yazar. `MUHSGK_CALENDAR` ayarıyla aylık takvim kapatılabilir.
+- `GET /compliance-calendar`, `POST /employees/:id/sgk` (bildirge tarihleri; `employees.sgk_exit_date`).
+  `cmd/scheduler` `compliance.employer`: son 5 gün ve süre aşımı → yönetim. Panel: Personel → "Vergi ve SGK yükümlülükleri".
+
 ### 2026-10-04 — ACİL DURUM VE AFET (migration 040, FAZ 7.3 / M-37) (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **1138/1138** (bilgi kartı yetki/doğrulama, tatbikat raporu eksiklik alanı ve tarih

@@ -2,12 +2,17 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"strings"
 	"time"
 	_ "time/tzdata"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/siteeksen/backend/pkg/compliance"
 	"github.com/siteeksen/backend/pkg/dbscope"
+	"github.com/siteeksen/backend/pkg/legalparams"
 	"github.com/siteeksen/backend/pkg/money"
 	"github.com/siteeksen/backend/pkg/notify"
 )
@@ -51,6 +56,7 @@ func jobs() []job {
 		{name: "patrol.overdue", what: "Beklenen süre + tolerans aşıldığı hâlde açık kalan devriye → yönetim", run: overduePatrols},
 		{name: "asset.maintenance", what: "Bakım/periyodik kontrol tarihi yaklaşan ya da geçen demirbaş → yönetim", run: maintenanceDue},
 		{name: "kvkk.due", what: "Yasal yanıt süresi (KVKK m.13) dolmak üzere ya da dolmuş açık başvuru → yönetim", run: kvkkDue},
+		{name: "compliance.employer", what: "SGK işe giriş/çıkış bildirimi ve MUHSGK/prim son günü yaklaşan ya da geçen yükümlülük → yönetim", run: employerCompliance},
 		{name: "emergency.drill", what: "Son tatbikatın üzerinden yasal süre (yılda bir) geçmiş ya da personel çalıştırdığı hâlde hiç tatbikat kaydı olmayan site → yönetim", run: drillDue},
 		{name: "budget.approval", what: "Genel kurulda karara bağlanma süresi (KMK m.37, 3 ay) yaklaşan ya da geçen geçici işletme projesi → yönetim", run: budgetApprovalDue},
 	}
@@ -595,4 +601,57 @@ func drillDue(ctx context.Context, pool *pgxpool.Pool, propertyID string) ([]not
 		Payload:    map[string]any{"interval_months": months},
 		DedupeKey:  "emergency.drill:" + propertyID + ":" + now.Format("2006-01"),
 	}}}, nil
+}
+
+// complianceLeadDays: işveren yükümlülüğünün son gününden kaç gün önce
+// uyarılacağı (işletme tercihi: beyannameyi hazırlamaya yetecek süre).
+const complianceLeadDays = 5
+
+// employerCompliance: pkg/compliance takvimindeki son günü 5 gün içinde olan ya
+// da geçmiş yükümlülükler → yönetim. Hesap personel ekranıyla AYNIdır.
+func employerCompliance(ctx context.Context, pool *pgxpool.Pool, propertyID string) ([]notice, error) {
+	var enabledPtr *bool
+	err := dbscope.For(pool, propertyID).QueryRow(ctx,
+		`SELECT value_bool FROM property_settings WHERE property_id = $1 AND setting_key = 'MUHSGK_CALENDAR'`, propertyID).Scan(&enabledPtr)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return nil, err
+	}
+	enabled := enabledPtr == nil || *enabledPtr
+	items, err := compliance.Load(ctx, pool, legalparams.New(pool), propertyID, time.Now(), enabled)
+	if err != nil {
+		return nil, err
+	}
+	var due []compliance.Item
+	for _, it := range items {
+		if it.DaysLeft <= complianceLeadDays {
+			due = append(due, it)
+		}
+	}
+	if len(due) == 0 {
+		return nil, nil
+	}
+	managers, err := notify.Managers(ctx, pool, propertyID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]notice, 0, len(due))
+	for _, it := range due {
+		state, body := "soon", fmt.Sprintf("%s: son gün %s (%d gün kaldı; %s).", it.Title, trDate(it.DueDate), it.DaysLeft, it.LegalBasis)
+		if it.DaysLeft < 0 {
+			state, body = "overdue", fmt.Sprintf("%s: son gün %s idi (%d gün geçti; %s). Gecikme idari para cezası ve gecikme zammı doğurabilir.",
+				it.Title, trDate(it.DueDate), -it.DaysLeft, it.LegalBasis)
+		}
+		key := it.Kind + ":" + it.EmployeeID + ":" + it.Period + ":" + it.DueDate.Format("2006-01-02") + ":" + state
+		out = append(out, notice{recipients: managers, msg: notify.Message{
+			PropertyID: propertyID,
+			Channel:    notify.ChannelInApp,
+			Category:   notify.CategoryTransactional,
+			Topic:      "compliance." + strings.ToLower(it.Kind),
+			Subject:    "İşveren yükümlülüğü son günü",
+			Body:       body + " " + compliance.Note,
+			Payload:    map[string]any{"kind": it.Kind, "employee_id": it.EmployeeID, "due_date": it.DueDate.Format("2006-01-02"), "state": state},
+			DedupeKey:  "compliance:" + key,
+		}})
+	}
+	return out, nil
 }

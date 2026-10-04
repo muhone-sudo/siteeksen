@@ -390,4 +390,6 @@ Roller: okuma M,B,A · yazma M,B. İtiraz: kat maliki/vekil ya da yönetim.
 | `GET /emergency/checks` · `POST` | GET herkes · POST M,B | `kind`*,`title`* | `{data:[{id,kind,title,status,opened_at,closed_at,safe,need_help,units,responded,my_status}]}` · 201 `{check,notification}` · ikinci açık 409 |
 | `POST /emergency/checks/:id/respond` | herkes | `status`*(SAFE/NEED_HELP),`note` | 200; NEED_HELP yönetime anında bildirim · kapalı 409 |
 | `GET /emergency/checks/:id/responses` · `POST …/close` | M,B | — | `{check,data:[{user_id,name,unit,status,note,responded_at}],silent_units}` |
+| `GET /compliance-calendar` | M,B,A | — | `{data:[{kind(MUHSGK/SGK_PREMIUM/SGK_ENTRY/SGK_EXIT),title,due_date,days_left,employee_id?,period?,legal_basis}],muhsgk_enabled,note}` (personel servisi) |
+| `POST /employees/:id/sgk` | M,B | `entry_date` ya da `exit_date` (≤bugün) | 200 · ayrılmamış personele ayrılış ya da gelecek tarih 422 |
 | `POST /kvkk-requests/:id/respond` | M,B | `status`*(ANSWERED/REJECTED),`response`* | 200; sahibine bildirim · sonuçlanmış 409 |

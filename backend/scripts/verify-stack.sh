@@ -387,6 +387,11 @@ if go test ./pkg/money/... -count=1 >/tmp/verify-money.log 2>&1; then
 else
   bad "go test ./pkg/money/..."; tail -15 /tmp/verify-money.log
 fi
+if go test ./pkg/compliance/... -count=1 >/tmp/verify-compliance.log 2>&1; then
+  ok "go test ./pkg/compliance/... (beyan son günü, hafta sonu kaydırma, ay sonu)"
+else
+  bad "go test ./pkg/compliance/..."; tail -15 /tmp/verify-compliance.log
+fi
 
 # Gecikme tazminatı oranının kanuna uygunluğu (KMK m.20/2 — aylık %5)
 LF=$($PSQL -t -A -c "SELECT value_numeric FROM legal_parameters WHERE code='LATE_FEE_MONTHLY_RATE' AND property_id IS NULL;")
@@ -1200,6 +1205,40 @@ if [ "$PUP" = "1" ] && [ -n "${MGR:-}" ]; then
   ACT=$(qscoped "SELECT is_active FROM employees WHERE id='$EMPID';")
   [ "$STILL" = "1" ] && [ "$ACT" = "f" ] && ok "işten ayrılışta özlük kaydı silinmiyor, pasife alınıyor" \
     || bad "özlük kaydı silindi ya da pasife alınmadı (count=$STILL active=$ACT)"
+  # Vergi/SGK yükümlülük takvimi (FAZ 7.7, 041)
+  TD=$(date +%F)
+  E2=$(curl -s -X POST "$PURL/employees" -H "$PA" -H "$PJ" -d "{\"first_name\":\"Yeni\",\"last_name\":\"Gorevli\",\"position\":\"Güvenlik\",\"hire_date\":\"$TD\"}" \
+    | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+  CAL=$(curl -s "$PURL/compliance-calendar" -H "$PA")
+  echo "$CAL" | python3 -c "
+import json,sys,datetime
+d=json.load(sys.stdin); it=d['data']; today=datetime.date.today()
+ex=[i for i in it if i['kind']=='SGK_EXIT' and i['employee_id']=='$EMPID']
+en=[i for i in it if i['kind']=='SGK_ENTRY' and i['employee_id']=='$E2']
+mu=[i for i in it if i['kind']=='MUHSGK']; pr=[i for i in it if i['kind']=='SGK_PREMIUM']
+prev=(today.replace(day=1)-datetime.timedelta(days=1)).strftime('%Y-%m')
+assert ex and ex[0]['due_date'][:10]=='2026-09-10' and ex[0]['days_left']<0, ex
+assert en and en[0]['days_left']==0, en
+assert mu and int(mu[0]['due_date'][8:10]) in (26,27,28) and mu[0]['period'] in (prev, today.strftime('%Y-%m')), mu
+assert pr and 'VUK m.18' in d['note'] and d['muhsgk_enabled'] is True
+" 2>/tmp/verify-cal.err; PY=$?
+  [ "$PY" = "0" ] && ok "takvim: ayrılış bildirgesi (bitiş+10 gün, 5510 m.9) gecikmiş, işe giriş bildirgesi bugün, MUHSGK 26'sı (hafta sonu kaydırmalı), prim ay sonu" \
+    || bad "yükümlülük takvimi: $(tail -2 /tmp/verify-cal.err) — $CAL"
+  FUT=$(date -d '+3 day' +%F)
+  SC1=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$PURL/employees/$EMPID/sgk" -H "$PA" -H "$PJ" -d "{\"exit_date\":\"$FUT\"}")
+  SC2=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$PURL/employees/$E2/sgk" -H "$PA" -H "$PJ" -d "{\"exit_date\":\"$TD\"}")
+  SC3=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$PURL/employees/$EMPID/sgk" -H "$PA" -H "$PJ" -d '{"exit_date":"2026-09-05"}')
+  SC4=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$PURL/employees/$E2/sgk" -H "$PA" -H "$PJ" -d "{\"entry_date\":\"$TD\"}")
+  SC5=$(curl -s -o /dev/null -w '%{http_code}' "$PURL/compliance-calendar" -H "Authorization: Bearer $TEN")
+  LEFT=$(curl -s "$PURL/compliance-calendar" -H "$PA" | python3 -c "import json,sys; print(len([i for i in json.load(sys.stdin)['data'] if i.get('employee_id') in ('$EMPID','$E2')]))" 2>/dev/null)
+  [ "$SC1" = "422" ] && [ "$SC2" = "422" ] && [ "$SC3" = "200" ] && [ "$SC4" = "200" ] && [ "$SC5" = "403" ] && [ "$LEFT" = "0" ] \
+    && ok "bildirge tarihi kaydedilince yükümlülük kapanıyor; gelecek tarih ve ayrılmamış personele ayrılış bildirgesi 422; sakin göremez" \
+    || bad "SGK bildirge kaydı: $SC1 / $SC2 / $SC3 / $SC4 / $SC5 — kalan $LEFT"
+  $PSQL -c "INSERT INTO property_settings (property_id, setting_key, value_bool, value_type) VALUES ('$DEMO_PROPERTY','MUHSGK_CALENDAR',false,'BOOL')
+    ON CONFLICT (property_id, setting_key) DO UPDATE SET value_bool = false;" >/dev/null
+  NM=$(curl -s "$PURL/compliance-calendar" -H "$PA" | python3 -c "import json,sys; d=json.load(sys.stdin); print(len([i for i in d['data'] if i['kind'] in ('MUHSGK','SGK_PREMIUM')]), d['muhsgk_enabled'])" 2>/dev/null)
+  $PSQL -c "DELETE FROM property_settings WHERE property_id='$DEMO_PROPERTY' AND setting_key='MUHSGK_CALENDAR';" >/dev/null
+  [ "$NM" = "0 False" ] && ok "MUHSGK takvimi site ayarıyla kapatılabiliyor (Kolay İşverenlik / mali müşavir)" || bad "MUHSGK ayarı: $NM"
 else
   bad "personnel-service başlamadı"; tail -10 /tmp/verify-personnel.log
 fi
@@ -6109,6 +6148,8 @@ BA3=$($PSQL -t -A -c "INSERT INTO operating_budgets (property_id, period_year, s
   VALUES ('$DEMO_PROPERTY',2043,'NOTIFIED',CURRENT_DATE + 60) RETURNING id;" | head -1)
 BA4=$($PSQL -t -A -c "INSERT INTO operating_budgets (property_id, period_year, status, approval_deadline)
   VALUES ('$DEMO_PROPERTY',2044,'FINAL',CURRENT_DATE - 5) RETURNING id;" | head -1)
+# SGK ayrılış bildirgesi gecikmiş personel (FAZ 7.7)
+$PSQL -c "INSERT INTO employees (property_id, first_name, last_name, position, hire_date, end_date, is_active) VALUES ('$DEMO_PROPERTY','Eski','Calisan','Bahçıvan',CURRENT_DATE - 300,CURRENT_DATE - 20,false);" >/dev/null
 # Tatbikat (FAZ 7.3): diğer sitede son tatbikat 400 gün önce → hatırlatma; demo sitede bugün → yok
 $PSQL -c "INSERT INTO emergency_drills (property_id, kind, drill_date, findings) VALUES ('$OTHERPROP','FIRE',CURRENT_DATE - 400,'eksiklik yok');" >/dev/null
 N=$(qapp "SELECT count(*) FROM scheduler_property_ids();")
@@ -6162,6 +6203,8 @@ DD1=$($PSQL -t -A -c "SELECT count(*) FROM notifications WHERE topic='emergency.
 [ "${DO1%%|*}" -ge 1 ] && echo "$DO1" | grep -q "12 ay" && [ "$DD1" = "0" ] \
   && ok "yıllık tatbikat süresi geçen siteye hatırlatma gitti (Acil Durumlar Yön. m.13); güncel tatbikatı olan siteye yok" \
   || bad "tatbikat hatırlatması: '$DO1' / demo $DD1"
+CO1=$($PSQL -t -A -c "SELECT count(*) FROM notifications WHERE topic='compliance.sgk_exit' AND property_id='$DEMO_PROPERTY' AND payload->>'state'='overdue';")
+[ "${CO1:-0}" -ge 1 ] && ok "gecikmiş SGK ayrılış bildirgesi yönetime hatırlatıldı (zamanlayıcı ve takvim aynı hesap)" || bad "işveren yükümlülüğü hatırlatması: $CO1"
 # Sözleşme: ihbar son günü geçmiş → yönetim; uzak sözleşme → yok; süresi dolmuş ACTIVE → yönetim
 NMGR=$($PSQL -t -A -c "SELECT count(*) FROM notifications WHERE payload->>'contract_id'='$CN' AND topic='contract.notice';")
 NOUT=$($PSQL -t -A -c "SELECT count(*) FROM notifications n WHERE payload->>'contract_id'='$CN'

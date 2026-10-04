@@ -151,6 +151,8 @@ export function endpoints(http: Http) {
             reject: (id: string, reason: string) => http.post<Msg>(`/expenses/${id}/reject`, { reason }),
         },
         personnel: {
+            complianceCalendar: () => g<{ data: T.ComplianceItem[]; muhsgk_enabled: boolean; note: string }>("/compliance-calendar"),
+            recordSGK: (id: string, b: { entry_date?: string; exit_date?: string }) => http.post<Msg>(`/employees/${id}/sgk`, b),
             list: (all?: boolean) => g<T.List<T.Employee>>("/employees", { all: all ? "true" : undefined }),
             summary: () => g<T.PersonnelSummary>("/employees/summary"),
             get: (id: string, reveal?: boolean) => g<T.Employee>(`/employees/${id}`, { reveal: reveal ? "true" : undefined }),
@@ -340,6 +342,7 @@ export const READS: { path: string; keys: string[]; list?: boolean }[] = [
     { path: "/emergency/info", keys: ["points", "contacts", "national_emergency"] },
     { path: "/emergency/drills", keys: ["data"] },
     { path: "/emergency/checks", keys: ["data"] },
+    { path: "/compliance-calendar", keys: ["data", "muhsgk_enabled", "note"] },
     { path: "/property-roles", keys: ["id", "role", "first_name", "active", "decision_ref"], list: true },
     { path: "/units", keys: ["id", "block", "door_number", "share_ratio"], list: true },
     { path: "/finance/assessments/overview", keys: ["period", "total_amount", "collected_amount", "rate"], list: true },

@@ -85,6 +85,10 @@ func main() {
 		write.POST("/leaves/:id/reject", handlers.RejectLeave(svc))
 	}
 
+	// Vergi/SGK yükümlülük takvimi (FAZ 7.7).
+	read.GET("/compliance-calendar", middleware.RequireRole(middleware.RoleManager, middleware.RoleBoardMember, middleware.RoleAuditor), complianceCalendar(pool))
+	write.POST("/employees/:id/sgk", recordSGK(pool))
+
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8100"

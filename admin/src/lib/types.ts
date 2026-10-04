@@ -369,3 +369,4 @@ export interface SafetyCheck {
     safe: number; need_help: number; units: number; responded: number; my_status?: string;
 }
 export interface SafetyResponse { user_id: Id; name: string; unit: string; status: "SAFE" | "NEED_HELP"; note?: string; responded_at: string }
+export interface ComplianceItem { kind: "MUHSGK" | "SGK_PREMIUM" | "SGK_ENTRY" | "SGK_EXIT"; title: string; due_date: string; days_left: number; employee_id?: string; period?: string; legal_basis: string }

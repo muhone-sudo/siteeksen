@@ -71,6 +71,9 @@ var Definitions = []Definition{
 	{Key: "QUIET_HOURS", Type: TypeText, Default: "22:00-08:00",
 		Description: "Gürültüye kapalı saatler (yönetim planında belirlenir; " +
 			"buradaki değer yalnızca sakinlere gösterim içindir)"},
+	{Key: "MUHSGK_CALENDAR", Type: TypeBool, Default: true,
+		Description: "Personel varsa aylık Muhtasar ve Prim Hizmet Beyannamesi ile SGK prim ödeme sürelerini takvimde göster ve hatırlat " +
+			"(Kolay İşverenlik kullanan ya da beyanı mali müşavire bırakan site kapatabilir). SGK işe giriş/çıkış bildirimleri her zaman gösterilir."},
 	{Key: "RENOVATION_HOURS", Type: TypeText, Default: "",
 		Description: "Tadilat çalışma saatleri (ör. Hafta içi 09:00-18:00, Cumartesi 10:00-17:00). " +
 			"Konut içi tadilat için ulusal saat kuralı yoktur; yönetim planı ya da kurul kararıyla belirlenir. " +
