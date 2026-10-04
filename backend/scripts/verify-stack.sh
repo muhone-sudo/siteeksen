@@ -1998,6 +1998,32 @@ if [ "$CUP" = "1" ] && [ -n "${MGR:-}" ] && [ -n "${TEN:-}" ]; then
   # 11) Kimliksiz erişim engelli
   SC=$(curl -s -o /dev/null -w '%{http_code}' "$CURL/contracts")
   [ "$SC" = "401" ] && ok "kimliksiz sözleşme erişimi engellendi → 401" || bad "kimliksiz erişim → $SC"
+  # 12) Sigorta: DASK takibi ve hasar kaydı (FAZ 7.2, 045; 6305 s. Kanun)
+  TENU=$($PSQL -t -A -c "SELECT id FROM users WHERE phone='+905559876543';")
+  TUN=$($PSQL -t -A -c "SELECT unit_id FROM resident_units WHERE resident_id='$TENU' AND is_active LIMIT 1;")
+  U1=$($PSQL -t -A -c "SELECT id FROM units WHERE property_id='11111111-1111-1111-1111-111111111111' AND deleted=0 AND id<>'$TUN' ORDER BY block, door_number LIMIT 1;")
+  dask() { curl -s -o /dev/null -w '%{http_code}' -X POST "$CURL/insurance/dask" -H "$1" -H "$CJ" -d "$2"; }
+  S20=$(date -d '-345 day' +%F); E20=$(date -d '+20 day' +%F)
+  SC1=$(dask "Authorization: Bearer $TEN" "{\"unit_id\":\"$TUN\",\"policy_no\":\"D-1\",\"start_date\":\"$S20\",\"end_date\":\"$E20\"}")
+  SC2=$(dask "$CA" "{\"unit_id\":\"$U1\",\"policy_no\":\"D-100\",\"insurer\":\"Test Sigorta\",\"start_date\":\"$S20\",\"end_date\":\"$E20\"}")
+  SC3=$(dask "$CA" "{\"unit_id\":\"$U1\",\"policy_no\":\"D-100\",\"start_date\":\"$S20\",\"end_date\":\"$E20\"}")
+  SC4=$(dask "$CA" "{\"unit_id\":\"$U1\",\"policy_no\":\"D-101\",\"start_date\":\"$E20\",\"end_date\":\"$S20\"}")
+  DL=$(curl -s "$CURL/insurance/dask" -H "$CA")
+  ST=$(echo "$DL" | python3 -c "import json,sys; d=json.load(sys.stdin); r=[x for x in d['data'] if x['unit_id']=='$U1']; print(r[0]['state'], d['summary'].get('MISSING',0)>0, '6305' in d['note'])" 2>/dev/null)
+  TL=$(curl -s "$CURL/insurance/dask" -H "Authorization: Bearer $TEN" | python3 -c 'import json,sys; print(len(json.load(sys.stdin)["data"]))' 2>/dev/null)
+  [ "$SC1" = "403" ] && [ "$SC2" = "201" ] && [ "$SC3" = "409" ] && [ "$SC4" = "422" ] && [ "$ST" = "EXPIRING True True" ] && [ "$TL" = "0" ] \
+    && ok "DASK: kiracı poliçe giremiyor (yükümlülük malikin, 6305 m.10/3); 20 gün kalan poliçe 'bitiyor', kayıtsız bölümler görünüyor; kiracıya liste boş" \
+    || bad "DASK: $SC1 / $SC2 / $SC3 / $SC4 — $ST / kiracı $TL"
+  FUTC=$(date -d '+2 day' +%F)
+  SC1=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$CURL/insurance/claims" -H "$CA" -H "$CJ" -d "{\"occurred_on\":\"$FUTC\",\"description\":\"Çatıdan su sızdı, tavan hasar gördü\"}")
+  CLM=$(curl -s -X POST "$CURL/insurance/claims" -H "$CA" -H "$CJ" -d "{\"occurred_on\":\"$(date +%F)\",\"description\":\"Çatıdan su sızdı, tavan hasar gördü\",\"claimed_amount\":15000}" | grep -o '"id":"[^"]*"' | cut -d'"' -f4)
+  cst() { curl -s -o /dev/null -w '%{http_code}' -X POST "$CURL/insurance/claims/$CLM/status" -H "$CA" -H "$CJ" -d "$1"; }
+  SC2=$(cst '{"status":"CLOSED"}'); SC3=$(cst '{"status":"PAID"}'); SC4=$(cst "{\"status\":\"PAID\",\"paid_amount\":12000,\"paid_on\":\"$(date +%F)\"}"); SC5=$(cst '{"status":"REPORTED"}')
+  SC6=$(curl -s -o /dev/null -w '%{http_code}' "$CURL/insurance/claims" -H "Authorization: Bearer $TEN")
+  CD=$(PGPASSWORD="$APPPW" psql -h 127.0.0.1 -p "$DBPORT" -U siteeksen_app -d siteeksen -t -A -c "BEGIN; SELECT set_config('app.property_id','11111111-1111-1111-1111-111111111111',true); DELETE FROM insurance_claims; COMMIT;" 2>&1 | grep -c 'permission denied')
+  [ "$SC1" = "422" ] && [ "$SC2" = "409" ] && [ "$SC3" = "422" ] && [ "$SC4" = "200" ] && [ "$SC5" = "409" ] && [ "$SC6" = "403" ] && [ "$CD" -ge 1 ] \
+    && ok "hasar kaydı: gelecek tarih 422, durum makinesi geri gitmiyor (409), tazminatsız PAID 422; sakin göremez; kayıt silinemez" \
+    || bad "hasar kaydı: $SC1 / $SC2 / $SC3 / $SC4 / $SC5 / $SC6 / silme engeli $CD"
 else
   bad "contract-service başlamadı"; tail -10 /tmp/verify-contract.log
 fi
@@ -5425,8 +5451,8 @@ ok "kullanılmayan 13 site tablosu RLS ile korunuyor"
 
 # 9) Toplam durum — RLS DIŞINDA KALAN her tablo bilinçli ve gerekçeli olmalı
 RLSCOUNT=$($PSQL -t -A -c "SELECT count(*) FROM rls_enabled_tables;")
-[ "$RLSCOUNT" = "101" ] && ok "RLS toplam 101 tabloda açık" \
-  || bad "beklenmedik RLS tablo sayısı: $RLSCOUNT (beklenen 101)"
+[ "$RLSCOUNT" = "103" ] && ok "RLS toplam 103 tabloda açık" \
+  || bad "beklenmedik RLS tablo sayısı: $RLSCOUNT (beklenen 103)"
 NOTRLS=$($PSQL -t -A -c "SELECT string_agg(t.table_name, ' ' ORDER BY t.table_name)
   FROM information_schema.tables t
   WHERE t.table_schema='public' AND t.table_type='BASE TABLE'
@@ -6232,6 +6258,7 @@ BA4=$($PSQL -t -A -c "INSERT INTO operating_budgets (property_id, period_year, s
   VALUES ('$DEMO_PROPERTY',2044,'FINAL',CURRENT_DATE - 5) RETURNING id;" | head -1)
 # SGK ayrılış bildirgesi gecikmiş personel (FAZ 7.7)
 $PSQL -c "INSERT INTO employees (property_id, first_name, last_name, position, hire_date, end_date, is_active) VALUES ('$DEMO_PROPERTY','Eski','Calisan','Bahçıvan',CURRENT_DATE - 300,CURRENT_DATE - 20,false);" >/dev/null
+$PSQL -c "INSERT INTO unit_insurance_policies (property_id, unit_id, policy_no, start_date, end_date) VALUES ('$DEMO_PROPERTY','$U40','D-40',CURRENT_DATE - 355,CURRENT_DATE + 10);" >/dev/null
 # Tatbikat (FAZ 7.3): diğer sitede son tatbikat 400 gün önce → hatırlatma; demo sitede bugün → yok
 $PSQL -c "INSERT INTO emergency_drills (property_id, kind, drill_date, findings) VALUES ('$OTHERPROP','FIRE',CURRENT_DATE - 400,'eksiklik yok');" >/dev/null
 N=$(qapp "SELECT count(*) FROM scheduler_property_ids();")
@@ -6290,6 +6317,8 @@ CO1=$($PSQL -t -A -c "SELECT count(*) FROM notifications WHERE topic='compliance
 KU1=$($PSQL -t -A -c "SELECT count(*) FROM notifications WHERE topic='kvkk.destruction.undefined' AND property_id='$OTHERPROP';")
 KU2=$($PSQL -t -A -c "SELECT count(*) FROM notifications WHERE topic='kvkk.destruction.undefined' AND property_id='$DEMO_PROPERTY';")
 [ "${KU1:-0}" -ge 1 ] && [ "$KU2" = "0" ] && ok "saklama süresi tanımlamamış siteye periyodik imha hatırlatması gitti; tanımlamış siteye yok" || bad "imha hatırlatması: $KU1 / $KU2"
+DK=$($PSQL -t -A -c "SELECT count(*) FILTER (WHERE recipient_user_id='$R40'), count(*) FILTER (WHERE recipient_user_id<>'$R40') FROM notifications WHERE topic='dask.soon' AND payload->>'unit_id'='$U40';")
+[ "${DK%%|*}" -ge 1 ] && [ "${DK##*|}" = "0" ] && ok "DASK poliçesi biten dairenin yalnızca malikine hatırlatma gitti (6305 m.10/3)" || bad "DASK hatırlatması: $DK"
 # Sözleşme: ihbar son günü geçmiş → yönetim; uzak sözleşme → yok; süresi dolmuş ACTIVE → yönetim
 NMGR=$($PSQL -t -A -c "SELECT count(*) FROM notifications WHERE payload->>'contract_id'='$CN' AND topic='contract.notice';")
 NOUT=$($PSQL -t -A -c "SELECT count(*) FROM notifications n WHERE payload->>'contract_id'='$CN'

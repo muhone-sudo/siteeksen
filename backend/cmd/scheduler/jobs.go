@@ -59,6 +59,7 @@ func jobs() []job {
 		{name: "kvkk.due", what: "Yasal yanıt süresi (KVKK m.13) dolmak üzere ya da dolmuş açık başvuru → yönetim", run: kvkkDue},
 		{name: "compliance.employer", what: "SGK işe giriş/çıkış bildirimi ve MUHSGK/prim son günü yaklaşan ya da geçen yükümlülük → yönetim", run: employerCompliance},
 		{name: "kvkk.destruction", what: "Saklama süresi dolan ziyaretçi, otopark ve kargo kayıtlarını en geç 6 ayda bir anonimleştirir (İmha Yönetmeliği m.11); süre tanımlı değilse yönetime hatırlatır", run: periodicDestruction},
+		{name: "dask.renewal", what: "DASK poliçesi 30 gün içinde biten ya da bitmiş bağımsız bölümün malikine hatırlatma (6305 m.10/3)", run: daskRenewal},
 		{name: "emergency.drill", what: "Son tatbikatın üzerinden yasal süre (yılda bir) geçmiş ya da personel çalıştırdığı hâlde hiç tatbikat kaydı olmayan site → yönetim", run: drillDue},
 		{name: "budget.approval", what: "Genel kurulda karara bağlanma süresi (KMK m.37, 3 ay) yaklaşan ya da geçen geçici işletme projesi → yönetim", run: budgetApprovalDue},
 	}
@@ -708,6 +709,73 @@ func periodicDestruction(ctx context.Context, pool *pgxpool.Pool, propertyID str
 		m.Channel = notify.ChannelInApp
 		m.Category = notify.CategoryTransactional
 		out = append(out, notice{recipients: managers, msg: m})
+	}
+	return out, nil
+}
+
+// daskRenewal: son DASK poliçesi 30 gün içinde biten ya da bitmiş bölümün
+// MALİKLERİNE hatırlatma (yükümlülük malikindir, 6305 m.10/3). Poliçesi hiç
+// kaydedilmemiş bölümlere gönderilmez: kaydın yokluğu sigortanın yokluğu
+// demek değildir (malik sisteme girmemiş olabilir) — yönetim ekranında görünür.
+func daskRenewal(ctx context.Context, pool *pgxpool.Pool, propertyID string) ([]notice, error) {
+	rows, err := dbscope.For(pool, propertyID).Query(ctx, `
+		SELECT u.id::text, COALESCE(u.block,'') || '-' || COALESCE(u.door_number,''), p.end_date, (p.end_date - CURRENT_DATE)::int
+		FROM units u
+		JOIN LATERAL (SELECT end_date FROM unit_insurance_policies x WHERE x.unit_id = u.id AND x.kind = 'DASK'
+		              ORDER BY end_date DESC LIMIT 1) p ON true
+		WHERE u.property_id = $1 AND u.deleted = 0 AND p.end_date <= CURRENT_DATE + 30`, propertyID)
+	if err != nil {
+		return nil, err
+	}
+	type row struct {
+		unitID, unit string
+		end          time.Time
+		daysLeft     int
+	}
+	var list []row
+	for rows.Next() {
+		var r row
+		if err := rows.Scan(&r.unitID, &r.unit, &r.end, &r.daysLeft); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		list = append(list, r)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	out := []notice{}
+	for _, r := range list {
+		residents, err := notify.UnitResidents(ctx, pool, propertyID, r.unitID)
+		if err != nil {
+			return nil, err
+		}
+		var owners []notify.Recipient
+		for _, x := range residents {
+			if x.Role == "OWNER" {
+				owners = append(owners, x)
+			}
+		}
+		if len(owners) == 0 {
+			continue
+		}
+		state, body := "soon", fmt.Sprintf("%s dairesinin zorunlu deprem sigortası (DASK) %s tarihinde bitiyor (%d gün kaldı). "+
+			"Yenilemek malikin yükümlülüğüdür (6305 s. Kanun m.10/3); yenilediğinizde poliçeyi uygulamaya girin.", r.unit, trDate(r.end), r.daysLeft)
+		if r.daysLeft < 0 {
+			state, body = "expired", fmt.Sprintf("%s dairesinin zorunlu deprem sigortası (DASK) %s tarihinde bitti. Tapu işlemleri ve su/elektrik "+
+				"aboneliğinde geçerli poliçe aranır (6305 m.11); yenileyip poliçeyi uygulamaya girin.", r.unit, trDate(r.end))
+		}
+		out = append(out, notice{recipients: owners, msg: notify.Message{
+			PropertyID: propertyID,
+			Channel:    notify.ChannelInApp,
+			Category:   notify.CategoryTransactional,
+			Topic:      "dask." + state,
+			Subject:    "DASK poliçesi",
+			Body:       body,
+			Payload:    map[string]any{"unit_id": r.unitID, "end_date": r.end.Format("2006-01-02"), "state": state},
+			DedupeKey:  "dask:" + r.unitID + ":" + r.end.Format("2006-01-02") + ":" + state,
+		}})
 	}
 	return out, nil
 }

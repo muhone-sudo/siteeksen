@@ -319,7 +319,7 @@ func main() {
 		{expenseURL, []string{"/api/v1/expenses", "/api/v1/expense-categories"}},
 		{assetURL, []string{"/api/v1/assets", "/api/v1/assets-summary", "/api/v1/asset-categories"}},
 		{bulletinURL, []string{"/api/v1/bulletins", "/api/v1/bulletins-summary", "/api/v1/bulletin-comments"}},
-		{contractURL, []string{"/api/v1/contracts", "/api/v1/contracts-summary"}},
+		{contractURL, []string{"/api/v1/contracts", "/api/v1/contracts-summary", "/api/v1/insurance"}},
 		{documentURL, []string{"/api/v1/documents", "/api/v1/documents-summary"}},
 		{energyURL, []string{"/api/v1/energy"}},
 		{esgURL, []string{"/api/v1/esg"}},

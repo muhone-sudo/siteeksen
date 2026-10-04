@@ -385,7 +385,8 @@ func consentRequirement(c *gin.Context, repo *repository.RenovationRepository, p
 func renovationRequirement(scope string) string {
 	switch scope {
 	case "STRUCTURAL":
-		return "Onay için yapı ruhsatı / belediye izni gerekir (İmar K. m.21). Anayapıya zarar verecek değişiklik yapılamaz (KMK m.19/2)."
+		return "Onay için yapı ruhsatı / belediye izni gerekir (İmar K. m.21). Anayapıya zarar verecek değişiklik yapılamaz (KMK m.19/2); " +
+			"taşıyıcıyı olumsuz etkileyen izinsiz tadilatta DASK tazminat hakkı kaybedilir (6305 s. Kanun m.12/2)."
 	case "COMMON_AREA", "FACADE":
 		return "Onay için bütün kat maliklerinin beşte dördünün yazılı rızası ya da bu nisapla alınmış genel kurul kararı gerekir (KMK m.19/2)."
 	default:

@@ -66,11 +66,16 @@ func main() {
 		})
 	})
 
+	// DASK (FAZ 7.2): sakin kendi bölümünü, yönetim bütün bölümleri görür; malik/vekil poliçe kaydeder.
+	api.GET("/insurance/dask", listDASK(pool))
+	api.POST("/insurance/dask", addDASK(pool))
+
 	// Ayrıntılı görünüm: yönetim + denetçi.
 	read := api.Group("")
 	read.Use(middleware.RequireRole(
 		middleware.RoleManager, middleware.RoleBoardMember, middleware.RoleAuditor))
 	{
+		read.GET("/insurance/claims", listClaims(pool))
 		read.GET("/contracts", func(c *gin.Context) {
 			expiring := 0
 			if v := c.Query("expiring_days"); v != "" {
@@ -106,6 +111,9 @@ func main() {
 	write := api.Group("")
 	write.Use(middleware.RequireRole(middleware.RoleManager, middleware.RoleBoardMember))
 	{
+		write.POST("/insurance/claims", createClaim(pool))
+		write.POST("/insurance/claims/:id/status", updateClaim(pool))
+
 		write.POST("/contracts", func(c *gin.Context) {
 			var in repository.CreateInput
 			if err := c.ShouldBindJSON(&in); err != nil {

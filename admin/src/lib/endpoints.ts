@@ -84,6 +84,13 @@ export function endpoints(http: Http) {
             list: (status?: string) => g<T.List<T.ServiceRequest>>("/requests", { status }),
             setStatus: (id: string, status: string) => http.patch<T.ServiceRequest>(`/requests/${id}/status`, { status }),
         },
+        insurance: {
+            dask: () => g<{ data: T.DaskRow[]; summary: Record<string, number>; note: string }>("/insurance/dask"),
+            addDask: (b: { unit_id: string; policy_no: string; insurer?: string; start_date: string; end_date: string }) => http.post<Msg>("/insurance/dask", b),
+            claims: () => g<T.List<T.InsuranceClaim>>("/insurance/claims"),
+            createClaim: (b: { occurred_on: string; description: string; claimed_amount?: number; insurer_ref?: string; contract_id?: string }) => http.post<{ id: string }>("/insurance/claims", b),
+            claimStatus: (id: string, b: { status: string; paid_amount?: number; paid_on?: string; note?: string }) => http.post<Msg>(`/insurance/claims/${id}/status`, b),
+        },
         renovations: {
             list: () => g<T.List<T.RenovationPermit>>("/renovations"),
             get: (id: string) => g<{ permit: T.RenovationPermit; consents: T.RenovationConsent[] }>(`/renovations/${id}`),
@@ -356,6 +363,8 @@ export const READS: { path: string; keys: string[]; list?: boolean }[] = [
     { path: "/compliance-calendar", keys: ["data", "muhsgk_enabled", "note"] },
     { path: "/governance/common-area/leases", keys: ["data"] },
     { path: "/retention-rules", keys: ["data", "periodic_months", "note"] },
+    { path: "/insurance/dask", keys: ["data", "summary", "note"] },
+    { path: "/insurance/claims", keys: ["data"] },
     { path: "/property-roles", keys: ["id", "role", "first_name", "active", "decision_ref"], list: true },
     { path: "/units", keys: ["id", "block", "door_number", "share_ratio"], list: true },
     { path: "/finance/assessments/overview", keys: ["period", "total_amount", "collected_amount", "rate"], list: true },

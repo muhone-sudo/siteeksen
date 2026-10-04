@@ -100,6 +100,7 @@ export const ROUTE_ROLES: { prefix: string; roles: Role[]; reason: string }[] = 
     { prefix: "/dashboard/kvkk", roles: MANAGEMENT_AND_AUDIT, reason: "KVKK ilgili kişi başvuruları (kişisel veri)" },
     { prefix: "/dashboard/renovations", roles: MANAGEMENT_AND_AUDIT, reason: "Tadilat izinleri ve kat maliki rızaları" },
     { prefix: "/dashboard/violations", roles: MANAGEMENT_AND_AUDIT, reason: "Kural ihlalleri ve bildiren kimliği" },
+    { prefix: "/dashboard/insurance", roles: MANAGEMENT_AND_AUDIT, reason: "DASK poliçeleri ve hasar kayıtları" },
     { prefix: "/dashboard/emergency", roles: MANAGEMENT_AND_AUDIT, reason: "Acil durum planı ve sakin acil bilgi kartları (özel nitelikli veri)" },
 
     // Operasyonel ekranlar: görevli personel de kullanır.

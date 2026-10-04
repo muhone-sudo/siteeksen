@@ -234,6 +234,13 @@ class ApiClient {
     final response = await _dio.post('/kvkk-requests', data: {'request_type': type, 'description': description});
     return Map<String, dynamic>.from(response.data as Map);
   }
+  /// DASK (FAZ 7.2): malik/vekil olduğu bölümler ve poliçe kaydı.
+  Future<Map<String, dynamic>> getDask() async => Map<String, dynamic>.from((await _dio.get('/insurance/dask')).data as Map);
+
+  Future<void> addDask(Map<String, dynamic> body) async {
+    await _dio.post('/insurance/dask', data: body);
+  }
+
   /// Yakalanmayan hata raporu (3.6).
   Future<void> reportClientError(Map<String, dynamic> report) async {
     await _dio.post('/client-errors', data: report);

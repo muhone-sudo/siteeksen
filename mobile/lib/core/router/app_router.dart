@@ -28,6 +28,7 @@ import '../../features/renovation/presentation/screens/renovations_screen.dart';
 import '../../features/violations/presentation/screens/violations_screen.dart';
 import '../../features/emergency/presentation/screens/emergency_screen.dart';
 import '../../features/common_income/presentation/screens/common_income_screen.dart';
+import '../../features/dask/presentation/screens/dask_screen.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
@@ -157,6 +158,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/kvkk',
         name: 'kvkk',
         builder: (context, state) => const KvkkRequestsScreen(),
+      ),
+      // DASK poliçem
+      GoRoute(
+        path: '/dask',
+        name: 'dask',
+        builder: (context, state) => const DaskScreen(),
       ),
       // Ortak alan geliri payım
       GoRoute(

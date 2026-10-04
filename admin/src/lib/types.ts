@@ -380,3 +380,5 @@ export interface IncomeReport {
 }
 export interface RetentionRule { category: string; title: string; fields: string; condition: string; retention_months?: number; justification?: string; last_run_at?: string; last_run_count?: number }
 export interface DestructionLog { category: string; method: string; cutoff: string; record_count: number; executed_at: string; executed_by: string }
+export interface DaskRow { unit_id: Id; unit: string; policy_no?: string; insurer?: string; start_date?: string; end_date?: string; state: "VALID" | "EXPIRING" | "EXPIRED" | "MISSING"; days_left?: number }
+export interface InsuranceClaim { id: Id; contract_id?: string; occurred_on: string; description: string; claimed_amount?: number; status: string; insurer_ref?: string; paid_amount?: number; paid_on?: string; note?: string; created_at: string }

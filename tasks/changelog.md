@@ -12,6 +12,21 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-04 — SİGORTA: DASK TAKİBİ VE HASAR KAYDI (migration 045, FAZ 7.2 / M-36) (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **1162/1162** (kiracı poliçe giremez, bitiyor/kayıtsız durumları, kiracıya liste boş,
+> mükerrer 409, tarih 422; hasar durum makinesi, tazminatsız PAID 422, sakin 403, silinemez; DASK hatırlatması yalnızca
+> malike; RLS 103 tablo); `verify-mobile.sh` 10/10; panel tsc/lint temiz.
+
+- DASK yükümlülüğü malikin (6305 s. Kanun m.10/3): malik/vekil kendi bölümü için, yönetim her bölüm için poliçe girer;
+  yönetim ekranında geçerli/bitiyor/bitmiş/kayıt yok özeti. `cmd/scheduler` `dask.renewal`: bitişe 30 gün kala ve
+  bittikten sonra yalnızca maliklere hatırlatma (tapu ve su/elektrik aboneliğinde poliçe aranır, m.11). Kaydı olmayan
+  bölüme hatırlatma gitmez (kayıt yokluğu sigorta yokluğu değildir).
+- Ortak alan hasar/tazminat kaydı: ihbar → eksper → ödendi/reddedildi → kapandı (geri gidiş yok; PAID tutar ve tarih,
+  REJECTED gerekçe ister); INSURANCE sözleşmesine bağlanabilir.
+- Tadilat izni esaslı tadilat uyarısına 6305 m.12/2 eklendi (izinsiz taşıyıcı değişiklikte DASK tazminatı kaybı).
+- Panel: "Sigorta (DASK)". Sakin uygulaması: "DASK poliçem".
+
 ### 2026-10-04 — METRİK VE HATA TAKİBİ (migration 044, todo 3.6) (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **1158/1158** (mobil hata raporu kaydı, 2000 karakter kısaltma, geçersiz uygulama 422,

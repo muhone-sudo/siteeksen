@@ -246,7 +246,7 @@ Bugün tamamen yok. Aidatın yasal dayanağı ve icra gücü buradan doğar.
 | # | Dilim | Durum | Not |
 |---|---|---|---|
 | 7.1 | **Periyodik bakım ve yasal uyum takvimi** — asansör, yangın, su deposu, paratoner, jeneratör, baca, havuz | `[D4]` ilk dilim 2026-10-04: demirbaş bakım aralığı + zamanlayıcı hatırlatması (verify §40). Kalan: mevzuat kaynaklı hazır şablonlar (hukuki teyit gerekir, S-05) | M-31; denetimde ilk sorulan; hiç yok |
-| 7.2 | **Sigorta yönetimi** — DASK takibi, poliçe yenileme, hasar | `[D3]` poliçe = INSURANCE türü sözleşme; bitiş/ihbar hatırlatması zamanlayıcıda. Kalan: DASK (bölüm bazlı) ve hasar kaydı | M-36 |
+| 7.2 | **Sigorta yönetimi** — DASK takibi, poliçe yenileme, hasar | `[D3]` poliçe = INSURANCE türü sözleşme; bitiş/ihbar hatırlatması zamanlayıcıda. DASK (bölüm bazlı) ve hasar kaydı 2026-10-04 (045) — `[D4]` | M-36 |
 | 7.3 | **Acil durum ve afet** — plan, tahliye, kritik altyapı, tatbikat, deprem sonrası akış | `[D4]` 2026-10-04 (040; verify §34/§40). Acil kartı şifreli + açık rıza (KVKK m.6) | M-37; Türkiye için yüksek değer |
 | 7.4 | **Personel** — bordro, SGK, izin bakiyesi, İSG, kıdem karşılığı | `[D0]` | M-34 |
 | 7.5 | **Kural ihlali ve yaptırım** + **tadilat izni** | `[D4]` 2026-10-04 (037/039; verify §34). Para cezası bilerek yok (Kabahatler K. m.22) | M-44, M-45 |
