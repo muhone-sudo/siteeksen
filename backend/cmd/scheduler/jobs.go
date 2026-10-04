@@ -15,6 +15,7 @@ import (
 	"github.com/siteeksen/backend/pkg/legalparams"
 	"github.com/siteeksen/backend/pkg/money"
 	"github.com/siteeksen/backend/pkg/notify"
+	"github.com/siteeksen/backend/pkg/retention"
 )
 
 // notice, bir işin ürettiği tek bildirimdir: kime ve ne.
@@ -57,6 +58,7 @@ func jobs() []job {
 		{name: "asset.maintenance", what: "Bakım/periyodik kontrol tarihi yaklaşan ya da geçen demirbaş → yönetim", run: maintenanceDue},
 		{name: "kvkk.due", what: "Yasal yanıt süresi (KVKK m.13) dolmak üzere ya da dolmuş açık başvuru → yönetim", run: kvkkDue},
 		{name: "compliance.employer", what: "SGK işe giriş/çıkış bildirimi ve MUHSGK/prim son günü yaklaşan ya da geçen yükümlülük → yönetim", run: employerCompliance},
+		{name: "kvkk.destruction", what: "Saklama süresi dolan ziyaretçi, otopark ve kargo kayıtlarını en geç 6 ayda bir anonimleştirir (İmha Yönetmeliği m.11); süre tanımlı değilse yönetime hatırlatır", run: periodicDestruction},
 		{name: "emergency.drill", what: "Son tatbikatın üzerinden yasal süre (yılda bir) geçmiş ya da personel çalıştırdığı hâlde hiç tatbikat kaydı olmayan site → yönetim", run: drillDue},
 		{name: "budget.approval", what: "Genel kurulda karara bağlanma süresi (KMK m.37, 3 ay) yaklaşan ya da geçen geçici işletme projesi → yönetim", run: budgetApprovalDue},
 	}
@@ -652,6 +654,60 @@ func employerCompliance(ctx context.Context, pool *pgxpool.Pool, propertyID stri
 			Payload:    map[string]any{"kind": it.Kind, "employee_id": it.EmployeeID, "due_date": it.DueDate.Format("2006-01-02"), "state": state},
 			DedupeKey:  "compliance:" + key,
 		}})
+	}
+	return out, nil
+}
+
+// periodicDestruction: KVKK periyodik imhası (FAZ 7.8). Süresi tanımlanmış
+// kategoriler son çalıştırmadan periyodik süre geçtiyse anonimleştirilir ve
+// kayda yazılır (pkg/retention). İmha yapılınca yönetime özet; hiç kural yoksa
+// altı ayda bir "saklama süresi tanımlayın" hatırlatması.
+func periodicDestruction(ctx context.Context, pool *pgxpool.Pool, propertyID string) ([]notice, error) {
+	res, err := retention.Run(ctx, pool, propertyID, time.Now(), "scheduler", false)
+	if err != nil {
+		return nil, err
+	}
+	var done []string
+	undefined := 0
+	for _, r := range res {
+		switch {
+		case r.Skipped == "saklama süresi tanımlı değil":
+			undefined++
+		case r.Skipped == "":
+			done = append(done, fmt.Sprintf("%s: %d kayıt", r.Category, r.Count))
+		}
+	}
+	now := time.Now()
+	half := now.Format("2006") + "-H1"
+	if now.Month() > 6 {
+		half = now.Format("2006") + "-H2"
+	}
+	var msgs []notify.Message
+	if len(done) > 0 {
+		msgs = append(msgs, notify.Message{Topic: "kvkk.destruction.done", Subject: "Periyodik kişisel veri imhası yapıldı",
+			Body:      "Saklama süresi dolan kayıtlar anonimleştirildi (" + strings.Join(done, ", ") + "). İşlem imha kaydına yazıldı (İmha Yönetmeliği m.7/3).",
+			Payload:   map[string]any{"results": res},
+			DedupeKey: "kvkk.destruction.done:" + propertyID + ":" + now.Format("2006-01-02")})
+	}
+	if undefined == len(retention.Categories) {
+		msgs = append(msgs, notify.Message{Topic: "kvkk.destruction.undefined", Subject: "Kişisel veri saklama süresi tanımlı değil",
+			Body: "Ziyaretçi, otopark ve kargo kayıtları için saklama süresi tanımlanmadığından kişisel veriler süresiz saklanıyor. " +
+				"KVKK m.7 uyarınca amacı sona eren veri silinmeli ya da anonimleştirilmelidir; Ayarlar → Saklama ve imha bölümünden süre tanımlayın.",
+			DedupeKey: "kvkk.destruction.undefined:" + propertyID + ":" + half})
+	}
+	if len(msgs) == 0 {
+		return nil, nil
+	}
+	managers, err := notify.Managers(ctx, pool, propertyID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]notice, 0, len(msgs))
+	for _, m := range msgs {
+		m.PropertyID = propertyID
+		m.Channel = notify.ChannelInApp
+		m.Category = notify.CategoryTransactional
+		out = append(out, notice{recipients: managers, msg: m})
 	}
 	return out, nil
 }

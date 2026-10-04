@@ -85,6 +85,10 @@ func main() {
 	})
 
 	// Yazma ve geçmiş: yalnızca yönetim.
+	// KVKK saklama süreleri ve periyodik imha (FAZ 7.8): denetçi okur.
+	api.GET("/retention-rules", middleware.RequireRole(middleware.RoleManager, middleware.RoleBoardMember, middleware.RoleAuditor), listRetention(pool))
+	api.GET("/retention-rules/log", middleware.RequireRole(middleware.RoleManager, middleware.RoleBoardMember, middleware.RoleAuditor), destructionLog(pool))
+
 	write := api.Group("")
 	write.Use(middleware.RequireRole(middleware.RoleManager, middleware.RoleBoardMember))
 	{
@@ -118,6 +122,9 @@ func main() {
 		})
 
 		// "Son ödeme günü ayın 5'iydi, kim 20 yaptı?" sorusunun cevabı.
+		write.PUT("/retention-rules/:category", setRetention(pool))
+		write.POST("/retention-rules/run", runRetention(pool))
+
 		write.GET("/settings-history", func(c *gin.Context) {
 			limit, _ := strconv.Atoi(c.Query("limit"))
 			list, err := repo.History(c.Request.Context(),

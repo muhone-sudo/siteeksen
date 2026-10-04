@@ -273,6 +273,10 @@ export function endpoints(http: Http) {
             set: (key: string, value: unknown) => http.put<{ setting: T.Setting }>(`/settings/${key}`, { value }),
             reset: (key: string) => http.del<Msg>(`/settings/${key}`),
             history: (key?: string) => g<T.List<T.SettingHistory>>("/settings-history", { key }),
+            retention: () => g<{ data: T.RetentionRule[]; periodic_months: number; note: string }>("/retention-rules"),
+            setRetention: (category: string, retention_months: number, justification: string) => http.put<Msg>(`/retention-rules/${category}`, { retention_months, justification }),
+            runRetention: () => http.post<{ data: { category: string; count: number; skipped?: string }[]; note: string }>("/retention-rules/run"),
+            destructionLog: () => g<T.List<T.DestructionLog>>("/retention-rules/log"),
         },
         governance: {
             leases: () => g<T.List<T.CommonLease>>("/governance/common-area/leases"),
@@ -351,6 +355,7 @@ export const READS: { path: string; keys: string[]; list?: boolean }[] = [
     { path: "/emergency/checks", keys: ["data"] },
     { path: "/compliance-calendar", keys: ["data", "muhsgk_enabled", "note"] },
     { path: "/governance/common-area/leases", keys: ["data"] },
+    { path: "/retention-rules", keys: ["data", "periodic_months", "note"] },
     { path: "/property-roles", keys: ["id", "role", "first_name", "active", "decision_ref"], list: true },
     { path: "/units", keys: ["id", "block", "door_number", "share_ratio"], list: true },
     { path: "/finance/assessments/overview", keys: ["period", "total_amount", "collected_amount", "rate"], list: true },

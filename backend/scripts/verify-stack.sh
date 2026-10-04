@@ -3679,6 +3679,31 @@ if [ "$SUP2" = "1" ] && [ -n "${MGR:-}" ] && [ -n "${TEN:-}" ]; then
   LF2=$($PSQL -t -A -c "SELECT value_numeric FROM legal_parameters WHERE code='LATE_FEE_MONTHLY_RATE' AND property_id IS NULL;")
   [ "$LF2" = "0.050000" ] && ok "mevzuat parametresi bozulmadan duruyor (%5)" || bad "oran değişti: $LF2"
 
+  # KVKK saklama ve periyodik imha (FAZ 7.8, 043)
+  RR=$(curl -s "$TURL/retention-rules" -H "$TA")
+  echo "$RR" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["periodic_months"]==6 and [r["category"] for r in d["data"]]==["VISITOR","PARKING_LOG","PACKAGE"]' 2>/dev/null; PY=$?
+  SC1=$(curl -s -o /dev/null -w '%{http_code}' -X PUT "$TURL/retention-rules/VISITOR" -H "$TA" -H "$TJ" -d '{"retention_months":0,"justification":"x"}')
+  SC2=$(curl -s -o /dev/null -w '%{http_code}' -X PUT "$TURL/retention-rules/VISITOR" -H "$TA" -H "$TJ" -d '{"retention_months":12}')
+  SC3=$(curl -s -o /dev/null -w '%{http_code}' -X PUT "$TURL/retention-rules/VISITOR" -H "$TA" -H "$TJ" -d '{"retention_months":12,"justification":"Güvenlik amacıyla bir yıl; olay incelemesi için yeterli"}')
+  SC4=$(curl -s -o /dev/null -w '%{http_code}' "$TURL/retention-rules" -H "Authorization: Bearer $TEN")
+  [ "$PY" = "0" ] && [ "$SC1" = "422" ] && [ "$SC2" = "422" ] && [ "$SC3" = "200" ] && [ "$SC4" = "403" ] \
+    && ok "saklama süresi: 3 kategori, periyodik imha 6 ay (İmha Yön. m.11); süre/gerekçe doğrulaması; sakin göremez" || bad "saklama kuralları: py $PY / $SC1 / $SC2 / $SC3 / $SC4"
+  DP='11111111-1111-1111-1111-111111111111'
+  VO=$($PSQL -t -A -c "INSERT INTO visitors (property_id, visitor_name, visitor_phone, visitor_id_number, vehicle_plate, status, checked_in_at)
+    VALUES ('$DP','Eski Ziyaretci','5550001111','12345678901','34ABC123','CHECKED_OUT', now() - interval '400 days') RETURNING id;" | head -1)
+  VN=$($PSQL -t -A -c "INSERT INTO visitors (property_id, visitor_name, status, checked_in_at) VALUES ('$DP','Yeni Ziyaretci','CHECKED_OUT', now() - interval '10 days') RETURNING id;" | head -1)
+  VI=$($PSQL -t -A -c "INSERT INTO visitors (property_id, visitor_name, status, checked_in_at) VALUES ('$DP','Iceride Ziyaretci','CHECKED_IN', now() - interval '400 days') RETURNING id;" | head -1)
+  RUN=$(curl -s -X POST "$TURL/retention-rules/run" -H "$TA" -H "$TJ" -d '{}')
+  ROW=$($PSQL -t -A -c "SELECT visitor_name || '|' || COALESCE(visitor_phone,'-') || '|' || COALESCE(visitor_id_number,'-') || '|' || COALESCE(vehicle_plate,'-') FROM visitors WHERE id='$VO';")
+  KEEP=$($PSQL -t -A -c "SELECT count(*) FROM visitors WHERE id IN ('$VN','$VI') AND visitor_name <> '[imha edildi]';")
+  LG=$($PSQL -t -A -c "SELECT count(*) FROM data_destruction_log WHERE property_id='$DP' AND category='VISITOR' AND record_count >= 1;")
+  NOR=$($PSQL -t -A -c "SELECT count(*) FROM data_destruction_log WHERE property_id='$DP' AND category IN ('PARKING_LOG','PACKAGE');")
+  [ "$ROW" = "[imha edildi]|-|-|-" ] && [ "$KEEP" = "2" ] && [ "${LG:-0}" -ge 1 ] && [ "$NOR" = "0" ] \
+    && ok "süresi dolan ziyaretçi kaydı anonimleştirildi; yeni ve hâlâ içerideki kayıt korundu; imha kaydı yazıldı; süresi tanımsız kategori imha edilmedi" \
+    || bad "periyodik imha: '$ROW' / korunan $KEEP / kayıt $LG / tanımsız $NOR — $RUN"
+  LD=$(PGPASSWORD="$APPPW" psql -h 127.0.0.1 -p "$DBPORT" -U siteeksen_app -d siteeksen -t -A -c "BEGIN; SELECT set_config('app.property_id','$DP',true); DELETE FROM data_destruction_log; COMMIT;" 2>&1)
+  LN=$($PSQL -t -A -c "SELECT count(*) FROM data_destruction_log WHERE property_id='$DP';")
+  [ "${LN:-0}" -ge 1 ] && ok "imha kaydı uygulama rolünce silinemiyor (İmha Yön. m.7/3, en az 3 yıl)" || bad "imha kaydı silindi: $LD"
   # 4) Tanınmayan anahtar ve tür/aralık denetimi
   SC=$(curl -s -o /dev/null -w '%{http_code}' -X PUT "$TURL/settings/UYDURMA_AYAR" -H "$TA" -H "$TJ" -d '{"value":"x"}')
   [ "$SC" = "422" ] && ok "tanınmayan ayar anahtarı reddedildi → 422" || bad "uydurma anahtar → $SC"
@@ -5383,8 +5408,8 @@ ok "kullanılmayan 13 site tablosu RLS ile korunuyor"
 
 # 9) Toplam durum — RLS DIŞINDA KALAN her tablo bilinçli ve gerekçeli olmalı
 RLSCOUNT=$($PSQL -t -A -c "SELECT count(*) FROM rls_enabled_tables;")
-[ "$RLSCOUNT" = "98" ] && ok "RLS toplam 98 tabloda açık" \
-  || bad "beklenmedik RLS tablo sayısı: $RLSCOUNT (beklenen 98)"
+[ "$RLSCOUNT" = "100" ] && ok "RLS toplam 100 tabloda açık" \
+  || bad "beklenmedik RLS tablo sayısı: $RLSCOUNT (beklenen 100)"
 NOTRLS=$($PSQL -t -A -c "SELECT string_agg(t.table_name, ' ' ORDER BY t.table_name)
   FROM information_schema.tables t
   WHERE t.table_schema='public' AND t.table_type='BASE TABLE'
@@ -6241,6 +6266,9 @@ DD1=$($PSQL -t -A -c "SELECT count(*) FROM notifications WHERE topic='emergency.
   || bad "tatbikat hatırlatması: '$DO1' / demo $DD1"
 CO1=$($PSQL -t -A -c "SELECT count(*) FROM notifications WHERE topic='compliance.sgk_exit' AND property_id='$DEMO_PROPERTY' AND payload->>'state'='overdue';")
 [ "${CO1:-0}" -ge 1 ] && ok "gecikmiş SGK ayrılış bildirgesi yönetime hatırlatıldı (zamanlayıcı ve takvim aynı hesap)" || bad "işveren yükümlülüğü hatırlatması: $CO1"
+KU1=$($PSQL -t -A -c "SELECT count(*) FROM notifications WHERE topic='kvkk.destruction.undefined' AND property_id='$OTHERPROP';")
+KU2=$($PSQL -t -A -c "SELECT count(*) FROM notifications WHERE topic='kvkk.destruction.undefined' AND property_id='$DEMO_PROPERTY';")
+[ "${KU1:-0}" -ge 1 ] && [ "$KU2" = "0" ] && ok "saklama süresi tanımlamamış siteye periyodik imha hatırlatması gitti; tanımlamış siteye yok" || bad "imha hatırlatması: $KU1 / $KU2"
 # Sözleşme: ihbar son günü geçmiş → yönetim; uzak sözleşme → yok; süresi dolmuş ACTIVE → yönetim
 NMGR=$($PSQL -t -A -c "SELECT count(*) FROM notifications WHERE payload->>'contract_id'='$CN' AND topic='contract.notice';")
 NOUT=$($PSQL -t -A -c "SELECT count(*) FROM notifications n WHERE payload->>'contract_id'='$CN'

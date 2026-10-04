@@ -363,6 +363,24 @@ Kökteki `ROADMAP.md` ile `tasks/roadmap.md` **birebir aynı içeriğe** sahip; 
 **Varsayılan:** `tasks/` altındakiler **tek kaynak** kabul edilir (CLAUDE.md bunlara atıf yapıyor); kökteki dosyalar
 kısa birer işaretçiye dönüştürülür.
 **Cevap:** Varsayılanı uygula, tek dosyaya düşerken, diğer dosyaları da son bir kez tekrar oku ve alınması gereken bilgiler varsa kalacak dosyanın içine al.
+### S-21. VERBİS kaydı — site yönetimleri yükümlü mü?
+
+KVKK m.16 VERBİS kaydını ister; Kurul muafiyet kararlarıyla (çalışan sayısı ve bilanço eşiği, ana faaliyetin özel
+nitelikli veri işleme olmaması) birçok veri sorumlusu muaftır. Site/apartman yönetimlerine özel bir muafiyet
+kararı araştırmada **bulunamadı** (2026-10-04). Sistem artık sakin acil bilgi kartında özel nitelikli veri (sağlık)
+işliyor (açık rızayla, şifreli). Saklama ve imha politikası (İmha Yönetmeliği m.5) VERBİS'e kayıtlı olanlar için
+zorunludur; sistem politikayı uygular ama kayıt yükümlülüğünü belirleyemez.
+**Varsayılan:** sistemde VERBİS ile ilgili bir iddia yapılmaz; yönetime "hukuk danışmanıyla teyit edin" notu.
+**Soru:** Bir hukukçu görüşü alınacak mı, yoksa varsayılanla devam mı?
+
+### S-22. Bordro hesabı (FAZ 7.4) — kapsam
+
+Bordro (brüt→net, SGK işçi/işveren payları, gelir vergisi dilimleri, damga vergisi, asgari ücret istisnası) her yıl
+değişen oranlara bağlıdır ve hata doğrudan çalışan ücretine yansır. Sistem bugün SGK/MUHSGK sürelerini takip ediyor
+(041) ama ücret hesaplamıyor.
+**Seçenekler:** a) oranlar `legal_parameters`'a girilip tam bordro hesaplanır (her yıl Ocak'ta oran güncellemesi şart);
+b) bordro mali müşavirden gelir, sistem yalnızca net ödemeyi ve maliyeti kaydeder.
+**Soru:** Hangisi?
 ---
 
 ## E. CEVAPLANMIŞ SORULAR

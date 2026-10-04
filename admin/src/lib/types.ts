@@ -378,3 +378,5 @@ export interface IncomeReport {
     year: number; total_gross_kurus: number; total_withholding_kurus: number; note: string;
     data: { unit_id: Id; unit: string; owners: string; gross_kurus: number; withholding_kurus: number; share_ratio: number }[];
 }
+export interface RetentionRule { category: string; title: string; fields: string; condition: string; retention_months?: number; justification?: string; last_run_at?: string; last_run_count?: number }
+export interface DestructionLog { category: string; method: string; cutoff: string; record_count: number; executed_at: string; executed_by: string }

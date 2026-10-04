@@ -12,6 +12,24 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-04 — KVKK SAKLAMA VE PERİYODİK İMHA (migration 043, FAZ 7.8) (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **1153/1153** (3 kategori, periyodik imha 6 ay; süre/gerekçe doğrulaması; süresi dolan
+> ziyaretçi anonimleştirildi, yeni ve içerideki korundu, imha kaydı yazıldı, tanımsız kategori imha edilmedi; imha
+> kaydı silinemez; tanımsız siteye hatırlatma; RLS 100 tablo); panel tsc/lint temiz.
+
+- Ziyaretçi, otopark ve kargo kayıtlarındaki kişisel veriler süresiz tutuluyordu. Site kategori bazında saklama
+  süresi ve gerekçe tanımlar (`data_retention_rules`); `pkg/retention` süresi dolanları ANONİMLEŞTİRİR (kayıt ve
+  tarihler kalır). Periyodik aralık `KVKK_PERIODIC_DESTRUCTION_MONTHS` = 6 (İmha Yönetmeliği m.11/2); her işlem
+  silinemeyen `data_destruction_log`'a yazılır (m.7/3). Süre tanımlanmamış kategori imha edilmez (uydurma süre yok);
+  `cmd/scheduler` `kvkk.destruction` yönetimi altı ayda bir uyarır.
+- `GET/PUT /retention-rules`, `POST /retention-rules/run`, `GET /retention-rules/log` (settings). Panel: Ayarlar →
+  "Saklama ve imha (KVKK)".
+- Kurul 2026/348 ilke kararı (RG 31/3/2026; borç listesinin ortak alana asılması hukuka aykırı) kontrol edildi:
+  borçlu listesi yalnızca yönetim/denetçiye açık, gecikme hatırlatması yalnızca ilgili daireye gidiyor — uyumlu.
+- Bilinen sınır: kargo/ziyaretçi FOTOĞRAF bağlantıları silinir ama depolamadaki dosya (varsa) ayrıca silinmez — D2.
+- Sorular: S-21 (VERBİS), S-22 (bordro kapsamı).
+
 ### 2026-10-04 — ORTAK ALAN GELİRİ (migration 042, FAZ 7.6 / M-46) (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **1148/1148** (oybirliği maddesi olmadan kiralama 422, sığınak 422, oybirliğiyle kayıt;

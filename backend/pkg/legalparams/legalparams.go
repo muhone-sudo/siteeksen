@@ -77,6 +77,9 @@ const (
 	MUHSGKDueDay      = "MUHSGK_DUE_DAY"
 	SGKPremiumDue     = "SGK_PREMIUM_DUE"
 	SGKExitNoticeDays = "SGK_EXIT_NOTICE_DAYS"
+
+	// KVKKPeriodicDestructionMonths: periyodik imha aralığı üst sınırı (İmha Yönetmeliği m.11/2).
+	KVKKPeriodicDestructionMonths = "KVKK_PERIODIC_DESTRUCTION_MONTHS"
 )
 
 // Parameter, tek bir parametrenin çözümlenmiş hâlidir.
