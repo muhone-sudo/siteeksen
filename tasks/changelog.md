@@ -12,6 +12,15 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-05 — PANEL MOBİL MENÜ (TEST_RAPORU 6.2) (DOĞRULANMIŞ, D4)
+
+> **Kanıt:** Gerçek tarayıcı (headless Chromium, Galaxy A55 görünümü 412×915, demo yönetici girişi): menü kapalıyken
+> bağlantılar görünmüyor → "Menüyü aç" ile çekmece açılıyor → bağlantıya tıklayınca sayfa değişip çekmece kapanıyor →
+> × ile kapanıyor; yatay taşma yok; 1280 px'de kenar menü sabit ve menü düğmesi gizli. Panel tsc/lint temiz.
+
+- Üst çubuktaki menü düğmesinin `onClick`'i yoktu; 1024 px altında menüye erişilemiyordu. `DashboardShell` çekmece
+  durumunu tutar; `Sidebar` mobilde arka plan örtüsüyle soldan açılır, sayfa değişince kapanır.
+
 ### 2026-10-05 — TESİS TANIMLAMA VE İPTAL SON SÜRESİ (migration 048, TEST_RAPORU 2.1) (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **1174/1174** (tesis API'den eklendi ve sakin listesinde; demo tesisler yüklü; ters saat,

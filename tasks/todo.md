@@ -649,7 +649,7 @@ S-21 → VERBİS opsiyonel, yükümlülük site yönetiminde; S-19 ve iOS → ol
 - [ ] T6 PDF/Excel rapor motoru (TEST 2.6)
 - [ ] T7 bütçe kesinleştirme — 7579 sonrası durum kanıtı (TEST 2.7)
 - [ ] T8 ziyaretçi PIN/QR + hızlı doğrulama (TEST 2.8)
-- [ ] T9 panel mobil menü (TEST 6.2)
+- [x] T9 panel mobil menü (TEST 6.2) — tarayıcı testi 412×915
 - [ ] A1 taşınan sakin (BUG-01) — mevcut koruma kanıtı + bildirim metni şeffaflığı
 - [ ] A2 havale beyanında valör, gecikme tazminatı dondurma ve iz (BUG-02)
 - [ ] A3 finansal silinemezlik + ters kayıt (BUG-03)

@@ -36,7 +36,7 @@ function roleLabel(roles?: string[]): string {
     return top ? ROLE_LABELS[top] : roles[0];
 }
 
-export function Header() {
+export function Header({ onMenu }: { onMenu?: () => void }) {
     const { data: session, status } = useSession();
     const router = useRouter();
     const [menuOpen, setMenuOpen] = useState(false);
@@ -71,9 +71,9 @@ export function Header() {
     }
 
     return (
-        <header className="flex h-16 items-center justify-between border-b border-gray-200 bg-white px-6 dark:border-gray-700 dark:bg-gray-800">
+        <header className="flex h-16 items-center justify-between border-b border-gray-200 bg-white px-4 sm:px-6 dark:border-gray-700 dark:bg-gray-800">
             {/* Mobile menu button */}
-            <button className="lg:hidden" aria-label="Menü">
+            <button type="button" className="rounded-lg p-2 hover:bg-gray-100 lg:hidden dark:hover:bg-gray-700" aria-label="Menüyü aç" onClick={onMenu}>
                 <Menu className="h-6 w-6" />
             </button>
 

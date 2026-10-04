@@ -90,7 +90,11 @@ interface SiteOption {
     name: string;
 }
 
-export function Sidebar() {
+/**
+ * Kenar menü. Masaüstünde sabit; 1024 px altında üst çubuktaki menü düğmesiyle açılan
+ * çekmece olarak görünür (TEST_RAPORU 6.2 — önceden düğme hiçbir şey açmıyordu).
+ */
+export function Sidebar({ mobileOpen = false, onClose }: { mobileOpen?: boolean; onClose?: () => void }) {
     const pathname = usePathname();
     const { data: session, status, update } = useSession();
     const [sites, setSites] = useState<SiteOption[]>([]);
@@ -148,12 +152,25 @@ export function Sidebar() {
 
     const roles = session?.user?.roles;
 
+    // Çekmece açıkken sayfa değişince kapanır.
+    useEffect(() => {
+        onClose?.();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [pathname]);
+
     return (
-        <div className="hidden lg:flex lg:w-64 lg:flex-col">
+        <>
+        {mobileOpen && <div className="fixed inset-0 z-40 bg-black/40 lg:hidden" onClick={onClose} aria-hidden="true" />}
+        <div className={cn("lg:flex lg:w-64 lg:flex-col", mobileOpen ? "fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col shadow-xl lg:static lg:shadow-none" : "hidden")}>
             <div className="flex flex-1 flex-col overflow-y-auto border-r border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
                 <div className="flex h-16 shrink-0 items-center gap-2 border-b border-gray-200 px-6 dark:border-gray-700">
                     <Building2 className="h-8 w-8 text-primary" />
                     <span className="text-xl font-bold text-primary">SiteEksen</span>
+                    {mobileOpen && (
+                        <button type="button" onClick={onClose} className="ml-auto rounded-lg p-1 hover:bg-gray-100 lg:hidden dark:hover:bg-gray-700" aria-label="Menüyü kapat">
+                            <X className="h-5 w-5 text-gray-500" />
+                        </button>
+                    )}
                 </div>
 
                 <div className="space-y-2 border-b border-gray-200 px-4 py-4 dark:border-gray-700">
@@ -287,5 +304,6 @@ export function Sidebar() {
                 </div>
             )}
         </div>
+        </>
     );
 }
