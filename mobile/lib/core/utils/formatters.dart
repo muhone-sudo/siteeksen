@@ -79,3 +79,23 @@ DateTime? _parseDate(Object? value) {
   }
   return null;
 }
+
+/// Tahakkuk başlığı: `2026-01` → `Ocak 2026`; devreden borç (kind=OPENING, 034)
+/// dönem adıyla değil açıklamasıyla ("Devir bakiyesi") gösterilir — aksi hâlde
+/// devir, vade ayının aidatı sanılırdı. Biçim beklenenden farklıysa ham değer.
+String assessmentLabel(Map<dynamic, dynamic> a) {
+  if (a['kind'] == 'OPENING') {
+    final d = '${a['description'] ?? ''}'.trim();
+    return d.isEmpty ? 'Devir bakiyesi' : d;
+  }
+  final period = a['period'] as String?;
+  if (period == null || !period.contains('-')) return period ?? 'Dönem';
+  final parts = period.split('-');
+  final month = int.tryParse(parts[1]) ?? 0;
+  const names = [
+    '', 'Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
+    'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'
+  ];
+  if (month < 1 || month > 12) return period;
+  return '${names[month]} ${parts[0]}';
+}

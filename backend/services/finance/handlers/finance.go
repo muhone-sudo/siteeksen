@@ -434,3 +434,67 @@ func parsePage(c *gin.Context) (models.Page, bool) {
 	}
 	return p, true
 }
+
+// CreateOpeningBalances devir bakiyelerini girer (site kurulumu, FAZ 8.1).
+func CreateOpeningBalances(svc *service.FinanceService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var in models.OpeningBalanceInput
+		if err := c.ShouldBindJSON(&in); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "due_date ve en az bir {unit_id, amount>0} satırı gerekli"})
+			return
+		}
+		list, err := svc.CreateOpeningBalances(c.Request.Context(), c.GetString("property_id"), in)
+		switch {
+		case errors.Is(err, repository.ErrInvalidAssessmentInput):
+			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+		case errors.Is(err, repository.ErrOpeningExists):
+			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+		case err != nil:
+			if middleware.DBErrorResponse(c, err) {
+				return
+			}
+			log.Printf("[finance] devir bakiyesi yazılamadı: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Devir bakiyesi kaydedilemedi"})
+		default:
+			c.JSON(http.StatusCreated, gin.H{"data": list, "created": len(list),
+				"note": "Devir bakiyesine otomatik gecikme tazminatı işletilmez; önceki tazminat devir tutarına dahil edilmelidir."})
+		}
+	}
+}
+
+// ListOpeningBalances etkin devir kayıtlarını listeler.
+func ListOpeningBalances(svc *service.FinanceService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		list, err := svc.ListOpeningBalances(c.Request.Context(), c.GetString("property_id"))
+		if err != nil {
+			if middleware.DBErrorResponse(c, err) {
+				return
+			}
+			log.Printf("[finance] devir listesi: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Devir kayıtları alınamadı"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"data": list})
+	}
+}
+
+// CancelOpeningBalance hatalı devir kaydını iptal eder.
+func CancelOpeningBalance(svc *service.FinanceService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		err := svc.CancelOpeningBalance(c.Request.Context(), c.GetString("property_id"), c.Param("id"))
+		switch {
+		case errors.Is(err, repository.ErrOpeningNotFound):
+			c.JSON(http.StatusNotFound, gin.H{"error": "Devir kaydı bulunamadı"})
+		case errors.Is(err, repository.ErrOpeningNotCancellable):
+			c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
+		case err != nil:
+			if middleware.DBErrorResponse(c, err) {
+				return
+			}
+			log.Printf("[finance] devir iptali: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Devir kaydı iptal edilemedi"})
+		default:
+			c.JSON(http.StatusOK, gin.H{"message": "Devir kaydı iptal edildi"})
+		}
+	}
+}

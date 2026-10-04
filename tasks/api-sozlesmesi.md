@@ -74,6 +74,9 @@ Giriş kilidi: art arda 5 hatalı girişte hesap 15 dk kilitlenir (kilitliyken d
 | `GET /finance/payments` | M,B,A | `limit`(≤500, vars. 50),`offset` | `{data:[{id,user_id,amount,payment_method,status,transaction_id?,created_at,completed_at,name,unit}],total,limit,offset}` |
 | `GET /finance/payments/pending` | M,B,A | — | aynı biçim |
 | `GET /finance/assessments/overview` | M,B,A | `year` | `{data:[{period,due_date,total_amount,collected_amount,rate,status}]}` — `rate` yüzde, tek ondalık, aşağı yuvarlanmış (2026-10-03) |
+| `GET /finance/opening-balances` | M,B,A | — | `{data:[{id,unit_id,unit,amount,paid_amount,due_date,description,status,created_at}]}` |
+| `POST /finance/opening-balances` | M,B | `due_date`*,`items`*:[{`unit_id`*,`amount`*>0,`description`}] (en çok 2000) | 201 `{data,created,note}` — tek işlem; bölüm başına tek devir (409); devire otomatik gecikme tazminatı işletilmez, dönem özetine girmez |
+| `POST /finance/opening-balances/:id/cancel` | M,B | — | 200 · ödemesi/bekleyen ödemesi varsa 409 |
 | `GET /finance/expense-categories` | M,B,A | — | `{data:[{id,property_id,name,distribution_type,applies_to_commercial,applies_to_ground_floor,custom_formula,is_active}]}` |
 | `POST /finance/assessments` | M,B | `period_year`*,`period_month`*(1-12),`due_date`*,`expense_items`*[{`category_id`*,`amount`*>0}] | 201 `{data:[özet]}` · 409 dönem var |
 | `POST /finance/payments/:id/confirm` | M,B | `reference` | `{message}` · 404/409/403 |

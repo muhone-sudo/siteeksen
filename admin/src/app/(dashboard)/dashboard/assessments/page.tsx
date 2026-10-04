@@ -6,6 +6,7 @@ import { api } from "@/lib/api";
 import { useAction, useApi, useRoles } from "@/lib/use-api";
 import { ActionFeedback, Badge, Button, Card, Field, FormModal, Grid, Input, Notice, Page, QueryView, ReadOnlyHint, Select, Table } from "@/components/ui/kit";
 import { date, pct, tl, today } from "@/lib/format";
+import { OpeningBalances } from "@/components/finance/opening-balances";
 
 /**
  * Aylık aidat tahakkuku (KMK m.20). Tutar, seçilen gider kalemlerinin dağıtım
@@ -61,6 +62,8 @@ export default function AssessmentsPage() {
                     )}
                 </QueryView>
             </Card>
+
+            <OpeningBalances canWrite={canWrite} />
 
             {canWrite && (
                 <Card title="Gecikme tazminatı (KMK m.20/2)">

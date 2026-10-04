@@ -194,19 +194,7 @@ class _AssessmentItem extends StatelessWidget {
 
   const _AssessmentItem(this.assessment);
 
-  /// `2026-01` → `Ocak 2026`. Biçim beklenenden farklıysa ham değer gösterilir.
-  String get _periodLabel {
-    final period = assessment['period'] as String?;
-    if (period == null || !period.contains('-')) return period ?? 'Dönem';
-    final parts = period.split('-');
-    final month = int.tryParse(parts[1]) ?? 0;
-    const names = [
-      '', 'Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran',
-      'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'
-    ];
-    if (month < 1 || month > 12) return period;
-    return '${names[month]} ${parts[0]}';
-  }
+  String get _periodLabel => assessmentLabel(assessment);
 
   @override
   Widget build(BuildContext context) {

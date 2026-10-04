@@ -881,6 +881,36 @@ if [ "$FUP" = "1" ] && [ -n "${MGR:-}" ]; then
     DELETE FROM monthly_assessments WHERE $PQ;" >/dev/null
 fi
 
+# Açılış (devir) bakiyesi (FAZ 8.1, migration 034): önceki yönetimden devreden borç
+# girilemiyordu. Devir bakiyeye/borçlu listesine girer, dönem özetine ve otomatik
+# gecikme tazminatına girmez.
+if [ "$FUP" = "1" ] && [ -n "${MGR:-}" ]; then
+  OURL="http://127.0.0.1:${FINPORT}/api/v1/finance/opening-balances"
+  OTHER2=$($PSQL -t -A -c "SELECT id FROM units WHERE property_id='$DEMO_PROPERTY' AND deleted=0 AND id <> '$A3UNIT' ORDER BY door_number LIMIT 1;")
+  B0=$(api_balance "$(debt_status)")
+  OB=$(curl -s -w '\n%{http_code}' -X POST "$OURL" -H "Authorization: Bearer $MGR" -H 'Content-Type: application/json' \
+    -d "{\"due_date\":\"2026-06-30\",\"items\":[{\"unit_id\":\"$A3UNIT\",\"amount\":1500.50,\"description\":\"Onceki yonetimden devir\"},{\"unit_id\":\"$OTHER2\",\"amount\":250}]}")
+  B1=$(api_balance "$(debt_status)")
+  DIFF=$(awk "BEGIN{printf \"%.2f\", $B1 - $B0}")
+  [ "$(echo "$OB" | tail -1)" = "201" ] && [ "$DIFF" = "1500.50" ] \
+    && ok "devir bakiyesi girildi; sakinin bakiyesi tam 1.500,50 TL arttı" || bad "devir: $(echo "$OB" | tail -1), fark $DIFF ($(echo "$OB" | head -c 200))"
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$OURL" -H "Authorization: Bearer $MGR" -H 'Content-Type: application/json' \
+    -d "{\"due_date\":\"2026-06-30\",\"items\":[{\"unit_id\":\"$A3UNIT\",\"amount\":10}]}")
+  NO=$($PSQL -t -A -c "SELECT count(*) FROM monthly_assessments WHERE kind='OPENING' AND deleted=0 AND property_id='$DEMO_PROPERTY';")
+  [ "$SC" = "409" ] && [ "$NO" = "2" ] && ok "bir bölüme ikinci devir kaydı girilemiyor → 409" || bad "ikinci devir: $SC, kayıt $NO"
+  curl -s -o /dev/null -X POST "http://127.0.0.1:${FINPORT}/api/v1/finance/late-fees/accrue" -H "Authorization: Bearer $MGR" -H 'Content-Type: application/json' -d '{}'
+  OLF=$($PSQL -t -A -c "SELECT COALESCE(SUM(late_fee),0)::text FROM monthly_assessments WHERE kind='OPENING' AND property_id='$DEMO_PROPERTY';")
+  [ "$OLF" = "0.00" ] && ok "vadesi geçmiş devir kaydına otomatik gecikme tazminatı işletilmedi (çift tahsilat yok)" || bad "devire tazminat işlendi: $OLF"
+  OID=$($PSQL -t -A -c "SELECT id FROM monthly_assessments WHERE kind='OPENING' AND deleted=0 AND unit_id='$A3UNIT';")
+  $PSQL -c "UPDATE monthly_assessments SET paid_amount=1 WHERE id='$OID';" >/dev/null
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$OURL/$OID/cancel" -H "Authorization: Bearer $MGR")
+  $PSQL -c "UPDATE monthly_assessments SET paid_amount=0 WHERE id='$OID';" >/dev/null
+  SC2=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$OURL/$OID/cancel" -H "Authorization: Bearer $MGR")
+  [ "$SC" = "409" ] && [ "$SC2" = "200" ] && ok "ödemesi olan devir kaydı iptal edilemiyor (409), ödenmemiş olan iptal ediliyor (200)" || bad "devir iptali: $SC / $SC2"
+  for X in $($PSQL -t -A -c "SELECT id FROM monthly_assessments WHERE kind='OPENING' AND deleted=0 AND property_id='$DEMO_PROPERTY';"); do
+    curl -s -o /dev/null -X POST "$OURL/$X/cancel" -H "Authorization: Bearer $MGR"
+  done
+fi
 step "11) Yönetişim: işletme projesi, genel kurul, defter (FAZ 6)"
 GOVPORT=${VERIFY_GOV_PORT:-18107}
 DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_app DB_PASSWORD="$APPPW" DB_NAME=siteeksen \

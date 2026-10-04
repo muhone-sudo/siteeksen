@@ -12,6 +12,19 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-04 — AÇILIŞ (DEVİR) BAKİYESİ (migration 034, FAZ 8.1 tamam) (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **1077/1077** (devir girişi bakiyeyi tam tutar artırıyor, ikinci devir 409,
+> vadesi geçmiş devire tazminat işlemiyor, ödemesi olan devir iptal edilemiyor; panel sözleşmesi 64 uç);
+> `verify-mobile.sh` 10/10 (sakin 26 test). Panel `tsc`/`lint`/`build` temiz.
+
+- Önceki yönetimden devreden borcu girmenin yolu yoktu. Tahakkuka `kind` (REGULAR/OPENING) ve açıklama;
+  dönem benzersizliği yalnızca olağan tahakkuklar için. `GET/POST /finance/opening-balances`, `:id/cancel`.
+- Devir; bakiye, borçlu listesi ve ödemeye girer; dönem tahsilat özetine girmez; **otomatik gecikme
+  tazminatı işletilmez** (önceki hesap bilinmez, çift tahsilat olurdu — panel bunu girişte söyler).
+- Panel: tahakkuk sayfasında "Devir bakiyeleri" (Excel'den yapıştırma, iptal). Sakin uygulaması devir
+  kaydını dönem adıyla değil "Devir bakiyesi" olarak gösterir.
+
 ### 2026-10-04 — TOPLU SAKİN İÇE AKTARMA (FAZ 8.1) (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **1072/1072** (tek istekte 5 satır: hesap açıldı + kod, var olan hesap

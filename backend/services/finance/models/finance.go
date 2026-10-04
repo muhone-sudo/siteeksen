@@ -27,6 +27,9 @@ type AssessmentSummary struct {
 	TotalAmount float64 `json:"total_amount"`
 	PaidAmount  float64 `json:"paid_amount"`
 	Status      string  `json:"status"`
+	// Kind: REGULAR (dönem aidatı) ya da OPENING (devreden borç, 034).
+	Kind        string `json:"kind,omitempty"`
+	Description string `json:"description,omitempty"`
 }
 
 // AssessmentPeriodSummary site genelinde bir tahakkuk döneminin özeti (yönetim görünümü)
@@ -137,4 +140,30 @@ type MeterReading struct {
 type Page struct {
 	Limit  int
 	Offset int
+}
+
+// OpeningBalanceInput, açılış (devir) bakiyesi girişi (FAZ 8.1, migration 034).
+type OpeningBalanceInput struct {
+	DueDate string               `json:"due_date" binding:"required"` // YYYY-MM-DD
+	Items   []OpeningBalanceItem `json:"items" binding:"required,min=1,max=2000,dive"`
+}
+
+// OpeningBalanceItem bir bölümün devreden borcu.
+type OpeningBalanceItem struct {
+	UnitID      string  `json:"unit_id" binding:"required"`
+	Amount      float64 `json:"amount" binding:"required,gt=0"`
+	Description string  `json:"description"`
+}
+
+// OpeningBalance kayıtlı devir bakiyesi.
+type OpeningBalance struct {
+	ID          string    `json:"id"`
+	UnitID      string    `json:"unit_id"`
+	Unit        string    `json:"unit"`
+	Amount      float64   `json:"amount"`
+	PaidAmount  float64   `json:"paid_amount"`
+	DueDate     time.Time `json:"due_date"`
+	Description string    `json:"description"`
+	Status      string    `json:"status"`
+	CreatedAt   time.Time `json:"created_at"`
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -135,7 +136,7 @@ func (r *FinanceRepository) GetAssessments(ctx context.Context, propertyID, user
 		SELECT ma.id, 
 			   TO_CHAR(MAKE_DATE(ma.period_year, ma.period_month, 1), 'YYYY-MM'),
 			   ma.base_amount, ma.late_fee, ma.total_amount, 
-			   COALESCE(ma.paid_amount, 0), ma.status
+			   COALESCE(ma.paid_amount, 0), ma.status, ma.kind, COALESCE(ma.description, '')
 		FROM monthly_assessments ma
 		JOIN resident_units ru ON ma.unit_id = ru.unit_id
 		WHERE ru.resident_id = $1 
@@ -153,7 +154,7 @@ func (r *FinanceRepository) GetAssessments(ctx context.Context, propertyID, user
 	assessments := []models.AssessmentSummary{}
 	for rows.Next() {
 		var a models.AssessmentSummary
-		if err := rows.Scan(&a.ID, &a.Period, &a.BaseAmount, &a.LateFee, &a.TotalAmount, &a.PaidAmount, &a.Status); err != nil {
+		if err := rows.Scan(&a.ID, &a.Period, &a.BaseAmount, &a.LateFee, &a.TotalAmount, &a.PaidAmount, &a.Status, &a.Kind, &a.Description); err != nil {
 			return nil, err
 		}
 		assessments = append(assessments, a)
@@ -176,6 +177,7 @@ func (r *FinanceRepository) ListAssessmentPeriods(ctx context.Context, propertyI
 		       SUM(COALESCE(ma.paid_amount, 0)) >= SUM(ma.total_amount)
 		FROM monthly_assessments ma
 		WHERE ma.property_id = $1 AND ma.period_year = $2 AND ma.deleted = 0
+		  AND ma.kind = 'REGULAR' -- devir bakiyesi bir döneme ait değildir (034)
 		GROUP BY ma.period_year, ma.period_month
 		ORDER BY ma.period_month DESC
 	`
@@ -573,6 +575,7 @@ func (r *FinanceRepository) ListOverdueForLateFee(ctx context.Context, propertyI
 		FROM monthly_assessments
 		WHERE property_id = $1
 		  AND deleted = 0
+		  AND kind = 'REGULAR' -- devir bakiyesine otomatik tazminat işletilmez (034)
 		  AND due_date < $2::date
 		  AND total_amount > COALESCE(paid_amount, 0)
 		ORDER BY due_date`, propertyID, asOf)
@@ -1071,4 +1074,131 @@ func (r *FinanceRepository) ListExpenseCategories(ctx context.Context, propertyI
 // bile, koruma o varsayıma DEĞİL veritabanına dayanmalıdır.
 func (r *FinanceRepository) scope(propertyID string) *dbscope.Scoped {
 	return dbscope.For(r.pool, propertyID)
+}
+
+// -----------------------------------------------------------------------------
+// AÇILIŞ (DEVİR) BAKİYESİ (FAZ 8.1, migration 034)
+// -----------------------------------------------------------------------------
+
+var (
+	// ErrOpeningExists bölümün etkin devir kaydı zaten var.
+	ErrOpeningExists = errors.New("bu bölüm için devir bakiyesi zaten girilmiş")
+	// ErrOpeningNotCancellable devir kaydına ödeme yapılmış ya da bekleyen ödeme var.
+	ErrOpeningNotCancellable = errors.New("ödeme yapılmış ya da onay bekleyen ödemesi olan devir kaydı iptal edilemez")
+	// ErrOpeningNotFound devir kaydı yok.
+	ErrOpeningNotFound = errors.New("devir kaydı bulunamadı")
+)
+
+// OpeningItem kuruşa çevrilmiş devir satırı.
+type OpeningItem struct {
+	UnitID      string
+	Amount      money.Kurus
+	Description string
+}
+
+const openingSelect = `
+	SELECT ma.id::text, ma.unit_id::text, COALESCE(NULLIF(un.block, ''), '') || '-' || un.door_number,
+	       ma.total_amount::float8, COALESCE(ma.paid_amount, 0)::float8, ma.due_date,
+	       COALESCE(ma.description, ''), ma.status, ma.created_at
+	FROM monthly_assessments ma
+	JOIN units un ON un.id = ma.unit_id`
+
+func scanOpening(row pgx.Row) (*models.OpeningBalance, error) {
+	o := &models.OpeningBalance{}
+	err := row.Scan(&o.ID, &o.UnitID, &o.Unit, &o.Amount, &o.PaidAmount, &o.DueDate,
+		&o.Description, &o.Status, &o.CreatedAt)
+	return o, err
+}
+
+// CreateOpeningBalances devir bakiyelerini TEK işlemde yazar: biri başarısızsa
+// hiçbiri yazılmaz (yarım devir, bazı dairelerin borcunun eksik görünmesi demekti).
+func (r *FinanceRepository) CreateOpeningBalances(ctx context.Context, propertyID string, due time.Time, items []OpeningItem) ([]*models.OpeningBalance, error) {
+	tx, err := r.scope(propertyID).Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+
+	out := make([]*models.OpeningBalance, 0, len(items))
+	for i, it := range items {
+		var ok bool
+		if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM units
+			WHERE id = $1 AND property_id = $2 AND deleted = 0)`, it.UnitID, propertyID).Scan(&ok); err != nil {
+			return nil, err
+		}
+		if !ok {
+			return nil, fmt.Errorf("%w: %d. satır: bölüm bu siteye ait değil", ErrInvalidAssessmentInput, i+1)
+		}
+		desc := strings.TrimSpace(it.Description)
+		if desc == "" {
+			desc = "Devir bakiyesi"
+		}
+		o, err := scanOpening(tx.QueryRow(ctx, `
+			WITH ins AS (
+				INSERT INTO monthly_assessments (property_id, unit_id, period_year, period_month,
+				    base_amount, total_amount, due_date, status, kind, description)
+				VALUES ($1, $2, EXTRACT(YEAR FROM $3::date)::int, EXTRACT(MONTH FROM $3::date)::int,
+				    $4::numeric, $4::numeric, $3::date, 'PENDING', 'OPENING', $5)
+				RETURNING *)
+			SELECT ins.id::text, ins.unit_id::text, COALESCE(NULLIF(un.block, ''), '') || '-' || un.door_number,
+			       ins.total_amount::float8, COALESCE(ins.paid_amount, 0)::float8, ins.due_date,
+			       COALESCE(ins.description, ''), ins.status, ins.created_at
+			FROM ins JOIN units un ON un.id = ins.unit_id`,
+			propertyID, it.UnitID, due.Format("2006-01-02"), it.Amount.String(), desc))
+		if err != nil {
+			var pgErr *pgconn.PgError
+			if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+				return nil, fmt.Errorf("%w (%d. satır)", ErrOpeningExists, i+1)
+			}
+			return nil, err
+		}
+		out = append(out, o)
+	}
+	return out, tx.Commit(ctx)
+}
+
+// ListOpeningBalances sitenin etkin devir kayıtları.
+func (r *FinanceRepository) ListOpeningBalances(ctx context.Context, propertyID string) ([]*models.OpeningBalance, error) {
+	rows, err := r.scope(propertyID).Query(ctx, openingSelect+`
+		WHERE ma.property_id = $1 AND ma.kind = 'OPENING' AND ma.deleted = 0
+		ORDER BY un.block, un.door_number`, propertyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []*models.OpeningBalance{}
+	for rows.Next() {
+		o, err := scanOpening(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, o)
+	}
+	return out, rows.Err()
+}
+
+// CancelOpeningBalance hatalı girilmiş devir kaydını iptal eder (silinmiş
+// işaretler). Ödeme yapılmış ya da onay bekleyen ödemesi olan kayıt iptal edilmez.
+func (r *FinanceRepository) CancelOpeningBalance(ctx context.Context, propertyID, id string) error {
+	tag, err := r.scope(propertyID).Exec(ctx, `
+		UPDATE monthly_assessments ma SET deleted = 1, updated_at = NOW()
+		WHERE ma.id = $1 AND ma.property_id = $2 AND ma.kind = 'OPENING' AND ma.deleted = 0
+		  AND COALESCE(ma.paid_amount, 0) = 0
+		  AND NOT EXISTS (SELECT 1 FROM payment_assessments pa JOIN payments p ON p.id = pa.payment_id
+		                  WHERE pa.assessment_id = ma.id AND p.status = 'PENDING')`, id, propertyID)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 1 {
+		return nil
+	}
+	var exists bool
+	if err := r.scope(propertyID).QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM monthly_assessments
+		WHERE id = $1 AND property_id = $2 AND kind = 'OPENING' AND deleted = 0)`, id, propertyID).Scan(&exists); err != nil {
+		return err
+	}
+	if !exists {
+		return ErrOpeningNotFound
+	}
+	return ErrOpeningNotCancellable
 }

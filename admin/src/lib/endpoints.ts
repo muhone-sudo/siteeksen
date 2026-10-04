@@ -66,6 +66,10 @@ export function endpoints(http: Http) {
             overview: (year?: number) => g<T.List<T.AssessmentPeriod>>("/finance/assessments/overview", { year }),
             debtors: () => g<T.List<T.Debtor>>("/finance/debtors"),
             payments: (limit = 50) => g<T.Paged<T.Payment>>(`/finance/payments?limit=${limit}`),
+            openingBalances: () => g<T.List<T.OpeningBalance>>("/finance/opening-balances"),
+            createOpeningBalances: (b: { due_date: string; items: { unit_id: string; amount: number; description?: string }[] }) =>
+                http.post<{ data: T.OpeningBalance[]; created: number; note: string }>("/finance/opening-balances", b),
+            cancelOpeningBalance: (id: string) => http.post<Msg>(`/finance/opening-balances/${id}/cancel`),
             pendingPayments: () => g<T.List<T.Payment>>("/finance/payments/pending"),
             categories: () => g<T.List<T.FinanceCategory>>("/finance/expense-categories"),
             createAssessment: (b: { period_year: number; period_month: number; due_date: string; expense_items: { category_id: string; amount: number }[] }) =>
@@ -293,6 +297,7 @@ export const READS: { path: string; keys: string[]; list?: boolean }[] = [
     { path: "/finance/debtors", keys: ["unit_id", "resident_id", "name", "unit", "amount"], list: true },
     { path: "/finance/payments", keys: ["id", "amount", "status", "name", "unit", "created_at"], list: true },
     { path: "/finance/payments/pending", keys: ["id", "amount", "status"], list: true },
+    { path: "/finance/opening-balances", keys: ["data"] },
     { path: "/finance/expense-categories", keys: ["id", "name", "distribution_type"], list: true },
     { path: "/requests", keys: ["id", "ticket_number", "title", "status", "priority", "created_at"], list: true },
     { path: "/announcements", keys: ["id", "title", "category", "priority", "is_pinned", "published_at"], list: true },

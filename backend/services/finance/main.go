@@ -75,6 +75,7 @@ func main() {
 			mgmtRead.GET("/assessments/overview", handlers.GetAssessmentOverview(financeService))
 			mgmtRead.GET("/expense-categories", handlers.GetExpenseCategories(financeService))
 			mgmtRead.GET("/payments/pending", handlers.ListPendingPayments(financeService))
+			mgmtRead.GET("/opening-balances", handlers.ListOpeningBalances(financeService))
 		}
 
 		// --- Yönetim: yazma (denetçi hariç) ---
@@ -89,6 +90,9 @@ func main() {
 			// Gecikme tazminatı (KMK m.20/2). İşlem idempotenttir; zamanlanmış görev
 			// ya da yönetici tarafından elle çalıştırılabilir.
 			mgmtWrite.POST("/late-fees/accrue", handlers.AccrueLateFees(financeService))
+			// Açılış (devir) bakiyesi: önceki yönetimden devreden borçlar (FAZ 8.1, 034).
+			mgmtWrite.POST("/opening-balances", handlers.CreateOpeningBalances(financeService))
+			mgmtWrite.POST("/opening-balances/:id/cancel", handlers.CancelOpeningBalance(financeService))
 		}
 	}
 

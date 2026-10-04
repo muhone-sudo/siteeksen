@@ -2,6 +2,8 @@
 
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:siteeksen_mobile/core/utils/formatters.dart';
+
 import 'package:siteeksen_mobile/features/invitations/presentation/widgets/invitations_banner.dart';
 
 void main() {
@@ -10,5 +12,12 @@ void main() {
         'Güneş Sitesi · A-3 (Kat maliki)');
     expect(invitationTitle({'property_name': 'Mavi Kent', 'unit': '', 'role': 'TENANT'}), 'Mavi Kent (Kiracı)');
     expect(invitationTitle({}), 'Site');
+  });
+
+  test('devir bakiyesi dönem adıyla değil açıklamasıyla gösterilir', () {
+    expect(assessmentLabel({'period': '2026-06', 'kind': 'OPENING', 'description': 'Önceki yönetimden devir'}), 'Önceki yönetimden devir');
+    expect(assessmentLabel({'period': '2026-06', 'kind': 'OPENING'}), 'Devir bakiyesi');
+    expect(assessmentLabel({'period': '2026-06', 'kind': 'REGULAR'}), 'Haziran 2026');
+    expect(assessmentLabel({'period': '2026-13'}), '2026-13');
   });
 }

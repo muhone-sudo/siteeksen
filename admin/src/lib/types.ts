@@ -325,3 +325,8 @@ export interface BulkResidentRow {
     row: number; status: "created" | "linked" | "invited" | "error"; phone: string;
     resident_id?: Id; invitation_id?: Id; activation?: Activation; error?: string;
 }
+
+/** Açılış (devir) bakiyesi (034). */
+export interface OpeningBalance {
+    id: Id; unit_id: Id; unit: string; amount: number; paid_amount: number; due_date: string; description: string; status: string; created_at: string;
+}
