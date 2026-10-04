@@ -12,6 +12,19 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-04 — KAMERA VE BİYOMETRİK ENVANTERİ (migration 046, FAZ 7.8 kalanı) (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **1165/1165** (daire kapı önü 422, gerekçesiz asansör 422, saklama süresi zorunlu,
+> uygunluk notları yönetime, kamera listesi sakine aydınlatma için iç notlar olmadan; alternatifsiz biyometrik 422,
+> sakin envantere 403; RLS 105 tablo); `verify-mobile.sh` 10/10; panel tsc/lint temiz.
+
+- KVK Kurumu'nun apartmanlarda güvenlik kamerası kamuoyu duyurusu (08/06/2026) uygulanıyor: mahremiyet alanına
+  (daire içi/kapı önü, tuvalet, soyunma, ibadet yeri) kamera kaydedilemez; ses kaydı, yüz tanıma ve asansör kamerası
+  somut gerekçe ister; saklama süresi zorunlu; levha, genel kurul kararı, maskeleme ve erişim notu eksikleri uygunluk
+  notu olarak yönetime listelenir. Kamera listesi (konum, amaç, süre) sakinlere açık — KVKK m.10 aydınlatma.
+- Biyometrik sistem envanteri: açık rıza ve alternatif geçiş yöntemi olmadan kaydedilmez (KVKK m.6, özgür rıza).
+- Panel: Ayarlar → "Kamera ve biyometrik envanter". Sakin uygulaması: KVKK → "Ortak alan kameraları".
+
 ### 2026-10-04 — SİGORTA: DASK TAKİBİ VE HASAR KAYDI (migration 045, FAZ 7.2 / M-36) (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **1162/1162** (kiracı poliçe giremez, bitiyor/kayıtsız durumları, kiracıya liste boş,

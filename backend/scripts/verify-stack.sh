@@ -3732,6 +3732,23 @@ if [ "$SUP2" = "1" ] && [ -n "${MGR:-}" ] && [ -n "${TEN:-}" ]; then
   LD=$(PGPASSWORD="$APPPW" psql -h 127.0.0.1 -p "$DBPORT" -U siteeksen_app -d siteeksen -t -A -c "BEGIN; SELECT set_config('app.property_id','$DP',true); DELETE FROM data_destruction_log; COMMIT;" 2>&1)
   LN=$($PSQL -t -A -c "SELECT count(*) FROM data_destruction_log WHERE property_id='$DP';")
   [ "${LN:-0}" -ge 1 ] && ok "imha kaydı uygulama rolünce silinemiyor (İmha Yön. m.7/3, en az 3 yıl)" || bad "imha kaydı silindi: $LD"
+  # Kamera ve biyometrik envanteri (FAZ 7.8, 046; KVK Kurumu apartman kamera duyurusu 08/06/2026)
+  cam() { curl -s -o /dev/null -w '%{http_code}' -X POST "$TURL/privacy/cameras" -H "$TA" -H "$TJ" -d "$1"; }
+  SC1=$(cam '{"location":"A blok 3. kat daire kapı önü","area_type":"CORRIDOR","purpose":"güvenlik","retention_days":30}')
+  SC2=$(cam '{"location":"Asansör kabini","area_type":"ELEVATOR","purpose":"güvenlik","retention_days":30}')
+  SC3=$(cam '{"location":"Ana giriş","area_type":"ENTRANCE","purpose":"Giriş güvenliği","retention_days":0}')
+  SC4=$(cam '{"location":"Ana giriş","area_type":"ENTRANCE","purpose":"Giriş güvenliği","retention_days":15,"notice_posted":true,"masked":true,"decision_ref":"2026 olağan genel kurul, gündem 4","access_note":"Yönetici ve güvenlik amiri"}')
+  SC5=$(cam '{"location":"Otopark","area_type":"PARKING","purpose":"Araç güvenliği","retention_days":15}')
+  MC=$(curl -s "$TURL/privacy/cameras" -H "$TA" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(len(d["data"]), d["open_issues"]>=3)' 2>/dev/null)
+  RC=$(curl -s "$TURL/privacy/cameras" -H "Authorization: Bearer $TEN" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(len(d["data"]), all("issues" not in x and "decision_ref" not in x for x in d["data"]), "KVKK" in d["note"])' 2>/dev/null)
+  [ "$SC1" = "422" ] && [ "$SC2" = "422" ] && [ "$SC3" = "422" ] && [ "$SC4" = "201" ] && [ "$SC5" = "201" ] && [ "$MC" = "2 True" ] && [ "$RC" = "2 True True" ] \
+    && ok "kamera: daire kapı önü yasak, gerekçesiz asansör 422, saklama süresi zorunlu; uygunluk sorunları yönetime, kamera listesi (amaç/süre) sakinlere aydınlatma için" \
+    || bad "kamera envanteri: $SC1 / $SC2 / $SC3 / $SC4 / $SC5 — yönetim '$MC' sakin '$RC'"
+  SC1=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$TURL/privacy/biometrics" -H "$TA" -H "$TJ" -d '{"name":"Turnike","method":"FACE","purpose":"Giriş","consent_based":true}')
+  SC2=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$TURL/privacy/biometrics" -H "$TA" -H "$TJ" -d '{"name":"Turnike","method":"FACE","purpose":"Giriş","consent_based":true,"alternative_method":"Kartlı geçiş"}')
+  SC3=$(curl -s -o /dev/null -w '%{http_code}' "$TURL/privacy/biometrics" -H "Authorization: Bearer $TEN")
+  [ "$SC1" = "422" ] && [ "$SC2" = "201" ] && [ "$SC3" = "403" ] \
+    && ok "biyometrik sistem alternatif yöntem olmadan kaydedilmiyor (KVKK m.6, özgür açık rıza); sakin envantere erişemiyor" || bad "biyometrik: $SC1 / $SC2 / $SC3"
   # 4) Tanınmayan anahtar ve tür/aralık denetimi
   SC=$(curl -s -o /dev/null -w '%{http_code}' -X PUT "$TURL/settings/UYDURMA_AYAR" -H "$TA" -H "$TJ" -d '{"value":"x"}')
   [ "$SC" = "422" ] && ok "tanınmayan ayar anahtarı reddedildi → 422" || bad "uydurma anahtar → $SC"
@@ -5451,8 +5468,8 @@ ok "kullanılmayan 13 site tablosu RLS ile korunuyor"
 
 # 9) Toplam durum — RLS DIŞINDA KALAN her tablo bilinçli ve gerekçeli olmalı
 RLSCOUNT=$($PSQL -t -A -c "SELECT count(*) FROM rls_enabled_tables;")
-[ "$RLSCOUNT" = "103" ] && ok "RLS toplam 103 tabloda açık" \
-  || bad "beklenmedik RLS tablo sayısı: $RLSCOUNT (beklenen 103)"
+[ "$RLSCOUNT" = "105" ] && ok "RLS toplam 105 tabloda açık" \
+  || bad "beklenmedik RLS tablo sayısı: $RLSCOUNT (beklenen 105)"
 NOTRLS=$($PSQL -t -A -c "SELECT string_agg(t.table_name, ' ' ORDER BY t.table_name)
   FROM information_schema.tables t
   WHERE t.table_schema='public' AND t.table_type='BASE TABLE'

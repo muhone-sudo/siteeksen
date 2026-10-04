@@ -7,6 +7,7 @@ import { ActionFeedback, Badge, Button, Card, Field, FormModal, Input, Notice, P
 import { dateTime } from "@/lib/format";
 import type { Setting } from "@/lib/types";
 import { RetentionCard } from "@/components/settings/retention-card";
+import { PrivacyCard } from "@/components/settings/privacy-card";
 
 /**
  * Site işletme ayarları. Mevzuata bağlı oranlar (gecikme tazminatı, ısıtma
@@ -14,7 +15,7 @@ import { RetentionCard } from "@/components/settings/retention-card";
  * veritabanı kısıtıyla korunur.
  */
 export default function SettingsPage() {
-    const [tab, setTab] = useState<"settings" | "retention" | "history">("settings");
+    const [tab, setTab] = useState<"settings" | "retention" | "privacy" | "history">("settings");
     const list = useApi(["settings"], api.settings.list);
     const defs = useApi(["settings", "defs"], api.settings.definitions);
     const history = useApi(["settings", "history"], () => api.settings.history(), tab === "history");
@@ -28,8 +29,9 @@ export default function SettingsPage() {
         <Page title="Ayarlar" description="Site işletme ayarları">
             <Notice tone="blue">Mevzuata bağlı değerler (gecikme tazminatı, ısıtma payları, genel kurul nisapları) burada değiştirilemez; kanunla sabittir.</Notice>
             <ActionFeedback action={act} />
-            <Tabs tabs={[{ id: "settings", label: "Ayarlar" }, { id: "retention", label: "Saklama ve imha (KVKK)" }, { id: "history", label: "Değişiklik geçmişi" }]} value={tab} onChange={setTab} />
+            <Tabs tabs={[{ id: "settings", label: "Ayarlar" }, { id: "retention", label: "Saklama ve imha (KVKK)" }, { id: "privacy", label: "Kamera ve biyometrik envanter" }, { id: "history", label: "Değişiklik geçmişi" }]} value={tab} onChange={setTab} />
             {tab === "retention" && <RetentionCard />}
+            {tab === "privacy" && <PrivacyCard />}
             {tab === "settings" && (
                 <Card padded={false}>
                     <QueryView q={list} empty="Ayar yok">

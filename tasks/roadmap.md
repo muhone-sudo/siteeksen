@@ -252,7 +252,7 @@ Bugün tamamen yok. Aidatın yasal dayanağı ve icra gücü buradan doğar.
 | 7.5 | **Kural ihlali ve yaptırım** + **tadilat izni** | `[D4]` 2026-10-04 (037/039; verify §34). Para cezası bilerek yok (Kabahatler K. m.22) | M-44, M-45 |
 | 7.6 | **Ortak alan gelir yönetimi** (m.45 oybirliği kuralıyla) | `[D4]` 2026-10-04 (042; verify §37) | M-46 |
 | 7.7 | **Vergi/SGK beyan takvimi** | `[D4]` 2026-10-04 (041, `pkg/compliance`; verify §13/§40). Vergi doğup doğmadığına karar vermez | M-29 |
-| 7.8 | **KVKK uyum yönetimi** — saklama/imha, ilgili kişi başvurusu, kamera/biyometrik envanteri | `[D4]` ilgili kişi başvurusu 2026-10-04 (035, verify §34/§40). Saklama/periyodik imha 2026-10-04 (043). Kalan: kamera/biyometrik envanteri | S-04 |
+| 7.8 | **KVKK uyum yönetimi** — saklama/imha, ilgili kişi başvurusu, kamera/biyometrik envanteri | `[D4]` ilgili kişi başvurusu 2026-10-04 (035, verify §34/§40). Saklama/periyodik imha (043), kamera/biyometrik envanteri (046) 2026-10-04 | S-04 |
 
 ## FAZ 8 — Ölçek ve Ticarileşme
 

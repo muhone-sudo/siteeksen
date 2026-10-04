@@ -333,7 +333,7 @@ func main() {
 			"/api/v1/patrol-checkpoints"}},
 		{personnelURL, []string{"/api/v1/employees", "/api/v1/leaves", "/api/v1/compliance-calendar"}},
 		{reservationURL, []string{"/api/v1/reservations", "/api/v1/facilities"}},
-		{settingsURL, []string{"/api/v1/settings", "/api/v1/settings-history", "/api/v1/retention-rules", "/api/v1/credentials",
+		{settingsURL, []string{"/api/v1/settings", "/api/v1/settings-history", "/api/v1/retention-rules", "/api/v1/privacy", "/api/v1/credentials",
 			"/api/v1/credentials-available-services"}},
 		{smartCollectionURL, []string{"/api/v1/collection"}},
 		{surveyURL, []string{"/api/v1/surveys"}},

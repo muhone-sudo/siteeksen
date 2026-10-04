@@ -234,6 +234,9 @@ class ApiClient {
     final response = await _dio.post('/kvkk-requests', data: {'request_type': type, 'description': description});
     return Map<String, dynamic>.from(response.data as Map);
   }
+  /// Ortak alan kameraları (KVKK m.10 aydınlatma): konum, amaç, saklama süresi.
+  Future<List<dynamic>> getCameras() async => _list((await _dio.get('/privacy/cameras')).data);
+
   /// DASK (FAZ 7.2): malik/vekil olduğu bölümler ve poliçe kaydı.
   Future<Map<String, dynamic>> getDask() async => Map<String, dynamic>.from((await _dio.get('/insurance/dask')).data as Map);
 

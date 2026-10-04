@@ -633,13 +633,13 @@ yaygınlaştırılmasına kayıyor.
 
 # İnceleme notları
 
-## 2026-10-04 — Üçüncü tur (DEVAM EDİYOR — kaldığı yer)
+## 2026-10-04 — Üçüncü tur (tamamlandı)
 
 **Bitti (commit d71a4ea):** İşletme projesi 7579 s. Kanuna uyumlu (036): genel kurul onayı, geçici proje
 3 ay, yeniden değerleme tavanı, zamanlayıcı hatırlatması. verify-stack 1098/1098, verify-mobile 10/10.
 
-**Bitti:** FAZ 7.5 tadilat izni (037), ayar koruması (038), kural ihlali (039), acil durum ve afet (040), vergi/SGK takvimi (041), ortak alan geliri (042), KVKK saklama/imha (043), 4.13 para aritmetiği, 3.6 metrik/hata takibi (044), 7.2 DASK/hasar (045) — verify-stack 1162/1162, verify-mobile 10/10.
-- Sonra: 7.4 bordro (S-22 kararı bekliyor), 7.8 kamera/biyometrik envanteri.
+**Bitti:** FAZ 7.5 tadilat izni (037), ayar koruması (038), kural ihlali (039), acil durum ve afet (040), vergi/SGK takvimi (041), ortak alan geliri (042), KVKK saklama/imha (043), 4.13 para aritmetiği, 3.6 metrik/hata takibi (044), 7.2 DASK/hasar (045), kamera/biyometrik envanteri (046) — verify-stack 1165/1165, verify-mobile 10/10.
+- Kalan: 7.4 bordro (S-22 kararı bekliyor). Kullanıcı kararı bekleyen: S-19, S-21, S-22, iOS paket kimliği.
 
 **Not:** dev-up ve panel (`npm run dev`) arka planda çalışıyor; dev DB 036/037'yi içermiyor (yeniden başlatınca uygulanır).
 ## 2026-10-04 — Kurulum, görevlendirme, devir, KVKK, saat dilimi (otonom, ikinci tur)

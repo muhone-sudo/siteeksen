@@ -124,7 +124,13 @@ class _KvkkRequestsScreenState extends State<KvkkRequestsScreen> {
                     'haklarınız vardır (KVKK m.11). Site yönetimi başvurunuzu en geç 30 gün içinde ücretsiz yanıtlar.',
                   ),
                 ),
-                if (items.isEmpty)
+                ListTile(
+                  leading: const Icon(Icons.videocam_outlined),
+                  title: const Text('Ortak alan kameraları'),
+                  subtitle: const Text('Nerede, hangi amaçla kayıt yapıldığı ve ne kadar saklandığı'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const CamerasScreen())),
+                ),                if (items.isEmpty)
                   const EmptyStateView(message: 'Henüz başvurunuz yok', icon: Icons.privacy_tip_outlined),
                 for (final r in items)
                   ListTile(
@@ -139,6 +145,33 @@ class _KvkkRequestsScreenState extends State<KvkkRequestsScreen> {
               ],
             ),
           );
+        },
+      ),
+    );
+  }
+}
+
+/// Kamera satırının açıklaması.
+String cameraSubtitle(Map<dynamic, dynamic> c) => '${c['purpose']} · kayıtlar ${c['retention_days']} gün saklanır';
+
+class CamerasScreen extends StatelessWidget {
+  const CamerasScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Ortak alan kameraları')),
+      body: FutureBuilder<List<dynamic>>(
+        future: apiClient.getCameras(),
+        builder: (context, snap) {
+          if (snap.connectionState != ConnectionState.done) return const LoadingView();
+          if (snap.hasError) return ErrorStateView(message: toUserMessage(snap.error!), onRetry: () {});
+          final items = snap.data!.whereType<Map>().toList();
+          if (items.isEmpty) return const EmptyStateView(message: 'Kayıtlı kamera yok', icon: Icons.videocam_off_outlined);
+          return ListView(children: [
+            for (final c in items)
+              ListTile(leading: const Icon(Icons.videocam_outlined), title: Text('${c['location']}'), subtitle: Text(cameraSubtitle(c))),
+          ]);
         },
       ),
     );
