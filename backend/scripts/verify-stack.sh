@@ -6143,6 +6143,10 @@ fi
 CV=$($PSQL -t -A -c "SELECT convalidated FROM pg_constraint WHERE conname='resident_units_role_check';")
 [ "$CV" = "t" ] && ok "rol kısıtı mevcut bütün satırlar için doğrulandı (uygunsuz eski bağ yok)" || bad "rol kısıtı doğrulanmadı: '$CV'"
 
+# 4.13: ödeme tutarı, bağlı tahakkuk tutarlarının toplamına kuruşu kuruşuna eşit (toplam float64 ile alınmıyor)
+PM=$($PSQL -t -A -c "SELECT count(*) || '|' || count(*) FILTER (WHERE p.amount <> (SELECT sum(pa.amount) FROM payment_assessments pa WHERE pa.payment_id = p.id))
+  FROM payments p WHERE EXISTS (SELECT 1 FROM payment_assessments pa WHERE pa.payment_id = p.id);")
+[ "${PM%%|*}" -ge 1 ] && [ "${PM##*|}" = "0" ] && ok "bütün ödemelerde tutar = bağlı tahakkukların toplamı ($PM)" || bad "ödeme/tahakkuk toplamı uyuşmuyor: $PM"
 step "40) Zamanlanmış bildirimler — gecikmiş aidat, sözleşme ihbarı, açık devriye (migration 028)"
 # Önceden bu bildirimleri kimse üretmiyordu: bir olaya değil zamanın geçmesine
 # bağlılar. cmd/scheduler her siteyi kendi kapsamıyla tarar; tekrar çalışınca

@@ -390,7 +390,8 @@ Backend'e dokunan her değişiklikten sonra çalıştırılır.
       **Kanıt:** `verify-stack.sh` §10 → API bakiyesi bağımsız SQL toplamına birebir eşit (1200.00),
       onaydan sonra tam 1.200,00 düşüyor (→ 0.00); 1016/1016.
 - [x] **[D4] B69 (2026-10-04):** ödeme listeleri sayfalı; yoğun 6 listede kesilme `truncated` ile bildiriliyor. Duyuru, anket, anket yorumu, sayaç ve sayaç okuması da aynı kalıpta.
-- [ ] **4.13 Mevcut `float64` para alanlarının kuruşa göçü** (not 2026-10-03: tahakkuk dağıtımı kuruşa geçti; kalan float alanlar yalnızca DECIMAL değerlerin taşınması/gösterimi) — yeni kod kuruş kullanıyor,
+- [x] **[D4] 4.13 (2026-10-04, kapsam kararı):** Go içindeki son kayan nokta para toplamı (ödeme oluşturma: tahakkuk kalanlarının float64 toplamı) decimal'e çevrildi; gider ortalaması kuruşa yuvarlanıyor. Şema `DECIMAL` kalır (kesin); JSON taşıma `number` olarak kalır — iki ondalıklı değer taşınırken bozulmaz, aritmetik yalnızca `pkg/money`/decimal ile yapılır. Kanıt: verify-stack "ödeme tutarı = bağlı tahakkukların toplamı". Eski not:
+      **4.13 Mevcut `float64` para alanlarının kuruşa göçü** (not 2026-10-03: tahakkuk dağıtımı kuruşa geçti; kalan float alanlar yalnızca DECIMAL değerlerin taşınması/gösterimi) — yeni kod kuruş kullanıyor,
       `monthly_assessments`/`payments` tablolarındaki `DECIMAL` alanlar korunuyor.
       Tam göç ayrı bir migration ve istemci uyumu gerektirir.
 
@@ -637,8 +638,8 @@ yaygınlaştırılmasına kayıyor.
 **Bitti (commit d71a4ea):** İşletme projesi 7579 s. Kanuna uyumlu (036): genel kurul onayı, geçici proje
 3 ay, yeniden değerleme tavanı, zamanlayıcı hatırlatması. verify-stack 1098/1098, verify-mobile 10/10.
 
-**Bitti:** FAZ 7.5 tadilat izni (037), ayar koruması (038), kural ihlali (039), acil durum ve afet (040), vergi/SGK takvimi (041), ortak alan geliri (042), KVKK saklama/imha (043) — verify-stack 1153/1153, verify-mobile 10/10.
-- Sonra: 7.4 bordro (S-22 kararı bekliyor), 4.13 tam kuruş göçü, 3.6 metrik/hata takibi, 7.8 kamera envanteri.
+**Bitti:** FAZ 7.5 tadilat izni (037), ayar koruması (038), kural ihlali (039), acil durum ve afet (040), vergi/SGK takvimi (041), ortak alan geliri (042), KVKK saklama/imha (043), 4.13 para aritmetiği — verify-stack 1154/1154, verify-mobile 10/10.
+- Sonra: 7.4 bordro (S-22 kararı bekliyor), 3.6 metrik/hata takibi, 7.8 kamera envanteri, 7.2 DASK/hasar.
 
 **Not:** dev-up ve panel (`npm run dev`) arka planda çalışıyor; dev DB 036/037'yi içermiyor (yeniden başlatınca uygulanır).
 ## 2026-10-04 — Kurulum, görevlendirme, devir, KVKK, saat dilimi (otonom, ikinci tur)

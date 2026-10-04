@@ -179,7 +179,7 @@ denemesi otomatik testte başarısız olur.
 |---|---|---|---|
 | 4.1 | `GetUnitBalance` kartezyen join'ini düzelt (hazır `unit_balances` view'ını kullan) | `[D4]` + 030 (görünüm boş defterden okuyordu), verify §10 | B45 — şema değişikliği gerektirmez |
 | 4.2 | Ödemeyi tamamla: `paid_amount` + tahakkuk durumu, tek transaction, `FOR UPDATE` | `[D4]` yönetici onay akışı, verify §10 | B46, B47 |
-| 4.3 | Para tipini `float64`'ten kuruş (`int64`) veya `decimal`'e çevir | `[D4]` yeni kod `pkg/money`; eski alanların göçü kaldı (todo 4.13) | B50 — şema zaten `DECIMAL` |
+| 4.3 | Para tipini `float64`'ten kuruş (`int64`) veya `decimal`'e çevir | `[D4]` Go para aritmetiği decimal/kuruş (2026-10-04, todo 4.13); şema DECIMAL bilinçli olarak korunur | B50 — şema zaten `DECIMAL` |
 | 4.4 | Tahakkukta kuruş yuvarlama + kalan dağıtımı (largest remainder) | `[D4]` | B51 |
 | 4.5 | Ödeme idempotency (`Idempotency-Key`) | `[D4]` 2026-10-03 — aynı tahakkuk için ikinci PENDING ödeme 409 (kilit altında denetim), verify §10. `Idempotency-Key` başlığı yok; sağlayıcı (S-06) gelince webhook için gerekir | B48 |
 | 4.6 | `CalculateTotalAmount`'a `deleted = 0`; tahsilat oranı kesme hatası | `[D4]` 2026-10-03 — oran SQL numeric, tek ondalık aşağı; 348/1200 → %29,0 (eski %28), 1199,99/1200 → %99,9 active; verify §10 | B53, B54 |

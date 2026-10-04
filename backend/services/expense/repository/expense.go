@@ -8,6 +8,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/shopspring/decimal"
 
 	"github.com/siteeksen/backend/pkg/dbscope"
 	"github.com/siteeksen/backend/services/expense/models"
@@ -278,7 +279,8 @@ func (r *Repository) Get(ctx context.Context, propertyID, id string) (*models.Ex
 		e.Distributions = append(e.Distributions, d)
 	}
 	if n := len(e.Distributions); n > 0 {
-		avg := e.Amount / float64(n)
+		// Ortalama kuruşa yuvarlanır (kayan nokta artığı gösterilmez; 4.13).
+		avg, _ := decimal.NewFromFloat(e.Amount).Div(decimal.NewFromInt(int64(n))).Round(2).Float64()
 		e.PerUnitAmount = &avg
 	}
 	return e, rows.Err()

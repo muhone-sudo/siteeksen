@@ -12,6 +12,16 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-04 — PARA ARİTMETİĞİ: SON KAYAN NOKTA TOPLAMI KALDIRILDI (todo 4.13) (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **1154/1154** (yeni değişmez: her ödemenin tutarı bağlı tahakkukların toplamına eşit).
+
+- Ödeme oluşturulurken tahakkuk kalanları `float64` ile toplanıyordu; artık metin → `decimal` okunup toplanıyor ve
+  `numeric` olarak yazılıyor. Gider dağıtımındaki "birim başı ortalama" kuruşa yuvarlanıyor.
+- Kapsam kararı: şema `DECIMAL` (kesin) kalır, JSON taşıma `number` kalır; Go'da para aritmetiği yalnızca
+  `pkg/money`/decimal ile. Tarama: servislerde başka float para toplamı/çarpımı yok (ısı payı, tahakkuk, gecikme
+  tazminatı, işletme projesi, ortak alan geliri zaten kuruş).
+
 ### 2026-10-04 — KVKK SAKLAMA VE PERİYODİK İMHA (migration 043, FAZ 7.8) (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **1153/1153** (3 kategori, periyodik imha 6 ay; süre/gerekçe doğrulaması; süresi dolan

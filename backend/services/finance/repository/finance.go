@@ -304,7 +304,7 @@ func (r *FinanceRepository) CreatePayment(
 	// sitesi aktifken B'nin tahakkuklarını tek ödemeye bağlayabiliyordu; ödeme hangi sitenin
 	// yöneticisine düşeceği belirsiz bir kayıt olarak kalıyordu.
 	rows, err := tx.Query(ctx, `
-		SELECT ma.id, (ma.total_amount - COALESCE(ma.paid_amount, 0)) AS remaining, ma.unit_id
+		SELECT ma.id, (ma.total_amount - COALESCE(ma.paid_amount, 0))::text AS remaining, ma.unit_id
 		FROM monthly_assessments ma
 		JOIN resident_units ru ON ru.unit_id = ma.unit_id AND ru.is_active = true
 		WHERE ma.id = ANY($1)
@@ -317,15 +317,22 @@ func (r *FinanceRepository) CreatePayment(
 		return "", 0, err
 	}
 
+	// Kalan tutar METİN olarak okunup decimal'e çevrilir: toplam float64 ile
+	// alınmaz (4.13 — para aritmetiği kayan noktada yapılmaz).
 	type payable struct {
 		id        string
-		remaining float64
+		remaining decimal.Decimal
 		unitID    string
 	}
 	items := []payable{}
 	for rows.Next() {
 		var p payable
-		if err := rows.Scan(&p.id, &p.remaining, &p.unitID); err != nil {
+		var rem string
+		if err := rows.Scan(&p.id, &rem, &p.unitID); err != nil {
+			rows.Close()
+			return "", 0, err
+		}
+		if p.remaining, err = decimal.NewFromString(rem); err != nil {
 			rows.Close()
 			return "", 0, err
 		}
@@ -359,18 +366,18 @@ func (r *FinanceRepository) CreatePayment(
 		return "", 0, ErrPaymentAlreadyPending
 	}
 
-	var total float64
+	total := decimal.Zero
 	sameUnit := true
 	for i, p := range items {
-		if p.remaining <= 0 {
+		if !p.remaining.IsPositive() {
 			return "", 0, ErrAssessmentNotPayable
 		}
-		total += p.remaining
+		total = total.Add(p.remaining)
 		if i > 0 && p.unitID != items[0].unitID {
 			sameUnit = false
 		}
 	}
-	if total <= 0 {
+	if !total.IsPositive() {
 		return "", 0, ErrNoPayableAssessment
 	}
 
@@ -385,16 +392,16 @@ func (r *FinanceRepository) CreatePayment(
 	paymentID := uuid.New().String()
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO payments (id, property_id, user_id, unit_id, amount, payment_method, status, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6, 'PENDING', NOW())
-	`, paymentID, propertyID, userID, unitID, total, method); err != nil {
+		VALUES ($1, $2, $3, $4, $5::numeric, $6, 'PENDING', NOW())
+	`, paymentID, propertyID, userID, unitID, total.StringFixed(2), method); err != nil {
 		return "", 0, err
 	}
 
 	for _, p := range items {
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO payment_assessments (payment_id, assessment_id, amount)
-			VALUES ($1, $2, $3)
-		`, paymentID, p.id, p.remaining); err != nil {
+			VALUES ($1, $2, $3::numeric)
+		`, paymentID, p.id, p.remaining.StringFixed(2)); err != nil {
 			return "", 0, err
 		}
 	}
@@ -402,7 +409,8 @@ func (r *FinanceRepository) CreatePayment(
 	if err := tx.Commit(ctx); err != nil {
 		return "", 0, err
 	}
-	return paymentID, total, nil
+	totalF, _ := total.Float64()
+	return paymentID, totalF, nil
 }
 
 // ConfirmPayment, bekleyen bir ödemeyi TAMAMLANDI olarak işaretler ve ilgili
