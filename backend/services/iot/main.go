@@ -26,6 +26,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/siteeksen/backend/pkg/database"
 	"github.com/siteeksen/backend/pkg/legalparams"
+	"github.com/siteeksen/backend/pkg/listcap"
 	"github.com/siteeksen/backend/pkg/middleware"
 	"github.com/siteeksen/backend/pkg/money"
 	"github.com/siteeksen/backend/pkg/stub"
@@ -80,7 +81,8 @@ func main() {
 			fail(c, err, "sayaç listeleme")
 			return
 		}
-		c.JSON(http.StatusOK, gin.H{"data": list, "valid_types": repository.MeterTypes})
+		list, truncated := listcap.Trim(list, 2000)
+		c.JSON(http.StatusOK, gin.H{"data": list, "truncated": truncated, "limit": 2000, "valid_types": repository.MeterTypes})
 	})
 
 	api.GET("/meter-readings", func(c *gin.Context) {
@@ -124,7 +126,8 @@ func main() {
 			fail(c, err, "okuma listeleme")
 			return
 		}
-		c.JSON(http.StatusOK, gin.H{"data": list})
+		list, truncated := listcap.Trim(list, 1000)
+		c.JSON(http.StatusOK, gin.H{"data": list, "truncated": truncated, "limit": 1000})
 	})
 
 	// --- Görevli/yönetim işlemleri ---

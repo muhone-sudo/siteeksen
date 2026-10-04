@@ -133,7 +133,7 @@ func (r *Repository) List(ctx context.Context, propertyID, userID, status string
 		  AND ($3 = '' OR s.status = $3)
 		  AND ($4 OR s.status <> 'DRAFT')
 		ORDER BY s.starts_at DESC
-		LIMIT 200`, propertyID, userID, strings.ToUpper(status), includeDrafts)
+		LIMIT 201`, propertyID, userID, strings.ToUpper(status), includeDrafts)
 	if err != nil {
 		return nil, err
 	}
@@ -580,7 +580,7 @@ func (r *Repository) Comments(ctx context.Context, propertyID, surveyID string) 
 		WHERE v.survey_id = $1 AND v.comment IS NOT NULL AND v.comment <> ''
 		  AND EXISTS(SELECT 1 FROM surveys s WHERE s.id = v.survey_id AND s.property_id = $2)
 		ORDER BY v.voted_at DESC
-		LIMIT 200`, surveyID, propertyID, anonymous)
+		LIMIT 201`, surveyID, propertyID, anonymous)
 	if err != nil {
 		return nil, err
 	}

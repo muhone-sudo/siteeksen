@@ -106,7 +106,7 @@ func (r *Repository) ListMeters(ctx context.Context, propertyID, unitScope, mete
 		  AND ($3 = '' OR m.meter_type = $3)
 		  AND ($4 OR COALESCE(m.is_active,true) = true)
 		ORDER BY u.block, u.door_number, m.meter_type
-		LIMIT 2000`, propertyID, unitScope, strings.ToUpper(meterType), includeInactive)
+		LIMIT 2001`, propertyID, unitScope, strings.ToUpper(meterType), includeInactive)
 	if err != nil {
 		return nil, err
 	}
@@ -307,7 +307,7 @@ func (r *Repository) Readings(ctx context.Context, propertyID, meterID string, f
 		  AND ($3::date IS NULL OR r.reading_date >= $3::date)
 		  AND ($4::date IS NULL OR r.reading_date <= $4::date)
 		ORDER BY r.reading_date DESC, r.created_at DESC
-		LIMIT 1000`, propertyID, meterID, from, to)
+		LIMIT 1001`, propertyID, meterID, from, to)
 	if err != nil {
 		return nil, err
 	}

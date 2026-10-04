@@ -81,7 +81,7 @@ func (r *AnnouncementRepository) List(ctx context.Context, propertyID, userID st
 		  AND ($4 = '' OR a.category = $4)
 		  AND ($5 OR a.expires_at IS NULL OR a.expires_at > now())
 		ORDER BY a.is_pinned DESC, a.published_at DESC
-		LIMIT 200`,
+		LIMIT 201`,
 		propertyID, userID, isManagement, strings.ToUpper(category),
 		includeExpired && isManagement)
 	if err != nil {

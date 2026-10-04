@@ -30,6 +30,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/siteeksen/backend/pkg/database"
+	"github.com/siteeksen/backend/pkg/listcap"
 	"github.com/siteeksen/backend/pkg/middleware"
 	"github.com/siteeksen/backend/pkg/notify"
 	"github.com/siteeksen/backend/services/survey/repository"
@@ -73,7 +74,8 @@ func main() {
 			fail(c, err, "listeleme")
 			return
 		}
-		c.JSON(http.StatusOK, gin.H{"data": list, "legal_notice": legalNotice})
+		list, truncated := listcap.Trim(list, 200)
+		c.JSON(http.StatusOK, gin.H{"data": list, "truncated": truncated, "limit": 200, "legal_notice": legalNotice})
 	})
 
 	api.GET("/surveys/:id", func(c *gin.Context) {
@@ -133,7 +135,8 @@ func main() {
 			fail(c, err, "yorumlar")
 			return
 		}
-		c.JSON(http.StatusOK, gin.H{"data": list})
+		list, truncated := listcap.Trim(list, 200)
+		c.JSON(http.StatusOK, gin.H{"data": list, "truncated": truncated, "limit": 200})
 	})
 
 	// Oy verme: sitedeki herkes deneyebilir; uygunluk sunucuda denetlenir.

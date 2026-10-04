@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/siteeksen/backend/pkg/database"
+	"github.com/siteeksen/backend/pkg/listcap"
 	"github.com/siteeksen/backend/pkg/middleware"
 	"github.com/siteeksen/backend/pkg/notify"
 	"github.com/siteeksen/backend/services/community/handlers"
@@ -85,7 +86,8 @@ func main() {
 				failAnnouncement(c, err, "listeleme")
 				return
 			}
-			c.JSON(http.StatusOK, gin.H{"data": list})
+			list, truncated := listcap.Trim(list, 200)
+			c.JSON(http.StatusOK, gin.H{"data": list, "truncated": truncated, "limit": 200})
 		})
 
 		ann.GET("/:id", func(c *gin.Context) {
