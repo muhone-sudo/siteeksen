@@ -12,7 +12,13 @@ import '../../../../core/network/api_client.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../../core/widgets/api_views.dart';
 
-const budgetStatusLabels = {'DRAFT': 'Taslak', 'NOTIFIED': 'Tebliğ edildi (itiraz süresi)', 'FINAL': 'Kesinleşti'};
+// KMK m.37 (7579 s. Kanun, RG 22/5/2026): bildirilen proje GEÇİCİDİR ve genel kurulda
+// kabul edilince kesinleşir; yedi günlük itirazla kendiliğinden kesinleşme kaldırıldı.
+const budgetStatusLabels = {
+  'DRAFT': 'Taslak',
+  'NOTIFIED': 'Geçici proje — genel kurul bekliyor',
+  'FINAL': 'Genel kurulda kabul edildi',
+};
 const assemblyStatusLabels = {'PLANNED': 'Planlandı', 'NOTIFIED': 'Çağrı yapıldı', 'HELD': 'Yapıldı'};
 const decisionLabels = {'PENDING': 'Karar bekliyor', 'ACCEPTED': 'Kabul', 'REJECTED': 'Red'};
 
@@ -47,7 +53,8 @@ class _Budgets extends StatelessWidget {
         subtitle: Text([
           budgetStatusLabels['${b['status']}'] ?? '${b['status']}',
           formatTry(toNum(b['total_amount'])),
-          if (parseApiDate(b['objection_deadline']) != null) 'İtiraz son: ${formatDate(b['objection_deadline'])}',
+          if (b['status'] == 'NOTIFIED' && parseApiDate(b['approval_deadline']) != null)
+            'Genel kurul son gün: ${formatDate(b['approval_deadline'])}',
         ].join(' · ')),
         trailing: const Icon(Icons.chevron_right),
         onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => _BudgetDetail(id: '${b['id']}'))),
@@ -75,6 +82,7 @@ class _BudgetDetail extends StatelessWidget {
               Text('${b['period_year']} · ${budgetStatusLabels['${b['status']}'] ?? b['status']}',
                   style: Theme.of(context).textTheme.titleMedium),
               Text('Toplam: ${formatTry(toNum(b['total_amount']))} · Açık itiraz: ${toNum(b['open_objections']).toInt()}'),
+              if ('${b['decision_ref'] ?? ''}'.isNotEmpty) Text('Karar: ${b['decision_ref']}'),
               const Divider(height: 24),
               Text('Kalemler', style: Theme.of(context).textTheme.titleSmall),
               for (final i in items)

@@ -38,6 +38,11 @@ const contractLeadDays = 14
 // uyarılacağıdır (işletme tercihi; yetkili firmadan randevu almaya yetecek süre).
 const maintenanceLeadDays = 14
 
+// budgetApprovalLeadDays: geçici işletme projesinin genel kurul son gününden kaç
+// gün önce uyarılacağı. Genel kurul çağrısı toplantıdan en az 15 gün önce
+// yapılmalıdır (KMK m.29/2); 30 gün, çağrıyı hazırlayıp göndermeye yeter.
+const budgetApprovalLeadDays = 30
+
 func jobs() []job {
 	return []job{
 		{name: "dues.overdue", what: "Vadesi geçmiş aidatı olan daireye ayda en fazla bir hatırlatma", run: overdueDues},
@@ -46,6 +51,7 @@ func jobs() []job {
 		{name: "patrol.overdue", what: "Beklenen süre + tolerans aşıldığı hâlde açık kalan devriye → yönetim", run: overduePatrols},
 		{name: "asset.maintenance", what: "Bakım/periyodik kontrol tarihi yaklaşan ya da geçen demirbaş → yönetim", run: maintenanceDue},
 		{name: "kvkk.due", what: "Yasal yanıt süresi (KVKK m.13) dolmak üzere ya da dolmuş açık başvuru → yönetim", run: kvkkDue},
+		{name: "budget.approval", what: "Genel kurulda karara bağlanma süresi (KMK m.37, 3 ay) yaklaşan ya da geçen geçici işletme projesi → yönetim", run: budgetApprovalDue},
 	}
 }
 
@@ -472,6 +478,68 @@ func kvkkDue(ctx context.Context, pool *pgxpool.Pool, propertyID string) ([]noti
 			Body:       body,
 			Payload:    map[string]any{"kvkk_request_id": r.id, "due_date": r.due.Format("2006-01-02"), "state": state},
 			DedupeKey:  "kvkk.due:" + r.id + ":" + state,
+		}})
+	}
+	return out, nil
+}
+
+// budgetApprovalDue: genel kurulda karara bağlanması gereken son günü (KMK m.37/2,
+// 7579 s. Kanun: bildirimden en geç üç ay) yaklaşan ya da geçen GEÇİCİ işletme
+// projesi → yönetim. Süre aşımında proje kendiliğinden kesinleşmez; geçici proje
+// genel kurul kararı olmadan İİK m.68 belgesi sayılmaz.
+func budgetApprovalDue(ctx context.Context, pool *pgxpool.Pool, propertyID string) ([]notice, error) {
+	rows, err := dbscope.For(pool, propertyID).Query(ctx, `
+		SELECT id::text, period_year, approval_deadline, (approval_deadline - CURRENT_DATE)::int
+		FROM operating_budgets
+		WHERE property_id = $1 AND status = 'NOTIFIED' AND approval_deadline IS NOT NULL
+		  AND approval_deadline <= CURRENT_DATE + $2::int
+		ORDER BY approval_deadline`, propertyID, budgetApprovalLeadDays)
+	if err != nil {
+		return nil, err
+	}
+	type row struct {
+		id       string
+		year     int
+		due      time.Time
+		daysLeft int
+	}
+	var list []row
+	for rows.Next() {
+		var r row
+		if err := rows.Scan(&r.id, &r.year, &r.due, &r.daysLeft); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		list = append(list, r)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if len(list) == 0 {
+		return nil, nil
+	}
+	managers, err := notify.Managers(ctx, pool, propertyID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]notice, 0, len(list))
+	for _, r := range list {
+		state, body := "soon", fmt.Sprintf("%d dönemi geçici işletme projesinin genel kurulda karara bağlanması gereken son gün %s (%d gün kaldı; KMK m.37). "+
+			"Genel kurul çağrısı toplantıdan en az 15 gün önce yapılmalıdır (m.29).", r.year, trDate(r.due), r.daysLeft)
+		if r.daysLeft < 0 {
+			state, body = "overdue", fmt.Sprintf("%d dönemi geçici işletme projesi için genel kurul süresi %s tarihinde doldu (%d gün geçti; KMK m.37). "+
+				"Proje genel kurul kararı olmadan kesinleşmez; toplantıyı hemen çağırın.", r.year, trDate(r.due), -r.daysLeft)
+		}
+		out = append(out, notice{recipients: managers, msg: notify.Message{
+			PropertyID: propertyID,
+			Channel:    notify.ChannelInApp,
+			Category:   notify.CategoryTransactional,
+			Topic:      "budget.approval." + state,
+			Subject:    "İşletme projesi genel kurul süresi",
+			Body:       body,
+			Payload:    map[string]any{"budget_id": r.id, "approval_deadline": r.due.Format("2006-01-02"), "state": state},
+			DedupeKey:  "budget.approval:" + r.id + ":" + state,
 		}})
 	}
 	return out, nil

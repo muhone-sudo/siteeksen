@@ -313,10 +313,10 @@ Roller: okuma M,B,A · yazma M,B. İtiraz: kat maliki/vekil ya da yönetim.
 
 | Uç | Gövde / Sorgu | Yanıt |
 |---|---|---|
-| `GET /governance/budgets` · `/budgets/:id` | — | `{data:[{id,period_year,status(DRAFT/NOTIFIED/FINAL),total_amount,notified_at,objection_deadline,finalized_at}]}` · tam bütçe `{…,items:[{id,category_id,name,amount,distribution_type,kind,note,sort_order}],unit_shares:[{unit_id,unit_name,annual_kurus,monthly_kurus,breakdown}],open_objections}` |
+| `GET /governance/budgets` · `/budgets/:id` | — | `{data:[{id,period_year,status(DRAFT/NOTIFIED/FINAL),total_amount,notified_at,objection_deadline,approval_deadline,finalized_at}]}` · tam bütçe `{…,items:[{id,category_id,name,amount,distribution_type,kind,note,sort_order}],unit_shares:[{unit_id,unit_name,annual_kurus,monthly_kurus,breakdown}],open_objections,approval_deadline,approved_agenda_item_id,cap_base_budget_id,cap_rate,cap_amount,decision_ref}` |
 | `POST /governance/budgets` | `period_year`*(2000-2200),`items`*[{`name`*,`amount`*>0,`distribution_type`*(EQUAL/SHARE_RATIO/AREA_M2),`kind`(EXPENSE/INCOME),`category_id`,`note`}],`note` | 201 bütçe |
-| `POST /budgets/:id/notify` | `method`*(IMZA_KARSILIGI/TAAHHUTLU_MEKTUP/ELEKTRONIK) | bütçe (itiraz süresi 7 gün) |
-| `POST /budgets/:id/finalize` | `decision_ref` | `{budget,note}` (İİK m.68 belgesi) |
+| `POST /budgets/:id/notify` | `method`*(IMZA_KARSILIGI/TAAHHUTLU_MEKTUP/ELEKTRONIK) | bütçe — geçici proje; `approval_deadline` = +3 ay (KMK m.37, 7579). 422: yeniden değerleme tavanı aşıldı ya da oran tanımsız |
+| `POST /budgets/:id/finalize` | `agenda_item_id`* (yapılmış genel kurulda kabul edilmiş madde), `decision_ref` | `{budget,note}` (İİK m.68 belgesi) · 422 madde kabul edilmemiş · 409 madde başka projede / proje kesinleşmiş |
 | `GET/POST /budgets/:id/objections` | POST: `unit_id`*,`reason`* | `{data:[{id,unit_id,user_id,reason,submitted_at,status,resolution,resolved_at,in_time}]}` · 201 `{objection,warning?}` |
 | `PATCH /budgets/:id/objections/:objectionId` | `status`*(ACCEPTED/REJECTED/WITHDRAWN),`resolution` | `{message}` · 409 zaten sonuçlanmış |
 | `GET /governance/assemblies` · `/assemblies/:id` | — | `{data:[…]}` · `{id,kind,call_number,scheduled_at,location,notice_sent_at,notice_method,status(PLANNED/NOTIFIED/HELD),held_at,total_units,total_share_ratio,attended_units,attended_share_ratio,quorum_met,agenda_items:[{id,order_no,title,description,required_majority_code,decision_text,decision_status,votes_for,votes_against,votes_abstain,share_for,share_against,share_abstain}]}` |

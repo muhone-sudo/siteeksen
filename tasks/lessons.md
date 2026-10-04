@@ -603,3 +603,20 @@ Doğrulama bozuldu, `git diff` ile fark edip geri aldım.
 
 **Kural:** Düzenlemeden sonra `git diff --stat` / diff hunk'larına bakılır; desene
 göre silme yapılacaksa önce eşleşme sayısı ve konumu doğrulanır.
+
+### Ders 41 — Mevzuat koda girdiyse, yürürlükteki metin periyodik kontrol edilir
+
+İşletme projesinin "7 günde kesinleşmesi" kuralı 2026-09'da doğru yazılmıştı; 7579 s. Kanun
+22/5/2026'da bunu kaldırdı ve sistem dört ay boyunca mülga kuralla "İİK m.68 belgesi" üretti.
+`legal_parameters` yürürlük tarihli olduğu için oran değişikliği kolaydı; ama kural (akış) koddaydı.
+
+**Kural:** Yeni işe başlamadan önce ilgili kanunun mevzuat.gov.tr konsolide metni okunur ve son
+değişiklik tablosuna (dipnotlar, "Değişik/Mülga … tarih") bakılır. Akışı değiştiren değişiklik varsa
+önce o düzeltilir. Parametre kapatılırken satır silinmez, `effective_to` verilir (geçmiş hesap korunur).
+
+### Ders 42 — Betiğe metin eklerken son satır sonunu da ekle
+
+PowerShell here-string son satır sonunu taşımaz; verify-stack'e eklediğim blok bir sonraki
+komutla aynı satıra yapıştı (`...head -1)N=$(qapp ...`) ve ilgisiz bir kontrol düştü.
+
+**Kural:** Eklemeden sonra eklenen bloğun son ve sonraki satırı `git diff` ile gözle kontrol edilir.

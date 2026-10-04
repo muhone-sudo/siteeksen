@@ -20,9 +20,14 @@ import (
 var (
 	ErrNotFound             = errors.New("kayıt bulunamadı")
 	ErrBudgetNotDraft       = errors.New("yalnızca taslak durumundaki işletme projesi tebliğ edilebilir")
-	ErrBudgetNotNotified    = errors.New("kesinleştirmeden önce işletme projesi tebliğ edilmelidir")
-	ErrObjectionPeriodOpen  = errors.New("itiraz süresi dolmadan işletme projesi kesinleşemez")
-	ErrOpenObjections       = errors.New("açık itirazlar çözülmeden işletme projesi kesinleşemez")
+	// ErrBudgetNotApprovable: yalnızca taslak ya da geçici (bildirilmiş) proje
+	// genel kurul kararına bağlanabilir.
+	ErrBudgetNotApprovable = errors.New("yalnızca taslak ya da geçici işletme projesi genel kurul kararına bağlanabilir")
+	// ErrAgendaNotAccepted: gündem maddesi bu sitenin YAPILMIŞ bir toplantısında
+	// KABUL edilmiş değil (KMK m.37, 7579 s. Kanun: proje genel kurulda onaylanır).
+	ErrAgendaNotAccepted = errors.New("gündem maddesi yapılmış bir genel kurulda kabul edilmiş değil")
+	// ErrAgendaItemUsed: gündem maddesi başka bir işletme projesini onaylamak için kullanılmış.
+	ErrAgendaItemUsed = errors.New("bu gündem maddesi başka bir işletme projesine bağlanmış")
 	ErrBudgetExists         = errors.New("bu dönem için zaten bir işletme projesi var")
 	ErrNoUnits              = errors.New("sitede tanımlı bağımsız bölüm yok")
 	ErrAssemblyNotOpen      = errors.New("toplantı bu işlem için uygun durumda değil")
@@ -163,18 +168,22 @@ func (r *Repository) CreateBudget(
 // GetBudget, projeyi kalemleri, payları ve açık itiraz sayısıyla getirir.
 func (r *Repository) GetBudget(ctx context.Context, propertyID, budgetID string) (*models.Budget, error) {
 	b := &models.Budget{}
-	var preparedBy, noticeMethod, decisionRef, note *string
+	var preparedBy, noticeMethod, decisionRef, note, agendaItem, capBase *string
 	err := r.scope(propertyID).QueryRow(ctx, `
 		SELECT id, property_id, period_year, status, total_amount,
 		       prepared_by::text, prepared_at, notified_at, notice_method,
-		       objection_deadline, finalized_at, decision_ref, note,
+		       objection_deadline, approval_deadline, approved_agenda_item_id::text,
+		       cap_base_budget_id::text, cap_rate::float8, cap_amount::float8,
+		       finalized_at, decision_ref, note,
 		       (SELECT count(*) FROM budget_objections o
 		          WHERE o.budget_id = b.id AND o.status = 'OPEN')
 		FROM operating_budgets b
 		WHERE id = $1 AND property_id = $2`, budgetID, propertyID).Scan(
 		&b.ID, &b.PropertyID, &b.PeriodYear, &b.Status, &b.TotalAmount,
 		&preparedBy, &b.PreparedAt, &b.NotifiedAt, &noticeMethod,
-		&b.ObjectionDeadline, &b.FinalizedAt, &decisionRef, &note, &b.OpenObjections)
+		&b.ObjectionDeadline, &b.ApprovalDeadline, &agendaItem,
+		&capBase, &b.CapRate, &b.CapAmount,
+		&b.FinalizedAt, &decisionRef, &note, &b.OpenObjections)
 	if err == pgx.ErrNoRows {
 		return nil, ErrNotFound
 	}
@@ -185,6 +194,8 @@ func (r *Repository) GetBudget(ctx context.Context, propertyID, budgetID string)
 	b.NoticeMethod = deref(noticeMethod)
 	b.DecisionRef = deref(decisionRef)
 	b.Note = deref(note)
+	b.ApprovedAgendaItemID = deref(agendaItem)
+	b.CapBaseBudgetID = deref(capBase)
 
 	itemRows, err := r.scope(propertyID).Query(ctx, `
 		SELECT id, COALESCE(category_id::text,''), name, amount, distribution_type,
@@ -230,7 +241,7 @@ func (r *Repository) GetBudget(ctx context.Context, propertyID, budgetID string)
 func (r *Repository) ListBudgets(ctx context.Context, propertyID string) ([]models.Budget, error) {
 	rows, err := r.scope(propertyID).Query(ctx, `
 		SELECT id, property_id, period_year, status, total_amount,
-		       notified_at, objection_deadline, finalized_at
+		       notified_at, objection_deadline, approval_deadline, finalized_at
 		FROM operating_budgets
 		WHERE property_id = $1
 		ORDER BY period_year DESC`, propertyID)
@@ -243,7 +254,7 @@ func (r *Repository) ListBudgets(ctx context.Context, propertyID string) ([]mode
 	for rows.Next() {
 		var b models.Budget
 		if err := rows.Scan(&b.ID, &b.PropertyID, &b.PeriodYear, &b.Status,
-			&b.TotalAmount, &b.NotifiedAt, &b.ObjectionDeadline, &b.FinalizedAt); err != nil {
+			&b.TotalAmount, &b.NotifiedAt, &b.ObjectionDeadline, &b.ApprovalDeadline, &b.FinalizedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, b)
@@ -251,9 +262,17 @@ func (r *Repository) ListBudgets(ctx context.Context, propertyID string) ([]mode
 	return out, rows.Err()
 }
 
-// NotifyBudget, tebliğ anını ve itiraz süresi bitişini işler (KMK m.37/2).
-// objectionDays mevzuat parametresinden gelir.
-func (r *Repository) NotifyBudget(ctx context.Context, propertyID, budgetID, method string, objectionDays int) (*models.Budget, error) {
+// NotifyBudget, projeyi GEÇİCİ işletme projesi olarak bildirilmiş sayar ve
+// genel kurulda karara bağlanacağı son günü işler (KMK m.37/2, 7579 s. Kanun).
+// Yedi günlük itiraz süresi 22/5/2026'da kaldırıldı; objection_deadline artık
+// yazılmaz. cap, mevcut proje varsa tavan hesabıdır (nil: dayanak proje yok).
+func (r *Repository) NotifyBudget(ctx context.Context, propertyID, budgetID, method string,
+	approvalMonths int, cap *models.ProvisionalCap) (*models.Budget, error) {
+	var capBase *string
+	var capRate, capAmount *float64
+	if cap != nil {
+		capBase, capRate, capAmount = &cap.BaseBudgetID, &cap.Rate, &cap.Cap
+	}
 	tag, err := r.scope(propertyID).Exec(ctx, `
 		UPDATE operating_budgets
 		SET status = 'NOTIFIED',
@@ -261,10 +280,11 @@ func (r *Repository) NotifyBudget(ctx context.Context, propertyID, budgetID, met
 		    notice_method = $3,
 		    -- make_interval kullanılır: metin birleştirmeli interval biçimi, parametre
 		    -- tipi çıkarımında belirsizlik yaratıp "operator is not unique" hatası veriyordu.
-		    objection_deadline = (CURRENT_DATE + make_interval(days => $4))::date,
+		    approval_deadline = (CURRENT_DATE + make_interval(months => $4))::date,
+		    cap_base_budget_id = $5::uuid, cap_rate = $6, cap_amount = $7,
 		    updated_at = now()
 		WHERE id = $1 AND property_id = $2 AND status = 'DRAFT'`,
-		budgetID, propertyID, method, objectionDays)
+		budgetID, propertyID, method, approvalMonths, capBase, capRate, capAmount)
 	if err != nil {
 		return nil, err
 	}
@@ -274,11 +294,33 @@ func (r *Repository) NotifyBudget(ctx context.Context, propertyID, budgetID, met
 	return r.GetBudget(ctx, propertyID, budgetID)
 }
 
-// FinalizeBudget, itiraz süresi dolmuş ve açık itirazı olmayan projeyi kesinleştirir.
+// CapBaseBudget, geçici proje tavanının dayanağı olan "yürürlüğü devam eden"
+// işletme projesidir: dönemden önceki en son genel kurulda kabul edilmiş
+// (FINAL) proje. Yoksa ok=false (tavan uygulanmaz: karşılaştırılacak proje yok).
+func (r *Repository) CapBaseBudget(ctx context.Context, propertyID string, periodYear int) (id string, total float64, ok bool, err error) {
+	err = r.scope(propertyID).QueryRow(ctx, `
+		SELECT id::text, total_amount::float8 FROM operating_budgets
+		WHERE property_id = $1 AND status = 'FINAL' AND period_year < $2
+		ORDER BY period_year DESC LIMIT 1`, propertyID, periodYear).Scan(&id, &total)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", 0, false, nil
+	}
+	return id, total, err == nil, err
+}
+
+// FinalizeBudget, projeyi GENEL KURUL KARARINA bağlayarak kesinleştirir.
 //
-// Kesinleşen işletme projesi İİK m.68 anlamında BELGE niteliği kazanır; bu yüzden
-// koşullar veritabanı düzeyinde de kontrol edilir, yalnızca arayüzde değil.
-func (r *Repository) FinalizeBudget(ctx context.Context, propertyID, budgetID, decisionRef string) (*models.Budget, error) {
+// 7579 s. Kanunla (RG 22/5/2026) işletme projesi genel kurulda onaylanır; "yedi
+// gün içinde itiraz edilmezse kesinleşir" kuralı kaldırıldı. Önceden yönetici,
+// süre dolunca tek başına projeyi "kesinleşti — İİK m.68 belgesi" yapabiliyordu.
+// Artık bu sitenin YAPILMIŞ (HELD) bir toplantısında KABUL edilmiş gündem maddesi
+// zorunludur. Genel kurul projeyi "aynen veya değiştirilerek" kabul edebilir;
+// değiştirildiyse kabul edilen içerik yeni taslak olarak girilip bu kararla
+// kesinleştirilir — bu yüzden taslak da doğrudan kesinleştirilebilir.
+//
+// Kesinleşen proje İİK m.68 anlamında belgedir; koşullar aynı transaction'da
+// veritabanından okunur, yalnızca arayüzde değil.
+func (r *Repository) FinalizeBudget(ctx context.Context, propertyID, budgetID, agendaItemID, decisionRef string) (*models.Budget, error) {
 	tx, err := r.scope(propertyID).Begin(ctx)
 	if err != nil {
 		return nil, err
@@ -286,37 +328,48 @@ func (r *Repository) FinalizeBudget(ctx context.Context, propertyID, budgetID, d
 	defer tx.Rollback(ctx) //nolint:errcheck
 
 	var status string
-	var deadline *time.Time
 	err = tx.QueryRow(ctx, `
-		SELECT status, objection_deadline FROM operating_budgets
-		WHERE id = $1 AND property_id = $2 FOR UPDATE`, budgetID, propertyID).Scan(&status, &deadline)
+		SELECT status FROM operating_budgets
+		WHERE id = $1 AND property_id = $2 FOR UPDATE`, budgetID, propertyID).Scan(&status)
 	if err == pgx.ErrNoRows {
 		return nil, ErrNotFound
 	}
 	if err != nil {
 		return nil, err
 	}
-	if status != models.BudgetNotified {
-		return nil, ErrBudgetNotNotified
-	}
-	if deadline == nil || time.Now().Before(*deadline) {
-		return nil, ErrObjectionPeriodOpen
+	if status != models.BudgetDraft && status != models.BudgetNotified {
+		return nil, ErrBudgetNotApprovable
 	}
 
-	var open int
-	if err := tx.QueryRow(ctx,
-		`SELECT count(*) FROM budget_objections WHERE budget_id = $1 AND status = 'OPEN'`,
-		budgetID).Scan(&open); err != nil {
+	var heldAt time.Time
+	var orderNo int
+	var title string
+	err = tx.QueryRow(ctx, `
+		SELECT a.held_at, ai.order_no, ai.title
+		FROM assembly_agenda_items ai
+		JOIN assemblies a ON a.id = ai.assembly_id
+		WHERE ai.id = $1 AND a.property_id = $2
+		  AND a.status = 'HELD' AND a.held_at IS NOT NULL
+		  AND ai.decision_status = 'ACCEPTED'`, agendaItemID, propertyID).Scan(&heldAt, &orderNo, &title)
+	if err == pgx.ErrNoRows || IsInvalidID(err) {
+		return nil, ErrAgendaNotAccepted
+	}
+	if err != nil {
 		return nil, err
 	}
-	if open > 0 {
-		return nil, ErrOpenObjections
+	if decisionRef == "" {
+		decisionRef = fmt.Sprintf("Kat malikleri kurulu %s, gündem %d: %s",
+			heldAt.Format("02.01.2006"), orderNo, title)
 	}
 
 	if _, err := tx.Exec(ctx, `
 		UPDATE operating_budgets
-		SET status = 'FINAL', finalized_at = now(), decision_ref = NULLIF($2,''), updated_at = now()
-		WHERE id = $1 AND property_id = $3`, budgetID, decisionRef, propertyID); err != nil {
+		SET status = 'FINAL', finalized_at = now(), decision_ref = $2,
+		    approved_agenda_item_id = $4, updated_at = now()
+		WHERE id = $1 AND property_id = $3`, budgetID, decisionRef, propertyID, agendaItemID); err != nil {
+		if isUniqueViolation(err) {
+			return nil, ErrAgendaItemUsed
+		}
 		return nil, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -377,8 +430,10 @@ func (r *Repository) AddObjection(ctx context.Context, propertyID, budgetID, uni
 	if err != nil {
 		return nil, err
 	}
-	// Süresinde mi? (m.37/2 — tebliğden itibaren 7 gün)
-	o.InTime = deadline != nil && !o.SubmittedAt.After(*deadline)
+	// Süresinde mi? Yedi günlük süre yalnızca 22/5/2026'dan önce tebliğ edilen
+	// projelerde vardır (eski m.37/2); 7579 sonrası itiraz genel kurulda görüşülür
+	// ve yasal bir süreye bağlı değildir.
+	o.InTime = deadline == nil || !o.SubmittedAt.After(*deadline)
 	return o, nil
 }
 
@@ -396,7 +451,7 @@ func (r *Repository) ListObjections(ctx context.Context, propertyID, budgetID st
 	rows, err := r.scope(propertyID).Query(ctx, `
 		SELECT o.id, o.budget_id, COALESCE(o.unit_id::text,''), COALESCE(o.user_id::text,''),
 		       o.reason, o.submitted_at, o.status, COALESCE(o.resolution,''), o.resolved_at,
-		       (b.objection_deadline IS NOT NULL AND o.submitted_at::date <= b.objection_deadline)
+		       (b.objection_deadline IS NULL OR o.submitted_at::date <= b.objection_deadline)
 		FROM budget_objections o
 		JOIN operating_budgets b ON b.id = o.budget_id
 		WHERE o.budget_id = $1 AND b.property_id = $2

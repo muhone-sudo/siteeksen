@@ -56,7 +56,13 @@ const (
 	UnanimityTransferActs        = "UNANIMITY_TRANSFER_ACTS"
 
 	ManagerMandatoryUnitCount     = "MANAGER_MANDATORY_UNIT_COUNT"
-	BudgetObjectionDays           = "BUDGET_OBJECTION_DAYS"
+	BudgetObjectionDays           = "BUDGET_OBJECTION_DAYS" // 7579 ile mülga (22/5/2026'ya kadar)
+	// BudgetGAApprovalMonths: geçici işletme projesinin genel kurulda karara
+	// bağlanma süresi (KMK m.37/2, 7579 s. Kanun).
+	BudgetGAApprovalMonths = "BUDGET_GA_APPROVAL_MONTHS"
+	// RevaluationRate: VUK mük. m.298 yeniden değerleme oranı (kesir); uygulandığı
+	// dönemin 1 Ocak'ından yürürlüktedir. Geçici işletme projesi tavanı (KMK m.37 son f.).
+	RevaluationRate               = "REVALUATION_RATE"
 	DecisionBookNotaryCloseMonths = "DECISION_BOOK_NOTARY_CLOSE_MONTHS"
 	AnnualAccountMonth            = "ANNUAL_ACCOUNT_MONTH"
 	AuditIntervalMonths           = "AUDIT_INTERVAL_MONTHS"

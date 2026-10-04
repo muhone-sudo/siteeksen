@@ -16,9 +16,11 @@ const NOTICE_METHODS = [
 ];
 
 /**
- * İşletme projesi (KMK m.37). Akış: taslak → tebliğ (7 günlük itiraz süresi
- * başlar) → süre dolup açık itiraz kalmayınca kesinleşme. Kesinleşen proje
- * İİK m.68 anlamında belge niteliği kazanır (icra takibine dayanak).
+ * İşletme projesi (KMK m.37, 7579 s. Kanunla değişik — RG 22/5/2026).
+ * Akış: taslak → geçici proje olarak bildirim (onaylanana kadar avans dayanağı,
+ * m.35/d; en geç 3 ay içinde genel kurulda karara bağlanır) → genel kurulda kabul
+ * edilen gündem maddesine bağlanarak kesinleşme. Yedi günlük itiraz süresiyle
+ * kendiliğinden kesinleşme kaldırıldı. Kesinleşen proje İİK m.68 belgesidir.
  */
 export default function BudgetsPage() {
     const list = useApi(["budgets"], api.governance.budgets);
@@ -42,8 +44,8 @@ export default function BudgetsPage() {
                             { header: "Yıl", cell: (b) => <b>{b.period_year}</b> },
                             { header: "Toplam", cell: (b) => tl(b.total_amount) },
                             { header: "Durum", cell: (b) => <StatusBadge value={b.status} map={BUDGET_STATUS} /> },
-                            { header: "Tebliğ", cell: (b) => date(b.notified_at) },
-                            { header: "İtiraz son gün", cell: (b) => date(b.objection_deadline) },
+                            { header: "Bildirim", cell: (b) => date(b.notified_at) },
+                            { header: "Genel kurul son gün", cell: (b) => (b.status === "NOTIFIED" ? date(b.approval_deadline) : "—") },
                             { header: "Kesinleşme", cell: (b) => date(b.finalized_at) },
                             { header: "", cell: (b) => <Button size="sm" variant="ghost" onClick={() => setSelected(b.id)}>Aç</Button> },
                         ]} />
@@ -96,6 +98,11 @@ function BudgetDetail({ id, onClose, canWrite }: { id: string; onClose: () => vo
     const [tab, setTab] = useState<"items" | "shares" | "objections">("items");
     const [method, setMethod] = useState("TAAHHUTLU_MEKTUP");
     const [decisionRef, setDecisionRef] = useState("");
+    const [agendaItem, setAgendaItem] = useState("");
+    const [assemblyId, setAssemblyId] = useState("");
+    const assemblies = useApi(["assemblies"], api.governance.assemblies, canWrite);
+    const assembly = useApi(["assemblies", assemblyId], () => api.governance.assembly(assemblyId), !!assemblyId);
+    const acceptedItems = (assembly.data?.agenda_items ?? []).filter((i) => i.decision_status === "ACCEPTED");
     const [resolving, setResolving] = useState<{ id: string; status: string } | null>(null);
     const [resolution, setResolution] = useState("");
 
@@ -108,21 +115,40 @@ function BudgetDetail({ id, onClose, canWrite }: { id: string; onClose: () => vo
                             <b className="text-lg">{b.period_year}</b>
                             <StatusBadge value={b.status} map={BUDGET_STATUS} />
                             <span>Toplam {tl(b.total_amount)}</span>
-                            {b.objection_deadline && <span>İtiraz son gün: {date(b.objection_deadline)}</span>}
+                            {b.status === "NOTIFIED" && b.approval_deadline && <span>Genel kurul son gün: {date(b.approval_deadline)}</span>}
+                            {b.objection_deadline && <span className="text-gray-500">Eski kurala göre itiraz son günü: {date(b.objection_deadline)}</span>}
+                            {b.cap_amount != null && <span className="text-gray-500">Geçici proje tavanı {tl(b.cap_amount)} (%{((b.cap_rate ?? 0) * 100).toFixed(2)} yeniden değerleme)</span>}
+                            {b.decision_ref && <span className="text-gray-500">Karar: {b.decision_ref}</span>}
                             {b.open_objections > 0 && <Badge tone="red">{b.open_objections} açık itiraz</Badge>}
                         </div>
                         <ActionFeedback action={act} />
                         {canWrite && b.status === "DRAFT" && (
                             <div className="flex flex-wrap items-end gap-2 rounded-lg bg-gray-50 p-3 dark:bg-gray-700/40">
-                                <Field label="Tebliğ yöntemi"><Select value={method} onChange={(e) => setMethod(e.target.value)} options={NOTICE_METHODS} /></Field>
-                                <Button disabled={act.pending} onClick={() => act.run(() => api.governance.notifyBudget(b.id, method), { invalidate: ["budgets"], success: "Tebliğ işlendi; 7 günlük itiraz süresi başladı (KMK m.37/2)" })}>Tebliğ et</Button>
+                                <Field label="Bildirim yöntemi"><Select value={method} onChange={(e) => setMethod(e.target.value)} options={NOTICE_METHODS} /></Field>
+                                <Button disabled={act.pending} onClick={() => act.run(() => api.governance.notifyBudget(b.id, method), {
+                                    invalidate: ["budgets"],
+                                    success: (x) => `Geçici proje bildirildi; en geç ${date(x.approval_deadline)} tarihine kadar genel kurulda karara bağlanmalı (KMK m.37)`,
+                                })}>Geçici proje olarak bildir</Button>
+                                <p className="w-full text-xs text-gray-500">Yürürlükte kabul edilmiş proje varsa geçici projenin toplamı, o projenin yeniden değerleme oranı kadar artırılmış tutarını aşamaz (KMK m.37 son fıkra). Daha yüksek bütçe yalnızca genel kurul kararıyla kabul edilir.</p>
                             </div>
                         )}
-                        {canWrite && b.status === "NOTIFIED" && (
+                        {canWrite && (b.status === "DRAFT" || b.status === "NOTIFIED") && (
                             <div className="flex flex-wrap items-end gap-2 rounded-lg bg-gray-50 p-3 dark:bg-gray-700/40">
-                                <Field label="Karar / tutanak referansı"><Input value={decisionRef} onChange={(e) => setDecisionRef(e.target.value)} /></Field>
-                                <Button disabled={act.pending} onClick={() => act.run(() => api.governance.finalizeBudget(b.id, decisionRef), { invalidate: ["budgets"], success: "Proje kesinleşti" })}>Kesinleştir</Button>
-                                <p className="text-xs text-gray-500">İtiraz süresi dolmadan ya da açık itiraz varken kesinleşmez.</p>
+                                <Field label="Genel kurul">
+                                    <Select value={assemblyId} onChange={(e) => { setAssemblyId(e.target.value); setAgendaItem(""); }}
+                                        options={[{ value: "", label: "Seçin" }, ...(assemblies.data?.data ?? []).filter((a) => a.status === "HELD")
+                                            .map((a) => ({ value: a.id, label: `${date(a.held_at ?? a.scheduled_at)} — ${a.call_number}. toplantı` }))]} />
+                                </Field>
+                                <Field label="Kabul edilen gündem maddesi">
+                                    <Select value={agendaItem} onChange={(e) => setAgendaItem(e.target.value)} disabled={!assemblyId}
+                                        options={[{ value: "", label: acceptedItems.length ? "Seçin" : "Kabul edilmiş madde yok" },
+                                            ...acceptedItems.map((i) => ({ value: i.id, label: `${i.order_no}. ${i.title}` }))]} />
+                                </Field>
+                                <Field label="Karar referansı (isteğe bağlı)"><Input value={decisionRef} onChange={(e) => setDecisionRef(e.target.value)} /></Field>
+                                <Button disabled={act.pending || !agendaItem} onClick={() => act.run(() => api.governance.finalizeBudget(b.id, agendaItem, decisionRef), {
+                                    invalidate: ["budgets"], success: "Proje genel kurul kararına bağlandı ve kesinleşti",
+                                })}>Genel kurul kararıyla kesinleştir</Button>
+                                <p className="w-full text-xs text-gray-500">İşletme projesi genel kurulda onaylanır (KMK m.37, 7579 s. Kanun). Genel kurul projeyi değiştirerek kabul ettiyse kabul edilen içeriği yeni taslak olarak girip bu kararla kesinleştirin.</p>
                             </div>
                         )}
                         <Tabs tabs={[{ id: "items", label: "Kalemler" }, { id: "shares", label: "Daire payları" }, { id: "objections", label: "İtirazlar" }]} value={tab} onChange={setTab} />
@@ -148,7 +174,7 @@ function BudgetDetail({ id, onClose, canWrite }: { id: string; onClose: () => vo
                                     <Table rows={o.data} rowKey={(x) => x.id} columns={[
                                         { header: "Tarih", cell: (x) => date(x.submitted_at) },
                                         { header: "Gerekçe", cell: (x) => x.reason },
-                                        { header: "Süresinde", cell: (x) => (x.in_time ? <Badge tone="green">Evet</Badge> : <Badge tone="amber">Süre dışı</Badge>) },
+                                        { header: "Süre", cell: (x) => (x.in_time ? "—" : <Badge tone="amber">Eski 7 günlük süre dışı</Badge>) },
                                         { header: "Durum", cell: (x) => <StatusBadge value={x.status} map={OBJECTION_STATUS} /> },
                                         { header: "", cell: (x) => canWrite && x.status === "OPEN" ? (
                                             <div className="flex gap-1">

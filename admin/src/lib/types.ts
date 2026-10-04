@@ -250,7 +250,8 @@ export interface BudgetItem { id?: Id; category_id?: string; name: string; amoun
 export interface UnitShare { unit_id: Id; unit_name?: string; annual_kurus: number; monthly_kurus: number; breakdown?: Record<string, number> }
 export interface Budget {
     id: Id; period_year: number; status: string; total_amount: number; notified_at?: string; notice_method?: string;
-    objection_deadline?: string; finalized_at?: string; decision_ref?: string; note?: string;
+    objection_deadline?: string; approval_deadline?: string; approved_agenda_item_id?: string;
+    cap_base_budget_id?: string; cap_rate?: number; cap_amount?: number; finalized_at?: string; decision_ref?: string; note?: string;
     items?: BudgetItem[]; unit_shares?: UnitShare[]; open_objections: number;
 }
 export interface Objection { id: Id; unit_id?: string; user_id?: string; reason: string; submitted_at: string; status: string; resolution?: string; in_time: boolean }

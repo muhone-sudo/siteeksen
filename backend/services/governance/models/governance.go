@@ -9,9 +9,13 @@ import "time"
 
 // BudgetStatus değerleri.
 const (
-	BudgetDraft     = "DRAFT"    // hazırlanıyor
-	BudgetNotified  = "NOTIFIED" // tebliğ edildi, itiraz süresi işliyor
-	BudgetFinal     = "FINAL"    // kesinleşti — İİK m.68 anlamında belge
+	BudgetDraft = "DRAFT" // hazırlanıyor
+	// NOTIFIED: geçici işletme projesi olarak bildirildi; genel kurulda en geç
+	// üç ay içinde karara bağlanmalı. Onaylanıncaya kadar avans dayanağıdır
+	// (KMK m.35/d) ama kesinleşmiş proje DEĞİLDİR (7579 s. Kanun).
+	BudgetNotified = "NOTIFIED"
+	// FINAL: genel kurulda kabul edildi — İİK m.68 anlamında belge (m.37).
+	BudgetFinal     = "FINAL"
 	BudgetCancelled = "CANCELLED"
 )
 
@@ -47,14 +51,37 @@ type Budget struct {
 	PreparedAt        *time.Time   `json:"prepared_at,omitempty"`
 	NotifiedAt        *time.Time   `json:"notified_at,omitempty"`
 	NoticeMethod      string       `json:"notice_method,omitempty"`
-	ObjectionDeadline *time.Time   `json:"objection_deadline,omitempty"`
-	FinalizedAt       *time.Time   `json:"finalized_at,omitempty"`
-	DecisionRef       string       `json:"decision_ref,omitempty"`
+	// ObjectionDeadline yalnızca 22/5/2026'dan önce tebliğ edilen projelerde
+	// doludur (eski m.37/2 yedi günlük itiraz süresi).
+	ObjectionDeadline *time.Time `json:"objection_deadline,omitempty"`
+	// ApprovalDeadline: geçici projenin genel kurulda karara bağlanacağı son gün.
+	ApprovalDeadline     *time.Time `json:"approval_deadline,omitempty"`
+	ApprovedAgendaItemID string     `json:"approved_agenda_item_id,omitempty"`
+	// Geçici proje tavanı (KMK m.37 son f.): dayanak proje, oran ve tavan.
+	CapBaseBudgetID string       `json:"cap_base_budget_id,omitempty"`
+	CapRate         *float64     `json:"cap_rate,omitempty"`
+	CapAmount       *float64     `json:"cap_amount,omitempty"`
+	FinalizedAt     *time.Time   `json:"finalized_at,omitempty"`
+	DecisionRef     string       `json:"decision_ref,omitempty"`
 	Note              string       `json:"note,omitempty"`
 	Items             []BudgetItem `json:"items,omitempty"`
 	UnitShares        []UnitShare  `json:"unit_shares,omitempty"`
-	// OpenObjections, kesinleştirmeyi engelleyen açık itiraz sayısıdır.
+	// OpenObjections, genel kurulda görüşülmesi gereken açık itiraz sayısıdır.
 	OpenObjections int `json:"open_objections"`
+}
+
+// FinalizeBudgetInput: projeyi kabul eden genel kurul gündem maddesi (zorunlu).
+type FinalizeBudgetInput struct {
+	AgendaItemID string `json:"agenda_item_id"`
+	DecisionRef  string `json:"decision_ref"`
+}
+
+// ProvisionalCap, geçici işletme projesi tavanının hesabıdır (KMK m.37 son f.).
+type ProvisionalCap struct {
+	BaseBudgetID string
+	BaseTotal    float64
+	Rate         float64
+	Cap          float64
 }
 
 // CreateBudgetInput, yeni işletme projesi girdisidir.

@@ -22,6 +22,10 @@ var (
 	ErrProxyLimitExceeded = errors.New("vekâlet sınırı aşıldı")
 	// ErrUnknownDistribution, tanınmayan dağıtım türü.
 	ErrUnknownDistribution = errors.New("bilinmeyen dağıtım türü")
+	// ErrProvisionalCapExceeded: geçici işletme projesi yeniden değerleme tavanını aşıyor (KMK m.37 son f.).
+	ErrProvisionalCapExceeded = errors.New("geçici işletme projesi yasal tavanı aşıyor (KMK m.37)")
+	// ErrRevaluationRateMissing: tavan için gereken yeniden değerleme oranı sistemde yok.
+	ErrRevaluationRateMissing = errors.New("yeniden değerleme oranı tanımlı değil")
 )
 
 // ValidationError, istemci girdisinin kurala uymadığını bildirir (422).
@@ -193,18 +197,73 @@ func (s *Service) distributionShares(kind string, units []repository.Unit) ([]mo
 	return out, nil
 }
 
-// NotifyBudget, projeyi tebliğ edilmiş sayar ve itiraz süresini başlatır (m.37/2).
+// NotifyBudget, projeyi GEÇİCİ işletme projesi olarak bildirir (KMK m.37/2,
+// 7579 s. Kanun): genel kurulda en geç üç ay içinde karara bağlanmalıdır.
+//
+// Tavan (m.37 son f.): yürürlükteki (genel kurulda kabul edilmiş) bir proje
+// varsa, geçici projenin bedeli o projenin bedelinin bir önceki yıla ilişkin
+// yeniden değerleme oranı kadar artırılmış hâlini AŞAMAZ. Oran ilan edilmemiş ya
+// da sisteme girilmemişse tavan uydurulmaz; işlem nedeniyle reddedilir.
 func (s *Service) NotifyBudget(ctx context.Context, propertyID, budgetID string, in models.NotifyBudgetInput) (*models.Budget, error) {
-	days, err := s.params.Int(ctx, propertyID, legalparams.BudgetObjectionDays, time.Now())
+	b, err := s.repo.GetBudget(ctx, propertyID, budgetID)
 	if err != nil {
 		return nil, err
 	}
-	return s.repo.NotifyBudget(ctx, propertyID, budgetID, in.Method, days)
+	if b.Status != models.BudgetDraft {
+		return nil, repository.ErrBudgetNotDraft
+	}
+	months, err := s.params.Int(ctx, propertyID, legalparams.BudgetGAApprovalMonths, time.Now())
+	if err != nil {
+		return nil, err
+	}
+	cap, err := s.provisionalCap(ctx, propertyID, b)
+	if err != nil {
+		return nil, err
+	}
+	return s.repo.NotifyBudget(ctx, propertyID, budgetID, in.Method, months, cap)
 }
 
-// FinalizeBudget, itiraz süresi dolduktan sonra projeyi kesinleştirir.
-func (s *Service) FinalizeBudget(ctx context.Context, propertyID, budgetID, decisionRef string) (*models.Budget, error) {
-	return s.repo.FinalizeBudget(ctx, propertyID, budgetID, decisionRef)
+// provisionalCap, geçici proje tavanını hesaplar ve aşılmışsa reddeder.
+// Dayanak proje yoksa nil döner (tavan uygulanmaz).
+func (s *Service) provisionalCap(ctx context.Context, propertyID string, b *models.Budget) (*models.ProvisionalCap, error) {
+	baseID, baseTotal, ok, err := s.repo.CapBaseBudget(ctx, propertyID, b.PeriodYear)
+	if err != nil || !ok {
+		return nil, err
+	}
+	// Oran, dönemin 1 Ocak'ında yürürlükte olan (bir önceki yıla ilişkin) orandır.
+	on := time.Date(b.PeriodYear, 1, 1, 12, 0, 0, 0, time.Local)
+	rate, err := s.params.Decimal(ctx, propertyID, legalparams.RevaluationRate, on)
+	if err != nil {
+		var nf *legalparams.ErrNotFound
+		if errors.As(err, &nf) {
+			return nil, fmt.Errorf("%w: %d dönemi için %d yılı yeniden değerleme oranı sistemde yok. "+
+				"Oran Hazine ve Maliye Bakanlığınca ilan edilip girilene kadar geçici proje bildirilemez; "+
+				"proje doğrudan genel kurulda kabul edilebilir", ErrRevaluationRateMissing, b.PeriodYear, b.PeriodYear-1)
+		}
+		return nil, err
+	}
+	// Tavan kuruşa AŞAĞI yuvarlanır: tavanı yukarı yuvarlamak yasal sınırı aşmak olurdu.
+	capDec := decimal.NewFromFloat(baseTotal).Mul(decimal.NewFromInt(1).Add(rate)).RoundDown(2)
+	if decimal.NewFromFloat(b.TotalAmount).GreaterThan(capDec) {
+		return nil, fmt.Errorf("%w: geçici proje toplamı %s TL, yürürlükteki proje %s TL; "+
+			"%%%s yeniden değerleme oranıyla tavan %s TL. Daha yüksek bütçe yalnızca genel kurul kararıyla kabul edilebilir",
+			ErrProvisionalCapExceeded, decimal.NewFromFloat(b.TotalAmount).StringFixed(2),
+			decimal.NewFromFloat(baseTotal).StringFixed(2), rate.Mul(decimal.NewFromInt(100)).StringFixed(2), capDec.StringFixed(2))
+	}
+	r, _ := rate.Float64()
+	c, _ := capDec.Float64()
+	return &models.ProvisionalCap{BaseBudgetID: baseID, BaseTotal: baseTotal, Rate: r, Cap: c}, nil
+}
+
+// FinalizeBudget, projeyi genel kurulda kabul edilmiş gündem maddesine bağlayarak
+// kesinleştirir (KMK m.37, 7579 s. Kanun). Gündem maddesi zorunludur.
+func (s *Service) FinalizeBudget(ctx context.Context, propertyID, budgetID string, in models.FinalizeBudgetInput) (*models.Budget, error) {
+	in.AgendaItemID = strings.TrimSpace(in.AgendaItemID)
+	if in.AgendaItemID == "" {
+		return nil, invalid("İşletme projesi genel kurulda onaylanır (KMK m.37, 7579 s. Kanun): " +
+			"projeyi kabul eden gündem maddesi (agenda_item_id) zorunludur")
+	}
+	return s.repo.FinalizeBudget(ctx, propertyID, budgetID, in.AgendaItemID, strings.TrimSpace(in.DecisionRef))
 }
 
 // GetBudget / ListBudgets / itiraz işlemleri doğrudan repository'ye devredilir.

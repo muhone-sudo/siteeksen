@@ -31,12 +31,13 @@ func mapError(c *gin.Context, err error, op string) {
 		c.JSON(http.StatusConflict, gin.H{"error": "Bu dönem için zaten bir işletme projesi var"})
 	case errors.Is(err, repository.ErrBudgetNotDraft):
 		c.JSON(http.StatusConflict, gin.H{"error": "Yalnızca taslak durumundaki proje tebliğ edilebilir"})
-	case errors.Is(err, repository.ErrBudgetNotNotified):
-		c.JSON(http.StatusConflict, gin.H{"error": "Kesinleştirmeden önce proje tebliğ edilmelidir (KMK m.37)"})
-	case errors.Is(err, repository.ErrObjectionPeriodOpen):
-		c.JSON(http.StatusConflict, gin.H{"error": "İtiraz süresi dolmadan proje kesinleşemez (KMK m.37/2)"})
-	case errors.Is(err, repository.ErrOpenObjections):
-		c.JSON(http.StatusConflict, gin.H{"error": "Açık itirazlar çözülmeden proje kesinleşemez"})
+	case errors.Is(err, repository.ErrBudgetNotApprovable):
+		c.JSON(http.StatusConflict, gin.H{"error": "Yalnızca taslak ya da geçici işletme projesi genel kurul kararına bağlanabilir"})
+	case errors.Is(err, repository.ErrAgendaNotAccepted):
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "Gündem maddesi bu sitenin yapılmış bir genel kurulunda kabul edilmiş değil. " +
+			"İşletme projesi genel kurulda onaylanır (KMK m.37, 7579 s. Kanun)"})
+	case errors.Is(err, repository.ErrAgendaItemUsed):
+		c.JSON(http.StatusConflict, gin.H{"error": "Bu gündem maddesi başka bir işletme projesine bağlanmış"})
 	case errors.Is(err, repository.ErrAssemblyNotOpen):
 		c.JSON(http.StatusConflict, gin.H{"error": "Toplantı bu işlem için uygun durumda değil"})
 	case errors.Is(err, repository.ErrNotAttending):
@@ -60,7 +61,8 @@ func mapError(c *gin.Context, err error, op string) {
 	case errors.Is(err, repository.ErrBookClosed):
 		c.JSON(http.StatusConflict, gin.H{"error": "Defter kapatılmış; yeni kayıt eklenemez"})
 	case errors.Is(err, service.ErrNoticeTooLate), errors.Is(err, service.ErrProxyLimitExceeded),
-		errors.Is(err, service.ErrUnknownDistribution):
+		errors.Is(err, service.ErrUnknownDistribution), errors.Is(err, service.ErrProvisionalCapExceeded),
+		errors.Is(err, service.ErrRevaluationRateMissing):
 		// Mevzuat sınırı ihlali: kullanıcıya NEDENİ ile birlikte gösterilir.
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
 	default:
@@ -146,19 +148,20 @@ func NotifyBudget(svc *service.Service) gin.HandlerFunc {
 
 func FinalizeBudget(svc *service.Service) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		var in struct {
-			DecisionRef string `json:"decision_ref"`
+		var in models.FinalizeBudgetInput
+		if err := c.ShouldBindJSON(&in); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Geçersiz istek formatı"})
+			return
 		}
-		_ = c.ShouldBindJSON(&in)
-		b, err := svc.FinalizeBudget(c.Request.Context(), c.GetString("property_id"), c.Param("id"), in.DecisionRef)
+		b, err := svc.FinalizeBudget(c.Request.Context(), c.GetString("property_id"), c.Param("id"), in)
 		if err != nil {
 			mapError(c, err, "işletme projesi kesinleştirme")
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{
 			"budget": b,
-			"note": "Kesinleşen işletme projesi, İİK m.68 anlamında belge niteliğindedir " +
-				"(KMK m.37/son); icra takibine dayanak yapılabilir.",
+			"note": "Genel kurulda kabul edilen işletme projesi, İİK m.68 anlamında belge niteliğindedir " +
+				"(KMK m.37); icra takibine dayanak yapılabilir.",
 		})
 	}
 }
@@ -181,8 +184,8 @@ func AddObjection(svc *service.Service) gin.HandlerFunc {
 		}
 		resp := gin.H{"objection": o}
 		if !o.InTime {
-			resp["warning"] = "Bu itiraz yasal süre (KMK m.37/2) dışında yapılmıştır; " +
-				"süresinde yapılmayan itiraz projenin kesinleşmesini engellemez."
+			resp["warning"] = "Bu proje 22/5/2026 öncesi kurala göre tebliğ edilmişti ve itiraz yedi günlük " +
+				"süre dışında yapıldı; genel kurulda görüşülmesine engel değildir."
 		}
 		c.JSON(http.StatusCreated, resp)
 	}

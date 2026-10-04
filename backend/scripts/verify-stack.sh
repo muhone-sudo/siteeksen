@@ -950,21 +950,32 @@ if [ "$GUP2" = "1" ] && [ -n "${MGR:-}" ]; then
     [ "$SPREAD" -le 1 ] 2>/dev/null && ok "eşit dağıtımda daireler arası fark <= 1 kuruş" \
       || bad "eşit dağıtımda fark $SPREAD kuruş"
 
-    # Tebliğ edilmeden kesinleştirilemez (m.37)
+    # 7579 s. Kanun (RG 22/5/2026): proje GENEL KURULDA onaylanır. Gündem maddesi
+    # olmadan yönetici tek başına kesinleştiremez.
     SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$GURL/budgets/$BID/finalize" -H "$GA" -H "$GJ" -d '{}')
-    [ "$SC" = "409" ] && ok "tebliğ edilmeden kesinleştirme engellendi → 409" || bad "tebliğsiz kesinleştirme → $SC"
+    [ "$SC" = "422" ] && ok "genel kurul kararı (gündem maddesi) olmadan kesinleştirme engellendi → 422 (KMK m.37, 7579)" \
+      || bad "kararsız kesinleştirme → $SC"
 
     SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$GURL/budgets/$BID/notify" -H "$GA" -H "$GJ" \
       -d '{"method":"TAAHHUTLU_MEKTUP"}')
-    [ "$SC" = "200" ] && ok "işletme projesi tebliğ edildi" || bad "tebliğ → $SC"
+    [ "$SC" = "200" ] && ok "geçici işletme projesi bildirildi" || bad "bildirim → $SC"
 
-    # İtiraz süresi (7 gün) dolmadan kesinleşemez (m.37/2)
-    SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$GURL/budgets/$BID/finalize" -H "$GA" -H "$GJ" -d '{}')
-    [ "$SC" = "409" ] && ok "itiraz süresi dolmadan kesinleştirme engellendi → 409" \
-      || bad "süre dolmadan kesinleştirme → $SC"
+    # Bildirim GEÇİCİ projedir: üç ay içinde genel kurulda karara bağlanmalı;
+    # mülga yedi günlük itiraz süresi artık yazılmaz.
+    ROW=$($PSQL -t -A -c "SELECT approval_deadline = (CURRENT_DATE + interval '3 months')::date, objection_deadline IS NULL
+                          FROM operating_budgets WHERE id='$BID';")
+    [ "$ROW" = "t|t" ] && ok "genel kurul son günü bildirimden 3 ay sonra; mülga 7 günlük itiraz süresi yazılmadı" \
+      || bad "geçici proje süreleri: $ROW"
+    PAR=$($PSQL -t -A -c "SELECT effective_to FROM legal_parameters WHERE code='BUDGET_OBJECTION_DAYS' AND property_id IS NULL;")
+    [ "$PAR" = "2026-05-22" ] && ok "BUDGET_OBJECTION_DAYS yürürlüğü 22/5/2026'da kapandı (geçmiş projeler için korunuyor)" \
+      || bad "itiraz süresi parametresi kapanmadı: $PAR"
 
-    DL=$($PSQL -t -A -c "SELECT (objection_deadline - CURRENT_DATE) FROM operating_budgets WHERE id='$BID';")
-    [ "$DL" = "7" ] && ok "itiraz süresi 7 gün olarak işlendi (KMK m.37/2)" || bad "itiraz süresi $DL gün"
+    # Kabul edilmemiş / var olmayan gündem maddesiyle kesinleştirilemez
+    SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$GURL/budgets/$BID/finalize" -H "$GA" -H "$GJ" \
+      -d '{"agenda_item_id":"00000000-0000-0000-0000-000000000000"}')
+    ST=$($PSQL -t -A -c "SELECT status FROM operating_budgets WHERE id='$BID';")
+    [ "$SC" = "422" ] && [ "$ST" = "NOTIFIED" ] && ok "kabul edilmiş gündem maddesi olmadan proje kesinleşmedi → 422" \
+      || bad "uydurma gündem maddesiyle kesinleştirme → $SC ($ST)"
   fi
 
   # --- Genel kurul (KMK m.29-30) ---
@@ -5442,6 +5453,37 @@ if [ -n "$A2" ] && [ -n "$ITEM2" ]; then
   VER=$(curl -s "$GU/books/$BID/verify" -H "$GA")
   echo "$VER" | grep -q '"valid":true' && ok "otomatik kayıttan sonra defter zinciri geçerli" || bad "defter zinciri: $VER"
 
+  # 7579 s. Kanun: işletme projesi genel kurul kararıyla kesinleşir; geçici proje
+  # yeniden değerleme tavanını (KMK m.37 son f.) aşamaz.
+  mkbud() { curl -s -X POST "$GU/budgets" -H "$GA" -H "$J" -d "{\"period_year\":$1,\"items\":[{\"name\":\"Kapici\",\"amount\":$2,\"distribution_type\":\"EQUAL\"}]}" \
+    | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4; }
+  B25=$(mkbud 2025 100000)
+  FIN=$(curl -s -X POST "$GU/budgets/$B25/finalize" -H "$GA" -H "$J" -d "{\"agenda_item_id\":\"$ITEM2\"}")
+  ROW=$($PSQL -t -A -c "SELECT status, approved_agenda_item_id, decision_ref FROM operating_budgets WHERE id='$B25';")
+  echo "$ROW" | grep -q "^FINAL|$ITEM2|Kat malikleri kurulu .*gündem 1" && echo "$FIN" | grep -q "İİK m.68" \
+    && ok "proje, yapılmış genel kurulda KABUL edilen gündem maddesine bağlanarak kesinleşti (karar referansı üretildi)" \
+    || bad "genel kurul kararıyla kesinleştirme: $ROW — $FIN"
+  B26X=$(mkbud 2026 125500)
+  SC=$(code -X POST "$GU/budgets/$B26X/finalize" -H "$GA" -H "$J" -d "{\"agenda_item_id\":\"$ITEM2\"}")
+  [ "$SC" = "409" ] && ok "aynı gündem maddesi ikinci projeyi onaylamak için kullanılamıyor → 409" || bad "gündem maddesi tekrar kullanımı → $SC"
+  # 100.000 × 1,2549 = 125.490 TL tavan; 125.500 TL geçici proje olarak bildirilemez
+  NT=$(curl -s -X POST "$GU/budgets/$B26X/notify" -H "$GA" -H "$J" -d '{"method":"TAAHHUTLU_MEKTUP"}')
+  ST=$($PSQL -t -A -c "SELECT status FROM operating_budgets WHERE id='$B26X';")
+  echo "$NT" | grep -q "125490.00" && echo "$NT" | grep -q "25.49" && [ "$ST" = "DRAFT" ] \
+    && ok "yeniden değerleme tavanını (%25,49 → 125.490,00 TL) aşan geçici proje bildirilemedi; taslak kaldı" \
+    || bad "geçici proje tavanı: $ST — $NT"
+  $PSQL -c "DELETE FROM operating_budgets WHERE id='$B26X';" >/dev/null
+  B26=$(mkbud 2026 125490)
+  SC=$(code -X POST "$GU/budgets/$B26/notify" -H "$GA" -H "$J" -d '{"method":"TAAHHUTLU_MEKTUP"}')
+  ROW=$($PSQL -t -A -c "SELECT status, cap_base_budget_id, cap_rate::text, cap_amount::text FROM operating_budgets WHERE id='$B26';")
+  [ "$SC" = "200" ] && [ "$ROW" = "NOTIFIED|$B25|0.254900|125490.00" ] \
+    && ok "tavana eşit geçici proje bildirildi; dayanak proje, oran ve tavan kayda yazıldı" || bad "tavan içi bildirim → $SC ($ROW)"
+  # 2026 yılı oranı henüz ilan edilmediği için 2027 geçici projesinin tavanı uydurulmaz
+  B27=$(mkbud 2027 1000)
+  NT=$(curl -s -X POST "$GU/budgets/$B27/notify" -H "$GA" -H "$J" -d '{"method":"TAAHHUTLU_MEKTUP"}')
+  echo "$NT" | grep -q "2026 yılı yeniden değerleme oranı sistemde yok" \
+    && ok "ilan edilmemiş yeniden değerleme oranıyla geçici proje bildirilmiyor (tavan uydurulmuyor) → 422" \
+    || bad "oransız tavan: $NT"
   # Defter kapalıysa karar da yazılmaz: madde PENDING kalır (yarım işlem yok)
   ASM3=$(curl -s -X POST "$GU/assemblies" -H "$GA" -H "$J" -d '{"kind":"ORDINARY","call_number":1,
     "scheduled_at":"2032-07-01T18:00:00Z","agenda_items":[{"title":"Kapali defter sinamasi"}]}')
@@ -5875,6 +5917,16 @@ KS2=$($PSQL -t -A -c "INSERT INTO kvkk_requests (property_id, user_id, request_t
   VALUES ('$DEMO_PROPERTY','$MGRID','ERASURE','suresi gecmis basvuru',CURRENT_DATE - 2) RETURNING id;" | head -1)
 KS3=$($PSQL -t -A -c "INSERT INTO kvkk_requests (property_id, user_id, request_type, description, due_date, status, response)
   VALUES ('$DEMO_PROPERTY','$MGRID','INFO','sonuclanmis',CURRENT_DATE - 2,'ANSWERED','yanit verildi') RETURNING id;" | head -1)
+# Geçici işletme projesi genel kurul süresi (KMK m.37, 7579): 10 gün kalan, 2 gün geçen,
+# 60 gün kalan (pencere dışı) ve kesinleşmiş (süre geçmiş görünse de) proje
+BA1=$($PSQL -t -A -c "INSERT INTO operating_budgets (property_id, period_year, status, approval_deadline)
+  VALUES ('$DEMO_PROPERTY',2041,'NOTIFIED',CURRENT_DATE + 10) RETURNING id;" | head -1)
+BA2=$($PSQL -t -A -c "INSERT INTO operating_budgets (property_id, period_year, status, approval_deadline)
+  VALUES ('$DEMO_PROPERTY',2042,'NOTIFIED',CURRENT_DATE - 2) RETURNING id;" | head -1)
+BA3=$($PSQL -t -A -c "INSERT INTO operating_budgets (property_id, period_year, status, approval_deadline)
+  VALUES ('$DEMO_PROPERTY',2043,'NOTIFIED',CURRENT_DATE + 60) RETURNING id;" | head -1)
+BA4=$($PSQL -t -A -c "INSERT INTO operating_budgets (property_id, period_year, status, approval_deadline)
+  VALUES ('$DEMO_PROPERTY',2044,'FINAL',CURRENT_DATE - 5) RETURNING id;" | head -1)
 N=$(qapp "SELECT count(*) FROM scheduler_property_ids();")
 P=$(qapp "SELECT count(*) FROM properties;")
 [ "${N:-0}" -ge 2 ] && [ "$P" = "0" ] && ok "uygulama rolü site KİMLİKLERİNİ alabiliyor ($N) ama properties tablosu kapsamsız hâlâ kapalı" \
@@ -5915,6 +5967,12 @@ KC=$($PSQL -t -A -c "SELECT count(*) FROM notifications WHERE payload->>'kvkk_re
 [ "${KA:-0}" -ge 1 ] && [ "${KB:-0}" -ge 1 ] && [ "$KC" = "0" ] \
   && ok "KVKK yanıt süresi dolmak üzere/dolmuş açık başvuru yönetime bildirildi; sonuçlanmış olana yok" || bad "KVKK süre hatırlatması: $KA / $KB / $KC"
 
+BS=$($PSQL -t -A -c "SELECT count(*) || '|' || COALESCE(max(body),'') FROM notifications WHERE payload->>'budget_id'='$BA1' AND topic='budget.approval.soon';")
+BO=$($PSQL -t -A -c "SELECT count(*) || '|' || COALESCE(max(body),'') FROM notifications WHERE payload->>'budget_id'='$BA2' AND topic='budget.approval.overdue';")
+BN=$($PSQL -t -A -c "SELECT count(*) FROM notifications WHERE payload->>'budget_id' IN ('$BA3','$BA4');")
+[ "${BS%%|*}" -ge 1 ] && echo "$BS" | grep -q "10 gün kaldı" && [ "${BO%%|*}" -ge 1 ] && echo "$BO" | grep -q "kendiliğinden\|kesinleşmez" && [ "$BN" = "0" ] \
+  && ok "geçici işletme projesinin genel kurul süresi (KMK m.37) yaklaşan/geçen proje için yönetime bildirildi; uzak ve kesinleşmiş olana yok" \
+  || bad "işletme projesi süre hatırlatması: '$BS' / '$BO' / gereksiz $BN"
 # Sözleşme: ihbar son günü geçmiş → yönetim; uzak sözleşme → yok; süresi dolmuş ACTIVE → yönetim
 NMGR=$($PSQL -t -A -c "SELECT count(*) FROM notifications WHERE payload->>'contract_id'='$CN' AND topic='contract.notice';")
 NOUT=$($PSQL -t -A -c "SELECT count(*) FROM notifications n WHERE payload->>'contract_id'='$CN'

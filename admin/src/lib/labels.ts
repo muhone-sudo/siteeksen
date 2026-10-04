@@ -37,7 +37,7 @@ export const PATROL_STATUS: Map = { IN_PROGRESS: ["Sürüyor", "blue"], COMPLETE
 export const BULLETIN_STATUS: Map = {
     PENDING: ["Onay bekliyor", "amber"], APPROVED: ["Yayında", "green"], REJECTED: ["Reddedildi", "red"], EXPIRED: ["Süresi doldu", "gray"], CLOSED: ["Kapatıldı", "gray"],
 };
-export const BUDGET_STATUS: Map = { DRAFT: ["Taslak", "gray"], NOTIFIED: ["Tebliğ edildi", "amber"], FINAL: ["Kesinleşti", "green"], CANCELLED: ["İptal", "red"] };
+export const BUDGET_STATUS: Map = { DRAFT: ["Taslak", "gray"], NOTIFIED: ["Geçici proje — genel kurul bekliyor", "amber"], FINAL: ["Genel kurulda kabul edildi", "green"], CANCELLED: ["İptal", "red"] };
 export const ASSEMBLY_STATUS: Map = { PLANNED: ["Planlandı", "gray"], NOTIFIED: ["Çağrı yapıldı", "blue"], HELD: ["Yapıldı", "green"], CANCELLED: ["İptal", "red"] };
 export const DECISION_STATUS: Map = { PENDING: ["Karar bekliyor", "amber"], ACCEPTED: ["Kabul", "green"], REJECTED: ["Ret", "red"], POSTPONED: ["Ertelendi", "gray"] };
 export const OBJECTION_STATUS: Map = { OPEN: ["Açık", "amber"], ACCEPTED: ["Kabul", "green"], REJECTED: ["Ret", "red"], WITHDRAWN: ["Geri çekildi", "gray"] };

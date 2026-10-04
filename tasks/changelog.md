@@ -12,6 +12,32 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-04 — İŞLETME PROJESİ 7579 SAYILI KANUNA UYUMLU (migration 036) (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **1098/1098** (gündem maddesiz kesinleştirme 422, geçici proje 3 aylık
+> genel kurul süresi, mülga 7 günlük süre yazılmıyor, kabul edilmiş gündem maddesiyle kesinleşme, aynı maddenin
+> ikinci kez kullanımı 409, %25,49 tavanı aşan geçici proje reddi, oranı ilan edilmemiş yılda tavan uydurulmuyor,
+> zamanlayıcı süre hatırlatması); `verify-mobile.sh` 10/10; panel tsc/lint temiz.
+
+- **Mevzuat değişikliği:** 7579 s. Kanun (RG 22/5/2026, sayı 33261) KMK m.35, 37 ve 70'i değiştirdi. İşletme projesi
+  artık **genel kurulda onaylanır**; "tebliğden itibaren 7 gün içinde itiraz edilmezse kesinleşir" cümlesi **mülga**.
+  Sistem bu tarihten sonra da eski kuralı uyguluyordu: yönetici 7 gün sonra projeyi tek başına "kesinleşti — İİK m.68
+  belgesi" yapabiliyordu. Kaynak: mevzuat.gov.tr konsolide KMK metni.
+- Bildirilen proje artık **geçici işletme projesidir** (onaylanana kadar avans dayanağı, m.35/d); en geç **3 ay**
+  içinde genel kurulda karara bağlanmalı (`BUDGET_GA_APPROVAL_MONTHS`, kanunla sabit). Kesinleştirme, bu sitenin
+  yapılmış toplantısında **kabul edilmiş gündem maddesi** (`agenda_item_id`) ister; karar referansı otomatik üretilir.
+- **Geçici proje tavanı (m.37 son f.):** yürürlükteki kabul edilmiş proje varsa geçici projenin toplamı, onun bir önceki
+  yıla ilişkin VUK mük. m.298 yeniden değerleme oranı kadar artırılmış tutarını aşamaz. `REVALUATION_RATE` 2026 dönemi
+  için 0,2549 (VUK Genel Tebliği Sıra No 585, RG 27/11/2025). Oran ilan edilmemiş yılda tavan uydurulmaz, işlem
+  gerekçesiyle reddedilir. Dayanak proje, oran ve tavan kayda yazılır.
+- `BUDGET_OBJECTION_DAYS` yürürlüğü 22/5/2026'da kapatıldı (eski projelerin itiraz süresi geçmişe dönük doğru kalır).
+  İtirazlar genel kurulda görüşülecek görüş olarak kaydedilmeye devam eder; kesinleşmeyi engellemez.
+- `cmd/scheduler`: `budget.approval` — genel kurul son gününe 30 gün kala (çağrı için 15 gün gerekir, m.29) ve süre
+  aşımında yönetime hatırlatma.
+- Panel: "Geçici proje olarak bildir" + "Genel kurul kararıyla kesinleştir" (yapılmış toplantı → kabul edilen madde);
+  tavan ve karar referansı gösterilir. Yönetici uygulaması: durum etiketleri ve genel kurul son günü.
+- Kalan: KMK m.70 (toplu yapı yönetim planı değişikliği 4/5 → 2/3) sistemde toplu yapı kavramı olmadığından uygulanmadı.
+
 ### 2026-10-04 — KVKK İLGİLİ KİŞİ BAŞVURULARI (migration 035, FAZ 7.8) (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **1090/1090** (başvuru, 30 günlük son gün, doğrulama, yönetim bildirimi,
