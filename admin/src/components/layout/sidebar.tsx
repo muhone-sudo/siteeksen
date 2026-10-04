@@ -30,6 +30,7 @@ const sections: { title: string; items: NavItem[] }[] = [
             { name: "Talepler", href: "/dashboard/requests", icon: MessageSquare },
             { name: "Tadilat İzinleri", href: "/dashboard/renovations", icon: Wrench },
             { name: "Kural İhlalleri", href: "/dashboard/violations", icon: AlertTriangle },
+            { name: "Acil Durum", href: "/dashboard/emergency", icon: ShieldCheck },
             { name: "Duyurular", href: "/dashboard/announcements", icon: Bell },
             { name: "İlan Panosu", href: "/dashboard/bulletins", icon: Megaphone },
             { name: "Anketler", href: "/dashboard/surveys", icon: Vote },

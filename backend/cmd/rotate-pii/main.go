@@ -162,12 +162,36 @@ func rotateProperty(ctx context.Context, pool *pgxpool.Pool, vault *pii.Vault, p
 	if err := rows.Err(); err != nil {
 		return 0, err
 	}
-	if len(pending) == 0 {
+	// Sakin acil bilgi kartı (040): özel nitelikli veri, arama anahtarı yok.
+	type cardRow struct{ id, enc string }
+	var cards []cardRow
+	crows, err := tx.Query(ctx, `
+		SELECT id::text, needs_encrypted FROM resident_emergency_cards
+		WHERE property_id = $1::uuid FOR UPDATE`, propertyID)
+	if err != nil {
+		return 0, err
+	}
+	for crows.Next() {
+		var r cardRow
+		if err := crows.Scan(&r.id, &r.enc); err != nil {
+			crows.Close()
+			return 0, err
+		}
+		if vault.NeedsRotation(r.enc) {
+			cards = append(cards, r)
+		}
+	}
+	crows.Close()
+	if err := crows.Err(); err != nil {
+		return 0, err
+	}
+	total := len(pending) + len(cards)
+	if total == 0 {
 		return 0, nil
 	}
-	fmt.Printf("Site %s: %d kayıt birincil anahtarla yazılmamış.\n", propertyID, len(pending))
+	fmt.Printf("Site %s: %d kayıt birincil anahtarla yazılmamış (%d personel, %d acil kartı).\n", propertyID, total, len(pending), len(cards))
 	if dryRun {
-		return len(pending), nil
+		return total, nil
 	}
 
 	for _, r := range pending {
@@ -199,10 +223,22 @@ func rotateProperty(ctx context.Context, pool *pgxpool.Pool, vault *pii.Vault, p
 			return 0, fmt.Errorf("personel %s: yazılamadı: %w", r.id, err)
 		}
 	}
+	for _, r := range cards {
+		enc, _, err := reencrypt(vault, r.enc)
+		if err != nil {
+			return 0, fmt.Errorf("acil kartı %s: %w", r.id, err)
+		}
+		if enc == nil {
+			continue
+		}
+		if _, err := tx.Exec(ctx, `UPDATE resident_emergency_cards SET needs_encrypted = $2 WHERE id = $1::uuid`, r.id, *enc); err != nil {
+			return 0, fmt.Errorf("acil kartı %s: yazılamadı: %w", r.id, err)
+		}
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return 0, err
 	}
-	return len(pending), nil
+	return total, nil
 }
 
 // reencrypt, alanı birincil anahtarla yeniden şifreler. Alan boşsa ya da zaten
@@ -235,8 +271,11 @@ func report(ctx context.Context, pool *pgxpool.Pool, vault *pii.Vault, propertie
 		rows, err := tx.Query(ctx, `
 			SELECT CASE WHEN position('$' IN v) > 0 THEN split_part(v, '$', 1)
 			            ELSE '(eski biçim)' END, count(*)
-			FROM employees, LATERAL (VALUES (tc_number_encrypted), (bank_iban_encrypted)) AS f(v)
-			WHERE property_id = $1::uuid AND v IS NOT NULL AND v <> ''
+			FROM (SELECT v FROM employees, LATERAL (VALUES (tc_number_encrypted), (bank_iban_encrypted)) AS f(v)
+			      WHERE property_id = $1::uuid
+			      UNION ALL
+			      SELECT needs_encrypted FROM resident_emergency_cards WHERE property_id = $1::uuid) AS all_fields
+			WHERE v IS NOT NULL AND v <> ''
 			GROUP BY 1`, propertyID)
 		if err != nil {
 			_ = tx.Rollback(ctx)

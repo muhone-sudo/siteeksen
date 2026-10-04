@@ -65,6 +65,9 @@ func main() {
 	// Kural ihlali (FAZ 7.5).
 	registerViolations(r, pool, notifier)
 
+	// Acil durum ve afet (FAZ 7.3).
+	registerEmergency(r, pool, notifier)
+
 	// Requests (gerçek DB'ye bağlı)
 	requests := r.Group("/api/v1/requests")
 	requests.Use(middleware.AuthMiddleware(pool), middleware.AuditLog(pool, "request"))

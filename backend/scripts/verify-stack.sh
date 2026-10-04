@@ -3331,7 +3331,7 @@ step "26) Duyuru ve ilan panosu — mock'tan gerçeğe (FAZ 5, 15/22)"
 COMPORT=${VERIFY_COM_PORT:-18083}
 BULPORT=${VERIFY_BUL_PORT:-18088}
 DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_app DB_PASSWORD="$APPPW" DB_NAME=siteeksen \
-DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${COMPORT} \
+DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${COMPORT} PII_ENCRYPTION_KEY="$PIIKEY" \
   go run ./services/community >/tmp/verify-community.log 2>&1 &
 COM_PID=$!
 DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_app DB_PASSWORD="$APPPW" DB_NAME=siteeksen \
@@ -4691,7 +4691,7 @@ $PSQL -c "DELETE FROM resident_units WHERE unit_id='99999999-0000-0000-0000-0000
 #     A sitesinin yöneticisi, B sitesindeki talebin kimliğini bildiği takdirde
 #     onu iş akışında ilerletebiliyordu.
 DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_app DB_PASSWORD="$APPPW" DB_NAME=siteeksen \
-DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${COMPORT} \
+DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${COMPORT} PII_ENCRYPTION_KEY="$PIIKEY" \
   go run ./services/community >/tmp/verify-community2.log 2>&1 &
 COM_PID=$!
 CUP=0
@@ -4924,6 +4924,62 @@ if [ "$CUP" = "1" ]; then
   [ "$EN" = "0" ] && [ "$VN" = "1" ] && ok "ihlal olay geçmişi değiştirilemiyor, kayıt silinemiyor (KMK m.33 dosyası)" || bad "olay geçmişi korunmuyor: $EN / $VN"
   RC=$(curl -s "$VU" -H "Authorization: Bearer $MGR" | python3 -c "import json,sys; d=[v for v in json.load(sys.stdin)['data'] if v['id']=='$VM']; print(d[0]['unit_repeat_count'], d[0]['stage'], d[0]['reporter_name']!='')" 2>/dev/null)
   [ "$RC" = "1 WRITTEN_WARNING True" ] && ok "yönetim listesinde tekrar sayısı, kademe ve bildiren görünüyor" || bad "yönetim listesi: '$RC'"
+  # Acil durum ve afet (FAZ 7.3, 040)
+  EU="$CURL2/emergency"
+  SC1=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$EU/points" -H "Authorization: Bearer $MGR" -H "$JH" -d '{"kind":"ASSEMBLY_AREA","name":"Toplanma alanı","location":"B blok arkası otopark"}')
+  SC2=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$EU/points" -H "Authorization: Bearer $MGR" -H "$JH" -d '{"kind":"UYDURMA","name":"x","location":"y"}')
+  SC3=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$EU/points" -H "Authorization: Bearer $TEN" -H "$JH" -d '{"kind":"GAS_VALVE","name":"x","location":"y"}')
+  SC4=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$EU/contacts" -H "Authorization: Bearer $MGR" -H "$JH" -d '{"category":"UTILITY","name":"Doğalgaz acil","phone":"187"}')
+  INFO=$(curl -s "$EU/info" -H "Authorization: Bearer $TEN")
+  [ "$SC1" = "201" ] && [ "$SC2" = "422" ] && [ "$SC3" = "403" ] && [ "$SC4" = "201" ] && echo "$INFO" | grep -q 'B blok arkası' && echo "$INFO" | grep -q '"national_emergency":"112"' \
+    && ok "acil durum bilgi kartı: yönetim ekler, sakin görür (112 ile); sakin ekleyemez, geçersiz tür 422" || bad "bilgi kartı: $SC1 / $SC2 / $SC3 / $SC4 — $INFO"
+  FUT=$(date -d '+2 day' +%F)
+  SC1=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$EU/drills" -H "Authorization: Bearer $MGR" -H "$JH" -d "{\"kind\":\"EARTHQUAKE\",\"drill_date\":\"$FUT\",\"findings\":\"x\"}")
+  SC2=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$EU/drills" -H "Authorization: Bearer $MGR" -H "$JH" -d "{\"kind\":\"EARTHQUAKE\",\"drill_date\":\"$D0\",\"findings\":\"\"}")
+  SC3=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$EU/drills" -H "Authorization: Bearer $MGR" -H "$JH" -d "{\"kind\":\"EARTHQUAKE\",\"drill_date\":\"$D0\",\"participants\":42,\"findings\":\"C blok merdiven aydınlatması yetersiz\",\"corrective_actions\":\"Acil aydınlatma eklenecek\"}")
+  SC4=$(curl -s -o /dev/null -w '%{http_code}' "$EU/drills" -H "Authorization: Bearer $TEN")
+  [ "$SC1" = "422" ] && [ "$SC2" = "422" ] && [ "$SC3" = "201" ] && [ "$SC4" = "403" ] \
+    && ok "tatbikat raporu: gelecek tarih ve eksiklik alanı boş 422 (Acil Durumlar Yön. m.13); kaydedildi; sakin göremez" || bad "tatbikat: $SC1 / $SC2 / $SC3 / $SC4"
+  DD=$(qscoped "DELETE FROM emergency_drills RETURNING id;"); DN=$($PSQL -t -A -c "SELECT count(*) FROM emergency_drills WHERE property_id='$DEMO_PROPERTY';")
+  [ "${DN:-0}" -ge 1 ] && ok "tatbikat raporu uygulama rolünce silinemiyor" || bad "tatbikat kaydı silindi"
+  NEEDS="Tekerlekli sandalye kullanıyorum; tahliyede yardım gerekir"
+  SC1=$(curl -s -o /dev/null -w '%{http_code}' -X PUT "$EU/cards/me" -H "Authorization: Bearer $TEN" -H "$JH" -d "{\"unit_id\":\"$TUNIT\",\"needs\":\"$NEEDS\"}")
+  CV=$(curl -s "$EU/cards/me" -H "Authorization: Bearer $TEN" | python3 -c 'import json,sys; print(json.load(sys.stdin)["consent_version"])' 2>/dev/null)
+  SC2=$(curl -s -o /dev/null -w '%{http_code}' -X PUT "$EU/cards/me" -H "Authorization: Bearer $TEN" -H "$JH" \
+    -d "{\"unit_id\":\"$TUNIT\",\"needs\":\"$NEEDS\",\"household_count\":3,\"consent\":true,\"consent_version\":\"$CV\"}")
+  SC3=$(curl -s -o /dev/null -w '%{http_code}' -X PUT "$EU/cards/me" -H "Authorization: Bearer $TEN" -H "$JH" \
+    -d "{\"unit_id\":\"$OUNIT\",\"needs\":\"x\",\"consent\":true,\"consent_version\":\"$CV\"}")
+  ENC=$($PSQL -t -A -c "SELECT needs_encrypted FROM resident_emergency_cards WHERE user_id='$TENUID';")
+  [ "$SC1" = "422" ] && [ "$SC2" = "200" ] && [ "$SC3" = "422" ] && [ -n "$ENC" ] && ! echo "$ENC" | grep -q "Tekerlekli" && echo "$ENC" | grep -q '^k1\$' \
+    && ok "acil bilgi kartı açık rıza olmadan kaydedilmiyor (KVKK m.6/3-a); veritabanında şifreli (k1\$…); başka daireye yazılamıyor" || bad "acil kartı: $SC1 / $SC2 / $SC3 — '$ENC'"
+  MY=$(curl -s "$EU/cards/me" -H "Authorization: Bearer $TEN" | grep -c "Tekerlekli")
+  AB=$($PSQL -t -A -c "SELECT count(*) FROM audit_logs WHERE action='SENSITIVE_REVEAL';")
+  ML=$(curl -s "$EU/cards" -H "Authorization: Bearer $MGR")
+  AA=$($PSQL -t -A -c "SELECT count(*) FROM audit_logs WHERE action='SENSITIVE_REVEAL';")
+  XL=$(curl -s "$EU/cards" -H "Authorization: Bearer $XMGR" | grep -c "Tekerlekli")
+  SC=$(curl -s -o /dev/null -w '%{http_code}' "$EU/cards" -H "Authorization: Bearer $TEN")
+  [ "$MY" = "1" ] && echo "$ML" | grep -q "Tekerlekli" && [ "$AA" -gt "$AB" ] && [ "$XL" = "0" ] && [ "$SC" = "403" ] \
+    && ok "kart sahibine ve yönetime çözülmüş görünüyor; yönetimin her görüntülemesi ayrı denetim kaydı; başka site ve sakinler göremez" || bad "kart görünürlüğü: $MY / $AB→$AA / $XL / $SC"
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X DELETE "$EU/cards/me?unit_id=$TUNIT" -H "Authorization: Bearer $TEN")
+  CN=$($PSQL -t -A -c "SELECT count(*) FROM resident_emergency_cards WHERE user_id='$TENUID';")
+  [ "$SC" = "200" ] && [ "$CN" = "0" ] && ok "sakin kartını silince özel nitelikli veri gerçekten silindi (KVKK m.7)" || bad "kart silme: $SC / $CN"
+  CK=$(curl -s -X POST "$EU/checks" -H "Authorization: Bearer $MGR" -H "$JH" -d '{"kind":"EARTHQUAKE","title":"Deprem sonrası durum bildirimi"}' \
+    | python3 -c 'import json,sys; print(json.load(sys.stdin)["check"]["id"])' 2>/dev/null)
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$EU/checks" -H "Authorization: Bearer $MGR" -H "$JH" -d '{"kind":"FIRE","title":"ikinci"}')
+  NT=$($PSQL -t -A -c "SELECT count(*) FROM notifications WHERE topic='safety.check' AND recipient_user_id='$TENUID' AND payload->>'safety_check_id'='$CK';")
+  [ -n "$CK" ] && [ "$SC" = "409" ] && [ "${NT:-0}" -ge 1 ] && ok "durum bildirimi çağrısı açıldı, sakinlere bildirildi; aynı anda ikinci çağrı açılamıyor → 409" || bad "durum çağrısı: $CK / $SC / $NT"
+  SC1=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$EU/checks/$CK/respond" -H "Authorization: Bearer $TEN" -H "$JH" -d '{"status":"BELKI"}')
+  SC2=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$EU/checks/$CK/respond" -H "Authorization: Bearer $TEN" -H "$JH" -d '{"status":"NEED_HELP","note":"Kapı sıkıştı"}')
+  NH=$($PSQL -t -A -c "SELECT count(*) FROM notifications WHERE topic='safety.need_help' AND payload->>'safety_check_id'='$CK';")
+  RS=$(curl -s "$EU/checks/$CK/responses" -H "Authorization: Bearer $MGR")
+  SC3=$(curl -s -o /dev/null -w '%{http_code}' "$EU/checks/$CK/responses" -H "Authorization: Bearer $TEN")
+  TL4=$($PSQL -t -A -c "SELECT block || '-' || door_number FROM units WHERE id='$TUNIT';")
+  echo "$RS" | python3 -c "import json,sys; d=json.load(sys.stdin); r=[x for x in d['data'] if x['user_id']=='$TENUID']; assert r and r[0]['status']=='NEED_HELP' and d['check']['need_help']==1 and '$TL4' not in d['silent_units'] and len(d['silent_units'])==d['check']['units']-d['check']['responded']" 2>/dev/null; PY=$?
+  [ "$SC1" = "422" ] && [ "$SC2" = "200" ] && [ "${NH:-0}" -ge 1 ] && [ "$PY" = "0" ] && [ "$SC3" = "403" ] \
+    && ok "yardım talebi yönetime anında bildirildi; yanıt listesi ve yanıt vermeyen daireler yönetimde; sakin listeyi göremez" || bad "durum yanıtı: $SC1 / $SC2 / $NH / py $PY / $SC3 — $RS"
+  SC1=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$EU/checks/$CK/close" -H "Authorization: Bearer $MGR")
+  SC2=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$EU/checks/$CK/respond" -H "Authorization: Bearer $TEN" -H "$JH" -d '{"status":"SAFE"}')
+  [ "$SC1" = "200" ] && [ "$SC2" = "409" ] && ok "kapatılan çağrıya yanıt verilemiyor → 409" || bad "çağrı kapatma: $SC1 / $SC2"
   # Kiracı kendi talebini listede görür
   RL=$(curl -s "$CURL2/requests" -H "Authorization: Bearer $TEN")
   echo "$RL" | grep -q "$RQID" && ok "sakin kendi talebini listede görüyor" \
@@ -5288,8 +5344,8 @@ ok "kullanılmayan 13 site tablosu RLS ile korunuyor"
 
 # 9) Toplam durum — RLS DIŞINDA KALAN her tablo bilinçli ve gerekçeli olmalı
 RLSCOUNT=$($PSQL -t -A -c "SELECT count(*) FROM rls_enabled_tables;")
-[ "$RLSCOUNT" = "89" ] && ok "RLS toplam 89 tabloda açık" \
-  || bad "beklenmedik RLS tablo sayısı: $RLSCOUNT (beklenen 89)"
+[ "$RLSCOUNT" = "95" ] && ok "RLS toplam 95 tabloda açık" \
+  || bad "beklenmedik RLS tablo sayısı: $RLSCOUNT (beklenen 95)"
 NOTRLS=$($PSQL -t -A -c "SELECT string_agg(t.table_name, ' ' ORDER BY t.table_name)
   FROM information_schema.tables t
   WHERE t.table_schema='public' AND t.table_type='BASE TABLE'
@@ -6053,6 +6109,8 @@ BA3=$($PSQL -t -A -c "INSERT INTO operating_budgets (property_id, period_year, s
   VALUES ('$DEMO_PROPERTY',2043,'NOTIFIED',CURRENT_DATE + 60) RETURNING id;" | head -1)
 BA4=$($PSQL -t -A -c "INSERT INTO operating_budgets (property_id, period_year, status, approval_deadline)
   VALUES ('$DEMO_PROPERTY',2044,'FINAL',CURRENT_DATE - 5) RETURNING id;" | head -1)
+# Tatbikat (FAZ 7.3): diğer sitede son tatbikat 400 gün önce → hatırlatma; demo sitede bugün → yok
+$PSQL -c "INSERT INTO emergency_drills (property_id, kind, drill_date, findings) VALUES ('$OTHERPROP','FIRE',CURRENT_DATE - 400,'eksiklik yok');" >/dev/null
 N=$(qapp "SELECT count(*) FROM scheduler_property_ids();")
 P=$(qapp "SELECT count(*) FROM properties;")
 [ "${N:-0}" -ge 2 ] && [ "$P" = "0" ] && ok "uygulama rolü site KİMLİKLERİNİ alabiliyor ($N) ama properties tablosu kapsamsız hâlâ kapalı" \
@@ -6099,6 +6157,11 @@ BN=$($PSQL -t -A -c "SELECT count(*) FROM notifications WHERE payload->>'budget_
 [ "${BS%%|*}" -ge 1 ] && echo "$BS" | grep -q "10 gün kaldı" && [ "${BO%%|*}" -ge 1 ] && echo "$BO" | grep -q "kendiliğinden\|kesinleşmez" && [ "$BN" = "0" ] \
   && ok "geçici işletme projesinin genel kurul süresi (KMK m.37) yaklaşan/geçen proje için yönetime bildirildi; uzak ve kesinleşmiş olana yok" \
   || bad "işletme projesi süre hatırlatması: '$BS' / '$BO' / gereksiz $BN"
+DO1=$($PSQL -t -A -c "SELECT count(*) || '|' || COALESCE(max(body),'') FROM notifications WHERE topic='emergency.drill' AND property_id='$OTHERPROP';")
+DD1=$($PSQL -t -A -c "SELECT count(*) FROM notifications WHERE topic='emergency.drill' AND property_id='$DEMO_PROPERTY';")
+[ "${DO1%%|*}" -ge 1 ] && echo "$DO1" | grep -q "12 ay" && [ "$DD1" = "0" ] \
+  && ok "yıllık tatbikat süresi geçen siteye hatırlatma gitti (Acil Durumlar Yön. m.13); güncel tatbikatı olan siteye yok" \
+  || bad "tatbikat hatırlatması: '$DO1' / demo $DD1"
 # Sözleşme: ihbar son günü geçmiş → yönetim; uzak sözleşme → yok; süresi dolmuş ACTIVE → yönetim
 NMGR=$($PSQL -t -A -c "SELECT count(*) FROM notifications WHERE payload->>'contract_id'='$CN' AND topic='contract.notice';")
 NOUT=$($PSQL -t -A -c "SELECT count(*) FROM notifications n WHERE payload->>'contract_id'='$CN'

@@ -357,3 +357,15 @@ export interface Violation {
     stage: "NONE" | "VERBAL_WARNING" | "WRITTEN_WARNING" | "FORMAL_NOTICE" | "LEGAL";
     unit_repeat_count: number; created_at: string; events?: ViolationEvent[];
 }
+export interface EmergencyPoint { id: Id; kind: string; name: string; location: string; note?: string }
+export interface EmergencyContact { id: Id; category: string; name: string; phone: string; note?: string; sort_order: number }
+export interface Drill { id: Id; kind: string; drill_date: string; participants?: number; findings: string; corrective_actions?: string; created_at: string }
+export interface EmergencyCard {
+    id: Id; user_id: Id; resident_name?: string; unit_id: Id; unit: string; needs: string; household_count?: number;
+    contact_name?: string; contact_phone?: string; consent_at: string; consent_version: string; updated_at: string;
+}
+export interface SafetyCheck {
+    id: Id; kind: string; title: string; status: "OPEN" | "CLOSED"; opened_at: string; closed_at?: string;
+    safe: number; need_help: number; units: number; responded: number; my_status?: string;
+}
+export interface SafetyResponse { user_id: Id; name: string; unit: string; status: "SAFE" | "NEED_HELP"; note?: string; responded_at: string }

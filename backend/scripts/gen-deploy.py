@@ -202,7 +202,7 @@ def compose():
         if kind == "identity":
             out += ["      DB_USER: siteeksen_identity",
                     f"      DB_PASSWORD: {req('IDENTITY_DB_PASSWORD', 'IDENTITY_DB_PASSWORD gerekli')}"]
-        if directory == "personnel":
+        if directory in ("personnel", "community"):
             # Anahtar döndürme (docs/runbook-anahtar-dondurme.md): kimlik şifreli
             # metne yazılır; eski anahtarlar yalnızca çözmek için verilir.
             out += [f"      PII_ENCRYPTION_KEY: {req('PII_ENCRYPTION_KEY', 'PII_ENCRYPTION_KEY gerekli (32 bayt, base64)')}",
@@ -449,7 +449,7 @@ def k8s():
             env += k8s_env_value("DB_USER", "siteeksen_app")
             env += k8s_env_secret("DB_PASSWORD", "db-app", "password")
         env += k8s_env_secret("JWT_SECRET", "app-secrets", "jwt-secret")
-        if directory == "personnel":
+        if directory in ("personnel", "community"):
             env += k8s_env_secret("PII_ENCRYPTION_KEY", "app-secrets", "pii-encryption-key")
             # Döndürme sırasında doldurulur; yoksa birincil kimlik "k1", eski anahtar yok.
             env += k8s_env_secret("PII_ENCRYPTION_KEY_ID", "app-secrets", "pii-encryption-key-id", optional=True)

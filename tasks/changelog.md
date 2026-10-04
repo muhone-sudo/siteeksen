@@ -12,6 +12,29 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-04 — ACİL DURUM VE AFET (migration 040, FAZ 7.3 / M-37) (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **1138/1138** (bilgi kartı yetki/doğrulama, tatbikat raporu eksiklik alanı ve tarih
+> doğrulaması, rapor silinemez, acil kartı rızasız 422 / şifreli `k1$` / başka daireye 422 / sahibine ve yönetime
+> çözülmüş / görüntüleme denetim kaydı / başka site göremez / silince gerçekten silinir, durum çağrısı bildirimi,
+> tek açık çağrı 409, yardım talebi anında yönetime, yanıt vermeyen daireler, kapalı çağrıya yanıt 409, yıllık tatbikat
+> hatırlatması; RLS 95 tablo); `verify-mobile.sh` 10/10 (sakin 33 test); panel tsc/lint temiz.
+
+- Bilgi kartı: toplanma alanı, vanalar, pano, jeneratör, sığınak + acil telefonlar; sakin uygulaması son kartı
+  cihazda saklar (afette internet olmayabilir). Ulusal acil numara 112.
+- Tatbikat raporu (tarih, katılım, görülen eksiklikler zorunlu, düzeltici faaliyet) — İşyerlerinde Acil Durumlar Hk.
+  Yönetmelik m.13 (yılda en az bir; personel çalıştıran yönetim işverendir). `EMERGENCY_DRILL_INTERVAL_MONTHS`;
+  `cmd/scheduler` `emergency.drill` süre aşımında yönetime hatırlatır.
+- Sakin acil bilgi kartı: yardım/sağlık bilgisi özel nitelikli veri (KVKK m.6, 7499 s. Kanunla değişik). Güncel metne
+  açık rıza olmadan kaydedilmez; `pkg/pii` ile şifreli; yalnızca yönetici/kurul görür, her görüntüleme
+  `SENSITIVE_REVEAL` denetim kaydı (yazılamazsa veri gösterilmez); sakin silince veri silinir (m.7). Anahtar yoksa
+  kart uçları 503 — şifresiz yazılmaz. community servisine `PII_ENCRYPTION_KEY` verildi (compose/k8s üretildi).
+- Afet sonrası durum bildirimi: çağrı bütün sakinlere gider; "Güvendeyim / Yardım gerekiyor"; yardım talebi yönetime
+  anında; yanıt vermeyen daireler listelenir.
+- `cmd/rotate-pii` acil kartlarını da yeniden şifreler ve raporlar. **Not:** bu yol derleniyor ama uçtan uca
+  döndürme testinde acil kartı yok (doğrulamadaki kartlar silme testinde siliniyor) — D2.
+- Panel: "Acil Durum". Sakin uygulaması: Daha Fazla → "Acil durum" (bilgi kartı, durum bildirimi, acil bilgi kartım).
+
 ### 2026-10-04 — KURAL İHLALİ (migration 039, FAZ 7.5 / M-44) + AYAR KORUMASI (038) (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **1127/1127** (dayanaksız kural 422, bildiren gizliliği, çapraz site 404, doğrulamasız

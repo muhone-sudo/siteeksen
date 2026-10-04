@@ -51,6 +51,7 @@ func jobs() []job {
 		{name: "patrol.overdue", what: "Beklenen süre + tolerans aşıldığı hâlde açık kalan devriye → yönetim", run: overduePatrols},
 		{name: "asset.maintenance", what: "Bakım/periyodik kontrol tarihi yaklaşan ya da geçen demirbaş → yönetim", run: maintenanceDue},
 		{name: "kvkk.due", what: "Yasal yanıt süresi (KVKK m.13) dolmak üzere ya da dolmuş açık başvuru → yönetim", run: kvkkDue},
+		{name: "emergency.drill", what: "Son tatbikatın üzerinden yasal süre (yılda bir) geçmiş ya da personel çalıştırdığı hâlde hiç tatbikat kaydı olmayan site → yönetim", run: drillDue},
 		{name: "budget.approval", what: "Genel kurulda karara bağlanma süresi (KMK m.37, 3 ay) yaklaşan ya da geçen geçici işletme projesi → yönetim", run: budgetApprovalDue},
 	}
 }
@@ -543,4 +544,55 @@ func budgetApprovalDue(ctx context.Context, pool *pgxpool.Pool, propertyID strin
 		}})
 	}
 	return out, nil
+}
+
+// drillDue: İşyerlerinde Acil Durumlar Hk. Yönetmelik m.13 yılda en az bir
+// tatbikat ister. Personel çalıştıran site yönetimi işverendir (6331 s. Kanun).
+// Hatırlatma: son tatbikat süreden eskiyse ya da aktif personel olduğu hâlde
+// hiç tatbikat kaydı yoksa. Ayda en fazla bir (dedupe: yıl-ay). Süre
+// legal_parameters'tan okunur (EMERGENCY_DRILL_INTERVAL_MONTHS).
+func drillDue(ctx context.Context, pool *pgxpool.Pool, propertyID string) ([]notice, error) {
+	var last *time.Time
+	var months int
+	var employees bool
+	err := dbscope.For(pool, propertyID).QueryRow(ctx, `
+		SELECT (SELECT max(drill_date) FROM emergency_drills WHERE property_id = $1),
+		       COALESCE((SELECT value_numeric::int FROM legal_parameters
+		                  WHERE code = 'EMERGENCY_DRILL_INTERVAL_MONTHS' AND property_id IS NULL
+		                    AND effective_from <= CURRENT_DATE AND (effective_to IS NULL OR effective_to > CURRENT_DATE)
+		                  ORDER BY effective_from DESC LIMIT 1), 0),
+		       EXISTS (SELECT 1 FROM employees WHERE property_id = $1 AND COALESCE(is_active, true))`,
+		propertyID).Scan(&last, &months, &employees)
+	if err != nil {
+		return nil, err
+	}
+	if months <= 0 {
+		return nil, fmt.Errorf("EMERGENCY_DRILL_INTERVAL_MONTHS mevzuat parametresi tanımlı değil")
+	}
+	now := time.Now()
+	var body string
+	switch {
+	case last == nil && employees:
+		body = "Personel çalıştıran site yönetimi işverendir ve yılda en az bir acil durum tatbikatı yapmalıdır " +
+			"(İşyerlerinde Acil Durumlar Hk. Yönetmelik m.13). Sistemde hiç tatbikat kaydı yok."
+	case last != nil && last.AddDate(0, months, 0).Before(now):
+		body = fmt.Sprintf("Son acil durum tatbikatı %s tarihinde yapıldı; yasal süre (%d ay) geçti. "+
+			"Tatbikat yapıp raporunu (eksiklikler ve düzeltici faaliyetler) kaydedin.", trDate(*last), months)
+	default:
+		return nil, nil
+	}
+	managers, err := notify.Managers(ctx, pool, propertyID)
+	if err != nil {
+		return nil, err
+	}
+	return []notice{{recipients: managers, msg: notify.Message{
+		PropertyID: propertyID,
+		Channel:    notify.ChannelInApp,
+		Category:   notify.CategoryTransactional,
+		Topic:      "emergency.drill",
+		Subject:    "Acil durum tatbikatı süresi",
+		Body:       body,
+		Payload:    map[string]any{"interval_months": months},
+		DedupeKey:  "emergency.drill:" + propertyID + ":" + now.Format("2006-01"),
+	}}}, nil
 }

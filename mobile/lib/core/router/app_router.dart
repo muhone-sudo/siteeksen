@@ -26,6 +26,7 @@ import '../../features/documents/presentation/screens/documents_screen.dart';
 import '../../features/kvkk/presentation/screens/kvkk_requests_screen.dart';
 import '../../features/renovation/presentation/screens/renovations_screen.dart';
 import '../../features/violations/presentation/screens/violations_screen.dart';
+import '../../features/emergency/presentation/screens/emergency_screen.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
@@ -155,6 +156,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/kvkk',
         name: 'kvkk',
         builder: (context, state) => const KvkkRequestsScreen(),
+      ),
+      // Acil durum
+      GoRoute(
+        path: '/emergency',
+        name: 'emergency',
+        builder: (context, state) => const EmergencyScreen(),
       ),
       // Kural ihlalleri
       GoRoute(

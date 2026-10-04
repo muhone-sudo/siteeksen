@@ -121,6 +121,11 @@ class _MoreScreenState extends State<MoreScreen> {
             onTap: () => context.pushNamed('documents'),
           ),
           _MenuItem(
+            icon: Icons.emergency_outlined,
+            title: 'Acil durum',
+            onTap: () => context.pushNamed('emergency'),
+          ),
+          _MenuItem(
             icon: Icons.rule_outlined,
             title: 'Kural ihlali bildir',
             onTap: () => context.pushNamed('violations'),

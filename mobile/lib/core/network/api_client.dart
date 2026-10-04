@@ -234,6 +234,24 @@ class ApiClient {
     final response = await _dio.post('/kvkk-requests', data: {'request_type': type, 'description': description});
     return Map<String, dynamic>.from(response.data as Map);
   }
+  /// Acil durum (FAZ 7.3).
+  Future<Map<String, dynamic>> getEmergencyInfo() async =>
+      Map<String, dynamic>.from((await _dio.get('/emergency/info')).data as Map);
+
+  Future<List<dynamic>> getSafetyChecks() async => _list((await _dio.get('/emergency/checks')).data);
+
+  Future<Map<String, dynamic>> respondSafetyCheck(String id, String status) async =>
+      Map<String, dynamic>.from((await _dio.post('/emergency/checks/$id/respond', data: {'status': status})).data as Map);
+
+  Future<Map<String, dynamic>> getMyEmergencyCards() async =>
+      Map<String, dynamic>.from((await _dio.get('/emergency/cards/me')).data as Map);
+
+  Future<Map<String, dynamic>> saveMyEmergencyCard(Map<String, dynamic> body) async =>
+      Map<String, dynamic>.from((await _dio.put('/emergency/cards/me', data: body)).data as Map);
+
+  Future<void> deleteMyEmergencyCard(String unitId) async {
+    await _dio.delete('/emergency/cards/me', queryParameters: {'unit_id': unitId});
+  }
   /// Kural ihlalleri (FAZ 7.5): kişinin bildirdikleri ve dairesine ait kayıtlar.
   Future<List<dynamic>> getViolations() async => _list((await _dio.get('/violations')).data);
 

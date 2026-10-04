@@ -382,4 +382,12 @@ Roller: okuma M,B,A · yazma M,B. İtiraz: kat maliki/vekil ya da yönetim.
 | `POST /violations/:id/respond` | dairenin aktif sakini | `note`* | 201 savunma · başka daire 403 |
 | `POST /violations/:id/verify` · `/dismiss` · `/resolve` | M,B | `note` (dismiss/resolve zorunlu) | 200 · durum uygun değil 409 |
 | `POST /violations/:id/escalate` | M,B | `stage`*(ileri yönde),`note`(sözlü uyarı dışında zorunlu) | 200; dairenin bütün aktif sakinlerine bildirim (KMK m.18) · 409 geri/aynı kademe ya da doğrulanmamış |
+| `GET /emergency/info` | herkes | — | `{points:[{id,kind,name,location,note}],contacts:[{id,category,name,phone,note,sort_order}],national_emergency:"112",note}` (mobil çevrimdışı saklar) |
+| `POST /emergency/points` · `/contacts` · `DELETE …/:id` | M,B | nokta: `kind`*,`name`*,`location`*,`note` · kişi: `category`*,`name`*,`phone`*,`note`,`sort_order` | 201 / 200 |
+| `GET /emergency/drills` · `POST` | GET M,B,A · POST M,B | `kind`*,`drill_date`*(≤bugün),`findings`*,`participants`,`corrective_actions` | `{data:[{id,kind,drill_date,participants,findings,corrective_actions,created_at}]}` · 201 |
+| `GET/PUT/DELETE /emergency/cards/me` | herkes (kendi) | PUT: `unit_id`*,`needs`*(≤1000),`household_count`,`contact_name`,`contact_phone`,`consent`*=true,`consent_version`*; DELETE `?unit_id=` | GET `{data,consent_text,consent_version}` · rızasız 422 · anahtar yoksa 503 (KVKK m.6) |
+| `GET /emergency/cards` | M,B | — | `{data:[{id,user_id,resident_name,unit_id,unit,needs,household_count,contact_name,contact_phone,consent_at,consent_version}],note}`; her çağrı `SENSITIVE_REVEAL` denetim kaydı |
+| `GET /emergency/checks` · `POST` | GET herkes · POST M,B | `kind`*,`title`* | `{data:[{id,kind,title,status,opened_at,closed_at,safe,need_help,units,responded,my_status}]}` · 201 `{check,notification}` · ikinci açık 409 |
+| `POST /emergency/checks/:id/respond` | herkes | `status`*(SAFE/NEED_HELP),`note` | 200; NEED_HELP yönetime anında bildirim · kapalı 409 |
+| `GET /emergency/checks/:id/responses` · `POST …/close` | M,B | — | `{check,data:[{user_id,name,unit,status,note,responded_at}],silent_units}` |
 | `POST /kvkk-requests/:id/respond` | M,B | `status`*(ANSWERED/REJECTED),`response`* | 200; sahibine bildirim · sonuçlanmış 409 |
