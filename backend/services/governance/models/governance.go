@@ -42,15 +42,15 @@ type UnitShare struct {
 
 // Budget, işletme projesidir.
 type Budget struct {
-	ID                string       `json:"id"`
-	PropertyID        string       `json:"property_id"`
-	PeriodYear        int          `json:"period_year"`
-	Status            string       `json:"status"`
-	TotalAmount       float64      `json:"total_amount"`
-	PreparedBy        string       `json:"prepared_by,omitempty"`
-	PreparedAt        *time.Time   `json:"prepared_at,omitempty"`
-	NotifiedAt        *time.Time   `json:"notified_at,omitempty"`
-	NoticeMethod      string       `json:"notice_method,omitempty"`
+	ID           string     `json:"id"`
+	PropertyID   string     `json:"property_id"`
+	PeriodYear   int        `json:"period_year"`
+	Status       string     `json:"status"`
+	TotalAmount  float64    `json:"total_amount"`
+	PreparedBy   string     `json:"prepared_by,omitempty"`
+	PreparedAt   *time.Time `json:"prepared_at,omitempty"`
+	NotifiedAt   *time.Time `json:"notified_at,omitempty"`
+	NoticeMethod string     `json:"notice_method,omitempty"`
 	// ObjectionDeadline yalnızca 22/5/2026'dan önce tebliğ edilen projelerde
 	// doludur (eski m.37/2 yedi günlük itiraz süresi).
 	ObjectionDeadline *time.Time `json:"objection_deadline,omitempty"`
@@ -63,9 +63,9 @@ type Budget struct {
 	CapAmount       *float64     `json:"cap_amount,omitempty"`
 	FinalizedAt     *time.Time   `json:"finalized_at,omitempty"`
 	DecisionRef     string       `json:"decision_ref,omitempty"`
-	Note              string       `json:"note,omitempty"`
-	Items             []BudgetItem `json:"items,omitempty"`
-	UnitShares        []UnitShare  `json:"unit_shares,omitempty"`
+	Note            string       `json:"note,omitempty"`
+	Items           []BudgetItem `json:"items,omitempty"`
+	UnitShares      []UnitShare  `json:"unit_shares,omitempty"`
 	// OpenObjections, genel kurulda görüşülmesi gereken açık itiraz sayısıdır.
 	OpenObjections int `json:"open_objections"`
 }

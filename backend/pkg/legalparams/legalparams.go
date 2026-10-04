@@ -55,8 +55,8 @@ const (
 	MajorityInnovation           = "MAJORITY_INNOVATION"
 	UnanimityTransferActs        = "UNANIMITY_TRANSFER_ACTS"
 
-	ManagerMandatoryUnitCount     = "MANAGER_MANDATORY_UNIT_COUNT"
-	BudgetObjectionDays           = "BUDGET_OBJECTION_DAYS" // 7579 ile mülga (22/5/2026'ya kadar)
+	ManagerMandatoryUnitCount = "MANAGER_MANDATORY_UNIT_COUNT"
+	BudgetObjectionDays       = "BUDGET_OBJECTION_DAYS" // 7579 ile mülga (22/5/2026'ya kadar)
 	// BudgetGAApprovalMonths: geçici işletme projesinin genel kurulda karara
 	// bağlanma süresi (KMK m.37/2, 7579 s. Kanun).
 	BudgetGAApprovalMonths = "BUDGET_GA_APPROVAL_MONTHS"

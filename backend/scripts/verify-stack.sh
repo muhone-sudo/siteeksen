@@ -4798,6 +4798,78 @@ if [ "$CUP" = "1" ]; then
   KN=$($PSQL -t -A -c "SELECT count(*) FROM kvkk_requests WHERE id='$KID';")
   [ "$KN" = "1" ] && ok "uygulama rolü KVKK başvuru kaydını silemiyor (hesap verebilirlik)" || bad "başvuru silinebildi"
 
+  # Tadilat izni (FAZ 7.5, 037): KMK m.19/2, İmar K. m.21
+  RV="$CURL2/renovations"; JH='Content-Type: application/json'
+  TUNIT=$($PSQL -t -A -c "SELECT unit_id FROM resident_units WHERE resident_id='$TENUID' AND is_active LIMIT 1;")
+  OUNIT=$($PSQL -t -A -c "SELECT id FROM units WHERE property_id='$DEMO_PROPERTY' AND deleted=0 AND id<>'$TUNIT' ORDER BY block, door_number LIMIT 1;")
+  D0=$(date +%F); D10=$(date -d '+10 day' +%F); DPAST=$(date -d '-3 day' +%F)
+  rvpost() { curl -s -w '\n%{http_code}' -X POST "$RV" -H "Authorization: Bearer $1" -H "$JH" \
+    -d "{\"unit_id\":\"$2\",\"scope\":\"$3\",\"description\":\"Mutfak dolabı ve fayans yenileme\",\"start_date\":\"$4\",\"end_date\":\"$D10\"}"; }
+  rvid() { echo "$1" | sed '$d' | python3 -c 'import json,sys; print(json.load(sys.stdin)["permit"]["id"])' 2>/dev/null; }
+  R=$(rvpost "$TEN" "$TUNIT" INTERIOR "$D0")
+  [ "$(echo "$R" | tail -1)" = "403" ] && ok "kiracı tadilat izni başvurusu yapamıyor (malik/vekil hakkı) → 403" || bad "kiracı başvurusu → $(echo "$R" | tail -1)"
+  SC1=$(rvpost "$MGR" "$TUNIT" UYDURMA "$D0" | tail -1); SC2=$(rvpost "$MGR" "$TUNIT" INTERIOR "$DPAST" | tail -1)
+  [ "$SC1" = "422" ] && [ "$SC2" = "422" ] && ok "geçersiz kapsam ve geçmiş başlangıç tarihi → 422" || bad "tadilat doğrulaması: $SC1 / $SC2"
+  $PSQL -c "INSERT INTO property_settings (property_id, setting_key, value_text, value_type) VALUES ('$DEMO_PROPERTY','RENOVATION_HOURS','Hafta içi 09:00-18:00','TEXT')
+    ON CONFLICT (property_id, setting_key) DO UPDATE SET value_text = EXCLUDED.value_text;" >/dev/null
+  R=$(rvpost "$MGR" "$TUNIT" INTERIOR "$D0"); RI=$(rvid "$R")
+  NM=$($PSQL -t -A -c "SELECT count(*) FROM notifications WHERE topic='renovation.request' AND payload->>'renovation_id'='$RI';")
+  [ "$(echo "$R" | tail -1)" = "201" ] && [ "${NM:-0}" -ge 1 ] && ok "iç tadilat başvurusu kaydedildi, onay yetkililerine bildirildi" || bad "tadilat başvurusu: $R / $NM"
+  SC=$(curl -s -o /dev/null -w '%{http_code}' "$RV/$RI" -H "Authorization: Bearer $TEN")
+  TLIST=$(curl -s "$RV" -H "Authorization: Bearer $TEN" | grep -c "$RI")
+  [ "$SC" = "200" ] && [ "$TLIST" = "1" ] && ok "dairenin sakini kendi dairesinin iznini görüyor" || bad "sakin izni göremiyor: $SC / $TLIST"
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$RV/$RI/approve" -H "Authorization: Bearer $TEN" -H "$JH" -d '{}')
+  [ "$SC" = "403" ] && ok "sakin izni onaylayamıyor → 403" || bad "sakin onayı → $SC"
+  A=$(curl -s -X POST "$RV/$RI/approve" -H "Authorization: Bearer $MGR" -H "$JH" -d '{"deposit_amount":1000,"conditions":"Asansör korumalı kullanılacak"}')
+  ROW=$($PSQL -t -A -c "SELECT status, work_hours, deposit_amount::text FROM renovation_permits WHERE id='$RI';")
+  NB=$($PSQL -t -A -c "SELECT count(*), count(*) FILTER (WHERE n.recipient_user_id IN (SELECT resident_id FROM resident_units WHERE unit_id='$TUNIT')),
+      count(*) FILTER (WHERE n.body LIKE '%' || (SELECT first_name FROM users WHERE id='$MGRID') || '%')
+    FROM notifications n WHERE topic='renovation.neighbors' AND payload->>'renovation_id'='$RI';")
+  IFS='|' read -r NBT NBOWN NBNAME <<<"$NB"
+  [ "$ROW" = "APPROVED|Hafta içi 09:00-18:00|1000.00" ] && ok "onayda site tadilat saati ve teminat izne yazıldı" || bad "onay kaydı: $ROW — $A"
+  [ "${NBT:-0}" -ge 1 ] && [ "$NBOWN" = "0" ] && [ "$NBNAME" = "0" ] \
+    && ok "aynı bloktaki komşulara ($NBT) ad içermeyen bildirim gitti; dairenin kendi sakinlerine komşu bildirimi yok" || bad "komşu bildirimi: $NB"
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$RV/$RI/complete" -H "Authorization: Bearer $MGR" -H "$JH" -d '{"deposit_refunded":500}')
+  SC2=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$RV/$RI/complete" -H "Authorization: Bearer $MGR" -H "$JH" -d '{"deposit_refunded":1500,"note":"x"}')
+  SC3=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$RV/$RI/complete" -H "Authorization: Bearer $MGR" -H "$JH" -d '{"deposit_refunded":500,"note":"Merdiven mermerinde kırık tespit edildi"}')
+  RF=$($PSQL -t -A -c "SELECT status, deposit_refunded::text FROM renovation_permits WHERE id='$RI';")
+  [ "$SC" = "422" ] && [ "$SC2" = "422" ] && [ "$SC3" = "200" ] && [ "$RF" = "COMPLETED|500.00" ] \
+    && ok "teminat kesintisi gerekçesiz yapılamıyor, iade teminatı aşamıyor; gerekçeli kısmi iade kaydedildi" || bad "teminat iadesi: $SC / $SC2 / $SC3 — $RF"
+  # Taşıyıcı sistem: ruhsat numarası olmadan onay yok
+  RS=$(rvid "$(rvpost "$MGR" "$OUNIT" STRUCTURAL "$D0")")
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$RV/$RS/approve" -H "Authorization: Bearer $MGR" -H "$JH" -d '{}')
+  SC2=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$RV/$RS/approve" -H "Authorization: Bearer $MGR" -H "$JH" -d '{"permit_ref":"Belediye tadilat ruhsatı 2026/123"}')
+  [ "$SC" = "422" ] && [ "$SC2" = "200" ] && ok "taşıyıcı sistem tadilatı ruhsat numarası olmadan onaylanmıyor (İmar K. m.21) → 422; ruhsatla 200" || bad "esaslı tadilat: $SC / $SC2"
+  SC=$(curl -s -o /dev/null -w '%{http_code}' "$RV/$RS" -H "Authorization: Bearer $TEN")
+  SC2=$(curl -s -o /dev/null -w '%{http_code}' "$RV/$RS" -H "Authorization: Bearer $XMGR")
+  [ "$SC" = "404" ] && [ "$SC2" = "404" ] && ok "başka dairenin izni sakine, başka sitenin iznine yöneticiye kapalı → 404" || bad "izin görünürlüğü: $SC / $SC2"
+  # Dış cephe: 4/5 kat maliki yazılı rızası (KMK m.19/2)
+  RF2=$(rvid "$(rvpost "$MGR" "$OUNIT" FACADE "$D0")")
+  NA=$(curl -s -X POST "$RV/$RF2/approve" -H "Authorization: Bearer $MGR" -H "$JH" -d '{}')
+  NEED=$(echo "$NA" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("consent_required",""))' 2>/dev/null)
+  OWN=$($PSQL -t -A -c "SELECT count(DISTINCT ru.resident_id) FROM resident_units ru JOIN units u ON u.id=ru.unit_id
+      WHERE u.property_id='$DEMO_PROPERTY' AND u.deleted=0 AND ru.role='OWNER' AND COALESCE(ru.is_active,true) AND (ru.end_date IS NULL OR ru.end_date>=CURRENT_DATE);")
+  EXP=$(python3 -c "import math; print(max(1, math.ceil($OWN*0.8)))")
+  echo "$NA" | grep -q "beşte dördünün" && [ "$NEED" = "$EXP" ] \
+    && ok "dış cephe değişikliği rıza olmadan onaylanmıyor; gereken rıza $NEED/$OWN kat maliki (4/5, yukarı yuvarlı)" || bad "rıza nisabı: $NEED (beklenen $EXP) — $NA"
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$RV/$RF2/consents" -H "Authorization: Bearer $MGR" -H "$JH" -d "{\"owner_user_id\":\"$TENUID\"}")
+  [ "$SC" = "422" ] && ok "kat maliki olmayan kişinin (kiracı) rızası kaydedilmiyor → 422" || bad "kiracı rızası → $SC"
+  for o in $($PSQL -t -A -c "SELECT DISTINCT ru.resident_id FROM resident_units ru JOIN units u ON u.id=ru.unit_id
+      WHERE u.property_id='$DEMO_PROPERTY' AND u.deleted=0 AND ru.role='OWNER' AND COALESCE(ru.is_active,true) AND (ru.end_date IS NULL OR ru.end_date>=CURRENT_DATE) LIMIT ${NEED:-1};"); do
+    curl -s -o /dev/null -X POST "$RV/$RF2/consents" -H "Authorization: Bearer $MGR" -H "$JH" -d "{\"owner_user_id\":\"$o\",\"document_ref\":\"Imzali muvafakat\"}"
+    LASTO=$o
+  done
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$RV/$RF2/consents" -H "Authorization: Bearer $MGR" -H "$JH" -d "{\"owner_user_id\":\"$LASTO\"}")
+  SC2=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$RV/$RF2/approve" -H "Authorization: Bearer $MGR" -H "$JH" -d '{}')
+  ROW=$($PSQL -t -A -c "SELECT status, consent_required, consent_count FROM renovation_permits WHERE id='$RF2';")
+  [ "$SC" = "409" ] && [ "$SC2" = "200" ] && [ "$ROW" = "APPROVED|$NEED|$NEED" ] \
+    && ok "aynı malikin rızası iki kez sayılmıyor (409); 4/5 rızayla onaylandı, nisap kayda yazıldı" || bad "rızalı onay: $SC / $SC2 — $ROW"
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$RV/$RF2/stop" -H "Authorization: Bearer $MGR" -H "$JH" -d '{}')
+  SC2=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$RV/$RF2/stop" -H "Authorization: Bearer $MGR" -H "$JH" -d '{"reason":"Onaylanan projenin dışında cephe boyası"}')
+  [ "$SC" = "422" ] && [ "$SC2" = "200" ] && ok "çalışma gerekçesiz durdurulamıyor (422), gerekçeyle durduruldu" || bad "durdurma: $SC / $SC2"
+  RVD=$(qscoped "DELETE FROM renovation_permits WHERE id='$RI' RETURNING id;")
+  RVN=$($PSQL -t -A -c "SELECT count(*) FROM renovation_permits WHERE id='$RI';")
+  [ "$RVN" = "1" ] && ok "uygulama rolü tadilat izni kaydını silemiyor (hasar/teminat uyuşmazlığında delil)" || bad "tadilat izni silinebildi"
   # Kiracı kendi talebini listede görür
   RL=$(curl -s "$CURL2/requests" -H "Authorization: Bearer $TEN")
   echo "$RL" | grep -q "$RQID" && ok "sakin kendi talebini listede görüyor" \
@@ -5162,8 +5234,8 @@ ok "kullanılmayan 13 site tablosu RLS ile korunuyor"
 
 # 9) Toplam durum — RLS DIŞINDA KALAN her tablo bilinçli ve gerekçeli olmalı
 RLSCOUNT=$($PSQL -t -A -c "SELECT count(*) FROM rls_enabled_tables;")
-[ "$RLSCOUNT" = "84" ] && ok "RLS toplam 84 tabloda açık" \
-  || bad "beklenmedik RLS tablo sayısı: $RLSCOUNT (beklenen 84)"
+[ "$RLSCOUNT" = "86" ] && ok "RLS toplam 86 tabloda açık" \
+  || bad "beklenmedik RLS tablo sayısı: $RLSCOUNT (beklenen 86)"
 NOTRLS=$($PSQL -t -A -c "SELECT string_agg(t.table_name, ' ' ORDER BY t.table_name)
   FROM information_schema.tables t
   WHERE t.table_schema='public' AND t.table_type='BASE TABLE'

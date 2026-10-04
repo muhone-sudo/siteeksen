@@ -234,6 +234,16 @@ class ApiClient {
     final response = await _dio.post('/kvkk-requests', data: {'request_type': type, 'description': description});
     return Map<String, dynamic>.from(response.data as Map);
   }
+  /// Tadilat izinleri (FAZ 7.5): kişinin başvurduğu ya da sakini olduğu dairelerin izinleri.
+  Future<List<dynamic>> getRenovations() async {
+    final response = await _dio.get('/renovations');
+    return _list(response.data);
+  }
+
+  Future<Map<String, dynamic>> createRenovation(Map<String, dynamic> body) async {
+    final response = await _dio.post('/renovations', data: body);
+    return Map<String, dynamic>.from(response.data as Map);
+  }
   Future<List<dynamic>> getUserProperties() async {
     final response = await _dio.get('/users/me/properties');
     return _list(response.data);

@@ -71,6 +71,10 @@ var Definitions = []Definition{
 	{Key: "QUIET_HOURS", Type: TypeText, Default: "22:00-08:00",
 		Description: "Gürültüye kapalı saatler (yönetim planında belirlenir; " +
 			"buradaki değer yalnızca sakinlere gösterim içindir)"},
+	{Key: "RENOVATION_HOURS", Type: TypeText, Default: "",
+		Description: "Tadilat çalışma saatleri (ör. Hafta içi 09:00-18:00, Cumartesi 10:00-17:00). " +
+			"Konut içi tadilat için ulusal saat kuralı yoktur; yönetim planı ya da kurul kararıyla belirlenir. " +
+			"Onaylanan tadilat iznine kopyalanır ve komşu bildiriminde gösterilir."},
 }
 
 // byKey, hızlı arama için.

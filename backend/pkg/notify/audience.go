@@ -72,6 +72,33 @@ func UnitResidents(ctx context.Context, pool *pgxpool.Pool, propertyID, unitID s
 		ORDER BY ru.resident_id, ru.role`, propertyID, unitID)
 }
 
+// BlockNeighbors, bir bağımsız bölümle AYNI BLOKTAKİ diğer bölümlerin aktif
+// sakinlerini döner (bölümün kendi sakinleri hariç).
+//
+// Tadilat gibi komşuyu doğrudan etkileyen işlerde bildirim tüm siteye değil
+// yalnızca etkilenen bloğa gider: başka bloktaki sakine bir dairenin tadilat
+// bilgisini göndermek gereksiz kişisel veri yaymaktır (KVKK m.4).
+func BlockNeighbors(ctx context.Context, pool *pgxpool.Pool, propertyID, unitID string) ([]Recipient, error) {
+	if unitID == "" {
+		return nil, nil
+	}
+	return queryRecipients(ctx, pool, propertyID, `
+		SELECT DISTINCT ON (ru.resident_id)
+		       ru.resident_id::text, ru.unit_id::text, ru.role
+		FROM units target
+		JOIN units u ON u.property_id = target.property_id
+		            AND COALESCE(u.block, '') = COALESCE(target.block, '')
+		            AND u.id <> target.id AND u.deleted = 0
+		JOIN resident_units ru ON ru.unit_id = u.id
+		WHERE target.property_id = $1 AND target.id = $2::uuid
+		  AND COALESCE(ru.is_active, true)
+		  AND (ru.end_date IS NULL OR ru.end_date >= CURRENT_DATE)
+		  AND NOT EXISTS (SELECT 1 FROM resident_units own
+		                  WHERE own.unit_id = target.id AND own.resident_id = ru.resident_id
+		                    AND COALESCE(own.is_active, true))
+		ORDER BY ru.resident_id, ru.role`, propertyID, unitID)
+}
+
 // Managers, sitenin yönetim yetkisi olan kullanıcılarını döner.
 //
 // Stok azalması, devriye aksaması gibi konular sakinleri değil YÖNETİMİ

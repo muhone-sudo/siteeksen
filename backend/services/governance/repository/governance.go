@@ -18,8 +18,8 @@ import (
 
 // Sentinel hatalar — HTTP durum eşlemesi handler katmanında yapılır.
 var (
-	ErrNotFound             = errors.New("kayıt bulunamadı")
-	ErrBudgetNotDraft       = errors.New("yalnızca taslak durumundaki işletme projesi tebliğ edilebilir")
+	ErrNotFound       = errors.New("kayıt bulunamadı")
+	ErrBudgetNotDraft = errors.New("yalnızca taslak durumundaki işletme projesi tebliğ edilebilir")
 	// ErrBudgetNotApprovable: yalnızca taslak ya da geçici (bildirilmiş) proje
 	// genel kurul kararına bağlanabilir.
 	ErrBudgetNotApprovable = errors.New("yalnızca taslak ya da geçici işletme projesi genel kurul kararına bağlanabilir")
@@ -27,7 +27,7 @@ var (
 	// KABUL edilmiş değil (KMK m.37, 7579 s. Kanun: proje genel kurulda onaylanır).
 	ErrAgendaNotAccepted = errors.New("gündem maddesi yapılmış bir genel kurulda kabul edilmiş değil")
 	// ErrAgendaItemUsed: gündem maddesi başka bir işletme projesini onaylamak için kullanılmış.
-	ErrAgendaItemUsed = errors.New("bu gündem maddesi başka bir işletme projesine bağlanmış")
+	ErrAgendaItemUsed       = errors.New("bu gündem maddesi başka bir işletme projesine bağlanmış")
 	ErrBudgetExists         = errors.New("bu dönem için zaten bir işletme projesi var")
 	ErrNoUnits              = errors.New("sitede tanımlı bağımsız bölüm yok")
 	ErrAssemblyNotOpen      = errors.New("toplantı bu işlem için uygun durumda değil")

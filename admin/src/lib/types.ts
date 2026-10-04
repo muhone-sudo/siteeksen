@@ -337,3 +337,14 @@ export interface KVKKRequest {
     id: Id; user_id: Id; applicant_name: string; request_type: string; description: string;
     status: "OPEN" | "ANSWERED" | "REJECTED"; due_date: string; days_left: number; response?: string; responded_at?: string; created_at: string;
 }
+
+export interface RenovationPermit {
+    id: Id; unit_id: Id; unit: string; applicant_id: Id; applicant_name: string;
+    scope: "INTERIOR" | "STRUCTURAL" | "COMMON_AREA" | "FACADE"; description: string;
+    contractor_name?: string; contractor_phone?: string; start_date: string; end_date: string;
+    status: "PENDING" | "APPROVED" | "REJECTED" | "STOPPED" | "COMPLETED" | "CANCELLED";
+    work_hours?: string; conditions?: string; deposit_amount: number; deposit_refunded?: number; permit_ref?: string;
+    agenda_item_id?: string; consent_required?: number; consent_count: number; decision_note?: string;
+    stop_reason?: string; completion_note?: string; created_at: string;
+}
+export interface RenovationConsent { owner_user_id: Id; owner_name: string; consented_on: string; document_ref?: string }

@@ -367,3 +367,12 @@ Roller: okuma M,B,A · yazma M,B. İtiraz: kat maliki/vekil ya da yönetim.
 | `GET /kvkk-requests` | herkes (kendi) · M,B,A (site geneli) | — | `{data:[{id,user_id,applicant_name,request_type,description,status,due_date,days_left,response?,responded_at?,created_at}]}` |
 | `POST /kvkk-requests` | herkes | `request_type`*(INFO/CORRECTION/ERASURE/OBJECTION/COMPENSATION/OTHER),`description`*(≥10) | 201 `{request,notification,note}`; son gün = bugün + KVKK_RESPONSE_DAYS (30, m.13/2) |
 | `POST /kvkk-requests/:id/respond` | M,B | `status`*(ANSWERED/REJECTED),`response`* | 200; sahibine bildirim · sonuçlanmış 409 |
+| `GET /renovations` | herkes (başvurduğu / sakini olduğu daire) · M,B,A (site geneli) | — | `{data:[{id,unit_id,unit,applicant_id,applicant_name,scope,description,contractor_name,contractor_phone,start_date,end_date,status,work_hours,conditions,deposit_amount,deposit_refunded,permit_ref,agenda_item_id,consent_required,consent_count,decision_note,stop_reason,completion_note,created_at}],truncated,limit}` |
+| `GET /renovations/:id` | M,B,A · başvuran · dairenin sakini (diğerlerine 404) | — | `{permit,consents:[{owner_user_id,owner_name,consented_on,document_ref}]}` |
+| `POST /renovations` | malik/vekil (kendi dairesi) · M,B (her daire) | `unit_id`*,`scope`*(INTERIOR/STRUCTURAL/COMMON_AREA/FACADE),`description`*(≥10),`start_date`*(≥bugün),`end_date`*(≤1 yıl),`contractor_name`,`contractor_phone` | 201 `{permit,requirement,notification}` · kiracı 403 |
+| `POST /renovations/:id/cancel` | başvuran | — | bekleyen başvuru geri çekilir · 409 |
+| `POST /renovations/:id/consents` | M,B | `owner_user_id`*,`consented_on`,`document_ref` | 201 `{consent_count,consent_required,owner_count}` · malik değil 422 · tekrar 409 (KMK m.19/2) |
+| `POST /renovations/:id/approve` | M,B | `conditions`,`deposit_amount`,`permit_ref`(STRUCTURAL zorunlu),`agenda_item_id`(COMMON_AREA/FACADE, rıza yerine) | 200 `{permit,notification,neighbors}` · 422 ön koşul (ruhsat / 4/5 rıza) |
+| `POST /renovations/:id/reject` · `/stop` | M,B | `reason`* | 200 · gerekçesiz 422 · uygun olmayan durum 409 |
+| `POST /renovations/:id/complete` | M,B | `deposit_refunded`(≤ teminat),`note`(kesintide zorunlu) | 200 |
+| `POST /kvkk-requests/:id/respond` | M,B | `status`*(ANSWERED/REJECTED),`response`* | 200; sahibine bildirim · sonuçlanmış 409 |

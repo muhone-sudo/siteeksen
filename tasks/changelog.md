@@ -12,6 +12,27 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-04 — TADİLAT İZNİ (migration 037, FAZ 7.5 / M-45) (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **1114/1114** (kiracı başvuramaz 403, doğrulama 422, onay yetkilisine bildirim,
+> site tadilat saati ve teminat izne kopyalanır, aynı blok komşularına adsız bildirim, gerekçesiz teminat kesintisi /
+> iadede aşım 422, esaslı tadilat ruhsatsız onaylanmaz, 4/5 kat maliki rızası (kişi sayısı, yukarı yuvarlı), kiracı
+> rızası 422, mükerrer rıza 409, gerekçesiz durdurma 422, kayıt silinemez; RLS 86 tablo); `verify-mobile.sh` 10/10
+> (sakin 29 test); panel tsc/lint temiz.
+
+- Tadilatın hiçbir kaydı yoktu. `/api/v1/renovations` (community): başvuru (malik/vekil), onay, ret, durdurma,
+  denetimle kapatma ve teminat iadesi.
+- Kapsama göre hukuki ön koşul hem uygulamada hem veritabanı CHECK'inde: **STRUCTURAL** → yapı ruhsatı/izin no
+  (3194 s. İmar K. m.21; anayapıya zarar veren değişiklik yasak, KMK m.19/2). **COMMON_AREA / FACADE** → bütün kat
+  maliklerinin 4/5 yazılı rızası (`MAJORITY_CONSTRUCTION_CONSENT`, kişi sayısıyla) ya da bu nisapla kabul edilmiş
+  genel kurul maddesi.
+- Çalışma saati ulusal mevzuatta konut içi tadilat için yok (Çevresel Gürültü Kontrol Yönetmeliği komşu/evsel
+  gürültüyü kapsamaz) → site ayarı `RENOVATION_HOURS`; onayda izne kopyalanır.
+- Para cezası özelliği bilerek yok: idari yaptırım yetkisi kanunda gösterilen kamu mercilerindedir
+  (5326 s. Kabahatler K. m.22; gürültüde kolluk/zabıta, m.36/3).
+- `notify.BlockNeighbors`: aynı bloktaki komşular (dairenin kendi sakinleri hariç), kişi adı olmadan.
+- Panel: "Tadilat İzinleri" (rıza kaydı, onay/ret/durdurma, teminat iadesi). Sakin uygulaması: Daha Fazla → "Tadilat izni".
+
 ### 2026-10-04 — İŞLETME PROJESİ 7579 SAYILI KANUNA UYUMLU (migration 036) (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **1098/1098** (gündem maddesiz kesinleştirme 422, geçici proje 3 aylık

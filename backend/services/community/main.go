@@ -59,6 +59,9 @@ func main() {
 	// KVKK ilgili kişi başvuruları (FAZ 7.8).
 	registerKVKK(r, pool, notifier)
 
+	// Tadilat izni (FAZ 7.5).
+	registerRenovation(r, pool, notifier)
+
 	// Requests (gerçek DB'ye bağlı)
 	requests := r.Group("/api/v1/requests")
 	requests.Use(middleware.AuthMiddleware(pool), middleware.AuditLog(pool, "request"))

@@ -632,6 +632,17 @@ yaygınlaştırılmasına kayıyor.
 
 # İnceleme notları
 
+## 2026-10-04 — Üçüncü tur (DEVAM EDİYOR — kaldığı yer)
+
+**Bitti (commit d71a4ea):** İşletme projesi 7579 s. Kanuna uyumlu (036): genel kurul onayı, geçici proje
+3 ay, yeniden değerleme tavanı, zamanlayıcı hatırlatması. verify-stack 1098/1098, verify-mobile 10/10.
+
+**Bitti:** FAZ 7.5 tadilat izni (037) — verify-stack 1114/1114, verify-mobile 10/10.
+- Sonra: kural ihlali (M-44): kural kataloğu (yönetim planı atfı zorunlu), anonim bildirim, kademeli
+  uyarı (sözlü→yazılı→ihtar→hukuki yol KMK m.33/m.25), savunma, olay geçmişi salt-ekleme.
+- Sonra sırasıyla: 7.3 acil durum, 7.7 vergi takvimi, 7.4 bordro, 7.6 ortak alan geliri, 7.8 saklama/imha.
+
+**Not:** dev-up ve panel (`npm run dev`) arka planda çalışıyor; dev DB 036/037'yi içermiyor (yeniden başlatınca uygulanır).
 ## 2026-10-04 — Kurulum, görevlendirme, devir, KVKK, saat dilimi (otonom, ikinci tur)
 
 **Doğrulama:** `verify-stack.sh` **1090/1090**, `verify-mobile.sh` **10/10** (sakin 27, yönetici 27),

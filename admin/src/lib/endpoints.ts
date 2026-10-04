@@ -84,6 +84,19 @@ export function endpoints(http: Http) {
             list: (status?: string) => g<T.List<T.ServiceRequest>>("/requests", { status }),
             setStatus: (id: string, status: string) => http.patch<T.ServiceRequest>(`/requests/${id}/status`, { status }),
         },
+        renovations: {
+            list: () => g<T.List<T.RenovationPermit>>("/renovations"),
+            get: (id: string) => g<{ permit: T.RenovationPermit; consents: T.RenovationConsent[] }>(`/renovations/${id}`),
+            create: (b: { unit_id: string; scope: string; description: string; contractor_name?: string; contractor_phone?: string; start_date: string; end_date: string }) =>
+                http.post<{ permit: T.RenovationPermit; requirement: string; notification: T.BroadcastResult }>("/renovations", b),
+            consent: (id: string, b: { owner_user_id: string; consented_on?: string; document_ref?: string }) =>
+                http.post<{ consent_count: number; consent_required: number; owner_count: number }>(`/renovations/${id}/consents`, b),
+            approve: (id: string, b: { conditions?: string; deposit_amount?: number; permit_ref?: string; agenda_item_id?: string }) =>
+                http.post<{ permit: T.RenovationPermit; notification: T.BroadcastResult; neighbors: T.BroadcastResult }>(`/renovations/${id}/approve`, b),
+            reject: (id: string, reason: string) => http.post<{ permit: T.RenovationPermit }>(`/renovations/${id}/reject`, { reason }),
+            stop: (id: string, reason: string) => http.post<{ permit: T.RenovationPermit }>(`/renovations/${id}/stop`, { reason }),
+            complete: (id: string, b: { deposit_refunded?: number; note?: string }) => http.post<{ permit: T.RenovationPermit }>(`/renovations/${id}/complete`, b),
+        },
         announcements: {
             list: (q?: { category?: string; include_expired?: string }) => g<T.List<T.Announcement>>("/announcements", q),
             create: (b: { title: string; content: string; category: string; priority: string; is_pinned?: boolean; expires_at?: string }) =>
@@ -294,6 +307,7 @@ export const READS: { path: string; keys: string[]; list?: boolean }[] = [
     { path: "/residents", keys: ["id", "first_name", "last_name", "phone", "unit", "role", "is_active"], list: true },
     { path: "/residents/invitations", keys: ["data"] },
     { path: "/kvkk-requests", keys: ["data"] },
+    { path: "/renovations", keys: ["data", "truncated", "limit"] },
     { path: "/property-roles", keys: ["id", "role", "first_name", "active", "decision_ref"], list: true },
     { path: "/units", keys: ["id", "block", "door_number", "share_ratio"], list: true },
     { path: "/finance/assessments/overview", keys: ["period", "total_amount", "collected_amount", "rate"], list: true },

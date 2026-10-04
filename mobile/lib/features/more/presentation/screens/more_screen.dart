@@ -121,6 +121,11 @@ class _MoreScreenState extends State<MoreScreen> {
             onTap: () => context.pushNamed('documents'),
           ),
           _MenuItem(
+            icon: Icons.handyman_outlined,
+            title: 'Tadilat izni',
+            onTap: () => context.pushNamed('renovations'),
+          ),
+          _MenuItem(
             icon: Icons.privacy_tip_outlined,
             title: 'KVKK başvurusu',
             onTap: () => context.pushNamed('kvkk'),

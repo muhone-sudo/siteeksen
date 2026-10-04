@@ -28,6 +28,7 @@ const sections: { title: string; items: NavItem[] }[] = [
             { name: "Görevlendirmeler", href: "/dashboard/roles", icon: ShieldCheck },
             { name: "KVKK Başvuruları", href: "/dashboard/kvkk", icon: FileText },
             { name: "Talepler", href: "/dashboard/requests", icon: MessageSquare },
+            { name: "Tadilat İzinleri", href: "/dashboard/renovations", icon: Wrench },
             { name: "Duyurular", href: "/dashboard/announcements", icon: Bell },
             { name: "İlan Panosu", href: "/dashboard/bulletins", icon: Megaphone },
             { name: "Anketler", href: "/dashboard/surveys", icon: Vote },
