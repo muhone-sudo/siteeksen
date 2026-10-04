@@ -54,6 +54,7 @@ const sections: { title: string; items: NavItem[] }[] = [
             { name: "Genel Kurul", href: "/dashboard/governance/assemblies", icon: Vote },
             { name: "Defterler", href: "/dashboard/governance/books", icon: FileText },
             { name: "İcra ve Dava", href: "/dashboard/governance/legal", icon: ShieldCheck },
+            { name: "Ortak Alan Geliri", href: "/dashboard/governance/common-area", icon: Building2 },
             { name: "Sözleşmeler", href: "/dashboard/contracts", icon: FileSignature },
             { name: "Belge Arşivi", href: "/dashboard/documents", icon: FolderArchive },
         ],

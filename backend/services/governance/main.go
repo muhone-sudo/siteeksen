@@ -68,6 +68,10 @@ func main() {
 		read.GET("/books/:id/verify", handlers.VerifyBook(svc))
 
 		read.GET("/legal-cases", handlers.ListLegalCases(svc))
+
+		// Ortak alan geliri (FAZ 7.6).
+		read.GET("/common-area/leases", listLeases(pool))
+		read.GET("/common-area/report", incomeReport(pool, false))
 	}
 
 	// Yazma: yalnızca yönetici ve yönetim kurulu üyesi. Denetçi YAZAMAZ —
@@ -92,10 +96,16 @@ func main() {
 		write.POST("/books/:id/close", handlers.CloseBook(svc))
 
 		write.POST("/legal-cases", handlers.CreateLegalCase(svc))
+
+		write.POST("/common-area/leases", createLease(pool))
+		write.POST("/common-area/leases/:id/end", endLease(pool))
+		write.POST("/common-area/leases/:id/incomes", recordIncome(pool))
 	}
 
 	// İtiraz hakkı kat malikinindir; yönetim rolü aranmaz (KMK m.37/2).
 	api.POST("/budgets/:id/objections", handlers.AddObjection(svc))
+	// Kat maliki kendi ortak alan geliri payını görür (beyan için).
+	api.GET("/common-area/my-share", incomeReport(pool, true))
 
 	port := os.Getenv("PORT")
 	if port == "" {

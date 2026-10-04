@@ -5383,8 +5383,8 @@ ok "kullanılmayan 13 site tablosu RLS ile korunuyor"
 
 # 9) Toplam durum — RLS DIŞINDA KALAN her tablo bilinçli ve gerekçeli olmalı
 RLSCOUNT=$($PSQL -t -A -c "SELECT count(*) FROM rls_enabled_tables;")
-[ "$RLSCOUNT" = "95" ] && ok "RLS toplam 95 tabloda açık" \
-  || bad "beklenmedik RLS tablo sayısı: $RLSCOUNT (beklenen 95)"
+[ "$RLSCOUNT" = "98" ] && ok "RLS toplam 98 tabloda açık" \
+  || bad "beklenmedik RLS tablo sayısı: $RLSCOUNT (beklenen 98)"
 NOTRLS=$($PSQL -t -A -c "SELECT string_agg(t.table_name, ' ' ORDER BY t.table_name)
   FROM information_schema.tables t
   WHERE t.table_schema='public' AND t.table_type='BASE TABLE'
@@ -5705,6 +5705,42 @@ if [ -n "$A2" ] && [ -n "$ITEM2" ]; then
   echo "$NT" | grep -q "2026 yılı yeniden değerleme oranı sistemde yok" \
     && ok "ilan edilmemiş yeniden değerleme oranıyla geçici proje bildirilmiyor (tavan uydurulmuyor) → 422" \
     || bad "oransız tavan: $NT"
+  # Ortak alan geliri (FAZ 7.6, 042): KMK m.45 oybirliği, arsa payı oranında kuruş paylaştırma
+  CA="$GU/common-area"
+  lease() { curl -s -w '\n%{http_code}' -X POST "$CA/leases" -H "$GA" -H "$J" -d "{\"area_kind\":\"ROOF_FACADE_AD\",\"area_name\":\"$1\",\"tenant_name\":\"Reklam AŞ\",\"tenant_is_business\":$3,\"start_date\":\"2026-01-01\",\"monthly_rent\":1000,\"agenda_item_id\":\"$2\"}"; }
+  SC=$(lease "Çatı reklam alanı" "$ITEM2" true | tail -1)
+  ASM4=$(curl -s -X POST "$GU/assemblies" -H "$GA" -H "$J" -d '{"kind":"EXTRAORDINARY","call_number":1,
+    "scheduled_at":"2032-08-01T18:00:00Z","agenda_items":[{"title":"Çatının reklam amacıyla kiralanması","required_majority_code":"UNANIMITY_TRANSFER_ACTS"}]}')
+  A4=$(echo "$ASM4" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+  ITEM4=$(echo "$ASM4" | grep -o '"agenda_items":\[{"id":"[^"]*"' | grep -o '[0-9a-f-]\{36\}')
+  for u in $UNITS; do curl -s -o /dev/null -X POST "$GU/assemblies/$A4/attendees" -H "$GA" -H "$J" -d "{\"unit_id\":\"$u\"}"; done
+  curl -s -o /dev/null -X POST "$GU/assemblies/$A4/hold" -H "$GA"
+  for u in $UNITS; do curl -s -o /dev/null -X POST "$GU/agenda-items/$ITEM4/votes" -H "$GA" -H "$J" -d "{\"unit_id\":\"$u\",\"vote\":\"FOR\"}"; done
+  CL4=$(curl -s -X POST "$GU/agenda-items/$ITEM4/close" -H "$GA" -H "$J" -d '{}')
+  SC2=$(lease "Sığınak deposu" "$ITEM4" true | tail -1)
+  R=$(lease "Çatı reklam alanı" "$ITEM4" true); LID=$(echo "$R" | sed '$d' | grep -o '"id":"[^"]*"' | cut -d'"' -f4)
+  [ "$SC" = "422" ] && echo "$CL4" | grep -q '"accepted":true' && [ "$SC2" = "422" ] && [ "$(echo "$R" | tail -1)" = "201" ] \
+    && ok "ortak yer kiralaması oybirliği maddesi olmadan kaydedilmiyor (KMK m.45) → 422; sığınak kiralanamıyor; oybirliğiyle kaydedildi" \
+    || bad "kiralama: $SC / $SC2 / $R — $CL4"
+  inc() { curl -s -o /dev/null -w '%{http_code}' -X POST "$CA/leases/$1/incomes" -H "$GA" -H "$J" -d "$2"; }
+  SC1=$(inc "$LID" '{"period":"2026-09","gross_amount":1000,"withholding_amount":1200,"received_on":"2026-09-30"}')
+  SC2=$(inc "$LID" '{"period":"2026-09","gross_amount":1000,"withholding_amount":200,"received_on":"2026-09-30"}')
+  SC3=$(inc "$LID" '{"period":"2026-09","gross_amount":1000,"withholding_amount":200,"received_on":"2026-09-30"}')
+  SUMS=$($PSQL -t -A -c "SELECT sum(s.gross_kurus) || '|' || sum(s.withholding_kurus) || '|' || count(*) FROM common_area_income_shares s
+      JOIN common_area_incomes i ON i.id = s.income_id WHERE i.lease_id = '$LID';")
+  NU=$($PSQL -t -A -c "SELECT count(*) FROM units WHERE property_id='$DEMO_PROPERTY' AND deleted=0;")
+  [ "$SC1" = "422" ] && [ "$SC2" = "201" ] && [ "$SC3" = "409" ] && [ "$SUMS" = "100000|20000|$NU" ] \
+    && ok "gelir ve stopaj $NU bölüme arsa payı oranında kuruş kaybı olmadan paylaştırıldı; stopaj brütü aşamıyor, aynı dönem iki kez yazılamıyor" \
+    || bad "gelir paylaştırma: $SC1 / $SC2 / $SC3 — $SUMS ($NU bölüm)"
+  LID2=$(lease "Kapıcı dairesi" "$ITEM4" false | sed '$d' | grep -o '"id":"[^"]*"' | cut -d'"' -f4)
+  SC=$(inc "$LID2" '{"period":"2026-09","gross_amount":500,"withholding_amount":50,"received_on":"2026-09-30"}')
+  RP=$(curl -s "$CA/report?year=2026" -H "$GA" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d["total_gross_kurus"], d["total_withholding_kurus"])' 2>/dev/null)
+  UPD=$(qscoped "UPDATE common_area_incomes SET gross_amount = 1 WHERE lease_id='$LID' RETURNING id;")
+  GV=$($PSQL -t -A -c "SELECT gross_amount::int FROM common_area_incomes WHERE lease_id='$LID';")
+  SC4=$(code "$CA/leases" -H "Authorization: Bearer $TEN"); SC5=$(code "$CA/my-share?year=2026" -H "Authorization: Bearer $TEN")
+  [ "$SC" = "422" ] && [ "$RP" = "100000 20000" ] && [ "$GV" = "1000" ] && [ "$SC4" = "403" ] && [ "$SC5" = "200" ] \
+    && ok "işyeri olmayan kiracıdan stopaj girilemiyor; yıllık rapor tutuyor; gelir kaydı değiştirilemiyor; sakin yalnızca kendi payını sorgulayabiliyor" \
+    || bad "gelir raporu: $SC / $RP / $GV / $SC4 / $SC5"
   # Defter kapalıysa karar da yazılmaz: madde PENDING kalır (yarım işlem yok)
   ASM3=$(curl -s -X POST "$GU/assemblies" -H "$GA" -H "$J" -d '{"kind":"ORDINARY","call_number":1,
     "scheduled_at":"2032-07-01T18:00:00Z","agenda_items":[{"title":"Kapali defter sinamasi"}]}')

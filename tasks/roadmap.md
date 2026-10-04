@@ -250,7 +250,7 @@ Bugün tamamen yok. Aidatın yasal dayanağı ve icra gücü buradan doğar.
 | 7.3 | **Acil durum ve afet** — plan, tahliye, kritik altyapı, tatbikat, deprem sonrası akış | `[D4]` 2026-10-04 (040; verify §34/§40). Acil kartı şifreli + açık rıza (KVKK m.6) | M-37; Türkiye için yüksek değer |
 | 7.4 | **Personel** — bordro, SGK, izin bakiyesi, İSG, kıdem karşılığı | `[D0]` | M-34 |
 | 7.5 | **Kural ihlali ve yaptırım** + **tadilat izni** | `[D4]` 2026-10-04 (037/039; verify §34). Para cezası bilerek yok (Kabahatler K. m.22) | M-44, M-45 |
-| 7.6 | **Ortak alan gelir yönetimi** (m.45 oybirliği kuralıyla) | `[D0]` | M-46 |
+| 7.6 | **Ortak alan gelir yönetimi** (m.45 oybirliği kuralıyla) | `[D4]` 2026-10-04 (042; verify §37) | M-46 |
 | 7.7 | **Vergi/SGK beyan takvimi** | `[D4]` 2026-10-04 (041, `pkg/compliance`; verify §13/§40). Vergi doğup doğmadığına karar vermez | M-29 |
 | 7.8 | **KVKK uyum yönetimi** — saklama/imha, ilgili kişi başvurusu, kamera/biyometrik envanteri | `[D4]` ilgili kişi başvurusu 2026-10-04 (035, verify §34/§40). Kalan: saklama/imha politikası, envanter | S-04 |
 

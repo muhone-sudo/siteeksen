@@ -275,6 +275,13 @@ export function endpoints(http: Http) {
             history: (key?: string) => g<T.List<T.SettingHistory>>("/settings-history", { key }),
         },
         governance: {
+            leases: () => g<T.List<T.CommonLease>>("/governance/common-area/leases"),
+            createLease: (b: { area_kind: string; area_name: string; tenant_name: string; tenant_is_business: boolean; start_date: string; end_date?: string; monthly_rent: number; agenda_item_id: string; note?: string }) =>
+                http.post<{ id: string }>("/governance/common-area/leases", b),
+            endLease: (id: string, end_date: string) => http.post<Msg>(`/governance/common-area/leases/${id}/end`, { end_date }),
+            recordIncome: (id: string, b: { period: string; gross_amount: number; withholding_amount: number; received_on: string; note?: string }) =>
+                http.post<{ id: string; units: number; note: string }>(`/governance/common-area/leases/${id}/incomes`, b),
+            incomeReport: (year: number) => g<T.IncomeReport>("/governance/common-area/report", { year }),
             budgets: () => g<T.List<T.Budget>>("/governance/budgets"),
             budget: (id: string) => g<T.Budget>(`/governance/budgets/${id}`),
             createBudget: (b: { period_year: number; items: T.BudgetItem[]; note?: string }) => http.post<T.Budget>("/governance/budgets", b),
@@ -343,6 +350,7 @@ export const READS: { path: string; keys: string[]; list?: boolean }[] = [
     { path: "/emergency/drills", keys: ["data"] },
     { path: "/emergency/checks", keys: ["data"] },
     { path: "/compliance-calendar", keys: ["data", "muhsgk_enabled", "note"] },
+    { path: "/governance/common-area/leases", keys: ["data"] },
     { path: "/property-roles", keys: ["id", "role", "first_name", "active", "decision_ref"], list: true },
     { path: "/units", keys: ["id", "block", "door_number", "share_ratio"], list: true },
     { path: "/finance/assessments/overview", keys: ["period", "total_amount", "collected_amount", "rate"], list: true },

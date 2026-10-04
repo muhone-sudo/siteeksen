@@ -370,3 +370,11 @@ export interface SafetyCheck {
 }
 export interface SafetyResponse { user_id: Id; name: string; unit: string; status: "SAFE" | "NEED_HELP"; note?: string; responded_at: string }
 export interface ComplianceItem { kind: "MUHSGK" | "SGK_PREMIUM" | "SGK_ENTRY" | "SGK_EXIT"; title: string; due_date: string; days_left: number; employee_id?: string; period?: string; legal_basis: string }
+export interface CommonLease {
+    id: Id; area_kind: string; area_name: string; tenant_name: string; tenant_is_business: boolean; start_date: string; end_date?: string;
+    monthly_rent: number; agenda_item_id: Id; decision_ref: string; status: "ACTIVE" | "ENDED"; note?: string; income_total: number;
+}
+export interface IncomeReport {
+    year: number; total_gross_kurus: number; total_withholding_kurus: number; note: string;
+    data: { unit_id: Id; unit: string; owners: string; gross_kurus: number; withholding_kurus: number; share_ratio: number }[];
+}

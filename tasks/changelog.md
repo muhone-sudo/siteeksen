@@ -12,6 +12,21 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-04 — ORTAK ALAN GELİRİ (migration 042, FAZ 7.6 / M-46) (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **1148/1148** (oybirliği maddesi olmadan kiralama 422, sığınak 422, oybirliğiyle kayıt;
+> gelir ve stopaj bütün bölümlere arsa payı oranında kuruş kaybı olmadan; stopaj brütü aşamaz; aynı dönem 409; işyeri
+> olmayan kiracıdan stopaj 422; yıllık rapor; gelir kaydı değiştirilemez; sakin 403 / kendi payı 200; RLS 98 tablo);
+> `verify-mobile.sh` 10/10; panel tsc/lint temiz.
+
+- Ortak yer kiralaması (çatı/cephe reklamı, baz istasyonu, kapıcı dairesi, otopark, depo, dükkân) bütün kat
+  maliklerinin oybirliğiyle (KMK m.45; Yargıtay 20. HD 2019/2193) kabul edilmiş genel kurul maddesine bağlanmadan
+  kaydedilmez. Sığınak kiralanamaz (Sığınak Yönetmeliği; 20. HD 2019/1200).
+- Aylık tahsilat ve kiracının kestiği stopaj (GVK m.94; oran gömülmez, belgeden girilir) bölümlere arsa payı oranında
+  `pkg/money` ile paylaştırılır. Yıllık malik payı raporu: her malik kendi payını beyan eder (Gelir İdaresi özelgesi
+  01/08/2011). Gelir kaydı uygulama rolünce değiştirilemez/silinemez.
+- Panel: Yönetişim → "Ortak Alan Geliri". Sakin uygulaması: "Ortak alan geliri payım".
+
 ### 2026-10-04 — VERGİ/SGK YÜKÜMLÜLÜK TAKVİMİ (migration 041, FAZ 7.7 / M-29) (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **1144/1144** (`go test ./pkg/compliance` hafta sonu/ay sonu kaydırma; ayrılış

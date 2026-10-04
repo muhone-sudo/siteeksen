@@ -234,6 +234,10 @@ class ApiClient {
     final response = await _dio.post('/kvkk-requests', data: {'request_type': type, 'description': description});
     return Map<String, dynamic>.from(response.data as Map);
   }
+  /// Ortak alan geliri payım (FAZ 7.6): kişinin malik olduğu bölümlerin yıllık payı.
+  Future<Map<String, dynamic>> getMyCommonIncome(int year) async => Map<String, dynamic>.from(
+      (await _dio.get('/governance/common-area/my-share', queryParameters: {'year': year})).data as Map);
+
   /// Acil durum (FAZ 7.3).
   Future<Map<String, dynamic>> getEmergencyInfo() async =>
       Map<String, dynamic>.from((await _dio.get('/emergency/info')).data as Map);
