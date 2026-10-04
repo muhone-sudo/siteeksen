@@ -97,6 +97,7 @@ export const ROUTE_ROLES: { prefix: string; roles: Role[]; reason: string }[] = 
     { prefix: "/dashboard/units", roles: MANAGEMENT_AND_AUDIT, reason: "Bağımsız bölüm ve arsa payı kayıtları" },
     // Görevlendirmeler: atama yalnızca yöneticinindir (sunucu da denetler); denetçi okur.
     { prefix: "/dashboard/roles", roles: MANAGEMENT_AND_AUDIT, reason: "Yönetim görevlendirmeleri" },
+    { prefix: "/dashboard/kvkk", roles: MANAGEMENT_AND_AUDIT, reason: "KVKK ilgili kişi başvuruları (kişisel veri)" },
 
     // Operasyonel ekranlar: görevli personel de kullanır.
     { prefix: "/dashboard/meters", roles: MANAGEMENT_AND_STAFF, reason: "Sayaç okuma" },

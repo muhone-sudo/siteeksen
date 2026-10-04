@@ -330,3 +330,9 @@ export interface BulkResidentRow {
 export interface OpeningBalance {
     id: Id; unit_id: Id; unit: string; amount: number; paid_amount: number; due_date: string; description: string; status: string; created_at: string;
 }
+
+/** KVKK ilgili kişi başvurusu (035). */
+export interface KVKKRequest {
+    id: Id; user_id: Id; applicant_name: string; request_type: string; description: string;
+    status: "OPEN" | "ANSWERED" | "REJECTED"; due_date: string; days_left: number; response?: string; responded_at?: string; created_at: string;
+}

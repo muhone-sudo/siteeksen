@@ -23,6 +23,7 @@ import '../../features/surveys/presentation/screens/surveys_mobile_screen.dart';
 import '../../features/packages/presentation/screens/package_tracking_mobile_screen.dart';
 import '../../features/energy/presentation/screens/energy_consumption_mobile_screen.dart';
 import '../../features/documents/presentation/screens/documents_screen.dart';
+import '../../features/kvkk/presentation/screens/kvkk_requests_screen.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
@@ -147,6 +148,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const EnergyConsumptionMobileScreen(),
       ),
 
+      // KVKK başvuruları
+      GoRoute(
+        path: '/kvkk',
+        name: 'kvkk',
+        builder: (context, state) => const KvkkRequestsScreen(),
+      ),
       // Belgeler
       GoRoute(
         path: '/documents',

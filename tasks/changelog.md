@@ -22,6 +22,7 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
   (`KVKK_RESPONSE_DAYS`, kanunla sabit); son gün başvuru anında yazılır; kayıt uygulama rolünce silinemez.
 - `cmd/scheduler`: son 5 gün ve süre aşımı için yönetime hatırlatma.
 - `check-gateway-routes.py` artık main paketinin bütün dosyalarını okur (rota main.go dışında kaydedilebilir).
+- Panel: "KVKK Başvuruları" (süre rozeti, gerekçeli yanıt). Sakin uygulaması: Daha Fazla → "KVKK başvurusu" (başvuru ve sonuç). verify-mobile 10/10 (sakin 27 test).
 
 ### 2026-10-04 — YÖNETİŞİM: KİŞİ–DAİRE BAĞI DENETİMİ (DOĞRULANMIŞ)
 

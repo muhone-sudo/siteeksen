@@ -120,6 +120,11 @@ class _MoreScreenState extends State<MoreScreen> {
             title: 'Belgeler',
             onTap: () => context.pushNamed('documents'),
           ),
+          _MenuItem(
+            icon: Icons.privacy_tip_outlined,
+            title: 'KVKK başvurusu',
+            onTap: () => context.pushNamed('kvkk'),
+          ),
           const Divider(height: 32),
           _MenuItem(
             icon: Icons.settings_outlined,

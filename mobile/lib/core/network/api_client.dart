@@ -224,6 +224,16 @@ class ApiClient {
     return Map<String, dynamic>.from(response.data as Map);
   }
 
+  /// KVKK ilgili kişi başvuruları (m.11): kişinin kendi başvuruları.
+  Future<List<dynamic>> getKvkkRequests() async {
+    final response = await _dio.get('/kvkk-requests');
+    return _list(response.data);
+  }
+
+  Future<Map<String, dynamic>> createKvkkRequest(String type, String description) async {
+    final response = await _dio.post('/kvkk-requests', data: {'request_type': type, 'description': description});
+    return Map<String, dynamic>.from(response.data as Map);
+  }
   Future<List<dynamic>> getUserProperties() async {
     final response = await _dio.get('/users/me/properties');
     return _list(response.data);

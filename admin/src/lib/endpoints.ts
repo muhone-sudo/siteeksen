@@ -47,6 +47,8 @@ export function endpoints(http: Http) {
             updateResident: (id: string, b: { role?: string; is_active?: boolean }) => http.patch<T.Resident>(`/residents/${id}`, b),
             issueActivationCode: (id: string) => http.post<T.Activation>(`/residents/${id}/activation-code`),
             invitations: () => g<T.List<T.Invitation>>("/residents/invitations"),
+            kvkkRequests: () => g<T.List<T.KVKKRequest>>("/kvkk-requests"),
+            respondKvkk: (id: string, b: { status: string; response: string }) => http.post<{ request: T.KVKKRequest }>(`/kvkk-requests/${id}/respond`, b),
             bulkResidents: (residents: { first_name: string; last_name: string; phone: string; unit_id: string; role: string }[]) =>
                 http.post<{ data: T.BulkResidentRow[]; summary: Record<string, number>; note: string }>("/residents/bulk", { residents }),
             siteRoles: () => g<T.List<T.SiteRole>>("/property-roles"),
@@ -291,6 +293,7 @@ export const READS: { path: string; keys: string[]; list?: boolean }[] = [
     { path: "/dashboard/recent-requests", keys: ["data"] },
     { path: "/residents", keys: ["id", "first_name", "last_name", "phone", "unit", "role", "is_active"], list: true },
     { path: "/residents/invitations", keys: ["data"] },
+    { path: "/kvkk-requests", keys: ["data"] },
     { path: "/property-roles", keys: ["id", "role", "first_name", "active", "decision_ref"], list: true },
     { path: "/units", keys: ["id", "block", "door_number", "share_ratio"], list: true },
     { path: "/finance/assessments/overview", keys: ["period", "total_amount", "collected_amount", "rate"], list: true },
