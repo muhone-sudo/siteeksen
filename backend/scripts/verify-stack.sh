@@ -5813,6 +5813,15 @@ PO=$($PSQL -t -A -c "INSERT INTO patrol_logs (property_id, guard_id, started_at,
 PY=$($PSQL -t -A -c "INSERT INTO patrol_logs (property_id, guard_id, started_at, expected_duration_minutes, status)
     VALUES ('$DEMO_PROPERTY','$MGRID', now() - interval '5 minutes', 30, 'IN_PROGRESS') RETURNING id;" | head -1)
 
+# Demirbaş bakım/periyodik kontrol (FAZ 7.1): 5 gün sonra, 3 gün önce, 60 gün sonra, hurdaya ayrılmış
+AM1=$($PSQL -t -A -c "INSERT INTO assets (property_id, name, next_maintenance_date, maintenance_interval_days)
+  VALUES ('$DEMO_PROPERTY','Asansor A blok',CURRENT_DATE + 5,365) RETURNING id;" | head -1)
+AM2=$($PSQL -t -A -c "INSERT INTO assets (property_id, name, next_maintenance_date, maintenance_interval_days)
+  VALUES ('$DEMO_PROPERTY','Yangin tupleri',CURRENT_DATE - 3,365) RETURNING id;" | head -1)
+AM3=$($PSQL -t -A -c "INSERT INTO assets (property_id, name, next_maintenance_date)
+  VALUES ('$DEMO_PROPERTY','Jenerator',CURRENT_DATE + 60) RETURNING id;" | head -1)
+AM4=$($PSQL -t -A -c "INSERT INTO assets (property_id, name, next_maintenance_date, status)
+  VALUES ('$DEMO_PROPERTY','Eski pompa',CURRENT_DATE - 10,'DISPOSED') RETURNING id;" | head -1)
 N=$(qapp "SELECT count(*) FROM scheduler_property_ids();")
 P=$(qapp "SELECT count(*) FROM properties;")
 [ "${N:-0}" -ge 2 ] && [ "$P" = "0" ] && ok "uygulama rolü site KİMLİKLERİNİ alabiliyor ($N) ama properties tablosu kapsamsız hâlâ kapalı" \
@@ -5839,6 +5848,14 @@ NB=$($PSQL -t -A -c "SELECT count(*) FROM notifications WHERE recipient_user_id=
 KEY=$($PSQL -t -A -c "SELECT dedupe_key FROM notifications WHERE topic='dues.overdue' AND recipient_user_id='$R40';")
 echo "$KEY" | grep -Eq "^dues.overdue:$U40:[0-9]{4}-[0-9]{2}:$R40$" && ok "aidat hatırlatması daire+ay anahtarlı (ayda en fazla bir)" \
   || bad "aidat dedupe anahtarı: $KEY"
+
+# Bakım hatırlatması: yaklaşan ve geçen → yönetim; uzak ve hurdaya ayrılmış → yok
+UP=$($PSQL -t -A -c "SELECT count(*) || '|' || COALESCE(max(body),'') FROM notifications WHERE payload->>'asset_id'='$AM1' AND topic='asset.maintenance.upcoming';")
+OV=$($PSQL -t -A -c "SELECT count(*) || '|' || COALESCE(max(body),'') FROM notifications WHERE payload->>'asset_id'='$AM2' AND topic='asset.maintenance.overdue';")
+NN=$($PSQL -t -A -c "SELECT count(*) FROM notifications WHERE payload->>'asset_id' IN ('$AM3','$AM4');")
+[ "${UP%%|*}" -ge 1 ] && echo "$UP" | grep -q "5 gün kaldı" && [ "${OV%%|*}" -ge 1 ] && echo "$OV" | grep -q "3 gün geçti" && [ "$NN" = "0" ] \
+  && ok "bakım tarihi yaklaşan (5 gün) ve geçen (3 gün) demirbaş yönetime bildirildi; uzak ve hurdaya ayrılmış olana yok" \
+  || bad "bakım hatırlatması: yaklaşan '$UP', geçen '$OV', gereksiz $NN"
 
 # Sözleşme: ihbar son günü geçmiş → yönetim; uzak sözleşme → yok; süresi dolmuş ACTIVE → yönetim
 NMGR=$($PSQL -t -A -c "SELECT count(*) FROM notifications WHERE payload->>'contract_id'='$CN' AND topic='contract.notice';")

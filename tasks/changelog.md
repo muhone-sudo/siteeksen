@@ -12,6 +12,16 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-04 — BAKIM / PERİYODİK KONTROL HATIRLATMASI (FAZ 7.1 ilk dilim) (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **1078/1078** (§40: 5 gün kalan ve 3 gün geçmiş demirbaş yönetime bildirildi;
+> 60 gün sonraki ve hurdaya ayrılmış olana bildirim yok; ikinci turda yeni kayıt yok).
+
+- Demirbaşın bakım tarihi (asansör yıllık periyodik kontrolü, yangın tüpü dolumu vb.) geçse bile kimse
+  uyarılmıyordu. `cmd/scheduler` artık 14 gün kala "yaklaşıyor", tarih geçince "geçti" bildirimi üretir
+  (demirbaş + tarih + durum başına bir kez). Yasal aralıklar koda gömülmez; demirbaşın bakım aralığı
+  olarak yönetim girer.
+
 ### 2026-10-04 — AÇILIŞ (DEVİR) BAKİYESİ (migration 034, FAZ 8.1 tamam) (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **1077/1077** (devir girişi bakiyeyi tam tutar artırıyor, ikinci devir 409,

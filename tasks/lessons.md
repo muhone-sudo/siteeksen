@@ -594,3 +594,12 @@ ayarlanmamıştı.
 veritabanı oturumu ona sabitlenir. Tarih varsayılanı mümkünse veritabanında verilir
 (`COALESCE($1, CURRENT_DATE)`). Tarihe bağlı doğrulamalar gece yarısı civarında da
 koşulur.
+
+### Ders 40 — Desene göre satır silmeden önce eşleşme sayısına bak
+
+Betikten kendi eklediğim bir satırı "ilk eşleşen satırı sil" ile kaldırdım; o
+satır zaten önceki adımda gitmişti ve ilk eşleşme 19. adımdaki ESKİ bir satırdı.
+Doğrulama bozuldu, `git diff` ile fark edip geri aldım.
+
+**Kural:** Düzenlemeden sonra `git diff --stat` / diff hunk'larına bakılır; desene
+göre silme yapılacaksa önce eşleşme sayısı ve konumu doğrulanır.

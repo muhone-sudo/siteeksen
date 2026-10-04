@@ -34,12 +34,17 @@ type job struct {
 // yazısını hazırlayıp göndermesine yetecek bir süre.
 const contractLeadDays = 14
 
+// maintenanceLeadDays, demirbaş bakım/periyodik kontrol tarihinden kaç gün önce
+// uyarılacağıdır (işletme tercihi; yetkili firmadan randevu almaya yetecek süre).
+const maintenanceLeadDays = 14
+
 func jobs() []job {
 	return []job{
 		{name: "dues.overdue", what: "Vadesi geçmiş aidatı olan daireye ayda en fazla bir hatırlatma", run: overdueDues},
 		{name: "contract.notice", what: "İhbar son günü yaklaşan ya da geçen sözleşme → yönetim", run: contractNotices},
 		{name: "contract.expired", what: "Süresi dolduğu hâlde ACTIVE kalan sözleşme → yönetim", run: expiredContracts},
 		{name: "patrol.overdue", what: "Beklenen süre + tolerans aşıldığı hâlde açık kalan devriye → yönetim", run: overduePatrols},
+		{name: "asset.maintenance", what: "Bakım/periyodik kontrol tarihi yaklaşan ya da geçen demirbaş → yönetim", run: maintenanceDue},
 	}
 }
 
@@ -338,6 +343,75 @@ func overduePatrols(ctx context.Context, pool *pgxpool.Pool, propertyID string) 
 				r.route, r.guard, r.started.In(istanbul).Format("15:04"), r.elapse, r.expected, r.tolerance),
 			Payload:   map[string]any{"patrol_id": r.id, "elapsed_minutes": r.elapse},
 			DedupeKey: "patrol.overdue:" + r.id,
+		}})
+	}
+	return out, nil
+}
+
+// maintenanceDue: bakım ya da periyodik kontrol tarihi yaklaşan (14 gün) ya da
+// geçmiş demirbaş → yönetim (FAZ 7.1).
+//
+// Asansör yıllık periyodik kontrolü, yangın söndürücü dolumu gibi yasal
+// yükümlülükler demirbaşa bakım aralığıyla tanımlanır; aralıklar koda GÖMÜLMEZ
+// (yönetmelik değişir, bölüm/teçhizata göre farklıdır) — yönetim girer.
+// Önceden tarih geçse bile kimse uyarılmıyordu; ilk fark eden denetim olurdu.
+// Her demirbaş ve tarih için iki bildirim olabilir: "yaklaşıyor" ve "geçti".
+func maintenanceDue(ctx context.Context, pool *pgxpool.Pool, propertyID string) ([]notice, error) {
+	rows, err := dbscope.For(pool, propertyID).Query(ctx, `
+		SELECT id::text, name, next_maintenance_date, (next_maintenance_date - CURRENT_DATE)::int
+		FROM assets
+		WHERE property_id = $1 AND deleted = 0 AND status <> 'DISPOSED'
+		  AND next_maintenance_date IS NOT NULL
+		  AND next_maintenance_date <= CURRENT_DATE + $2::int
+		ORDER BY next_maintenance_date`, propertyID, maintenanceLeadDays)
+	if err != nil {
+		return nil, err
+	}
+	type row struct {
+		id, name string
+		due      time.Time
+		daysLeft int
+	}
+	var list []row
+	for rows.Next() {
+		var r row
+		if err := rows.Scan(&r.id, &r.name, &r.due, &r.daysLeft); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		list = append(list, r)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if len(list) == 0 {
+		return nil, nil
+	}
+	managers, err := notify.Managers(ctx, pool, propertyID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]notice, 0, len(list))
+	for _, r := range list {
+		state, subject, body := "upcoming", "Bakım tarihi yaklaşıyor: "+r.name,
+			fmt.Sprintf("'%s' için bakım/periyodik kontrol tarihi %s (%d gün kaldı). Yetkili firmadan randevu alın; "+
+				"bakım yapılınca demirbaş kaydına işleyin.", r.name, trDate(r.due), r.daysLeft)
+		if r.daysLeft < 0 {
+			state, subject, body = "overdue", "Bakım tarihi geçti: "+r.name,
+				fmt.Sprintf("'%s' için bakım/periyodik kontrol tarihi %s idi (%d gün geçti). Yasal yükümlülükse "+
+					"(ör. asansör periyodik kontrolü) gecikme sorumluluk doğurabilir; bakımı yaptırıp kayda işleyin.",
+					r.name, trDate(r.due), -r.daysLeft)
+		}
+		out = append(out, notice{recipients: managers, msg: notify.Message{
+			PropertyID: propertyID,
+			Channel:    notify.ChannelInApp,
+			Category:   notify.CategoryTransactional,
+			Topic:      "asset.maintenance." + state,
+			Subject:    subject,
+			Body:       body,
+			Payload:    map[string]any{"asset_id": r.id, "due_date": r.due.Format("2006-01-02"), "state": state},
+			DedupeKey:  "asset.maintenance:" + r.id + ":" + r.due.Format("2006-01-02") + ":" + state,
 		}})
 	}
 	return out, nil
