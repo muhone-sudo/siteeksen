@@ -32,6 +32,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/siteeksen/backend/pkg/database"
+	"github.com/siteeksen/backend/pkg/listcap"
 	"github.com/siteeksen/backend/pkg/middleware"
 	"github.com/siteeksen/backend/pkg/storage"
 	"github.com/siteeksen/backend/services/document/repository"
@@ -93,7 +94,8 @@ func main() {
 			fail(c, err, "listeleme")
 			return
 		}
-		c.JSON(http.StatusOK, gin.H{"data": list, "visible_levels": allowed})
+		list, truncated := listcap.Trim(list, listcap.Default)
+		c.JSON(http.StatusOK, gin.H{"data": list, "truncated": truncated, "limit": listcap.Default, "visible_levels": allowed})
 	})
 
 	api.GET("/documents-summary", func(c *gin.Context) {

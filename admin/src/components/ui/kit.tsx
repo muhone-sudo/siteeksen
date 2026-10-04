@@ -182,7 +182,18 @@ export function QueryView<T>({
     const data = q.data as T;
     const blank = isEmpty ? isEmpty(data) : Array.isArray((data as { data?: unknown[] })?.data) && (data as { data: unknown[] }).data.length === 0;
     if (blank) return <EmptyState title={empty ?? "Kayıt yok"} />;
-    return <>{children(data)}</>;
+    // Sunucu güvenlik tavanında kestiyse (B69) bu, listeyi okuyan herkese söylenir.
+    const cut = data as { truncated?: boolean; limit?: number };
+    return (
+        <>
+            {cut?.truncated && (
+                <p className="px-4 py-2 text-xs text-amber-700 dark:text-amber-400">
+                    Yalnızca en yeni {cut.limit ?? ""} kayıt gösteriliyor; daha eskileri için süzgeç kullanın.
+                </p>
+            )}
+            {children(data)}
+        </>
+    );
 }
 
 // ---------------------------------------------------------------- tablo

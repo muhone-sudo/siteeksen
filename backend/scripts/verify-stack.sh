@@ -1250,6 +1250,15 @@ if [ "$VUP" = "1" ] && [ -n "${MGR:-}" ] && [ -n "${TEN:-}" ]; then
   echo "$MLIST" | grep -q 'Kiraci Ziyaretcisi' && ok "yönetim site genelini görüyor" \
     || bad "yönetim tüm ziyaretçileri göremedi"
 
+  # B69: liste güvenlik tavanında (500) SESSİZCE kesilmemeli — yanıt bunu söyler
+  echo "$MLIST" | grep -q '"truncated":false' && ok "ziyaretçi listesi kesilmediğini bildiriyor (truncated:false)" || bad "truncated alanı yok"
+  $PSQL -c "INSERT INTO visitors (property_id, unit_id, visitor_name)
+    SELECT '$DEMO_PROPERTY', '$MGRUNIT', 'Toplu Ziyaretci' FROM generate_series(1, 501);" >/dev/null
+  curl -s "$VURL/visitors" -H "$VA" >/tmp/verify-trunc.json
+  TR=$(python3 -c 'import json; d=json.load(open("/tmp/verify-trunc.json")); print("%d|%s" % (len(d["data"]), d.get("truncated")))')
+  $PSQL -c "DELETE FROM visitors WHERE visitor_name='Toplu Ziyaretci';" >/dev/null
+  [ "$TR" = "500|True" ] && ok "tavan aşılınca 500 kayıt dönüyor ve kesildiği bildiriliyor (truncated:true)" || bad "kesilme bildirimi: $TR"
+
   # Kimlik numarası maskeli (yönetici olmayan için)
   echo "$TLIST" | grep -q '98765432109' && bad "kimlik numarası maskesiz sızdı" \
     || ok "kimlik numarası sakine maskeli/gizli"

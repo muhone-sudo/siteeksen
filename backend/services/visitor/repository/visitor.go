@@ -63,7 +63,7 @@ func (r *Repository) List(ctx context.Context, propertyID, status, residentUserI
 		        SELECT ru.unit_id FROM resident_units ru
 		        WHERE ru.resident_id = NULLIF($4,'')::uuid AND ru.is_active = true))
 		ORDER BY COALESCE(v.checked_in_at, v.expected_at, v.created_at) DESC
-		LIMIT 500`, propertyID, status, inside, residentUserID)
+		LIMIT 501`, propertyID, status, inside, residentUserID)
 	if err != nil {
 		return nil, err
 	}

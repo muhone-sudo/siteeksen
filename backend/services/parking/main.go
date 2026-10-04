@@ -18,6 +18,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/shopspring/decimal"
 	"github.com/siteeksen/backend/pkg/database"
+	"github.com/siteeksen/backend/pkg/listcap"
 	"github.com/siteeksen/backend/pkg/middleware"
 	"github.com/siteeksen/backend/pkg/money"
 	"github.com/siteeksen/backend/services/parking/repository"
@@ -130,7 +131,8 @@ func main() {
 				fail(c, err, "hareket listeleme")
 				return
 			}
-			c.JSON(http.StatusOK, gin.H{"data": list})
+			list, truncated := listcap.Trim(list, listcap.Default)
+			c.JSON(http.StatusOK, gin.H{"data": list, "truncated": truncated, "limit": listcap.Default})
 		})
 
 		ops.POST("/parking-logs/entry", func(c *gin.Context) {

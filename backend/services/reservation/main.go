@@ -29,6 +29,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/shopspring/decimal"
 	"github.com/siteeksen/backend/pkg/database"
+	"github.com/siteeksen/backend/pkg/listcap"
 	"github.com/siteeksen/backend/pkg/middleware"
 	"github.com/siteeksen/backend/pkg/money"
 	"github.com/siteeksen/backend/pkg/notify"
@@ -139,7 +140,8 @@ func main() {
 			fail(c, err, "rezervasyon listeleme")
 			return
 		}
-		c.JSON(http.StatusOK, gin.H{"data": list})
+		list, truncated := listcap.Trim(list, listcap.Default)
+		c.JSON(http.StatusOK, gin.H{"data": list, "truncated": truncated, "limit": listcap.Default})
 	})
 
 	api.POST("/reservations", func(c *gin.Context) {

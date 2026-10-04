@@ -434,7 +434,7 @@ func (r *Repository) ListLogs(ctx context.Context, propertyID string, inside boo
 		LEFT JOIN parking_zones z ON z.id = l.parking_zone_id
 		WHERE l.property_id = $1 AND ($2 = false OR l.exit_at IS NULL)
 		ORDER BY l.entry_at DESC
-		LIMIT 500`, propertyID, inside)
+		LIMIT 501`, propertyID, inside)
 	if err != nil {
 		return nil, err
 	}

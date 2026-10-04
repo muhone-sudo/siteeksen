@@ -12,6 +12,14 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-04 — LİSTE KESİLMESİ BİLDİRİLİYOR (B69 kalanı) (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **1080/1080** (501 ziyaretçiyle: 500 kayıt + `truncated:true`); `go test ./pkg/listcap/`.
+
+- Ziyaretçi, otopark hareketi, kargo, rezervasyon, belge ve sözleşme listeleri 500'de sessizce kesiliyordu.
+  `pkg/listcap`: sorgu tavan+1 okur, yanıt `truncated`/`limit` taşır; panel `QueryView` kesilmeyi her
+  listede otomatik söyler.
+
 ### 2026-10-04 — BAKIM / PERİYODİK KONTROL HATIRLATMASI (FAZ 7.1 ilk dilim) (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **1078/1078** (§40: 5 gün kalan ve 3 gün geçmiş demirbaş yönetime bildirildi;

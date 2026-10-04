@@ -117,7 +117,7 @@ func (r *Repository) List(ctx context.Context, propertyID, contractType, status 
 		  AND ($4 = 0 OR (status = 'ACTIVE' AND end_date IS NOT NULL
 		                  AND end_date <= CURRENT_DATE + make_interval(days => $4)))
 		ORDER BY (end_date IS NULL), end_date, title
-		LIMIT 500`, propertyID, strings.ToUpper(contractType), strings.ToUpper(status), expiringDays)
+		LIMIT 501`, propertyID, strings.ToUpper(contractType), strings.ToUpper(status), expiringDays)
 	if err != nil {
 		return nil, err
 	}

@@ -124,7 +124,7 @@ func (r *Repository) List(ctx context.Context, propertyID string, f ListFilter) 
 		  AND ($6 OR d.is_current = true)
 		  AND ($7 OR d.archived_at IS NULL)
 		ORDER BY d.uploaded_at DESC
-		LIMIT 500`,
+		LIMIT 501`,
 		propertyID, f.AllowedVisibilities, strings.ToUpper(f.Category),
 		strings.ToUpper(f.RelatedType), f.RelatedID, f.IncludeOldVer, f.IncludeArchiv)
 	if err != nil {

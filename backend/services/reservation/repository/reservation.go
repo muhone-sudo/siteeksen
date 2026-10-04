@@ -175,7 +175,7 @@ func (r *Repository) List(ctx context.Context, propertyID, residentUserID, statu
 		  AND ($3 = '' OR r.status = $3)
 		  AND ($4 = '' OR r.facility_id = NULLIF($4,'')::uuid)
 		ORDER BY r.start_time DESC
-		LIMIT 500`, propertyID, residentUserID, status, facilityID)
+		LIMIT 501`, propertyID, residentUserID, status, facilityID)
 	if err != nil {
 		return nil, err
 	}

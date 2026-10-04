@@ -100,7 +100,7 @@ func (r *Repository) List(ctx context.Context, propertyID, unitScope, status str
 		  AND ($3 = '' OR p.status = $3)
 		  AND ($4 = false OR p.status IN ('RECEIVED','NOTIFIED'))
 		ORDER BY p.received_at DESC
-		LIMIT 500`, propertyID, unitScope, status, pending)
+		LIMIT 501`, propertyID, unitScope, status, pending)
 	if err != nil {
 		return nil, err
 	}

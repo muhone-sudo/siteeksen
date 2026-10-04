@@ -20,6 +20,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/siteeksen/backend/pkg/database"
+	"github.com/siteeksen/backend/pkg/listcap"
 	"github.com/siteeksen/backend/pkg/middleware"
 	"github.com/siteeksen/backend/pkg/notify"
 	"github.com/siteeksen/backend/services/visitor/models"
@@ -74,7 +75,8 @@ func main() {
 				list[i].VisitorIDNumber = maskID(list[i].VisitorIDNumber)
 			}
 		}
-		c.JSON(http.StatusOK, gin.H{"data": list})
+		list, truncated := listcap.Trim(list, listcap.Default)
+		c.JSON(http.StatusOK, gin.H{"data": list, "truncated": truncated, "limit": listcap.Default})
 	})
 
 	api.GET("/visitors/summary", func(c *gin.Context) {
