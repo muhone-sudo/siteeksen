@@ -34,6 +34,8 @@ var (
 	ErrAlreadyDecided = errors.New("kayıt zaten sonuçlanmış")
 	// ErrUnitNotInSite: bağımsız bölüm bu siteye ait değil ya da yok.
 	ErrUnitNotInSite = errors.New("bağımsız bölüm bu sitede bulunamadı")
+	// ErrPersonNotOfUnit: belirtilen kişinin bu bağımsız bölümle kayıtlı bağı yok.
+	ErrPersonNotOfUnit = errors.New("kişinin bu bağımsız bölümle kayıtlı bir bağı yok")
 	// ErrCategoryNotInSite: gider kalemi bu siteye ait değil (ortak şablonlar hariç).
 	ErrCategoryNotInSite = errors.New("gider kalemi bu sitede bulunamadı")
 )
@@ -609,6 +611,15 @@ func (r *Repository) AddAttendee(ctx context.Context, propertyID, assemblyID str
 	if status != "PLANNED" && status != "NOTIFIED" {
 		return ErrAssemblyNotOpen
 	}
+	// Katılan kişi verildiyse o bölümün sakini/maliki olmalı (2026-10-04): önceden
+	// herhangi bir kullanıcı kimliği hazirun cetveline yazılabiliyordu.
+	if in.UserID != "" {
+		if ok, err := r.personOfUnit(ctx, propertyID, in.UnitID, in.UserID); err != nil {
+			return err
+		} else if !ok {
+			return ErrPersonNotOfUnit
+		}
+	}
 	tag, err := r.scope(propertyID).Exec(ctx, `
 		INSERT INTO assembly_attendees
 			(assembly_id, unit_id, user_id, attendance_type, proxy_holder_id, share_ratio)
@@ -1104,6 +1115,15 @@ func (r *Repository) CreateLegalCase(ctx context.Context, propertyID string, in 
 	if !ok {
 		return "", ErrUnitNotInSite
 	}
+	// Borçlu verildiyse o bölümle kayıtlı bağı (geçmiş dahil) olmalı (2026-10-04):
+	// önceden herhangi bir kişi adına icra takibi açılabiliyordu.
+	if in.DebtorUserID != "" {
+		if ok, err := r.personOfUnit(ctx, propertyID, in.UnitID, in.DebtorUserID); err != nil {
+			return "", err
+		} else if !ok {
+			return "", ErrPersonNotOfUnit
+		}
+	}
 	var id string
 	err := r.scope(propertyID).QueryRow(ctx, `
 		INSERT INTO legal_cases
@@ -1217,4 +1237,15 @@ func containsCode(err error, code string) bool {
 // değeri somuttur: beş sorguda filtre hiç yoktu.
 func (r *Repository) scope(propertyID string) *dbscope.Scoped {
 	return dbscope.For(r.pool, propertyID)
+}
+
+// personOfUnit, kişinin bu sitedeki bağımsız bölümle (geçmiş dahil) sakinlik
+// bağı olup olmadığını söyler.
+func (r *Repository) personOfUnit(ctx context.Context, propertyID, unitID, userID string) (bool, error) {
+	var ok bool
+	err := r.scope(propertyID).QueryRow(ctx, `
+		SELECT EXISTS (SELECT 1 FROM resident_units ru JOIN units u ON u.id = ru.unit_id
+		               WHERE ru.unit_id = $1 AND ru.resident_id::text = $2 AND u.property_id = $3)`,
+		unitID, userID, propertyID).Scan(&ok)
+	return ok, err
 }

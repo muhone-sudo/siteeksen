@@ -43,6 +43,8 @@ func mapError(c *gin.Context, err error, op string) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Oy kullanan bağımsız bölüm hazirun listesinde yok"})
 	case errors.Is(err, repository.ErrAlreadyDecided):
 		c.JSON(http.StatusConflict, gin.H{"error": "Kayıt zaten sonuçlanmış"})
+	case errors.Is(err, repository.ErrPersonNotOfUnit):
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "Belirtilen kişinin bu bağımsız bölümle kayıtlı bir bağı yok"})
 	case errors.Is(err, repository.ErrUnitNotInSite):
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "Bağımsız bölüm bu sitede bulunamadı"})
 	case errors.Is(err, repository.ErrCategoryNotInSite):

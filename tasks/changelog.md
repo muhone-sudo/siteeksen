@@ -12,6 +12,14 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-04 — YÖNETİŞİM: KİŞİ–DAİRE BAĞI DENETİMİ (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **1081/1081**.
+
+- Hazirun cetveline ve icra takibine (borçlu) o daireyle hiçbir bağı olmayan kişi yazılabiliyordu;
+  yanlış kişiye takip açılabilirdi. Artık kişinin o bölümle (geçmiş dahil) sakinlik bağı aranır → 422.
+- Duyuru, anket, anket yorumu, sayaç ve sayaç okuması listelerinde de kesilme bildiriliyor (B69).
+
 ### 2026-10-04 — LİSTE KESİLMESİ BİLDİRİLİYOR (B69 kalanı) (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **1080/1080** (501 ziyaretçiyle: 500 kayıt + `truncated:true`); `go test ./pkg/listcap/`.

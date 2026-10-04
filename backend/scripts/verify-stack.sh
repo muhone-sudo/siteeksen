@@ -5362,6 +5362,14 @@ if [ -n "$A2" ] && [ -n "$ITEM2" ]; then
     || bad "olmayan daire hazirun → $SC"
   SC=$(code -X POST "$GU/assemblies/$A2/attendees" -H "$GA" -H "$J" -d "{\"unit_id\":\"$OTHERUNIT\",\"attendance_type\":\"PROXY\"}")
   [ "$SC" = "422" ] && ok "vekilsiz vekâlet kaydı → 422 (önceden m.31 denetimi atlanıyordu)" || bad "vekilsiz vekâlet → $SC"
+  # Kişi–daire bağı (2026-10-04): hazirune ve icra takibine o daireyle bağı olmayan kişi yazılamaz
+  STR=$($PSQL -t -A -c "INSERT INTO users (first_name, last_name, phone, password_hash, roles)
+    VALUES ('Ilgisiz','Kisi','+905550000095','x',ARRAY['RESIDENT']) ON CONFLICT (phone) DO UPDATE SET first_name = EXCLUDED.first_name RETURNING id;" | grep -E '^[0-9a-f-]{36}$')
+  SC=$(code -X POST "$GU/assemblies/$A2/attendees" -H "$GA" -H "$J" -d "{\"unit_id\":\"$OTHERUNIT\",\"user_id\":\"$STR\"}")
+  SC2=$(code -X POST "$GU/legal-cases" -H "$GA" -H "$J" -d "{\"unit_id\":\"$OTHERUNIT\",\"debtor_user_id\":\"$STR\",\"case_type\":\"EXECUTION\"}")
+  NLC=$($PSQL -t -A -c "SELECT count(*) FROM legal_cases WHERE debtor_user_id='$STR';")
+  [ "$SC" = "422" ] && [ "$SC2" = "422" ] && [ "$NLC" = "0" ] \
+    && ok "daireyle bağı olmayan kişi hazirune ve icra takibine borçlu olarak yazılamıyor → 422" || bad "kişi–daire bağı: hazirun $SC, takip $SC2 (kayıt $NLC)"
   SC=$(code -X POST "$GU/agenda-items/$ITEM2/votes" -H "$GA" -H "$J" -d "{\"unit_id\":\"$OTHERUNIT\",\"vote\":\"FOR\"}")
   [ "$SC" = "409" ] && ok "yapılmamış toplantıda oy kullanılamıyor → 409" || bad "yapılmamış toplantıya oy → $SC"
   SC=$(code -X POST "$GU/agenda-items/$Z/votes" -H "$GA" -H "$J" -d "{\"unit_id\":\"$OTHERUNIT\",\"vote\":\"FOR\"}")
