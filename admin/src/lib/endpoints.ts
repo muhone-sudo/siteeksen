@@ -261,6 +261,7 @@ export function endpoints(http: Http) {
                 http.post<{ reading: T.MeterReading; note?: string }>("/meter-readings", b),
             create: (b: { unit_id: string; meter_type: string; serial_number: string; brand?: string }) => http.post<{ id: string }>("/meters", b),
             deactivate: (id: string) => http.del<Msg>(`/meters/${id}`),
+            areaCheck: () => g<{ missing: { unit_id: string; unit: string }[]; total_units: number; ready: boolean; note: string }>("/consumption/area-check"),
             allocate: (b: { meter_type: string; from: string; to: string; total_amount_try: number }) =>
                 http.post<{ allocation: T.Allocation; basis_note: string; note: string; warning?: string }>("/consumption/allocate", b),
         },
@@ -419,6 +420,7 @@ export const READS: { path: string; keys: string[]; list?: boolean }[] = [
     { path: "/inventory-movements", keys: ["id", "movement_type", "quantity", "created_at"], list: true },
     { path: "/surveys", keys: ["id", "title", "status", "total_votes"], list: true },
     { path: "/meters", keys: ["id", "meter_type", "serial_number", "is_active"], list: true },
+    { path: "/consumption/area-check", keys: ["missing", "total_units", "ready", "note"] },
     { path: "/meter-readings", keys: ["id", "reading_date", "current_value", "consumption"], list: true },
     { path: "/patrols-summary", keys: ["summary"] },
     { path: "/patrols", keys: ["id", "status", "started_at"], list: true },

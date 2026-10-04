@@ -233,7 +233,7 @@ func (r *ResidentRepository) Update(ctx context.Context, propertyID, id string, 
 func (r *ResidentRepository) ListUnits(ctx context.Context, propertyID string) ([]*models.Unit, error) {
 	query := `
 		SELECT id, property_id, COALESCE(block, ''), floor, door_number, share_ratio,
-		       COALESCE(gross_area_m2, 0), COALESCE(unit_type, 'APARTMENT'),
+		       COALESCE(gross_area_m2, 0), COALESCE(net_area_m2, 0), COALESCE(unit_type, 'APARTMENT'),
 		       COALESCE(is_commercial, false), COALESCE(is_ground_floor, false)
 		FROM units
 		WHERE property_id = $1 AND deleted = 0
@@ -249,7 +249,7 @@ func (r *ResidentRepository) ListUnits(ctx context.Context, propertyID string) (
 	for rows.Next() {
 		u := &models.Unit{}
 		if err := rows.Scan(&u.ID, &u.PropertyID, &u.Block, &u.Floor, &u.DoorNumber, &u.ShareRatio,
-			&u.GrossAreaM2, &u.UnitType, &u.IsCommercial, &u.IsGroundFloor); err != nil {
+			&u.GrossAreaM2, &u.NetAreaM2, &u.UnitType, &u.IsCommercial, &u.IsGroundFloor); err != nil {
 			return nil, err
 		}
 		units = append(units, u)
@@ -404,13 +404,13 @@ func (r *ResidentRepository) RespondInvitation(ctx context.Context, userID, id s
 var ErrUnitExists = errors.New("bu blok ve kapı numarasıyla bir bağımsız bölüm zaten var")
 
 const unitReturning = `RETURNING id, property_id, COALESCE(block, ''), floor, door_number, share_ratio,
-	COALESCE(gross_area_m2, 0), COALESCE(unit_type, 'APARTMENT'),
+	COALESCE(gross_area_m2, 0), COALESCE(net_area_m2, 0), COALESCE(unit_type, 'APARTMENT'),
 	COALESCE(is_commercial, false), COALESCE(is_ground_floor, false)`
 
 func scanUnit(row pgx.Row) (*models.Unit, error) {
 	u := &models.Unit{}
 	err := row.Scan(&u.ID, &u.PropertyID, &u.Block, &u.Floor, &u.DoorNumber, &u.ShareRatio,
-		&u.GrossAreaM2, &u.UnitType, &u.IsCommercial, &u.IsGroundFloor)
+		&u.GrossAreaM2, &u.NetAreaM2, &u.UnitType, &u.IsCommercial, &u.IsGroundFloor)
 	return u, err
 }
 
@@ -438,10 +438,10 @@ func (r *ResidentRepository) CreateUnits(ctx context.Context, propertyID string,
 		}
 		created, err := scanUnit(tx.QueryRow(ctx, `
 			INSERT INTO units (property_id, block, floor, door_number, share_ratio, gross_area_m2,
-			                   unit_type, is_commercial, is_ground_floor)
-			VALUES ($1, NULLIF($2, ''), $3, $4, $5, $6, $7, $8, $9) `+unitReturning,
+			                   unit_type, is_commercial, is_ground_floor, net_area_m2)
+			VALUES ($1, NULLIF($2, ''), $3, $4, $5, $6, $7, $8, $9, $10) `+unitReturning,
 			propertyID, deref(u.Block), *u.Floor, *u.DoorNumber, *u.ShareRatio, u.GrossAreaM2,
-			*u.UnitType, *u.IsCommercial, *u.IsGroundFloor))
+			*u.UnitType, *u.IsCommercial, *u.IsGroundFloor, u.NetAreaM2))
 		if isUniqueViolation(err) {
 			return nil, fmt.Errorf("%w (%d. satır: %s-%s)", ErrUnitExists, i+1, deref(u.Block), *u.DoorNumber)
 		}
@@ -486,10 +486,11 @@ func (r *ResidentRepository) UpdateUnit(ctx context.Context, propertyID, id stri
 		    unit_type       = COALESCE($8, unit_type),
 		    is_commercial   = COALESCE($9, is_commercial),
 		    is_ground_floor = COALESCE($10, is_ground_floor),
+		    net_area_m2     = COALESCE($11, net_area_m2),
 		    updated_at      = NOW()
 		WHERE id = $1 AND property_id = $2 AND deleted = 0 `+unitReturning,
 		id, propertyID, in.Block, in.Floor, in.DoorNumber, in.ShareRatio, in.GrossAreaM2,
-		in.UnitType, in.IsCommercial, in.IsGroundFloor))
+		in.UnitType, in.IsCommercial, in.IsGroundFloor, in.NetAreaM2))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrUnitNotFound
 	}

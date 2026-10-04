@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Plus } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAction, useApi, useRoles } from "@/lib/use-api";
@@ -23,6 +24,7 @@ export default function MetersPage() {
     const [newMeter, setNewMeter] = useState<null | { unit_id: string; meter_type: string; serial_number: string; brand: string }>(null);
     const [reading, setReading] = useState<null | { meter: Meter; current_value: string; reading_date: string; reading_type: string; meter_replaced: boolean; reason: string }>(null);
     const [alloc, setAlloc] = useState({ meter_type: "HEAT", from: "", to: today(), total_amount_try: "" });
+    const areaCheck = useApi(["area-check"], api.meters.areaCheck, tab === "allocate" && canWrite);
     const [allocResult, setAllocResult] = useState<{ allocation: Allocation; basis_note: string; note: string; warning?: string } | null>(null);
 
     return (
@@ -75,8 +77,14 @@ export default function MetersPage() {
             {tab === "allocate" && (
                 <Card title="Dönem giderini paylaştır">
                     <p className="mb-3 text-sm text-gray-600">
-                        Isıtma gideri %70 ölçülen tüketime, %30 kullanım alanına göre paylaştırılır (oranlar mevzuat tablosundan). Sonuç kuruş hassasiyetindedir; paylar toplamı tutara eşittir.
+                        Isıtma gideri %70 ölçülen tüketime, %30 bağımsız bölümlerin net (kapalı) kullanım alanına göre paylaştırılır (oranlar mevzuat tablosundan). Sonuç kuruş hassasiyetindedir; paylar toplamı tutara eşittir.
                     </p>
+                    {alloc.meter_type === "HEAT" && areaCheck.data && !areaCheck.data.ready && (
+                        <Notice tone="amber" title={`${areaCheck.data.missing.length} bölümün net kullanım alanı eksik`}>
+                            {areaCheck.data.missing.slice(0, 20).map((m) => m.unit).join(", ")}{areaCheck.data.missing.length > 20 ? " …" : ""}. {areaCheck.data.note}{" "}
+                            <Link href="/dashboard/units" className="font-medium underline">Bağımsız Bölümler ekranında tamamlayın.</Link>
+                        </Notice>
+                    )}
                     <Grid cols={3}>
                         <Field label="Sayaç türü"><Select value={alloc.meter_type} onChange={(e) => setAlloc({ ...alloc, meter_type: e.target.value })} options={METER_TYPES} /></Field>
                         <Field label="Başlangıç" required><Input type="date" value={alloc.from} onChange={(e) => setAlloc({ ...alloc, from: e.target.value })} /></Field>

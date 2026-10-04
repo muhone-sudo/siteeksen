@@ -3101,8 +3101,14 @@ for u in d['allocation']['units']:
   MA=$(curl -s -w '\n%{http_code}' -X POST "$OURL/consumption/allocate" -H "$OA" -H "$OJ" -d '{
     "meter_type":"HEAT","from":"2026-01-01","to":"2026-02-28","total_amount_try":10000}')
   MACODE=$(echo "$MA" | tail -1)
-  [ "$MACODE" = "422" ] && ok "ısıtmada kullanım alanı eksikse dağıtım reddediliyor → 422" \
-    || bad "eksik alanla ısı dağıtımı yapıldı → $MACODE"
+  [ "$MACODE" = "422" ] && echo "$MA" | grep -q '"missing_area_units":\["[^"]*"\]' && echo "$MA" | grep -q 'm.3 ve m.8' \
+    && ok "ısıtmada kullanım alanı eksikse dağıtım reddediliyor → 422 ve eksik bölüm adıyla listeleniyor" \
+    || bad "eksik alanla ısı dağıtımı: $MA"
+  AC=$(curl -s "$OURL/consumption/area-check" -H "$OA")
+  ACN=$(echo "$AC" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['ready'], any(m['unit_id']=='$U305' for m in d['missing']), d['total_units']>0)" 2>/dev/null)
+  ACT=$(curl -s -o /dev/null -w '%{http_code}' "$OURL/consumption/area-check" -H "$OT")
+  [ "$ACN" = "False True True" ] && [ "$ACT" = "403" ] && ok "paylaştırma öncesi alan denetimi eksik net m² olan bölümü listeliyor; sakin 403" \
+    || bad "alan denetimi: $ACN / $ACT — $AC"
   WA2=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$OURL/consumption/allocate" -H "$OA" -H "$OJ" -d '{
     "meter_type":"WATER_COLD","from":"2026-01-01","to":"2026-02-28","total_amount_try":500}')
   [ "$WA2" = "200" ] && ok "su dağıtımı kullanım alanından bağımsız çalışıyor" \
@@ -6174,14 +6180,14 @@ NPU=$($PSQL -t -A -c "SELECT count(*) FROM units WHERE property_id='${NPID:-0000
 SC=$(code -X POST "$ID39/users/me/active-property" -H "Authorization: Bearer $MGR39" -H "$J" -d "{\"property_id\":\"$NPID\"}")
 NT=$(curl -s -X POST "$ID39/auth/login" -H "$J" -d '{"phone":"5551234567","password":"Demo123!"}' | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
 UB=$(curl -s -w '\n%{http_code}' -X POST "$ID39/units" -H "Authorization: Bearer $NT" -H "$J" \
-  -d '{"units":[{"block":"A","floor":0,"door_number":"1","share_ratio":120.5,"gross_area_m2":95},{"block":"A","floor":1,"door_number":"2","share_ratio":130},{"block":"B","floor":2,"door_number":"1","share_ratio":149.5,"unit_type":"SHOP","is_commercial":true}]}')
+  -d '{"units":[{"block":"A","floor":0,"door_number":"1","share_ratio":120.5,"gross_area_m2":95,"net_area_m2":82},{"block":"A","floor":1,"door_number":"2","share_ratio":130,"net_area_m2":90},{"block":"B","floor":2,"door_number":"1","share_ratio":149.5,"unit_type":"SHOP","is_commercial":true,"net_area_m2":60}]}')
 NPU=$($PSQL -t -A -c "SELECT count(*) || '|' || SUM(share_ratio)::text FROM units WHERE property_id='$NPID' AND deleted = 0;")
 GF=$($PSQL -t -A -c "SELECT is_ground_floor FROM units WHERE property_id='$NPID' AND block='A' AND door_number='1';")
 [ "$SC" = "200" ] && [ "$(echo "$UB" | tail -1)" = "201" ] && [ "$NPU" = "3|400.0000" ] && [ "$GF" = "t" ] \
   && ok "yönetici yeni siteye toplu bağımsız bölüm ekledi (3 bölüm, arsa payı 400; zemin kat çıkarımı)" \
   || bad "toplu bölüm: geçiş $SC, $(echo "$UB" | tail -1) $(echo "$UB" | head -c 200), $NPU, zemin '$GF'"
-SC=$(code -X POST "$ID39/units" -H "Authorization: Bearer $NT" -H "$J" -d '{"units":[{"block":"C","door_number":"9","share_ratio":10},{"block":"a","door_number":"2","share_ratio":10}]}')
-SC2=$(code -X POST "$ID39/units" -H "Authorization: Bearer $NT" -H "$J" -d '{"units":[{"block":"C","door_number":"8","share_ratio":10},{"block":"A","door_number":"1","share_ratio":10}]}')
+SC=$(code -X POST "$ID39/units" -H "Authorization: Bearer $NT" -H "$J" -d '{"units":[{"block":"C","door_number":"9","share_ratio":10,"net_area_m2":50},{"block":"a","door_number":"2","share_ratio":10,"net_area_m2":50}]}')
+SC2=$(code -X POST "$ID39/units" -H "Authorization: Bearer $NT" -H "$J" -d '{"units":[{"block":"C","door_number":"8","share_ratio":10,"net_area_m2":50},{"block":"A","door_number":"1","share_ratio":10,"net_area_m2":50}]}')
 NPU2=$($PSQL -t -A -c "SELECT count(*) FROM units WHERE property_id='$NPID';")
 [ "$SC" = "409" ] && [ "$SC2" = "409" ] && [ "$NPU2" = "3" ] && ok "var olan blok/kapı (harf farkı dahil: a-2 ≈ A-2) → 409 ve toplu eklemenin HİÇBİRİ yazılmadı" \
   || bad "çakışan toplu ekleme: $SC / $SC2, bölüm $NPU2"
@@ -6194,6 +6200,16 @@ SR=$($PSQL -t -A -c "SELECT share_ratio::text || '|' || gross_area_m2::text || '
 [ "$SC" = "200" ] && [ "$SR" = "131.2500|101.00|2" ] && ok "bölüm güncellemesi yalnızca verilen alanları değiştiriyor" || bad "bölüm güncelleme: $SC, $SR"
 SC=$(code -X POST "$ID39/units" -H "Authorization: Bearer $TENL" -H "$J" -d '{"door_number":"99","share_ratio":1}')
 [ "$SC" = "403" ] && ok "kiracı bağımsız bölüm ekleyemiyor → 403" || bad "kiracı bölüm ekleme → $SC"
+# Net kullanım alanı (TEST_RAPORU 2.2): daire/dükkân/ofiste zorunlu; otopark/depoda değil
+NA1=$(curl -s -w '|%{http_code}' -X POST "$ID39/units" -H "Authorization: Bearer $NT" -H "$J" -d '{"block":"D","door_number":"1","share_ratio":10}')
+NA2=$(code -X POST "$ID39/units" -H "Authorization: Bearer $NT" -H "$J" -d '{"block":"D","door_number":"P1","share_ratio":1,"unit_type":"PARKING"}')
+NA3=$(code -X POST "$ID39/units" -H "Authorization: Bearer $NT" -H "$J" -d '{"block":"D","door_number":"2","share_ratio":10,"net_area_m2":120,"gross_area_m2":100}')
+NA4=$(code -X PATCH "$ID39/units/$UID1" -H "Authorization: Bearer $NT" -H "$J" -d '{"net_area_m2":0}')
+NAL=$(curl -s "$ID39/units" -H "Authorization: Bearer $NT" | python3 -c "import json,sys; d=json.load(sys.stdin); d=d.get('data',d); print([u['net_area_m2'] for u in d if u['id']=='$UID1'][0])" 2>/dev/null)
+case "$NA1" in *"net kullanım alanı"*"|422") NAOK=1 ;; *) NAOK=0 ;; esac
+[ "$NAOK" = "1" ] && [ "$NA2" = "201" ] && [ "$NA3" = "422" ] && [ "$NA4" = "422" ] && [ "$NAL" = "90" ] \
+  && ok "net kullanım alanı daire/dükkân/ofiste zorunlu (422), otoparkta değil; net>brüt 422; sıfıra çekilemez; listede dönüyor" \
+  || bad "net alan: $NA1 / $NA2 / $NA3 / $NA4 / $NAL"
 
 # 033: önceden açılmış sitelerdeki sahte "YÖNETİM" bölümü dönüştürülür
 FK=$($PSQL -t -A -c "INSERT INTO units (property_id, block, floor, door_number, share_ratio, unit_type)

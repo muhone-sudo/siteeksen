@@ -12,6 +12,22 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-05 — NET KULLANIM ALANI VE ISI PAYLAŞTIRMA ÖN DENETİMİ (migration 049, TEST_RAPORU 2.2) (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **1177/1177** (net alan daire/dükkân/ofiste zorunlu 422, otoparkta değil, net>brüt 422,
+> sıfıra çekilemez, listede dönüyor; eksik alanla ısı paylaştırması 422 ve eksik bölüm adıyla; ön denetim ucu eksik
+> bölümü listeliyor, sakin 403); panel tsc/lint temiz.
+
+- **Kök neden:** ısı paylaştırması sabit payı `units.net_area_m2` ile dağıtıyor (Yönetmelik m.3: "bağımsız bölümün
+  kapalı kullanım alanı", m.8/1: %30), ama bölüm ekleme/düzenleme bu alanı hiç almıyordu — yalnızca brüt alan vardı.
+  Bu yüzden her sitede paylaştırma 422 ile duruyordu. Kimlik servisi artık `net_area_m2` alır; daire/dükkân/ofiste
+  zorunlu, otopark/depoda isteğe bağlı; veritabanı kısıtı `units_area_rules`.
+- `GET /consumption/area-check`: paylaştırma öncesi eksik net alanlı bölümler. Paylaştırma hatası eksik bölümleri adıyla
+  (`missing_area_units`) döner.
+- Demo bölümlere örnek net alan (brütün %85'i; yalnızca `SEED_DEMO_DATA` açıkken).
+- Panel: Bağımsız Bölümler formunda zorunlu "Net kullanım alanı", tabloda "Eksik" rozeti, toplu eklemede
+  `blok;kat;kapı;arsa payı;net m²;brüt m²`; Sayaç → Gider paylaştırma ekranında eksik alan uyarısı ve bağlantı.
+
 ### 2026-10-05 — PANEL MOBİL MENÜ (TEST_RAPORU 6.2) (DOĞRULANMIŞ, D4)
 
 > **Kanıt:** Gerçek tarayıcı (headless Chromium, Galaxy A55 görünümü 412×915, demo yönetici girişi): menü kapalıyken

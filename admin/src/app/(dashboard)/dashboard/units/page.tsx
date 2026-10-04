@@ -18,8 +18,8 @@ const UNIT_TYPES = [
 const TYPE_LABEL = Object.fromEntries(UNIT_TYPES.map((t) => [t.value, t.label]));
 
 /**
- * Toplu içe aktarma satırı: `blok;kat;kapı;arsa payı;brüt m²` (blok ve m² boş
- * olabilir; ayraç noktalı virgül ya da sekme). Ondalık için virgül de kabul edilir (virgül varsa nokta binlik ayracı sayılır).
+ * Toplu içe aktarma satırı: `blok;kat;kapı;arsa payı;net m²;brüt m²` (blok ve brüt m² boş
+ * olabilir; net m² daire/dükkân/ofiste zorunludur — merkezi ısıtmada sabit pay buna göre dağıtılır; ayraç noktalı virgül ya da sekme). Ondalık için virgül de kabul edilir (virgül varsa nokta binlik ayracı sayılır).
  * Hatalı satır varsa hiçbiri gönderilmez; sunucu da hepsini tek işlemde ekler.
  */
 function parseUnits(text: string): { units: UnitInput[]; errors: string[] } {
@@ -32,14 +32,16 @@ function parseUnits(text: string): { units: UnitInput[]; errors: string[] } {
     };
     text.split(/\r?\n/).forEach((line, i) => {
         if (!line.trim() || line.trim().startsWith("#")) return;
-        const [block = "", floor = "", door = "", share = "", area = ""] = line.split(/[;\t]/);
+        const [block = "", floor = "", door = "", share = "", net = "", area = ""] = line.split(/[;\t]/);
         const row = i + 1;
         const f = floor.trim() === "" ? 0 : Number(floor.trim());
         const s = toNum(share);
         if (!door.trim()) return errors.push(`${row}. satır: kapı numarası yok`);
         if (!Number.isInteger(f)) return errors.push(`${row}. satır: kat tam sayı olmalı`);
         if (!(s > 0)) return errors.push(`${row}. satır: arsa payı sıfırdan büyük olmalı`);
-        const u: UnitInput = { block: block.trim(), floor: f, door_number: door.trim(), share_ratio: s };
+        const n = toNum(net);
+        if (!net.trim() || !(n > 0)) return errors.push(`${row}. satır: net kullanım alanı (m²) sıfırdan büyük olmalı`);
+        const u: UnitInput = { block: block.trim(), floor: f, door_number: door.trim(), share_ratio: s, net_area_m2: n };
         if (area.trim()) {
             const a = toNum(area);
             if (!(a >= 0)) return errors.push(`${row}. satır: brüt alan geçersiz`);
@@ -58,7 +60,7 @@ export default function UnitsPage() {
     const q = useApi(["units"], api.identity.units);
     const act = useAction();
     const { canWrite } = useRoles();
-    const empty: UnitInput = { block: "", floor: 0, door_number: "", share_ratio: 0, gross_area_m2: undefined, unit_type: "APARTMENT", is_commercial: false };
+    const empty: UnitInput = { block: "", floor: 0, door_number: "", share_ratio: 0, gross_area_m2: undefined, net_area_m2: undefined, unit_type: "APARTMENT", is_commercial: false };
     const [form, setForm] = useState<UnitInput | null>(null);
     const [editId, setEditId] = useState<string | null>(null);
     const [bulkOpen, setBulkOpen] = useState(false);
@@ -69,7 +71,7 @@ export default function UnitsPage() {
         setEditId(u.id);
         setForm({
             block: u.block, floor: u.floor, door_number: u.door_number, share_ratio: u.share_ratio,
-            gross_area_m2: u.gross_area_m2 || undefined, unit_type: u.unit_type, is_commercial: u.is_commercial,
+            gross_area_m2: u.gross_area_m2 || undefined, net_area_m2: u.net_area_m2 || undefined, unit_type: u.unit_type, is_commercial: u.is_commercial,
         });
     };
 
@@ -103,6 +105,7 @@ export default function UnitsPage() {
                                     { header: "Kat", cell: (u) => u.floor },
                                     { header: "Tür", cell: (u) => TYPE_LABEL[u.unit_type] ?? u.unit_type },
                                     { header: "Arsa payı", cell: (u) => num(u.share_ratio) },
+                                    { header: "Net m²", cell: (u) => (u.net_area_m2 ? num(u.net_area_m2) : ["APARTMENT", "SHOP", "OFFICE"].includes(u.unit_type) ? <Badge tone="red">Eksik</Badge> : "—") },
                                     { header: "Brüt m²", cell: (u) => (u.gross_area_m2 ? num(u.gross_area_m2) : "—") },
                                     { header: "", cell: (u) => (u.is_commercial ? <Badge tone="amber">Ticari</Badge> : null) },
                                     ...(canWrite ? [{ header: "", cell: (u: Unit) => <Button size="sm" variant="ghost" onClick={() => startEdit(u)}>Düzenle</Button> }] : []),
@@ -135,6 +138,9 @@ export default function UnitsPage() {
                         <Field label="Arsa payı" required hint="Tapudaki pay (ör. 120 / 10000 için 120)">
                             <Input required type="number" step="0.0001" min="0.0001" value={form.share_ratio || ""} onChange={(e) => setForm({ ...form, share_ratio: Number(e.target.value) })} />
                         </Field>
+                        <Field label="Net kullanım alanı (m²)" required={["APARTMENT", "SHOP", "OFFICE"].includes(form.unit_type ?? "APARTMENT")} hint="Kapalı kullanım alanı; ısıtma giderinin sabit payı buna göre dağıtılır">
+                            <Input required={["APARTMENT", "SHOP", "OFFICE"].includes(form.unit_type ?? "APARTMENT")} type="number" step="0.01" min="0.01" value={form.net_area_m2 ?? ""} onChange={(e) => setForm({ ...form, net_area_m2: e.target.value === "" ? undefined : Number(e.target.value) })} />
+                        </Field>
                         <Field label="Brüt m²"><Input type="number" step="0.01" min="0" value={form.gross_area_m2 ?? ""} onChange={(e) => setForm({ ...form, gross_area_m2: e.target.value === "" ? undefined : Number(e.target.value) })} /></Field>
                         <Field label="Tür"><Select value={form.unit_type ?? "APARTMENT"} onChange={(e) => setForm({ ...form, unit_type: e.target.value })} options={UNIT_TYPES} /></Field>
                         <Field label="Ticari mi?" hint="Ticari bölümler bazı gider kalemlerinden muaf tutulabilir">
@@ -160,10 +166,10 @@ export default function UnitsPage() {
                 }}
             >
                 <p className="text-sm text-gray-600 dark:text-gray-400">
-                    Her satıra bir bölüm: <code>blok;kat;kapı;arsa payı;brüt m²</code> (Excel&apos;den kopyalanan sekmeli satırlar da olur).
+                    Her satıra bir bölüm: <code>blok;kat;kapı;arsa payı;net m²;brüt m²</code> (Excel&apos;den kopyalanan sekmeli satırlar da olur).
                     Bir satır bile hatalıysa hiçbiri eklenmez.
                 </p>
-                <Textarea rows={10} value={bulkText} onChange={(e) => setBulkText(e.target.value)} placeholder={"A;0;1;120,5;95\nA;1;2;130;\nB;2;1;149,5;110"} />
+                <Textarea rows={10} value={bulkText} onChange={(e) => setBulkText(e.target.value)} placeholder={"A;0;1;120,5;82;95\nA;1;2;130;90;\nB;2;1;149,5;95;110"} />
                 {parsed.errors.length > 0
                     ? <Notice tone="red" title="Düzeltilmesi gereken satırlar">{parsed.errors.slice(0, 10).join(" · ")}</Notice>
                     : parsed.units.length > 0 && <Notice tone="blue">{parsed.units.length} bölüm eklenecek, toplam arsa payı {num(parsed.units.reduce((a, u) => a + (u.share_ratio ?? 0), 0))}.</Notice>}

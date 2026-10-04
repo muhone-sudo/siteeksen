@@ -448,3 +448,35 @@ func contains(list []string, v string) bool {
 func (r *Repository) scope(propertyID string) *dbscope.Scoped {
 	return dbscope.For(r.pool, propertyID)
 }
+
+// MissingAreaUnit, net kullanım alanı girilmemiş bağımsız bölümdür.
+type MissingAreaUnit struct {
+	UnitID string `json:"unit_id"`
+	Unit   string `json:"unit"`
+}
+
+// UnitsMissingArea, sitedeki net kullanım alanı (net_area_m2) boş ya da sıfır olan bölümleri ve toplam bölüm sayısını verir.
+func (r *Repository) UnitsMissingArea(ctx context.Context, propertyID string) ([]MissingAreaUnit, int, error) {
+	rows, err := r.scope(propertyID).Query(ctx, `
+		SELECT id::text, COALESCE(block,'') || '-' || COALESCE(door_number,''),
+		       (net_area_m2 IS NULL OR net_area_m2 <= 0), count(*) OVER ()
+		FROM units WHERE property_id = $1 AND deleted = 0
+		ORDER BY block, door_number`, propertyID)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+	out := []MissingAreaUnit{}
+	total := 0
+	for rows.Next() {
+		var m MissingAreaUnit
+		var missing bool
+		if err := rows.Scan(&m.UnitID, &m.Unit, &missing, &total); err != nil {
+			return nil, 0, err
+		}
+		if missing {
+			out = append(out, m)
+		}
+	}
+	return out, total, rows.Err()
+}

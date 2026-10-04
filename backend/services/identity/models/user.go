@@ -82,6 +82,7 @@ type Unit struct {
 	DoorNumber    string  `json:"door_number"`
 	ShareRatio    float64 `json:"share_ratio"`
 	GrossAreaM2   float64 `json:"gross_area_m2"`
+	NetAreaM2     float64 `json:"net_area_m2"`
 	UnitType      string  `json:"unit_type"`
 	IsCommercial  bool    `json:"is_commercial"`
 	IsGroundFloor bool    `json:"is_ground_floor"`
@@ -96,6 +97,8 @@ type UnitInput struct {
 	DoorNumber    *string  `json:"door_number"`
 	ShareRatio    *float64 `json:"share_ratio"`
 	GrossAreaM2   *float64 `json:"gross_area_m2"`
+	// NetAreaM2: kapalı (net) kullanım alanı; merkezi ısıtmada sabit pay buna göre dağıtılır.
+	NetAreaM2     *float64 `json:"net_area_m2"`
 	UnitType      *string  `json:"unit_type"`
 	IsCommercial  *bool    `json:"is_commercial"`
 	IsGroundFloor *bool    `json:"is_ground_floor"`

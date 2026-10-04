@@ -642,7 +642,7 @@ S-21 → VERBİS opsiyonel, yükümlülük site yönetiminde; S-19 ve iOS → ol
 - [x] K2 bordro kaydı (S-22, FAZ 7.4) — 047, verify 1169/1169
 - [x] K3 VERBİS beyanı (S-21) — opsiyonel, engellemez; verify 1170/1170
 - [x] T1 tesis ekleme/düzenleme ucu + panel formu + demo tesis (TEST 2.1) — 048, verify 1174/1174
-- [ ] T2 m² zorunlu + paylaştırma öncesi eksik alan listesi (TEST 2.2)
+- [x] T2 m² zorunlu + paylaştırma öncesi eksik alan listesi (TEST 2.2) — 049, verify 1177/1177
 - [ ] T3 kargo teslim imzası/fotoğrafı depolamaya (TEST 2.3)
 - [ ] T4 SMS (Netgsm) + SMTP adaptörü (TEST 2.4) — gerçek gönderim kullanıcının hesabıyla
 - [ ] T5 sanal POS (iyzico) + 3D Secure dönüşü + ödeme durumu (TEST 2.5, BUG-09) — gerçek çekim kullanıcının anahtarıyla

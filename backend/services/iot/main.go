@@ -198,6 +198,20 @@ func main() {
 			})
 		})
 
+		// Paylaştırma öncesi ön denetim: net kullanım alanı eksik bölümler (TEST_RAPORU 2.2).
+		write.GET("/consumption/area-check", func(c *gin.Context) {
+			missing, total, err := repo.UnitsMissingArea(c.Request.Context(), c.GetString("property_id"))
+			if err != nil {
+				fail(c, err, "alan denetimi")
+				return
+			}
+			c.JSON(http.StatusOK, gin.H{
+				"missing": missing, "total_units": total, "ready": len(missing) == 0,
+				"note": "Merkezi ısıtmada giderin sabit payı bağımsız bölümlerin kapalı (net) kullanım alanına göre dağıtılır; " +
+					"listedeki bölümlerin net m² değeri girilmeden ısı paylaştırması yapılamaz.",
+			})
+		})
+
 		// Dönem giderini bağımsız bölümlere paylaştırır.
 		write.POST("/consumption/allocate", func(c *gin.Context) {
 			var in struct {
@@ -239,7 +253,21 @@ func main() {
 			// dağıtılır. Su/elektrik/gazda alan hiç kullanılmadığı için eksik
 			// alan dağıtımı engellemez.
 			if meterType == "HEAT" && missingArea {
-				fail(c, repository.ErrMissingArea, "dönem tüketimi")
+				// Hangi bölümün eksik olduğunu söyle: yönetici listeyi görüp
+				// Bağımsız Bölümler ekranından tamamlayabilsin (TEST_RAPORU 2.2).
+				missing := []string{}
+				for _, b := range basis {
+					if !b.UsableArea.IsPositive() {
+						missing = append(missing, b.UnitName)
+					}
+				}
+				c.JSON(http.StatusUnprocessableEntity, gin.H{
+					"error":              "Kullanım alanı (net m²) tanımsız bağımsız bölüm var: " + strings.Join(missing, ", "),
+					"missing_area_units": missing,
+					"note": "Sabit pay bağımsız bölümlerin kapalı kullanım alanına göre dağıtılır; eksik alanı sıfır " +
+						"saymak o bölümü paydan muaf tutup diğerlerine yüklerdi. Bağımsız Bölümler ekranından net m² girin.",
+					"legal_basis": "Isınma ve Sıhhi Sıcak Su Giderlerinin Paylaştırılmasına İlişkin Yönetmelik m.3 ve m.8 (RG 14.04.2008/26847)",
+				})
 				return
 			}
 

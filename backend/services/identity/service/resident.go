@@ -227,6 +227,9 @@ var ErrInvalidUnit = errors.New("bağımsız bölüm bilgisi geçersiz")
 
 var unitTypes = map[string]bool{"APARTMENT": true, "SHOP": true, "OFFICE": true, "PARKING": true, "STORAGE": true}
 
+// areaRequired: net kullanım alanı zorunlu bölüm türleri (ısıtılan, kullanılan bölümler).
+var areaRequired = map[string]bool{"APARTMENT": true, "SHOP": true, "OFFICE": true}
+
 // validateUnit, create=true ise zorunlu alanları da denetler ve varsayılanları doldurur.
 func validateUnit(u *models.UnitInput, create bool, row int) error {
 	where := ""
@@ -277,6 +280,18 @@ func validateUnit(u *models.UnitInput, create bool, row int) error {
 	}
 	if u.GrossAreaM2 != nil && (*u.GrossAreaM2 < 0 || *u.GrossAreaM2 >= 1e6) {
 		return bad("brüt alan negatif olamaz")
+	}
+	// Net (kapalı) kullanım alanı: merkezi ısıtma giderinin sabit payı buna göre
+	// dağıtılır (Isınma Giderleri Paylaştırma Yön. m.3, m.8). Eksik bırakılırsa ısı
+	// paylaştırması yapılamaz (TEST_RAPORU 2.2); bu yüzden daire/dükkân/ofiste zorunlu.
+	if u.NetAreaM2 != nil && (*u.NetAreaM2 <= 0 || *u.NetAreaM2 >= 1e6) {
+		return bad("net kullanım alanı sıfırdan büyük olmalı")
+	}
+	if create && u.NetAreaM2 == nil && u.UnitType != nil && areaRequired[*u.UnitType] {
+		return bad("net kullanım alanı (m²) zorunlu — merkezi ısıtmada sabit pay buna göre dağıtılır")
+	}
+	if u.NetAreaM2 != nil && u.GrossAreaM2 != nil && *u.GrossAreaM2 > 0 && *u.NetAreaM2 > *u.GrossAreaM2 {
+		return bad("net alan brüt alandan büyük olamaz")
 	}
 	if u.UnitType != nil && !unitTypes[*u.UnitType] {
 		return bad("bölüm türü APARTMENT, SHOP, OFFICE, PARKING ya da STORAGE olmalı")
