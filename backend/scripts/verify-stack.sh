@@ -1703,6 +1703,41 @@ if [ "$RUP" = "1" ] && [ -n "${MGR:-}" ] && [ -n "${TEN:-}" ]; then
   # 15) Kimliksiz erişim engelli
   SC=$(curl -s -o /dev/null -w '%{http_code}' "$RURL/facilities")
   [ "$SC" = "401" ] && ok "kimliksiz tesis listesi erişimi engellendi → 401" || bad "kimliksiz erişim → $SC"
+
+  # 16) Tesis tanımlama (TEST_RAPORU 2.1, 048): API + demo tesisler + iptal son süresi
+  fac() { curl -s -o /dev/null -w '%{http_code}' -X POST "$RURL/facilities" -H "${2:-$RA}" -H "$RJ" -d "$1"; }
+  NF=$(curl -s -X POST "$RURL/facilities" -H "$RA" -H "$RJ" -d '{"name":"Barbekü Alanı","category":"BBQ","capacity":12,"available_from":"10:00","available_to":"21:00","available_days":[0,1,2,3,4,5,6],"min_duration_minutes":60,"max_duration_minutes":180,"cancellation_deadline_hours":48,"requires_approval":false}')
+  NFID=$(echo "$NF" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+  F1=$(fac '{"name":"X","available_from":"22:00","available_to":"08:00"}')
+  F2=$(fac '{"name":"X","is_paid":true}')
+  F3=$(fac '{"name":"X","available_days":[7]}')
+  F4=$(fac '{"name":"X","maintenance_mode":true}')
+  F5=$(fac '{"name":"X","is_paid":true,"hourly_fee":10.555}')
+  F6=$(fac '{"name":"X"}' "$RT")
+  F7=$(fac '{"name":"X","category":"HAVUZ"}')
+  FLS=$(curl -s "$RURL/facilities" -H "$RT")
+  [ -n "$NFID" ] && [ "$F1" = "422" ] && [ "$F2" = "422" ] && [ "$F3" = "422" ] && [ "$F4" = "422" ] && [ "$F5" = "422" ] && [ "$F6" = "403" ] && [ "$F7" = "422" ] \
+    && echo "$FLS" | grep -q 'Barbekü Alanı' && echo "$FLS" | grep -q 'Tenis Kortu' && echo "$FLS" | grep -q 'Sosyal Tesis Toplantı Salonu' \
+    && ok "tesis API'den eklendi, sakin listesinde görünüyor; demo tesisler yüklü; ters saat/ücretsiz ücretli/geçersiz gün/notsuz bakım/3 ondalık/kategori 422, sakin 403" \
+    || bad "tesis ekleme: $NF / $F1 $F2 $F3 $F4 $F5 $F6 $F7 — $FLS"
+  # Düzenleme: bakım kipine alınan tesise rezervasyon yapılamaz, mevcut kurallar korunur
+  PT=$(curl -s -X PATCH "$RURL/facilities/$NFID" -H "$RA" -H "$RJ" -d '{"maintenance_mode":true,"maintenance_note":"Izgara bakımı"}')
+  MR=$(curl -s -X POST "$RURL/reservations" -H "$RT" -H "$RJ" -d "{\"facility_id\":\"$NFID\",\"start_time\":\"${D1}T12:00:00+03:00\",\"end_time\":\"${D1}T13:00:00+03:00\"}")
+  PT2=$(curl -s -o /dev/null -w '%{http_code}' -X PATCH "$RURL/facilities/$NFID" -H "$RA" -H "$RJ" -d '{"maintenance_mode":false}')
+  KEEP=$($PSQL -t -A -c "SELECT capacity, cancellation_deadline_hours FROM facilities WHERE id='$NFID';")
+  PT3=$(curl -s -o /dev/null -w '%{http_code}' -X PATCH "$RURL/facilities/$NFID" -H "$RT" -H "$RJ" -d '{"is_active":false}')
+  echo "$PT" | grep -q 'mevcut rezervasyonlar değişmedi' && echo "$MR" | grep -q 'Izgara bakımı' && [ "$PT2" = "200" ] && [ "$KEEP" = "12|48" ] && [ "$PT3" = "403" ] \
+    && ok "tesis düzenleme: bakım kipinde rezervasyon notla reddediliyor, gönderilmeyen alanlar korunuyor, sakin düzenleyemez" \
+    || bad "tesis düzenleme: $PT / $MR / $PT2 / $KEEP / $PT3"
+  # İptal son süresi (48 saat) yalnızca sakine uygulanır
+  CR=$(curl -s -X POST "$RURL/reservations" -H "$RT" -H "$RJ" -d "{\"facility_id\":\"$NFID\",\"start_time\":\"${D1}T15:00:00+03:00\",\"end_time\":\"${D1}T16:00:00+03:00\"}")
+  CRID=$(echo "$CR" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+  CC1=$(curl -s -w '|%{http_code}' -X POST "$RURL/reservations/$CRID/cancel" -H "$RT" -H "$RJ" -d '{}')
+  CC2=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$RURL/reservations/$CRID/cancel" -H "$RA" -H "$RJ" -d '{"reason":"yonetim"}')
+  case "$CC1" in *"48 saat önce"*"|422") CCOK=1 ;; *) CCOK=0 ;; esac
+  [ -n "$CRID" ] && [ "$CCOK" = "1" ] && [ "$CC2" = "200" ] \
+    && ok "iptal son süresi (48 sa): yarınki rezervasyonda sakin iptali 422, yönetim iptali 200" \
+    || bad "iptal son süresi: $CR / $CC1 / $CC2"
 else
   bad "reservation-service başlamadı"; tail -10 /tmp/verify-reservation.log
 fi

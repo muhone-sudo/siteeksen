@@ -12,6 +12,21 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-05 — TESİS TANIMLAMA VE İPTAL SON SÜRESİ (migration 048, TEST_RAPORU 2.1) (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **1174/1174** (tesis API'den eklendi ve sakin listesinde; demo tesisler yüklü; ters saat,
+> ücretsiz ücretli tesis, geçersiz gün, notsuz bakım, üç ondalık, tanımsız kategori 422, sakin 403; bakımdaki tesise
+> rezervasyon notla reddediliyor, gönderilmeyen alanlar korunuyor; 48 saatlik iptal son süresinde sakin 422, yönetim 200);
+> panel tsc/lint temiz.
+
+- Test raporu bulgusu: `POST /facilities` yoktu, demo sitede tesis yoktu, panelde tesis formu yoktu → rezervasyon akışı
+  hiç başlatılamıyordu. Eklendi: `POST /facilities`, `PATCH /facilities/:id` (yönetim/kurul), sunucu tarafı kural
+  denetimi + veritabanı kısıtı (`facilities_rules`), silinmiş tesis listeden çıkar.
+- `cancellation_deadline_hours`: sakin rezervasyonu başlangıçtan en geç bu kadar saat önce iptal edebilir (0 = serbest);
+  yönetim her zaman iptal edebilir. Kural değişikliği mevcut rezervasyonları etkilemez.
+- Demo veride iki tesis (Sosyal Tesis Toplantı Salonu — onaylı, Tenis Kortu — otomatik onay); `SEED_DEMO_DATA=false` iken yüklenmez.
+- Panel: Rezervasyon → Tesisler: "+ Yeni tesis" ve "Düzenle" formu (saat, gün, süre, kota, tampon, iptal süresi, ücret, bakım).
+
 ### 2026-10-05 — VERBİS BEYANI (kullanıcı kararı S-21) (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **1170/1170** (varsayılan "beyan edilmedi", tanımsız değer 422 + izinli değerler,

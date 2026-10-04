@@ -6,7 +6,8 @@ import { useAction, useApi, useRoles } from "@/lib/use-api";
 import { ActionFeedback, Badge, Button, Card, Field, FormModal, Page, QueryView, Select, StatusBadge, Table, Tabs, Textarea } from "@/components/ui/kit";
 import { dateTime, tl } from "@/lib/format";
 import { opts, RESERVATION_STATUS } from "@/lib/labels";
-import type { Reservation } from "@/lib/types";
+import type { Facility, Reservation } from "@/lib/types";
+import { FacilityForm } from "@/components/reservations/facility-form";
 
 export default function ReservationsPage() {
     const [tab, setTab] = useState<"list" | "facilities">("list");
@@ -19,6 +20,7 @@ export default function ReservationsPage() {
     const [rejecting, setRejecting] = useState<Reservation | null>(null);
     const [cancelling, setCancelling] = useState<Reservation | null>(null);
     const [reason, setReason] = useState("");
+    const [editing, setEditing] = useState<{ facility?: Facility } | null>(null);
 
     return (
         <Page title="Rezervasyon" description="Ortak alan rezervasyonları. Çakışma, kapasite ve haftalık kota sunucuda denetlenir; rezervasyonu sakin mobil uygulamadan yapar.">
@@ -57,7 +59,7 @@ export default function ReservationsPage() {
                 </Card>
             )}
             {tab === "facilities" && (
-                <Card padded={false} title="Tesisler">
+                <Card padded={false} title="Tesisler" actions={canWrite && <Button size="sm" variant="secondary" onClick={() => setEditing({})}>+ Yeni tesis</Button>}>
                     <QueryView q={facilities} empty="Tesis tanımlı değil">
                         {(d) => (
                             <Table rows={d.data} rowKey={(f) => f.id} columns={[
@@ -66,13 +68,16 @@ export default function ReservationsPage() {
                                 { header: "Kapasite", cell: (f) => f.capacity ?? "—" },
                                 { header: "Ücret", cell: (f) => (f.is_paid ? `${tl(f.hourly_fee)}/sa` : "Ücretsiz") },
                                 { header: "Onay", cell: (f) => (f.requires_approval ? <Badge tone="amber">Onaylı</Badge> : <Badge tone="green">Otomatik</Badge>) },
+                                { header: "İptal", cell: (f) => (f.cancellation_deadline_hours ? `${f.cancellation_deadline_hours} sa öncesine kadar` : "Serbest") },
                                 { header: "Durum", cell: (f) => (f.maintenance_mode ? <Badge tone="red">Bakımda</Badge> : f.is_active ? <Badge tone="green">Açık</Badge> : <Badge>Kapalı</Badge>) },
+                                ...(canWrite ? [{ header: "", cell: (f: Facility) => <Button size="sm" variant="ghost" onClick={() => setEditing({ facility: f })}>Düzenle</Button> }] : []),
                             ]} />
                         )}
                     </QueryView>
                 </Card>
             )}
 
+            {editing && <FacilityForm key={editing.facility?.id ?? "new"} facility={editing.facility} open onClose={() => setEditing(null)} act={act} />}
             <FormModal open={!!rejecting} onClose={() => setRejecting(null)} title="Rezervasyonu reddet" submitLabel="Reddet" pending={act.pending} error={act.error}
                 onSubmit={async () => {
                     if (!rejecting) return;

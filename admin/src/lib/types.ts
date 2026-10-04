@@ -134,8 +134,10 @@ export interface ParkingLog {
 
 // ---------------------------------------------------------------- reservation
 export interface Facility {
-    id: Id; name: string; category?: string; capacity?: number; is_paid: boolean; hourly_fee?: number;
-    available_from: string; available_to: string; requires_approval: boolean; is_active: boolean; maintenance_mode: boolean;
+    id: Id; name: string; description?: string; category?: string; capacity?: number; is_paid: boolean; hourly_fee?: number; daily_fee?: number; deposit_amount?: number;
+    available_from: string; available_to: string; available_days: number[]; min_duration_minutes: number; max_duration_minutes: number;
+    advance_booking_days: number; max_reservations_per_unit: number; buffer_minutes: number; cancellation_deadline_hours: number;
+    requires_approval: boolean; auto_approve_residents: boolean; rules?: string; is_active: boolean; maintenance_mode: boolean; maintenance_note?: string;
 }
 export interface Reservation {
     id: Id; facility_id: Id; facility_name?: string; unit_name?: string; resident_name?: string; start_time: string;

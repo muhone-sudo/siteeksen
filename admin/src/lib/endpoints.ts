@@ -195,6 +195,8 @@ export function endpoints(http: Http) {
         },
         reservations: {
             facilities: () => g<T.List<T.Facility>>("/facilities"),
+            createFacility: (b: Record<string, unknown>) => http.post<T.Facility>("/facilities", b),
+            updateFacility: (id: string, b: Record<string, unknown>) => http.patch<{ facility: T.Facility; note: string }>(`/facilities/${id}`, b),
             list: (q?: { status?: string; facility_id?: string }) => g<T.List<T.Reservation>>("/reservations", q),
             approve: (id: string) => http.post<Msg & { notification?: T.BroadcastResult }>(`/reservations/${id}/approve`),
             reject: (id: string, reason: string) => http.post<Msg>(`/reservations/${id}/reject`, { reason }),

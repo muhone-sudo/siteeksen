@@ -166,6 +166,7 @@ Tesis: `{id,name,description,category,capacity,is_paid,hourly_fee,daily_fee,depo
 | Uç | Rol | Gövde / Sorgu | Yanıt |
 |---|---|---|---|
 | `GET /facilities` · `/facilities/:id` | herkes | — | `{data:[Tesis]}` · Tesis |
+| `POST /facilities` · `PATCH /facilities/:id` | M,B | `{name,category?,capacity?,is_paid,hourly_fee?,daily_fee?,deposit_amount?,available_from,available_to,available_days[],min/max_duration_minutes,advance_booking_days,max_reservations_per_unit,buffer_minutes,cancellation_deadline_hours,requires_approval,auto_approve_residents,rules?,is_active,maintenance_mode,maintenance_note?}` (PATCH kısmi) | `201 Facility` · `200 {facility,note}`; 422 kural ihlali |
 | `GET /facilities/:id/slots` | herkes | `date`* | `{date,open,available_from,available_to,buffer_minutes,busy:[Rezervasyon],note}` |
 | `GET /reservations` | herkes (M/B/A tümü) | `status`,`facility_id` | `{data:[Rezervasyon]}` |
 | `POST /reservations` | dairesi olan herkes | `facility_id`*,`start_time`*,`end_time`*,`guest_count`,`purpose` | 201 `{id,status,total_fee,note?,deposit_note?}` · 409 çakışma · 422 kural |

@@ -247,6 +247,19 @@ func main() {
 		owner := ""
 		if !canManage(c) {
 			owner = c.GetString("user_id")
+			// Tesisin iptal son süresi yalnızca sakine uygulanır (048); yönetim
+			// bakım/olağanüstü durumda her zaman iptal edebilir.
+			start, hours, err := repo.CancellationWindow(c.Request.Context(), c.GetString("property_id"), c.Param("id"))
+			if err != nil {
+				fail(c, err, "iptal süresi")
+				return
+			}
+			if hours > 0 && time.Until(start) < time.Duration(hours)*time.Hour {
+				c.JSON(http.StatusUnprocessableEntity, gin.H{
+					"error": "Bu tesiste rezervasyon başlangıcından en geç " + strconv.Itoa(hours) +
+						" saat önce iptal edilebilir; iptal için yönetimle iletişime geçin"})
+				return
+			}
 		}
 		if err := repo.Cancel(c.Request.Context(), c.GetString("property_id"),
 			c.Param("id"), owner, c.GetString("user_id"), in.Reason); err != nil {
@@ -263,6 +276,10 @@ func main() {
 	ops := api.Group("")
 	ops.Use(middleware.RequireRole(middleware.RoleManager, middleware.RoleBoardMember))
 	{
+		// Tesis tanımlama (TEST_RAPORU 2.1, 048).
+		ops.POST("/facilities", createFacility(repo))
+		ops.PATCH("/facilities/:id", updateFacility(repo))
+
 		ops.POST("/reservations/:id/approve", func(c *gin.Context) {
 			info, err := repo.Decide(c.Request.Context(), c.GetString("property_id"),
 				c.Param("id"), "APPROVED", c.GetString("user_id"), "")

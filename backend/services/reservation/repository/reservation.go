@@ -42,6 +42,8 @@ type Facility struct {
 	AdvanceBookingDays     int `json:"advance_booking_days"`
 	MaxReservationsPerUnit int `json:"max_reservations_per_unit"`
 	BufferMinutes          int `json:"buffer_minutes"`
+	// CancellationDeadlineHours: sakin başlangıçtan en geç bu kadar saat önce iptal edebilir (0 = serbest).
+	CancellationDeadlineHours int `json:"cancellation_deadline_hours"`
 
 	RequiresApproval     bool   `json:"requires_approval"`
 	AutoApproveResidents bool   `json:"auto_approve_residents"`
@@ -90,8 +92,9 @@ func (r *Repository) ListFacilities(ctx context.Context, propertyID string) ([]F
 		       COALESCE(buffer_minutes,0), COALESCE(requires_approval,false),
 		       COALESCE(auto_approve_residents,true),
 		       COALESCE(rules,''), COALESCE(is_active,true),
-		       COALESCE(maintenance_mode,false), COALESCE(maintenance_note,'')
-		FROM facilities WHERE property_id = $1 ORDER BY name`, propertyID)
+		       COALESCE(maintenance_mode,false), COALESCE(maintenance_note,''),
+		       cancellation_deadline_hours
+		FROM facilities WHERE property_id = $1 AND deleted = 0 ORDER BY name`, propertyID)
 	if err != nil {
 		return nil, err
 	}
@@ -105,7 +108,7 @@ func (r *Repository) ListFacilities(ctx context.Context, propertyID string) ([]F
 			&f.AvailableDays, &f.MinDurationMinutes, &f.MaxDurationMinutes,
 			&f.AdvanceBookingDays, &f.MaxReservationsPerUnit, &f.BufferMinutes,
 			&f.RequiresApproval, &f.AutoApproveResidents, &f.Rules, &f.IsActive,
-			&f.MaintenanceMode, &f.MaintenanceNote); err != nil {
+			&f.MaintenanceMode, &f.MaintenanceNote, &f.CancellationDeadlineHours); err != nil {
 			return nil, err
 		}
 		out = append(out, f)
@@ -387,4 +390,58 @@ func (r *Repository) stateOrNotFound(ctx context.Context, propertyID, table, id 
 		return notFound
 	}
 	return state
+}
+
+// SaveFacility, tesisi ekler (id boşsa) ya da TÜM yazılabilir alanlarını günceller.
+// Doğrulama çağıranda yapılır; veritabanı kısıtı (048) son savunma hattıdır.
+// Mevcut rezervasyonlar değişmez: kurallar yalnızca yeni rezervasyona uygulanır.
+func (r *Repository) SaveFacility(ctx context.Context, propertyID, id string, f *Facility) (string, error) {
+	args := []any{propertyID, f.Name, f.Description, f.Category, f.Capacity, f.IsPaid,
+		f.HourlyFee, f.DailyFee, f.Deposit, f.AvailableFrom, f.AvailableTo, f.AvailableDays,
+		f.MinDurationMinutes, f.MaxDurationMinutes, f.AdvanceBookingDays, f.MaxReservationsPerUnit,
+		f.BufferMinutes, f.RequiresApproval, f.AutoApproveResidents, f.Rules, f.IsActive,
+		f.MaintenanceMode, f.MaintenanceNote, f.CancellationDeadlineHours}
+	if id == "" {
+		var newID string
+		err := r.scope(propertyID).QueryRow(ctx, `
+			INSERT INTO facilities (property_id, name, description, category, capacity, is_paid,
+			    hourly_fee, daily_fee, deposit_amount, available_from, available_to, available_days,
+			    min_duration_minutes, max_duration_minutes, advance_booking_days, max_reservations_per_unit,
+			    buffer_minutes, requires_approval, auto_approve_residents, rules, is_active,
+			    maintenance_mode, maintenance_note, cancellation_deadline_hours)
+			VALUES ($1,$2,NULLIF($3,''),NULLIF($4,''),$5,$6,$7,$8,$9,$10::time,$11::time,$12,$13,$14,$15,$16,
+			        $17,$18,$19,NULLIF($20,''),$21,$22,NULLIF($23,''),$24)
+			RETURNING id`, args...).Scan(&newID)
+		return newID, err
+	}
+	tag, err := r.scope(propertyID).Exec(ctx, `
+		UPDATE facilities SET name = $2, description = NULLIF($3,''), category = NULLIF($4,''), capacity = $5,
+		    is_paid = $6, hourly_fee = $7, daily_fee = $8, deposit_amount = $9, available_from = $10::time,
+		    available_to = $11::time, available_days = $12, min_duration_minutes = $13, max_duration_minutes = $14,
+		    advance_booking_days = $15, max_reservations_per_unit = $16, buffer_minutes = $17,
+		    requires_approval = $18, auto_approve_residents = $19, rules = NULLIF($20,''), is_active = $21,
+		    maintenance_mode = $22, maintenance_note = NULLIF($23,''), cancellation_deadline_hours = $24,
+		    updated_at = now()
+		WHERE id = $25 AND property_id = $1 AND deleted = 0`, append(args, id)...)
+	if err != nil {
+		return "", err
+	}
+	if tag.RowsAffected() == 0 {
+		return "", ErrNotFound
+	}
+	return id, nil
+}
+
+// CancellationWindow, sakin iptalinde uygulanacak son süreyi ve rezervasyon başlangıcını verir.
+func (r *Repository) CancellationWindow(ctx context.Context, propertyID, id string) (time.Time, int, error) {
+	var start time.Time
+	var hours int
+	err := r.scope(propertyID).QueryRow(ctx, `
+		SELECT r.start_time, COALESCE(f.cancellation_deadline_hours, 0)
+		FROM reservations r JOIN facilities f ON f.id = r.facility_id
+		WHERE r.id = $1 AND r.property_id = $2`, id, propertyID).Scan(&start, &hours)
+	if err == pgx.ErrNoRows {
+		return time.Time{}, 0, ErrNotFound
+	}
+	return start, hours, err
 }
