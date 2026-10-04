@@ -3792,6 +3792,19 @@ if [ "$SUP2" = "1" ] && [ -n "${MGR:-}" ] && [ -n "${TEN:-}" ]; then
   [ "$RGCODE" = "422" ] && ok "aralık dışı gün reddedildi (şubatta karşılığı yok) → 422" || bad "aralık → $RGCODE"
   SC=$(curl -s -o /dev/null -w '%{http_code}' -X PUT "$TURL/settings/DUE_DAY_OF_MONTH" -H "$TA" -H "$TJ" -d '{"value":5.5}')
   [ "$SC" = "422" ] && ok "ondalıklı gün reddedildi → 422" || bad "ondalık kabul edildi → $SC"
+  # VERBİS beyanı (S-21): opsiyonel, seçenekli; yükümlülük site yönetiminde
+  VB1=$(curl -s -w '|%{http_code}' -X PUT "$TURL/settings/VERBIS_STATUS" -H "$TA" -H "$TJ" -d '{"value":"KAYITLI"}')
+  VB2=$(curl -s -o /dev/null -w '%{http_code}' -X PUT "$TURL/settings/VERBIS_STATUS" -H "$TA" -H "$TJ" -d '{"value":"REGISTERED"}')
+  VB3=$(curl -s -o /dev/null -w '%{http_code}' -X PUT "$TURL/settings/VERBIS_REGISTRY_NO" -H "$TA" -H "$TJ" -d '{"value":"VB-12345"}')
+  VBD=$(curl -s "$TURL/settings/definitions" -H "$TA" | python3 -c "
+import json,sys; d=[x for x in json.load(sys.stdin)['data'] if x['key']=='VERBIS_STATUS'][0]
+print(d['default'], len(d['options']), 'site yönetimine' in d['description'])" 2>/dev/null)
+  VBS=$($PSQL -t -A -c "SELECT value_text FROM property_settings WHERE property_id='$DEMO_PROPERTY' AND setting_key='VERBIS_STATUS';")
+  $PSQL -c "DELETE FROM property_settings WHERE property_id='$DEMO_PROPERTY' AND setting_key IN ('VERBIS_STATUS','VERBIS_REGISTRY_NO');" >/dev/null
+  case "$VB1" in *"NOT_DECLARED, REGISTERED"*"|422") VBOK=1 ;; *) VBOK=0 ;; esac
+  [ "$VBOK" = "1" ] && [ "$VB2" = "200" ] && [ "$VB3" = "200" ] && [ "$VBD" = "NOT_DECLARED 4 True" ] && [ "$VBS" = "REGISTERED" ] \
+    && ok "VERBİS beyanı: varsayılan 'beyan edilmedi' (engellemez), yalnızca tanımlı seçenekler (422 + izinli değerler), sicil no isteğe bağlı" \
+    || bad "VERBİS beyanı: $VB1 / $VB2 / $VB3 / $VBD / $VBS"
 
   # 5) Değişiklik geçmişi — salt-ekleme
   H=$(curl -s "$TURL/settings-history?key=DUE_DAY_OF_MONTH" -H "$TA")

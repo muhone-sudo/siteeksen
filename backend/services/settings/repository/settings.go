@@ -138,6 +138,9 @@ func (r *Repository) Set(ctx context.Context, propertyID, userID, key string, ra
 		if err != nil {
 			return nil, ErrInvalidType
 		}
+		if len(def.Options) > 0 && !hasOption(def.Options, s) {
+			return nil, fmt.Errorf("%w: %s için izin verilen değerler: %s", ErrOutOfRange, def.Key, optionValues(def.Options))
+		}
 		vtext = &s
 		display = s
 	case TypeInt:
@@ -334,4 +337,21 @@ func toBool(v any) (bool, error) {
 // (migration 024).
 func (r *Repository) scope(propertyID string) *dbscope.Scoped {
 	return dbscope.For(r.pool, propertyID)
+}
+
+func hasOption(opts []Option, v string) bool {
+	for _, o := range opts {
+		if o.Value == v {
+			return true
+		}
+	}
+	return false
+}
+
+func optionValues(opts []Option) string {
+	vals := make([]string, len(opts))
+	for i, o := range opts {
+		vals[i] = o.Value
+	}
+	return strings.Join(vals, ", ")
 }

@@ -38,7 +38,7 @@ export default function SettingsPage() {
                         {(d) => (
                             <Table rows={d.data} rowKey={(s) => s.key} columns={[
                                 { header: "Ayar", cell: (s) => <div><p className="font-medium">{s.description}</p><p className="font-mono text-xs text-gray-500">{s.key}</p></div> },
-                                { header: "Değer", cell: (s) => <span className="font-mono">{String(s.value ?? "")}</span> },
+                                { header: "Değer", cell: (s) => <span className="font-mono">{defOf(s.key)?.options?.find((o) => o.value === s.value)?.label ?? String(s.value ?? "")}</span> },
                                 { header: "", cell: (s) => (s.is_default ? <Badge>Varsayılan</Badge> : <Badge tone="blue">Değiştirildi</Badge>) },
                                 { header: "Son değişiklik", cell: (s) => (s.updated_at ? `${dateTime(s.updated_at)} · ${s.updated_by_name ?? ""}` : "—") },
                                 { header: "", cell: (s) => (
@@ -77,7 +77,9 @@ export default function SettingsPage() {
                 }}>
                 {edit && (
                     <Field label="Değer" hint={(() => { const d = defOf(edit.key); return d?.min !== undefined ? `Aralık: ${d.min}–${d.max}` : undefined; })()}>
-                        {edit.type === "BOOL" ? (
+                        {defOf(edit.key)?.options ? (
+                            <Select value={value} onChange={(e) => setValue(e.target.value)} options={defOf(edit.key)?.options ?? []} />
+                        ) : edit.type === "BOOL" ? (
                             <Select value={value} onChange={(e) => setValue(e.target.value)} options={[{ value: "true", label: "Açık" }, { value: "false", label: "Kapalı" }]} />
                         ) : (
                             <Input type={edit.type === "INT" ? "number" : "text"} value={value} onChange={(e) => setValue(e.target.value)} />

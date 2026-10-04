@@ -24,6 +24,14 @@ type Definition struct {
 	// Min/Max yalnızca INT türünde anlamlıdır.
 	Min int `json:"min,omitempty"`
 	Max int `json:"max,omitempty"`
+	// Options doluysa TEXT değeri yalnızca bu değerlerden biri olabilir.
+	Options []Option `json:"options,omitempty"`
+}
+
+// Option, seçenekli bir TEXT ayarının izin verilen değeridir.
+type Option struct {
+	Value string `json:"value"`
+	Label string `json:"label"`
 }
 
 // Definitions, tanınan tüm ayarlardır.
@@ -78,6 +86,19 @@ var Definitions = []Definition{
 		Description: "Tadilat çalışma saatleri (ör. Hafta içi 09:00-18:00, Cumartesi 10:00-17:00). " +
 			"Konut içi tadilat için ulusal saat kuralı yoktur; yönetim planı ya da kurul kararıyla belirlenir. " +
 			"Onaylanan tadilat iznine kopyalanır ve komşu bildiriminde gösterilir."},
+
+	// --- KVKK beyanı (S-21, kullanıcı kararı 2026-10-05) ---
+	// VERBİS kaydı (KVKK m.16) veri sorumlusu olan SİTE YÖNETİMİNİN yükümlülüğüdür;
+	// muafiyet Kurul kararlarına ve sitenin durumuna bağlıdır. Sistem kaydın gerekip
+	// gerekmediğine karar vermez ve beyan girilmemiş siteyi ENGELLEMEZ; yalnızca
+	// yönetimin beyanını saklar ve gösterir.
+	{Key: "VERBIS_STATUS", Type: TypeText, Default: "NOT_DECLARED",
+		Description: "VERBİS kayıt durumu (yönetimin beyanı). Kayıt yükümlülüğü veri sorumlusu olan site yönetimine aittir " +
+			"(KVKK m.16); sistem yükümlülüğü belirlemez ve kullanımı kısıtlamaz.",
+		Options: []Option{{"NOT_DECLARED", "Beyan edilmedi"}, {"REGISTERED", "VERBİS'e kayıtlı"},
+			{"EXEMPT", "Kurul kararıyla muaf"}, {"UNDER_REVIEW", "Hukuk danışmanıyla değerlendiriliyor"}}},
+	{Key: "VERBIS_REGISTRY_NO", Type: TypeText, Default: "",
+		Description: "VERBİS sicil numarası (kayıtlıysa; isteğe bağlı)"},
 }
 
 // byKey, hızlı arama için.

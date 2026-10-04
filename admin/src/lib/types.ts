@@ -242,7 +242,7 @@ export interface BulletinSummary { pending_review: number; approved: number; rej
 
 // ---------------------------------------------------------------- settings
 export interface Setting { key: string; type: string; description: string; value: unknown; is_default: boolean; updated_by_name?: string; updated_at?: string }
-export interface SettingDef { key: string; type: string; description: string; default: unknown; min?: number; max?: number }
+export interface SettingDef { key: string; type: string; description: string; default: unknown; min?: number; max?: number; options?: { value: string; label: string }[] }
 export interface SettingHistory { key: string; old_value?: string; new_value: string; changed_by_name?: string; changed_at: string }
 
 // ---------------------------------------------------------------- governance

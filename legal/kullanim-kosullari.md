@@ -106,6 +106,12 @@ SiteEksen, site/apartman yönetimi için dijital bir platform sunar:
 
 Kişisel verilerinizin işlenmesi Gizlilik Politikamıza tabidir.
 
+Site/apartman yönetimi, sakinlerin ve çalışanlarının kişisel verileri bakımından **veri sorumlusudur**.
+Veri Sorumluları Siciline (VERBİS) kayıt yükümlülüğünün bulunup bulunmadığını belirlemek ve gerekiyorsa kaydı
+yaptırmak site yönetiminin sorumluluğundadır (6698 s. KVKK m.16). Platform bu yükümlülüğü belirlemez; yönetim
+kayıt durumunu Ayarlar ekranında isteğe bağlı olarak beyan edebilir. Beyanın girilmemiş olması hizmetin
+kullanımını engellemez.
+
 ---
 
 ## 8. Sorumluluk Sınırlaması

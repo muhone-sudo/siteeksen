@@ -12,6 +12,16 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-05 — VERBİS BEYANI (kullanıcı kararı S-21) (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **1170/1170** (varsayılan "beyan edilmedi", tanımsız değer 422 + izinli değerler,
+> kayıtlı + sicil no kaydı); panel tsc/lint temiz.
+
+- VERBİS kaydı (KVKK m.16) veri sorumlusu olan site yönetiminin yükümlülüğüdür; sistem yükümlülüğü belirlemez ve beyan
+  girilmemiş siteyi engellemez. Ayarlar: `VERBIS_STATUS` (beyan edilmedi / kayıtlı / muaf / değerlendiriliyor) ve
+  `VERBIS_REGISTRY_NO`. Ayar kayıt defterine seçenekli metin türü eklendi (tanımsız değer 422).
+- `legal/kullanim-kosullari.md` §7: sorumluluğun site yönetiminde olduğu yazıldı.
+
 ### 2026-10-05 — BORDRO KAYDI (migration 047, FAZ 7.4, kullanıcı kararı S-22=b) (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **1169/1169** (çalışan+dönem tekil 409, ayrılış sonrası dönem 422, maliyet<net 422,

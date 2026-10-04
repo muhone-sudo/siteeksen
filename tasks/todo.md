@@ -640,7 +640,7 @@ S-21 → VERBİS opsiyonel, yükümlülük site yönetiminde; S-19 ve iOS → ol
 
 - [x] K1 kararları `questions.md`'ye işle
 - [x] K2 bordro kaydı (S-22, FAZ 7.4) — 047, verify 1169/1169
-- [ ] K3 VERBİS beyanı (S-21) — opsiyonel, engellemez
+- [x] K3 VERBİS beyanı (S-21) — opsiyonel, engellemez; verify 1170/1170
 - [ ] T1 tesis ekleme/düzenleme ucu + panel formu + demo tesis (TEST 2.1)
 - [ ] T2 m² zorunlu + paylaştırma öncesi eksik alan listesi (TEST 2.2)
 - [ ] T3 kargo teslim imzası/fotoğrafı depolamaya (TEST 2.3)
