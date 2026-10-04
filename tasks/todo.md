@@ -632,6 +632,20 @@ yaygınlaştırılmasına kayıyor.
 
 # İnceleme notları
 
+## 2026-10-04 — Kurulum, görevlendirme, devir, KVKK, saat dilimi (otonom, ikinci tur)
+
+**Doğrulama:** `verify-stack.sh` **1090/1090**, `verify-mobile.sh` **10/10** (sakin 27, yönetici 27),
+panel `tsc`/`lint`/`build` temiz, panel sözleşmesi 65 uç.
+
+**Yapılan:** sakin daveti (S-20 kararı, 032); site kurulumu — kurucu yönetici, bölüm toplu ekleme (033);
+görevlendirme API'si + oturum iptali; iş saat dilimi sabitlendi (gece yarısı gün kayması); toplu sakin
+içe aktarma; devir bakiyesi (034); demirbaş bakım hatırlatması (7.1); liste kesilmesi bildirimi (B69);
+yönetişimde kişi–daire bağı; KVKK ilgili kişi başvuruları + süre hatırlatması (035); paneller ve mobil ekranlar.
+
+**Sıradaki (büyük):** 7.3 acil durum, 7.4 bordro/SGK (mevzuat oranları), 7.5 ihlal/tadilat izni,
+7.6 ortak alan geliri, 7.7 vergi takvimi, 7.8 saklama/imha; 4.13 tam kuruş göçü; 3.6 metrik.
+**Kullanıcı kararı bekleyen:** S-19 (sonra), iOS paket kimliği (sonra).
+
 ## 2026-10-03 — Anahtar döndürme, para doğruluğu ve güvenlik turu (otonom)
 
 **Doğrulama (son durum):** `verify-stack.sh` **1042/1042**, `verify-mobile.sh` **10/10**
