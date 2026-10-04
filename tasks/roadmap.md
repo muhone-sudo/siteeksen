@@ -189,10 +189,13 @@ denemesi otomatik testte başarısız olur.
 | 4.10 | Mobil ödeme ekranını gerçek API'ye bağla ya da kaldır | `[D4]` todo 0.C.1 | B49 |
 | 4.11 | Ödeme sağlayıcısı adaptörü (port/adapter, sandbox-stub ile) | `[BLOKE]` S-06 | C.4 |
 
-## FAZ 5 — Mevcut Modülleri Uçtan Uca Bitirme `[SIRADAKİ ANA İŞ]`
+## FAZ 5 — Mevcut Modülleri Uçtan Uca Bitirme `[TAMAMLANDI — 2026-09-14; arayüzler 2026-09-27]`
 
-> S-03 kararı: **hepsini tamamla**. Ara adım tamam — 22 servisin tamamı dürüstçe 501
-> döndürüyor ve arayüzler bunu açıkça gösteriyor. Şimdi modül modül gerçeğe çevrilecek.
+> **Durum (2026-10-04):** 22 mock servisten 20'si gerçek veriye bağlı, anking (S-07) ve
+> meeting_wizard bilinçli 501. Panel (65 uç) ve iki mobil uygulama gerçek sözleşmeye bağlı.
+> Aşağıdaki satırların [D0] işaretleri 2026-09-09 planıdır; kanıt 	asks/todo.md ve changelog.md'dedir.
+>
+> S-03 kararı: **hepsini tamamla**.
 > Öncelik: gider, personel, ziyaretçi, otopark, rezervasyon, kargo.
 > Dikey dilim ilkesi: şema → repository → service → handler → RBAC → panel/mobil → test.
 
@@ -243,7 +246,7 @@ Bugün tamamen yok. Aidatın yasal dayanağı ve icra gücü buradan doğar.
 | # | Dilim | Durum | Not |
 |---|---|---|---|
 | 7.1 | **Periyodik bakım ve yasal uyum takvimi** — asansör, yangın, su deposu, paratoner, jeneratör, baca, havuz | `[D4]` ilk dilim 2026-10-04: demirbaş bakım aralığı + zamanlayıcı hatırlatması (verify §40). Kalan: mevzuat kaynaklı hazır şablonlar (hukuki teyit gerekir, S-05) | M-31; denetimde ilk sorulan; hiç yok |
-| 7.2 | **Sigorta yönetimi** — DASK takibi, poliçe yenileme, hasar | `[D0]` | M-36 |
+| 7.2 | **Sigorta yönetimi** — DASK takibi, poliçe yenileme, hasar | `[D3]` poliçe = INSURANCE türü sözleşme; bitiş/ihbar hatırlatması zamanlayıcıda. Kalan: DASK (bölüm bazlı) ve hasar kaydı | M-36 |
 | 7.3 | **Acil durum ve afet** — plan, tahliye, kritik altyapı, tatbikat, deprem sonrası akış | `[D0]` | M-37; Türkiye için yüksek değer |
 | 7.4 | **Personel** — bordro, SGK, izin bakiyesi, İSG, kıdem karşılığı | `[D0]` | M-34 |
 | 7.5 | **Kural ihlali ve yaptırım** + **tadilat izni** | `[D0]` | M-44, M-45 |
