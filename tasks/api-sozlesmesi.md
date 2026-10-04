@@ -375,4 +375,11 @@ Roller: okuma M,B,A · yazma M,B. İtiraz: kat maliki/vekil ya da yönetim.
 | `POST /renovations/:id/approve` | M,B | `conditions`,`deposit_amount`,`permit_ref`(STRUCTURAL zorunlu),`agenda_item_id`(COMMON_AREA/FACADE, rıza yerine) | 200 `{permit,notification,neighbors}` · 422 ön koşul (ruhsat / 4/5 rıza) |
 | `POST /renovations/:id/reject` · `/stop` | M,B | `reason`* | 200 · gerekçesiz 422 · uygun olmayan durum 409 |
 | `POST /renovations/:id/complete` | M,B | `deposit_refunded`(≤ teminat),`note`(kesintide zorunlu) | 200 |
+| `GET /site-rules` | herkes (etkin olanlar) · M,B,A (tümü) | — | `{data:[{id,category,title,description,management_plan_ref,is_active,created_at}]}` |
+| `POST /site-rules` · `/:id/deactivate` | M,B | `title`*,`management_plan_ref`*(KMK m.28),`category`(NOISE/PET/PARKING/WASTE/COMMON_AREA/RENOVATION/OTHER),`description` | 201 kural · dayanaksız 422 |
+| `GET /violations` · `/:id` | herkes (kendi bildirdiği / dairesine ait) · M,B,A (tümü) | — | `{data:[{id,rule_id,rule_title,management_plan_ref,unit_id,unit,reported_by?,reporter_name?,description,occurred_at,status(OPEN/VERIFIED/DISMISSED/RESOLVED),stage(NONE/VERBAL_WARNING/WRITTEN_WARNING/FORMAL_NOTICE/LEGAL),unit_repeat_count,created_at,events?}],truncated,limit}` · bildiren yalnızca yönetime ve bildirene |
+| `POST /violations` | herkes | `rule_id`*,`unit_id`*,`description`*(≥10),`occurred_at`(RFC3339) | 201 `{violation,notification,note}` |
+| `POST /violations/:id/respond` | dairenin aktif sakini | `note`* | 201 savunma · başka daire 403 |
+| `POST /violations/:id/verify` · `/dismiss` · `/resolve` | M,B | `note` (dismiss/resolve zorunlu) | 200 · durum uygun değil 409 |
+| `POST /violations/:id/escalate` | M,B | `stage`*(ileri yönde),`note`(sözlü uyarı dışında zorunlu) | 200; dairenin bütün aktif sakinlerine bildirim (KMK m.18) · 409 geri/aynı kademe ya da doğrulanmamış |
 | `POST /kvkk-requests/:id/respond` | M,B | `status`*(ANSWERED/REJECTED),`response`* | 200; sahibine bildirim · sonuçlanmış 409 |

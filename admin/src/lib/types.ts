@@ -348,3 +348,12 @@ export interface RenovationPermit {
     stop_reason?: string; completion_note?: string; created_at: string;
 }
 export interface RenovationConsent { owner_user_id: Id; owner_name: string; consented_on: string; document_ref?: string }
+export interface SiteRule { id: Id; category: string; title: string; description?: string; management_plan_ref: string; is_active: boolean; created_at: string }
+export interface ViolationEvent { event_type: string; note?: string; actor_id?: string; actor_name?: string; created_at: string }
+export interface Violation {
+    id: Id; rule_id: Id; rule_title: string; management_plan_ref: string; unit_id: Id; unit: string;
+    reported_by?: string; reporter_name?: string; description: string; occurred_at: string;
+    status: "OPEN" | "VERIFIED" | "DISMISSED" | "RESOLVED";
+    stage: "NONE" | "VERBAL_WARNING" | "WRITTEN_WARNING" | "FORMAL_NOTICE" | "LEGAL";
+    unit_repeat_count: number; created_at: string; events?: ViolationEvent[];
+}

@@ -3627,6 +3627,15 @@ if [ "$SUP2" = "1" ] && [ -n "${MGR:-}" ] && [ -n "${TEN:-}" ]; then
     ok "mevzuat anahtarı doğrudan SQL ile de yazılamıyor (veritabanı kısıtı)"
   fi
 
+  # 038: ön ek listesinde olmayan sonradan eklenmiş parametreler de doğrudan SQL ile gölgelenemez
+  NG=0
+  for K in KVKK_RESPONSE_DAYS REVALUATION_RATE MANAGER_MANDATORY_UNIT_COUNT; do
+    $PSQL -c "INSERT INTO property_settings (property_id, setting_key, value_int, value_type)
+      VALUES ('11111111-1111-1111-1111-111111111111','$K',0,'INT');" >/dev/null 2>&1 && NG=$((NG+1))
+  done
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X PUT "$TURL/settings/KVKK_RESPONSE_DAYS" -H "$TA" -H "$TJ" -d '{"value":90}')
+  [ "$NG" = "0" ] && [ "$SC" = "422" ] && ok "sonradan eklenen mevzuat parametreleri de site ayarı olarak yazılamıyor (SQL tetikleyici + API 422)" \
+    || bad "mevzuat anahtarı gölgelendi: SQL $NG kayıt, API $SC"
   # Gerçek gecikme oranı bozulmamış olmalı
   LF2=$($PSQL -t -A -c "SELECT value_numeric FROM legal_parameters WHERE code='LATE_FEE_MONTHLY_RATE' AND property_id IS NULL;")
   [ "$LF2" = "0.050000" ] && ok "mevzuat parametresi bozulmadan duruyor (%5)" || bad "oran değişti: $LF2"
@@ -4870,6 +4879,51 @@ if [ "$CUP" = "1" ]; then
   RVD=$(qscoped "DELETE FROM renovation_permits WHERE id='$RI' RETURNING id;")
   RVN=$($PSQL -t -A -c "SELECT count(*) FROM renovation_permits WHERE id='$RI';")
   [ "$RVN" = "1" ] && ok "uygulama rolü tadilat izni kaydını silemiyor (hasar/teminat uyuşmazlığında delil)" || bad "tadilat izni silinebildi"
+  # Kural ihlali (FAZ 7.5, 039): yönetim planı dayanağı, adsız bildirim, kademeli süreç, savunma
+  SR="$CURL2/site-rules"; VU="$CURL2/violations"
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$SR" -H "Authorization: Bearer $MGR" -H "$JH" -d '{"title":"Gece gürültüsü","category":"NOISE"}')
+  RULE=$(curl -s -X POST "$SR" -H "Authorization: Bearer $MGR" -H "$JH" \
+    -d '{"title":"Gece gürültüsü","category":"NOISE","management_plan_ref":"Yönetim planı m.12/3"}' | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])' 2>/dev/null)
+  TR=$(curl -s "$SR" -H "Authorization: Bearer $TEN" | grep -c "$RULE")
+  [ "$SC" = "422" ] && [ -n "$RULE" ] && [ "$TR" = "1" ] && ok "yönetim planı dayanağı olmayan kural eklenemiyor (KMK m.28) → 422; kural sakinlere görünüyor" \
+    || bad "kural kataloğu: $SC / $RULE / $TR"
+  vpost() { curl -s -X POST "$VU" -H "Authorization: Bearer $1" -H "$JH" \
+    -d "{\"rule_id\":\"$RULE\",\"unit_id\":\"$2\",\"description\":\"Gece 02:00 sularında yüksek sesle müzik\"}" \
+    | python3 -c 'import json,sys; print(json.load(sys.stdin)["violation"]["id"])' 2>/dev/null; }
+  VT=$(vpost "$TEN" "$OUNIT")   # kiracı başka daireyi bildiriyor
+  VM=$(vpost "$MGR" "$TUNIT")   # yönetim kiracının dairesini bildiriyor
+  NR=$($PSQL -t -A -c "SELECT count(*) FROM notifications WHERE topic='violation.reported' AND payload->>'violation_id'='$VT';")
+  [ -n "$VT" ] && [ -n "$VM" ] && [ "${NR:-0}" -ge 1 ] && ok "sakin ve yönetim ihlal bildirebiliyor; onay yetkililerine bildirim gitti" || bad "ihlal bildirimi: $VT / $VM / $NR"
+  RB=$(curl -s "$VU/$VM" -H "Authorization: Bearer $TEN" | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d.get("reported_by","")+"|"+d.get("reporter_name","")+"|"+str(len([e for e in d.get("events",[]) if e.get("actor_name")])))' 2>/dev/null)
+  RO=$(curl -s "$VU/$VT" -H "Authorization: Bearer $TEN" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("reported_by",""))' 2>/dev/null)
+  [ "$RB" = "||0" ] && [ "$RO" = "$TENUID" ] && ok "ihlal bildirilen daire bildireni görmüyor; bildiren kendi kaydını görüyor" || bad "bildiren gizliliği: '$RB' / '$RO'"
+  SC=$(curl -s -o /dev/null -w '%{http_code}' "$VU/$VT" -H "Authorization: Bearer $XMGR")
+  [ "$SC" = "404" ] && ok "başka sitenin yöneticisi ihlal kaydını göremiyor → 404" || bad "çapraz site ihlal → $SC"
+  esc() { curl -s -o /dev/null -w '%{http_code}' -X POST "$VU/$1/escalate" -H "Authorization: Bearer $MGR" -H "$JH" -d "$2"; }
+  SC1=$(esc "$VM" '{"stage":"VERBAL_WARNING"}')
+  SC2=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$VU/$VM/verify" -H "Authorization: Bearer $TEN" -H "$JH" -d '{}')
+  SC3=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$VU/$VM/verify" -H "Authorization: Bearer $MGR" -H "$JH" -d '{}')
+  [ "$SC1" = "409" ] && [ "$SC2" = "403" ] && [ "$SC3" = "200" ] && ok "doğrulanmadan uyarı yok (409); sakin doğrulayamıyor (403); yönetim doğruladı" || bad "doğrulama: $SC1 / $SC2 / $SC3"
+  SC1=$(esc "$VM" '{"stage":"WRITTEN_WARNING"}'); SC2=$(esc "$VM" '{"stage":"VERBAL_WARNING"}')
+  SC3=$(esc "$VM" '{"stage":"VERBAL_WARNING"}'); SC4=$(esc "$VM" '{"stage":"WRITTEN_WARNING","note":"İkinci kez gece gürültüsü"}')
+  NW=$($PSQL -t -A -c "SELECT count(*) FILTER (WHERE recipient_user_id='$TENUID'), count(*) FILTER (WHERE body LIKE '%m.12/3%') FROM notifications WHERE topic='violation.written_warning' AND payload->>'violation_id'='$VM';")
+  [ "$SC1" = "422" ] && [ "$SC2" = "200" ] && [ "$SC3" = "409" ] && [ "$SC4" = "200" ] && [ "${NW%%|*}" = "1" ] && [ "${NW##*|}" -ge 1 ] \
+    && ok "kademe yalnızca ileri gidiyor, yazılı uyarı açıklamasız olmuyor; uyarı yönetim planı dayanağıyla dairenin kiracısına da gitti (KMK m.18)" \
+    || bad "kademeli süreç: $SC1 / $SC2 / $SC3 / $SC4 — bildirim $NW"
+  SC1=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$VU/$VM/respond" -H "Authorization: Bearer $TEN" -H "$JH" -d '{"note":"O saatte evde değildim"}')
+  SC2=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$VU/$VT/respond" -H "Authorization: Bearer $TEN" -H "$JH" -d '{"note":"x"}')
+  [ "$SC1" = "201" ] && [ "$SC2" = "403" ] && ok "dairenin sakini savunma yazabiliyor; başka dairenin kaydına yazamıyor → 403" || bad "savunma: $SC1 / $SC2"
+  SC1=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$VU/$VT/dismiss" -H "Authorization: Bearer $MGR" -H "$JH" -d '{}')
+  SC2=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$VU/$VT/dismiss" -H "Authorization: Bearer $MGR" -H "$JH" -d '{"note":"Kamera kaydında doğrulanmadı"}')
+  ND=$($PSQL -t -A -c "SELECT count(*) FROM notifications WHERE topic='violation.dismissed' AND recipient_user_id='$TENUID';")
+  [ "$SC1" = "422" ] && [ "$SC2" = "200" ] && [ "${ND:-0}" -ge 1 ] && ok "bildirim gerekçesiz reddedilemiyor; gerekçeli ret bildirene iletildi" || bad "ret: $SC1 / $SC2 / $ND"
+  EV=$(qscoped "UPDATE rule_violation_events SET note='degisti' WHERE violation_id='$VM' RETURNING id;")
+  EN=$($PSQL -t -A -c "SELECT count(*) FROM rule_violation_events WHERE violation_id='$VM' AND note='degisti';")
+  VD=$(qscoped "DELETE FROM rule_violations WHERE id='$VM' RETURNING id;")
+  VN=$($PSQL -t -A -c "SELECT count(*) FROM rule_violations WHERE id='$VM';")
+  [ "$EN" = "0" ] && [ "$VN" = "1" ] && ok "ihlal olay geçmişi değiştirilemiyor, kayıt silinemiyor (KMK m.33 dosyası)" || bad "olay geçmişi korunmuyor: $EN / $VN"
+  RC=$(curl -s "$VU" -H "Authorization: Bearer $MGR" | python3 -c "import json,sys; d=[v for v in json.load(sys.stdin)['data'] if v['id']=='$VM']; print(d[0]['unit_repeat_count'], d[0]['stage'], d[0]['reporter_name']!='')" 2>/dev/null)
+  [ "$RC" = "1 WRITTEN_WARNING True" ] && ok "yönetim listesinde tekrar sayısı, kademe ve bildiren görünüyor" || bad "yönetim listesi: '$RC'"
   # Kiracı kendi talebini listede görür
   RL=$(curl -s "$CURL2/requests" -H "Authorization: Bearer $TEN")
   echo "$RL" | grep -q "$RQID" && ok "sakin kendi talebini listede görüyor" \
@@ -5234,8 +5288,8 @@ ok "kullanılmayan 13 site tablosu RLS ile korunuyor"
 
 # 9) Toplam durum — RLS DIŞINDA KALAN her tablo bilinçli ve gerekçeli olmalı
 RLSCOUNT=$($PSQL -t -A -c "SELECT count(*) FROM rls_enabled_tables;")
-[ "$RLSCOUNT" = "86" ] && ok "RLS toplam 86 tabloda açık" \
-  || bad "beklenmedik RLS tablo sayısı: $RLSCOUNT (beklenen 86)"
+[ "$RLSCOUNT" = "89" ] && ok "RLS toplam 89 tabloda açık" \
+  || bad "beklenmedik RLS tablo sayısı: $RLSCOUNT (beklenen 89)"
 NOTRLS=$($PSQL -t -A -c "SELECT string_agg(t.table_name, ' ' ORDER BY t.table_name)
   FROM information_schema.tables t
   WHERE t.table_schema='public' AND t.table_type='BASE TABLE'

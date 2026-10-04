@@ -12,6 +12,22 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-04 — KURAL İHLALİ (migration 039, FAZ 7.5 / M-44) + AYAR KORUMASI (038) (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **1127/1127** (dayanaksız kural 422, bildiren gizliliği, çapraz site 404, doğrulamasız
+> uyarı 409, sakin doğrulayamaz 403, kademe yalnızca ileri, açıklamasız yazılı uyarı 422, uyarı kiracıya da gider,
+> savunma yalnızca dairenin sakininden, gerekçesiz ret 422, olay geçmişi değiştirilemez/kayıt silinemez, tekrar
+> sayısı; sonradan eklenen mevzuat parametreleri site ayarıyla gölgelenemez; RLS 89 tablo); `verify-mobile.sh` 10/10
+> (sakin 31 test); panel tsc/lint temiz.
+
+- Kural kataloğu yönetim planı dayanağı ister (KMK m.28). İhlal bildirimi (sakin/yönetim), doğrulama/ret, kademeli
+  süreç (sözlü uyarı → yazılı uyarı → ihtar → hukuki yol, KMK m.33 / m.25-b), savunma, salt-ekleme olay geçmişi,
+  son 24 ayda tekrar sayısı. Uyarı dairenin bütün aktif sakinlerine gider (kiracı malikle müteselsil, m.18/2).
+- Bildirenin kimliği ihlal bildirilen daireye gösterilmez; para cezası alanı bilerek yok (Kabahatler K. m.22).
+- 038: `property_settings` tetikleyicisi, `legal_parameters`'ta kodu olan her anahtarı reddeder (017'deki sabit ön ek
+  listesi KVKK_/REVALUATION/BUDGET_GA gibi sonradan eklenenleri kapsamıyordu).
+- Panel: "Kural İhlalleri" (katalog, kayıt, kademe, olay geçmişi). Sakin uygulaması: "Kural ihlali bildir" (bildirim, savunma).
+
 ### 2026-10-04 — TADİLAT İZNİ (migration 037, FAZ 7.5 / M-45) (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **1114/1114** (kiracı başvuramaz 403, doğrulama 422, onay yetkilisine bildirim,

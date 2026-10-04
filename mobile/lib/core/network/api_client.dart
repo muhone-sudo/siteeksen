@@ -234,6 +234,21 @@ class ApiClient {
     final response = await _dio.post('/kvkk-requests', data: {'request_type': type, 'description': description});
     return Map<String, dynamic>.from(response.data as Map);
   }
+  /// Kural ihlalleri (FAZ 7.5): kişinin bildirdikleri ve dairesine ait kayıtlar.
+  Future<List<dynamic>> getViolations() async => _list((await _dio.get('/violations')).data);
+
+  Future<List<dynamic>> getSiteRules() async => _list((await _dio.get('/site-rules')).data);
+
+  Future<List<dynamic>> getUnits() async => _list((await _dio.get('/units')).data);
+
+  Future<Map<String, dynamic>> reportViolation(String ruleId, String unitId, String description) async {
+    final r = await _dio.post('/violations', data: {'rule_id': ruleId, 'unit_id': unitId, 'description': description});
+    return Map<String, dynamic>.from(r.data as Map);
+  }
+
+  Future<void> respondViolation(String id, String note) async {
+    await _dio.post('/violations/$id/respond', data: {'note': note});
+  }
   /// Tadilat izinleri (FAZ 7.5): kişinin başvurduğu ya da sakini olduğu dairelerin izinleri.
   Future<List<dynamic>> getRenovations() async {
     final response = await _dio.get('/renovations');

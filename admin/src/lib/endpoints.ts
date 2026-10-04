@@ -97,6 +97,20 @@ export function endpoints(http: Http) {
             stop: (id: string, reason: string) => http.post<{ permit: T.RenovationPermit }>(`/renovations/${id}/stop`, { reason }),
             complete: (id: string, b: { deposit_refunded?: number; note?: string }) => http.post<{ permit: T.RenovationPermit }>(`/renovations/${id}/complete`, b),
         },
+        violations: {
+            rules: () => g<T.List<T.SiteRule>>("/site-rules"),
+            createRule: (b: { title: string; category: string; description?: string; management_plan_ref: string }) => http.post<T.SiteRule>("/site-rules", b),
+            deactivateRule: (id: string) => http.post<Msg>(`/site-rules/${id}/deactivate`),
+            list: () => g<T.List<T.Violation>>("/violations"),
+            get: (id: string) => g<T.Violation>(`/violations/${id}`),
+            create: (b: { rule_id: string; unit_id: string; description: string; occurred_at?: string }) =>
+                http.post<{ violation: T.Violation; notification: T.BroadcastResult; note: string }>("/violations", b),
+            verify: (id: string, note?: string) => http.post<{ violation: T.Violation }>(`/violations/${id}/verify`, { note }),
+            dismiss: (id: string, note: string) => http.post<{ violation: T.Violation }>(`/violations/${id}/dismiss`, { note }),
+            escalate: (id: string, stage: string, note?: string) =>
+                http.post<{ violation: T.Violation; notification: T.BroadcastResult }>(`/violations/${id}/escalate`, { stage, note }),
+            resolve: (id: string, note: string) => http.post<{ violation: T.Violation }>(`/violations/${id}/resolve`, { note }),
+        },
         announcements: {
             list: (q?: { category?: string; include_expired?: string }) => g<T.List<T.Announcement>>("/announcements", q),
             create: (b: { title: string; content: string; category: string; priority: string; is_pinned?: boolean; expires_at?: string }) =>
@@ -308,6 +322,8 @@ export const READS: { path: string; keys: string[]; list?: boolean }[] = [
     { path: "/residents/invitations", keys: ["data"] },
     { path: "/kvkk-requests", keys: ["data"] },
     { path: "/renovations", keys: ["data", "truncated", "limit"] },
+    { path: "/site-rules", keys: ["data"] },
+    { path: "/violations", keys: ["data", "truncated", "limit"] },
     { path: "/property-roles", keys: ["id", "role", "first_name", "active", "decision_ref"], list: true },
     { path: "/units", keys: ["id", "block", "door_number", "share_ratio"], list: true },
     { path: "/finance/assessments/overview", keys: ["period", "total_amount", "collected_amount", "rate"], list: true },

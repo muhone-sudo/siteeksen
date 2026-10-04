@@ -99,6 +99,7 @@ export const ROUTE_ROLES: { prefix: string; roles: Role[]; reason: string }[] = 
     { prefix: "/dashboard/roles", roles: MANAGEMENT_AND_AUDIT, reason: "Yönetim görevlendirmeleri" },
     { prefix: "/dashboard/kvkk", roles: MANAGEMENT_AND_AUDIT, reason: "KVKK ilgili kişi başvuruları (kişisel veri)" },
     { prefix: "/dashboard/renovations", roles: MANAGEMENT_AND_AUDIT, reason: "Tadilat izinleri ve kat maliki rızaları" },
+    { prefix: "/dashboard/violations", roles: MANAGEMENT_AND_AUDIT, reason: "Kural ihlalleri ve bildiren kimliği" },
 
     // Operasyonel ekranlar: görevli personel de kullanır.
     { prefix: "/dashboard/meters", roles: MANAGEMENT_AND_STAFF, reason: "Sayaç okuma" },

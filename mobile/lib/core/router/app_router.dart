@@ -25,6 +25,7 @@ import '../../features/energy/presentation/screens/energy_consumption_mobile_scr
 import '../../features/documents/presentation/screens/documents_screen.dart';
 import '../../features/kvkk/presentation/screens/kvkk_requests_screen.dart';
 import '../../features/renovation/presentation/screens/renovations_screen.dart';
+import '../../features/violations/presentation/screens/violations_screen.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
@@ -154,6 +155,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/kvkk',
         name: 'kvkk',
         builder: (context, state) => const KvkkRequestsScreen(),
+      ),
+      // Kural ihlalleri
+      GoRoute(
+        path: '/violations',
+        name: 'violations',
+        builder: (context, state) => const ViolationsScreen(),
       ),
       // Tadilat izinleri
       GoRoute(
