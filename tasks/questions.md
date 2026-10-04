@@ -49,7 +49,7 @@ Hedef bulut ve bütçe bilinmeden seçilemez:
 | b) HashiCorp Vault / OpenBao | Bulut bağımsız; işletmesi ayrı iş |
 | c) Bulut KMS (Oracle Cloud Vault, AWS KMS) | S-09'daki depolama sağlayıcısıyla aynı bulut seçilirse doğal |
 
-**KARAR (kullanıcı, 2026-10-03):** şimdilik a) kalsın; sonra değerlendirilecek. Kod tarafında değişiklik gerekmiyor;
+**KARAR (kullanıcı, 2026-10-03; teyit 2026-10-05):** a) olduğu gibi kalır. Kod tarafında değişiklik gerekmiyor;
 servisler anahtarı ortamdan okumaya devam eder.
 
 ### S-20. Başka sitede kayıtlı kişiyi sakin olarak ekleme — davet akışı gerekli mi?
@@ -371,7 +371,9 @@ kararı araştırmada **bulunamadı** (2026-10-04). Sistem artık sakin acil bil
 işliyor (açık rızayla, şifreli). Saklama ve imha politikası (İmha Yönetmeliği m.5) VERBİS'e kayıtlı olanlar için
 zorunludur; sistem politikayı uygular ama kayıt yükümlülüğünü belirleyemez.
 **Varsayılan:** sistemde VERBİS ile ilgili bir iddia yapılmaz; yönetime "hukuk danışmanıyla teyit edin" notu.
-**Soru:** Bir hukukçu görüşü alınacak mı, yoksa varsayılanla devam mı?
+**KARAR (kullanıcı, 2026-10-05):** VERBİS sistemde **opsiyoneldir**; kayıt yükümlülüğü veri sorumlusu olan site
+yönetimine aittir. Kayıt bilgisi girilmemiş site programı kullanmaya devam eder (engelleme yok). Sistem yönetime
+yalnızca beyan alanı (kayıtlı / muaf / bilinmiyor + sicil no) ve sorumluluğun kendisinde olduğunu söyleyen not sunar.
 
 ### S-22. Bordro hesabı (FAZ 7.4) — kapsam
 
@@ -380,7 +382,8 @@ değişen oranlara bağlıdır ve hata doğrudan çalışan ücretine yansır. S
 (041) ama ücret hesaplamıyor.
 **Seçenekler:** a) oranlar `legal_parameters`'a girilip tam bordro hesaplanır (her yıl Ocak'ta oran güncellemesi şart);
 b) bordro mali müşavirden gelir, sistem yalnızca net ödemeyi ve maliyeti kaydeder.
-**Soru:** Hangisi?
+**KARAR (kullanıcı, 2026-10-05):** b) — bordro mali müşavirden gelir; sistem dönem bazında net ödemeyi ve
+işveren maliyetini kaydeder, ücret/vergi/SGK HESAPLAMAZ. iOS paket kimliği de olduğu gibi kalır (ios/ yok).
 ---
 
 ## E. CEVAPLANMIŞ SORULAR

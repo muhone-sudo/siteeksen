@@ -89,6 +89,15 @@ func main() {
 	read.GET("/compliance-calendar", middleware.RequireRole(middleware.RoleManager, middleware.RoleBoardMember, middleware.RoleAuditor), complianceCalendar(pool))
 	write.POST("/employees/:id/sgk", recordSGK(pool))
 
+	// Bordro KAYDI (FAZ 7.4, S-22): hesap yok; net ödeme ve işveren maliyeti.
+	// Maaş bilgisi olduğu için görevli personel (STAFF) göremez.
+	payrollRead := middleware.RequireRole(middleware.RoleManager, middleware.RoleBoardMember, middleware.RoleAuditor)
+	read.GET("/payroll", payrollRead, listPayroll(pool))
+	read.GET("/payroll/costs", payrollRead, payrollCosts(pool))
+	write.POST("/payroll", createPayroll(pool))
+	write.POST("/payroll/:id/pay", payPayroll(pool))
+	write.POST("/payroll/:id/cancel", cancelPayroll(pool))
+
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8100"

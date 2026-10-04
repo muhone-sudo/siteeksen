@@ -12,6 +12,19 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-05 — BORDRO KAYDI (migration 047, FAZ 7.4, kullanıcı kararı S-22=b) (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **1169/1169** (çalışan+dönem tekil 409, ayrılış sonrası dönem 422, maliyet<net 422,
+> kaynaksız 400, gelecek dönem 422, üç ondalık 422; toplamlar kuruşu kuruşuna, bordrosu girilmemiş çalışan listesi,
+> sakin 403; ikinci ödeme 409, ödenmiş kayıt iptal edilemez/değiştirilemez (tetikleyici), silinemez; yıllık maliyet);
+> panel tsc/lint temiz.
+
+- Bordro mali müşavirden gelir; sistem ücret, gelir/damga vergisi ve SGK primi **hesaplamaz**. Dönem bazında net ödeme,
+  işveren maliyeti, bordronun kaynağı ve ödeme bilgisi kaydedilir; ara kalemler (brüt, SGK, vergi) isteğe bağlı ve bilgi
+  amaçlıdır. 005'teki kullanılmayan `payroll` tablosu bu amaçla açıldı.
+- `GET /payroll?period=`, `GET /payroll/costs?year=`, `POST /payroll`, `POST /payroll/:id/pay|cancel`. Görevli (STAFF) göremez.
+- Panel: Personel → "Bordro" sekmesi (dönem seçimi, eksik bordro uyarısı, ödendi/iptal).
+
 ### 2026-10-04 — KAMERA VE BİYOMETRİK ENVANTERİ (migration 046, FAZ 7.8 kalanı) (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **1165/1165** (daire kapı önü 422, gerekçesiz asansör 422, saklama süresi zorunlu,

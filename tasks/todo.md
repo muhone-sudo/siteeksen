@@ -633,6 +633,35 @@ yaygınlaştırılmasına kayıyor.
 
 # İnceleme notları
 
+## 2026-10-05 — Dördüncü tur (kullanıcı kararları + TEST_RAPORU + Apsiyon şikâyetleri)
+
+Kararlar (kullanıcı, 2026-10-05): S-22 → bordro mali müşavirden gelir, sistem ödeme ve maliyeti kaydeder;
+S-21 → VERBİS opsiyonel, yükümlülük site yönetiminde; S-19 ve iOS → olduğu gibi kalır.
+
+- [x] K1 kararları `questions.md`'ye işle
+- [x] K2 bordro kaydı (S-22, FAZ 7.4) — 047, verify 1169/1169
+- [ ] K3 VERBİS beyanı (S-21) — opsiyonel, engellemez
+- [ ] T1 tesis ekleme/düzenleme ucu + panel formu + demo tesis (TEST 2.1)
+- [ ] T2 m² zorunlu + paylaştırma öncesi eksik alan listesi (TEST 2.2)
+- [ ] T3 kargo teslim imzası/fotoğrafı depolamaya (TEST 2.3)
+- [ ] T4 SMS (Netgsm) + SMTP adaptörü (TEST 2.4) — gerçek gönderim kullanıcının hesabıyla
+- [ ] T5 sanal POS (iyzico) + 3D Secure dönüşü + ödeme durumu (TEST 2.5, BUG-09) — gerçek çekim kullanıcının anahtarıyla
+- [ ] T6 PDF/Excel rapor motoru (TEST 2.6)
+- [ ] T7 bütçe kesinleştirme — 7579 sonrası durum kanıtı (TEST 2.7)
+- [ ] T8 ziyaretçi PIN/QR + hızlı doğrulama (TEST 2.8)
+- [ ] T9 panel mobil menü (TEST 6.2)
+- [ ] A1 taşınan sakin (BUG-01) — mevcut koruma kanıtı + bildirim metni şeffaflığı
+- [ ] A2 havale beyanında valör, gecikme tazminatı dondurma ve iz (BUG-02)
+- [ ] A3 finansal silinemezlik + ters kayıt (BUG-03)
+- [ ] A4 borcu yoktur belgesi + doğrulama (BUG-04)
+- [ ] A5 telefon değişimi / kod yeniden üretimi (BUG-05)
+- [ ] A6 yönetici giriş kilidi kaldırma (BUG-06)
+- [ ] A7 tüketim pusulası, sayaç değişimi, sapma uyarısı (BUG-07)
+- [ ] A8 cihaz canlılık izleme (BUG-08)
+- [ ] A10 uluslararası telefon / geo-blok yok (BUG-10)
+- [ ] A11 site pasifleştirme (BUG-11)
+- [ ] A12 alacak dekontu + banka ekstresi mutabakatı (BUG-12)
+
 ## 2026-10-04 — Üçüncü tur (tamamlandı)
 
 **Bitti (commit d71a4ea):** İşletme projesi 7579 s. Kanuna uyumlu (036): genel kurul onayı, geçici proje

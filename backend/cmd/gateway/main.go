@@ -331,7 +331,7 @@ func main() {
 		{parkingURL, []string{"/api/v1/vehicles", "/api/v1/parking-zones", "/api/v1/parking-logs"}},
 		{patrolURL, []string{"/api/v1/patrols", "/api/v1/patrols-summary", "/api/v1/patrol-routes",
 			"/api/v1/patrol-checkpoints"}},
-		{personnelURL, []string{"/api/v1/employees", "/api/v1/leaves", "/api/v1/compliance-calendar"}},
+		{personnelURL, []string{"/api/v1/employees", "/api/v1/leaves", "/api/v1/compliance-calendar", "/api/v1/payroll"}},
 		{reservationURL, []string{"/api/v1/reservations", "/api/v1/facilities"}},
 		{settingsURL, []string{"/api/v1/settings", "/api/v1/settings-history", "/api/v1/retention-rules", "/api/v1/privacy", "/api/v1/credentials",
 			"/api/v1/credentials-available-services"}},

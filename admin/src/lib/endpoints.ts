@@ -160,6 +160,10 @@ export function endpoints(http: Http) {
         personnel: {
             complianceCalendar: () => g<{ data: T.ComplianceItem[]; muhsgk_enabled: boolean; note: string }>("/compliance-calendar"),
             recordSGK: (id: string, b: { entry_date?: string; exit_date?: string }) => http.post<Msg>(`/employees/${id}/sgk`, b),
+            payroll: (period: string) => g<T.PayrollList>("/payroll", { period }),
+            createPayroll: (b: Record<string, unknown>) => http.post<{ id: string; payment_status: string; note: string }>("/payroll", b),
+            payPayroll: (id: string, b: { payment_date: string; payment_reference?: string }) => http.post<Msg>(`/payroll/${id}/pay`, b),
+            cancelPayroll: (id: string, reason: string) => http.post<Msg>(`/payroll/${id}/cancel`, { reason }),
             list: (all?: boolean) => g<T.List<T.Employee>>("/employees", { all: all ? "true" : undefined }),
             summary: () => g<T.PersonnelSummary>("/employees/summary"),
             get: (id: string, reveal?: boolean) => g<T.Employee>(`/employees/${id}`, { reveal: reveal ? "true" : undefined }),
@@ -366,6 +370,7 @@ export const READS: { path: string; keys: string[]; list?: boolean }[] = [
     { path: "/emergency/drills", keys: ["data"] },
     { path: "/emergency/checks", keys: ["data"] },
     { path: "/compliance-calendar", keys: ["data", "muhsgk_enabled", "note"] },
+    { path: "/payroll", keys: ["period", "data", "totals", "missing", "note"] },
     { path: "/governance/common-area/leases", keys: ["data"] },
     { path: "/retention-rules", keys: ["data", "periodic_months", "note"] },
     { path: "/insurance/dask", keys: ["data", "summary", "note"] },

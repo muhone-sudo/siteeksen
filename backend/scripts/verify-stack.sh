@@ -1241,6 +1241,39 @@ assert pr and 'VUK m.18' in d['note'] and d['muhsgk_enabled'] is True
   NM=$(curl -s "$PURL/compliance-calendar" -H "$PA" | python3 -c "import json,sys; d=json.load(sys.stdin); print(len([i for i in d['data'] if i['kind'] in ('MUHSGK','SGK_PREMIUM')]), d['muhsgk_enabled'])" 2>/dev/null)
   $PSQL -c "DELETE FROM property_settings WHERE property_id='$DEMO_PROPERTY' AND setting_key='MUHSGK_CALENDAR';" >/dev/null
   [ "$NM" = "0 False" ] && ok "MUHSGK takvimi site ayarıyla kapatılabiliyor (Kolay İşverenlik / mali müşavir)" || bad "MUHSGK ayarı: $NM"
+  # Bordro KAYDI (FAZ 7.4, 047, S-22=b): hesap yok; net ödeme + işveren maliyeti
+  pr() { curl -s -o /dev/null -w '%{http_code}' -X POST "$PURL/payroll" -H "$PA" -H "$PJ" -d "$1"; }
+  PR1=$(curl -s -X POST "$PURL/payroll" -H "$PA" -H "$PJ" -d "{\"employee_id\":\"$EMPID\",\"period\":\"2026-08\",\"net_salary\":22000.50,\"employer_cost\":35100.25,\"gross_salary\":30000,\"source_ref\":\"Mali müşavir A, bordro 2026/08\"}")
+  PRID=$(echo "$PR1" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+  P1=$(pr "{\"employee_id\":\"$EMPID\",\"period\":\"2026-08\",\"net_salary\":1,\"employer_cost\":2,\"source_ref\":\"x\"}")
+  P2=$(pr "{\"employee_id\":\"$EMPID\",\"period\":\"2026-09\",\"net_salary\":1,\"employer_cost\":2,\"source_ref\":\"x\"}")
+  P3=$(pr "{\"employee_id\":\"$E2\",\"period\":\"$(date +%Y-%m)\",\"net_salary\":100,\"employer_cost\":99,\"source_ref\":\"x\"}")
+  P4=$(pr "{\"employee_id\":\"$E2\",\"period\":\"$(date +%Y-%m)\",\"net_salary\":100,\"employer_cost\":150}")
+  P5=$(pr "{\"employee_id\":\"$E2\",\"period\":\"$(date -d '+1 month' +%Y-%m)\",\"net_salary\":100,\"employer_cost\":150,\"source_ref\":\"x\"}")
+  P6=$(pr "{\"employee_id\":\"$E2\",\"period\":\"$(date +%Y-%m)\",\"net_salary\":100.123,\"employer_cost\":150,\"source_ref\":\"x\"}")
+  [ -n "$PRID" ] && echo "$PR1" | grep -q '"payment_status":"PENDING"' && [ "$P1" = "409" ] && [ "$P2" = "422" ] && [ "$P3" = "422" ] && [ "$P4" = "400" ] && [ "$P5" = "422" ] && [ "$P6" = "422" ] \
+    && ok "bordro kaydı: çalışan+dönem tekil (409), ayrılış sonrası dönem 422, maliyet<net 422, kaynaksız 400, gelecek dönem 422, 3 ondalık 422" \
+    || bad "bordro kaydı: $PR1 / $P1 / $P2 / $P3 / $P4 / $P5 / $P6"
+  PL=$(curl -s "$PURL/payroll?period=2026-08" -H "$PA")
+  echo "$PL" | python3 -c "
+import json,sys; d=json.load(sys.stdin); t=d['totals']
+assert abs(t['net']-22000.50)<1e-9 and abs(t['employer_cost']-35100.25)<1e-9 and t['pending_count']==1, t
+assert 'Test Personel' not in d['missing'] and 'hesaplamaz' in d['note'], d
+" 2>/tmp/verify-pr.err && PLOK=1 || PLOK=0
+  PM=$(curl -s "$PURL/payroll?period=$(date +%Y-%m)" -H "$PA" | python3 -c "import json,sys; print('Yeni Gorevli' in json.load(sys.stdin)['missing'])" 2>/dev/null)
+  PS=$(curl -s -o /dev/null -w '%{http_code}' "$PURL/payroll?period=2026-08" -H "Authorization: Bearer $TEN")
+  [ "$PLOK" = "1" ] && [ "$PM" = "True" ] && [ "$PS" = "403" ] \
+    && ok "bordro listesi: toplamlar kuruşu kuruşuna (22.000,50 / 35.100,25), bordrosu girilmemiş çalışan listeleniyor, sakin 403" \
+    || bad "bordro listesi: $(tail -1 /tmp/verify-pr.err) / eksik=$PM / sakin=$PS — $PL"
+  PY1=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$PURL/payroll/$PRID/pay" -H "$PA" -H "$PJ" -d '{"payment_date":"2026-09-05","payment_reference":"EFT-1"}')
+  PY2=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$PURL/payroll/$PRID/pay" -H "$PA" -H "$PJ" -d '{"payment_date":"2026-09-05"}')
+  PY3=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$PURL/payroll/$PRID/cancel" -H "$PA" -H "$PJ" -d '{"reason":"hata"}')
+  PU=$(PGPASSWORD="$APPPW" psql -h 127.0.0.1 -p "$DBPORT" -U siteeksen_app -d siteeksen -t -A -c "BEGIN; SELECT set_config('app.property_id','$DEMO_PROPERTY',true); UPDATE payroll SET net_salary = 1 WHERE id='$PRID'; COMMIT;" 2>&1 | grep -c 'değiştirilemez')
+  PD=$(PGPASSWORD="$APPPW" psql -h 127.0.0.1 -p "$DBPORT" -U siteeksen_app -d siteeksen -t -A -c "BEGIN; SELECT set_config('app.property_id','$DEMO_PROPERTY',true); DELETE FROM payroll; COMMIT;" 2>&1 | grep -c 'permission denied')
+  PC=$(curl -s "$PURL/payroll/costs?year=2026" -H "$PA" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['data'][0]['period'], d['employer_cost_total'])" 2>/dev/null)
+  [ "$PY1" = "200" ] && [ "$PY2" = "409" ] && [ "$PY3" = "409" ] && [ "$PU" -ge 1 ] && [ "$PD" -ge 1 ] && [ "$PC" = "2026-08 35100.25" ] \
+    && ok "bordro ödemesi: ikinci ödeme 409, ödenmiş kayıt iptal edilemez/değiştirilemez (tetikleyici), silinemez; yıllık maliyet raporu" \
+    || bad "bordro ödemesi: $PY1 / $PY2 / $PY3 / update=$PU / delete=$PD / maliyet=$PC"
 else
   bad "personnel-service başlamadı"; tail -10 /tmp/verify-personnel.log
 fi

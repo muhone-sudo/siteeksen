@@ -9,6 +9,7 @@ import { date, num, tl, today } from "@/lib/format";
 import { LEAVE_STATUS } from "@/lib/labels";
 import type { Employee, Leave } from "@/lib/types";
 import { ComplianceCard } from "@/components/personnel/compliance-card";
+import { PayrollCard } from "@/components/personnel/payroll-card";
 
 const CONTRACT_TYPES = [
     { value: "FULL_TIME", label: "Tam zamanlı" }, { value: "PART_TIME", label: "Yarı zamanlı" },
@@ -27,7 +28,7 @@ const LEAVE_LABEL = Object.fromEntries(LEAVE_TYPES.map((l) => [l.value, l.label]
  * Görevli (STAFF) maaş/IBAN/SGK bilgisini hiç görmez.
  */
 export default function PersonnelPage() {
-    const [tab, setTab] = useState<"employees" | "leaves">("employees");
+    const [tab, setTab] = useState<"employees" | "leaves" | "payroll">("employees");
     const [showAll, setShowAll] = useState(false);
     const list = useApi(["employees", showAll], () => api.personnel.list(showAll));
     const summary = useApi(["employees", "summary"], api.personnel.summary);
@@ -63,7 +64,7 @@ export default function PersonnelPage() {
                 { label: "Aylık maaş maliyeti", value: s?.monthly_salary_cost === undefined ? "Yetki yok" : tl(s.monthly_salary_cost), tone: "purple" },
             ]} />
             {!roles.includes("STAFF") && <ComplianceCard canWrite={canWrite} />}
-            <Tabs tabs={[{ id: "employees", label: "Personel" }, { id: "leaves", label: "İzinler" }]} value={tab} onChange={setTab} />
+            <Tabs tabs={[{ id: "employees", label: "Personel" }, { id: "leaves", label: "İzinler" }, ...(roles.includes("STAFF") && !canWrite && !roles.includes("AUDITOR") ? [] : [{ id: "payroll" as const, label: "Bordro" }])]} value={tab} onChange={setTab} />
             {tab === "employees" && (
                 <Card padded={false} actions={<label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} /> Ayrılanları da göster</label>} title="Personel listesi">
                     <QueryView q={list} empty="Personel kaydı yok">
@@ -91,6 +92,7 @@ export default function PersonnelPage() {
                     </QueryView>
                 </Card>
             )}
+            {tab === "payroll" && <PayrollCard canWrite={canWrite} employees={list.data?.data ?? []} />}
             {tab === "leaves" && (
                 <Card padded={false} title="İzin talepleri">
                     <QueryView q={leaves} empty="İzin kaydı yok">

@@ -369,6 +369,15 @@ export interface SafetyCheck {
     safe: number; need_help: number; units: number; responded: number; my_status?: string;
 }
 export interface SafetyResponse { user_id: Id; name: string; unit: string; status: "SAFE" | "NEED_HELP"; note?: string; responded_at: string }
+export interface PayrollRow {
+    id: Id; employee_id: Id; employee_name: string; position: string; period: string; net_salary: number; employer_cost: number;
+    gross_salary?: number; sgk_employee?: number; sgk_employer?: number; income_tax?: number; stamp_tax?: number; source_ref: string;
+    payment_status: "PENDING" | "PAID" | "CANCELLED"; payment_date?: string; payment_reference?: string; cancel_reason?: string; notes?: string;
+}
+export interface PayrollList {
+    period: string; data: PayrollRow[]; missing: string[]; note: string;
+    totals: { net: number; employer_cost: number; unpaid_net: number; paid_count: number; pending_count: number };
+}
 export interface ComplianceItem { kind: "MUHSGK" | "SGK_PREMIUM" | "SGK_ENTRY" | "SGK_EXIT"; title: string; due_date: string; days_left: number; employee_id?: string; period?: string; legal_basis: string }
 export interface CommonLease {
     id: Id; area_kind: string; area_name: string; tenant_name: string; tenant_is_business: boolean; start_date: string; end_date?: string;
