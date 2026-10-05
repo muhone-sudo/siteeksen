@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 	_ "time/tzdata"
@@ -96,7 +97,13 @@ func overdueDues(ctx context.Context, pool *pgxpool.Pool, propertyID string) ([]
 		       count(*)::int,
 		       SUM(round((ma.total_amount - COALESCE(ma.paid_amount,0)) * 100))::bigint,
 		       min(ma.due_date),
-		       to_char(CURRENT_DATE, 'YYYY-MM')
+		       to_char(CURRENT_DATE, 'YYYY-MM'),
+		       -- Şeffaf döküm (Apsiyon BUG-01): dönem, borç türü ve kalan tutar.
+		       string_agg(CASE WHEN ma.kind = 'OPENING' THEN 'Devir bakiyesi'
+		                       ELSE to_char(make_date(ma.period_year, ma.period_month, 1), 'YYYY-MM') || ' aidat' END
+		                  || ' ' || (round((ma.total_amount - COALESCE(ma.paid_amount,0)) * 100))::bigint::text,
+		                  ';' ORDER BY ma.due_date),
+		       (SELECT name FROM properties WHERE id = $1)
 		FROM monthly_assessments ma
 		JOIN units u ON u.id = ma.unit_id
 		WHERE ma.property_id = $1 AND u.property_id = $1
@@ -104,6 +111,9 @@ func overdueDues(ctx context.Context, pool *pgxpool.Pool, propertyID string) ([]
 		  AND COALESCE(ma.status,'') <> 'PAID'
 		  AND ma.due_date < CURRENT_DATE
 		  AND ma.total_amount - COALESCE(ma.paid_amount,0) > 0
+		  -- Sakinin bildirdiği ödeme yönetim onayı bekliyorsa hatırlatma gönderilmez (Apsiyon BUG-02).
+		  AND NOT EXISTS (SELECT 1 FROM payment_assessments pa JOIN payments p ON p.id = pa.payment_id
+		                  WHERE pa.assessment_id = ma.id AND p.status = 'PENDING')
 		GROUP BY ma.unit_id, u.block, u.door_number
 		ORDER BY 2`, propertyID)
 	if err != nil {
@@ -111,6 +121,7 @@ func overdueDues(ctx context.Context, pool *pgxpool.Pool, propertyID string) ([]
 	}
 	type row struct {
 		unitID, label, month string
+		items, site          string
 		periods              int
 		remaining            int64
 		oldest               time.Time
@@ -118,7 +129,7 @@ func overdueDues(ctx context.Context, pool *pgxpool.Pool, propertyID string) ([]
 	var list []row
 	for rows.Next() {
 		var r row
-		if err := rows.Scan(&r.unitID, &r.label, &r.periods, &r.remaining, &r.oldest, &r.month); err != nil {
+		if err := rows.Scan(&r.unitID, &r.label, &r.periods, &r.remaining, &r.oldest, &r.month, &r.items, &r.site); err != nil {
 			rows.Close()
 			return nil, err
 		}
@@ -135,11 +146,25 @@ func overdueDues(ctx context.Context, pool *pgxpool.Pool, propertyID string) ([]
 		if err != nil {
 			return nil, err
 		}
-		body := fmt.Sprintf("%s bağımsız bölümünün vadesi geçmiş %d dönem aidat borcu var.\n"+
+		// Soyut tutar yerine döküm: [Site] [Blok/Kapı] [Dönem] [Borç türü] [Tutar].
+		lines := []string{}
+		for i, it := range strings.Split(r.items, ";") {
+			if i == 6 {
+				lines = append(lines, "…")
+				break
+			}
+			if sp := strings.LastIndex(it, " "); sp > 0 {
+				if k, err := strconv.ParseInt(it[sp+1:], 10, 64); err == nil {
+					it = it[:sp] + ": " + money.Kurus(k).Display()
+				}
+			}
+			lines = append(lines, "• "+it)
+		}
+		body := fmt.Sprintf("%s · %s bağımsız bölümünün vadesi geçmiş %d kalem borcu var:\n%s\n"+
 			"Kalan toplam: %s · En eski vade: %s\n"+
-			"Ödenmeyen aidata KMK m.20 uyarınca gecikme tazminatı işler. Ödeme yaptıysanız "+
-			"ve kayıt henüz güncellenmediyse site yönetimiyle iletişime geçin.",
-			r.label, r.periods, money.Kurus(r.remaining).Display(), trDate(r.oldest))
+			"Ödenmeyen aidata KMK m.20 uyarınca gecikme tazminatı işler. Ödeme yaptıysanız uygulamadan "+
+			"ödeme bildirimi yapın; bildirim incelenirken hatırlatma gönderilmez.",
+			r.site, r.label, r.periods, strings.Join(lines, "\n"), money.Kurus(r.remaining).Display(), trDate(r.oldest))
 		out = append(out, notice{recipients: recipients, msg: notify.Message{
 			PropertyID: propertyID,
 			Channel:    notify.ChannelInApp,

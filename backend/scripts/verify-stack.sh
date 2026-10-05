@@ -6439,6 +6439,15 @@ $PSQL -c "
       base_amount, total_amount, paid_amount, due_date) VALUES
     ('$DEMO_PROPERTY','$U40',2020,1,1234.56,1234.56,0,CURRENT_DATE - 60),
     ('$DEMO_PROPERTY','$U40',2020,2,150,150,50,CURRENT_DATE - 30);" >/dev/null
+# Ödeme bildirimi incelemede olan borca hatırlatma gitmemeli (Apsiyon BUG-02)
+U41='40404040-0000-0000-0000-0000000000a2'; R41='40404040-0000-0000-0000-000000000003'
+$PSQL -c "INSERT INTO users (id, first_name, last_name, phone, password_hash, roles) VALUES ('$R41','Odeyen','Malik','+905554040003','x',ARRAY['RESIDENT']) ON CONFLICT (id) DO NOTHING;
+  INSERT INTO units (id, property_id, block, floor, door_number, share_ratio) VALUES ('$U41','$DEMO_PROPERTY','S',4,'41',1) ON CONFLICT (id) DO NOTHING;
+  INSERT INTO resident_units (resident_id, unit_id, role, start_date, is_active) VALUES ('$R41','$U41','OWNER',CURRENT_DATE - 400, true);" >/dev/null
+A41=$($PSQL -t -A -c "INSERT INTO monthly_assessments (property_id, unit_id, period_year, period_month, base_amount, total_amount, due_date)
+  VALUES ('$DEMO_PROPERTY','$U41',2020,1,500,500,CURRENT_DATE - 20) RETURNING id;" | head -1)
+P41=$($PSQL -t -A -c "INSERT INTO payments (property_id, user_id, unit_id, amount, payment_method, status) VALUES ('$DEMO_PROPERTY','$R41','$U41',500,'BANK_TRANSFER','PENDING') RETURNING id;" | head -1)
+$PSQL -c "INSERT INTO payment_assessments (payment_id, assessment_id, amount) VALUES ('$P41','$A41',500);" >/dev/null
 CN=$($PSQL -t -A -c "INSERT INTO contracts (property_id, contract_type, title, party_name, start_date, end_date,
     status, auto_renew, renewal_notice_days) VALUES ('$DEMO_PROPERTY','SERVICE','Asansor bakim','Asansor AS',
     CURRENT_DATE - 345, CURRENT_DATE + 20, 'ACTIVE', true, 30) RETURNING id;" | head -1)
@@ -6505,11 +6514,14 @@ fi
 # Gecikmiş aidat: borçlu daireye TEK bildirim, doğru toplam, taşınmış sakine yok
 BODY=$($PSQL -t -A -c "SELECT body FROM notifications WHERE topic='dues.overdue' AND recipient_user_id='$R40';")
 NB=$($PSQL -t -A -c "SELECT count(*) FROM notifications WHERE topic='dues.overdue' AND recipient_user_id='$R40';")
-[ "$NB" = "1" ] && echo "$BODY" | grep -q "2 dönem" && echo "$BODY" | grep -q "1.334,56 TL" \
-  && ok "borçlu daireye tek bildirim: 2 dönem, kalan 1.334,56 TL (kısmi ödeme düşülmüş)" \
+[ "$NB" = "1" ] && echo "$BODY" | grep -q "2 kalem" && echo "$BODY" | grep -q "1.334,56 TL" \
+  && echo "$BODY" | grep -q "Güneş Sitesi" && echo "$BODY" | grep -q "2020-01 aidat: 1.234,56 TL" && echo "$BODY" | grep -q "2020-02 aidat: 100,00 TL" \
+  && ok "borçlu daireye tek bildirim: site, bölüm, dönem/tür/tutar dökümü (2020-01 aidat 1.234,56 · 2020-02 aidat 100,00), kalan 1.334,56 TL" \
   || bad "aidat bildirimi ($NB): $BODY"
 NB=$($PSQL -t -A -c "SELECT count(*) FROM notifications WHERE recipient_user_id='$R40OLD';")
 [ "$NB" = "0" ] && ok "daireden taşınmış eski kiracıya aidat bildirimi GİTMEDİ" || bad "taşınmış sakine $NB bildirim"
+NB41=$($PSQL -t -A -c "SELECT count(*) FROM notifications WHERE topic='dues.overdue' AND recipient_user_id='$R41';")
+[ "$NB41" = "0" ] && ok "ödeme bildirimi yönetim onayı bekleyen borca hatırlatma gitmedi" || bad "incelemedeki ödemeye $NB41 hatırlatma"
 KEY=$($PSQL -t -A -c "SELECT dedupe_key FROM notifications WHERE topic='dues.overdue' AND recipient_user_id='$R40';")
 echo "$KEY" | grep -Eq "^dues.overdue:$U40:[0-9]{4}-[0-9]{2}:$R40$" && ok "aidat hatırlatması daire+ay anahtarlı (ayda en fazla bir)" \
   || bad "aidat dedupe anahtarı: $KEY"

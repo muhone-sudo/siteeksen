@@ -12,6 +12,18 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-05 — TAŞINAN SAKİN VE ŞEFFAF BORÇ HATIRLATMASI (Apsiyon BUG-01) (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **1198/1198** (adım 40: hatırlatma site adı, bölüm ve "2020-01 aidat: 1.234,56 TL ·
+> 2020-02 aidat: 100,00 TL" dökümünü taşıyor; taşınmış eski kiracıya bildirim yok; ödeme bildirimi onay bekleyen borca
+> hatırlatma yok).
+
+- Apsiyon şikâyetlerindeki "taşındım, hâlâ borç SMS'i geliyor" hatası bu sistemde yoktu: borç hatırlatması yalnızca dairenin
+  AKTİF sakinlerine gider (`notify.UnitResidents`), taşınmada `resident_units.is_active=false` + `end_date`; borç kişiye değil
+  bağımsız bölüme yazılır. Mevcut kanıt korundu.
+- Eklenen: hatırlatma soyut tutar yerine `[Site] · [Blok-Kapı]` + her kalem için `[Dönem] [Tür] [Tutar]` (devir bakiyesi ayrı
+  adlandırılır) dökümü verir. Sakinin bildirdiği ödeme yönetim onayı beklerken o borç için hatırlatma gönderilmez.
+
 ### 2026-10-05 — PDF / EXCEL DÖKÜMLERİ (TEST_RAPORU 2.6) (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **1197/1197** — adım 44: borçlu listesi PDF'inden pypdf ile çıkarılan metinde Türkçe
