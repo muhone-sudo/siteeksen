@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/siteeksen/backend/pkg/dbscope"
@@ -176,6 +177,8 @@ type BroadcastResult struct {
 	Failed     int `json:"failed"`
 	// Duplicate, dedupe anahtarı yüzünden atlananlardır (hata değildir).
 	Duplicate int `json:"duplicate"`
+	// NoAddress, SMS/e-posta kanalında telefon ya da e-postası kayıtlı olmayan alıcılardır.
+	NoAddress int `json:"no_address,omitempty"`
 	// Note, sonucu insan diliyle özetler; API yanıtına olduğu gibi konur.
 	Note string `json:"note"`
 	// Errors, ilk birkaç hatanın metnidir. Tamamı değil: bin alıcılı bir
@@ -203,6 +206,19 @@ func (n *Notifier) Broadcast(ctx context.Context, base Message, recipients []Rec
 		return res
 	}
 
+	// SMS/e-postada adres kullanıcının kayıtlı telefonu/e-postasıdır (TEST_RAPORU 2.4).
+	var addresses map[string]string
+	ch := strings.ToUpper(base.Channel)
+	if ch == ChannelSMS || ch == ChannelEmail {
+		var err error
+		if addresses, err = n.addresses(ctx, base.PropertyID, ch, recipients); err != nil {
+			res.Failed = len(recipients)
+			res.Errors = []string{err.Error()}
+			res.Note = "Alıcı adresleri okunamadı; bildirim oluşturulmadı."
+			return res
+		}
+	}
+
 	baseDedupe := base.DedupeKey
 	for _, r := range recipients {
 		m := base
@@ -210,6 +226,12 @@ func (n *Notifier) Broadcast(ctx context.Context, base Message, recipients []Rec
 		// Uygulama içi bildirimde adres kullanıcı kimliğidir: kayıt zaten
 		// veritabanındadır, dışarı çıkan bir adres yoktur.
 		m.Recipient = r.UserID
+		if addresses != nil {
+			if m.Recipient = addresses[r.UserID]; m.Recipient == "" {
+				res.NoAddress++
+				continue
+			}
+		}
 		if baseDedupe != "" {
 			m.DedupeKey = baseDedupe + ":" + r.UserID
 		}
@@ -242,6 +264,35 @@ func (n *Notifier) Broadcast(ctx context.Context, base Message, recipients []Rec
 	}
 	res.Note = summarize(res)
 	return res
+}
+
+// addresses, alıcıların SMS için telefonunu ya da e-posta adresini döner (aktif hesaplar).
+func (n *Notifier) addresses(ctx context.Context, propertyID, channel string, recipients []Recipient) (map[string]string, error) {
+	ids := make([]string, 0, len(recipients))
+	for _, r := range recipients {
+		ids = append(ids, r.UserID)
+	}
+	col := "phone"
+	if channel == ChannelEmail {
+		col = "email"
+	}
+	rows, err := n.scope(propertyID).Query(ctx,
+		`SELECT id::text, COALESCE(`+col+`, '') FROM users WHERE id::text = ANY($1) AND COALESCE(is_active, true)`, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]string{}
+	for rows.Next() {
+		var id, addr string
+		if err := rows.Scan(&id, &addr); err != nil {
+			return nil, err
+		}
+		if addr = strings.TrimSpace(addr); addr != "" {
+			out[id] = addr
+		}
+	}
+	return out, rows.Err()
 }
 
 // summarize, sonucu tek cümleyle ve ABARTMADAN anlatır.

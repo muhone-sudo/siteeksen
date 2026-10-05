@@ -6780,6 +6780,78 @@ else
   bad "döndürme sınanamadı (kayıt ya da yönetici jetonu yok)"
 fi
 
+step "43) Dış bildirim sağlayıcıları: Netgsm SMS + SMTP (TEST_RAPORU 2.4)"
+# Gerçek gönderim kullanıcının hesabıyla yapılır; burada Netgsm REST v2 biçimini taklit eden
+# yerel sahte sunucuya karşı uçtan uca sınanır (istek biçimi, kimlik doğrulama, numara biçimi).
+if go test ./pkg/notify/ -count=1 -run 'Netgsm|SMTP|Normalize|SendersFromEnv' >/tmp/verify-providers.log 2>&1; then
+  ok "go test ./pkg/notify (Netgsm istek/yanıt/hata kodları, SMTP zarf ve UTF-8 başlık, şifresiz bağlantıda parola reddi)"
+else
+  bad "sağlayıcı birim testleri"; tail -15 /tmp/verify-providers.log
+fi
+cat >/tmp/fake-netgsm.py <<'PYEOF'
+import http.server, json, sys, base64
+class H(http.server.BaseHTTPRequestHandler):
+    def do_POST(self):
+        body = self.rfile.read(int(self.headers.get('Content-Length', 0)))
+        auth = base64.b64decode(self.headers.get('Authorization', 'Basic ')[6:] or b'').decode()
+        with open('/tmp/fake-netgsm.log', 'a') as f:
+            f.write(json.dumps({'path': self.path, 'auth': auth, 'body': json.loads(body or b'{}')}) + '\n')
+        self.send_response(200); self.send_header('Content-Type', 'application/json'); self.end_headers()
+        self.wfile.write(b'{"code":"00","jobid":"FAKE-1"}')
+    def log_message(self, *a): pass
+http.server.HTTPServer(('127.0.0.1', int(sys.argv[1])), H).serve_forever()
+PYEOF
+rm -f /tmp/fake-netgsm.log
+python3 /tmp/fake-netgsm.py 18390 >/dev/null 2>&1 &
+FAKE_PID=$!
+NG="NETGSM_USERCODE=8501112233 NETGSM_PASSWORD=api-sifre NETGSM_MSGHEADER=SITEEKSEN NETGSM_API_URL=http://127.0.0.1:18390"
+env $NG DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_identity DB_PASSWORD="$IDPW" DB_NAME=siteeksen \
+  DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=18381 \
+  go run ./services/identity >/tmp/verify-identity-sms.log 2>&1 &
+IDS_PID=$!
+env $NG DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_app DB_PASSWORD="$APPPW" DB_NAME=siteeksen \
+  DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=18383 PII_ENCRYPTION_KEY="$PIIKEY" \
+  go run ./services/community >/tmp/verify-community-sms.log 2>&1 &
+COMS_PID=$!
+for _ in $(seq 1 60); do
+  curl -fsS http://127.0.0.1:18381/health >/dev/null 2>&1 && curl -fsS http://127.0.0.1:18383/health >/dev/null 2>&1 && break; sleep 1
+done
+MGRS=$(curl -s -X POST http://127.0.0.1:18381/api/v1/auth/login -H "$J" -d '{"phone":"5551234567","password":"Demo123!"}' | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+SU=$($PSQL -t -A -c "SELECT id FROM units WHERE property_id='$DEMO_PROPERTY' ORDER BY door_number LIMIT 1;")
+CRS=$(curl -s -X POST http://127.0.0.1:18381/api/v1/residents -H "Authorization: Bearer $MGRS" -H "$J" \
+  -d "{\"first_name\":\"Sms\",\"last_name\":\"Sakin\",\"phone\":\"0555 999 00 43\",\"unit_id\":\"$SU\",\"role\":\"TENANT\"}")
+SCODE=$(echo "$CRS" | sed -n 's/.*"activation_code":"\([^"]*\)".*/\1/p')
+sleep 1
+SMSOK=$(python3 -c "
+import json
+rows=[json.loads(l) for l in open('/tmp/fake-netgsm.log')]
+r=[x for x in rows if x['body']['messages'][0]['no']=='5559990043']
+b=r[-1]
+print(b['path']=='/sms/rest/v2/send' and b['auth']=='8501112233:api-sifre' and b['body']['msgheader']=='SITEEKSEN'
+      and b['body']['iysfilter']=='0' and b['body']['encoding']=='TR' and '$SCODE' in b['body']['messages'][0]['msg'])
+" 2>/dev/null)
+echo "$CRS" | grep -q '"sms":{"status":"SENT"' && [ -n "$SCODE" ] && [ "$SMSOK" = "True" ] \
+  && ok "sakin eklenince etkinleştirme kodu SMS ile gitti (Netgsm v2 biçimi, Basic auth, 5XXXXXXXXX, işlemsel/iysfilter 0); yanıt SENT diyor" \
+  || bad "etkinleştirme SMS'i: $SMSOK — $CRS"
+# Acil duyuru: SMS yalnızca URGENT; kayıtlı telefonu olan her aktif sakine
+SC1=$(code -X POST http://127.0.0.1:18383/api/v1/announcements -H "Authorization: Bearer $MGRS" -H "$J" -d '{"title":"Bilgi","content":"x","priority":"NORMAL","send_sms":true}')
+BEFORE=$(wc -l </tmp/fake-netgsm.log)
+AN=$(curl -s -X POST http://127.0.0.1:18383/api/v1/announcements -H "Authorization: Bearer $MGRS" -H "$J" \
+  -d '{"title":"Su kesintisi","content":"Yarın 10:00-14:00 arası ana hatta arıza onarımı nedeniyle su verilemeyecek.","priority":"URGENT","category":"MAINTENANCE","send_sms":true}')
+sleep 1
+AFTER=$(wc -l </tmp/fake-netgsm.log)
+NSENT=$(echo "$AN" | python3 -c "import json,sys; print(json.load(sys.stdin)['sms']['sent'])" 2>/dev/null)
+NREC=$($PSQL -t -A -c "SELECT count(*) FROM notifications WHERE topic='announcement.urgent' AND channel='SMS' AND status='SENT' AND provider='netgsm';")
+[ "$SC1" = "422" ] && [ "${NSENT:-0}" -ge 1 ] && [ "$((AFTER-BEFORE))" = "$NSENT" ] && [ "$NREC" = "$NSENT" ] \
+  && ok "acil duyuru $NSENT sakine SMS ile gitti (kuyrukta SENT/netgsm); acil olmayan duyuruda SMS 422" \
+  || bad "acil duyuru SMS: $SC1 / gönderilen=$NSENT / sahte sunucu=$((AFTER-BEFORE)) / kayıt=$NREC — $AN"
+# Yarım yapılandırma servisi açmaz (sessizce SMS'siz çalışmaz)
+NETGSM_USERCODE=x DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_identity DB_PASSWORD="$IDPW" DB_NAME=siteeksen \
+  DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=18382 timeout 60 go run ./services/identity >/tmp/verify-identity-bad.log 2>&1
+grep -q 'SMS yapılandırması hatalı' /tmp/verify-identity-bad.log && ok "yarım Netgsm yapılandırmasıyla kimlik servisi açılmıyor" \
+  || bad "yarım yapılandırma: $(tail -2 /tmp/verify-identity-bad.log)"
+kill_tree "$IDS_PID"; kill_tree "$COMS_PID"; kill "$FAKE_PID" 2>/dev/null
+
 step "SONUÇ"
 echo "  Geçen: $PASS   Başarısız: $FAIL"
 [ "$FAIL" -eq 0 ] && { echo "  TÜM KONTROLLER GEÇTİ"; exit 0; } || { echo "  BAŞARISIZ KONTROL VAR"; exit 1; }

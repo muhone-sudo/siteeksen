@@ -123,6 +123,9 @@ func CreateResident(svc *service.ResidentService) gin.HandlerFunc {
 			mapResidentError(c, err, "Sakin oluşturulamadı")
 			return
 		}
+		if result.Activation != nil {
+			result.Activation.SMS = sendActivationSMS(c.Request.Context(), input.Phone, result.Activation)
+		}
 		if result.Invitation != nil {
 			// Bağ kurulmadı; davet açıldı (S-20). 202: istek kabul edildi, sonuç kişinin yanıtına bağlı.
 			c.JSON(http.StatusAccepted, result)
@@ -172,6 +175,9 @@ func IssueActivationCode(svc *service.ResidentService) gin.HandlerFunc {
 		if err != nil {
 			mapResidentError(c, err, "Kod üretilemedi")
 			return
+		}
+		if r, gerr := svc.Get(c.Request.Context(), c.GetString("property_id"), c.Param("id"), getRoles(c)); gerr == nil && r != nil {
+			act.SMS = sendActivationSMS(c.Request.Context(), r.Phone, act)
 		}
 		c.JSON(http.StatusCreated, act)
 	}

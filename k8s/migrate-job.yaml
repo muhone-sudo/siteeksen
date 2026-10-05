@@ -7,6 +7,7 @@
 #   app-secrets   : jwt-secret, nextauth-secret, pii-encryption-key
 #                   (isteğe bağlı: pii-encryption-key-id, pii-encryption-previous-keys)
 #   storage       : endpoint, region, bucket, access-key-id, secret-access-key
+#   notify        : (isteğe bağlı) netgsm-usercode, netgsm-password, netgsm-msgheader, smtp-host, smtp-port, smtp-username, smtp-password, smtp-from
 #
 # Sıra: önce k8s/migrate-job.yaml tamamlanmalı (şemayı günceller ve rol
 # parolalarını atar), sonra bu dosya. CI bu sırayı uygular.

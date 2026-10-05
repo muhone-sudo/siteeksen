@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/siteeksen/backend/pkg/database"
 	"github.com/siteeksen/backend/pkg/middleware"
+	"github.com/siteeksen/backend/pkg/notify"
 	"github.com/siteeksen/backend/pkg/revocation"
 	"github.com/siteeksen/backend/services/identity/handlers"
 	"github.com/siteeksen/backend/services/identity/repository"
@@ -29,6 +30,15 @@ func main() {
 		WithRevocations(revocationChecker)
 	residentRepo := repository.NewResidentRepository(pool)
 	residentService := service.NewResidentService(residentRepo).WithActivation(authService, userRepo)
+
+	// Etkinleştirme kodu SMS ile (Netgsm; TEST_RAPORU 2.4). Yapılandırma yoksa kod
+	// yalnızca yöneticiye gösterilir; yarım/hatalı yapılandırma açılışı durdurur.
+	if sms, err := notify.NetgsmFromEnv(); err != nil {
+		log.Fatalf("SMS yapılandırması hatalı: %v", err)
+	} else if sms != nil {
+		handlers.SetActivationSMS(sms)
+		log.Printf("[identity] etkinleştirme kodları SMS ile gönderilecek (netgsm)")
+	}
 	roleService := service.NewRoleService(repository.NewRoleRepository(pool), authService, revocationChecker)
 
 	// Gin router

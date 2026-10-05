@@ -7,6 +7,7 @@
 #   app-secrets   : jwt-secret, nextauth-secret, pii-encryption-key
 #                   (isteğe bağlı: pii-encryption-key-id, pii-encryption-previous-keys)
 #   storage       : endpoint, region, bucket, access-key-id, secret-access-key
+#   notify        : (isteğe bağlı) netgsm-usercode, netgsm-password, netgsm-msgheader, smtp-host, smtp-port, smtp-username, smtp-password, smtp-from
 #
 # Sıra: önce k8s/migrate-job.yaml tamamlanmalı (şemayı günceller ve rol
 # parolalarını atar), sonra bu dosya. CI bu sırayı uygular.
@@ -66,6 +67,54 @@ spec:
                 secretKeyRef:
                   name: app-secrets
                   key: jwt-secret
+            - name: NETGSM_USERCODE
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-usercode
+                  optional: true
+            - name: NETGSM_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-password
+                  optional: true
+            - name: NETGSM_MSGHEADER
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-msgheader
+                  optional: true
+            - name: SMTP_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-host
+                  optional: true
+            - name: SMTP_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-port
+                  optional: true
+            - name: SMTP_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-username
+                  optional: true
+            - name: SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-password
+                  optional: true
+            - name: SMTP_FROM
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-from
+                  optional: true
           resources:
             requests:
               memory: "64Mi"
@@ -154,6 +203,54 @@ spec:
                 secretKeyRef:
                   name: app-secrets
                   key: jwt-secret
+            - name: NETGSM_USERCODE
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-usercode
+                  optional: true
+            - name: NETGSM_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-password
+                  optional: true
+            - name: NETGSM_MSGHEADER
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-msgheader
+                  optional: true
+            - name: SMTP_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-host
+                  optional: true
+            - name: SMTP_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-port
+                  optional: true
+            - name: SMTP_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-username
+                  optional: true
+            - name: SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-password
+                  optional: true
+            - name: SMTP_FROM
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-from
+                  optional: true
           resources:
             requests:
               memory: "64Mi"
@@ -242,6 +339,54 @@ spec:
                 secretKeyRef:
                   name: app-secrets
                   key: jwt-secret
+            - name: NETGSM_USERCODE
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-usercode
+                  optional: true
+            - name: NETGSM_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-password
+                  optional: true
+            - name: NETGSM_MSGHEADER
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-msgheader
+                  optional: true
+            - name: SMTP_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-host
+                  optional: true
+            - name: SMTP_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-port
+                  optional: true
+            - name: SMTP_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-username
+                  optional: true
+            - name: SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-password
+                  optional: true
+            - name: SMTP_FROM
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-from
+                  optional: true
             - name: PII_ENCRYPTION_KEY
               valueFrom:
                 secretKeyRef:
@@ -347,6 +492,54 @@ spec:
                 secretKeyRef:
                   name: app-secrets
                   key: jwt-secret
+            - name: NETGSM_USERCODE
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-usercode
+                  optional: true
+            - name: NETGSM_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-password
+                  optional: true
+            - name: NETGSM_MSGHEADER
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-msgheader
+                  optional: true
+            - name: SMTP_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-host
+                  optional: true
+            - name: SMTP_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-port
+                  optional: true
+            - name: SMTP_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-username
+                  optional: true
+            - name: SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-password
+                  optional: true
+            - name: SMTP_FROM
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-from
+                  optional: true
           resources:
             requests:
               memory: "64Mi"
@@ -435,6 +628,54 @@ spec:
                 secretKeyRef:
                   name: app-secrets
                   key: jwt-secret
+            - name: NETGSM_USERCODE
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-usercode
+                  optional: true
+            - name: NETGSM_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-password
+                  optional: true
+            - name: NETGSM_MSGHEADER
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-msgheader
+                  optional: true
+            - name: SMTP_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-host
+                  optional: true
+            - name: SMTP_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-port
+                  optional: true
+            - name: SMTP_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-username
+                  optional: true
+            - name: SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-password
+                  optional: true
+            - name: SMTP_FROM
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-from
+                  optional: true
           resources:
             requests:
               memory: "64Mi"
@@ -523,6 +764,54 @@ spec:
                 secretKeyRef:
                   name: app-secrets
                   key: jwt-secret
+            - name: NETGSM_USERCODE
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-usercode
+                  optional: true
+            - name: NETGSM_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-password
+                  optional: true
+            - name: NETGSM_MSGHEADER
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-msgheader
+                  optional: true
+            - name: SMTP_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-host
+                  optional: true
+            - name: SMTP_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-port
+                  optional: true
+            - name: SMTP_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-username
+                  optional: true
+            - name: SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-password
+                  optional: true
+            - name: SMTP_FROM
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-from
+                  optional: true
           resources:
             requests:
               memory: "64Mi"
@@ -611,6 +900,54 @@ spec:
                 secretKeyRef:
                   name: app-secrets
                   key: jwt-secret
+            - name: NETGSM_USERCODE
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-usercode
+                  optional: true
+            - name: NETGSM_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-password
+                  optional: true
+            - name: NETGSM_MSGHEADER
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-msgheader
+                  optional: true
+            - name: SMTP_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-host
+                  optional: true
+            - name: SMTP_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-port
+                  optional: true
+            - name: SMTP_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-username
+                  optional: true
+            - name: SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-password
+                  optional: true
+            - name: SMTP_FROM
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-from
+                  optional: true
           resources:
             requests:
               memory: "64Mi"
@@ -699,6 +1036,54 @@ spec:
                 secretKeyRef:
                   name: app-secrets
                   key: jwt-secret
+            - name: NETGSM_USERCODE
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-usercode
+                  optional: true
+            - name: NETGSM_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-password
+                  optional: true
+            - name: NETGSM_MSGHEADER
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-msgheader
+                  optional: true
+            - name: SMTP_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-host
+                  optional: true
+            - name: SMTP_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-port
+                  optional: true
+            - name: SMTP_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-username
+                  optional: true
+            - name: SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-password
+                  optional: true
+            - name: SMTP_FROM
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-from
+                  optional: true
           resources:
             requests:
               memory: "64Mi"
@@ -787,6 +1172,54 @@ spec:
                 secretKeyRef:
                   name: app-secrets
                   key: jwt-secret
+            - name: NETGSM_USERCODE
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-usercode
+                  optional: true
+            - name: NETGSM_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-password
+                  optional: true
+            - name: NETGSM_MSGHEADER
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-msgheader
+                  optional: true
+            - name: SMTP_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-host
+                  optional: true
+            - name: SMTP_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-port
+                  optional: true
+            - name: SMTP_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-username
+                  optional: true
+            - name: SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-password
+                  optional: true
+            - name: SMTP_FROM
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-from
+                  optional: true
           resources:
             requests:
               memory: "64Mi"
@@ -875,6 +1308,54 @@ spec:
                 secretKeyRef:
                   name: app-secrets
                   key: jwt-secret
+            - name: NETGSM_USERCODE
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-usercode
+                  optional: true
+            - name: NETGSM_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-password
+                  optional: true
+            - name: NETGSM_MSGHEADER
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-msgheader
+                  optional: true
+            - name: SMTP_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-host
+                  optional: true
+            - name: SMTP_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-port
+                  optional: true
+            - name: SMTP_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-username
+                  optional: true
+            - name: SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-password
+                  optional: true
+            - name: SMTP_FROM
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-from
+                  optional: true
             - name: STORAGE_BACKEND
               value: "s3"
             - name: S3_ENDPOINT
@@ -990,6 +1471,54 @@ spec:
                 secretKeyRef:
                   name: app-secrets
                   key: jwt-secret
+            - name: NETGSM_USERCODE
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-usercode
+                  optional: true
+            - name: NETGSM_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-password
+                  optional: true
+            - name: NETGSM_MSGHEADER
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-msgheader
+                  optional: true
+            - name: SMTP_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-host
+                  optional: true
+            - name: SMTP_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-port
+                  optional: true
+            - name: SMTP_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-username
+                  optional: true
+            - name: SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-password
+                  optional: true
+            - name: SMTP_FROM
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-from
+                  optional: true
           resources:
             requests:
               memory: "64Mi"
@@ -1078,6 +1607,54 @@ spec:
                 secretKeyRef:
                   name: app-secrets
                   key: jwt-secret
+            - name: NETGSM_USERCODE
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-usercode
+                  optional: true
+            - name: NETGSM_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-password
+                  optional: true
+            - name: NETGSM_MSGHEADER
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-msgheader
+                  optional: true
+            - name: SMTP_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-host
+                  optional: true
+            - name: SMTP_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-port
+                  optional: true
+            - name: SMTP_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-username
+                  optional: true
+            - name: SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-password
+                  optional: true
+            - name: SMTP_FROM
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-from
+                  optional: true
           resources:
             requests:
               memory: "64Mi"
@@ -1166,6 +1743,54 @@ spec:
                 secretKeyRef:
                   name: app-secrets
                   key: jwt-secret
+            - name: NETGSM_USERCODE
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-usercode
+                  optional: true
+            - name: NETGSM_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-password
+                  optional: true
+            - name: NETGSM_MSGHEADER
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-msgheader
+                  optional: true
+            - name: SMTP_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-host
+                  optional: true
+            - name: SMTP_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-port
+                  optional: true
+            - name: SMTP_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-username
+                  optional: true
+            - name: SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-password
+                  optional: true
+            - name: SMTP_FROM
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-from
+                  optional: true
           resources:
             requests:
               memory: "64Mi"
@@ -1254,6 +1879,54 @@ spec:
                 secretKeyRef:
                   name: app-secrets
                   key: jwt-secret
+            - name: NETGSM_USERCODE
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-usercode
+                  optional: true
+            - name: NETGSM_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-password
+                  optional: true
+            - name: NETGSM_MSGHEADER
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-msgheader
+                  optional: true
+            - name: SMTP_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-host
+                  optional: true
+            - name: SMTP_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-port
+                  optional: true
+            - name: SMTP_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-username
+                  optional: true
+            - name: SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-password
+                  optional: true
+            - name: SMTP_FROM
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-from
+                  optional: true
           resources:
             requests:
               memory: "64Mi"
@@ -1342,6 +2015,54 @@ spec:
                 secretKeyRef:
                   name: app-secrets
                   key: jwt-secret
+            - name: NETGSM_USERCODE
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-usercode
+                  optional: true
+            - name: NETGSM_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-password
+                  optional: true
+            - name: NETGSM_MSGHEADER
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-msgheader
+                  optional: true
+            - name: SMTP_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-host
+                  optional: true
+            - name: SMTP_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-port
+                  optional: true
+            - name: SMTP_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-username
+                  optional: true
+            - name: SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-password
+                  optional: true
+            - name: SMTP_FROM
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-from
+                  optional: true
           resources:
             requests:
               memory: "64Mi"
@@ -1430,6 +2151,54 @@ spec:
                 secretKeyRef:
                   name: app-secrets
                   key: jwt-secret
+            - name: NETGSM_USERCODE
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-usercode
+                  optional: true
+            - name: NETGSM_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-password
+                  optional: true
+            - name: NETGSM_MSGHEADER
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-msgheader
+                  optional: true
+            - name: SMTP_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-host
+                  optional: true
+            - name: SMTP_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-port
+                  optional: true
+            - name: SMTP_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-username
+                  optional: true
+            - name: SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-password
+                  optional: true
+            - name: SMTP_FROM
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-from
+                  optional: true
             - name: STORAGE_BACKEND
               value: "s3"
             - name: S3_ENDPOINT
@@ -1545,6 +2314,54 @@ spec:
                 secretKeyRef:
                   name: app-secrets
                   key: jwt-secret
+            - name: NETGSM_USERCODE
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-usercode
+                  optional: true
+            - name: NETGSM_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-password
+                  optional: true
+            - name: NETGSM_MSGHEADER
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-msgheader
+                  optional: true
+            - name: SMTP_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-host
+                  optional: true
+            - name: SMTP_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-port
+                  optional: true
+            - name: SMTP_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-username
+                  optional: true
+            - name: SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-password
+                  optional: true
+            - name: SMTP_FROM
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-from
+                  optional: true
           resources:
             requests:
               memory: "64Mi"
@@ -1633,6 +2450,54 @@ spec:
                 secretKeyRef:
                   name: app-secrets
                   key: jwt-secret
+            - name: NETGSM_USERCODE
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-usercode
+                  optional: true
+            - name: NETGSM_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-password
+                  optional: true
+            - name: NETGSM_MSGHEADER
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-msgheader
+                  optional: true
+            - name: SMTP_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-host
+                  optional: true
+            - name: SMTP_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-port
+                  optional: true
+            - name: SMTP_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-username
+                  optional: true
+            - name: SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-password
+                  optional: true
+            - name: SMTP_FROM
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-from
+                  optional: true
           resources:
             requests:
               memory: "64Mi"
@@ -1721,6 +2586,54 @@ spec:
                 secretKeyRef:
                   name: app-secrets
                   key: jwt-secret
+            - name: NETGSM_USERCODE
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-usercode
+                  optional: true
+            - name: NETGSM_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-password
+                  optional: true
+            - name: NETGSM_MSGHEADER
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-msgheader
+                  optional: true
+            - name: SMTP_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-host
+                  optional: true
+            - name: SMTP_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-port
+                  optional: true
+            - name: SMTP_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-username
+                  optional: true
+            - name: SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-password
+                  optional: true
+            - name: SMTP_FROM
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-from
+                  optional: true
             - name: PII_ENCRYPTION_KEY
               valueFrom:
                 secretKeyRef:
@@ -1826,6 +2739,54 @@ spec:
                 secretKeyRef:
                   name: app-secrets
                   key: jwt-secret
+            - name: NETGSM_USERCODE
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-usercode
+                  optional: true
+            - name: NETGSM_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-password
+                  optional: true
+            - name: NETGSM_MSGHEADER
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-msgheader
+                  optional: true
+            - name: SMTP_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-host
+                  optional: true
+            - name: SMTP_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-port
+                  optional: true
+            - name: SMTP_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-username
+                  optional: true
+            - name: SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-password
+                  optional: true
+            - name: SMTP_FROM
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-from
+                  optional: true
           resources:
             requests:
               memory: "64Mi"
@@ -1914,6 +2875,54 @@ spec:
                 secretKeyRef:
                   name: app-secrets
                   key: jwt-secret
+            - name: NETGSM_USERCODE
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-usercode
+                  optional: true
+            - name: NETGSM_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-password
+                  optional: true
+            - name: NETGSM_MSGHEADER
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-msgheader
+                  optional: true
+            - name: SMTP_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-host
+                  optional: true
+            - name: SMTP_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-port
+                  optional: true
+            - name: SMTP_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-username
+                  optional: true
+            - name: SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-password
+                  optional: true
+            - name: SMTP_FROM
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-from
+                  optional: true
           resources:
             requests:
               memory: "64Mi"
@@ -2002,6 +3011,54 @@ spec:
                 secretKeyRef:
                   name: app-secrets
                   key: jwt-secret
+            - name: NETGSM_USERCODE
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-usercode
+                  optional: true
+            - name: NETGSM_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-password
+                  optional: true
+            - name: NETGSM_MSGHEADER
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-msgheader
+                  optional: true
+            - name: SMTP_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-host
+                  optional: true
+            - name: SMTP_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-port
+                  optional: true
+            - name: SMTP_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-username
+                  optional: true
+            - name: SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-password
+                  optional: true
+            - name: SMTP_FROM
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-from
+                  optional: true
           resources:
             requests:
               memory: "64Mi"
@@ -2090,6 +3147,54 @@ spec:
                 secretKeyRef:
                   name: app-secrets
                   key: jwt-secret
+            - name: NETGSM_USERCODE
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-usercode
+                  optional: true
+            - name: NETGSM_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-password
+                  optional: true
+            - name: NETGSM_MSGHEADER
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-msgheader
+                  optional: true
+            - name: SMTP_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-host
+                  optional: true
+            - name: SMTP_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-port
+                  optional: true
+            - name: SMTP_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-username
+                  optional: true
+            - name: SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-password
+                  optional: true
+            - name: SMTP_FROM
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-from
+                  optional: true
           resources:
             requests:
               memory: "64Mi"
@@ -2178,6 +3283,54 @@ spec:
                 secretKeyRef:
                   name: app-secrets
                   key: jwt-secret
+            - name: NETGSM_USERCODE
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-usercode
+                  optional: true
+            - name: NETGSM_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-password
+                  optional: true
+            - name: NETGSM_MSGHEADER
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-msgheader
+                  optional: true
+            - name: SMTP_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-host
+                  optional: true
+            - name: SMTP_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-port
+                  optional: true
+            - name: SMTP_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-username
+                  optional: true
+            - name: SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-password
+                  optional: true
+            - name: SMTP_FROM
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-from
+                  optional: true
           resources:
             requests:
               memory: "64Mi"
@@ -2266,6 +3419,54 @@ spec:
                 secretKeyRef:
                   name: app-secrets
                   key: jwt-secret
+            - name: NETGSM_USERCODE
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-usercode
+                  optional: true
+            - name: NETGSM_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-password
+                  optional: true
+            - name: NETGSM_MSGHEADER
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-msgheader
+                  optional: true
+            - name: SMTP_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-host
+                  optional: true
+            - name: SMTP_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-port
+                  optional: true
+            - name: SMTP_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-username
+                  optional: true
+            - name: SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-password
+                  optional: true
+            - name: SMTP_FROM
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-from
+                  optional: true
           resources:
             requests:
               memory: "64Mi"
@@ -2354,6 +3555,54 @@ spec:
                 secretKeyRef:
                   name: app-secrets
                   key: jwt-secret
+            - name: NETGSM_USERCODE
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-usercode
+                  optional: true
+            - name: NETGSM_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-password
+                  optional: true
+            - name: NETGSM_MSGHEADER
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-msgheader
+                  optional: true
+            - name: SMTP_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-host
+                  optional: true
+            - name: SMTP_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-port
+                  optional: true
+            - name: SMTP_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-username
+                  optional: true
+            - name: SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-password
+                  optional: true
+            - name: SMTP_FROM
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-from
+                  optional: true
           resources:
             requests:
               memory: "64Mi"

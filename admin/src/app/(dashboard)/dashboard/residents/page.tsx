@@ -74,6 +74,7 @@ function ActivationModal({ value, onClose }: { value: { who: string; phone: stri
                     </Button>
                 </div>
                 <p className="text-xs text-gray-500">Son geçerlilik: {dateTime(act.expires_at)}</p>
+                {act.sms && <Notice tone={act.sms.status === "SENT" ? "green" : "amber"} title={act.sms.status === "SENT" ? "SMS gönderildi" : act.sms.status === "FAILED" ? "SMS gönderilemedi" : "SMS sağlayıcısı yok"}>{act.sms.note}</Notice>}
                 <Notice tone="amber" title="Bu kod bir daha gösterilmez">{act.note}</Notice>
                 <div className="flex justify-end">
                     <Button onClick={onClose}>Kodu ilettim, kapat</Button>

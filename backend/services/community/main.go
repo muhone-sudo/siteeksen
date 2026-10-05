@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -141,6 +142,11 @@ func main() {
 					"priorities": repository.AnnouncementPriorities})
 				return
 			}
+			if (in.SendSMS || in.SendEmail) && !strings.EqualFold(in.Priority, "URGENT") {
+				// Dış kanal ücretlidir ve sakini rahatsız eder: yalnızca acil duyuruda.
+				c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "SMS/e-posta yalnızca ACİL (URGENT) öncelikli duyuruda gönderilebilir"})
+				return
+			}
 			id, err := announcementRepo.Create(c.Request.Context(),
 				c.GetString("property_id"), c.GetString("user_id"), in)
 			if err != nil {
@@ -152,7 +158,14 @@ func main() {
 			// Yöneticinin "sakinlere ulaştı mı?" sorusunun cevabı yanıtta yazar.
 			propertyID := c.GetString("property_id")
 			notice := notifyAnnouncement(c, notifier, pool, propertyID, id, in)
-			c.JSON(http.StatusCreated, gin.H{"id": id, "notification": notice})
+			resp := gin.H{"id": id, "notification": notice}
+			if in.SendSMS {
+				resp["sms"] = notifyAnnouncementExternal(c, notifier, pool, propertyID, id, in, notify.ChannelSMS)
+			}
+			if in.SendEmail {
+				resp["email"] = notifyAnnouncementExternal(c, notifier, pool, propertyID, id, in, notify.ChannelEmail)
+			}
+			c.JSON(http.StatusCreated, resp)
 		})
 
 		annWrite.POST("/:id/pin", func(c *gin.Context) {
@@ -309,6 +322,36 @@ func notifyAnnouncement(c *gin.Context, n *notify.Notifier, pool *pgxpool.Pool,
 		},
 		// Aynı duyuru iki kez bildirime dönüşmesin.
 		DedupeKey: "announcement:" + announcementID,
+		CreatedBy: c.GetString("user_id"),
+	}, recipients)
+}
+
+// notifyAnnouncementExternal, acil duyuruyu SMS ya da e-postayla da iletir. Adres
+// kullanıcının kayıtlı telefonu/e-postasıdır; sağlayıcı yoksa kayıt PENDING kalır ve
+// sonuç bunu söyler. SMS metni kısa tutulur (başlık + kısaltılmış içerik).
+func notifyAnnouncementExternal(c *gin.Context, n *notify.Notifier, pool *pgxpool.Pool,
+	propertyID, announcementID string, in repository.CreateAnnouncementInput, channel string) *notify.BroadcastResult {
+	if n == nil {
+		return &notify.BroadcastResult{Note: "Bildirim altyapısı kurulu değil; gönderim yapılmadı."}
+	}
+	recipients, err := notify.Residents(c.Request.Context(), pool, propertyID)
+	if err != nil {
+		log.Printf("[community] acil duyuru alıcıları alınamadı: %v", err)
+		return &notify.BroadcastResult{Note: "Alıcı listesi okunamadı; gönderim yapılmadı."}
+	}
+	body := in.Content
+	if channel == notify.ChannelSMS {
+		r := []rune(strings.TrimSpace(in.Title) + ": " + strings.TrimSpace(in.Content))
+		if len(r) > 300 {
+			r = append(r[:297], []rune("...")...)
+		}
+		body = "ACİL DUYURU - " + string(r)
+	}
+	return n.Broadcast(c.Request.Context(), notify.Message{
+		PropertyID: propertyID, Channel: channel, Category: notify.CategoryTransactional,
+		Topic: "announcement.urgent", Subject: "Acil duyuru: " + in.Title, Body: body,
+		Payload:   map[string]any{"announcement_id": announcementID},
+		DedupeKey: "announcement:" + announcementID + ":" + strings.ToLower(channel),
 		CreatedBy: c.GetString("user_id"),
 	}, recipients)
 }

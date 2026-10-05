@@ -128,6 +128,10 @@ type CreateAnnouncementInput struct {
 	Priority  string `json:"priority"`
 	IsPinned  bool   `json:"is_pinned"`
 	ExpiresAt string `json:"expires_at"`
+	// SendSMS / SendEmail: yalnızca ACİL (URGENT) duyuruda; uygulama içi bildirime ek
+	// olarak kayıtlı telefona/e-postaya gönderilir (TEST_RAPORU 2.4).
+	SendSMS   bool `json:"send_sms"`
+	SendEmail bool `json:"send_email"`
 }
 
 // Create, duyuruyu yayımlar.

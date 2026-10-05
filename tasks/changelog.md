@@ -12,6 +12,24 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-05 — SMS (NETGSM) VE E-POSTA (SMTP) SAĞLAYICILARI (TEST_RAPORU 2.4) (DOĞRULANMIŞ — sahte sağlayıcıyla; gerçek gönderim kullanıcının hesabıyla)
+
+> **Kanıt:** `verify-stack.sh` → **1192/1192** — adım 43: Netgsm REST v2 biçimini taklit eden yerel sunucuya karşı
+> sakin eklenince etkinleştirme kodu SMS ile gitti (Basic auth, `msgheader`, `5XXXXXXXXX`, `encoding:TR`, `iysfilter:0`,
+> metinde kod); acil duyuru her telefonlu sakine SMS ile gitti ve kuyrukta `SENT/netgsm`; acil olmayan duyuruda SMS 422;
+> yarım Netgsm yapılandırmasıyla kimlik servisi açılmıyor; `go test ./pkg/notify` (hata kodları, ticari SMS reddi, SMTP
+> zarfı ve UTF-8 başlık, şifresiz bağlantıda parola reddi). Panel tsc/lint temiz.
+> **Kalan (kullanıcı):** gerçek gönderim için Netgsm hesabı (kullanıcı kodu, API şifresi, onaylı başlık) ve SMTP bilgisi
+> `.env`/k8s `notify` gizli değerine girilmeli; o zaman D4 kanıtı alınabilir.
+
+- `pkg/notify`: `NetgsmSender` (POST `/sms/rest/v2/send`; yalnızca işlemsel ileti, ticari SMS reddedilir), `SMTPSender`
+  (STARTTLS/örtük TLS; harici bağımlılık yok). `SendersFromEnv` gerçek sağlayıcıları kaydeder; `Broadcast` SMS/e-postada
+  adresi kullanıcının kayıtlı telefonu/e-postasından çözer (adressizler `no_address` sayılır).
+- Kimlik: etkinleştirme/şifre sıfırlama kodu SMS ile gönderilir (kuyruğa yazılmaz — giriş sırrı); yanıtta `sms.status`
+  (SENT/FAILED/NOT_CONFIGURED). Kod yöneticiye yine bir kez gösterilir.
+- Duyuru: `send_sms` / `send_email` yalnızca ACİL öncelikte; panelde seçenek ve sonuç sayıları.
+- Dağıtım: tüm uygulama servislerine isteğe bağlı `NETGSM_*`, `SMTP_*` (compose) ve `notify` gizli değeri (k8s); `.env.example`.
+
 ### 2026-10-05 — KARGO TESLİM KANITI: İMZA VE FOTOĞRAF (migration 052, TEST_RAPORU 2.3) (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **1188/1188** (imza ve fotoğraf depoya yazıldı, kayıtta SHA-256; isimsiz 400, görsel

@@ -24,6 +24,8 @@ type Activation struct {
 	Purpose   string    `json:"purpose"`
 	ExpiresAt time.Time `json:"expires_at"`
 	Note      string    `json:"note"`
+	// SMS, kodun SMS ile iletim sonucudur (sağlayıcı yoksa NOT_CONFIGURED).
+	SMS any `json:"sms,omitempty"`
 }
 
 // CreateResidentResult, sakin ekleme yanıtıdır.

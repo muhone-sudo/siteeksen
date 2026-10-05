@@ -143,6 +143,16 @@ def compose():
            f"  DB_PASSWORD: {req('APP_DB_PASSWORD', 'APP_DB_PASSWORD gerekli (bkz. .env.example)')}",
            f"  JWT_SECRET: {req('JWT_SECRET', 'JWT_SECRET gerekli (en az 32 karakter)')}",
            "  GIN_MODE: release",
+           "  # Dış bildirim sağlayıcıları (isteğe bağlı; boşsa SMS/e-posta kuyrukta PENDING kalır).",
+           "  NETGSM_USERCODE: ${NETGSM_USERCODE:-}",
+           "  NETGSM_PASSWORD: ${NETGSM_PASSWORD:-}",
+           "  NETGSM_MSGHEADER: ${NETGSM_MSGHEADER:-}",
+           "  SMTP_HOST: ${SMTP_HOST:-}",
+           "  SMTP_PORT: ${SMTP_PORT:-587}",
+           "  SMTP_USERNAME: ${SMTP_USERNAME:-}",
+           "  SMTP_PASSWORD: ${SMTP_PASSWORD:-}",
+           "  SMTP_FROM: ${SMTP_FROM:-}",
+           "  SMTP_TLS: ${SMTP_TLS:-starttls}",
            "",
            "x-after-migrate: &after-migrate",
            "  postgres:",
@@ -399,6 +409,7 @@ SECRETS_DOC = ["#",
                "#   app-secrets   : jwt-secret, nextauth-secret, pii-encryption-key",
                "#                   (isteğe bağlı: pii-encryption-key-id, pii-encryption-previous-keys)",
                "#   storage       : endpoint, region, bucket, access-key-id, secret-access-key",
+    "#   notify        : (isteğe bağlı) netgsm-usercode, netgsm-password, netgsm-msgheader, smtp-host, smtp-port, smtp-username, smtp-password, smtp-from",
                "#",
                "# Sıra: önce k8s/migrate-job.yaml tamamlanmalı (şemayı günceller ve rol",
                "# parolalarını atar), sonra bu dosya. CI bu sırayı uygular."]
@@ -453,6 +464,11 @@ def k8s():
             env += k8s_env_value("DB_USER", "siteeksen_app")
             env += k8s_env_secret("DB_PASSWORD", "db-app", "password")
         env += k8s_env_secret("JWT_SECRET", "app-secrets", "jwt-secret")
+        # Dış bildirim sağlayıcıları: isteğe bağlı "notify" gizli değeri (yoksa kanal PENDING kalır).
+        for var, key in (("NETGSM_USERCODE", "netgsm-usercode"), ("NETGSM_PASSWORD", "netgsm-password"),
+                         ("NETGSM_MSGHEADER", "netgsm-msgheader"), ("SMTP_HOST", "smtp-host"), ("SMTP_PORT", "smtp-port"),
+                         ("SMTP_USERNAME", "smtp-username"), ("SMTP_PASSWORD", "smtp-password"), ("SMTP_FROM", "smtp-from")):
+            env += k8s_env_secret(var, "notify", key, optional=True)
         if directory in ("personnel", "community"):
             env += k8s_env_secret("PII_ENCRYPTION_KEY", "app-secrets", "pii-encryption-key")
             # Döndürme sırasında doldurulur; yoksa birincil kimlik "k1", eski anahtar yok.

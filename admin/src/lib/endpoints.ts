@@ -133,8 +133,8 @@ export function endpoints(http: Http) {
         },
         announcements: {
             list: (q?: { category?: string; include_expired?: string }) => g<T.List<T.Announcement>>("/announcements", q),
-            create: (b: { title: string; content: string; category: string; priority: string; is_pinned?: boolean; expires_at?: string }) =>
-                http.post<{ id: string; notification: T.BroadcastResult }>("/announcements", b),
+            create: (b: { title: string; content: string; category: string; priority: string; is_pinned?: boolean; expires_at?: string; send_sms?: boolean; send_email?: boolean }) =>
+                http.post<{ id: string; notification: T.BroadcastResult; sms?: T.BroadcastResult; email?: T.BroadcastResult }>("/announcements", b),
             pin: (id: string, pinned: boolean) => http.post<{ is_pinned: boolean }>(`/announcements/${id}/pin`, { pinned }),
             readStats: (id: string) => g<{ stats: { total_residents: number; read_count: number; unread_count: number }; note: string }>(`/announcements/${id}/read-stats`),
         },

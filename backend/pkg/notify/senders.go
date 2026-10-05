@@ -106,11 +106,25 @@ func randomID() string {
 //	NOTIFY_LOG_SENDER=true  → günlük sağlayıcısı (yalnızca geliştirme)
 //	NOTIFY_LOG_CHANNELS     → virgülle ayrılmış kanal listesi (varsayılan PUSH,SMS,EMAIL)
 //
-// Gerçek sağlayıcılar (FCM, SMS operatörü, SMTP) henüz YAZILMAMIŞTIR; sözleşme
-// ve anahtar gerektirdikleri için bilerek eklenmemiştir. Eklendiklerinde bu
-// fonksiyona kaydedilmeleri yeterlidir; çağıran kodun değişmesi gerekmez.
+//	NETGSM_USERCODE / NETGSM_PASSWORD / NETGSM_MSGHEADER [/ NETGSM_API_URL] → SMS (Netgsm)
+//	SMTP_HOST / SMTP_PORT / SMTP_USERNAME / SMTP_PASSWORD / SMTP_FROM / SMTP_TLS → e-posta
+//
+// Gerçek sağlayıcılar günlük sağlayıcısından ÖNCE kaydedilir (kanal başına ilk uyan
+// sağlayıcı kullanılır). Push (FCM) henüz yoktur. Yapılandırma eksik/hatalıysa sağlayıcı
+// kaydedilmez ve bu günlüğe yazılır; ilgili kanal PENDING kalır.
 func SendersFromEnv() []Sender {
 	senders := []Sender{InAppSender{}}
+
+	if s, err := NetgsmFromEnv(); err != nil {
+		log.Printf("[notify] YAPILANDIRMA HATASI — SMS sağlayıcısı kurulmadı: %v", err)
+	} else if s != nil {
+		senders = append(senders, s)
+	}
+	if s, err := SMTPFromEnv(); err != nil {
+		log.Printf("[notify] YAPILANDIRMA HATASI — e-posta sağlayıcısı kurulmadı: %v", err)
+	} else if s != nil {
+		senders = append(senders, s)
+	}
 
 	if strings.EqualFold(strings.TrimSpace(os.Getenv("NOTIFY_LOG_SENDER")), "true") {
 		channels := []string{}

@@ -22,7 +22,7 @@ export default function AnnouncementsPage() {
     const act = useAction();
     const { canWrite } = useRoles();
     const [open, setOpen] = useState(false);
-    const [form, setForm] = useState({ title: "", content: "", category: "GENERAL", priority: "NORMAL", is_pinned: false, expires_at: "" });
+    const [form, setForm] = useState({ title: "", content: "", category: "GENERAL", priority: "NORMAL", is_pinned: false, expires_at: "", send_sms: false, send_email: false });
     const [statsFor, setStatsFor] = useState<string | null>(null);
     const stats = useApi(["announcements", "stats", statsFor], () => api.announcements.readStats(statsFor!), !!statsFor);
 
@@ -74,15 +74,17 @@ export default function AnnouncementsPage() {
                 error={act.error}
                 onSubmit={async () => {
                     const r = await act.run(
-                        () => api.announcements.create({ ...form, expires_at: form.expires_at ? localToRFC3339(form.expires_at) : undefined }),
+                        () => api.announcements.create({ ...form, send_sms: form.priority === "URGENT" && form.send_sms, send_email: form.priority === "URGENT" && form.send_email, expires_at: form.expires_at ? localToRFC3339(form.expires_at) : undefined }),
                         {
                             invalidate: ["announcements"],
-                            success: (res) => `Duyuru yayımlandı. Bildirim: ${res.notification.sent} gönderildi, ${res.notification.pending} kuyrukta, ${res.notification.suppressed} engellendi`,
+                            success: (res) => `Duyuru yayımlandı. Bildirim: ${res.notification.sent} gönderildi, ${res.notification.pending} kuyrukta, ${res.notification.suppressed} engellendi` +
+                                (res.sms ? ` · SMS: ${res.sms.sent} gönderildi, ${res.sms.pending} kuyrukta${res.sms.no_address ? `, ${res.sms.no_address} telefonsuz` : ""}` : "") +
+                                (res.email ? ` · E-posta: ${res.email.sent} gönderildi, ${res.email.pending} kuyrukta${res.email.no_address ? `, ${res.email.no_address} adressiz` : ""}` : ""),
                         }
                     );
                     if (r) {
                         setOpen(false);
-                        setForm({ title: "", content: "", category: "GENERAL", priority: "NORMAL", is_pinned: false, expires_at: "" });
+                        setForm({ title: "", content: "", category: "GENERAL", priority: "NORMAL", is_pinned: false, expires_at: "", send_sms: false, send_email: false });
                     }
                 }}
             >
@@ -96,6 +98,13 @@ export default function AnnouncementsPage() {
                         <Select value={form.is_pinned ? "1" : "0"} onChange={(e) => setForm({ ...form, is_pinned: e.target.value === "1" })} options={[{ value: "0", label: "Hayır" }, { value: "1", label: "Evet" }]} />
                     </Field>
                 </Grid>
+                {form.priority === "URGENT" && (
+                    <div className="space-y-1 rounded-lg bg-red-50 p-3 text-sm dark:bg-red-900/20">
+                        <label className="flex items-center gap-2"><input type="checkbox" checked={form.send_sms} onChange={(e) => setForm({ ...form, send_sms: e.target.checked })} /> Sakinlere SMS olarak da gönder</label>
+                        <label className="flex items-center gap-2"><input type="checkbox" checked={form.send_email} onChange={(e) => setForm({ ...form, send_email: e.target.checked })} /> E-posta olarak da gönder</label>
+                        <p className="text-xs text-gray-500">Yalnızca acil duyuruda. Kayıtlı telefon/e-postaya gider; sağlayıcı yapılandırılmamışsa kuyrukta bekler (Bildirimler ekranı).</p>
+                    </div>
+                )}
                 {form.category === "ASSEMBLY" && (
                     <Notice tone="amber">
                         Genel kurul çağrısı KMK m.29 gereği imza karşılığı ya da taahhütlü mektupla yapılır. Bu duyuru yalnızca hatırlatmadır; çağrının yerine geçmez.
