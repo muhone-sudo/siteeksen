@@ -319,12 +319,16 @@ class ApiClient {
     required String paymentMethod,
     String? cardToken,
     bool saveCard = false,
+    String? valueDate,
+    String? reference,
   }) async {
     final response = await _dio.post('/finance/payments', data: {
       'assessment_ids': assessmentIds,
       'payment_method': paymentMethod,
       if (cardToken != null) 'card_token': cardToken,
       'save_card': saveCard,
+      if (valueDate != null) 'value_date': valueDate,
+      if (reference != null && reference.isNotEmpty) 'reference': reference,
     });
     return response.data;
   }

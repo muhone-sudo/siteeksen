@@ -651,7 +651,7 @@ S-21 → VERBİS opsiyonel, yükümlülük site yönetiminde; S-19 ve iOS → ol
 - [x] T8 ziyaretçi PIN/QR + hızlı doğrulama (TEST 2.8) — 051, verify 1182/1182, mobil 10/10
 - [x] T9 panel mobil menü (TEST 6.2) — tarayıcı testi 412×915
 - [x] A1 taşınan sakin (BUG-01) — mevcut koruma kanıtı + bildirim metni şeffaflığı; verify 1198/1198
-- [ ] A2 havale beyanında valör, gecikme tazminatı dondurma ve iz (BUG-02)
+- [x] A2 havale beyanında valör, gecikme tazminatı dondurma ve iz (BUG-02) — 053, verify 1201/1201
 - [ ] A3 finansal silinemezlik + ters kayıt (BUG-03)
 - [ ] A4 borcu yoktur belgesi + doğrulama (BUG-04)
 - [ ] A5 telefon değişimi / kod yeniden üretimi (BUG-05)

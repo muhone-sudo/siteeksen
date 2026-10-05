@@ -4,7 +4,7 @@ import { useState } from "react";
 import { api } from "@/lib/api";
 import { useAction, useApi, useRoles } from "@/lib/use-api";
 import { ActionFeedback, Button, Card, Field, FormModal, Input, Notice, Page, QueryView, StatusBadge, Table, Tabs } from "@/components/ui/kit";
-import { dateTime, tl } from "@/lib/format";
+import { date, dateTime, tl } from "@/lib/format";
 import { PAYMENT_STATUS } from "@/lib/labels";
 import type { Payment } from "@/lib/types";
 
@@ -32,7 +32,7 @@ export default function AccountingPage() {
         { header: "Tutar", cell: (p: Payment) => tl(p.amount) },
         { header: "Yöntem", cell: (p: Payment) => p.payment_method },
         { header: "Durum", cell: (p: Payment) => <StatusBadge value={p.status} map={PAYMENT_STATUS} /> },
-        { header: "Tarih", cell: (p: Payment) => dateTime(p.created_at) },
+        { header: "Tarih", cell: (p: Payment) => <>{dateTime(p.created_at)}{p.value_date && <div className="text-xs text-gray-500">Havale günü: {date(p.value_date)}</div>}{p.payer_reference && <div className="text-xs text-gray-500">Açıklama: {p.payer_reference}</div>}</> },
         ...(withActions && canWrite
             ? [{
                 header: "",

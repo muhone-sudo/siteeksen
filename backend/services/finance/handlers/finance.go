@@ -173,6 +173,10 @@ type CreatePaymentRequest struct {
 	PaymentMethod string   `json:"payment_method" binding:"required"` // CREDIT_CARD, SAVED_CARD
 	CardToken     string   `json:"card_token"`
 	SaveCard      bool     `json:"save_card"`
+	// ValueDate: havale/EFT/nakit ödemenin yapıldığı (valör) gün, YYYY-AA-GG; boşsa bugün (053).
+	ValueDate string `json:"value_date"`
+	// Reference: havale açıklaması / dekont numarası (yöneticinin banka hareketiyle eşleştirmesi için).
+	Reference string `json:"reference"`
 }
 
 // CreatePayment ödeme başlatır
@@ -194,8 +198,29 @@ func CreatePayment(svc *service.FinanceService) gin.HandlerFunc {
 			return
 		}
 
+		// Valör (Apsiyon BUG-02): havale/EFT/nakitte gecikme tazminatı ödeme gününde durur.
+		var valueDate *time.Time
+		if req.PaymentMethod == "BANK_TRANSFER" || req.PaymentMethod == "CASH" {
+			today, _ := time.Parse("2006-01-02", time.Now().Format("2006-01-02"))
+			vd := today
+			if strings.TrimSpace(req.ValueDate) != "" {
+				p, perr := time.Parse("2006-01-02", strings.TrimSpace(req.ValueDate))
+				if perr != nil || p.After(today) || p.Before(today.AddDate(-1, 0, 0)) {
+					c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "Ödeme (valör) tarihi YYYY-AA-GG biçiminde, bugünden ileri olmayan ve son bir yıl içinde bir tarih olmalı"})
+					return
+				}
+				vd = p
+			}
+			valueDate = &vd
+		}
+		if len(req.Reference) > 140 {
+			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "Referans en fazla 140 karakter olabilir"})
+			return
+		}
+
 		userID := c.GetString("user_id")
-		result, err := svc.CreatePayment(c.Request.Context(), c.GetString("property_id"), userID, req.AssessmentIDs, req.PaymentMethod, req.CardToken)
+		result, err := svc.CreatePayment(c.Request.Context(), c.GetString("property_id"), userID, req.AssessmentIDs, req.PaymentMethod, req.CardToken,
+			valueDate, strings.TrimSpace(req.Reference))
 		if err != nil {
 			// Hata eşlemesi (2026-09-09): Önceki sürüm her hatayı `err.Error()` ile ham metin
 			// olarak döndürüyordu; bu, PostgreSQL hata mesajlarıyla tablo/sütun/kısıt adlarını

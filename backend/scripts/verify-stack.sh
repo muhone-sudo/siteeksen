@@ -835,6 +835,43 @@ print(r[0].get("unit","") if r else "YOK")' "$PAYID")
     || bad "tahakkuk izi yok ($ACC kayıt)"
 
   $PSQL -c "UPDATE monthly_assessments SET late_fee=0, total_amount=base_amount, status='PENDING' WHERE id='$ASSESS'; DELETE FROM late_fee_accruals WHERE assessment_id='$ASSESS';" >/dev/null 2>&1
+
+  # --- Havale valörü: gecikme ödeme gününde biter (053, Apsiyon BUG-02, KMK m.20/2) ---
+  FIN="http://127.0.0.1:${FINPORT}/api/v1/finance"
+  FA="Authorization: Bearer $MGR"; FJ='Content-Type: application/json'
+  $PSQL -c "UPDATE payments SET status='FAILED' WHERE status='PENDING' AND id IN (SELECT payment_id FROM payment_assessments WHERE assessment_id='$ASSESS');" >/dev/null 2>&1
+  accrue() { curl -s -o /dev/null -X POST "$FIN/late-fees/accrue" -H "$FA" -H "$FJ" -d '{}'; }
+  accrue
+  LF0=$($PSQL -t -A -c "SELECT late_fee > 0 FROM monthly_assessments WHERE id='$ASSESS';")
+  # Vadesinde (2026-01-09) havale yapılmış, bugün bildiriliyor → tazminat sıfır, tutar anapara
+  V1=$(curl -s -X POST "$FIN/payments" -H "$FA" -H "$FJ" -d "{\"assessment_ids\":[\"$ASSESS\"],\"payment_method\":\"BANK_TRANSFER\",\"value_date\":\"2026-01-09\",\"reference\":\"FAST 123\"}")
+  VP1=$(echo "$V1" | sed -n 's/.*"payment_id":"\([^"]*\)".*/\1/p')
+  ROW1=$($PSQL -t -A -c "SELECT late_fee::text || '|' || total_amount::text FROM monthly_assessments WHERE id='$ASSESS';")
+  REV=$($PSQL -t -A -c "SELECT count(*) FILTER (WHERE reversed_at IS NOT NULL AND reversal_reason LIKE 'Ödeme valörü 09.01.2026%'), count(*) FROM late_fee_accruals WHERE assessment_id='$ASSESS';")
+  accrue
+  ROW1B=$($PSQL -t -A -c "SELECT late_fee::text FROM monthly_assessments WHERE id='$ASSESS';")
+  PV=$($PSQL -t -A -c "SELECT value_date || '|' || payer_reference FROM payments WHERE id='$VP1';")
+  [ "$LF0" = "t" ] && echo "$V1" | grep -q '"amount":1200' && echo "$V1" | grep -q 'onay beklerken işlemez' && [ "$ROW1" = "0.00|1200.00" ] \
+    && [ "${REV%%|*}" -ge 1 ] && [ "$ROW1B" = "0.00" ] && [ "$PV" = "2026-01-09|FAST 123" ] \
+    && ok "vadesinde yapılmış havale: tutar 1.200,00 (tazminat sıfırlandı), valör sonrası tazminat izi silinmeden iptal işaretlendi ($REV), onay beklerken tazminat işlemiyor" \
+    || bad "valör (vadesinde): işlemiş=$LF0 / $V1 / $ROW1 / iz=$REV / ikinci=$ROW1B / $PV"
+  # Reddedilen beyanda tazminat yeniden işler
+  curl -s -o /dev/null -X POST "$FIN/payments/$VP1/reject" -H "$FA" -H "$FJ" -d '{}'
+  accrue
+  LF2=$($PSQL -t -A -c "SELECT late_fee > 0 FROM monthly_assessments WHERE id='$ASSESS';")
+  # Vadeden 15 gün sonra (2026-01-25) yapılmış havale → 120000 kuruş × %5 × 15/30 = 3000 kuruş
+  V2=$(curl -s -X POST "$FIN/payments" -H "$FA" -H "$FJ" -d "{\"assessment_ids\":[\"$ASSESS\"],\"payment_method\":\"BANK_TRANSFER\",\"value_date\":\"2026-01-25\"}")
+  VP2=$(echo "$V2" | sed -n 's/.*"payment_id":"\([^"]*\)".*/\1/p')
+  C2=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$FIN/payments/$VP2/confirm" -H "$FA" -H "$FJ" -d '{"reference":"banka hareketi"}')
+  ROW2=$($PSQL -t -A -c "SELECT late_fee::text || '|' || paid_amount::text || '|' || status FROM monthly_assessments WHERE id='$ASSESS';")
+  FUT=$(date -d '+1 day' +%F)
+  SF=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$FIN/payments" -H "$FA" -H "$FJ" -d "{\"assessment_ids\":[\"$ASSESS\"],\"payment_method\":\"BANK_TRANSFER\",\"value_date\":\"$FUT\"}")
+  [ "$LF2" = "t" ] && echo "$V2" | grep -q '"amount":1230' && [ "$C2" = "200" ] && [ "$ROW2" = "30.00|1230.00|PAID" ] && [ "$SF" = "422" ] \
+    && ok "15 gün geç havale: tazminat valöre göre 30,00 TL, onayla borç kapandı (1.230,00 PAID); reddedilen beyanda tazminat yeniden işledi; gelecek valör 422" \
+    || bad "valör (geç): reddet sonrası=$LF2 / $V2 / onay=$C2 / $ROW2 / gelecek=$SF"
+  $PSQL -c "DELETE FROM payment_assessments WHERE payment_id IN ('$VP1','$VP2'); DELETE FROM payments WHERE id IN ('$VP1','$VP2');
+            UPDATE monthly_assessments SET late_fee=0, total_amount=base_amount, paid_amount=0, status='PENDING' WHERE id='$ASSESS';
+            DELETE FROM late_fee_accruals WHERE assessment_id='$ASSESS';" >/dev/null 2>&1
 else
   bad "para doğruluğu adımı atlandı (finance servisi ya da jeton yok)"
 fi

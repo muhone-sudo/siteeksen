@@ -51,6 +51,7 @@ export interface Debtor { unit_id: Id; resident_id: Id | ""; name: string; unit:
 export interface Payment {
     id: Id; user_id: string; amount: number; payment_method: string; status: string;
     transaction_id?: string; created_at: string; completed_at: string; name: string; unit: string;
+    value_date?: string; payer_reference?: string;
 }
 export interface FinanceCategory { id: Id; property_id: Id; name: string; distribution_type: string; is_active: boolean }
 export interface LateFeeRun {

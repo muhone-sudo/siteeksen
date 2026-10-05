@@ -286,6 +286,8 @@ func (r *FinanceRepository) CreatePayment(
 	propertyID, userID string,
 	assessmentIDs []string,
 	method string,
+	valueDate *time.Time,
+	reference string,
 ) (string, float64, error) {
 	if len(assessmentIDs) == 0 {
 		return "", 0, ErrNoPayableAssessment
@@ -391,9 +393,10 @@ func (r *FinanceRepository) CreatePayment(
 
 	paymentID := uuid.New().String()
 	if _, err := tx.Exec(ctx, `
-		INSERT INTO payments (id, property_id, user_id, unit_id, amount, payment_method, status, created_at)
-		VALUES ($1, $2, $3, $4, $5::numeric, $6, 'PENDING', NOW())
-	`, paymentID, propertyID, userID, unitID, total.StringFixed(2), method); err != nil {
+		INSERT INTO payments (id, property_id, user_id, unit_id, amount, payment_method, status, created_at,
+		                      value_date, payer_reference)
+		VALUES ($1, $2, $3, $4, $5::numeric, $6, 'PENDING', NOW(), $7, NULLIF($8, ''))
+	`, paymentID, propertyID, userID, unitID, total.StringFixed(2), method, valueDate, reference); err != nil {
 		return "", 0, err
 	}
 
@@ -535,7 +538,7 @@ func (r *FinanceRepository) ListPendingPayments(ctx context.Context, propertyID 
 		SELECT DISTINCT p.id,
 		       COALESCE(u.first_name || ' ' || u.last_name, ''),
 		       COALESCE(un.block || '-' || un.door_number, ''),
-		       p.amount, p.payment_method, p.status, p.created_at
+		       p.amount, p.payment_method, p.status, p.created_at, p.value_date, COALESCE(p.payer_reference, '')
 		FROM payments p
 		JOIN payment_assessments pa ON pa.payment_id = p.id
 		JOIN monthly_assessments ma ON ma.id = pa.assessment_id
@@ -552,7 +555,7 @@ func (r *FinanceRepository) ListPendingPayments(ctx context.Context, propertyID 
 	for rows.Next() {
 		var p models.PropertyPayment
 		if err := rows.Scan(&p.ID, &p.Name, &p.Unit, &p.Amount,
-			&p.PaymentMethod, &p.Status, &p.CreatedAt); err != nil {
+			&p.PaymentMethod, &p.Status, &p.CreatedAt, &p.ValueDate, &p.PayerReference); err != nil {
 			return nil, err
 		}
 		payments = append(payments, p)
@@ -567,6 +570,11 @@ type OverdueAssessment struct {
 	OverdueDays    int
 	BaseAmount     float64
 	PaidAmount     float64
+	// LateFeeKurus, şu anda yazılı tazminattır (dondurmada sıfırlanması gerekebilir).
+	LateFeeKurus int64
+	// CapDate, onay bekleyen ödemenin valör tarihidir; doluysa tazminat bu günde durur (053).
+	CapDate *time.Time
+	DueDate time.Time
 }
 
 // ListOverdueForLateFee, gecikme tazminatı işletilecek tahakkukları getirir.
@@ -575,18 +583,24 @@ type OverdueAssessment struct {
 // dahil edilmez. Aksi hâlde tazminat üzerinden tazminat (bileşik faiz) işlemiş olurdu;
 // KMK m.20/2 buna dayanak vermez.
 func (r *FinanceRepository) ListOverdueForLateFee(ctx context.Context, propertyID string, asOf time.Time) ([]OverdueAssessment, error) {
+	// Onay bekleyen ödeme varsa gecikme valör tarihinde biter (053, KMK m.20/2):
+	// gün sayısı min(asOf, valör) - vade olarak hesaplanır.
 	rows, err := r.scope(propertyID).Query(ctx, `
-		SELECT id,
-		       GREATEST(round((base_amount - LEAST(COALESCE(paid_amount,0), base_amount)) * 100), 0)::bigint,
-		       ($2::date - due_date)::int,
-		       base_amount, COALESCE(paid_amount, 0)
-		FROM monthly_assessments
-		WHERE property_id = $1
-		  AND deleted = 0
-		  AND kind = 'REGULAR' -- devir bakiyesine otomatik tazminat işletilmez (034)
-		  AND due_date < $2::date
-		  AND total_amount > COALESCE(paid_amount, 0)
-		ORDER BY due_date`, propertyID, asOf)
+		SELECT ma.id,
+		       GREATEST(round((ma.base_amount - LEAST(COALESCE(ma.paid_amount,0), ma.base_amount)) * 100), 0)::bigint,
+		       (LEAST($2::date, COALESCE(cap.value_date, $2::date)) - ma.due_date)::int,
+		       ma.base_amount, COALESCE(ma.paid_amount, 0),
+		       round(COALESCE(ma.late_fee, 0) * 100)::bigint, cap.value_date, ma.due_date
+		FROM monthly_assessments ma
+		LEFT JOIN LATERAL (
+			SELECT min(p.value_date) AS value_date FROM payment_assessments pa JOIN payments p ON p.id = pa.payment_id
+			WHERE pa.assessment_id = ma.id AND p.status = 'PENDING' AND p.value_date IS NOT NULL) cap ON true
+		WHERE ma.property_id = $1
+		  AND ma.deleted = 0
+		  AND ma.kind = 'REGULAR' -- devir bakiyesine otomatik tazminat işletilmez (034)
+		  AND ma.due_date < $2::date
+		  AND ma.total_amount > COALESCE(ma.paid_amount, 0)
+		ORDER BY ma.due_date`, propertyID, asOf)
 	if err != nil {
 		return nil, err
 	}
@@ -595,7 +609,8 @@ func (r *FinanceRepository) ListOverdueForLateFee(ctx context.Context, propertyI
 	out := []OverdueAssessment{}
 	for rows.Next() {
 		var a OverdueAssessment
-		if err := rows.Scan(&a.ID, &a.PrincipalKurus, &a.OverdueDays, &a.BaseAmount, &a.PaidAmount); err != nil {
+		if err := rows.Scan(&a.ID, &a.PrincipalKurus, &a.OverdueDays, &a.BaseAmount, &a.PaidAmount,
+			&a.LateFeeKurus, &a.CapDate, &a.DueDate); err != nil {
 			return nil, err
 		}
 		out = append(out, a)
@@ -619,12 +634,28 @@ func (r *FinanceRepository) ApplyLateFee(
 	overdueDays int,
 	principalKurus, feeKurus int64,
 	monthlyRate string,
+	capDate *time.Time,
+	writeTrace bool,
 ) error {
 	tx, err := r.scope(propertyID).Begin(ctx)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
+
+	// Valör sonrası işletilmiş tazminat izleri silinmez; gerekçeyle iptal işaretlenir (053).
+	if capDate != nil {
+		if _, err := tx.Exec(ctx, `
+			UPDATE late_fee_accruals
+			SET reversed_at = now(),
+			    reversal_reason = 'Ödeme valörü ' || to_char($2::date, 'DD.MM.YYYY') ||
+			                      ': gecikme ödeme gününde biter (KMK m.20/2); bu tarihten sonraki tazminat iptal edildi'
+			WHERE assessment_id = $1 AND accrued_on > $2::date AND reversed_at IS NULL
+			  AND NOT ($4 AND accrued_on = $3::date)`,
+			assessmentID, *capDate, asOf, writeTrace); err != nil {
+			return err
+		}
+	}
 
 	if _, err := tx.Exec(ctx, `
 		UPDATE monthly_assessments
@@ -640,6 +671,9 @@ func (r *FinanceRepository) ApplyLateFee(
 		return err
 	}
 
+	if !writeTrace {
+		return tx.Commit(ctx)
+	}
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO late_fee_accruals
 			(assessment_id, accrued_on, overdue_days, principal_kurus, monthly_rate, fee_kurus)
@@ -648,7 +682,8 @@ func (r *FinanceRepository) ApplyLateFee(
 		SET overdue_days = EXCLUDED.overdue_days,
 		    principal_kurus = EXCLUDED.principal_kurus,
 		    monthly_rate = EXCLUDED.monthly_rate,
-		    fee_kurus = EXCLUDED.fee_kurus`,
+		    fee_kurus = EXCLUDED.fee_kurus,
+		    reversed_at = NULL, reversal_reason = NULL`,
 		assessmentID, asOf, overdueDays, principalKurus, monthlyRate, feeKurus); err != nil {
 		return err
 	}
@@ -1209,4 +1244,32 @@ func (r *FinanceRepository) CancelOpeningBalance(ctx context.Context, propertyID
 		return ErrOpeningNotFound
 	}
 	return ErrOpeningNotCancellable
+}
+
+// PayableForFreeze, kullanıcının ödemek üzere seçtiği, ödenebilir ve onay bekleyen ödemesi
+// olmayan olağan tahakkuklarını gecikme tazminatını valöre göre yeniden hesaplamak için verir.
+func (r *FinanceRepository) PayableForFreeze(ctx context.Context, propertyID, userID string, ids []string) ([]OverdueAssessment, error) {
+	rows, err := r.scope(propertyID).Query(ctx, `
+		SELECT ma.id,
+		       GREATEST(round((ma.base_amount - LEAST(COALESCE(ma.paid_amount,0), ma.base_amount)) * 100), 0)::bigint,
+		       ma.base_amount, COALESCE(ma.paid_amount, 0), round(COALESCE(ma.late_fee, 0) * 100)::bigint, ma.due_date
+		FROM monthly_assessments ma
+		JOIN resident_units ru ON ru.unit_id = ma.unit_id AND ru.is_active = true AND ru.resident_id = $2
+		WHERE ma.id = ANY($3) AND ma.property_id = $1 AND ma.deleted = 0 AND ma.kind = 'REGULAR'
+		  AND ma.total_amount > COALESCE(ma.paid_amount, 0)
+		  AND NOT EXISTS (SELECT 1 FROM payment_assessments pa JOIN payments p ON p.id = pa.payment_id
+		                  WHERE pa.assessment_id = ma.id AND p.status = 'PENDING')`, propertyID, userID, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []OverdueAssessment{}
+	for rows.Next() {
+		var a OverdueAssessment
+		if err := rows.Scan(&a.ID, &a.PrincipalKurus, &a.BaseAmount, &a.PaidAmount, &a.LateFeeKurus, &a.DueDate); err != nil {
+			return nil, err
+		}
+		out = append(out, a)
+	}
+	return out, rows.Err()
 }

@@ -322,14 +322,47 @@ class _DuesPaymentScreenState extends State<DuesPaymentScreen> {
 
   Future<void> _confirmAndPay() async {
     final payable = _payableAssessments;
+    final transfer = _paymentMethods[_selectedPaymentMethod].code == 'BANK_TRANSFER';
+    // Havale/EFT'de ödemenin yapıldığı gün (valör): gecikme tazminatı bu günde durur
+    // (KMK m.20/2); yönetimin onay gecikmesi sakine faiz olarak yansımaz.
+    var valueDate = DateTime.now();
+    final reference = TextEditingController();
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) => StatefulBuilder(builder: (ctx, setLocal) => AlertDialog(
         title: const Text('Ödeme Onayı'),
-        content: Text(
-          '${payable.length} tahakkuk için toplam ${formatTry(_currentBalance)} '
-          'ödeme talebi oluşturulacak.',
-        ),
+        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(
+            '${payable.length} tahakkuk için toplam ${formatTry(_currentBalance)} '
+            'ödeme talebi oluşturulacak.',
+          ),
+          if (transfer) ...[
+            const SizedBox(height: 12),
+            ListTile(
+              key: const Key('value-date'),
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Havaleyi yaptığınız gün'),
+              subtitle: Text(formatDate(valueDate)),
+              trailing: const Icon(Icons.edit_calendar_rounded),
+              onTap: () async {
+                final picked = await showDatePicker(
+                  context: ctx,
+                  initialDate: valueDate,
+                  firstDate: DateTime.now().subtract(const Duration(days: 365)),
+                  lastDate: DateTime.now(),
+                );
+                if (picked != null) setLocal(() => valueDate = picked);
+              },
+            ),
+            TextField(
+              controller: reference,
+              maxLength: 140,
+              decoration: const InputDecoration(labelText: 'Havale açıklaması / dekont no (isteğe bağlı)'),
+            ),
+            const Text('Gecikme tazminatı ödeme gününe göre hesaplanır ve onay beklerken işlemez.',
+                style: TextStyle(fontSize: 12, color: AppleTheme.secondaryLabel)),
+          ],
+        ]),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
@@ -338,8 +371,10 @@ class _DuesPaymentScreenState extends State<DuesPaymentScreen> {
               onPressed: () => Navigator.pop(ctx, true),
               child: const Text('Devam')),
         ],
-      ),
+      )),
     );
+    final ref = reference.text.trim();
+    reference.dispose();
     if (confirmed != true) return;
 
     setState(() => _submitting = true);
@@ -347,6 +382,8 @@ class _DuesPaymentScreenState extends State<DuesPaymentScreen> {
       final result = await apiClient.createPayment(
         assessmentIds: payable.map((a) => a['id'] as String).toList(),
         paymentMethod: _paymentMethods[_selectedPaymentMethod].code,
+        valueDate: transfer ? apiDate(valueDate) : null,
+        reference: transfer ? ref : null,
       );
       if (!mounted) return;
       setState(() => _submitting = false);
@@ -385,6 +422,10 @@ class _DuesPaymentScreenState extends State<DuesPaymentScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('Tutar: ${formatTry(amount)}'),
+            if ((result['note'] ?? '').toString().isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text('${result['note']}'),
+            ],
             const SizedBox(height: 8),
             Text(
               ready

@@ -12,6 +12,22 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-05 — HAVALE VALÖRÜ VE GECİKME TAZMİNATININ DONDURULMASI (migration 053, Apsiyon BUG-02) (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **1201/1201** (vadesinde yapılmış havale bildirildiğinde işlemiş tazminat sıfırlandı, tutar
+> 1.200,00; valör sonrası tazminat izi silinmeden "Ödeme valörü 09.01.2026…" gerekçesiyle iptal işaretlendi; onay beklerken
+> tazminat işlemedi; reddedilen beyanda tazminat yeniden işledi; 15 gün geç havalede tazminat 30,00 TL ve onayla borç
+> kapandı (1.230,00 PAID); gelecek valör 422); `verify-mobile.sh` 10/10; panel tsc/lint temiz.
+
+- KMK m.20/2: gecikme ödeme gününde biter. Sakin havale/EFT/nakit bildiriminde `value_date` (ödeme günü, en çok bir yıl
+  geriye) ve `reference` (açıklama/dekont no) verir. İşletilmiş tazminat valör gününe göre yeniden yazılır — yalnızca
+  DÜŞÜRÜLÜR (işletilmemiş tazminat beyan anında eklenmez); onay bekleyen ödemenin kapsadığı borçta gecikme tazminatı işi
+  valörde durur; valör sonrası izler `late_fee_accruals.reversed_at/reversal_reason` ile işaretlenir (silinmez).
+- Yönetim ekranında onay bekleyen ödemede "Havale günü" ve açıklama görünür (banka hareketiyle eşleştirme). Sakin
+  uygulamasında havale seçilince ödeme günü ve açıklama sorulur; sonuçta tazminatın donduğu yazar.
+- "Banka API'siyle 3 saniyede otomatik kapatma" (FAST açıklama kodu) S-07 kararı gereği banka entegrasyonu olmadığından
+  yapılmadı; yerine ekstre içe aktarma ile eşleştirme A12'de ele alınır.
+
 ### 2026-10-05 — TAŞINAN SAKİN VE ŞEFFAF BORÇ HATIRLATMASI (Apsiyon BUG-01) (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **1198/1198** (adım 40: hatırlatma site adı, bölüm ve "2020-01 aidat: 1.234,56 TL ·

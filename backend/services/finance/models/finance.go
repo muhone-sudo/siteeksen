@@ -113,6 +113,9 @@ type PropertyPayment struct {
 	Payment
 	Name string `json:"name"`
 	Unit string `json:"unit"`
+	// ValueDate / PayerReference: sakinin beyan ettiği havale günü ve açıklaması (053).
+	ValueDate      *time.Time `json:"value_date,omitempty"`
+	PayerReference string     `json:"payer_reference,omitempty"`
 }
 
 // ConsumptionData tüketim verisi (grafik için)

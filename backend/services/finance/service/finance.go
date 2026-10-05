@@ -138,6 +138,9 @@ type PaymentResult struct {
 	// başarılı gibi sonlandırmamalıdır.
 	PaymentGatewayReady bool   `json:"payment_gateway_ready"`
 	CheckoutURL         string `json:"checkout_url,omitempty"`
+	// ValueDate: beyan edilen ödeme (valör) günü; gecikme tazminatı bu günde durur (053).
+	ValueDate string `json:"value_date,omitempty"`
+	Note      string `json:"note,omitempty"`
 }
 
 // CreatePayment ödeme kaydı oluşturur.
@@ -150,16 +153,32 @@ type PaymentResult struct {
 // (`https://checkout.siteeksen.com/pay/...`) yönlendiren sahte bir "checkout URL" döndürüyordu;
 // bu, istemciye ödemenin başlatıldığı izlenimi veriyordu. Ödeme sağlayıcısı entegrasyonu
 // yazılana kadar (tasks/questions.md S-06) sahte adres döndürülmez.
-func (s *FinanceService) CreatePayment(ctx context.Context, propertyID, userID string, assessmentIDs []string, method, cardToken string) (*PaymentResult, error) {
-	paymentID, totalAmount, err := s.repo.CreatePayment(ctx, propertyID, userID, assessmentIDs, method)
+func (s *FinanceService) CreatePayment(ctx context.Context, propertyID, userID string, assessmentIDs []string, method, cardToken string,
+	valueDate *time.Time, reference string) (*PaymentResult, error) {
+	// Havale/EFT/nakit beyanında gecikme tazminatı ödeme (valör) gününe göre yeniden hesaplanır
+	// (053, KMK m.20/2): sakin, onay gecikmesinin faizini ödemez. Tutar bu hesaptan sonra alınır.
+	if valueDate != nil {
+		if err := s.freezeLateFees(ctx, propertyID, userID, assessmentIDs, *valueDate); err != nil {
+			return nil, err
+		}
+	}
+	paymentID, totalAmount, err := s.repo.CreatePayment(ctx, propertyID, userID, assessmentIDs, method, valueDate, reference)
 	if err != nil {
 		return nil, err
 	}
 
+	vd, note := "", ""
+	if valueDate != nil {
+		vd = valueDate.Format("2006-01-02")
+		note = "Ödeme bildiriminiz yönetim onayına gönderildi. Gecikme tazminatı " + valueDate.Format("02.01.2006") +
+			" (ödeme günü) itibarıyla hesaplandı ve onay beklerken işlemez (KMK m.20/2)."
+	}
 	return &PaymentResult{
 		PaymentID: paymentID,
 		Amount:    totalAmount,
 		Status:    "PENDING",
+		ValueDate: vd,
+		Note:      note,
 		// Ödeme sağlayıcısı bağlanana kadar tahsilat yapılamaz; istemci bunu kullanıcıya
 		// açıkça göstermelidir.
 		PaymentGatewayReady: false,
@@ -212,6 +231,15 @@ func (s *FinanceService) AccrueLateFees(ctx context.Context, propertyID string, 
 
 	for _, it := range items {
 		if it.OverdueDays <= 0 || it.PrincipalKurus <= 0 {
+			// Vadesinde (valör ≤ vade) ödendiği beyan edilen borçta önceden işlemiş tazminat sıfırlanır.
+			if it.CapDate != nil && it.LateFeeKurus > 0 {
+				if err := s.repo.ApplyLateFee(ctx, propertyID, it.ID, asOf, 0, it.PrincipalKurus, 0,
+					rateParam.Numeric.String(), it.CapDate, true); err != nil {
+					return nil, fmt.Errorf("gecikme tazminatı sıfırlanamadı (tahakkuk %s): %w", it.ID, err)
+				}
+				res.ProcessedCount++
+				continue
+			}
 			res.SkippedNotDue++
 			continue
 		}
@@ -219,8 +247,13 @@ func (s *FinanceService) AccrueLateFees(ctx context.Context, propertyID string, 
 		if err != nil {
 			return nil, fmt.Errorf("gecikme tazminatı hesaplanamadı (tahakkuk %s): %w", it.ID, err)
 		}
+		// Valörde donmuş ve değişmemiş tazminat yeniden yazılmaz (iptal izi korunur).
+		if it.CapDate != nil && int64(fee) == it.LateFeeKurus {
+			res.SkippedNotDue++
+			continue
+		}
 		if err := s.repo.ApplyLateFee(ctx, propertyID, it.ID, asOf, it.OverdueDays,
-			it.PrincipalKurus, int64(fee), rateParam.Numeric.String()); err != nil {
+			it.PrincipalKurus, int64(fee), rateParam.Numeric.String(), it.CapDate, true); err != nil {
 			return nil, fmt.Errorf("gecikme tazminatı işlenemedi (tahakkuk %s): %w", it.ID, err)
 		}
 		res.ProcessedCount++
@@ -332,4 +365,44 @@ func (s *FinanceService) ListOpeningBalances(ctx context.Context, propertyID str
 // CancelOpeningBalance hatalı devir kaydını iptal eder.
 func (s *FinanceService) CancelOpeningBalance(ctx context.Context, propertyID, id string) error {
 	return s.repo.CancelOpeningBalance(ctx, propertyID, id)
+}
+
+// freezeLateFees, kullanıcının seçtiği borçlarda gecikme tazminatını valör tarihine göre yazar:
+// gün sayısı valör - vade (vadesinde ödemede sıfır); valörden sonraki tazminat izleri iptal edilir.
+func (s *FinanceService) freezeLateFees(ctx context.Context, propertyID, userID string, ids []string, valueDate time.Time) error {
+	items, err := s.repo.PayableForFreeze(ctx, propertyID, userID, ids)
+	if err != nil {
+		return err
+	}
+	if len(items) == 0 {
+		return nil
+	}
+	rate, err := s.params.Get(ctx, propertyID, legalparams.LateFeeMonthlyRate, valueDate)
+	if err != nil {
+		return err
+	}
+	today := time.Now()
+	vd := valueDate
+	for _, it := range items {
+		days := int(valueDate.Sub(it.DueDate).Hours() / 24)
+		fee := money.Kurus(0)
+		if days > 0 && it.PrincipalKurus > 0 {
+			if fee, err = money.LateFee(money.Kurus(it.PrincipalKurus), rate.Numeric, days); err != nil {
+				return err
+			}
+		}
+		if days < 0 {
+			days = 0
+		}
+		// Yalnızca DÜŞÜRÜR: henüz işletilmemiş tazminat beyan anında eklenmez (sakin ekranda
+		// gördüğü tutarı öder); işletilmiş olan valör gününe çekilir.
+		if int64(fee) >= it.LateFeeKurus {
+			continue
+		}
+		if err := s.repo.ApplyLateFee(ctx, propertyID, it.ID, today, days, it.PrincipalKurus, int64(fee),
+			rate.Numeric.String(), &vd, false); err != nil {
+			return err
+		}
+	}
+	return nil
 }
