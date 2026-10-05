@@ -248,6 +248,17 @@ class ApiClient {
     return _map(response.data);
   }
 
+  /// Çok parçalı form (dosya yükleme): [files] alan adı → (baytlar, dosya adı).
+  Future<Map<String, dynamic>> postMultipart(String path, Map<String, String> fields,
+      Map<String, (List<int>, String)> files) async {
+    final form = FormData.fromMap({
+      ...fields,
+      for (final e in files.entries) e.key: MultipartFile.fromBytes(e.value.$1, filename: e.value.$2),
+    });
+    final response = await _dio.post(path, data: form);
+    return _map(response.data);
+  }
+
   Future<Map<String, dynamic>> put(String path, Map<String, dynamic> body) async {
     final response = await _dio.put(path, data: body);
     return _map(response.data);

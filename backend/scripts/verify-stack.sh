@@ -1777,8 +1777,10 @@ step "17) Kargo modülü — mock'tan gerçeğe (FAZ 5, 6. modül)"
 # Önceki davranış: sabit kargo listesi; teslim alma/teslim etme kaydedilmiyordu ve
 # yanıt "sakine bildirim gönderildi" diyordu — bildirim altyapısı hiç yoktu.
 PKGPORT=${VERIFY_PKG_PORT:-18097}
+rm -rf /tmp/verify-pkg-files; mkdir -p /tmp/verify-pkg-files
 DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_app DB_PASSWORD="$APPPW" DB_NAME=siteeksen \
 DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${PKGPORT} \
+STORAGE_BACKEND=local STORAGE_LOCAL_DIR=/tmp/verify-pkg-files PACKAGE_PURGE_INTERVAL=2s \
   go run ./services/package >/tmp/verify-package.log 2>&1 &
 PKG_PID=$!
 KUP2=0
@@ -1890,8 +1892,8 @@ if [ "$KUP2" = "1" ] && [ -n "${MGR:-}" ] && [ -n "${TEN:-}" ]; then
     D1=$(curl -s -X POST "$PURL/packages/$P1ID/deliver" -H "$PA" -H "$PJ" \
       -d '{"delivered_to_name":"Ahmet Yilmaz"}')
     echo "$D1" | grep -q '"status":"DELIVERED"' && ok "kargo teslim edildi" || bad "teslim: $D1"
-    echo "$D1" | grep -q 'SAKLANMADI' && ok "imza/fotoğraf saklanmadığı dürüstçe bildiriliyor" \
-      || bad "imza saklama iddiası dürüst değil"
+    echo "$D1" | grep -q 'İmza/fotoğraf gönderilmedi' && ok "dosyasız teslimde imza/fotoğraf olmadığı dürüstçe bildiriliyor" \
+      || bad "imza saklama iddiası dürüst değil: $D1"
 
     ST=$($PSQL -t -A -c "SELECT status || '|' || COALESCE(delivered_to_name,'') FROM packages WHERE id='$P1ID';")
     [ "$ST" = "DELIVERED|Ahmet Yilmaz" ] && ok "teslim veritabanına yazıldı (kime teslim edildiği dahil)" \
@@ -1933,6 +1935,51 @@ if [ "$KUP2" = "1" ] && [ -n "${MGR:-}" ] && [ -n "${TEN:-}" ]; then
   # 12) Kimliksiz erişim engelli
   SC=$(curl -s -o /dev/null -w '%{http_code}' "$PURL/packages")
   [ "$SC" = "401" ] && ok "kimliksiz kargo listesi erişimi engellendi → 401" || bad "kimliksiz erişim → $SC"
+
+  # 13) Teslim kanıtı: imza + fotoğraf depoda, SHA-256 ile (TEST_RAPORU 2.3, 052)
+  python3 -c "import base64,sys; open('/tmp/v-sig.png','wb').write(base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=')); open('/tmp/v-photo.jpg','wb').write(b'\xff\xd8\xff\xe0' + b'JFIF-test-photo' * 20); open('/tmp/v-bad.txt','w').write('düz metin')"
+  P3ID=$(curl -s -X POST "$PURL/packages" -H "$PA" -H "$PJ" -d "{\"unit_id\":\"$UNIT_TEN\",\"recipient_name\":\"Ayse Demir\",\"carrier\":\"PTT\"}" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+  PB1=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$PURL/packages/$P3ID/deliver" -H "$PA" -F "photo=@/tmp/v-bad.txt")
+  PB2=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$PURL/packages/$P3ID/deliver" -H "$PA" -F "delivered_to_name=Ayse Demir" -F "photo=@/tmp/v-bad.txt")
+  DP=$(curl -s -X POST "$PURL/packages/$P3ID/deliver" -H "$PA" -F "delivered_to_name=Ayse Demir" -F "signature=@/tmp/v-sig.png" -F "photo=@/tmp/v-photo.jpg")
+  SIGSHA=$(sha256sum /tmp/v-sig.png | cut -d' ' -f1); PHSHA=$(sha256sum /tmp/v-photo.jpg | cut -d' ' -f1)
+  DBP=$($PSQL -t -A -c "SELECT delivery_signature_url LIKE 'packages/%', delivery_signature_sha256, delivery_photo_sha256, status FROM packages WHERE id='$P3ID';")
+  NF=$(find /tmp/verify-pkg-files -type f -path "*$P3ID*" ! -name '*.meta.json' | wc -l)
+  [ "$PB1" = "400" ] && [ "$PB2" = "422" ] && echo "$DP" | grep -q "\"signature_sha256\":\"$SIGSHA\"" && [ "$DBP" = "t|$SIGSHA|$PHSHA|DELIVERED" ] && [ "$NF" = "2" ] \
+    && ok "teslim kanıtı: imza ve fotoğraf depoya yazıldı, kayıtta SHA-256; isimsiz 400, görsel olmayan dosya 422" \
+    || bad "teslim kanıtı: $PB1 / $PB2 / $DP / $DBP / dosya=$NF"
+  curl -s "$PURL/packages/$P3ID/proof/signature" -H "$PT" -o /tmp/v-got.png -w '%{http_code}' >/tmp/v-code
+  GOT=$(cat /tmp/v-code); GOTSHA=$(sha256sum /tmp/v-got.png | cut -d' ' -f1)
+  GM=$(curl -s -o /dev/null -w '%{http_code}' "$PURL/packages/$P3ID/proof/photo" -H "$PA")
+  GO=$(curl -s -o /dev/null -w '%{http_code}' "$PURL/packages/$P1ID/proof/signature" -H "$PT")
+  GN=$(curl -s -o /dev/null -w '%{http_code}' "$PURL/packages/$P1ID/proof/signature" -H "$PA")
+  SIGFILE=$(find /tmp/verify-pkg-files -type f -path "*$P3ID*signature*" ! -name '*.meta.json' | head -1)
+  cp "$SIGFILE" /tmp/v-sig.bak; printf 'degistirildi' > "$SIGFILE"
+  GT=$(curl -s -o /dev/null -w '%{http_code}' "$PURL/packages/$P3ID/proof/signature" -H "$PA")
+  cp /tmp/v-sig.bak "$SIGFILE"
+  [ "$GOT" = "200" ] && [ "$GOTSHA" = "$SIGSHA" ] && [ "$GM" = "200" ] && [ "$GO" = "404" ] && [ "$GN" = "404" ] && [ "$GT" = "409" ] \
+    && ok "kanıt dosyası: dairenin sakini ve yönetim indirebiliyor (özet birebir), komşu 404, kanıtsız teslim 404, değiştirilmiş dosya 409" \
+    || bad "kanıt indirme: $GOT ($GOTSHA) / $GM / $GO / $GN / bozuk=$GT"
+  # KVKK imhası sonrası dosya silme kuyruğu (kargo servisi işler)
+  PHKEY=$($PSQL -t -A -c "SELECT delivery_photo_url FROM packages WHERE id='$P3ID';")
+  $PSQL -c "INSERT INTO storage_deletion_queue (property_id, storage_key, reason) VALUES ('$DEMO_PROPERTY', '$PHKEY', 'TEST');" >/dev/null
+  sleep 4
+  QL=$($PSQL -t -A -c "SELECT count(*) FROM storage_deletion_queue WHERE storage_key='$PHKEY';")
+  PHF=$(find /tmp/verify-pkg-files -type f -path "*$P3ID*photo*" ! -name '*.meta.json' | wc -l)
+  [ "$QL" = "0" ] && [ "$PHF" = "0" ] && ok "silme kuyruğundaki kanıt dosyası depodan silindi, kuyruk temizlendi" \
+    || bad "silme kuyruğu: kuyruk=$QL dosya=$PHF"
+  # Depo yapılandırılmamışsa kanıtlı teslim 503 (sessizce kaydedilmez)
+  DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_app DB_PASSWORD="$APPPW" DB_NAME=siteeksen \
+  DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=18297 STORAGE_BACKEND= \
+    go run ./services/package >/tmp/verify-package2.log 2>&1 &
+  PKG2_PID=$!
+  for _ in $(seq 1 45); do curl -fsS "http://127.0.0.1:18297/health" >/dev/null 2>&1 && break; sleep 1; done
+  P4ID=$(curl -s -X POST "$PURL/packages" -H "$PA" -H "$PJ" -d "{\"unit_id\":\"$UNIT_TEN\",\"recipient_name\":\"Ayse Demir\"}" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+  NS=$(curl -s -o /dev/null -w '%{http_code}' -X POST "http://127.0.0.1:18297/api/v1/packages/$P4ID/deliver" -H "$PA" -F "delivered_to_name=Ayse Demir" -F "signature=@/tmp/v-sig.png")
+  NST=$($PSQL -t -A -c "SELECT status FROM packages WHERE id='$P4ID';")
+  kill_tree "$PKG2_PID"
+  [ "$NS" = "503" ] && [ "$NST" != "DELIVERED" ] && ok "depo yapılandırılmamışken kanıtlı teslim 503 ve teslim kaydedilmedi" \
+    || bad "depo yokken kanıtlı teslim: $NS / $NST"
 else
   bad "package-service başlamadı"; tail -10 /tmp/verify-package.log
 fi
@@ -3836,6 +3883,17 @@ if [ "$SUP2" = "1" ] && [ -n "${MGR:-}" ] && [ -n "${TEN:-}" ]; then
   LD=$(PGPASSWORD="$APPPW" psql -h 127.0.0.1 -p "$DBPORT" -U siteeksen_app -d siteeksen -t -A -c "BEGIN; SELECT set_config('app.property_id','$DP',true); DELETE FROM data_destruction_log; COMMIT;" 2>&1)
   LN=$($PSQL -t -A -c "SELECT count(*) FROM data_destruction_log WHERE property_id='$DP';")
   [ "${LN:-0}" -ge 1 ] && ok "imha kaydı uygulama rolünce silinemiyor (İmha Yön. m.7/3, en az 3 yıl)" || bad "imha kaydı silindi: $LD"
+  # Kargo teslim kanıtı dosyaları imhada silme kuyruğuna bırakılır (052)
+  curl -s -o /dev/null -X PUT "$TURL/retention-rules/PACKAGE" -H "$TA" -H "$TJ" -d '{"retention_months":12,"justification":"Teslim uyuşmazlığı için bir yıl yeterli"}'
+  PKO=$($PSQL -t -A -c "INSERT INTO packages (property_id, unit_id, recipient_name, status, received_at, delivered_at, delivery_signature_url, delivery_photo_url, delivery_signature_sha256)
+    VALUES ('$DP','33333333-3333-3333-3333-333333333303','Eski Alici','DELIVERED', now() - interval '500 days', now() - interval '499 days',
+            'packages/$DP/eski/signature-a.png', 'packages/$DP/eski/photo-a.jpg', repeat('a',64)) RETURNING id;" | head -1)
+  curl -s -o /dev/null -X POST "$TURL/retention-rules/run" -H "$TA" -H "$TJ" -d '{"force":true}'
+  PKQ=$($PSQL -t -A -c "SELECT count(*) FROM storage_deletion_queue WHERE property_id='$DP' AND storage_key LIKE 'packages/$DP/eski/%' AND reason='KVKK_RETENTION';")
+  PKR=$($PSQL -t -A -c "SELECT recipient_name || '|' || (delivery_signature_url IS NULL) || '|' || (delivery_signature_sha256 IS NULL) FROM packages WHERE id='$PKO';")
+  [ "$PKQ" = "2" ] && [ "$PKR" = "[imha edildi]|true|true" ] \
+    && ok "kargo imhası: kayıt anonimleşti, imza/fotoğraf dosya anahtarları silme kuyruğuna bırakıldı (dosya sahipsiz kalmaz)" \
+    || bad "kargo imhası: kuyruk=$PKQ / $PKR"
   # Kamera ve biyometrik envanteri (FAZ 7.8, 046; KVK Kurumu apartman kamera duyurusu 08/06/2026)
   cam() { curl -s -o /dev/null -w '%{http_code}' -X POST "$TURL/privacy/cameras" -H "$TA" -H "$TJ" -d "$1"; }
   SC1=$(cam '{"location":"A blok 3. kat daire kapı önü","area_type":"CORRIDOR","purpose":"güvenlik","retention_days":30}')
@@ -5585,8 +5643,8 @@ ok "kullanılmayan 13 site tablosu RLS ile korunuyor"
 
 # 9) Toplam durum — RLS DIŞINDA KALAN her tablo bilinçli ve gerekçeli olmalı
 RLSCOUNT=$($PSQL -t -A -c "SELECT count(*) FROM rls_enabled_tables;")
-[ "$RLSCOUNT" = "105" ] && ok "RLS toplam 105 tabloda açık" \
-  || bad "beklenmedik RLS tablo sayısı: $RLSCOUNT (beklenen 105)"
+[ "$RLSCOUNT" = "106" ] && ok "RLS toplam 106 tabloda açık" \
+  || bad "beklenmedik RLS tablo sayısı: $RLSCOUNT (beklenen 106)"
 NOTRLS=$($PSQL -t -A -c "SELECT string_agg(t.table_name, ' ' ORDER BY t.table_name)
   FROM information_schema.tables t
   WHERE t.table_schema='public' AND t.table_type='BASE TABLE'

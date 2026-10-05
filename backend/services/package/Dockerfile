@@ -12,6 +12,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/app ./s
 
 FROM alpine:3.20
 RUN apk --no-cache add ca-certificates tzdata && addgroup -S app && adduser -S -G app -u 10001 app
+RUN mkdir -p /data/files && chown app:app /data/files
 WORKDIR /app
 COPY --from=builder /out/app /app/package-service
 USER app

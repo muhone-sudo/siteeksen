@@ -28,6 +28,7 @@ import (
 	"github.com/siteeksen/backend/pkg/listcap"
 	"github.com/siteeksen/backend/pkg/middleware"
 	"github.com/siteeksen/backend/pkg/notify"
+	"github.com/siteeksen/backend/pkg/storage"
 	"github.com/siteeksen/backend/services/package/repository"
 )
 
@@ -40,6 +41,17 @@ func main() {
 	defer database.Close()
 
 	repo := repository.New(pool)
+
+	// Teslim kanıtı deposu (052). Yapılandırılmamışsa servis açılır, kanıt yüklemesi
+	// 503 döner; yapılandırma HATALIYSA servis açılmaz (sessiz dosya kaybı olmasın).
+	store, serr := storage.FromEnv()
+	if errors.Is(serr, storage.ErrNotConfigured) && os.Getenv("STORAGE_BACKEND") == "" {
+		log.Printf("[package] dosya deposu yapılandırılmamış: teslim imzası/fotoğrafı saklanamaz (STORAGE_BACKEND)")
+		store = nil
+	} else if serr != nil {
+		log.Fatalf("Dosya deposu yapılandırması hatalı: %v", serr)
+	}
+	startDeletionWorker(pool, store)
 
 	// Uygulama içi bildirim her zaman çalışır (kayıt veritabanındadır).
 	// SMS/push sağlayıcısı olmadığı sürece o kanallar kullanılmaz.
@@ -169,7 +181,15 @@ func main() {
 			})
 		})
 
+		// Teslim kanıtı dosyası (imza/fotoğraf); yalnızca kanıt dosyası olan teslimde.
+		api.GET("/packages/:id/proof/:kind", getProof(repo, pool, store))
+
 		ops.POST("/packages/:id/deliver", func(c *gin.Context) {
+			// İmza/fotoğraflı teslim multipart gelir (TEST_RAPORU 2.3).
+			if strings.HasPrefix(c.ContentType(), "multipart/") {
+				deliverWithProof(c, repo, pool, store)
+				return
+			}
 			var in struct {
 				DeliveredToName string `json:"delivered_to_name" binding:"required"`
 			}
@@ -187,8 +207,7 @@ func main() {
 			}
 			c.JSON(http.StatusOK, gin.H{
 				"status": "DELIVERED",
-				"note": "Teslim kaydedildi. İmza/fotoğraf SAKLANMADI; dosya depolama " +
-					"altyapısı henüz yoktur.",
+				"note": "Teslim kaydedildi. İmza/fotoğraf gönderilmedi; kanıt için formu multipart (signature, photo) gönderin.",
 			})
 		})
 

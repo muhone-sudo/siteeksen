@@ -12,6 +12,24 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-05 — KARGO TESLİM KANITI: İMZA VE FOTOĞRAF (migration 052, TEST_RAPORU 2.3) (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **1188/1188** (imza ve fotoğraf depoya yazıldı, kayıtta SHA-256; isimsiz 400, görsel
+> olmayan dosya 422; dairenin sakini ve yönetim indirebiliyor (özet birebir), komşu 404, kanıtsız teslim 404,
+> değiştirilmiş dosya 409; silme kuyruğundaki dosya depodan silindi; depo yapılandırılmamışken kanıtlı teslim 503 ve
+> teslim kaydedilmedi; KVKK imhasında dosya anahtarları kuyruğa bırakıldı; RLS 106 tablo); `verify-mobile.sh` 10/10
+> (yönetici 31 test: imza PNG'si); panel tsc/lint temiz.
+
+- Teslim yanıtı "dosya depolama altyapısı henüz yoktur" diyordu; `pkg/storage` vardı ama bağlı değildi. Kargo servisi artık
+  belge arşiviyle aynı depoya (`packages/` öneki) yazar; `POST /packages/:id/deliver` multipart (`signature`, `photo`)
+  kabul eder, içerik baytlardan doğrulanır (PNG/JPEG/WEBP, 5 MB). `GET /packages/:id/proof/:kind` özeti doğrulayarak verir.
+- KVKK periyodik imhası (PACKAGE) dosya anahtarlarını `storage_deletion_queue`'ya bırakır; kargo servisi kuyruğu işleyip
+  dosyaları siler (önceki bilinen sınır: bağlantı silinir, dosya depoda kalırdı). Siteler `storage_deletion_property_ids()`
+  ile bulunur (yalnızca kimlik).
+- Dağıtım: kargo servisine depo ayarı ve belge birimi (`gen-deploy.py`, `STORAGE_SERVICES`).
+- Panel: teslim penceresinde imza alanı (canvas) ve paket fotoğrafı (mobil tarayıcıda kamera). Yönetici uygulaması:
+  teslimde dokunmatik imza (paket kullanılmadan CustomPainter → PNG).
+
 ### 2026-10-05 — ZİYARETÇİ GEÇİŞ KODU: PIN + QR (migration 051, TEST_RAPORU 2.8) (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **1182/1182** (ön kayıtta 6 haneli PIN; veritabanında yalnızca SHA-256 özeti; sakin

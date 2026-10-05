@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { SignaturePad } from "@/components/ui/signature-pad";
 import { Plus } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAction, useApi } from "@/lib/use-api";
@@ -26,6 +27,8 @@ export default function PackagesPage() {
     const [form, setForm] = useState(blank);
     const [delivering, setDelivering] = useState<Package | null>(null);
     const [toName, setToName] = useState("");
+    const [signature, setSignature] = useState<Blob | null>(null);
+    const [photo, setPhoto] = useState<File | null>(null);
     const [returning, setReturning] = useState<Package | null>(null);
     const [reason, setReason] = useState("");
     const s = summary.data;
@@ -60,7 +63,7 @@ export default function PackagesPage() {
                                     <Button size="sm" variant="ghost" disabled={act.pending} onClick={() => act.run(() => api.packages.notify(p.id), { invalidate: ["packages"], success: "Haber verildiği kaydedildi" })}>
                                         {p.notification_sent ? "Hatırlat" : "Haber verildi"}
                                     </Button>
-                                    <Button size="sm" onClick={() => { setToName(p.recipient_name); setDelivering(p); }}>Teslim et</Button>
+                                    <Button size="sm" onClick={() => { setToName(p.recipient_name); setSignature(null); setPhoto(null); setDelivering(p); }}>Teslim et</Button>
                                     <Button size="sm" variant="ghost" onClick={() => { setReason(""); setReturning(p); }}>İade</Button>
                                 </div>
                             ) : p.delivered_to_name ? <span className="text-xs text-gray-500">Teslim alan: {p.delivered_to_name}</span> : null },
@@ -92,10 +95,23 @@ export default function PackagesPage() {
             <FormModal open={!!delivering} onClose={() => setDelivering(null)} title="Teslim et" submitLabel="Teslim et" pending={act.pending} error={act.error}
                 onSubmit={async () => {
                     if (!delivering) return;
-                    const r = await act.run(() => api.packages.deliver(delivering.id, toName), { invalidate: ["packages"], success: "Teslim kaydedildi" });
+                    let r;
+                    if (signature || photo) {
+                        const fd = new FormData();
+                        fd.append("delivered_to_name", toName);
+                        if (signature) fd.append("signature", signature, "imza.png");
+                        if (photo) fd.append("photo", photo, photo.name);
+                        r = await act.run(() => api.packages.deliverWithProof(delivering.id, fd), { invalidate: ["packages"], success: (x) => x.note ?? "Teslim kaydedildi" });
+                    } else {
+                        r = await act.run(() => api.packages.deliver(delivering.id, toName), { invalidate: ["packages"], success: "Teslim kaydedildi (imza/fotoğraf yok)" });
+                    }
                     if (r) setDelivering(null);
                 }}>
                 <Field label="Teslim alan kişi" required hint="Kayıp kargoda sorumluluk bu kayda dayanır."><Input required value={toName} onChange={(e) => setToName(e.target.value)} /></Field>
+                <Field label="İmza"><SignaturePad onChange={setSignature} /></Field>
+                <Field label="Paket fotoğrafı" hint="Yalnızca paketi çekin; kişinin yüzünü çekmeyin (KVKK veri minimizasyonu). PNG/JPEG/WEBP, en çok 5 MB.">
+                    <Input type="file" accept="image/png,image/jpeg,image/webp" capture="environment" onChange={(e) => setPhoto(e.target.files?.[0] ?? null)} />
+                </Field>
             </FormModal>
             <FormModal open={!!returning} onClose={() => setReturning(null)} title="Kargo firmasına iade" submitLabel="İade et" pending={act.pending} error={act.error}
                 onSubmit={async () => {

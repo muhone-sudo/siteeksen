@@ -44,10 +44,20 @@ var Categories = []Category{
 			WHERE property_id = $1 AND exit_at IS NOT NULL AND entry_at < $2 AND plate <> '[imha]'`},
 	{Code: "PACKAGE", Method: "ANONYMIZE", Title: "Kargo kayıtları", Fields: "alıcı adı, telefon, teslim alan, takip no, imza/fotoğraf bağlantısı",
 		Condition: "teslim edilmiş/iade edilmiş ve teslim alma zamanı saklama süresinden eski",
-		updateQuery: `UPDATE packages SET recipient_name = '` + Anonymized + `', recipient_phone = NULL, delivered_to_name = NULL,
-			tracking_number = NULL, photo_url = NULL, delivery_signature_url = NULL, delivery_photo_url = NULL
-			WHERE property_id = $1 AND status IN ('DELIVERED','RETURNED') AND received_at < $2
-			  AND recipient_name <> '` + Anonymized + `'`},
+		// Teslim kanıtı dosyalarının anahtarı silinmeden önce kuyruğa bırakılır; kargo
+		// servisi (depoya erişimi olan tek servis) kuyruğu işleyip dosyaları siler (052).
+		updateQuery: `WITH due AS (
+				SELECT id, property_id, delivery_signature_url, delivery_photo_url FROM packages
+				WHERE property_id = $1 AND status IN ('DELIVERED','RETURNED') AND received_at < $2
+				  AND recipient_name <> '` + Anonymized + `'),
+			queued AS (
+				INSERT INTO storage_deletion_queue (property_id, storage_key, reason)
+				SELECT property_id, k, 'KVKK_RETENTION' FROM due, unnest(ARRAY[delivery_signature_url, delivery_photo_url]) AS k
+				WHERE k IS NOT NULL AND k LIKE 'packages/%')
+			UPDATE packages p SET recipient_name = '` + Anonymized + `', recipient_phone = NULL, delivered_to_name = NULL,
+				tracking_number = NULL, photo_url = NULL, delivery_signature_url = NULL, delivery_photo_url = NULL,
+				delivery_signature_sha256 = NULL, delivery_photo_sha256 = NULL
+			FROM due WHERE p.id = due.id`},
 	{Code: "CLIENT_ERROR", Method: "DELETE", Title: "Uygulama hata raporları", Fields: "hata metni, yığın izi, kullanıcı kimliği",
 		Condition:   "rapor zamanı saklama süresinden eski (kayıt silinir)",
 		updateQuery: `DELETE FROM client_error_reports WHERE property_id = $1 AND created_at < $2`},

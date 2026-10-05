@@ -83,10 +83,13 @@ def req(var, why):
     return "${%s:?%s}" % (var, why)
 
 
+# Dosya depolama kullanan servisler (pkg/storage): belge arşivi ve kargo teslim kanıtı.
+STORAGE_SERVICES = ("document", "package")
+
 # --------------------------------------------------------------------------- Dockerfile
 def dockerfile(directory, port, name, build_path):
     extra = ""
-    if directory == "document":
+    if directory in STORAGE_SERVICES:
         # Yerel depolama kipinde dosyalar bu dizine yazılır (compose'da birime bağlanır).
         extra = "RUN mkdir -p /data/files && chown app:app /data/files\n"
     return f"""# {name} — {HEADER}
@@ -208,7 +211,7 @@ def compose():
             out += [f"      PII_ENCRYPTION_KEY: {req('PII_ENCRYPTION_KEY', 'PII_ENCRYPTION_KEY gerekli (32 bayt, base64)')}",
                     "      PII_ENCRYPTION_KEY_ID: ${PII_ENCRYPTION_KEY_ID:-k1}",
                     "      PII_ENCRYPTION_PREVIOUS_KEYS: ${PII_ENCRYPTION_PREVIOUS_KEYS:-}"]
-        if directory == "document":
+        if directory in STORAGE_SERVICES:
             out += ["      STORAGE_BACKEND: ${STORAGE_BACKEND:-local}",
                     "      STORAGE_LOCAL_DIR: /data/files",
                     "      S3_ENDPOINT: ${S3_ENDPOINT:-}",
@@ -217,7 +220,8 @@ def compose():
                     "      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-}",
                     "      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-}",
                     "      S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-}"]
-        if directory == "document":
+        if directory in STORAGE_SERVICES:
+            # Aynı birim: kargo teslim kanıtı da belge deposuna yazılır (anahtar öneki packages/).
             out += ["    volumes:", "      - document_files:/data/files"]
         out += ["    depends_on: *after-migrate",
                 "    restart: unless-stopped",
@@ -454,7 +458,7 @@ def k8s():
             # Döndürme sırasında doldurulur; yoksa birincil kimlik "k1", eski anahtar yok.
             env += k8s_env_secret("PII_ENCRYPTION_KEY_ID", "app-secrets", "pii-encryption-key-id", optional=True)
             env += k8s_env_secret("PII_ENCRYPTION_PREVIOUS_KEYS", "app-secrets", "pii-encryption-previous-keys", optional=True)
-        if directory == "document":
+        if directory in STORAGE_SERVICES:
             # Kümede yerel disk kalıcı değildir; belge servisi S3 uyumlu depolama
             # ister ve yapılandırma eksikse AÇILMAZ (sessiz dosya kaybı olmasın).
             env += k8s_env_value("STORAGE_BACKEND", "s3")

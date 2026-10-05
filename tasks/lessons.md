@@ -628,3 +628,19 @@ komutla aynı satıra yapıştı (`...head -1)N=$(qapp ...`) ve ilgisiz bir kont
 "başarısız" göründü.
 
 **Kural:** Doğrulama betiğinde büyük metinde arama `grep -q … <<<"$VAR"` ile yapılır.
+
+### Ders 44 — Ters eğik çizgiyle devam eden komutun ortasına satır eklenmez
+
+verify-stack'te `DB_HOST=… \` ile başlayan ortam önekli `go run` komutunun arasına dizin
+hazırlama satırı eklendi; önek o satırdaki komuta bağlandı, servis varsayılan kullanıcıyla
+açılmaya çalıştı ve "başlamadı" hatası verdi.
+
+**Kural:** Devam satırlı (`\`) komuta ön hazırlık eklenecekse komutun TAMAMININ önüne yazılır.
+
+### Ders 45 — Uygulama rolüyle çalışan arka plan işi `properties`'i göremez
+
+Kargo servisinin silme kuyruğu işçisi siteleri `SELECT id FROM properties` ile buluyordu; RLS
+yüzünden hiç satır dönmedi, hata da üretmedi (sessiz). Test "kuyruk boşalmadı" diye yakaladı.
+
+**Kural:** Siteler arası tarama yapan iş yalnızca kimlik dönen `SECURITY DEFINER` fonksiyonla
+(028 deseni) site listesini alır, her siteyi kendi kapsamıyla işler.

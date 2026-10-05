@@ -210,6 +210,9 @@ export function endpoints(http: Http) {
             create: (b: Record<string, unknown>) => http.post<{ id: string; notification?: T.BroadcastResult; note?: string }>("/packages", b),
             notify: (id: string) => http.post<Msg>(`/packages/${id}/notify`, { method: "MANUAL" }),
             deliver: (id: string, delivered_to_name: string) => http.post<Msg>(`/packages/${id}/deliver`, { delivered_to_name }),
+            /** İmza/fotoğraflı teslim (multipart); dosyalar SHA-256 özetiyle saklanır. */
+            deliverWithProof: (id: string, form: FormData) => http.upload<Msg & { signature_sha256?: string; photo_sha256?: string }>(`/packages/${id}/deliver`, form),
+            proof: (id: string, kind: "signature" | "photo") => http.download(`/packages/${id}/proof/${kind}`, `kargo-${kind}`),
             returnToCarrier: (id: string, reason: string) => http.post<Msg>(`/packages/${id}/return`, { reason }),
         },
         contracts: {

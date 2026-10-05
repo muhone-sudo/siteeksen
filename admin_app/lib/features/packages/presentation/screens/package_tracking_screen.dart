@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../../core/widgets/api_views.dart';
+import '../../../../core/widgets/signature_pad.dart';
 
 const packageStatus = {
   'RECEIVED': ('Teslim alındı', Colors.orange),
@@ -85,7 +86,17 @@ class _PackageTrackingScreenState extends State<PackageTrackingScreen> {
                         Map<String, dynamic> body = {};
                         if (a == 'deliver') {
                           final who = await askText(context, 'Teslim', 'Teslim alan kişinin adı', initial: '${p['recipient_name'] ?? ''}');
-                          if (who == null) return;
+                          if (who == null || !context.mounted) return;
+                          // Dokunmatik imza (TEST_RAPORU 2.3): sunucuda SHA-256 özetiyle saklanır.
+                          final sig = await askSignature(context);
+                          if (sig == null || !context.mounted) return;
+                          if (sig.isNotEmpty) {
+                            if (await runAction(context, () => apiClient.postMultipart('/packages/${p['id']}/deliver',
+                                {'delivered_to_name': who}, {'signature': (sig, 'imza.png')}))) {
+                              await reload();
+                            }
+                            return;
+                          }
                           body = {'delivered_to_name': who};
                         } else if (a == 'return') {
                           final r = await askText(context, 'İade', 'İade nedeni');
