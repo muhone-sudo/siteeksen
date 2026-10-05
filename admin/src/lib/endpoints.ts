@@ -309,6 +309,8 @@ export function endpoints(http: Http) {
             budget: (id: string) => g<T.Budget>(`/governance/budgets/${id}`),
             createBudget: (b: { period_year: number; items: T.BudgetItem[]; note?: string }) => http.post<T.Budget>("/governance/budgets", b),
             notifyBudget: (id: string, method: string) => http.post<T.Budget>(`/governance/budgets/${id}/notify`, { method }),
+            budgetAssessments: (id: string, period_month: number, due_date: string) =>
+                http.post<{ period: string; created: number; total_kurus: number; budget_status: string; note: string }>(`/governance/budgets/${id}/assessments`, { period_month, due_date }),
             finalizeBudget: (id: string, agenda_item_id: string, decision_ref?: string) => http.post<{ budget: T.Budget; note: string }>(`/governance/budgets/${id}/finalize`, { agenda_item_id, decision_ref }),
             objections: (id: string) => g<T.List<T.Objection>>(`/governance/budgets/${id}/objections`),
             resolveObjection: (budgetId: string, id: string, status: string, resolution?: string) =>

@@ -5856,6 +5856,30 @@ if [ -n "$A2" ] && [ -n "$ITEM2" ]; then
   echo "$ROW" | grep -q "^FINAL|$ITEM2|Kat malikleri kurulu .*gündem 1" && echo "$FIN" | grep -q "İİK m.68" \
     && ok "proje, yapılmış genel kurulda KABUL edilen gündem maddesine bağlanarak kesinleşti (karar referansı üretildi)" \
     || bad "genel kurul kararıyla kesinleştirme: $ROW — $FIN"
+  # TEST_RAPORU 2.7 (050): kesinleşen projeden aylık tahakkuk — 12 ayın toplamı yıllık paya kuruşu kuruşuna eşit
+  # Seed'de A-3 için elle girilmiş 2025-11/12 tahakkuku var: proje aynı ayı ikinci kez tahakkuk edemez.
+  BAM=$(code -X POST "$GU/budgets/$B25/assessments" -H "$GA" -H "$J" -d '{"period_month":12,"due_date":"2025-12-28"}')
+  $PSQL -c "UPDATE monthly_assessments SET period_year = 1999 WHERE property_id='$DEMO_PROPERTY' AND period_year = 2025 AND budget_id IS NULL;" >/dev/null
+  for M in 1 2 3 4 5 6 7 8 9 10 11 12; do
+    BA=$(curl -s -w '|%{http_code}' -X POST "$GU/budgets/$B25/assessments" -H "$GA" -H "$J" -d "{\"period_month\":$M,\"due_date\":\"2025-$(printf %02d $M)-28\"}")
+    [ "$M" = "1" ] && BA1="$BA"
+  done
+  BAD=$(code -X POST "$GU/budgets/$B25/assessments" -H "$GA" -H "$J" -d '{"period_month":3,"due_date":"2025-03-28"}')
+  BAV=$(code -X POST "$GU/budgets/$B25/assessments" -H "$GA" -H "$J" -d '{"period_month":5,"due_date":"2025-04-01"}')
+  BDR=$(mkbud 2027 1000)
+  BAX=$(code -X POST "$GU/budgets/$BDR/assessments" -H "$GA" -H "$J" -d '{"period_month":1,"due_date":"2027-01-28"}')
+  BAT=$(code -X POST "$GU/budgets/$B25/assessments" -H "Authorization: Bearer $TEN" -H "$J" -d '{"period_month":1,"due_date":"2025-01-28"}')
+  BSUM=$($PSQL -t -A -c "SELECT bool_and(t.ok), count(*) FROM (
+      SELECT s.unit_id, (SELECT round(sum(base_amount)*100)::bigint FROM monthly_assessments m WHERE m.budget_id='$B25' AND m.unit_id=s.unit_id) = s.annual_kurus
+             AND (SELECT count(*) FROM monthly_assessments m WHERE m.budget_id='$B25' AND m.unit_id=s.unit_id) = 12 AS ok
+      FROM operating_budget_unit_shares s WHERE s.budget_id='$B25' AND s.annual_kurus > 0) t;")
+  $PSQL -c "DELETE FROM monthly_assessments WHERE budget_id='$B25';" >/dev/null
+  $PSQL -c "UPDATE monthly_assessments SET period_year = 2025 WHERE property_id='$DEMO_PROPERTY' AND period_year = 1999;" >/dev/null
+  $PSQL -c "DELETE FROM operating_budgets WHERE id='$BDR';" >/dev/null
+  case "$BA1" in *'"budget_status":"FINAL","created":25'*"|201") BAOK=1 ;; *) BAOK=0 ;; esac
+  [ "$BAOK" = "1" ] && [ "$BAM" = "409" ] && [ "${BSUM%%|*}" = "t" ] && [ "${BSUM##*|}" -gt 0 ] && [ "$BAD" = "409" ] && [ "$BAV" = "422" ] && [ "$BAX" = "422" ] && [ "$BAT" = "403" ] \
+    && ok "kesinleşen projeden aylık tahakkuk: ${BSUM##*|} bölümde 12 ayın toplamı yıllık paya kuruşu kuruşuna eşit; elle tahakkuk edilmiş ay ve aynı ay 409, aydan önceki vade 422, taslak proje 422, sakin 403" \
+    || bad "projeden tahakkuk: $BA1 / elle=$BAM / toplam $BSUM / $BAD / $BAV / $BAX / $BAT"
   B26X=$(mkbud 2026 125500)
   SC=$(code -X POST "$GU/budgets/$B26X/finalize" -H "$GA" -H "$J" -d "{\"agenda_item_id\":\"$ITEM2\"}")
   [ "$SC" = "409" ] && ok "aynı gündem maddesi ikinci projeyi onaylamak için kullanılamıyor → 409" || bad "gündem maddesi tekrar kullanımı → $SC"

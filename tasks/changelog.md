@@ -12,6 +12,21 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-05 — İŞLETME PROJESİNDEN AYLIK TAHAKKUK (migration 050, TEST_RAPORU 2.7) (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **1182/1182** (kesinleşen projeden 12 ay tahakkuk: 25 bölümün her birinde 12 ayın toplamı
+> yıllık paya kuruşu kuruşuna eşit; elle tahakkuk edilmiş ay ve aynı ay 409, aydan önceki vade 422, taslak proje 422,
+> sakin 403); panel tsc/lint temiz.
+
+- Test raporundaki "7 günlük itiraz süresi dolmadan kesinleşmiyor" bulgusu bu turdan önce 7579 s. Kanun düzeltmesiyle
+  giderilmişti (036): proje genel kurulda kabul edilen gündem maddesine bağlanınca beklemeden kesinleşir; mülga süre
+  için test bayrağı EKLENMEDİ (üretim koduna zaman atlatma kapısı açılmaz). verify-stack bu akışı uçtan uca sınıyor.
+- Raporda test edilemeyen ikinci yarı — kesinleşen projenin aidat tahakkukuna dönüşmesi — eksikti: `POST
+  /governance/budgets/:id/assessments {period_month, due_date}`. Yıllık pay 12 aya `money.DistributeEqual` ile bölünür;
+  geçici (NOTIFIED) projeden de üretilebilir (KMK m.37: genel kurula kadar geçici proje uygulanır), taslaktan üretilemez.
+  `monthly_assessments.budget_id` tahakkukun kaynağını tutar.
+- Panel: İşletme projesi detayında "Projeden aylık aidat tahakkuk et".
+
 ### 2026-10-05 — NET KULLANIM ALANI VE ISI PAYLAŞTIRMA ÖN DENETİMİ (migration 049, TEST_RAPORU 2.2) (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **1177/1177** (net alan daire/dükkân/ofiste zorunlu 422, otoparkta değil, net>brüt 422,

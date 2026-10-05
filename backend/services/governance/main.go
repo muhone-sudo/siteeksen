@@ -82,6 +82,7 @@ func main() {
 		write.POST("/budgets", handlers.CreateBudget(svc))
 		write.POST("/budgets/:id/notify", handlers.NotifyBudget(svc))
 		write.POST("/budgets/:id/finalize", handlers.FinalizeBudget(svc))
+		write.POST("/budgets/:id/assessments", createBudgetAssessments(pool))
 		write.PATCH("/budgets/:id/objections/:objectionId", handlers.ResolveObjection(svc))
 
 		write.POST("/assemblies", handlers.CreateAssembly(svc))
