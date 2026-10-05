@@ -66,6 +66,10 @@ func main() {
 
 		read.GET("/books/:id/entries", handlers.ListBookEntries(svc))
 		read.GET("/books/:id/verify", handlers.VerifyBook(svc))
+		// PDF / Excel dökümleri (TEST_RAPORU 2.6)
+		read.GET("/books/:id/export", bookExport(pool))
+		read.GET("/assemblies/:id/attendance-sheet", attendanceSheet(pool))
+		read.GET("/budgets/:id/export", budgetExport(pool))
 
 		read.GET("/legal-cases", handlers.ListLegalCases(svc))
 

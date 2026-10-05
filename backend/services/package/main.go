@@ -207,7 +207,7 @@ func main() {
 			}
 			c.JSON(http.StatusOK, gin.H{
 				"status": "DELIVERED",
-				"note": "Teslim kaydedildi. İmza/fotoğraf gönderilmedi; kanıt için formu multipart (signature, photo) gönderin.",
+				"note":   "Teslim kaydedildi. İmza/fotoğraf gönderilmedi; kanıt için formu multipart (signature, photo) gönderin.",
 			})
 		})
 

@@ -121,6 +121,8 @@ function BudgetDetail({ id, onClose, canWrite }: { id: string; onClose: () => vo
                             {b.cap_amount != null && <span className="text-gray-500">Geçici proje tavanı {tl(b.cap_amount)} (%{((b.cap_rate ?? 0) * 100).toFixed(2)} yeniden değerleme)</span>}
                             {b.decision_ref && <span className="text-gray-500">Karar: {b.decision_ref}</span>}
                             {b.open_objections > 0 && <Badge tone="red">{b.open_objections} açık itiraz</Badge>}
+                            <Button size="sm" variant="ghost" disabled={act.pending} onClick={() => act.run(() => api.reports.budget(b.id, "pdf"))}>PDF</Button>
+                            <Button size="sm" variant="ghost" disabled={act.pending} onClick={() => act.run(() => api.reports.budget(b.id, "xlsx"))}>Excel</Button>
                         </div>
                         <ActionFeedback action={act} />
                         {canWrite && b.status === "DRAFT" && (

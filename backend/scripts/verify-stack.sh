@@ -6817,6 +6817,7 @@ for _ in $(seq 1 60); do
   curl -fsS http://127.0.0.1:18381/health >/dev/null 2>&1 && curl -fsS http://127.0.0.1:18383/health >/dev/null 2>&1 && break; sleep 1
 done
 MGRS=$(curl -s -X POST http://127.0.0.1:18381/api/v1/auth/login -H "$J" -d '{"phone":"5551234567","password":"Demo123!"}' | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+TENS=$(curl -s -X POST http://127.0.0.1:18381/api/v1/auth/login -H "$J" -d '{"phone":"5559876543","password":"Demo123!"}' | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
 SU=$($PSQL -t -A -c "SELECT id FROM units WHERE property_id='$DEMO_PROPERTY' ORDER BY door_number LIMIT 1;")
 CRS=$(curl -s -X POST http://127.0.0.1:18381/api/v1/residents -H "Authorization: Bearer $MGRS" -H "$J" \
   -d "{\"first_name\":\"Sms\",\"last_name\":\"Sakin\",\"phone\":\"0555 999 00 43\",\"unit_id\":\"$SU\",\"role\":\"TENANT\"}")
@@ -6851,6 +6852,63 @@ NETGSM_USERCODE=x DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_identity
 grep -q 'SMS yapılandırması hatalı' /tmp/verify-identity-bad.log && ok "yarım Netgsm yapılandırmasıyla kimlik servisi açılmıyor" \
   || bad "yarım yapılandırma: $(tail -2 /tmp/verify-identity-bad.log)"
 kill_tree "$IDS_PID"; kill_tree "$COMS_PID"; kill "$FAKE_PID" 2>/dev/null
+
+step "44) PDF / Excel dökümleri (TEST_RAPORU 2.6)"
+if go test ./pkg/reports/ -count=1 >/tmp/verify-reports.log 2>&1; then
+  ok "go test ./pkg/reports (gömülü UTF-8 font, xlsx hücreleri, içerik özeti, para biçimi)"
+else
+  bad "rapor motoru testleri"; tail -15 /tmp/verify-reports.log
+fi
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_app DB_PASSWORD="$APPPW" DB_NAME=siteeksen \
+DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=18482 \
+  go run ./services/finance >/tmp/verify-finance-rep.log 2>&1 &
+FREP_PID=$!
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_app DB_PASSWORD="$APPPW" DB_NAME=siteeksen \
+DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=18487 \
+  go run ./services/governance >/tmp/verify-governance-rep.log 2>&1 &
+GREP_PID=$!
+for _ in $(seq 1 60); do
+  curl -fsS http://127.0.0.1:18482/health >/dev/null 2>&1 && curl -fsS http://127.0.0.1:18487/health >/dev/null 2>&1 && break; sleep 1
+done
+MGRR="$MGRS"   # adım 43'te alınan yönetici jetonu (servisler jetonu kendisi doğrular)
+dl() { curl -s -o "$2" -w '%{http_code}|%{content_type}' "$1" -H "Authorization: Bearer ${3:-$MGRR}"; }
+cat >/tmp/pdftext.py <<'PYEOF'
+import sys, pypdf
+print("\n".join((p.extract_text() or "") for p in pypdf.PdfReader(sys.argv[1]).pages))
+PYEOF
+R1=$(dl "http://127.0.0.1:18482/api/v1/finance/reports/debtors?format=pdf" /tmp/r-debtors.pdf)
+T1=$(python3 /tmp/pdftext.py /tmp/r-debtors.pdf 2>/dev/null)
+R2=$(dl "http://127.0.0.1:18482/api/v1/finance/reports/debtors?format=xlsx" /tmp/r-debtors.xlsx)
+X2=$(python3 -c "import zipfile; z=zipfile.ZipFile('/tmp/r-debtors.xlsx'); print('Borçlu bölümler' in z.read('xl/workbook.xml').decode(), 'Toplam alacak' in z.read('xl/sharedStrings.xml').decode())" 2>/dev/null)
+R3=$(dl "http://127.0.0.1:18482/api/v1/finance/reports/debtors?format=pdf" /tmp/r-x.pdf "$TENS")
+R4=$(dl "http://127.0.0.1:18482/api/v1/finance/reports/debtors?format=docx" /tmp/r-x.bin)
+case "$R1" in "200|application/pdf") P1=1 ;; *) P1=0 ;; esac
+[ "$P1" = "1" ] && grep -q 'Borçlu listesi' <<<"$T1" && grep -q 'ortak alanlara asılması' <<<"$T1" && grep -q 'Doğrulama kodu' <<<"$T1" \
+  && [ "${R2%%|*}" = "200" ] && [ "$X2" = "True True" ] && [ "${R3%%|*}" = "403" ] && [ "${R4%%|*}" = "400" ] \
+  && ok "borçlu listesi PDF (Türkçe metin okunuyor, KVKK 2026/348 uyarısı, doğrulama kodu) ve Excel indirildi; sakin 403, geçersiz biçim 400" \
+  || bad "borçlu listesi dökümü: $R1 / $R2 ($X2) / $R3 / $R4 — $(head -c 200 <<<"$T1")"
+R5=$(dl "http://127.0.0.1:18482/api/v1/finance/reports/collections?year=2026&format=pdf" /tmp/r-col.pdf)
+T5=$(python3 /tmp/pdftext.py /tmp/r-col.pdf 2>/dev/null)
+[ "${R5%%|*}" = "200" ] && grep -q '2026 yılı tahakkuk ve tahsilat özeti' <<<"$T5" && grep -q 'mizan' <<<"$T5" \
+  && ok "tahakkuk/tahsilat özeti PDF (mizan olmadığını açıkça söylüyor)" || bad "tahsilat özeti: $R5 — $(head -c 200 <<<"$T5")"
+ASMR=$($PSQL -t -A -c "SELECT id FROM assemblies WHERE property_id='$DEMO_PROPERTY' ORDER BY created_at LIMIT 1;")
+R6=$(dl "http://127.0.0.1:18487/api/v1/governance/assemblies/$ASMR/attendance-sheet?format=pdf" /tmp/r-haz.pdf)
+T6=$(python3 /tmp/pdftext.py /tmp/r-haz.pdf 2>/dev/null)
+NU=$($PSQL -t -A -c "SELECT count(*) FROM units WHERE property_id='$DEMO_PROPERTY' AND deleted=0;")
+FU=$($PSQL -t -A -c "SELECT COALESCE(block,'') || '-' || door_number FROM units WHERE property_id='$DEMO_PROPERTY' AND deleted=0 ORDER BY block, door_number LIMIT 1;")
+[ "${R6%%|*}" = "200" ] && grep -q 'Hazirun cetveli' <<<"$T6" && grep -q "$FU" <<<"$T6" && grep -q 'Oy toplayıcı' <<<"$T6" \
+  && ok "hazirun cetveli PDF: $NU bölüm, arsa payı, malik ve imza sütunu, KMK m.29-30 notu" || bad "hazirun cetveli: $R6 — $(head -c 300 <<<"$T6")"
+BKR=$($PSQL -t -A -c "SELECT b.id FROM books b WHERE b.property_id='$DEMO_PROPERTY' AND EXISTS (SELECT 1 FROM book_entries e WHERE e.book_id=b.id) LIMIT 1;")
+R7=$(dl "http://127.0.0.1:18487/api/v1/governance/books/$BKR/export?format=pdf" /tmp/r-book.pdf)
+T7=$(python3 /tmp/pdftext.py /tmp/r-book.pdf 2>/dev/null)
+BUR=$($PSQL -t -A -c "SELECT id FROM operating_budgets WHERE property_id='$DEMO_PROPERTY' AND status='FINAL' LIMIT 1;")
+R8=$(dl "http://127.0.0.1:18487/api/v1/governance/budgets/$BUR/export?format=xlsx" /tmp/r-bud.xlsx)
+X8=$(python3 -c "import zipfile; z=zipfile.ZipFile('/tmp/r-bud.xlsx'); s=z.read('xl/workbook.xml').decode(); print('Kalemler' in s and 'Bağımsız bölüm payları' in s)" 2>/dev/null)
+R9=$(dl "http://127.0.0.1:18487/api/v1/governance/books/00000000-0000-0000-0000-000000000000/export" /tmp/r-x.bin)
+[ "${R7%%|*}" = "200" ] && grep -q 'Bağlar tutarlı' <<<"$T7" && [ "${R8%%|*}" = "200" ] && [ "$X8" = "True" ] && [ "${R9%%|*}" = "404" ] \
+  && ok "karar defteri PDF zincir doğrulamasını yazıyor; işletme projesi Excel (kalemler + bölüm payları); olmayan defter 404" \
+  || bad "defter/proje dökümü: $R7 / $R8 ($X8) / $R9 — $(head -c 200 <<<"$T7")"
+kill_tree "$FREP_PID"; kill_tree "$GREP_PID"
 
 step "SONUÇ"
 echo "  Geçen: $PASS   Başarısız: $FAIL"

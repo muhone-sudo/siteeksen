@@ -248,6 +248,14 @@ class ApiClient {
     return _map(response.data);
   }
 
+  /// İkili dosya indirir (PDF/Excel dökümü); dosya adı Content-Disposition'dan, yoksa [fallback].
+  Future<(List<int>, String)> downloadBytes(String path, String fallback) async {
+    final response = await _dio.get<List<int>>(path, options: Options(responseType: ResponseType.bytes));
+    final cd = response.headers.value('content-disposition') ?? '';
+    final m = RegExp(r'filename="?([^";]+)"?').firstMatch(cd);
+    return (response.data ?? const <int>[], m?.group(1) ?? fallback);
+  }
+
   /// Çok parçalı form (dosya yükleme): [files] alan adı → (baytlar, dosya adı).
   Future<Map<String, dynamic>> postMultipart(String path, Map<String, String> fields,
       Map<String, (List<int>, String)> files) async {

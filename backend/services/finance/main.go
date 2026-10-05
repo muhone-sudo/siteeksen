@@ -76,6 +76,9 @@ func main() {
 			mgmtRead.GET("/expense-categories", handlers.GetExpenseCategories(financeService))
 			mgmtRead.GET("/payments/pending", handlers.ListPendingPayments(financeService))
 			mgmtRead.GET("/opening-balances", handlers.ListOpeningBalances(financeService))
+			// PDF / Excel dökümleri (TEST_RAPORU 2.6)
+			mgmtRead.GET("/reports/debtors", debtorsReport(financeService, pool))
+			mgmtRead.GET("/reports/collections", collectionReport(financeService, pool))
 		}
 
 		// --- Yönetim: yazma (denetçi hariç) ---

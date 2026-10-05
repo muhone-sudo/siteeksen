@@ -56,6 +56,7 @@ export default function BooksPage() {
                                 onClick={async () => { const r = await act.run(() => api.governance.verifyBook(book.id)); if (r) setIntegrity(r); }}>
                                 <ShieldCheck className="h-4 w-4" /> Bütünlüğü doğrula
                             </Button>
+                            <Button size="sm" variant="ghost" disabled={act.pending} onClick={() => act.run(() => api.reports.book(book.id, "pdf"))}>PDF</Button>
                             {canWrite && book.status === "OPEN" && (
                                 <>
                                     <Button size="sm" onClick={() => { setEntry({ title: "", body: "", entry_date: today() }); setEntryOpen(true); }}>Kayıt ekle</Button>

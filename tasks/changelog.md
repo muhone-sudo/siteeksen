@@ -12,6 +12,24 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-05 — PDF / EXCEL DÖKÜMLERİ (TEST_RAPORU 2.6) (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **1197/1197** — adım 44: borçlu listesi PDF'inden pypdf ile çıkarılan metinde Türkçe
+> başlık, KVKK 2026/348 uyarısı ve doğrulama kodu; Excel çalışma kitabı açılıyor; sakin 403, geçersiz biçim 400;
+> tahakkuk/tahsilat özeti mizan olmadığını yazıyor; hazirun cetveli bölüm/arsa payı/imza sütunlu; karar defteri PDF'i
+> zincir doğrulamasını yazıyor; işletme projesi Excel'i; olmayan defter 404. `go test ./pkg/reports`. `verify-mobile.sh`
+> 10/10; panel tsc/lint temiz.
+
+- `pkg/reports` yeniden yazıldı: tek `Document` modelinden PDF (gofpdf, **DejaVu Sans gömülü** — eski kod çekirdek
+  Arial kullanıyordu ve ğ/ş/ı basamıyordu; hiçbir yerden de çağrılmıyordu) ve Excel (excelize). Her sayfada içerik
+  SHA-256 doğrulama kodu; `X-Document-Verification` başlığı.
+- Uçlar: `GET /finance/reports/debtors`, `/finance/reports/collections?year=`, `/governance/assemblies/:id/attendance-sheet`,
+  `/governance/books/:id/export`, `/governance/budgets/:id/export` (`?format=pdf|xlsx`).
+- "Mizan" bilinçli olarak üretilmedi: sistemde çift taraflı muhasebe yok; belge bunu söyler.
+- Panel: Raporlar sayfası indirme kartları; Defterler ve İşletme projesinde PDF/Excel. Yönetici uygulaması: Raporlar ekranı
+  indirip cihazda açar (`open_filex`).
+- Not: dokunulan Go dosyalarına `gofmt` uygulandı (yalnızca hizalama).
+
 ### 2026-10-05 — SMS (NETGSM) VE E-POSTA (SMTP) SAĞLAYICILARI (TEST_RAPORU 2.4) (DOĞRULANMIŞ — sahte sağlayıcıyla; gerçek gönderim kullanıcının hesabıyla)
 
 > **Kanıt:** `verify-stack.sh` → **1192/1192** — adım 43: Netgsm REST v2 biçimini taklit eden yerel sunucuya karşı

@@ -92,11 +92,11 @@ type Unit struct {
 // Güncellemede verilmeyen alan değişmez. Arsa payı tapudaki değerdir; değişikliği
 // yalnızca SONRAKİ tahakkukları etkiler.
 type UnitInput struct {
-	Block         *string  `json:"block"`
-	Floor         *int     `json:"floor"`
-	DoorNumber    *string  `json:"door_number"`
-	ShareRatio    *float64 `json:"share_ratio"`
-	GrossAreaM2   *float64 `json:"gross_area_m2"`
+	Block       *string  `json:"block"`
+	Floor       *int     `json:"floor"`
+	DoorNumber  *string  `json:"door_number"`
+	ShareRatio  *float64 `json:"share_ratio"`
+	GrossAreaM2 *float64 `json:"gross_area_m2"`
 	// NetAreaM2: kapalı (net) kullanım alanı; merkezi ısıtmada sabit pay buna göre dağıtılır.
 	NetAreaM2     *float64 `json:"net_area_m2"`
 	UnitType      *string  `json:"unit_type"`

@@ -215,6 +215,14 @@ export function endpoints(http: Http) {
             proof: (id: string, kind: "signature" | "photo") => http.download(`/packages/${id}/proof/${kind}`, `kargo-${kind}`),
             returnToCarrier: (id: string, reason: string) => http.post<Msg>(`/packages/${id}/return`, { reason }),
         },
+        /** PDF / Excel dökümleri (TEST_RAPORU 2.6); her belge içerik özetiyle (SHA-256) doğrulanır. */
+        reports: {
+            debtors: (format: "pdf" | "xlsx") => http.download(`/finance/reports/debtors?format=${format}`, `borclu-listesi.${format}`),
+            collections: (year: number, format: "pdf" | "xlsx") => http.download(`/finance/reports/collections?year=${year}&format=${format}`, `tahsilat-ozeti-${year}.${format}`),
+            attendanceSheet: (assemblyId: string, format: "pdf" | "xlsx") => http.download(`/governance/assemblies/${assemblyId}/attendance-sheet?format=${format}`, `hazirun-cetveli.${format}`),
+            book: (bookId: string, format: "pdf" | "xlsx") => http.download(`/governance/books/${bookId}/export?format=${format}`, `defter.${format}`),
+            budget: (budgetId: string, format: "pdf" | "xlsx") => http.download(`/governance/budgets/${budgetId}/export?format=${format}`, `isletme-projesi.${format}`),
+        },
         contracts: {
             summary: () => g<{ summary: T.ContractSummary; note: string }>("/contracts-summary"),
             list: (q?: { type?: string; status?: string; expiring_days?: number }) => g<T.List<T.Contract>>("/contracts", q),
