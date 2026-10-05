@@ -13,9 +13,13 @@
 //     birlikte. Daire gönderilmezse kayıt dairesiz kalıyor ve ziyaretçi
 //     girişinde size bildirim gidemiyordu (2026-09-26 düzeltmesi).
 //   - Yalnızca sunucu 2xx dönerse "oluşturuldu" der.
-//   - SMS/QR gönderimi için entegrasyon yoktur; böyle bir vaat gösterilmez.
+//   - 2026-10-05 (TEST_RAPORU 2.8): sunucu tek kullanımlık 6 haneli PIN ve QR
+//     geçiş kodu üretir; ekran bunları gösterir, sakin ziyaretçiye kendisi iletir
+//     (sistem site dışı numaraya SMS göndermez).
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../../../core/network/api_client.dart';
 import '../../../../core/theme/apple_theme.dart';
@@ -276,13 +280,16 @@ class _VisitorPreRegisterScreenState extends State<VisitorPreRegisterScreen> {
             ),
           ),
 
-          // SMS/QR vaadi kaldırıldı: ne SMS ne QR entegrasyonu var.
+          // Geçiş kodu sunucuda üretilir; SMS gönderimi yoktur, kodu sakin iletir.
           const SliverToBoxAdapter(
-            child: NotImplementedNotice(
-              title: 'QR kod ve SMS bildirimi henüz hazır değil',
-              detail: 'Ziyaretçinize otomatik SMS ya da QR kodlu giriş linki '
-                  'gönderilmez. Ön kayıt yalnızca güvenlik kaydı olarak '
-                  'oluşturulur.',
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16),
+              child: Text(
+                'Kayıttan sonra tek kullanımlık 6 haneli PIN ve QR geçiş kodu '
+                'gösterilir. Kodu ziyaretçinize siz iletin; sistem ziyaretçiye '
+                'SMS göndermez. Güvenlik kodu doğruladığında size bildirim düşer.',
+                style: TextStyle(fontSize: 13, color: AppleTheme.secondaryLabel),
+              ),
             ),
           ),
 
@@ -409,7 +416,10 @@ class _VisitorPreRegisterScreenState extends State<VisitorPreRegisterScreen> {
   }
 
   void _showSuccess(Map<String, dynamic> result, DateTime expectedAt) {
-    final code = (result['qr_code'] as String?)?.trim();
+    final pass = result['pass'] is Map ? result['pass'] as Map : const {};
+    final pin = '${pass['pin'] ?? ''}';
+    final qr = '${pass['qr_token'] ?? ''}';
+    final expires = DateTime.tryParse('${pass['expires_at'] ?? ''}');
 
     showDialog<void>(
       context: context,
@@ -433,12 +443,38 @@ class _VisitorPreRegisterScreenState extends State<VisitorPreRegisterScreen> {
             const SizedBox(height: 8),
             Text(
               '${_nameController.text.trim()} için '
-              '${formatDateTime(expectedAt)} ziyareti kaydedildi.'
-              '${code == null || code.isEmpty ? '' : '\nGiriş kodu: $code'}',
+              '${formatDateTime(expectedAt)} ziyareti kaydedildi.',
               textAlign: TextAlign.center,
               style: const TextStyle(
                   fontSize: 14, color: AppleTheme.secondaryLabel),
             ),
+            if (pin.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              SelectableText(pin,
+                  style: const TextStyle(
+                      fontSize: 32, fontWeight: FontWeight.w700, letterSpacing: 6)),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: 180,
+                height: 180,
+                child: QrImageView(data: qr, size: 180, key: const Key('visitor-pass-qr')),
+              ),
+              if (expires != null)
+                Text('Geçerlilik: ${formatDateTime(expires.toLocal())}',
+                    style: const TextStyle(fontSize: 12, color: AppleTheme.secondaryLabel)),
+              TextButton.icon(
+                onPressed: () => Clipboard.setData(ClipboardData(
+                    text: 'Site girişinde güvenliğe bu kodu söyleyin: $pin')),
+                icon: const Icon(Icons.copy_rounded, size: 18),
+                label: const Text('PIN mesajını kopyala'),
+              ),
+              const Text('Kod yalnızca şimdi gösterilir ve tek kullanımlıktır.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 12, color: AppleTheme.secondaryLabel)),
+            ] else
+              const Text('Geçiş kodu üretilemedi; girişi güvenliğe elle kaydettirebilirsiniz.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 12, color: AppleTheme.systemOrange)),
           ],
         ),
         actions: [

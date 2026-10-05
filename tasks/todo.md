@@ -648,7 +648,7 @@ S-21 → VERBİS opsiyonel, yükümlülük site yönetiminde; S-19 ve iOS → ol
 - [ ] T5 sanal POS (iyzico) + 3D Secure dönüşü + ödeme durumu (TEST 2.5, BUG-09) — gerçek çekim kullanıcının anahtarıyla
 - [ ] T6 PDF/Excel rapor motoru (TEST 2.6)
 - [x] T7 bütçe kesinleştirme — 7579 sonrası durum kanıtı (TEST 2.7) + projeden tahakkuk (050), verify 1182/1182
-- [ ] T8 ziyaretçi PIN/QR + hızlı doğrulama (TEST 2.8)
+- [x] T8 ziyaretçi PIN/QR + hızlı doğrulama (TEST 2.8) — 051, verify 1182/1182, mobil 10/10
 - [x] T9 panel mobil menü (TEST 6.2) — tarayıcı testi 412×915
 - [ ] A1 taşınan sakin (BUG-01) — mevcut koruma kanıtı + bildirim metni şeffaflığı
 - [ ] A2 havale beyanında valör, gecikme tazminatı dondurma ve iz (BUG-02)

@@ -1312,9 +1312,9 @@ if [ "$VUP" = "1" ] && [ -n "${MGR:-}" ] && [ -n "${TEN:-}" ]; then
   # ZİYARETÇİYE (site dışı kişiye) SMS/QR gönderildiği iddia EDİLMEMELİ:
   # SMS sağlayıcısı yok ve site dışı numaraya ileti 6563 s. Kanun kapsamında
   # ayrıca onay ister.
-  echo "$V1" | grep -q 'SMS/QR GÖNDERİLMEZ' \
-    && ok "ziyaretçiye SMS/QR gönderilmediği dürüstçe bildiriliyor" \
-    || bad "ziyaretçi bildirim durumu belirtilmemiş: $V1"
+  echo "$V1" | grep -q 'ziyaretçiye siz iletin' && echo "$V1" | grep -q '"pin":"[0-9]\{6\}"' \
+    && ok "ön kayıtta geçiş kodu üretildi; ziyaretçiye sistemin ileti göndermediği (sakinin ilettiği) dürüstçe bildiriliyor" \
+    || bad "ziyaretçi geçiş kodu/bildirim durumu: $V1"
 
   # Kiracı kendi dairesine ziyaretçi kaydeder
   V2=$(curl -s -X POST "$VURL/visitors" -H "$VT" -H "$VJ" -d "{
@@ -1391,6 +1391,36 @@ if [ "$VUP" = "1" ] && [ -n "${MGR:-}" ] && [ -n "${TEN:-}" ]; then
   # Sakin giriş/çıkış yapamaz (güvenlik görevi değil)
   SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$VURL/visitors/$V2ID/check-in" -H "$VT" -H "$VJ" -d '{}')
   [ "$SC" = "403" ] && ok "sakin giriş/çıkış kaydı yapamıyor → 403" || bad "sakin giriş yaptı → $SC"
+
+  # Geçiş kodu (TEST_RAPORU 2.8, 051): tek kullanımlık PIN/QR, özetle saklanır, sakine teyit bildirimi
+  vp() { curl -s -o /dev/null -w '%{http_code}' -X POST "$VURL/visitors/verify-pass" -H "${2:-$VA}" -H "$VJ" -d "{\"code\":\"$1\"}"; }
+  PIN2=$(echo "$V2" | sed -n 's/.*"pin":"\([0-9]*\)".*/\1/p')
+  PLAIN=$($PSQL -t -A -c "SELECT count(*) FROM visitors WHERE id='$V2ID' AND (pin_hash = '$PIN2' OR pin_hash IS NULL OR length(pin_hash) <> 64);")
+  P1=$(vp "$PIN2" "$VT")
+  WRONG=$([ "$PIN2" = "000000" ] && echo 111111 || echo 000000)
+  P2=$(vp "$WRONG")
+  RP=$(curl -s -X POST "$VURL/visitors/$V2ID/pass" -H "$VT" -H "$VJ" -d '{}')
+  PIN2B=$(echo "$RP" | sed -n 's/.*"pin":"\([0-9]*\)".*/\1/p')
+  P3=$(vp "$PIN2")
+  VPR=$(curl -s -X POST "$VURL/visitors/verify-pass" -H "$VA" -H "$VJ" -d "{\"code\":\"$PIN2B\"}")
+  P5=$(vp "$PIN2B")
+  VST=$($PSQL -t -A -c "SELECT status || '|' || (pin_hash IS NULL) FROM visitors WHERE id='$V2ID';")
+  VPN=$(qscoped "SELECT count(*) FROM notifications WHERE topic='visitor.checkin' AND payload->>'visitor_id'='$V2ID';")
+  [ "$PLAIN" = "0" ] && [ "$P1" = "403" ] && [ "$P2" = "404" ] && [ -n "$PIN2B" ] && [ "$P3" = "404" ] && echo "$VPR" | grep -q '"sent":1' \
+    && [ "$P5" = "404" ] && [ "$VST" = "CHECKED_IN|true" ] && [ "${VPN:-0}" -ge 1 ] \
+    && ok "geçiş PIN'i: veritabanında özet, sakin doğrulayamaz 403, yanlış kod 404, yeni kod eskisini geçersiz kılar, görevli doğrulayınca giriş + daireye bildirim, kod tek kullanımlık" \
+    || bad "geçiş PIN'i: plain=$PLAIN $P1 $P2 yeni=$PIN2B eski=$P3 / $VPR / tekrar=$P5 / $VST / bildirim=$VPN"
+  V3=$(curl -s -X POST "$VURL/visitors" -H "$VT" -H "$VJ" -d "{\"unit_id\":\"$TENUNIT\",\"visitor_name\":\"QR Ziyaretci\"}")
+  QR3=$(echo "$V3" | sed -n 's/.*"qr_token":"\([^"]*\)".*/\1/p')
+  Q1=$(vp "$QR3")
+  V4=$(curl -s -X POST "$VURL/visitors" -H "$VT" -H "$VJ" -d "{\"unit_id\":\"$TENUNIT\",\"visitor_name\":\"Gec Ziyaretci\"}")
+  V4ID=$(echo "$V4" | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4); PIN4=$(echo "$V4" | sed -n 's/.*"pin":"\([0-9]*\)".*/\1/p')
+  $PSQL -c "UPDATE visitors SET qr_expires_at = now() - interval '1 minute' WHERE id='$V4ID';" >/dev/null
+  Q2=$(vp "$PIN4")
+  RO=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$VURL/visitors/$V1ID/pass" -H "$VT" -H "$VJ" -d '{}')
+  [ "$Q1" = "200" ] && [ "$Q2" = "410" ] && [ "$RO" = "409" ] \
+    && ok "QR jetonuyla giriş 200; süresi dolmuş kod 410; başkasının ziyaretçisine kod üretilemez 409" \
+    || bad "QR/süre: $Q1 / $Q2 / $RO — $V3"
 
   # Başka sitenin bağımsız bölümü kabul edilmemeli
   SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$VURL/visitors" -H "$VA" -H "$VJ" -d '{

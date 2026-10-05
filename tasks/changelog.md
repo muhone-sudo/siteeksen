@@ -12,6 +12,23 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-05 — ZİYARETÇİ GEÇİŞ KODU: PIN + QR (migration 051, TEST_RAPORU 2.8) (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **1182/1182** (ön kayıtta 6 haneli PIN; veritabanında yalnızca SHA-256 özeti; sakin
+> doğrulayamaz 403; yanlış kod 404; yeni kod eskisini geçersiz kılar; görevli doğrulayınca giriş + daireye bildirim;
+> kod tek kullanımlık; QR jetonuyla giriş 200; süresi dolmuş kod 410; başkasının ziyaretçisine kod üretilemez 409);
+> `verify-mobile.sh` 10/10; panel tsc/lint temiz.
+
+- Ön kayıtta tek kullanımlık PIN ve QR jetonu üretilir, YALNIZCA bir kez yanıtta gösterilir; geçerlilik beklenen saat
+  + 12 saat (yoksa 24 saat). Sistem ziyaretçiye SMS göndermez (site dışı numaraya ileti 6563 s. Kanun kapsamında ayrı
+  onay ister); sakin kodu kendisi iletir.
+- `POST /visitors/verify-pass {code}` (yönetim/görevli; kullanıcı başına 10 dk'da 10 hatalı deneme), `POST
+  /visitors/:id/pass` (yeni kod; kaydı açan ya da güvenlik). Giriş bildiriminin ziyaretçi kimliği artık yol
+  parametresinden değil giriş kaydından alınıyor (kodla girişte bildirim kaydı ziyaretçiye işlenemiyordu).
+- Sakin uygulaması: kayıttan sonra büyük PIN, QR görseli (`qr_flutter`), geçerlilik ve "PIN mesajını kopyala".
+  Panel: "Geçiş kodu ile giriş" alanı (klavye gibi çalışan QR okuyucuyla da) ve kayıt sonrası kod penceresi.
+  Yönetici uygulaması: "Geçiş koduyla giriş" düğmesi.
+
 ### 2026-10-05 — İŞLETME PROJESİNDEN AYLIK TAHAKKUK (migration 050, TEST_RAPORU 2.7) (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **1182/1182** (kesinleşen projeden 12 ay tahakkuk: 25 bölümün her birinde 12 ayın toplamı

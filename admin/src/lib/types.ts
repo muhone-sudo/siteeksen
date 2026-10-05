@@ -371,6 +371,7 @@ export interface SafetyCheck {
     safe: number; need_help: number; units: number; responded: number; my_status?: string;
 }
 export interface SafetyResponse { user_id: Id; name: string; unit: string; status: "SAFE" | "NEED_HELP"; note?: string; responded_at: string }
+export interface VisitorPass { pin: string; qr_token: string; expires_at: string }
 export interface PayrollRow {
     id: Id; employee_id: Id; employee_name: string; position: string; period: string; net_salary: number; employer_cost: number;
     gross_salary?: number; sgk_employee?: number; sgk_employer?: number; income_tax?: number; stamp_tax?: number; source_ref: string;

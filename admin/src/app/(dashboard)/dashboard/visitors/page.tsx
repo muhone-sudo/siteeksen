@@ -4,9 +4,10 @@ import { useState } from "react";
 import { Plus } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAction, useApi } from "@/lib/use-api";
-import { ActionFeedback, Button, Card, Field, FormModal, Grid, Input, Page, QueryView, Select, Stats, StatusBadge, Table } from "@/components/ui/kit";
+import { ActionFeedback, Button, Card, Field, FormModal, Grid, Input, Modal, Notice, Page, QueryView, Select, Stats, StatusBadge, Table } from "@/components/ui/kit";
 import { dateTime, localToRFC3339, num } from "@/lib/format";
 import { opts, VISITOR_STATUS } from "@/lib/labels";
+import type { VisitorPass } from "@/lib/types";
 
 export default function VisitorsPage() {
     const [status, setStatus] = useState("");
@@ -18,6 +19,8 @@ export default function VisitorsPage() {
     const blank = { visitor_name: "", visitor_phone: "", unit_id: "", visitor_company: "", vehicle_plate: "", purpose: "", expected_at: "", notes: "" };
     const [form, setForm] = useState(blank);
     const s = summary.data;
+    const [code, setCode] = useState("");
+    const [pass, setPass] = useState<{ name: string; pass: VisitorPass; note?: string } | null>(null);
 
     return (
         <Page title="Ziyaretçi" description="Ziyaretçi ön kaydı, giriş ve çıkış. Girişte ilgili dairenin sakinlerine bildirim düşer."
@@ -29,6 +32,20 @@ export default function VisitorsPage() {
                 { label: "Bugün giriş", value: num(s?.today_checked_in), tone: "green" },
                 { label: "Bugün çıkış", value: num(s?.today_checked_out) },
             ]} />
+            <Card title="Geçiş kodu ile giriş">
+                <form className="flex flex-wrap items-end gap-2" onSubmit={async (e) => {
+                    e.preventDefault();
+                    const r = await act.run(() => api.visitors.verifyPass(code), {
+                        invalidate: ["visitors"],
+                        success: (x) => `${x.visitor_name}: giriş kaydedildi${x.notification ? ` — daireye bildirim: ${x.notification.sent}` : ""}`,
+                    });
+                    if (r) setCode("");
+                }}>
+                    <Field label="PIN ya da okutulan QR kodu"><Input autoComplete="off" value={code} onChange={(e) => setCode(e.target.value)} placeholder="6 haneli PIN ya da SEV1-…" /></Field>
+                    <Button type="submit" disabled={act.pending || code.trim().length < 6}>Doğrula ve giriş yap</Button>
+                </form>
+                <p className="mt-2 text-xs text-gray-500">Kod tek kullanımlıktır. QR okuyucu (klavye gibi çalışan) bu alana doğrudan yazabilir.</p>
+            </Card>
             <Card padded={false} title="Ziyaretçiler" actions={<Select value={status} onChange={(e) => setStatus(e.target.value)} options={opts(VISITOR_STATUS)} placeholder="Tüm durumlar" />}>
                 <QueryView q={list} empty="Ziyaretçi kaydı yok">
                     {(d) => (
@@ -63,7 +80,7 @@ export default function VisitorsPage() {
                 onSubmit={async () => {
                     const body = { ...form, expected_at: form.expected_at ? localToRFC3339(form.expected_at) : undefined, unit_id: form.unit_id || undefined };
                     const r = await act.run(() => api.visitors.create(body), { invalidate: ["visitors"], success: "Ziyaretçi kaydedildi" });
-                    if (r) setOpen(false);
+                    if (r) { setOpen(false); if (r.pass) setPass({ name: form.visitor_name, pass: r.pass, note: r.note }); }
                 }}>
                 <Grid>
                     <Field label="Ad soyad" required><Input required value={form.visitor_name} onChange={(e) => setForm({ ...form, visitor_name: e.target.value })} /></Field>
@@ -78,6 +95,16 @@ export default function VisitorsPage() {
                 </Grid>
                 <Field label="Amaç"><Input value={form.purpose} onChange={(e) => setForm({ ...form, purpose: e.target.value })} /></Field>
             </FormModal>
+            <Modal open={!!pass} onClose={() => setPass(null)} title={`Geçiş kodu — ${pass?.name ?? ""}`}>
+                {pass && (
+                    <div className="space-y-3 text-center">
+                        <p className="font-mono text-4xl font-bold tracking-[0.4em]">{pass.pass.pin}</p>
+                        <p className="break-all font-mono text-xs text-gray-500">QR: {pass.pass.qr_token}</p>
+                        <p className="text-sm">Geçerlilik: {dateTime(pass.pass.expires_at)}</p>
+                        <Notice tone="amber">Kod yalnızca şimdi gösterilir; ziyaretçiye siz iletin. Sistem ziyaretçiye SMS göndermez.</Notice>
+                    </div>
+                )}
+            </Modal>
         </Page>
     );
 }

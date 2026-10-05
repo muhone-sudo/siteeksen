@@ -178,7 +178,9 @@ export function endpoints(http: Http) {
         visitors: {
             list: (q?: { status?: string; inside?: string }) => g<T.List<T.Visitor>>("/visitors", q),
             summary: () => g<T.VisitorSummary>("/visitors/summary"),
-            create: (b: Record<string, unknown>) => http.post<{ id: string; note?: string }>("/visitors", b),
+            create: (b: Record<string, unknown>) => http.post<{ id: string; note?: string; pass?: T.VisitorPass }>("/visitors", b),
+            verifyPass: (code: string) => http.post<Msg & { visitor_name: string; notification?: T.BroadcastResult }>("/visitors/verify-pass", { code }),
+            reissuePass: (id: string) => http.post<{ pass: T.VisitorPass; note: string }>(`/visitors/${id}/pass`),
             checkIn: (id: string) => http.post<Msg & { notification?: T.BroadcastResult }>(`/visitors/${id}/check-in`),
             checkOut: (id: string) => http.post<Msg>(`/visitors/${id}/check-out`),
             cancel: (id: string) => http.post<Msg>(`/visitors/${id}/cancel`),

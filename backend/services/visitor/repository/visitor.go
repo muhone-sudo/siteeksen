@@ -136,10 +136,10 @@ func (r *Repository) CheckIn(ctx context.Context, propertyID, id, userID string)
 		SET status = 'CHECKED_IN', checked_in_at = now(),
 		    checked_in_by = NULLIF($3,'')::uuid, updated_at = now()
 		WHERE id = $1 AND property_id = $2 AND status = 'EXPECTED'
-		RETURNING visitor_name, COALESCE(unit_id::text,''), COALESCE(created_by::text,''),
+		RETURNING id::text, visitor_name, COALESCE(unit_id::text,''), COALESCE(created_by::text,''),
 		          COALESCE(visitor_company,'')`,
 		id, propertyID, userID).Scan(
-		&info.VisitorName, &info.UnitID, &info.CreatedBy, &info.Company)
+		&info.VisitorID, &info.VisitorName, &info.UnitID, &info.CreatedBy, &info.Company)
 	if err == pgx.ErrNoRows {
 		return nil, r.stateOrNotFound(ctx, propertyID, "visitors", id, ErrNotFound, ErrBadState)
 	}
@@ -155,6 +155,7 @@ func (r *Repository) CheckIn(ctx context.Context, propertyID, id, userID string)
 // (ör. yönetim ofisine gelen ziyaretçi) haber verilecek tek kişi, kaydı
 // açan kişidir. Bu alan olmasaydı o durumda kimseye haber verilemezdi.
 type CheckInInfo struct {
+	VisitorID   string
 	VisitorName string
 	UnitID      string
 	CreatedBy   string

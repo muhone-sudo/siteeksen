@@ -129,16 +129,24 @@ func main() {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Ziyaretçi kaydı oluşturulamadı"})
 			return
 		}
-		c.JSON(http.StatusCreated, gin.H{
+		// Tek kullanımlık geçiş kodu (TEST_RAPORU 2.8). Üretilemezse kayıt yine
+		// geçerlidir; yanıt bunu açıkça söyler ve kod sonradan üretilebilir.
+		pass, perr := issuePass(c.Request.Context(), pool, c.GetString("property_id"), id, "")
+		resp := gin.H{
 			"id":     id,
 			"status": models.StatusExpected,
-			// ZİYARETÇİYE (site dışı kişiye) SMS/QR gönderimi yoktur: SMS
-			// sağlayıcısı sözleşmesi bulunmuyor ve site dışı bir numaraya
-			// ileti göndermek 6563 s. Kanun kapsamında ayrıca onay ister.
-			// SAKİNE haber verme, ziyaretçi giriş yaptığında yapılır.
-			"note": "Kayıt oluşturuldu. Ziyaretçiye SMS/QR GÖNDERİLMEZ. Ziyaretçi " +
-				"giriş yaptığında ilgili daireye uygulama içi bildirim düşer.",
-		})
+			// ZİYARETÇİYE (site dışı kişiye) SMS gönderimi yoktur: site dışı bir
+			// numaraya ileti göndermek 6563 s. Kanun kapsamında ayrıca onay ister.
+			// Kodu sakin iletir; SAKİNE haber verme, ziyaretçi giriş yaptığında yapılır.
+			"note": "Kayıt oluşturuldu. " + passNote + " Ziyaretçi giriş yaptığında ilgili daireye uygulama içi bildirim düşer.",
+		}
+		if perr != nil {
+			log.Printf("[visitor] geçiş kodu üretilemedi: %v", perr)
+			resp["note"] = "Kayıt oluşturuldu ancak geçiş kodu ÜRETİLEMEDİ; kodu sonradan üretebilir ya da girişi görevliye elle kaydettirebilirsiniz."
+		} else {
+			resp["pass"] = pass
+		}
+		c.JSON(http.StatusCreated, resp)
 	})
 
 	// Giriş/çıkış yalnızca güvenlik yetkisi olan rollerde.
@@ -146,6 +154,7 @@ func main() {
 	guard.Use(middleware.RequireRole(
 		middleware.RoleManager, middleware.RoleBoardMember, middleware.RoleStaff))
 	{
+		guard.POST("/visitors/verify-pass", verifyPass(pool, repo, notifier))
 		guard.POST("/visitors/:id/check-in", func(c *gin.Context) {
 			info, err := repo.CheckIn(c.Request.Context(), c.GetString("property_id"),
 				c.Param("id"), c.GetString("user_id"))
@@ -168,6 +177,8 @@ func main() {
 			c.JSON(http.StatusOK, gin.H{"message": "Ziyaretçi çıkışı kaydedildi"})
 		})
 	}
+
+	api.POST("/visitors/:id/pass", reissuePass(pool))
 
 	api.POST("/visitors/:id/cancel", func(c *gin.Context) {
 		owner := ""
@@ -284,16 +295,16 @@ func notifyCheckIn(c *gin.Context, n *notify.Notifier, repo *repository.Reposito
 		Subject:    "Ziyaretçiniz giriş yaptı",
 		Body:       who + " adlı ziyaretçi siteye giriş yaptı.",
 		Payload: map[string]any{
-			"visitor_id": c.Param("id"),
+			"visitor_id": info.VisitorID,
 			"unit_id":    info.UnitID,
 		},
-		DedupeKey: "visitor.checkin:" + c.Param("id"),
+		DedupeKey: "visitor.checkin:" + info.VisitorID,
 		CreatedBy: c.GetString("user_id"),
 	}, recipients)
 
 	if res.Sent > 0 {
 		if err := repo.MarkResidentNotified(c.Request.Context(), propertyID,
-			c.Param("id"), "IN_APP"); err != nil {
+			info.VisitorID, "IN_APP"); err != nil {
 			log.Printf("[visitor] bildirim oluştu fakat kayıt işaretlenemedi: %v", err)
 			res.Note += " (Uyarı: bildirim oluşturuldu fakat ziyaretçi kaydına işlenemedi.)"
 		}

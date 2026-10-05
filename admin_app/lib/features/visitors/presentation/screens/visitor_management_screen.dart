@@ -46,7 +46,14 @@ class _VisitorManagementScreenState extends State<VisitorManagementScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Ziyaretçiler')),
+      appBar: AppBar(title: const Text('Ziyaretçiler'), actions: [
+        IconButton(
+          key: const Key('visitor-pass-button'),
+          tooltip: 'Geçiş koduyla giriş',
+          icon: const Icon(Icons.pin_outlined),
+          onPressed: _verifyPass,
+        ),
+      ]),
       floatingActionButton: FloatingActionButton.extended(onPressed: _create, icon: const Icon(Icons.person_add), label: const Text('Kayıt')),
       body: Column(
         children: [
@@ -117,6 +124,32 @@ class _VisitorManagementScreenState extends State<VisitorManagementScreen> {
         ],
       ),
     );
+  }
+
+  /// Sakinin ilettiği tek kullanımlık PIN (ya da okutulan QR metni) ile giriş (TEST_RAPORU 2.8).
+  Future<void> _verifyPass() async {
+    final code = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Geçiş koduyla giriş'),
+        content: TextField(
+          controller: code,
+          autofocus: true,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(labelText: '6 haneli PIN ya da QR kodu'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Vazgeç')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Doğrula')),
+        ],
+      ),
+    );
+    final value = code.text.trim();
+    code.dispose();
+    if (ok != true || value.isEmpty || !mounted) return;
+    final done = await runAction(context, () => apiClient.post('/visitors/verify-pass', {'code': value}));
+    if (done) await _listKey.currentState?.reload();
   }
 
   Future<void> _create() async {
