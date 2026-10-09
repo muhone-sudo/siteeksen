@@ -869,7 +869,44 @@ print(r[0].get("unit","") if r else "YOK")' "$PAYID")
   [ "$LF2" = "t" ] && echo "$V2" | grep -q '"amount":1230' && [ "$C2" = "200" ] && [ "$ROW2" = "30.00|1230.00|PAID" ] && [ "$SF" = "422" ] \
     && ok "15 gün geç havale: tazminat valöre göre 30,00 TL, onayla borç kapandı (1.230,00 PAID); reddedilen beyanda tazminat yeniden işledi; gelecek valör 422" \
     || bad "valör (geç): reddet sonrası=$LF2 / $V2 / onay=$C2 / $ROW2 / gelecek=$SF"
-  $PSQL -c "DELETE FROM payment_assessments WHERE payment_id IN ('$VP1','$VP2'); DELETE FROM payments WHERE id IN ('$VP1','$VP2');
+  # --- Finansal silinemezlik, ters kayıt ve tahsilat defteri zinciri (054, Apsiyon BUG-03) ---
+  LG=$(curl -s "$FIN/ledger" -H "$FA")
+  LGOK=$(echo "$LG" | python3 -c "
+import json,sys; d=json.load(sys.stdin)['data']
+e=[x for x in d if x.get('payment_id')=='$VP2' and x['entry_type']=='PAYMENT_CONFIRMED']
+print(len(e)==1 and e[0]['amount_kurus']==123000 and e[0]['detail']['allocations'][0]['amount_kurus']==123000 and e[0]['detail']['value_date']=='2026-01-25')" 2>/dev/null)
+  appsql() { PGPASSWORD="$APPPW" psql -h 127.0.0.1 -p "$DBPORT" -U siteeksen_app -d siteeksen -t -A -c "BEGIN; SELECT set_config('app.property_id','$DEMO_PROPERTY',true); $1; COMMIT;" 2>&1; }
+  D1=$(appsql "DELETE FROM payments WHERE id='$VP2'" | grep -c 'permission denied')
+  D2=$(appsql "UPDATE payments SET amount = 1 WHERE id='$VP2'" | grep -c 'değiştirilemez')
+  D3=$(appsql "UPDATE monthly_assessments SET base_amount = 1 WHERE id='$ASSESS'" | grep -c 'anaparası değiştirilemez')
+  D4=$(appsql "UPDATE monthly_assessments SET paid_amount = 0 WHERE id='$ASSESS'" | grep -c 'azaltılamaz')
+  D5=$(appsql "UPDATE payments SET status = 'PENDING' WHERE id='$VP2'" | grep -c 'durumu değiştirilemez')
+  D6=$(appsql "DELETE FROM finance_ledger" | grep -c 'permission denied')
+  [ "$LGOK" = "True" ] && [ "$D1" -ge 1 ] && [ "$D2" -ge 1 ] && [ "$D3" -ge 1 ] && [ "$D4" -ge 1 ] && [ "$D5" -ge 1 ] && [ "$D6" -ge 1 ] \
+    && ok "tahsilat onayı deftere dağılımıyla yazıldı; uygulama rolü ödeme/defter silemez, tutar/durum/anapara değiştiremez, ödeneni azaltamaz" \
+    || bad "silinemezlik: defter=$LGOK sil=$D1 tutar=$D2 anapara=$D3 ödenen=$D4 durum=$D5 defter-sil=$D6"
+  RV0=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$FIN/payments/$VP2/reverse" -H "$FA" -H "$FJ" -d '{"reason":"x"}')
+  RV1=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$FIN/payments/$VP2/reverse" -H "$FA" -H "$FJ" -d '{"reason":"Banka hareketi bulunamadı, mükerrer onay"}')
+  RV2=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$FIN/payments/$VP2/reverse" -H "$FA" -H "$FJ" -d '{"reason":"ikinci deneme"}')
+  RVT=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$FIN/payments/$VP2/reverse" -H "Authorization: Bearer $TEN" -H "$FJ" -d '{"reason":"sakin deniyor"}')
+  RROW=$($PSQL -t -A -c "SELECT p.status || '|' || ma.paid_amount::text || '|' || ma.status || '|' || (SELECT count(*) FROM payments WHERE id='$VP2')
+    FROM payments p, monthly_assessments ma WHERE p.id='$VP2' AND ma.id='$ASSESS';")
+  RL=$($PSQL -t -A -c "SELECT amount_kurus || '|' || (detail->>'reason') FROM finance_ledger WHERE payment_id='$VP2' AND entry_type='PAYMENT_REVERSED';")
+  VF=$(curl -s "$FIN/ledger/verify" -H "Authorization: Bearer $TEN")
+  [ "$RV0" = "400" ] && [ "$RV1" = "200" ] && [ "$RV2" = "409" ] && [ "$RVT" = "403" ] && [ "$RROW" = "REVERSED|0.00|OVERDUE|1" ] \
+    && [ "$RL" = "-123000|Banka hareketi bulunamadı, mükerrer onay" ] && echo "$VF" | grep -q '"valid":true' \
+    && ok "ters kayıt: gerekçesiz 400, ödeme silinmedi (REVERSED), borç geri açıldı (OVERDUE), deftere -1.230,00 gerekçeli; ikinci kez 409, sakin 403; kat maliki zinciri doğruluyor (geçerli)" \
+    || bad "ters kayıt: $RV0 / $RV1 / $RV2 / $RVT / $RROW / $RL / $VF"
+  # Defter kaydı veritabanında değiştirilirse doğrulama yakalar
+  TS=$($PSQL -t -A -c "SELECT seq FROM finance_ledger WHERE payment_id='$VP2' AND entry_type='PAYMENT_CONFIRMED';")
+  $PSQL -c "UPDATE finance_ledger SET amount_kurus = 1 WHERE payment_id='$VP2' AND entry_type='PAYMENT_CONFIRMED';" >/dev/null
+  VT=$(curl -s "$FIN/ledger/verify" -H "$FA")
+  $PSQL -c "UPDATE finance_ledger SET amount_kurus = 123000 WHERE payment_id='$VP2' AND entry_type='PAYMENT_CONFIRMED';" >/dev/null
+  VT2=$(curl -s "$FIN/ledger/verify" -H "$FA")
+  echo "$VT" | grep -q '"valid":false' && echo "$VT" | grep -q "\"first_invalid_seq\":$TS" && echo "$VT" | grep -q 'değiştirilmiş' && echo "$VT2" | grep -q '"valid":true' \
+    && ok "veritabanında oynanan defter kaydı (sıra $TS) doğrulamada yakalandı; geri alınınca zincir yine geçerli" \
+    || bad "defter kurcalama: $VT / $VT2"
+  $PSQL -c "DELETE FROM finance_ledger WHERE payment_id IN ('$VP1','$VP2'); DELETE FROM payment_assessments WHERE payment_id IN ('$VP1','$VP2'); DELETE FROM payments WHERE id IN ('$VP1','$VP2');
             UPDATE monthly_assessments SET late_fee=0, total_amount=base_amount, paid_amount=0, status='PENDING' WHERE id='$ASSESS';
             DELETE FROM late_fee_accruals WHERE assessment_id='$ASSESS';" >/dev/null 2>&1
 else
@@ -5680,8 +5717,8 @@ ok "kullanılmayan 13 site tablosu RLS ile korunuyor"
 
 # 9) Toplam durum — RLS DIŞINDA KALAN her tablo bilinçli ve gerekçeli olmalı
 RLSCOUNT=$($PSQL -t -A -c "SELECT count(*) FROM rls_enabled_tables;")
-[ "$RLSCOUNT" = "106" ] && ok "RLS toplam 106 tabloda açık" \
-  || bad "beklenmedik RLS tablo sayısı: $RLSCOUNT (beklenen 106)"
+[ "$RLSCOUNT" = "107" ] && ok "RLS toplam 107 tabloda açık" \
+  || bad "beklenmedik RLS tablo sayısı: $RLSCOUNT (beklenen 107)"
 NOTRLS=$($PSQL -t -A -c "SELECT string_agg(t.table_name, ' ' ORDER BY t.table_name)
   FROM information_schema.tables t
   WHERE t.table_schema='public' AND t.table_type='BASE TABLE'
@@ -6677,7 +6714,7 @@ if bash "$SCRIPT_DIR/db-backup.sh" "$BK" >/tmp/verify-backup.log 2>&1; then
   ok "yedek alındı ve okunabilir: $(tail -1 /tmp/verify-backup.log)"
   FP1=$(fingerprint)
   # Yıkıcı ve hatalı bir migration'ı taklit et: tablo sil, veri sil, sürüm ekle, yeni tablo aç.
-  $PSQL -c "DROP TABLE expenses CASCADE; DELETE FROM payment_assessments; DELETE FROM payments;
+  $PSQL -c "DROP TABLE expenses CASCADE; DELETE FROM finance_ledger; DELETE FROM payment_assessments; DELETE FROM payments;
     INSERT INTO schema_migrations (version, name, checksum) VALUES (999, '999_bozuk.sql', 'x');
     CREATE TABLE bozuk_migration_artigi (id int);" >/dev/null 2>&1
   [ "$(fingerprint)" != "$FP1" ] && ok "yıkıcı değişiklik uygulandı (tablo/veri/sürüm bozuldu)" || bad "benzetim şemayı değiştirmedi"

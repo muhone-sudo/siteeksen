@@ -63,6 +63,7 @@ func main() {
 		api.GET("/assessments/:id", handlers.GetAssessmentDetails(financeService))
 		api.POST("/payments", handlers.CreatePayment(financeService))
 		api.GET("/my-payments", handlers.GetMyPayments(financeService))
+		api.GET("/ledger/verify", handlers.VerifyLedger(financeService))
 		api.GET("/consumption/summary", handlers.GetConsumptionSummary(financeService))
 
 		// --- Yönetim: site geneli okuma ---
@@ -78,6 +79,7 @@ func main() {
 			mgmtRead.GET("/opening-balances", handlers.ListOpeningBalances(financeService))
 			// PDF / Excel dökümleri (TEST_RAPORU 2.6)
 			mgmtRead.GET("/reports/debtors", debtorsReport(financeService, pool))
+			mgmtRead.GET("/ledger", handlers.ListLedger(financeService))
 			mgmtRead.GET("/reports/collections", collectionReport(financeService, pool))
 		}
 
@@ -89,6 +91,7 @@ func main() {
 			// Tahsilat onayı: ödeme sağlayıcısı entegrasyonu olmadığı için havale/EFT/nakit
 			// tahsilatını yönetici onaylar. Onay, tahakkukların paid_amount değerini artırır.
 			mgmtWrite.POST("/payments/:id/confirm", handlers.ConfirmPayment(financeService))
+			mgmtWrite.POST("/payments/:id/reverse", handlers.ReversePayment(financeService))
 			mgmtWrite.POST("/payments/:id/reject", handlers.RejectPayment(financeService))
 			// Gecikme tazminatı (KMK m.20/2). İşlem idempotenttir; zamanlanmış görev
 			// ya da yönetici tarafından elle çalıştırılabilir.

@@ -270,8 +270,23 @@ func (s *FinanceService) AccrueLateFees(ctx context.Context, propertyID string, 
 // Yönetici onayı olmadan `paid_amount` hiç güncellenmiyor; ödemesini yapmış sakin
 // sistemde sonsuza dek borçlu kalıyordu. Onay akışı bu boşluğu kapatır ve sağlayıcı
 // entegrasyonu geldiğinde aynı repository çağrısı webhook'tan kullanılabilir.
-func (s *FinanceService) ConfirmPayment(ctx context.Context, paymentID, propertyID, reference string) error {
-	return s.repo.ConfirmPayment(ctx, paymentID, propertyID, reference)
+func (s *FinanceService) ConfirmPayment(ctx context.Context, paymentID, propertyID, reference, userID string) error {
+	return s.repo.ConfirmPayment(ctx, paymentID, propertyID, reference, userID)
+}
+
+// ReversePayment, tamamlanmış ödemenin gerekçeli ters kaydını yapar (054; ödeme silinmez).
+func (s *FinanceService) ReversePayment(ctx context.Context, paymentID, propertyID, userID, reason string) error {
+	return s.repo.ReversePayment(ctx, paymentID, propertyID, userID, reason)
+}
+
+// ListLedger, tahsilat defterini getirir (yönetim ve denetçi).
+func (s *FinanceService) ListLedger(ctx context.Context, propertyID string) ([]repository.LedgerEntry, error) {
+	return s.repo.ListLedger(ctx, propertyID)
+}
+
+// VerifyLedger, tahsilat defteri zincirini doğrular (sitenin her üyesi).
+func (s *FinanceService) VerifyLedger(ctx context.Context, propertyID string) (*repository.LedgerVerification, error) {
+	return s.repo.VerifyLedger(ctx, propertyID)
 }
 
 // RejectPayment, bekleyen ödemeyi başarısız işaretler; borç olduğu gibi kalır.

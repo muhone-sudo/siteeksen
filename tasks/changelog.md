@@ -12,6 +12,26 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-10 — FİNANSAL KAYITLARIN DEĞİŞTİRİLEMEZLİĞİ, TERS KAYIT, TAHSİLAT DEFTERİ ZİNCİRİ (migration 054, Apsiyon BUG-03) (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **1205/1205** (tahsilat onayı deftere dağılımıyla yazıldı; uygulama rolü ödeme ve defter
+> silemiyor, tutar/durum/anapara değiştiremiyor, ödenen tutarı azaltamıyor; ters kayıt gerekçesiz 400, ödeme silinmeden
+> REVERSED, borç yeniden açıldı (OVERDUE), deftere -1.230,00 gerekçeli kayıt, ikinci kez 409, sakin 403; kat maliki zinciri
+> doğruladı; veritabanında oynanan defter kaydı doğrulamada sıra numarasıyla yakalandı; RLS 107 tablo); `verify-mobile.sh`
+> 10/10; panel tsc/lint temiz.
+
+- Uygulama rolü (020'den beri) ödeme/tahakkuk tablolarında DELETE yetkisine sahipti; koruma kodun iyi niyetine dayanıyordu.
+  Artık `payments`, `payment_assessments`, `monthly_assessments`, `assessment_details`, `late_fee_accruals`, `expenses`
+  silinemez. Tetikleyiciler: sonuçlanmış ödeme değişmez (tek geçiş COMPLETED → REVERSED, gerekçe zorunlu); ödeme almış
+  tahakkukun anaparası değişmez/silinemez; ödenen tutar yalnızca ters kayıt işleminde azalır.
+- `finance_ledger`: her tahsilat onayı ve ters kayıt bir öncekinin SHA-256 özetine bağlı yazılır (özet veritabanı
+  fonksiyonuyla; değiştirilemez/silinemez). `POST /finance/payments/:id/reverse`, `GET /finance/ledger`,
+  `GET /finance/ledger/verify` (sitenin her üyesi; tutar/kişi dönmez).
+- Panel: "Tahsilat defteri" sekmesi (zincir doğrulama), tamamlanmış ödemede "Ters kayıt". Sakin uygulaması: Aidat ekranında
+  "Tahsilat kayıtlarını doğrula".
+- Sınır: veritabanı yöneticisi tetikleyicileri kapatıp zinciri baştan yeniden hesaplarsa yerel doğrulama bunu göremez;
+  bunun için son özetin dışarıda (ör. genel kurul tutanağı/denetim raporu) saklanması gerekir.
+
 ### 2026-10-05 — HAVALE VALÖRÜ VE GECİKME TAZMİNATININ DONDURULMASI (migration 053, Apsiyon BUG-02) (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **1201/1201** (vadesinde yapılmış havale bildirildiğinde işlemiş tazminat sıfırlandı, tutar

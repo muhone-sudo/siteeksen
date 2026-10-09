@@ -374,6 +374,8 @@ export interface SafetyCheck {
 }
 export interface SafetyResponse { user_id: Id; name: string; unit: string; status: "SAFE" | "NEED_HELP"; note?: string; responded_at: string }
 export interface VisitorPass { pin: string; qr_token: string; expires_at: string }
+export interface LedgerEntry { seq: number; entry_type: "PAYMENT_CONFIRMED" | "PAYMENT_REVERSED" | "CREDIT_NOTE"; payment_id?: string; amount_kurus: number; detail: Record<string, unknown>; created_by_name?: string; created_at: string; entry_hash: string }
+export interface LedgerVerification { valid: boolean; entries: number; first_invalid_seq?: number; reason?: string; head_hash?: string }
 export interface PayrollRow {
     id: Id; employee_id: Id; employee_name: string; position: string; period: string; net_salary: number; employer_cost: number;
     gross_salary?: number; sgk_employee?: number; sgk_employer?: number; income_tax?: number; stamp_tax?: number; source_ref: string;

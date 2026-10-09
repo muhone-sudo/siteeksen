@@ -299,7 +299,7 @@ func ConfirmPayment(svc *service.FinanceService) gin.HandlerFunc {
 		}
 		_ = c.ShouldBindJSON(&req) // gövde boş olabilir
 
-		err := svc.ConfirmPayment(c.Request.Context(), paymentID, propertyID, req.Reference)
+		err := svc.ConfirmPayment(c.Request.Context(), paymentID, propertyID, req.Reference, c.GetString("user_id"))
 		if err != nil {
 			mapPaymentConfirmError(c, err, paymentID)
 			return
@@ -521,5 +521,61 @@ func CancelOpeningBalance(svc *service.FinanceService) gin.HandlerFunc {
 		default:
 			c.JSON(http.StatusOK, gin.H{"message": "Devir kaydı iptal edildi"})
 		}
+	}
+}
+
+// ReversePayment: POST /finance/payments/:id/reverse {reason} — tamamlanmış ödemenin ters kaydı.
+// Ödeme silinmez; tahakkukların ödenen tutarı geri alınır ve tahsilat defterine gerekçeli kayıt düşer.
+func ReversePayment(svc *service.FinanceService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var req struct {
+			Reason string `json:"reason"`
+		}
+		if err := c.ShouldBindJSON(&req); err != nil || len(strings.TrimSpace(req.Reason)) < 5 {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Ters kayıt gerekçesi zorunludur (en az 5 karakter)"})
+			return
+		}
+		err := svc.ReversePayment(c.Request.Context(), c.Param("id"), c.GetString("property_id"), c.GetString("user_id"), strings.TrimSpace(req.Reason))
+		switch {
+		case err == nil:
+			c.JSON(http.StatusOK, gin.H{"message": "Ödemenin ters kaydı yapıldı; ödeme silinmedi, tahsilat defterine gerekçesiyle yazıldı"})
+		case errors.Is(err, repository.ErrPaymentNotFound):
+			c.JSON(http.StatusNotFound, gin.H{"error": "Ödeme bulunamadı"})
+		case errors.Is(err, repository.ErrPaymentNotCompleted):
+			c.JSON(http.StatusConflict, gin.H{"error": "Yalnızca tamamlanmış ödemenin ters kaydı yapılabilir"})
+		default:
+			if middleware.DBErrorResponse(c, err) {
+				return
+			}
+			log.Printf("[finance] ters kayıt: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Ters kayıt yapılamadı"})
+		}
+	}
+}
+
+// ListLedger: GET /finance/ledger — tahsilat defteri (yönetim, denetçi).
+func ListLedger(svc *service.FinanceService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		list, err := svc.ListLedger(c.Request.Context(), c.GetString("property_id"))
+		if err != nil {
+			log.Printf("[finance] defter: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Defter alınamadı"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"data": list})
+	}
+}
+
+// VerifyLedger: GET /finance/ledger/verify — zincir doğrulaması; sitenin her üyesi (kat maliki dahil)
+// tahsilat kayıtlarının sonradan değiştirilmediğini görebilir. Tutar/kişi bilgisi dönmez.
+func VerifyLedger(svc *service.FinanceService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		v, err := svc.VerifyLedger(c.Request.Context(), c.GetString("property_id"))
+		if err != nil {
+			log.Printf("[finance] defter doğrulama: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Doğrulama yapılamadı"})
+			return
+		}
+		c.JSON(http.StatusOK, v)
 	}
 }

@@ -78,6 +78,9 @@ export function endpoints(http: Http) {
                 http.post<{ data: unknown[] }>("/finance/assessments", b),
             confirmPayment: (id: string, reference?: string) => http.post<Msg>(`/finance/payments/${id}/confirm`, { reference }),
             rejectPayment: (id: string) => http.post<Msg>(`/finance/payments/${id}/reject`),
+            reversePayment: (id: string, reason: string) => http.post<Msg>(`/finance/payments/${id}/reverse`, { reason }),
+            ledger: () => g<{ data: T.LedgerEntry[] }>("/finance/ledger"),
+            verifyLedger: () => g<T.LedgerVerification>("/finance/ledger/verify"),
             accrueLateFees: (as_of?: string) => http.post<T.LateFeeRun>("/finance/late-fees/accrue", as_of ? { as_of } : {}),
         },
         requests: {
@@ -401,6 +404,8 @@ export const READS: { path: string; keys: string[]; list?: boolean }[] = [
     { path: "/finance/payments", keys: ["id", "amount", "status", "name", "unit", "created_at"], list: true },
     { path: "/finance/payments/pending", keys: ["id", "amount", "status"], list: true },
     { path: "/finance/opening-balances", keys: ["data"] },
+    { path: "/finance/ledger", keys: ["data"] },
+    { path: "/finance/ledger/verify", keys: ["valid", "entries"] },
     { path: "/finance/expense-categories", keys: ["id", "name", "distribution_type"], list: true },
     { path: "/requests", keys: ["id", "ticket_number", "title", "status", "priority", "created_at"], list: true },
     { path: "/announcements", keys: ["id", "title", "category", "priority", "is_pinned", "published_at"], list: true },

@@ -438,7 +438,7 @@ func (r *FinanceRepository) CreatePayment(
 //   - `paid_amount` artırılır, `status` PARTIAL/PAID olarak yeniden hesaplanır.
 func (r *FinanceRepository) ConfirmPayment(
 	ctx context.Context,
-	paymentID, propertyID, reference string,
+	paymentID, propertyID, reference, userID string,
 ) error {
 	tx, err := r.scope(propertyID).Begin(ctx)
 	if err != nil {
@@ -498,6 +498,38 @@ func (r *FinanceRepository) ConfirmPayment(
 		UPDATE payments
 		SET status = 'COMPLETED', completed_at = NOW(), transaction_id = NULLIF($2, '')
 		WHERE id = $1`, paymentID, reference); err != nil {
+		return err
+	}
+
+	// Tahsilat defteri zinciri (054): hangi borcun hangi tutarla kapandığı değiştirilemez kayda geçer.
+	var amount string
+	var valueDate *time.Time
+	if err := tx.QueryRow(ctx, `SELECT amount::text, value_date FROM payments WHERE id = $1`, paymentID).Scan(&amount, &valueDate); err != nil {
+		return err
+	}
+	arows, err := tx.Query(ctx, `SELECT assessment_id::text, round(amount * 100)::bigint FROM payment_assessments
+		WHERE payment_id = $1 ORDER BY assessment_id`, paymentID)
+	if err != nil {
+		return err
+	}
+	alloc := []map[string]any{}
+	for arows.Next() {
+		var aid string
+		var k int64
+		if err := arows.Scan(&aid, &k); err != nil {
+			arows.Close()
+			return err
+		}
+		alloc = append(alloc, map[string]any{"assessment_id": aid, "amount_kurus": k})
+	}
+	arows.Close()
+	detail := map[string]any{"allocations": alloc, "reference": reference}
+	if valueDate != nil {
+		detail["value_date"] = valueDate.Format("2006-01-02")
+	}
+	d, _ := decimal.NewFromString(amount)
+	if err := appendLedger(ctx, tx, propertyID, "PAYMENT_CONFIRMED", &paymentID,
+		d.Mul(decimal.NewFromInt(100)).IntPart(), detail, userID); err != nil {
 		return err
 	}
 

@@ -92,6 +92,14 @@ class _DuesPaymentScreenState extends State<DuesPaymentScreen> {
         title: const Text('Aidat Ödeme'),
         backgroundColor: Colors.white,
         surfaceTintColor: Colors.transparent,
+        actions: [
+          IconButton(
+            key: const Key('verify-ledger'),
+            tooltip: 'Tahsilat kayıtlarını doğrula',
+            icon: const Icon(Icons.verified_user_outlined),
+            onPressed: _verifyLedger,
+          ),
+        ],
       ),
       body: _buildBody(),
       bottomNavigationBar: _buildPayBar(context),
@@ -316,6 +324,29 @@ class _DuesPaymentScreenState extends State<DuesPaymentScreen> {
                   ? 'Ödenecek tahakkuk yok'
                   : '${formatTry(_currentBalance)} Öde'),
         ),
+      ),
+    );
+  }
+
+  /// Tahsilat defteri zincirini doğrular: ödemelerin sonradan silinip değiştirilmediğini
+  /// kat maliki kendisi görebilir (Apsiyon BUG-03).
+  Future<void> _verifyLedger() async {
+    String text;
+    try {
+      final v = await apiClient.verifyLedger();
+      text = v['valid'] == true
+          ? 'Tahsilat defteri geçerli: ${v['entries']} kayıt, hiçbiri sonradan değiştirilmemiş ya da silinmemiş.'
+          : 'UYARI: tahsilat defterinde bozulma var (sıra ${v['first_invalid_seq']}): ${v['reason']}. Denetçiye bildirin.';
+    } catch (e) {
+      text = toUserMessage(e);
+    }
+    if (!mounted) return;
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Tahsilat kayıtları'),
+        content: Text(text),
+        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Tamam'))],
       ),
     );
   }

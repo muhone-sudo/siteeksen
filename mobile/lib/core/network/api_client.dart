@@ -302,6 +302,12 @@ class ApiClient {
   }
 
   // Finance
+  /// Tahsilat defteri zinciri doğrulaması (054): tutar/kişi bilgisi dönmez.
+  Future<Map<String, dynamic>> verifyLedger() async {
+    final response = await _dio.get('/finance/ledger/verify');
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
   Future<Map<String, dynamic>> getDebtStatus() async {
     final response = await _dio.get('/finance/debt-status');
     return response.data;

@@ -12,6 +12,7 @@ export const REQUEST_STATUS: Map = {
 export const PRIORITY: Map = { LOW: ["Düşük", "gray"], NORMAL: ["Normal", "blue"], HIGH: ["Yüksek", "amber"], URGENT: ["Acil", "red"] };
 export const PAYMENT_STATUS: Map = {
     PENDING: ["Onay bekliyor", "amber"], COMPLETED: ["Tamamlandı", "green"], FAILED: ["Reddedildi", "red"], REFUNDED: ["İade", "gray"],
+    REVERSED: ["Ters kayıt", "gray"],
 };
 export const EXPENSE_STATUS: Map = { PENDING: ["Onay bekliyor", "amber"], APPROVED: ["Onaylandı", "green"], REJECTED: ["Reddedildi", "red"] };
 export const LEAVE_STATUS: Map = { PENDING: ["Bekliyor", "amber"], APPROVED: ["Onaylandı", "green"], REJECTED: ["Reddedildi", "red"] };
