@@ -689,3 +689,9 @@ yazılıp geçilir, öneri üretilmez.
 Aynı turda `(a IS NULL)||'|'||…` biçiminde MANTIKSAL değerle BAŞLAYAN birleştirmenin boş döndüğü sanıldı;
 asıl neden buydu (Ders 48'in tersi değil). **Kural:** Sayaç için `n=$(grep -c … 2>/dev/null); echo "${n:-0}"`;
 kırmızı kontrolde önce hata satırının TAMAMINI (`grep -A`) oku, tahminle düzeltme yapma.
+
+### Ders 51 — Test beklentisini veriden hesapla, kafadan yazma
+
+B8 doğrulamasında sapma oranı "8,70" diye sabit yazıldı; bölümlerin hepsinde kullanım alanı olduğu için hesap m² başına
+yapıldı ve oran 8,63 çıktı. Kod doğruydu, test yanlış varsayımla kırmızı kaldı. **Kural:** Birden çok veri kaynağına bağlı
+sayısal sonuçta testte ya kuralı (`> 3`) denetle ya da beklenen değeri aynı yanıttan oku; sonucu ezbere sabitleme.

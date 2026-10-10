@@ -5,10 +5,10 @@ import Link from "next/link";
 import { Plus } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAction, useApi, useRoles } from "@/lib/use-api";
-import { ActionFeedback, Badge, Button, Card, Field, FormModal, Grid, Input, Notice, Page, QueryView, Select, Table, Tabs } from "@/components/ui/kit";
+import { ActionFeedback, Badge, Button, Card, Field, FormModal, Grid, Input, Notice, Page, QueryView, Select, Table, Tabs, Textarea } from "@/components/ui/kit";
 import { date, kurus, num, today } from "@/lib/format";
 import { METER_TYPES } from "@/lib/labels";
-import type { Allocation, Meter } from "@/lib/types";
+import type { Allocation, Meter, Outlier, StatementObjection } from "@/lib/types";
 
 const TYPE_LABEL = Object.fromEntries(METER_TYPES.map((t) => [t.value, t.label]));
 
@@ -18,21 +18,23 @@ function readingAt(d?: string, v?: string) {
 }
 
 export default function MetersPage() {
-    const [tab, setTab] = useState<"meters" | "readings" | "allocate" | "statements">("meters");
+    const [tab, setTab] = useState<"meters" | "readings" | "allocate" | "statements" | "objections">("meters");
     const [type, setType] = useState("");
     const meters = useApi(["meters", type], () => api.meters.list({ meter_type: type }));
     const units = useApi(["units"], api.identity.units);
     const readings = useApi(["meter-readings"], () => api.meters.readings(), tab === "readings");
     const statements = useApi(["statements"], api.meters.statements, tab === "statements");
+    const objections = useApi(["objections"], () => api.meters.objections(), tab === "objections");
+    const [answer, setAnswer] = useState<null | { o: StatementObjection; decision: "ACCEPTED" | "REJECTED"; response: string }>(null);
     const act = useAction();
     const { canWrite, roles } = useRoles();
     const canRead = canWrite || roles.includes("STAFF");
     const [newMeter, setNewMeter] = useState<null | { unit_id: string; meter_type: string; serial_number: string; brand: string }>(null);
     const [reading, setReading] = useState<null | { meter: Meter; current_value: string; reading_date: string; reading_type: string; confirm_anomaly: boolean }>(null);
     const [replace, setReplace] = useState<null | { meter: Meter; removal_value: string; replaced_on: string; new_serial_number: string; new_initial_value: string; reason: string }>(null);
-    const [alloc, setAlloc] = useState({ meter_type: "HEAT", from: "", to: today(), total_amount_try: "", publish: false });
+    const [alloc, setAlloc] = useState({ meter_type: "HEAT", from: "", to: today(), total_amount_try: "", publish: false, confirm_outliers: false });
     const areaCheck = useApi(["area-check"], api.meters.areaCheck, tab === "allocate" && canWrite);
-    const [allocResult, setAllocResult] = useState<{ allocation: Allocation; basis_note: string; note: string; warning?: string; allocation_id?: string } | null>(null);
+    const [allocResult, setAllocResult] = useState<{ allocation: Allocation; basis_note: string; note: string; warning?: string; allocation_id?: string; outliers?: Outlier[]; outlier_warning?: string } | null>(null);
     // Sunucu olağandışı tüketimi (önceki tüketimin 2,5 katı) teyitsiz kaydetmez (056).
     const anomaly = !!reading && !!act.error && act.error.includes("Tüketim sapması");
 
@@ -43,7 +45,7 @@ export default function MetersPage() {
             actions={canWrite && <Button onClick={() => setNewMeter({ unit_id: "", meter_type: "HEAT", serial_number: "", brand: "" })}><Plus className="h-4 w-4" /> Sayaç ekle</Button>}
         >
             <ActionFeedback action={act} />
-            <Tabs tabs={[{ id: "meters", label: "Sayaçlar" }, { id: "readings", label: "Okumalar" }, { id: "allocate", label: "Gider paylaştırma" }, { id: "statements", label: "Tüketim pusulaları" }]} value={tab} onChange={setTab} />
+            <Tabs tabs={[{ id: "meters", label: "Sayaçlar" }, { id: "readings", label: "Okumalar" }, { id: "allocate", label: "Gider paylaştırma" }, { id: "statements", label: "Tüketim pusulaları" }, { id: "objections", label: "Pusula itirazları" }]} value={tab} onChange={setTab} />
 
             {tab === "meters" && (
                 <Card padded={false} actions={<Select value={type} onChange={(e) => setType(e.target.value)} options={METER_TYPES} placeholder="Tüm türler" />} title="Sayaçlar">
@@ -107,6 +109,12 @@ export default function MetersPage() {
                         <input type="checkbox" className="mt-1" checked={alloc.publish} onChange={(e) => setAlloc({ ...alloc, publish: e.target.checked })} />
                         <span>Sakinlere <b>yayımla</b> — her bölümün pusulası (ilk/son endeks, tüketim, tüketim ve alan payı) saklanır ve sonradan değiştirilemez. Okuması eksik bölüm varken yayımlanmaz.</span>
                     </label>
+                    {alloc.publish && (allocResult?.outliers?.length || act.error?.includes("medyan")) ? (
+                        <label className="mt-2 flex items-start gap-2 rounded-lg bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-900/20 dark:text-amber-200">
+                            <input type="checkbox" className="mt-1" checked={alloc.confirm_outliers} onChange={(e) => setAlloc({ ...alloc, confirm_outliers: e.target.checked })} />
+                            <span>Site medyanının 3 katını aşan bölümlerin okumalarını kontrol ettim; doğrular. Yayımı teyit ediyorum (teyit eden ve bölümler pusulayla saklanır).</span>
+                        </label>
+                    ) : null}
                     <div className="mt-3">
                         <Button disabled={!canWrite || act.pending || !alloc.from || !alloc.total_amount_try}
                             onClick={async () => {
@@ -120,6 +128,11 @@ export default function MetersPage() {
                     {allocResult && (
                         <div className="mt-4 space-y-3">
                             {allocResult.warning && <Notice tone="amber">{allocResult.warning}</Notice>}
+                            {!!allocResult.outliers?.length && (
+                                <Notice tone="amber" title="Olağandışı tüketim — site medyanının 3 katından fazla">
+                                    {allocResult.outliers.map((o) => `${o.unit_name}: ${num(o.intensity)}${o.basis === "AREA" ? "/m²" : ""} (medyan ${num(o.median)}, ${o.ratio} kat)`).join(" · ")}. {allocResult.outlier_warning}
+                                </Notice>
+                            )}
                             <Notice tone={allocResult.allocation_id ? "green" : "blue"}>{allocResult.basis_note} {allocResult.note}</Notice>
                             <p className="text-sm">Toplam {kurus(allocResult.allocation.total_kurus)} = tüketim payı {kurus(allocResult.allocation.consumption_part_kurus)} + alan payı {kurus(allocResult.allocation.area_part_kurus)}</p>
                             <Table rows={allocResult.allocation.units} rowKey={(u) => u.unit_id} columns={[
@@ -151,6 +164,43 @@ export default function MetersPage() {
                     </QueryView>
                 </Card>
             )}
+
+            {tab === "objections" && (
+                <Card padded={false} title="Tüketim pusulasına itirazlar">
+                    <QueryView q={objections} empty="İtiraz yok">
+                        {(d) => (
+                            <Table rows={d.data} rowKey={(o) => o.id} columns={[
+                                { header: "Daire / pusula", cell: (o) => <>{o.unit} · {TYPE_LABEL[o.meter_type] ?? o.meter_type}<div className="text-xs text-gray-500">{date(o.period_from)} – {date(o.period_to)} · {kurus(o.total_kurus)}</div></> },
+                                { header: "İtiraz eden", cell: (o) => <>{o.user_name}<div className="text-xs text-gray-500">{date(o.created_at)}</div></> },
+                                { header: "Gerekçe", cell: (o) => o.reason },
+                                { header: "Durum", cell: (o) => o.status === "OPEN" ? <Badge tone="amber">Yanıt bekliyor</Badge>
+                                    : <><Badge tone={o.status === "ACCEPTED" ? "green" : "red"}>{o.status === "ACCEPTED" ? "Kabul" : "Ret"}</Badge><div className="text-xs text-gray-500">{o.response} — {o.responded_by_name}</div></> },
+                                { header: "", cell: (o) => canWrite && o.status === "OPEN" ? <Button size="sm" onClick={() => { act.clear(); setAnswer({ o, decision: "ACCEPTED", response: "" }); }}>Yanıtla</Button> : null },
+                            ]} />
+                        )}
+                    </QueryView>
+                </Card>
+            )}
+
+            <FormModal open={!!answer} onClose={() => setAnswer(null)} title={answer ? `İtiraz — ${answer.o.unit}` : ""} pending={act.pending} error={act.error}
+                onSubmit={async () => {
+                    if (!answer) return;
+                    const r = await act.run(() => api.meters.respondObjection(answer.o.id, answer.decision, answer.response), { invalidate: ["objections"], success: (x) => x.message });
+                    if (r) setAnswer(null);
+                }}>
+                {answer && (
+                    <>
+                        <Notice tone="blue">Gerekçe: {answer.o.reason}</Notice>
+                        <Field label="Karar" required>
+                            <Select value={answer.decision} onChange={(e) => setAnswer({ ...answer, decision: e.target.value as "ACCEPTED" | "REJECTED" })}
+                                options={[{ value: "ACCEPTED", label: "Kabul" }, { value: "REJECTED", label: "Ret" }]} />
+                        </Field>
+                        <Field label="Açıklama" required hint="Kabulde düzeltmenin nasıl yapılacağını yazın (yeniden okuma, alacak dekontu vb.). Yayımlanmış pusula değişmez.">
+                            <Textarea required minLength={5} value={answer.response} onChange={(e) => setAnswer({ ...answer, response: e.target.value })} />
+                        </Field>
+                    </>
+                )}
+            </FormModal>
 
             <FormModal open={!!newMeter} onClose={() => setNewMeter(null)} title="Sayaç ekle" pending={act.pending} error={act.error}
                 onSubmit={async () => {

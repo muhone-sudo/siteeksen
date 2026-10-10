@@ -136,6 +136,9 @@ type PublishedAllocation struct {
 	BasisNote           string          `json:"basis_note,omitempty"`
 	PublishedAt         time.Time       `json:"published_at"`
 	Lines               []StatementLine `json:"lines,omitempty"`
+	// OutlierUnits: yayımda medyanın 3 katını aşan bölümler (JSON) ve teyit eden (063, B8).
+	OutlierUnits        []byte `json:"-"`
+	OutliersConfirmedBy string `json:"-"`
 }
 
 // PublishAllocation, hesaplanmış paylaştırmayı değiştirilemez biçimde saklar.
@@ -146,10 +149,15 @@ func (r *Repository) PublishAllocation(ctx context.Context, propertyID, userID s
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	var id string
+	var outliers any
+	if len(a.OutlierUnits) > 0 {
+		outliers = string(a.OutlierUnits)
+	}
 	err = tx.QueryRow(ctx, `INSERT INTO consumption_allocations (property_id, meter_type, period_from, period_to, total_kurus,
-		consumption_share_pct, area_share_pct, basis_note, published_by) VALUES ($1,$2,$3,$4,$5,$6::numeric,$7::numeric,$8,NULLIF($9,'')::uuid)
+		consumption_share_pct, area_share_pct, basis_note, published_by, outlier_units, outliers_confirmed_by)
+		VALUES ($1,$2,$3,$4,$5,$6::numeric,$7::numeric,$8,NULLIF($9,'')::uuid,$10::jsonb,NULLIF($11,'')::uuid)
 		RETURNING id`, propertyID, a.MeterType, a.PeriodFrom, a.PeriodTo, a.TotalKurus, a.ConsumptionSharePct, a.AreaSharePct,
-		a.BasisNote, userID).Scan(&id)
+		a.BasisNote, userID, outliers, a.OutliersConfirmedBy).Scan(&id)
 	var pg *pgconn.PgError
 	if errors.As(err, &pg) && pg.Code == "23505" {
 		return "", ErrAllocationPublished

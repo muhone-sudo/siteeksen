@@ -322,8 +322,12 @@ export function endpoints(http: Http) {
             create: (b: { unit_id: string; meter_type: string; serial_number: string; brand?: string }) => http.post<{ id: string }>("/meters", b),
             deactivate: (id: string) => http.del<Msg>(`/meters/${id}`),
             areaCheck: () => g<{ missing: { unit_id: string; unit: string }[]; total_units: number; ready: boolean; note: string }>("/consumption/area-check"),
-            allocate: (b: { meter_type: string; from: string; to: string; total_amount_try: number; publish?: boolean }) =>
-                http.post<{ allocation: T.Allocation; basis_note: string; note: string; warning?: string; allocation_id?: string }>("/consumption/allocate", b),
+            allocate: (b: { meter_type: string; from: string; to: string; total_amount_try: number; publish?: boolean; confirm_outliers?: boolean }) =>
+                http.post<{ allocation: T.Allocation; basis_note: string; note: string; warning?: string; allocation_id?: string; outliers?: T.Outlier[]; outlier_warning?: string }>("/consumption/allocate", b),
+            // Pusula itirazları (063, B8).
+            objections: (status?: string) => g<T.List<T.StatementObjection>>("/consumption/objections", status ? { status } : undefined),
+            respondObjection: (id: string, decision: "ACCEPTED" | "REJECTED", response: string) =>
+                http.post<{ objection: T.StatementObjection; message: string }>(`/consumption/objections/${id}/respond`, { decision, response }),
         },
         patrol: {
             summary: () => g<{ summary: T.PatrolSummary; warning?: string }>("/patrols-summary"),
@@ -487,6 +491,7 @@ export const READS: { path: string; keys: string[]; list?: boolean }[] = [
     { path: "/consumption/area-check", keys: ["missing", "total_units", "ready", "note"] },
     { path: "/meter-readings", keys: ["id", "reading_date", "current_value", "consumption"], list: true },
     { path: "/consumption/statements", keys: ["data"] },
+    { path: "/consumption/objections", keys: ["data"] },
     { path: "/patrols-summary", keys: ["summary"] },
     { path: "/patrols", keys: ["id", "status", "started_at"], list: true },
     { path: "/patrol-checkpoints", keys: ["id", "name"], list: true },

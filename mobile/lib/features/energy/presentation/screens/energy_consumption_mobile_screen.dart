@@ -27,6 +27,7 @@
 
 import 'dart:io';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
@@ -115,6 +116,9 @@ class _EnergyConsumptionMobileScreenState
   List<Map<String, dynamic>> _statements = const [];
   String? _statementsError;
 
+  /// Pusula itirazlarım (063, B8): pusula kimliğine göre en son itiraz.
+  Map<String, Map<String, dynamic>> _objections = const {};
+
   Future<void> _load() async {
     setState(() => _loading = true);
 
@@ -124,6 +128,16 @@ class _EnergyConsumptionMobileScreenState
           .map((e) => Map<String, dynamic>.from(e))
           .toList();
       _statementsError = null;
+      try {
+        final list = (await apiClient.getMyObjections()).whereType<Map>().map((e) => Map<String, dynamic>.from(e));
+        final byAlloc = <String, Map<String, dynamic>>{};
+        for (final o in list) {
+          byAlloc.putIfAbsent('${o['allocation_id']}', () => o);
+        }
+        _objections = byAlloc;
+      } catch (_) {
+        _objections = const {};
+      }
     } catch (e) {
       _statements = const [];
       _statementsError = toUserMessage(e);
@@ -338,11 +352,80 @@ class _EnergyConsumptionMobileScreenState
                 'alan payı ${formatTry(((line['area_kurus'] as num?) ?? 0) / 100)} = '
                 '${formatTry(((line['total_kurus'] as num?) ?? 0) / 100)}',
                 style: const TextStyle(fontWeight: FontWeight.w600)),
+            _buildObjection(s, line),
           ],
           const Divider(),
         ],
       ),
     );
+  }
+
+  /// İtiraz durumu ya da "İtiraz et" düğmesi (063, B8). Yayımlanmış pusula değişmez;
+  /// yönetimin kabul ettiği itirazda düzeltme açıklamadaki yolla yapılır.
+  Widget _buildObjection(Map<String, dynamic> s, Map line) {
+    final o = _objections['${s['id']}'];
+    if (o == null) {
+      return Align(
+        alignment: Alignment.centerLeft,
+        child: TextButton.icon(
+          onPressed: () => _object(s, line),
+          icon: const Icon(Icons.report_problem_outlined, size: 18),
+          label: const Text('İtiraz et'),
+        ),
+      );
+    }
+    final status = '${o['status']}';
+    final text = status == 'OPEN'
+        ? 'İtirazınız yönetimin yanıtını bekliyor.'
+        : 'İtirazınız ${status == 'ACCEPTED' ? 'kabul edildi' : 'reddedildi'}: ${o['response'] ?? ''}';
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Text(text,
+          style: TextStyle(
+              fontSize: 13,
+              color: status == 'REJECTED'
+                  ? AppleTheme.systemRed
+                  : status == 'ACCEPTED'
+                      ? AppleTheme.systemGreen
+                      : AppleTheme.systemOrange)),
+    );
+  }
+
+  Future<void> _object(Map<String, dynamic> s, Map line) async {
+    final reason = TextEditingController();
+    final send = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Pusulaya itiraz'),
+        content: TextField(
+          controller: reason,
+          maxLines: 4,
+          maxLength: 2000,
+          decoration: const InputDecoration(
+              labelText: 'Gerekçe',
+              hintText: 'Ör. sayaçta okunan değer, okuma tarihi, fotoğrafınızın tarihi'),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Vazgeç')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Gönder')),
+        ],
+      ),
+    );
+    final text = reason.text;
+    reason.dispose();
+    if (send != true || !mounted) return;
+    String message;
+    try {
+      final res = await apiClient.objectToStatement('${s['id']}', '${line['unit_id']}', text);
+      message = '${res['message'] ?? 'İtirazınız iletildi.'}';
+      await _load();
+    } on DioException catch (e) {
+      final data = e.response?.data;
+      message = data is Map && data['error'] is String ? data['error'] as String : toUserMessage(e);
+    } catch (e) {
+      message = toUserMessage(e);
+    }
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _openStatementPdf(String id) async {

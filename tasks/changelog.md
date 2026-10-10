@@ -12,6 +12,24 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-11 — FATURA SAPMA UYARISI VE TÜKETİM PUSULASINA İTİRAZ (migration 063, beşinci tur B8) (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **1305/1305** (adım 55: sapma birim testleri; medyanın ~8,6 katı tüketen bölüm önizlemede
+> uyarıldı, teyitsiz yayım 422 `OUTLIERS_UNCONFIRMED`, teyitle yayımlandı ve teyit eden + bölüm pusulayla saklandı; sakin kendi
+> pusulasına gerekçeli itiraz etti, yönetime bildirim gitti; ikinci açık itiraz 409, kısa gerekçe 422, komşunun bölümü 403;
+> yönetim açıklamayla kabul etti, sakine bildirildi; sakin yanıtlayamaz 403, kısa açıklama 422, ikinci yanıt 409; yanıtlanmış
+> itiraz uygulama rolüyle değiştirilemiyor ve silinemiyor; pusula aynen duruyor. Adım 36: RLS 118 tablo). `verify-mobile.sh`
+> 10/10; panel tsc/lint temiz.
+
+- Önceden yalnız okuma bazında (önceki dönemin 2,5 katı) teyit vardı; site medyanına göre kontrol yalnız enerji raporundaydı,
+  paylaştırmada kullanılmıyordu. Faturaya özel itiraz yolu yoktu.
+- `iot/service.FindOutliers`: kullanım alanı başına (alan yoksa doğrudan) tüketim, medyanın 3 katı; ölçülebilir bölüm 3'ten
+  azsa işaret yok. Yayımda teyit zorunlu; teyit eden ve bölümler `consumption_allocations`'a yazılır.
+- 063 `consumption_statement_objections` (RLS, silinemez, yanıttan sonra değişmez). Yayımlanmış pusula değişmez; kabulde
+  düzeltme yönetimin açıklamasındaki yolla yapılır.
+- Panel: paylaştırmada sapma uyarısı + teyit kutusu, "Pusula itirazları" sekmesi ve yanıt penceresi. Sakin uygulaması:
+  pusulada "İtiraz et" ve itiraz durumu.
+
 ### 2026-10-11 — TAŞINAN SAKİNDE İLİŞİK KESME TARİHİ (beşinci tur B7) (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **1300/1300** (adım 54: birim testi; pasifleştirmede tarih yazıldı ve yanıtta görünüyor; ileri

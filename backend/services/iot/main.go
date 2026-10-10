@@ -16,6 +16,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"log"
 	"net/http"
@@ -29,6 +30,7 @@ import (
 	"github.com/siteeksen/backend/pkg/listcap"
 	"github.com/siteeksen/backend/pkg/middleware"
 	"github.com/siteeksen/backend/pkg/money"
+	"github.com/siteeksen/backend/pkg/notify"
 	"github.com/siteeksen/backend/pkg/stub"
 	"github.com/siteeksen/backend/services/iot/repository"
 	iotsvc "github.com/siteeksen/backend/services/iot/service"
@@ -44,6 +46,8 @@ func main() {
 
 	repo := repository.New(pool)
 	params := legalparams.New(pool)
+	// Pusula itirazı bildirimleri (063, B8).
+	notifier := notify.FromEnvOrNil(pool)
 
 	r := middleware.NewRouter("iot")
 	// Biçimi bozuk kimlik 500 değil 404 döner (pkg/middleware/params.go).
@@ -244,6 +248,8 @@ func main() {
 				// Publish: paylaştırmayı yayımla — bölüm pusulaları değiştirilemez biçimde saklanır,
 				// sakinler kendi pusulasını görür (056).
 				Publish bool `json:"publish"`
+				// ConfirmOutliers: medyanın 3 katını aşan bölüm varken yayımı teyit eder (063, B8).
+				ConfirmOutliers bool `json:"confirm_outliers"`
 			}
 			if err := c.ShouldBindJSON(&in); err != nil {
 				c.JSON(http.StatusBadRequest, gin.H{
@@ -343,6 +349,8 @@ func main() {
 
 			alloc.UnitsWithoutReading = withoutReading
 			alloc.UnitsWithEstimated = estimated
+			// Fatura sapma uyarısı (B8): kullanım alanı başına tüketimi site medyanının 3 katını aşan bölümler.
+			outliers := iotsvc.FindOutliers(units)
 
 			// Pusula satırları (056): ilk/son endeks ve sayaç değişimi bilgisi.
 			byUnit := map[string]repository.UnitConsumption{}
@@ -372,7 +380,23 @@ func main() {
 				"note": "Paylaştırma HESAPLANDI ancak aidat tahakkuku olarak " +
 					"KAYDEDİLMEDİ; tahakkuk finance servisinden yapılır.",
 			}
+			if len(outliers) > 0 {
+				resp["outliers"] = outliers
+				resp["outlier_warning"] = "Bazı bölümlerin tüketimi site medyanının 3 katından fazla. Sayaç okumasını ve katsayıyı " +
+					"kontrol edin; doğruysa yayımlarken teyit edin (confirm_outliers). Teyit eden kişi pusulayla birlikte saklanır."
+			}
 			if in.Publish {
+				if len(outliers) > 0 && !in.ConfirmOutliers {
+					c.JSON(http.StatusUnprocessableEntity, gin.H{"code": "OUTLIERS_UNCONFIRMED", "outliers": outliers,
+						"error": "Tüketimi site medyanının 3 katını aşan bölüm var; okumayı kontrol edip teyit etmeden pusula yayımlanamaz"})
+					return
+				}
+				var outlierJSON []byte
+				confirmer := ""
+				if len(outliers) > 0 {
+					outlierJSON, _ = json.Marshal(outliers)
+					confirmer = c.GetString("user_id")
+				}
 				if withoutReading > 0 {
 					c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "Okuması eksik bölüm varken paylaştırma yayımlanamaz; önce okumaları tamamlayın",
 						"units_without_reading": withoutReading})
@@ -381,7 +405,8 @@ func main() {
 				csp, asp := alloc.ConsumptionSharePct, alloc.AreaSharePct
 				pid, perr := repo.PublishAllocation(c.Request.Context(), propertyID, c.GetString("user_id"), &repository.PublishedAllocation{
 					MeterType: meterType, PeriodFrom: *from, PeriodTo: *to, TotalKurus: alloc.TotalKurus,
-					ConsumptionSharePct: &csp, AreaSharePct: &asp, BasisNote: basisNote, Lines: lines})
+					ConsumptionSharePct: &csp, AreaSharePct: &asp, BasisNote: basisNote, Lines: lines,
+					OutlierUnits: outlierJSON, OutliersConfirmedBy: confirmer})
 				if errors.Is(perr, repository.ErrAllocationPublished) {
 					c.JSON(http.StatusConflict, gin.H{"error": "Bu dönem ve sayaç türü için paylaştırma zaten yayımlanmış; yayımlanan pusula değiştirilemez"})
 					return
@@ -443,6 +468,11 @@ func main() {
 		c.JSON(http.StatusOK, a)
 	})
 	api.GET("/consumption/statements/:id/pdf", statementPDF(repo, pool))
+	// Pusulaya itiraz (063, beşinci tur B8): sakin kendi bölümü için; yönetim yanıtlar.
+	api.POST("/consumption/statements/:id/objections", createObjection(repo, notifier, pool))
+	api.GET("/consumption/objections", listObjections(repo))
+	api.POST("/consumption/objections/:id/respond", middleware.RequireRole(middleware.RoleManager, middleware.RoleBoardMember),
+		respondObjection(repo, notifier, pool))
 
 	// --- Gerçek OLMAYAN uçlar: bilerek 501 ---
 	// Zaman serisi deposu ve cihaz entegrasyonu yoktur; "çalışıyor" göstermek

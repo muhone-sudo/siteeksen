@@ -663,7 +663,7 @@ mobil maddelerden sonra verify-mobile, panel maddelerinden sonra tsc+lint+build.
   SÖYLEMEZ (hesap/kilit varlığı sızardı), kademeleri sabit metinle anlatır.
 - [x] **B7 İlişik kesme tarihi** (verify 1300/1300) — pasifleştirmede `resident_units.end_date` (isteğe bağlı tarih, varsayılan
   bugün), yeniden etkinleştirmede temizlenir; panel listesinde görünür. Changelog satır 231 düzeltilir.
-- [ ] **B8 Fatura sapma uyarısı + itiraz** — paylaştırmada kullanım alanı başına tüketim site medyanının
+- [x] **B8 Fatura sapma uyarısı + itiraz** (verify 1305/1305, mobil 10/10) — paylaştırmada kullanım alanı başına tüketim site medyanının
   3 katını aşan bölümler listelenir, yayım yönetici teyidi ister. Sakin tüketim pusulasına itiraz eder,
   yönetim yanıtlar, iki tarafa bildirim (063). Panel sayaç sayfası + sakin enerji ekranı.
 - [ ] **B9 Havale bildirimine dekont dosyası** — sakin bekleyen ödemesine PDF/görsel ekler (`pkg/storage`),

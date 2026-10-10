@@ -445,3 +445,13 @@ export interface DaskRow { unit_id: Id; unit: string; policy_no?: string; insure
 export interface InsuranceClaim { id: Id; contract_id?: string; occurred_on: string; description: string; claimed_amount?: number; status: string; insurer_ref?: string; paid_amount?: number; paid_on?: string; note?: string; created_at: string }
 export interface Camera { id: Id; location: string; area_type: string; purpose: string; retention_days: number; notice_posted: boolean; masked: boolean; audio_recording: boolean; face_recognition: boolean; intensive_justification?: string; decision_ref?: string; access_note?: string; is_active: boolean; issues?: string[]; created_at: string }
 export interface BiometricSystem { id: Id; name: string; method: string; purpose: string; alternative_method: string; consent_based: boolean; retention_note?: string; is_active: boolean; created_at: string }
+
+/** Paylaştırmada site medyanının 3 katını aşan bölüm (063, B8). */
+export interface Outlier { unit_id: Id; unit_name: string; intensity: string; median: string; ratio: string; basis: "AREA" | "CONSUMPTION" }
+
+/** Tüketim pusulasına sakin itirazı (063, B8). */
+export interface StatementObjection {
+    id: Id; allocation_id: Id; meter_type: string; period_from: string; period_to: string; unit_id: Id; unit: string;
+    user_id: Id; user_name: string; total_kurus: number; reason: string; status: "OPEN" | "ACCEPTED" | "REJECTED";
+    response?: string; responded_at?: string; responded_by_name?: string; created_at: string;
+}

@@ -293,8 +293,10 @@ Kalem: `{id,category_id,category_name,name,description,sku,unit,current_stock(st
 | `GET /consumption/statements/:id` · `/:id/pdf` | herkes (sakin: kendi satırı) | — | `{…,lines:[{unit_id,unit_name,first_date,first_value,last_date,last_value,meter_replaced,consumption,usable_area,consumption_kurus,area_kurus,total_kurus}]}` · PDF |
 | `POST /meters` | M,B | `unit_id`*,`meter_type`*,`serial_number`*,`brand`,`model`,`installation_date` | 201 `{id}` |
 | `DELETE /meters/:id` | M,B | — | `{message,note}` |
-| `POST /consumption/allocate` | M,B | `meter_type`*,`from`*,`to`*,`total_amount_try`*>0,`publish` | `{allocation:{total_kurus,consumption_part_kurus,area_part_kurus,…,units:[{unit_id,unit_name,consumption,usable_area,consumption_share_kurus,area_share_kurus,total_kurus,total_try,first_date,first_value,last_date,last_value,meter_replaced}]},basis_note,note,allocation_id?,…}` · yayımda 422 okuma eksik, 409 dönem zaten yayımlanmış |
-| `/sensors/*`, `/iot/alerts/*` | — | — | **501** (sensör altyapısı yok) |
+| `POST /consumption/allocate` | M,B | `meter_type`*,`from`*,`to`*,`total_amount_try`*>0,`publish` | `{allocation:{total_kurus,consumption_part_kurus,area_part_kurus,…,units:[{unit_id,unit_name,consumption,usable_area,consumption_share_kurus,area_share_kurus,total_kurus,total_try,first_date,first_value,last_date,last_value,meter_replaced}]},basis_note,note,allocation_id?,…}` · yayımda 422 okuma eksik, 409 dönem zaten yayımlanmış | · B8: yanıtta `outliers[]` (kullanım alanı başına tüketimi site medyanının 3 katını aşan bölümler) ve `outlier_warning`; sapma varken `publish` için `confirm_outliers:true` zorunlu, yoksa 422 `OUTLIERS_UNCONFIRMED`
+| `POST /consumption/statements/:id/objections` | bölümün aktif sakini | `unit_id`*,`reason`*(10-2000) | 201 `{objection,message,notification}` — yönetime bildirim; açık itiraz varken 409, sakin değilse 403 (B8) |
+| `GET /consumption/objections` | herkes (yönetim tümü, sakin kendi bölümleri) | `status` (OPEN\|ACCEPTED\|REJECTED) | `{data:[{id,allocation_id,meter_type,period_from,period_to,unit_id,unit,user_name,total_kurus,reason,status,response,responded_at,responded_by_name,created_at}]}` (B8) |
+| `POST /consumption/objections/:id/respond` | M,B | `decision`*(ACCEPTED\|REJECTED),`response`*(≥5) | 200 `{objection,message,notification}` — itiraz edene bildirim; yanıtlanmış itiraz 409; pusula değişmez (B8) || `/sensors/*`, `/iot/alerts/*` | — | — | **501** (sensör altyapısı yok) |
 
 ## patrol (8099)
 

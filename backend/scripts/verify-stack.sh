@@ -5890,8 +5890,8 @@ ok "kullanılmayan 13 site tablosu RLS ile korunuyor"
 
 # 9) Toplam durum — RLS DIŞINDA KALAN her tablo bilinçli ve gerekçeli olmalı
 RLSCOUNT=$($PSQL -t -A -c "SELECT count(*) FROM rls_enabled_tables;")
-[ "$RLSCOUNT" = "117" ] && ok "RLS toplam 117 tabloda açık" \
-  || bad "beklenmedik RLS tablo sayısı: $RLSCOUNT (beklenen 117)"
+[ "$RLSCOUNT" = "118" ] && ok "RLS toplam 118 tabloda açık" \
+  || bad "beklenmedik RLS tablo sayısı: $RLSCOUNT (beklenen 118)"
 NOTRLS=$($PSQL -t -A -c "SELECT string_agg(t.table_name, ' ' ORDER BY t.table_name)
   FROM information_schema.tables t
   WHERE t.table_schema='public' AND t.table_type='BASE TABLE'
@@ -7971,6 +7971,70 @@ OWEND=$($PSQL -t -A -c "SELECT ru.end_date FROM resident_units ru JOIN users u O
   && ok "yeniden etkinleştirmede tarih temizlendi; tarihsiz pasifleştirmede bugün yazıldı; malikin bitirdiği kiracılıkta da tarih var (B5)" \
   || bad "ayrılış tarihi 2: $E6 $ED6 / $E7 $ED7 / malik=$OWEND"
 kill_tree "$IB7_PID"
+
+step "55) Fatura sapma uyarısı ve tüketim pusulasına itiraz (063, beşinci tur B8)"
+if go test ./services/iot/service/ -count=1 -run 'Outlier' >/tmp/verify-outlier.log 2>&1; then
+  ok "go test sapma (medyanın 3 katı; 3'ten az ölçülebilir bölümde işaret yok; alan yoksa doğrudan tüketim)"
+else
+  bad "sapma birim testleri"; tail -10 /tmp/verify-outlier.log
+fi
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_app DB_PASSWORD="$APPPW" DB_NAME=siteeksen \
+  DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=19581 \
+  go run ./services/iot >/tmp/verify-iot-b8.log 2>&1 &
+IOB8_PID=$!
+for _ in $(seq 1 60); do curl -fsS http://127.0.0.1:19581/health >/dev/null 2>&1 && break; sleep 1; done
+IO8="http://127.0.0.1:19581/api/v1"; QM="Authorization: Bearer $MGRL"; QT="Authorization: Bearer $TENL"
+U302='33333333-3333-3333-3333-333333333302'; U305='33333333-3333-3333-3333-333333333305'
+n8=0
+for spec in "$U302:10" "$U303:12" "$U304:100" "$U305:11"; do
+  n8=$((n8+1)); UID8=${spec%%:*}; VAL8=${spec##*:}
+  MID8=$(curl -s -X POST "$IO8/meters" -H "$QM" -H "$J" -d "{\"unit_id\":\"$UID8\",\"meter_type\":\"WATER_HOT\",\"serial_number\":\"WH-B8-$n8\"}" \
+    | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+  curl -s -o /dev/null -X POST "$IO8/meter-readings" -H "$QM" -H "$J" -d "{\"meter_id\":\"$MID8\",\"reading_date\":\"2026-12-01\",\"current_value\":\"0\"}"
+  curl -s -o /dev/null -X POST "$IO8/meter-readings" -H "$QM" -H "$J" -d "{\"meter_id\":\"$MID8\",\"reading_date\":\"2027-01-15\",\"current_value\":\"$VAL8\"}"
+done
+alloc8() { curl -s -w '|%{http_code}' -X POST "$IO8/consumption/allocate" -H "$QM" -H "$J" \
+  -d "{\"meter_type\":\"WATER_HOT\",\"from\":\"2027-01-01\",\"to\":\"2027-01-31\",\"total_amount_try\":1000$1}"; }
+Q1=$(alloc8 "")
+Q1OK=$(echo "${Q1%|*}" | python3 -c "
+import json,sys
+d=json.load(sys.stdin); o=d.get('outliers',[])
+print(len(o)==1 and o[0]['unit_id']=='$U304' and float(o[0]['ratio'])>3 and 'medyan' in d.get('outlier_warning',''))" 2>/dev/null)
+R8=$(echo "${Q1%|*}" | python3 -c "import json,sys; print(json.load(sys.stdin)['outliers'][0]['ratio'])" 2>/dev/null)
+Q2=$(alloc8 ',"publish":true')
+Q3=$(alloc8 ',"publish":true,"confirm_outliers":true')
+ALID8=$(echo "$Q3" | grep -o '"allocation_id":"[^"]*"' | cut -d'"' -f4)
+Q3DB=$($PSQL -t -A -c "SELECT (outliers_confirmed_by = '44444444-4444-4444-4444-444444444401')||'|'||(outlier_units->0->>'unit_id')||'|'||(outlier_units->0->>'ratio') FROM consumption_allocations WHERE id='$ALID8';")
+case "$Q2" in *OUTLIERS_UNCONFIRMED*"|422") Q2OK=1 ;; *) Q2OK=0 ;; esac
+[ "${Q1##*|}" = "200" ] && [ "$Q1OK" = "True" ] && [ "$Q2OK" = "1" ] && [ "${Q3##*|}" = "200" ] && [ -n "$R8" ] && [ "$Q3DB" = "true|$U304|$R8" ] \
+  && ok "medyanın $R8 katı tüketen bölüm önizlemede uyarıldı; teyitsiz yayım 422, teyitle yayımlandı ve teyit eden + bölüm pusulayla saklandı" \
+  || bad "sapma uyarısı: önizleme=$Q1OK ${Q1##*|} / teyitsiz=$Q2 / teyitli=${Q3##*|} / $Q3DB"
+obj8() { curl -s -w '|%{http_code}' -X POST "$IO8/consumption/statements/$ALID8/objections" -H "$1" -H "$J" -d "$2"; }
+O1=$(obj8 "$QT" "{\"unit_id\":\"$U304\",\"reason\":\"Sayaçtaki değer 012 iken 100 okunmuş; 15.01 tarihli fotoğrafım var\"}")
+OID8=$(echo "${O1%|*}" | python3 -c "import json,sys; print(json.load(sys.stdin)['objection']['id'])" 2>/dev/null)
+O2=$(obj8 "$QT" "{\"unit_id\":\"$U304\",\"reason\":\"İkinci itiraz denemesi yapılıyor\"}")
+O3=$(obj8 "$QT" "{\"unit_id\":\"$U304\",\"reason\":\"kısa\"}")
+O4=$(obj8 "$QT" "{\"unit_id\":\"$U303\",\"reason\":\"Komşunun pusulasına itiraz denemesi\"}")
+ON1=$($PSQL -t -A -c "SELECT count(*) FROM notifications WHERE topic='statement.objection' AND payload->>'objection_id'='$OID8' AND recipient_user_id='44444444-4444-4444-4444-444444444401';")
+OLT=$(curl -s "$IO8/consumption/objections" -H "$QT" | grep -c "$OID8")
+OLM=$(curl -s "$IO8/consumption/objections?status=OPEN" -H "$QM" | grep -c "$OID8")
+[ "${O1##*|}" = "201" ] && [ -n "$OID8" ] && [ "${O2##*|}" = "409" ] && [ "${O3##*|}" = "422" ] && [ "${O4##*|}" = "403" ] && [ "$ON1" = "1" ] && [ "$OLT" = "1" ] && [ "$OLM" = "1" ] \
+  && ok "sakin kendi pusulasına gerekçeli itiraz etti, yönetime bildirim gitti; ikinci açık itiraz 409, kısa gerekçe 422, komşunun bölümü 403; itiraz sakin ve yönetim listesinde" \
+  || bad "itiraz: $O1 / tekrar=$O2 / kısa=$O3 / komşu=$O4 / bildirim=$ON1 / liste=$OLT,$OLM"
+resp8() { curl -s -w '|%{http_code}' -X POST "$IO8/consumption/objections/$OID8/respond" -H "$1" -H "$J" -d "$2"; }
+R1=$(resp8 "$QT" '{"decision":"ACCEPTED","response":"Kendi itirazımı kabul ediyorum"}')
+R2=$(resp8 "$QM" '{"decision":"ACCEPTED","response":"ok"}')
+R3=$(resp8 "$QM" '{"decision":"ACCEPTED","response":"Sayaç yeniden okunacak; fark alacak dekontuyla düşülecek"}')
+R4=$(resp8 "$QM" '{"decision":"REJECTED","response":"Fikrimi değiştirdim, reddediyorum"}')
+ON2=$($PSQL -t -A -c "SELECT count(*) FROM notifications WHERE topic='statement.objection.answer' AND payload->>'objection_id'='$OID8' AND recipient_user_id='$TUID';")
+GD1=$(PGPASSWORD="$APPPW" psql -h 127.0.0.1 -p "$DBPORT" -U siteeksen_app -d siteeksen -t -A -c "BEGIN; SET LOCAL app.property_id='$DEMO_PROPERTY'; UPDATE consumption_statement_objections SET response='x yazıldı' WHERE id='$OID8'; COMMIT;" 2>&1)
+GD2=$(PGPASSWORD="$APPPW" psql -h 127.0.0.1 -p "$DBPORT" -U siteeksen_app -d siteeksen -t -A -c "BEGIN; SET LOCAL app.property_id='$DEMO_PROPERTY'; DELETE FROM consumption_statement_objections WHERE id='$OID8'; COMMIT;" 2>&1)
+PUL=$($PSQL -t -A -c "SELECT total_kurus FROM consumption_allocation_units WHERE allocation_id='$ALID8' AND unit_id='$U304';")
+[ "${R1##*|}" = "403" ] && [ "${R2##*|}" = "422" ] && [ "${R3##*|}" = "200" ] && grep -q '"status":"ACCEPTED"' <<<"$R3" && [ "${R4##*|}" = "409" ] \
+  && [ "$ON2" = "1" ] && grep -q 'değiştirilemez' <<<"$GD1" && grep -qi 'permission denied' <<<"$GD2" && [ -n "$PUL" ] \
+  && ok "yönetim itirazı açıklamayla kabul etti, sakine bildirildi; sakin yanıtlayamaz 403, kısa açıklama 422, ikinci yanıt 409; yanıtlanmış itiraz değiştirilemiyor ve silinemiyor; pusula aynen duruyor" \
+  || bad "itiraz yanıtı: sakin=$R1 / kısa=$R2 / $R3 / tekrar=$R4 / bildirim=$ON2 / $GD1 / $GD2 / pusula=$PUL"
+kill_tree "$IOB8_PID"
 
 step "SONUÇ"
 echo "  Geçen: $PASS   Başarısız: $FAIL"

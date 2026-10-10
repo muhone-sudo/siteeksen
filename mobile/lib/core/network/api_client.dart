@@ -358,6 +358,15 @@ class ApiClient {
     return _list(response.data);
   }
 
+  /// Kendi bölümlerimin pusula itirazları (063, B8).
+  Future<List<dynamic>> getMyObjections() async => _list((await _dio.get('/consumption/objections')).data);
+
+  /// Pusulaya itiraz (063, B8): bölümün aktif sakini, gerekçe en az 10 karakter.
+  Future<Map<String, dynamic>> objectToStatement(String allocationId, String unitId, String reason) async =>
+      Map<String, dynamic>.from((await _dio.post('/consumption/statements/$allocationId/objections',
+              data: {'unit_id': unitId, 'reason': reason.trim()}))
+          .data as Map);
+
   /// Tüketim pusulasının PDF'i (baytlar).
   Future<List<int>> consumptionStatementPdf(String id) async {
     final response = await _dio.get<List<int>>('/consumption/statements/$id/pdf',
