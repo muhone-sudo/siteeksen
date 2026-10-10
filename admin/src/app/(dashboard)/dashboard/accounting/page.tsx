@@ -7,6 +7,8 @@ import { ActionFeedback, Button, Card, Field, FormModal, Input, Notice, Page, Qu
 import { date, dateTime, tl } from "@/lib/format";
 import { PAYMENT_STATUS } from "@/lib/labels";
 import type { LedgerEntry, Payment } from "@/lib/types";
+import { CreditNotesCard } from "@/components/finance/credit-notes-card";
+import { BankStatementCard } from "@/components/finance/bank-statement-card";
 
 /**
  * Tahsilat ve borçlar.
@@ -16,7 +18,7 @@ import type { LedgerEntry, Payment } from "@/lib/types";
  * numarasıyla onaylar. Onay, borcu tahakkuktan düşer.
  */
 export default function AccountingPage() {
-    const [tab, setTab] = useState<"pending" | "all" | "debtors" | "ledger">("pending");
+    const [tab, setTab] = useState<"pending" | "all" | "debtors" | "ledger" | "credit" | "bank">("pending");
     const ledger = useApi(["ledger"], api.finance.ledger, tab === "ledger");
     const [reversing, setReversing] = useState<Payment | null>(null);
     const [reverseReason, setReverseReason] = useState("");
@@ -59,8 +61,10 @@ export default function AccountingPage() {
                 Havale/EFT ödemesi, yönetici banka hareketini gördükten sonra onayladığında borçtan düşer; gecikme tazminatı sakinin bildirdiği havale gününde durur. Tahsilat kayıtları silinemez, düzeltme ters kayıtla yapılır.
             </Notice>
             <ActionFeedback action={act} />
-            <Tabs tabs={[{ id: "pending", label: "Onay bekleyen" }, { id: "all", label: "Tüm ödemeler" }, { id: "debtors", label: "Borçlular" }, { id: "ledger", label: "Tahsilat defteri" }]} value={tab} onChange={setTab} />
-            <Card padded={false}>
+            <Tabs tabs={[{ id: "pending", label: "Onay bekleyen" }, { id: "all", label: "Tüm ödemeler" }, { id: "debtors", label: "Borçlular" }, { id: "ledger", label: "Tahsilat defteri" }, { id: "credit", label: "Alacak dekontları" }, { id: "bank", label: "Banka ekstresi" }]} value={tab} onChange={setTab} />
+            {tab === "credit" && <CreditNotesCard />}
+            {tab === "bank" && <BankStatementCard />}
+            {tab !== "credit" && tab !== "bank" && <Card padded={false}>
                 {tab === "pending" && (
                     <QueryView q={pending} empty="Onay bekleyen ödeme yok">
                         {(d) => <Table rows={d.data} rowKey={(p) => p.id} columns={paymentColumns(true)} />}
@@ -97,7 +101,7 @@ export default function AccountingPage() {
                             {(d) => (
                                 <Table rows={d.data} rowKey={(x) => String(x.seq)} columns={[
                                     { header: "Sıra", cell: (x: LedgerEntry) => x.seq },
-                                    { header: "İşlem", cell: (x: LedgerEntry) => (x.entry_type === "PAYMENT_CONFIRMED" ? "Tahsilat onayı" : x.entry_type === "PAYMENT_REVERSED" ? "Ters kayıt" : "Alacak dekontu") },
+                                    { header: "İşlem", cell: (x: LedgerEntry) => ({ PAYMENT_CONFIRMED: "Tahsilat onayı", PAYMENT_REVERSED: "Ters kayıt", CREDIT_NOTE: "Alacak dekontu", CREDIT_NOTE_REVERSED: "Dekont ters kaydı" } as Record<string, string>)[x.entry_type] ?? x.entry_type },
                                     { header: "Tutar", cell: (x: LedgerEntry) => <span className={x.amount_kurus < 0 ? "text-red-600" : ""}>{tl(x.amount_kurus / 100)}</span> },
                                     { header: "Açıklama", cell: (x: LedgerEntry) => String((x.detail.reason ?? x.detail.reference ?? "") || "—") },
                                     { header: "Kaydeden / zaman", cell: (x: LedgerEntry) => <>{x.created_by_name || "—"}<div className="text-xs text-gray-500">{dateTime(x.created_at)}</div></> },
@@ -122,7 +126,7 @@ export default function AccountingPage() {
                         )}
                     </QueryView>
                 )}
-            </Card>
+            </Card>}
 
             <FormModal
                 open={!!confirming}

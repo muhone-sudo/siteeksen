@@ -85,6 +85,14 @@ Giriş kilidi: art arda 5 hatalı girişte hesap 15 dk kilitlenir (kilitliyken d
 | `POST /finance/payments/:id/confirm` | M,B | `reference` | `{message}` · 404/409/403 |
 | `POST /finance/payments/:id/reject` | M,B | — | `{message}` · 404/409 |
 | `POST /finance/late-fees/accrue` | M,B | `as_of` | `{as_of,monthly_rate,legal_basis,processed_count,total_fee_kurus,total_fee_try,skipped_not_due}` |
+| `GET /finance/credit-notes` · `/:id/pdf` | herkes (sakin: kendi aktif daireleri) | — | `{data:[{id,document_no,assessment_id,unit_id,unit,period,amount_kurus,reason,created_by_name,created_at,reversed_at?,reversal_reason?}]}` · PDF |
+| `POST /finance/credit-notes` | M,B | `assessment_id`*,`amount_try`*,`reason`*(≥5) | 201 `{credit_note,note}` · 422 kalan borç/anaparayı aşıyor |
+| `POST /finance/credit-notes/:id/reverse` | M,B | `reason`*(≥5) | `{message,note}` · 409 zaten ters kaydı yapılmış |
+| `GET /finance/units/:id/open-assessments` | M,B,A | — | `{data:[{id,period,due_date,total_kurus,paid_kurus,credited_kurus,outstanding_kurus,max_credit_kurus}]}` |
+| `POST /finance/bank-statements` | M,B | multipart `file` (.csv/.xlsx, ≤5 MB) | 201 `{import:{id,file_name,row_count,counts,lines:[{id,line_no,date,amount_kurus,description,reference,status(SUGGESTED/AMBIGUOUS/UNMATCHED/OUTGOING/DUPLICATE/CONFIRMED/IGNORED),suggested_payment_id,note,payer,unit}]},note}` · 400 okunamayan dosya |
+| `GET /finance/bank-statements` · `/:id` | M,B,A | — | ekstre listesi / satırlarıyla ekstre |
+| `POST /finance/bank-statements/lines/:id/confirm` | M,B | `payment_id` (boşsa öneri) | `{payment_id,message}` (ödeme aynı işlemde onaylanır) · 409 sonuçlanmış · 422 tutar uyuşmuyor |
+| `POST /finance/bank-statements/lines/:id/ignore` | M,B | `note`* | `{message}` |
 
 ## community (8083)
 

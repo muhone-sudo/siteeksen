@@ -71,6 +71,9 @@ func main() {
 		api.POST("/clearance-certificates", createClearance(pool))
 		api.GET("/clearance-certificates/:id/pdf", clearancePDF(pool))
 		api.GET("/consumption/summary", handlers.GetConsumptionSummary(financeService))
+		// Alacak dekontları (059): sakin kendi dairesininkini, yönetim tümünü görür.
+		api.GET("/credit-notes", listCreditNotes(financeRepo))
+		api.GET("/credit-notes/:id/pdf", creditNotePDF(financeRepo, pool))
 
 		// --- Yönetim: site geneli okuma ---
 		mgmtRead := api.Group("")
@@ -87,6 +90,9 @@ func main() {
 			mgmtRead.GET("/reports/debtors", debtorsReport(financeService, pool))
 			mgmtRead.GET("/ledger", handlers.ListLedger(financeService))
 			mgmtRead.GET("/reports/collections", collectionReport(financeService, pool))
+			mgmtRead.GET("/units/:id/open-assessments", openAssessments(financeRepo))
+			mgmtRead.GET("/bank-statements", listBankImports(financeRepo))
+			mgmtRead.GET("/bank-statements/:id", getBankImport(financeRepo))
 		}
 
 		// --- Yönetim: yazma (denetçi hariç) ---
@@ -105,6 +111,12 @@ func main() {
 			// Açılış (devir) bakiyesi: önceki yönetimden devreden borçlar (FAZ 8.1, 034).
 			mgmtWrite.POST("/opening-balances", handlers.CreateOpeningBalances(financeService))
 			mgmtWrite.POST("/opening-balances/:id/cancel", handlers.CancelOpeningBalance(financeService))
+			// Alacak dekontu ve banka ekstresi mutabakatı (059, Apsiyon BUG-12).
+			mgmtWrite.POST("/credit-notes", createCreditNote(financeRepo))
+			mgmtWrite.POST("/credit-notes/:id/reverse", reverseCreditNote(financeRepo))
+			mgmtWrite.POST("/bank-statements", importBankStatement(financeRepo))
+			mgmtWrite.POST("/bank-statements/lines/:id/confirm", confirmBankLine(financeRepo))
+			mgmtWrite.POST("/bank-statements/lines/:id/ignore", ignoreBankLine(financeRepo))
 		}
 	}
 

@@ -328,6 +328,19 @@ class ApiClient {
     return response.data ?? const <int>[];
   }
 
+  /// Alacak dekontları (059): sunucu yalnızca sakinin aktif dairelerinin dekontlarını döner.
+  Future<List<dynamic>> getCreditNotes() async {
+    final response = await _dio.get('/finance/credit-notes');
+    return _list(response.data);
+  }
+
+  /// Alacak dekontu PDF'i (baytlar).
+  Future<List<int>> creditNotePdf(String id) async {
+    final response = await _dio.get<List<int>>('/finance/credit-notes/$id/pdf',
+        options: Options(responseType: ResponseType.bytes));
+    return response.data ?? const <int>[];
+  }
+
   /// Tahsilat defteri zinciri doğrulaması (054): tutar/kişi bilgisi dönmez.
   Future<Map<String, dynamic>> verifyLedger() async {
     final response = await _dio.get('/finance/ledger/verify');

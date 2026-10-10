@@ -104,6 +104,12 @@ class _DuesPaymentScreenState extends State<DuesPaymentScreen> {
             onPressed: _clearance,
           ),
           IconButton(
+            key: const Key('credit-notes'),
+            tooltip: 'Alacak dekontlarım',
+            icon: const Icon(Icons.receipt_long_outlined),
+            onPressed: _creditNotes,
+          ),
+          IconButton(
             key: const Key('verify-ledger'),
             tooltip: 'Tahsilat kayıtlarını doğrula',
             icon: const Icon(Icons.verified_user_outlined),
@@ -367,6 +373,63 @@ class _DuesPaymentScreenState extends State<DuesPaymentScreen> {
         actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Tamam'))],
       ),
     );
+  }
+
+  /// Alacak dekontları (Apsiyon BUG-12): yönetimin yaptığı indirim/düzeltme sisteme işlenmiş
+  /// numaralı belge olarak görünür; borç bu tutar kadar düşmüştür.
+  Future<void> _creditNotes() async {
+    List<dynamic> notes = const [];
+    String? error;
+    try {
+      notes = await apiClient.getCreditNotes();
+    } catch (e) {
+      error = toUserMessage(e);
+    }
+    if (!mounted) return;
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Alacak dekontlarım'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: error != null
+              ? Text(error)
+              : notes.isEmpty
+                  ? const Text('Dairenize kesilmiş alacak dekontu yok.')
+                  : ListView(
+                      shrinkWrap: true,
+                      children: [
+                        for (final n in notes.whereType<Map>())
+                          ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: Text('${n['document_no']} · ${formatTry(((n['amount_kurus'] as num?) ?? 0) / 100)}'),
+                            subtitle: Text('${n['unit']} · ${n['period']}\n${n['reason']}'
+                                '${n['reversed_at'] != null ? '\nTERS KAYDI YAPILDI: ${n['reversal_reason'] ?? ''}' : ''}'),
+                            isThreeLine: true,
+                            trailing: IconButton(
+                              tooltip: 'PDF',
+                              icon: const Icon(Icons.picture_as_pdf_outlined),
+                              onPressed: () => _openCreditNotePdf('${n['id']}', '${n['document_no']}'),
+                            ),
+                          ),
+                      ],
+                    ),
+        ),
+        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Kapat'))],
+      ),
+    );
+  }
+
+  Future<void> _openCreditNotePdf(String id, String no) async {
+    try {
+      final bytes = await apiClient.creditNotePdf(id);
+      final file = File('${(await getTemporaryDirectory()).path}/alacak-dekontu-$no.pdf');
+      await file.writeAsBytes(bytes, flush: true);
+      await OpenFilex.open(file.path, type: 'application/pdf');
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(toUserMessage(e))));
+    }
   }
 
   /// Tahsilat defteri zincirini doğrular: ödemelerin sonradan silinip değiştirilmediğini

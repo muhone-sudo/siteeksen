@@ -226,6 +226,21 @@ export interface Allocation {
         first_date?: string; first_value?: string; last_date?: string; last_value?: string; meter_replaced?: boolean;
     }[];
 }
+/** Alacak dekontu (059): borcu düşürür, tahsilat sayılmaz, silinemez. */
+export interface CreditNote {
+    id: Id; document_no: string; assessment_id: Id; unit_id: Id; unit: string; period: string; amount_kurus: number; reason: string;
+    created_by_name?: string; created_at: string; reversed_at?: string; reversal_reason?: string;
+}
+export interface OpenAssessment {
+    id: Id; period: string; due_date: string; total_kurus: number; paid_kurus: number; credited_kurus: number;
+    outstanding_kurus: number; max_credit_kurus: number;
+}
+export interface BankLine {
+    id: Id; line_no: number; date: string; amount_kurus: number; description: string; reference?: string;
+    status: "SUGGESTED" | "AMBIGUOUS" | "UNMATCHED" | "OUTGOING" | "DUPLICATE" | "CONFIRMED" | "IGNORED";
+    suggested_payment_id?: string; matched_payment_id?: string; note?: string; payer?: string; unit?: string; resolved_at?: string;
+}
+export interface BankImport { id: Id; file_name: string; row_count: number; created_at: string; counts: Record<string, number>; lines?: BankLine[] }
 /** Site yaşam döngüsü (058): pasif sitede tahakkuk/bildirim üretilmez. */
 export interface PropertyStatus {
     id: Id; name: string; is_active: boolean; deactivated_at?: string | null; deactivation_reason?: string | null;

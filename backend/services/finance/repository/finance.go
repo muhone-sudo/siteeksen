@@ -445,9 +445,17 @@ func (r *FinanceRepository) ConfirmPayment(
 		return err
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck // commit başarılıysa no-op
+	if err := confirmPaymentTx(ctx, tx, paymentID, propertyID, reference, userID); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
 
+// confirmPaymentTx, onayı verilen işlemin içinde yapar (banka ekstresi eşleştirmesi, 059,
+// satır durumunu aynı işlemde günceller — onay olup satır işaretlenmemiş kalamaz).
+func confirmPaymentTx(ctx context.Context, tx pgx.Tx, paymentID, propertyID, reference, userID string) error {
 	var status string
-	err = tx.QueryRow(ctx,
+	err := tx.QueryRow(ctx,
 		`SELECT status FROM payments WHERE id = $1 FOR UPDATE`, paymentID).Scan(&status)
 	if err == pgx.ErrNoRows {
 		return ErrPaymentNotFound
@@ -528,12 +536,8 @@ func (r *FinanceRepository) ConfirmPayment(
 		detail["value_date"] = valueDate.Format("2006-01-02")
 	}
 	d, _ := decimal.NewFromString(amount)
-	if err := appendLedger(ctx, tx, propertyID, "PAYMENT_CONFIRMED", &paymentID,
-		d.Mul(decimal.NewFromInt(100)).IntPart(), detail, userID); err != nil {
-		return err
-	}
-
-	return tx.Commit(ctx)
+	return appendLedger(ctx, tx, propertyID, "PAYMENT_CONFIRMED", &paymentID,
+		d.Mul(decimal.NewFromInt(100)).IntPart(), detail, userID)
 }
 
 // RejectPayment, bekleyen bir ödemeyi başarısız olarak işaretler.
@@ -619,7 +623,8 @@ func (r *FinanceRepository) ListOverdueForLateFee(ctx context.Context, propertyI
 	// gün sayısı min(asOf, valör) - vade olarak hesaplanır.
 	rows, err := r.scope(propertyID).Query(ctx, `
 		SELECT ma.id,
-		       GREATEST(round((ma.base_amount - LEAST(COALESCE(ma.paid_amount,0), ma.base_amount)) * 100), 0)::bigint,
+		       -- Alacak dekontu (059) önce anaparadan düşer.
+		       GREATEST(round((ma.base_amount - COALESCE(ma.credited_amount,0) - COALESCE(ma.paid_amount,0)) * 100), 0)::bigint,
 		       (LEAST($2::date, COALESCE(cap.value_date, $2::date)) - ma.due_date)::int,
 		       ma.base_amount, COALESCE(ma.paid_amount, 0),
 		       round(COALESCE(ma.late_fee, 0) * 100)::bigint, cap.value_date, ma.due_date
@@ -692,9 +697,9 @@ func (r *FinanceRepository) ApplyLateFee(
 	if _, err := tx.Exec(ctx, `
 		UPDATE monthly_assessments
 		SET late_fee = $2::numeric / 100,
-		    total_amount = base_amount + ($2::numeric / 100),
+		    total_amount = base_amount - COALESCE(credited_amount,0) + ($2::numeric / 100),
 		    status = CASE
-		        WHEN COALESCE(paid_amount,0) >= base_amount + ($2::numeric / 100) THEN 'PAID'
+		        WHEN COALESCE(paid_amount,0) >= base_amount - COALESCE(credited_amount,0) + ($2::numeric / 100) THEN 'PAID'
 		        WHEN COALESCE(paid_amount,0) > 0 THEN 'PARTIAL'
 		        ELSE 'OVERDUE'
 		    END,
@@ -1283,7 +1288,7 @@ func (r *FinanceRepository) CancelOpeningBalance(ctx context.Context, propertyID
 func (r *FinanceRepository) PayableForFreeze(ctx context.Context, propertyID, userID string, ids []string) ([]OverdueAssessment, error) {
 	rows, err := r.scope(propertyID).Query(ctx, `
 		SELECT ma.id,
-		       GREATEST(round((ma.base_amount - LEAST(COALESCE(ma.paid_amount,0), ma.base_amount)) * 100), 0)::bigint,
+		       GREATEST(round((ma.base_amount - COALESCE(ma.credited_amount,0) - COALESCE(ma.paid_amount,0)) * 100), 0)::bigint,
 		       ma.base_amount, COALESCE(ma.paid_amount, 0), round(COALESCE(ma.late_fee, 0) * 100)::bigint, ma.due_date
 		FROM monthly_assessments ma
 		JOIN resident_units ru ON ru.unit_id = ma.unit_id AND ru.is_active = true AND ru.resident_id = $2

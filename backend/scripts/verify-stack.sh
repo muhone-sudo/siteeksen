@@ -5887,8 +5887,8 @@ ok "kullanılmayan 13 site tablosu RLS ile korunuyor"
 
 # 9) Toplam durum — RLS DIŞINDA KALAN her tablo bilinçli ve gerekçeli olmalı
 RLSCOUNT=$($PSQL -t -A -c "SELECT count(*) FROM rls_enabled_tables;")
-[ "$RLSCOUNT" = "114" ] && ok "RLS toplam 114 tabloda açık" \
-  || bad "beklenmedik RLS tablo sayısı: $RLSCOUNT (beklenen 114)"
+[ "$RLSCOUNT" = "117" ] && ok "RLS toplam 117 tabloda açık" \
+  || bad "beklenmedik RLS tablo sayısı: $RLSCOUNT (beklenen 117)"
 NOTRLS=$($PSQL -t -A -c "SELECT string_agg(t.table_name, ' ' ORDER BY t.table_name)
   FROM information_schema.tables t
   WHERE t.table_schema='public' AND t.table_type='BASE TABLE'
@@ -7323,6 +7323,100 @@ grep -q 'permission denied' <<<"$DE" && [ "$R1" = "200" ] && grep -q 'COMMIT' <<
   || bad "yeniden etkinleştirme: sil=$DE / $R1 / $W5 / $EV"
 $PSQL -c "UPDATE properties SET is_active = true WHERE id='$DEMO_PROPERTY';" >/dev/null
 kill_tree "$ILF_PID"; kill_tree "$FLF_PID"
+
+step "47) Alacak dekontu ve banka ekstresi mutabakatı (059, Apsiyon BUG-12)"
+if go test ./services/finance/service/ -count=1 -run 'Parse' >/tmp/verify-bankparse.log 2>&1; then
+  ok "go test ekstre ayrıştırma (Türkçe/noktalı tutar, borç/alacak sütunları, başlık öncesi satırlar, xlsx, satır numaralı hata)"
+else
+  bad "ekstre ayrıştırma testleri"; tail -15 /tmp/verify-bankparse.log
+fi
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_app DB_PASSWORD="$APPPW" DB_NAME=siteeksen \
+  DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=18782 \
+  go run ./services/finance >/tmp/verify-finance-adj.log 2>&1 &
+FADJ_PID=$!
+for _ in $(seq 1 60); do curl -fsS http://127.0.0.1:18782/health >/dev/null 2>&1 && break; sleep 1; done
+AF="http://127.0.0.1:18782/api/v1/finance"; AM="Authorization: Bearer $MGRL"; AT="Authorization: Bearer $TENL"
+U304='33333333-3333-3333-3333-333333333304'
+A1=$($PSQL -t -A -c "INSERT INTO monthly_assessments (property_id, unit_id, period_year, period_month, base_amount, total_amount, due_date, status)
+  VALUES ('$DEMO_PROPERTY','$U304',2098,1,1000,1000,CURRENT_DATE - 10,'OVERDUE') RETURNING id;" | head -1)
+CN0=$(code -X POST "$AF/credit-notes" -H "$AT" -H "$J" -d "{\"assessment_id\":\"$A1\",\"amount_try\":100,\"reason\":\"Oturulmayan ay\"}")
+CN1=$(code -X POST "$AF/credit-notes" -H "$AM" -H "$J" -d "{\"assessment_id\":\"$A1\",\"amount_try\":1200,\"reason\":\"Oturulmayan ay\"}")
+CN2=$(code -X POST "$AF/credit-notes" -H "$AM" -H "$J" -d "{\"assessment_id\":\"$A1\",\"amount_try\":100,\"reason\":\"x\"}")
+CN3=$(curl -s -X POST "$AF/credit-notes" -H "$AM" -H "$J" -d "{\"assessment_id\":\"$A1\",\"amount_try\":250.50,\"reason\":\"Ocak ayında daire boştu; genel kurul kararı 2026/4\"}")
+CNID=$(echo "$CN3" | sed -n 's/.*"credit_note":{"id":"\([^"]*\)".*/\1/p')
+CNDB=$($PSQL -t -A -c "SELECT base_amount||'|'||credited_amount||'|'||total_amount FROM monthly_assessments WHERE id='$A1';")
+LG1=$($PSQL -t -A -c "SELECT entry_type||'|'||amount_kurus||'|'||(detail->>'document_no') FROM finance_ledger WHERE property_id='$DEMO_PROPERTY' ORDER BY seq DESC LIMIT 1;")
+COLL=$($PSQL -t -A -c "SELECT count(*) FROM payments WHERE payment_method='CREDIT_NOTE';")
+[ "$CN0" = "403" ] && [ "$CN1" = "422" ] && [ "$CN2" = "400" ] && echo "$CN3" | grep -q '"document_no":"AD-20[0-9][0-9]-0001"' \
+  && [ "$CNDB" = "1000.00|250.50|749.50" ] && echo "$LG1" | grep -q '^CREDIT_NOTE|25050|AD-' && [ "$COLL" = "0" ] \
+  && ok "alacak dekontu: sakin 403, kalan borcu aşan 422, gerekçesiz 400; AD-yıl-0001 numarasıyla kesildi, borç 1000→749,50 (anapara korunarak), zincire CREDIT_NOTE yazıldı, ödeme/tahsilat oluşturmadı" \
+  || bad "alacak dekontu: $CN0 / $CN1 / $CN2 / $CN3 / $CNDB / $LG1 / tahsilat=$COLL"
+OA=$(curl -s "$AF/units/$U304/open-assessments" -H "$AM" | python3 -c "
+import json,sys
+a=[x for x in json.load(sys.stdin)['data'] if x['id']=='$A1'][0]; print(a['credited_kurus'], a['outstanding_kurus'], a['max_credit_kurus'])" 2>/dev/null)
+OAT=$(code "$AF/units/$U304/open-assessments" -H "$AT")
+[ "$OA" = "25050 74950 74950" ] && [ "$OAT" = "403" ] && ok "dekont için açık tahakkuk listesi kalan borcu ve azami dekont tutarını veriyor; sakin 403" \
+  || bad "açık tahakkuklar: $OA / $OAT"
+TL=$(curl -s "$AF/credit-notes" -H "$AT" | grep -c "$CNID")
+TP=$(curl -s -o /tmp/r-cn.pdf -w '%{http_code}' "$AF/credit-notes/$CNID/pdf" -H "$AT")
+TPT=$(python3 /tmp/pdftext.py /tmp/r-cn.pdf 2>/dev/null | tr -d '\n')
+grep -q 'Alacak dekontu AD-' <<<"$TPT" && grep -q 'tahsilat değildir' <<<"$TPT" && [ "$TL" = "1" ] && [ "$TP" = "200" ] \
+  && ok "sakin kendi dairesinin dekontunu görüyor ve sisteme işlenmiş PDF belgesini indiriyor (WhatsApp'tan Excel makbuz değil)" \
+  || bad "sakin dekont görünümü: liste=$TL pdf=$TP — $(head -c 200 <<<"$TPT")"
+curl -s -o /dev/null -X POST "$AF/late-fees/accrue" -H "$AM" -H "$J" -d '{}'
+LFP=$($PSQL -t -A -c "SELECT principal_kurus FROM late_fee_accruals WHERE assessment_id='$A1' ORDER BY accrued_on DESC LIMIT 1;")
+LFT=$($PSQL -t -A -c "SELECT (total_amount = base_amount - credited_amount + late_fee) FROM monthly_assessments WHERE id='$A1';")
+[ "$LFP" = "74950" ] && [ "$LFT" = "t" ] && ok "gecikme tazminatı dekonttan sonra kalan anapara (749,50) üzerinden işledi; toplam = anapara − dekont + tazminat" \
+  || bad "dekont sonrası tazminat: anapara=$LFP toplam=$LFT"
+G1=$(appsql46 "DELETE FROM credit_notes WHERE id='$CNID'")
+G2=$(appsql46 "UPDATE credit_notes SET amount = 1 WHERE id='$CNID'")
+grep -q 'permission denied' <<<"$G1" && grep -q 'değiştirilemez' <<<"$G2" && ok "dekont uygulama rolüyle silinemiyor ve tutarı değiştirilemiyor" \
+  || bad "dekont koruması: $G1 / $G2"
+RV1=$(code -X POST "$AF/credit-notes/$CNID/reverse" -H "$AM" -H "$J" -d '{"reason":"x"}')
+RV2=$(code -X POST "$AF/credit-notes/$CNID/reverse" -H "$AM" -H "$J" -d '{"reason":"Karar iptal edildi, borç geri yüklendi"}')
+RV3=$(code -X POST "$AF/credit-notes/$CNID/reverse" -H "$AM" -H "$J" -d '{"reason":"Karar iptal edildi, borç geri yüklendi"}')
+RVDB=$($PSQL -t -A -c "SELECT credited_amount||'|'||(total_amount = base_amount + late_fee) FROM monthly_assessments WHERE id='$A1';")
+LG2=$($PSQL -t -A -c "SELECT entry_type||'|'||amount_kurus FROM finance_ledger WHERE property_id='$DEMO_PROPERTY' ORDER BY seq DESC LIMIT 1;")
+LV=$(curl -s "$AF/ledger/verify" -H "$AT" | grep -c '"valid":true')
+[ "$RV1" = "400" ] && [ "$RV2" = "200" ] && [ "$RV3" = "409" ] && [ "$RVDB" = "0.00|true" ] && [ "$LG2" = "CREDIT_NOTE_REVERSED|-25050" ] && [ "$LV" = "1" ] \
+  && ok "dekontun ters kaydı: gerekçesiz 400, borç geri yüklendi, ikinci ters kayıt 409; zincire CREDIT_NOTE_REVERSED yazıldı ve zincir geçerli" \
+  || bad "dekont ters kaydı: $RV1 / $RV2 / $RV3 / $RVDB / $LG2 / zincir=$LV"
+# Banka ekstresi: sakinin havale bildirimi ekstredeki harekete açıklamasından eşleşir
+A2=$($PSQL -t -A -c "INSERT INTO monthly_assessments (property_id, unit_id, period_year, period_month, base_amount, total_amount, due_date, status)
+  VALUES ('$DEMO_PROPERTY','$U304',2098,2,640,640,CURRENT_DATE + 20,'PENDING') RETURNING id;" | head -1)
+VD=$(date +%Y-%m-%d)
+PAY=$(curl -s -X POST "$AF/payments" -H "$AT" -H "$J" -d "{\"assessment_ids\":[\"$A2\"],\"payment_method\":\"BANK_TRANSFER\",\"value_date\":\"$VD\",\"reference\":\"HVL778899\"}")
+PID=$(echo "$PAY" | grep -o '"payment_id":"[^"]*"\|"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+TRD=$(date +%d.%m.%Y)
+printf 'Hesap No: TR00 0001\n\nİşlem Tarihi;Açıklama;Tutar;Bakiye;Dekont No\n%s;GELEN EFT MEHMET DEMIR HVL778899 AIDAT;640,00;12.640,00;D-1\n%s;BANKA MASRAFI;-85,00;12.555,00;D-2\n%s;GELEN HAVALE BILINMEYEN;333,33;12.888,33;D-3\n' "$TRD" "$TRD" "$TRD" >/tmp/ekstre.csv
+BI=$(curl -s -X POST "$AF/bank-statements" -H "$AM" -F "file=@/tmp/ekstre.csv")
+BIID=$(echo "$BI" | python3 -c "import json,sys; print(json.load(sys.stdin)['import']['id'])" 2>/dev/null)
+BCHK=$(echo "$BI" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)['import']; L={l['line_no']:l for l in d['lines']}
+print(d['counts'].get('SUGGESTED'), d['counts'].get('OUTGOING'), d['counts'].get('UNMATCHED'), L[4]['suggested_payment_id']=='$PID', L[4]['line_no'])" 2>/dev/null)
+BI2=$(curl -s -X POST "$AF/bank-statements" -H "$AM" -F "file=@/tmp/ekstre.csv" | python3 -c "import json,sys; print(json.load(sys.stdin)['import']['counts'])" 2>/dev/null)
+BT=$(code -X POST "$AF/bank-statements" -H "$AT" -F "file=@/tmp/ekstre.csv")
+printf 'a;b\n1;2\n' >/tmp/ekstre-bozuk.csv
+BB=$(code -X POST "$AF/bank-statements" -H "$AM" -F "file=@/tmp/ekstre-bozuk.csv")
+[ -n "$PID" ] && [ "$BCHK" = "1 1 1 True 4" ] && [ "$BI2" = "{'DUPLICATE': 3}" ] && [ "$BT" = "403" ] && [ "$BB" = "400" ] \
+  && ok "ekstre yüklendi: havale açıklamasındaki referansla bekleyen ödeme önerildi, giden hareket ve eşleşmeyen ayrıldı (satır no dosyadaki satır); aynı dosya tekrar yüklenince 3 satır mükerrer; sakin 403, başlıksız dosya 400" \
+  || bad "ekstre yükleme: ödeme=$PID / $BCHK / tekrar=$BI2 / sakin=$BT / bozuk=$BB — $(head -c 300 <<<"$BI")"
+LINE1=$($PSQL -t -A -c "SELECT id FROM bank_statement_lines WHERE import_id='$BIID' AND line_no=4;")
+LINE3=$($PSQL -t -A -c "SELECT id FROM bank_statement_lines WHERE import_id='$BIID' AND line_no=6;")
+BC1=$(curl -s -w '|%{http_code}' -X POST "$AF/bank-statements/lines/$LINE1/confirm" -H "$AM" -H "$J" -d '{}')
+BCDB=$($PSQL -t -A -c "SELECT p.status||'|'||ma.paid_amount||'|'||l.status FROM payments p, monthly_assessments ma, bank_statement_lines l
+  WHERE p.id='$PID' AND ma.id='$A2' AND l.id='$LINE1';")
+BLG=$($PSQL -t -A -c "SELECT entry_type||'|'||(detail->>'reference') FROM finance_ledger WHERE payment_id='$PID' ORDER BY seq DESC LIMIT 1;")
+BC2=$(code -X POST "$AF/bank-statements/lines/$LINE1/confirm" -H "$AM" -H "$J" -d '{}')
+BC3=$(code -X POST "$AF/bank-statements/lines/$LINE3/confirm" -H "$AM" -H "$J" -d "{\"payment_id\":\"$PID\"}")
+BC4=$(code -X POST "$AF/bank-statements/lines/$LINE3/ignore" -H "$AM" -H "$J" -d '{"note":"Kira geliri; ayrıca gelir olarak kaydedildi"}')
+case "$BC1" in *"|200") BC1OK=1 ;; *) BC1OK=0 ;; esac
+[ "$BC1OK" = "1" ] && [ "$BCDB" = "COMPLETED|640.00|CONFIRMED" ] && echo "$BLG" | grep -q '^PAYMENT_CONFIRMED|Banka ekstresi' \
+  && [ "$BC2" = "409" ] && [ "$BC3" = "422" ] && [ "$BC4" = "200" ] \
+  && ok "eşleşme onayı ödemeyi aynı işlemde onayladı (borç düştü, zincire 'Banka ekstresi' referansıyla yazıldı); ikinci onay 409, tutarı tutmayan eşleşme 422, gerekçeli yok sayma 200" \
+  || bad "ekstre onayı: $BC1 / $BCDB / $BLG / $BC2 / $BC3 / $BC4"
+kill_tree "$FADJ_PID"
 
 step "SONUÇ"
 echo "  Geçen: $PASS   Başarısız: $FAIL"

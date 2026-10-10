@@ -89,6 +89,18 @@ export function endpoints(http: Http) {
             ledger: () => g<{ data: T.LedgerEntry[] }>("/finance/ledger"),
             verifyLedger: () => g<T.LedgerVerification>("/finance/ledger/verify"),
             accrueLateFees: (as_of?: string) => http.post<T.LateFeeRun>("/finance/late-fees/accrue", as_of ? { as_of } : {}),
+            // Alacak dekontu ve banka ekstresi (059, Apsiyon BUG-12)
+            creditNotes: () => g<T.List<T.CreditNote>>("/finance/credit-notes"),
+            openAssessments: (unitId: string) => g<T.List<T.OpenAssessment>>(`/finance/units/${unitId}/open-assessments`),
+            createCreditNote: (b: { assessment_id: string; amount_try: number; reason: string }) =>
+                http.post<{ credit_note: T.CreditNote; note: string }>("/finance/credit-notes", b),
+            reverseCreditNote: (id: string, reason: string) => http.post<Msg>(`/finance/credit-notes/${id}/reverse`, { reason }),
+            creditNotePdf: (id: string, no: string) => http.download(`/finance/credit-notes/${id}/pdf`, `alacak-dekontu-${no}.pdf`),
+            bankImports: () => g<T.List<T.BankImport>>("/finance/bank-statements"),
+            bankImport: (id: string) => g<T.BankImport>(`/finance/bank-statements/${id}`),
+            uploadBankStatement: (form: FormData) => http.upload<{ import: T.BankImport; note: string }>("/finance/bank-statements", form),
+            confirmBankLine: (id: string, payment_id?: string) => http.post<Msg>(`/finance/bank-statements/lines/${id}/confirm`, payment_id ? { payment_id } : {}),
+            ignoreBankLine: (id: string, note: string) => http.post<Msg>(`/finance/bank-statements/lines/${id}/ignore`, { note }),
         },
         requests: {
             list: (status?: string) => g<T.List<T.ServiceRequest>>("/requests", { status }),

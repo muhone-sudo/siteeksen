@@ -12,6 +12,28 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-10 — ALACAK DEKONTU VE BANKA EKSTRESİ MUTABAKATI (migration 059, Apsiyon BUG-12) (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **1258/1258** (adım 47: ekstre ayrıştırma birim testleri; dekont: sakin 403, kalan borcu aşan
+> 422, gerekçesiz 400, AD-yıl-0001 numarasıyla kesildi, borç 1000→749,50 anapara korunarak düştü, zincire CREDIT_NOTE yazıldı,
+> ödeme oluşmadı; sakin kendi dekontunu ve PDF'ini görüyor; gecikme tazminatı kalan anapara 749,50 üzerinden işledi; dekont
+> silinemiyor/değiştirilemiyor; ters kayıt borcu geri yükledi, ikinci ters kayıt 409, zincir geçerli; ekstre: havale
+> açıklamasındaki referansla bekleyen ödeme önerildi, giden ve eşleşmeyen ayrıldı, aynı dosya ikinci kez 3 satır mükerrer,
+> sakin 403, başlıksız dosya 400; onay ödemeyi aynı işlemde onayladı ve zincire yazdı, ikinci onay 409, tutarı tutmayan
+> eşleşme 422, gerekçeli yok sayma 200; RLS 117); `verify-mobile.sh` 10/10; panel tsc/lint temiz.
+
+- **Alacak dekontu** (`POST /finance/credit-notes`, ters kayıt `/:id/reverse`, PDF): oturulmayan ay, indirim, hatalı
+  tahakkuk düzeltmesi numaralı ve gerekçeli belge olur; borç `credited_amount` ile düşer — ödeme gibi görünmez, tahsilat
+  raporuna girmez. Önce anaparadan düşer; sonraki gecikme tazminatı kalan anapara üzerinden işler. Silinemez, tek geçiş
+  gerekçeli ters kayıttır; her ikisi tahsilat defteri zincirine yazılır.
+- **Banka ekstresi** (`POST /finance/bank-statements`, CSV ya da .xlsx): sütunlar Türkçe/İngilizce başlıkla tanınır, tutar
+  "1.234,56"/"1234.56" biçiminde, ayrı borç/alacak sütunları desteklenir; okunamayan satır satır numarasıyla reddedilir.
+  Gelen hareket, sakinin onay bekleyen havale bildirimiyle (açıklama/dekont no → beyan günü ±3 → yalnızca tutar) eşleştirilir;
+  **hiçbir ödeme kendiliğinden onaylanmaz**. Onay ödemeyle aynı veritabanı işleminde yapılır. Aynı hareket tekrar yüklenirse
+  mükerrer sayılır; bir ödeme tek harekete bağlanır.
+- `confirmPaymentTx`: ödeme onayı işlem içinde yeniden kullanılabilir hâle getirildi (davranış değişmedi; mevcut testler geçiyor).
+- Panel: Tahsilat → Alacak dekontları / Banka ekstresi. Sakin uygulaması: Aidat ekranında "Alacak dekontlarım" ve PDF.
+
 ### 2026-10-10 — SİTE PASİFLEŞTİRME: PASİF SİTEDE HAYALİ BORÇ VE BİLDİRİM ÜRETİLEMEZ (migration 058, Apsiyon BUG-11) (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **1248/1248** (adım 46: sakin 403, yanlış site adı 422, kısa gerekçe 400; yönetici pasife
