@@ -54,7 +54,7 @@
 | `GET /users/me/invitations` | herkes | — | `{data:[{id,property_id,property_name,unit,role,created_at,expires_at}]}` yanıt bekleyen, süresi dolmamış |
 | `POST /users/me/invitations/:id/accept` · `/decline` | davet edilen | — | 200 `{property_id,accepted,message}`; kabulde daire bağı kurulur · başkasının daveti 404 · yanıtlanmış/iptal/süresi dolmuş 409 |
 | `POST /residents/:id/activation-code` | M,B | — | 201 `{activation_code,purpose:ACTIVATION\|RESET,expires_at,note}` · eski açık kod geçersizleşir · 404 |
-| `GET/PATCH /residents/:id` | GET M,B,A,S · PATCH M,B | PATCH: `role`,`is_active` | sakin |
+| `GET/PATCH /residents/:id` | GET M,B,A,S · PATCH M,B | PATCH: `role`,`is_active`,`end_date` (YYYY-AA-GG; yalnız `is_active:false` ile, boşsa bugün; ileri tarih / başlangıçtan önce 422 — B7) | sakin (`end_date` ayrılış tarihi; yeniden etkinleştirmede temizlenir) |
 
 Şifre politikası: en az 8 karakter, en az bir harf ve bir rakam, telefon numarasını içeremez.
 Giriş kilidi: art arda 5 hatalı girişte hesap 15 dk kilitlenir (kilitliyken doğru şifre de 401).
