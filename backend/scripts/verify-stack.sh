@@ -7863,6 +7863,51 @@ EME=$(curl -s "$I4/users/me" -H "$LXA2" | grep -c '"email":"lux.sakin@ornek.lu"'
   || bad "e-posta: $E1 / $E2 / $E3 / $E4 / $EDB / profil=$EME"
 kill_tree "$IB4_PID"; kill_tree "$IB4N_PID"; kill "$FNG4_PID" 2>/dev/null
 
+step "53) Malikin kendi bölümündeki kiracı/vekil yönetimi (beşinci tur B5)"
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_identity DB_PASSWORD="$IDPW" DB_NAME=siteeksen \
+  DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=19381 \
+  go run ./services/identity >/tmp/verify-identity-b5.log 2>&1 &
+IB5_PID=$!
+for _ in $(seq 1 60); do curl -fsS http://127.0.0.1:19381/health >/dev/null 2>&1 && break; sleep 1; done
+I5="http://127.0.0.1:19381/api/v1"
+OWT=$(curl -s -X POST "$I5/auth/login" -H "$J" -d '{"phone":"5551234567","password":"Demo123!"}' | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+TNT=$(curl -s -X POST "$I5/auth/login" -H "$J" -d '{"phone":"5559876543","password":"Demo123!"}' | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+OWA="Authorization: Bearer $OWT"; TNA="Authorization: Bearer $TNT"
+U303='33333333-3333-3333-3333-333333333303'
+O1=$(code "$I5/users/me/units/$U304/residents" -H "$TNA")
+O2=$(curl -s -w '|%{http_code}' "$I5/users/me/units/$U303/residents" -H "$OWA")
+O2OK=$(echo "${O2%|*}" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)['data']; me=[x for x in d if x['is_self']]
+print(len(me)==1 and me[0]['role']=='OWNER' and me[0]['phone_masked'].endswith('4567') and '*' in me[0]['phone_masked'] and 'email' not in me[0])" 2>/dev/null)
+[ "$O1" = "403" ] && [ "${O2##*|}" = "200" ] && [ "$O2OK" = "True" ] \
+  && ok "malik kendi bölümünün sakinlerini görüyor (telefon maskeli, e-posta yok); kiracı malik olmadığı bölümde 403" \
+  || bad "bölüm sakinleri: kiracı=$O1 / malik=$O2 / $O2OK"
+O3=$(curl -s -w '|%{http_code}' -X POST "$I5/users/me/units/$U303/residents" -H "$OWA" -H "$J" \
+  -d '{"first_name":"Yeni","last_name":"Kiraci","phone":"0555 999 00 53","role":"tenant"}')
+ORU=$(echo "${O3%|*}" | python3 -c "import json,sys; print(json.load(sys.stdin)['id'])" 2>/dev/null)
+OACT=$(echo "$O3" | grep -c '"activation_code":"')
+ODB=$($PSQL -t -A -c "SELECT ru.role||'|'||ru.is_active FROM resident_units ru JOIN users u ON u.id=ru.resident_id WHERE u.phone='+905559990053' AND ru.unit_id='$U303';")
+O4=$(code -X POST "$I5/users/me/units/$U303/residents" -H "$OWA" -H "$J" -d '{"first_name":"A","last_name":"B","phone":"0555 999 00 54","role":"OWNER"}')
+O5=$(code -X POST "$I5/users/me/units/$U304/residents" -H "$OWA" -H "$J" -d '{"first_name":"A","last_name":"B","phone":"0555 999 00 54","role":"TENANT"}')
+O6=$(code -X POST "$I5/users/me/units/$U303/residents" -H "$OWA" -H "$J" -d '{"first_name":"A","last_name":"B","phone":"abc","role":"TENANT"}')
+[ "${O3##*|}" = "201" ] && [ -n "$ORU" ] && [ "$OACT" = "1" ] && [ "$ODB" = "TENANT|true" ] && [ "$O4" = "422" ] && [ "$O5" = "403" ] && [ "$O6" = "422" ] \
+  && ok "malik kendi bölümüne kiracı ekledi (yeni hesaba etkinleştirme kodu üretildi); malik rolü 422, başka bölüm 403, geçersiz numara 422" \
+  || bad "malik kiracı ekleme: $O3 / kod=$OACT / $ODB / $O4 / $O5 / $O6"
+OWNRU=$($PSQL -t -A -c "SELECT id FROM resident_units WHERE unit_id='$U303' AND resident_id='44444444-4444-4444-4444-444444444401' AND role='OWNER';")
+TENRU=$($PSQL -t -A -c "SELECT id FROM resident_units WHERE unit_id='$U304' AND resident_id='$TUID' AND role='TENANT';")
+O7=$(code -X POST "$I5/users/me/units/$U303/residents/$OWNRU/end" -H "$OWA")
+O8=$(code -X POST "$I5/users/me/units/$U303/residents/$TENRU/end" -H "$OWA")
+O9=$(code -X POST "$I5/users/me/units/$U303/residents/not-a-uuid/end" -H "$OWA")
+O10=$(curl -s -w '|%{http_code}' -X POST "$I5/users/me/units/$U303/residents/$ORU/end" -H "$OWA")
+OEND=$($PSQL -t -A -c "SELECT is_active FROM resident_units WHERE id='$ORU';")
+OAUD=$($PSQL -t -A -c "SELECT count(*) FROM audit_logs WHERE user_id='44444444-4444-4444-4444-444444444401' AND entity_id='$U303' AND action IN ('CREATE','UPDATE') AND status_code < 300;")
+ODEN=$($PSQL -t -A -c "SELECT count(*) FROM audit_logs WHERE user_id='$TUID' AND entity_id='$U304' AND action='DENIED';")
+[ "$O7" = "422" ] && [ "$O8" = "404" ] && [ "$O9" = "404" ] && [ "${O10##*|}" = "200" ] && [ "$OEND" = "f" ] && [ "${OAUD:-0}" -ge 2 ] && [ "${ODEN:-0}" -ge 1 ] \
+  && ok "malik kiracılığı bitirdi (pasif); kendini/maliki 422, başka bölümün sakini 404, bozuk kimlik 404; işlemler ve kiracının reddedilen denemesi denetim izinde" \
+  || bad "malik sakinlik bitirme: kendi=$O7 / başka bölüm=$O8 / bozuk=$O9 / $O10 / aktif=$OEND / iz=$OAUD / ret izi=$ODEN"
+kill_tree "$IB5_PID"
+
 step "SONUÇ"
 echo "  Geçen: $PASS   Başarısız: $FAIL"
 [ "$FAIL" -eq 0 ] && { echo "  TÜM KONTROLLER GEÇTİ"; exit 0; } || { echo "  BAŞARISIZ KONTROL VAR"; exit 1; }

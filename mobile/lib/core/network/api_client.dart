@@ -326,6 +326,18 @@ class ApiClient {
     return _list(response.data);
   }
 
+  /// Malikin kendi bölümündeki sakinler (B5).
+  Future<List<dynamic>> getUnitResidents(String unitId) async =>
+      _list((await _dio.get('/users/me/units/$unitId/residents')).data);
+
+  /// Malik kiracı/vekil ekler (B5): {first_name,last_name,phone,email?,role: TENANT|PROXY}.
+  Future<Map<String, dynamic>> addUnitResident(String unitId, Map<String, dynamic> body) async =>
+      Map<String, dynamic>.from((await _dio.post('/users/me/units/$unitId/residents', data: body)).data as Map);
+
+  /// Malik kiracılığı/vekilliği bitirir (B5).
+  Future<Map<String, dynamic>> endUnitResident(String unitId, String residentUnitId) async =>
+      Map<String, dynamic>.from((await _dio.post('/users/me/units/$unitId/residents/$residentUnitId/end')).data as Map);
+
   // Finance
   /// Borcu yoktur belgesi üretir (055); vadesi geçmiş borç varsa sunucu 422 ve kalemleri döner.
   Future<Map<String, dynamic>> createClearance(String unitId) async {

@@ -118,7 +118,11 @@ func (s *ResidentService) Create(ctx context.Context, propertyID, actorID string
 	if !residentRoles[input.Role] {
 		return nil, ErrInvalidResidentRole
 	}
+	return s.create(ctx, propertyID, actorID, input)
+}
 
+// create, yetkisi denetlenmiş sakin kaydını açar (yönetim ya da bölüm maliki — B5).
+func (s *ResidentService) create(ctx context.Context, propertyID, actorID string, input models.CreateResidentInput) (*models.CreateResidentResult, error) {
 	unusable, err := GenerateCode()
 	if err != nil {
 		return nil, err

@@ -12,6 +12,21 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-11 — MALİKİN KENDİ BÖLÜMÜNDE KİRACI/VEKİL YÖNETİMİ (beşinci tur B5) (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **1294/1294** (adım 53: malik kendi bölümünün sakinlerini görüyor — telefon maskeli, e-posta
+> yok; kiracı malik olmadığı bölümde 403; malik kiracı ekledi ve yeni hesaba etkinleştirme kodu üretildi; malik rolü 422,
+> başka bölüm 403, geçersiz numara 422; kiracılığı bitirdi (pasif); kendini/maliki 422, başka bölümün sakini 404, bozuk kimlik
+> 404; işlemler ve reddedilen deneme denetim izinde). `verify-mobile.sh` 10/10.
+
+- Önceden kiracıyı yalnızca yönetim (MANAGER/BOARD_MEMBER) ekleyip çıkarabiliyordu.
+- `GET|POST /users/me/units/:id/residents`, `POST /users/me/units/:id/residents/:residentId/end`: yalnız bölümün AKTİF
+  maliki; yalnız TENANT/PROXY. Yeni hesapta etkinleştirme kodu (SMS varsa gönderilir), başka sitede hesabı olan kişiye davet —
+  yönetimin akışıyla aynı (`ResidentService.create` ortaklaştırıldı).
+- Yönetime ayrı bildirim GİTMEZ: kimlik servisinin site verisine (bildirim tablosu dahil) erişimi yoktur (en az yetki).
+  İşlem denetim izine yazılır, yönetim sakin listesinde görür.
+- Sakin uygulaması: Profil > Dairem > "… sakinleri" ekranı (listele, ekle, bitir).
+
 ### 2026-10-11 — SAKİNİN KENDİ TELEFON VE E-POSTA DEĞİŞİKLİĞİ (migration 062, beşinci tur B4) (DOĞRULANMIŞ — sahte Netgsm ile)
 
 > **Kanıt:** `verify-stack.sh` → **1291/1291** (adım 52: e-posta biçimi birim testi; SMS yoksa 503, yanlış şifre 400, aynı

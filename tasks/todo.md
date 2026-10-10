@@ -657,8 +657,8 @@ mobil maddelerden sonra verify-mobile, panel maddelerinden sonra tsc+lint+build.
 - [x] **B4 Sakinin kendi telefon/e-posta değişikliği** (verify 1291/1291, mobil 10/10) — e-posta: mevcut şifreyle; telefon: şifre + yeni
   numaraya SMS kodu (sahiplik kanıtı), onayda diğer oturumlar kapanır, eski numaraya uyarı. Çok siteli kişi
   çıkmazının mesajı bu akışa yönlendirir. Mobil profildeki "henüz hazır değil" satırları çalışır.
-- [ ] **B5 Malikin kiracı yönetimi** — malik kendi dairesine kiracı/vekil davet eder ve kiracılığı bitirir;
-  yönetime bildirim gider. Sakin uygulamasında "Dairem" bölümü.
+- [x] **B5 Malikin kiracı yönetimi** (verify 1294/1294, mobil 10/10) — malik kendi dairesine kiracı/vekil ekler ve
+  kiracılığı bitirir; yönetime ayrı bildirim yok (kimlik servisi bildirim tablosuna erişemez), işlem denetim izinde. Sakin uygulamasında "Dairem" bölümü.
 - [ ] **B6 Kademeli giriş kilidi** — 5. hata 30 sn, 6. hata 2 dk, 7.+ hata 15 dk; yanıt kalan süreyi söyler.
 - [ ] **B7 İlişik kesme tarihi** — pasifleştirmede `resident_units.end_date` (isteğe bağlı tarih, varsayılan
   bugün), yeniden etkinleştirmede temizlenir; panel listesinde görünür. Changelog satır 231 düzeltilir.

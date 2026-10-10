@@ -20,6 +20,7 @@ import '../../../../core/network/api_client.dart';
 import '../../../../core/theme/apple_theme.dart';
 import '../../../../core/widgets/apple_widgets.dart';
 import '../../../../core/widgets/data_state.dart';
+import 'unit_residents_screen.dart';
 
 class ProfileSettingsScreen extends StatefulWidget {
   const ProfileSettingsScreen({super.key});
@@ -119,6 +120,10 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
         _buildHeader(),
         const SectionTitle(title: 'İletişim Bilgileri'),
         _buildContactInfo(),
+        if (_ownedUnits.isNotEmpty) ...[
+          const SectionTitle(title: 'Dairem'),
+          _buildOwnedUnits(),
+        ],
         const SectionTitle(title: 'Güvenlik'),
         _buildSecurity(),
         const SectionTitle(title: 'Bildirimler'),
@@ -162,6 +167,35 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
             Text(
               [p['property_name'], p['unit_name']].where((v) => v != null && '$v'.isNotEmpty).join(' · '),
               style: const TextStyle(fontSize: 15, color: AppleTheme.secondaryLabel),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// Aktif sitede malik olunan bölümler (B5: kiracı/vekil yönetimi).
+  List<Map> get _ownedUnits => _properties
+      .whereType<Map>()
+      .where((p) => p['role'] == 'OWNER' && '${p['property_id']}' == '${_user?['active_property_id'] ?? ''}')
+      .toList();
+
+  Widget _buildOwnedUnits() {
+    final units = _ownedUnits;
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: AppleTheme.cardDecoration,
+      child: Column(
+        children: [
+          for (var i = 0; i < units.length; i++)
+            ListItem(
+              icon: Icons.people_alt_rounded,
+              title: '${units[i]['unit_name'] ?? 'Bölüm'} sakinleri',
+              subtitle: 'Kiracı/vekil ekleyin ya da kiracılığı bitirin',
+              iconColor: AppleTheme.systemIndigo,
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => UnitResidentsScreen(unitId: '${units[i]['unit_id']}', unitName: '${units[i]['unit_name'] ?? 'Bölüm'}'),
+              )),
+              showDivider: i < units.length - 1,
             ),
         ],
       ),

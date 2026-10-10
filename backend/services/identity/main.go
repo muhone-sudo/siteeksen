@@ -90,6 +90,10 @@ func main() {
 		protected.POST("/me/phone/request", handlers.RequestPhoneChange(authService))
 		protected.POST("/me/phone/confirm", handlers.ConfirmPhoneChange(authService))
 		protected.POST("/me/email", handlers.ChangeEmail(authService))
+		// Malikin kendi bölümündeki kiracı/vekil yönetimi (beşinci tur B5).
+		protected.GET("/me/units/:id/residents", handlers.OwnerUnitResidents(residentService))
+		protected.POST("/me/units/:id/residents", handlers.OwnerAddResident(residentService))
+		protected.POST("/me/units/:id/residents/:residentId/end", handlers.OwnerEndResident(residentService))
 		// Sakin davetleri (S-20): kişi başka sitenin davetini kendisi kabul eder.
 		protected.GET("/me/invitations", handlers.MyInvitations(residentService))
 		protected.POST("/me/invitations/:id/accept", handlers.RespondInvitation(residentService, true))
