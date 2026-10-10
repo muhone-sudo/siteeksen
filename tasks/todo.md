@@ -659,7 +659,7 @@ S-21 → VERBİS opsiyonel, yükümlülük site yönetiminde; S-19 ve iOS → ol
 - [x] A7 tüketim pusulası, sayaç değişimi, sapma uyarısı (BUG-07) — 056, verify 1229/1229, mobil 10/10
 - [x] A8 cihaz canlılık izleme (BUG-08) — 057, verify 1240/1240 · bariyer uzaktan açma donanım protokolü bekliyor (kullanıcı)
 - [x] A10 uluslararası telefon / geo-blok yok (BUG-10) — pkg/phone, verify 1243/1243, mobil 10/10 · Netgsm yurt dışı SMS paketi (kullanıcı)
-- [ ] A11 site pasifleştirme (BUG-11)
+- [x] A11 site pasifleştirme (BUG-11) — 058, verify 1248/1248
 - [ ] A12 alacak dekontu + banka ekstresi mutabakatı (BUG-12)
 
 ## 2026-10-04 — Üçüncü tur (tamamlandı)

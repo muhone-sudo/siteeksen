@@ -57,6 +57,9 @@ Giriş kilidi: art arda 5 hatalı girişte hesap 15 dk kilitlenir (kilitliyken d
 | `POST /units` | M,B | tek bölüm nesnesi ya da `{units:[…]}` (en çok 2000): `door_number`*,`share_ratio`* (>0),`block`,`floor`(vars. 0),`gross_area_m2`,`unit_type`(APARTMENT/SHOP/OFFICE/PARKING/STORAGE),`is_commercial`,`is_ground_floor`(vars. kat 0) | 201 `{data:[…],created}` — hepsi tek işlemde; aynı blok/kapı (harf duyarsız) 409, doğrulama 422 (satır numarasıyla) |
 | `PATCH /units/:id` | M,B | aynı alanlar, hepsi isteğe bağlı | 200 bölüm; verilmeyen alan değişmez |
 | `GET /property-roles` | M,B,A,S | — | `{data:[{id,user_id,first_name,last_name,phone,role,valid_from,valid_to?,decision_ref,active,granted_by_name,granted_at}]}` (geçmiş dahil) |
+| `GET /property` | herkes | — | `{id,name,is_active,deactivated_at,deactivation_reason,events:[{action,reason,at}]}` |
+| `POST /property/deactivate` | **M** | `reason`*(≥5),`confirm_name`*(site adı) | `{is_active:false,message,note}` · 422 ad uyuşmuyor · 409 zaten pasif. Pasif sitede tahakkuk/gecikme/bildirim yazımı 409 `{code:"PROPERTY_INACTIVE"}` |
+| `POST /property/reactivate` | **M** | `reason`* | `{is_active:true,message,note}` (geriye dönük tahakkuk yok) |
 | `POST /property-roles` | **M** | `phone`*,`role`*(MANAGER/BOARD_MEMBER/AUDITOR/STAFF),`decision_ref` (M/B/A için zorunlu — KMK m.34/41),`valid_from`,`valid_to`,`first_name`/`last_name` (hesap yoksa) | 201 `{role,activation?,note}` · bağsız hesap 409 · aynı etkin görev 409 · eksik karar 422. Yetki bir sonraki girişte geçerli |
 | `POST /property-roles/:id/end` | **M** | — | 200 `{role,note}`; kişinin bütün oturumları kapatılır · sitenin tek yöneticisi 409 |
 

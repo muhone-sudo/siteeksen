@@ -51,6 +51,12 @@ func DBErrorResponse(c *gin.Context, err error) bool {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "Başvurulan kayıt bulunamadı"})
 	case "23505": // unique_violation
 		c.JSON(http.StatusConflict, gin.H{"error": "Bu kayıt zaten mevcut"})
+	case "SE001": // site pasif (058): yeni tahakkuk, gecikme tazminatı ve bildirim üretilmez
+		c.JSON(http.StatusConflict, gin.H{
+			"error": "Site pasif; yeni tahakkuk, gecikme tazminatı ve bildirim üretilemez",
+			"code":  "PROPERTY_INACTIVE",
+			"note":  "Site yönetimi hizmeti sonlandırdı. Geçmiş kayıtlar görüntülenebilir; site yeniden etkinleştirilirse işlemler açılır.",
+		})
 	default:
 		return false
 	}

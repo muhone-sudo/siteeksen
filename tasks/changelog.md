@@ -12,6 +12,23 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-10 — SİTE PASİFLEŞTİRME: PASİF SİTEDE HAYALİ BORÇ VE BİLDİRİM ÜRETİLEMEZ (migration 058, Apsiyon BUG-11) (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **1248/1248** (adım 46: sakin 403, yanlış site adı 422, kısa gerekçe 400; yönetici pasife
+> aldı ve olay kaydedildi; pasif sitede `POST /finance/assessments` 409 PROPERTY_INACTIVE ve kayıt yok; uygulama rolüyle
+> doğrudan bildirim, gecikme tazminatı ve borç artırma tetikleyiciye takıldı, tutarı artırmayan güncelleme serbest;
+> zamanlayıcı pasif siteyi taramıyor; sakin giriş yapıp geçmiş tahakkukunu görebiliyor; yeniden etkinleştirince yazım
+> açıldı; yaşam döngüsü olayları silinemiyor; RLS 114); panel tsc/lint temiz.
+
+- `POST /property/deactivate` (yalnızca yönetici; gerekçe + site adını yazarak onay) ve `/property/reactivate`;
+  `GET /property` durum ve olay geçmişi. Olaylar `property_lifecycle_events`'te silinemez.
+- **Fail-closed tek nokta veritabanıdır:** pasif sitede `monthly_assessments`/`late_fee_accruals`/`notifications` satırı
+  yazılamaz ve tahakkuk tutarı artırılamaz (SQLSTATE SE001 → 409). Hangi servis ya da kod yolu denerse denesin engellenir;
+  borç azaltma (ödeme, valör, ters kayıt) açıktır. Zamanlayıcı ve cihaz bekçisi pasif siteyi zaten taramıyordu.
+- Giriş ve okuma sürer (KVKK erişim hakkı, saklama süreleri); yeniden etkinleştirmede pasif dönem için geriye dönük
+  tahakkuk yapılmaz (Apsiyon'da iptal edilen üyeliğe 6 ay sonra geriye dönük fatura çıkıyordu).
+- Panel: Ayarlar → Site durumu.
+
 ### 2026-10-10 — YURT DIŞINDAKİ MALİKLER: ULUSLARARASI TELEFON (E.164), COĞRAFİ ENGEL YOK (Apsiyon BUG-10) (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **1243/1243** (adım 8: kong.yml ve gateway'de ülke/IP bloğu bazlı engel izi yok; adım 43:

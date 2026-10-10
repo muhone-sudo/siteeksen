@@ -108,6 +108,15 @@ func main() {
 		residents.POST("/:id/unlock", residentAdmin, handlers.UnlockResidentLogin(userRepo))
 	}
 
+	// Site yaşam döngüsü (058, Apsiyon BUG-11): pasifleştirme yalnızca yönetici, gerekçe ve site adı onayıyla.
+	site := api.Group("/property")
+	site.Use(middleware.AuthMiddleware(pool), middleware.AuditLog(pool, "property"))
+	{
+		site.GET("", handlers.PropertyStatus(pool))
+		site.POST("/deactivate", middleware.RequireRole(middleware.RoleManager), handlers.SetPropertyActive(pool, false))
+		site.POST("/reactivate", middleware.RequireRole(middleware.RoleManager), handlers.SetPropertyActive(pool, true))
+	}
+
 	// Site görevlendirmeleri: yönetici, kurul üyesi, denetçi, görevli (2026-10-03).
 	siteRoles := api.Group("/property-roles")
 	siteRoles.Use(middleware.AuthMiddleware(pool), middleware.AuditLog(pool, "property_role"))

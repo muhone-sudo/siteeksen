@@ -226,6 +226,11 @@ export interface Allocation {
         first_date?: string; first_value?: string; last_date?: string; last_value?: string; meter_replaced?: boolean;
     }[];
 }
+/** Site yaşam döngüsü (058): pasif sitede tahakkuk/bildirim üretilmez. */
+export interface PropertyStatus {
+    id: Id; name: string; is_active: boolean; deactivated_at?: string | null; deactivation_reason?: string | null;
+    events: { action: "DEACTIVATED" | "REACTIVATED"; reason: string; at: string }[];
+}
 /** Geçiş cihazı (057): canlılık sinyaliyle izlenir. */
 export interface AccessDevice {
     id: Id; name: string; kind: string; location?: string; heartbeat_interval_sec: number; offline_after_sec: number;

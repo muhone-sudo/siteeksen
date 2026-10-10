@@ -38,6 +38,9 @@ export function endpoints(http: Http) {
         },
         identity: {
             properties: () => g<T.UserProperty[] | null>("/users/me/properties"),
+            propertyStatus: () => g<T.PropertyStatus>("/property"),
+            deactivateProperty: (b: { reason: string; confirm_name: string }) => http.post<{ is_active: boolean; message: string; note: string }>("/property/deactivate", b),
+            reactivateProperty: (b: { reason: string }) => http.post<{ is_active: boolean; message: string; note: string }>("/property/reactivate", b),
             createProperty: (b: { name: string; type: string; address: string; city: string; district?: string }) =>
                 http.post<{ id: string; name: string }>("/users/me/properties", b),
             setActiveProperty: (property_id: string) => http.post<Msg>("/users/me/active-property", { property_id }),

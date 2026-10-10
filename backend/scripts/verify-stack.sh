@@ -5887,8 +5887,8 @@ ok "kullanılmayan 13 site tablosu RLS ile korunuyor"
 
 # 9) Toplam durum — RLS DIŞINDA KALAN her tablo bilinçli ve gerekçeli olmalı
 RLSCOUNT=$($PSQL -t -A -c "SELECT count(*) FROM rls_enabled_tables;")
-[ "$RLSCOUNT" = "113" ] && ok "RLS toplam 113 tabloda açık" \
-  || bad "beklenmedik RLS tablo sayısı: $RLSCOUNT (beklenen 113)"
+[ "$RLSCOUNT" = "114" ] && ok "RLS toplam 114 tabloda açık" \
+  || bad "beklenmedik RLS tablo sayısı: $RLSCOUNT (beklenen 114)"
 NOTRLS=$($PSQL -t -A -c "SELECT string_agg(t.table_name, ' ' ORDER BY t.table_name)
   FROM information_schema.tables t
   WHERE t.table_schema='public' AND t.table_type='BASE TABLE'
@@ -7266,6 +7266,63 @@ echo "$PV1" | grep -q '"valid":true' && echo "$PV1" | grep -q '"unit":"T-45"' &&
   && ok "kimliksiz doğrulama: geçerli belge yalnızca site/bölüm/tarih döndürüyor (kişisel veri ve tutar yok); bilinmeyen kod 404, biçimsiz 400; süresi geçen geçersiz; uygulama rolü belgeyi değiştiremez" \
   || bad "belge doğrulama: $PV1 / $PV2 / $PV3 / değiştir=$CU ($CUO) / $PV4"
 kill_tree "$FCLR_PID"
+
+step "46) Site pasifleştirme: pasif sitede tahakkuk, gecikme tazminatı ve bildirim üretilemez (058, Apsiyon BUG-11)"
+# Demo site geçici olarak pasife alınır ve adım sonunda yeniden etkinleştirilir.
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_identity DB_PASSWORD="$IDPW" DB_NAME=siteeksen \
+  DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=18681 \
+  go run ./services/identity >/tmp/verify-identity-life.log 2>&1 &
+ILF_PID=$!
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_app DB_PASSWORD="$APPPW" DB_NAME=siteeksen \
+  DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=18682 \
+  go run ./services/finance >/tmp/verify-finance-life.log 2>&1 &
+FLF_PID=$!
+for _ in $(seq 1 60); do
+  curl -fsS http://127.0.0.1:18681/health >/dev/null 2>&1 && curl -fsS http://127.0.0.1:18682/health >/dev/null 2>&1 && break; sleep 1
+done
+LI="http://127.0.0.1:18681/api/v1"; LF="http://127.0.0.1:18682/api/v1/finance"
+MGRL=$(curl -s -X POST "$LI/auth/login" -H "$J" -d '{"phone":"5551234567","password":"Demo123!"}' | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+TENL=$(curl -s -X POST "$LI/auth/login" -H "$J" -d '{"phone":"5559876543","password":"Demo123!"}' | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+PNAME=$($PSQL -t -A -c "SELECT name FROM properties WHERE id='$DEMO_PROPERTY';")
+appsql46() { PGPASSWORD="$APPPW" psql -h 127.0.0.1 -p "$DBPORT" -U siteeksen_app -d siteeksen -t -A -c "BEGIN; SELECT set_config('app.property_id','$DEMO_PROPERTY',true); $1; COMMIT;" 2>&1; }
+D1=$(code -X POST "$LI/property/deactivate" -H "Authorization: Bearer $TENL" -H "$J" -d "{\"reason\":\"Hizmet bitti\",\"confirm_name\":\"$PNAME\"}")
+D2=$(code -X POST "$LI/property/deactivate" -H "Authorization: Bearer $MGRL" -H "$J" -d '{"reason":"Hizmet bitti","confirm_name":"Baska site"}')
+D3=$(code -X POST "$LI/property/deactivate" -H "Authorization: Bearer $MGRL" -H "$J" -d "{\"reason\":\"x\",\"confirm_name\":\"$PNAME\"}")
+D4=$(curl -s -X POST "$LI/property/deactivate" -H "Authorization: Bearer $MGRL" -H "$J" \
+  -d "{\"reason\":\"Yönetim hizmet sözleşmesini 10.10.2026 itibarıyla sonlandırdı\",\"confirm_name\":\"$PNAME\"}")
+PST=$(curl -s "$LI/property" -H "Authorization: Bearer $MGRL")
+[ "$D1" = "403" ] && [ "$D2" = "422" ] && [ "$D3" = "400" ] && echo "$D4" | grep -q '"is_active":false' \
+  && echo "$PST" | grep -q '"is_active":false' && echo "$PST" | grep -q '"action":"DEACTIVATED"' \
+  && ok "yalnızca yönetici, gerekçe ve site adı onayıyla pasife aldı (sakin 403, yanlış ad 422, kısa gerekçe 400); olay kaydedildi" \
+  || bad "pasifleştirme: $D1 / $D2 / $D3 / $D4 / $PST"
+# Tahakkuk API'den üretilemez; uygulama rolüyle doğrudan yazım da tetikleyiciye takılır
+TA=$(curl -s -w '|%{http_code}' -X POST "$LF/assessments" -H "Authorization: Bearer $MGRL" -H "$J" \
+  -d '{"period_year":2033,"period_month":3,"due_date":"2033-03-15","expense_items":[{"category_id":"55555555-5555-5555-5555-555555555501","amount":1000}]}')
+TAN=$($PSQL -t -A -c "SELECT count(*) FROM monthly_assessments WHERE property_id='$DEMO_PROPERTY' AND period_year=2033;")
+LASS=$($PSQL -t -A -c "SELECT id FROM monthly_assessments WHERE property_id='$DEMO_PROPERTY' AND deleted=0 AND total_amount > 1 ORDER BY due_date LIMIT 1;")
+W1=$(appsql46 "INSERT INTO notifications (property_id, channel, category, topic, body, status) VALUES ('$DEMO_PROPERTY','IN_APP','TRANSACTIONAL','x','x','PENDING')")
+W2=$(appsql46 "UPDATE monthly_assessments SET late_fee = COALESCE(late_fee,0) + 1, total_amount = total_amount + 1 WHERE id='$LASS'")
+W3=$(appsql46 "INSERT INTO late_fee_accruals (assessment_id, accrued_on, overdue_days, principal_kurus, monthly_rate, fee_kurus) VALUES ('$LASS','2099-01-01',1,100,0.05,5)")
+W4=$(appsql46 "UPDATE monthly_assessments SET total_amount = total_amount WHERE id='$LASS'")
+case "$TA" in *PROPERTY_INACTIVE*"|409") TAOK=1 ;; *) TAOK=0 ;; esac
+[ "$TAOK" = "1" ] && [ "$TAN" = "0" ] && grep -q 'site pasif' <<<"$W1" && grep -q 'site pasif' <<<"$W2" && grep -q 'site pasif' <<<"$W3" && grep -q 'COMMIT' <<<"$W4" \
+  && ok "pasif sitede tahakkuk API'den 409 PROPERTY_INACTIVE; doğrudan bildirim, gecikme tazminatı ve borç artırma tetikleyiciye takıldı; tutarı artırmayan güncelleme serbest" \
+  || bad "pasif site yazımları: $TA / kayıt=$TAN / $W1 / $W2 / $W3 / $W4"
+SCH=$($PSQL -t -A -c "SELECT count(*) FROM scheduler_property_ids() id WHERE id='$DEMO_PROPERTY';")
+RD=$(code "$LF/assessments?year=2026" -H "Authorization: Bearer $TENL")
+LG=$(curl -s -X POST "$LI/auth/login" -H "$J" -d '{"phone":"5559876543","password":"Demo123!"}' | grep -c '"access_token"')
+[ "$SCH" = "0" ] && [ "$RD" = "200" ] && [ "$LG" = "1" ] \
+  && ok "zamanlayıcı pasif siteyi taramıyor; sakin giriş yapıp geçmiş tahakkuklarını görebiliyor (veri silinmedi)" \
+  || bad "pasif site okuma/zamanlayıcı: zamanlayıcı=$SCH okuma=$RD giriş=$LG"
+DE=$(appsql46 "DELETE FROM property_lifecycle_events")
+R1=$(code -X POST "$LI/property/reactivate" -H "Authorization: Bearer $MGRL" -H "$J" -d '{"reason":"Yeni sözleşme imzalandı"}')
+W5=$(appsql46 "INSERT INTO notifications (property_id, recipient_address, channel, category, topic, body, status) VALUES ('$DEMO_PROPERTY','verify','IN_APP','TRANSACTIONAL','verify.reactivated','x','PENDING')")
+EV=$($PSQL -t -A -c "SELECT string_agg(action, ',' ORDER BY created_at) FROM property_lifecycle_events WHERE property_id='$DEMO_PROPERTY';")
+grep -q 'permission denied' <<<"$DE" && [ "$R1" = "200" ] && grep -q 'COMMIT' <<<"$W5" && [ "$EV" = "DEACTIVATED,REACTIVATED" ] \
+  && ok "yeniden etkinleştirildi, yazım açıldı; yaşam döngüsü olayları uygulama rolüyle silinemiyor ($EV)" \
+  || bad "yeniden etkinleştirme: sil=$DE / $R1 / $W5 / $EV"
+$PSQL -c "UPDATE properties SET is_active = true WHERE id='$DEMO_PROPERTY';" >/dev/null
+kill_tree "$ILF_PID"; kill_tree "$FLF_PID"
 
 step "SONUÇ"
 echo "  Geçen: $PASS   Başarısız: $FAIL"
