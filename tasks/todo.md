@@ -654,7 +654,7 @@ mobil maddelerden sonra verify-mobile, panel maddelerinden sonra tsc+lint+build.
   söylenmez; kod SMS + e-postayla gider; sıklık sınırı (60 sn, saatte 3). Kod mevcut etkinleştirme
   ekranında girilir. SMS/e-posta yapılandırılmamışsa bunu açıkça söyler. Üç istemcide "Şifremi unuttum" →
   numara ekranı.
-- [ ] **B4 Sakinin kendi telefon/e-posta değişikliği** — e-posta: mevcut şifreyle; telefon: şifre + yeni
+- [x] **B4 Sakinin kendi telefon/e-posta değişikliği** (verify 1291/1291, mobil 10/10) — e-posta: mevcut şifreyle; telefon: şifre + yeni
   numaraya SMS kodu (sahiplik kanıtı), onayda diğer oturumlar kapanır, eski numaraya uyarı. Çok siteli kişi
   çıkmazının mesajı bu akışa yönlendirir. Mobil profildeki "henüz hazır değil" satırları çalışır.
 - [ ] **B5 Malikin kiracı yönetimi** — malik kendi dairesine kiracı/vekil davet eder ve kiracılığı bitirir;

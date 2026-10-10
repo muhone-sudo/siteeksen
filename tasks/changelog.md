@@ -12,6 +12,24 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-11 — SAKİNİN KENDİ TELEFON VE E-POSTA DEĞİŞİKLİĞİ (migration 062, beşinci tur B4) (DOĞRULANMIŞ — sahte Netgsm ile)
+
+> **Kanıt:** `verify-stack.sh` → **1291/1291** (adım 52: e-posta biçimi birim testi; SMS yoksa 503, yanlış şifre 400, aynı
+> numara 422, başkasının numarası 409, geçersiz numara 422; kod YENİ numaraya SMS ile gitti, veritabanında özet var düz kod
+> yok, 60 sn içinde ikinci istek 429, yanlış kod 400 ve numara değişmedi; doğru kodla numara değişti, bütün oturumlar kapandı
+> (eski jeton 401), eski numaraya uyarı SMS'i, yeni numarayla giriş; e-posta: yanlış şifre 400, geçersiz 422, başka hesabın
+> e-postası 409, güncellendi ve profilde görünüyor; adım 36: `phone_change_requests` uygulama rolüne kapalı, RLS dışı 9 tablo
+> gerekçeli). `verify-mobile.sh` 10/10; panel tsc/lint temiz.
+
+- Önceden numarayı yalnızca yönetim değiştirebiliyordu; çok siteli kişide yönetim de değiştiremiyor ve hata "kendi hesabından
+  değiştirsin" diyerek var olmayan bir ekranı gösteriyordu. Sakin uygulamasındaki E-posta/Telefon satırları "henüz hazır değil"
+  diyordu; e-postayı kimse değiştiremiyordu.
+- 062 `phone_change_requests` (yalnız kimlik servisi; kod `user_activation_codes`'ta tutulmaz — oradaki kod `/auth/activate`
+  ile şifre belirlemeye de yarardı). `POST /users/me/phone/request|confirm`, `POST /users/me/email`.
+- Yönetimin telefon değiştirme hatası (çok siteli kişi) artık Profil > Telefon akışını gösteriyor.
+- Sakin uygulaması: profilde e-posta ve iki adımlı telefon değişikliği (onayda çıkış yapılıp girişe dönülür). Panel: Hesabım
+  sayfasına telefon ve e-posta kartları.
+
 ### 2026-10-11 — ŞİFREMİ UNUTTUM: SAKİNİN KENDİ KOD İSTEĞİ (beşinci tur B3, Şikayetvar "SMS, giriş ve hesap erişimi") (DOĞRULANMIŞ — sahte Netgsm ile)
 
 > **Kanıt:** `verify-stack.sh` → **1284/1284** (adım 51: sıklık sınırı birim testi; kod sakinin kayıtlı +352 numarasına SMS
