@@ -6939,6 +6939,42 @@ NETGSM_USERCODE=x DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_identity
   DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=18382 timeout 60 go run ./services/identity >/tmp/verify-identity-bad.log 2>&1
 grep -q 'SMS yapılandırması hatalı' /tmp/verify-identity-bad.log && ok "yarım Netgsm yapılandırmasıyla kimlik servisi açılmıyor" \
   || bad "yarım yapılandırma: $(tail -2 /tmp/verify-identity-bad.log)"
+# Yönetim destekli hesap kurtarma (Apsiyon BUG-05/06): telefon değişikliği ve giriş kilidi
+IDS="http://127.0.0.1:18381/api/v1"
+CR5=$(curl -s -X POST "$IDS/residents" -H "Authorization: Bearer $MGRS" -H "$J" \
+  -d "{\"first_name\":\"Kayip\",\"last_name\":\"Telefon\",\"phone\":\"0555 999 00 44\",\"unit_id\":\"$SU\",\"role\":\"TENANT\"}")
+RU5=$(echo "$CR5" | sed -n 's/.*"id":"\([^"]*\)".*/\1/p' | head -1)
+U5=$($PSQL -t -A -c "SELECT id FROM users WHERE phone='+905559990044';")
+$PSQL -c "UPDATE users SET failed_login_attempts = 5, locked_until = now() + interval '15 minutes' WHERE id='$U5';" >/dev/null
+UL1=$(curl -s -X POST "$IDS/residents/$RU5/unlock" -H "Authorization: Bearer $MGRS" -H "$J" -d '{}')
+UL2=$(code -X POST "$IDS/residents/$RU5/unlock" -H "Authorization: Bearer $TENS" -H "$J" -d '{}')
+UL3=$(code -X POST "$IDS/residents/00000000-0000-0000-0000-000000000001/unlock" -H "Authorization: Bearer $MGRS" -H "$J" -d '{}')
+LKS=$($PSQL -t -A -c "SELECT failed_login_attempts || '|' || (locked_until IS NULL) FROM users WHERE id='$U5';")
+echo "$UL1" | grep -q '"was_locked":true' && [ "$UL2" = "403" ] && [ "$UL3" = "404" ] && [ "$LKS" = "0|true" ] \
+  && ok "yönetim giriş kilidini kaldırabiliyor (kilit ve sayaç sıfırlandı); sakin 403, olmayan kayıt 404" \
+  || bad "kilit kaldırma: $UL1 / $UL2 / $UL3 / $LKS"
+BEFORE5=$(wc -l </tmp/fake-netgsm.log)
+PC1=$(curl -s -X POST "$IDS/residents/$RU5/phone" -H "Authorization: Bearer $MGRS" -H "$J" -d '{"phone":"0555 999 00 45"}')
+sleep 1
+PCODE=$(echo "$PC1" | sed -n 's/.*"activation_code":"\([^"]*\)".*/\1/p')
+PCOK=$(python3 -c "
+import json
+rows=[json.loads(l) for l in open('/tmp/fake-netgsm.log')][$BEFORE5:]
+new=[r for r in rows if r['body']['messages'][0]['no']=='5559990045' and '$PCODE' in r['body']['messages'][0]['msg']]
+old=[r for r in rows if r['body']['messages'][0]['no']=='5559990044' and 'değiştirildi' in r['body']['messages'][0]['msg']]
+print(bool('$PCODE') and len(new)==1 and len(old)==1)" 2>/dev/null)
+PH5=$($PSQL -t -A -c "SELECT phone FROM users WHERE id='$U5';")
+INV5=$($PSQL -t -A -c "SELECT count(*) FROM user_token_invalidation WHERE user_id='$U5';")
+PC2=$(code -X POST "$IDS/residents/$RU5/phone" -H "Authorization: Bearer $MGRS" -H "$J" -d '{"phone":"5551234567"}')
+MRU=$($PSQL -t -A -c "SELECT ru.id FROM resident_units ru JOIN units u ON u.id=ru.unit_id JOIN users us ON us.id=ru.resident_id
+  WHERE us.phone LIKE '%5551234567' AND u.property_id='$DEMO_PROPERTY' AND ru.is_active LIMIT 1;")
+MULTI=$($PSQL -t -A -c "SELECT count(DISTINCT p) FROM (SELECT u.property_id p FROM resident_units ru JOIN units u ON u.id=ru.unit_id JOIN users us ON us.id=ru.resident_id WHERE us.phone LIKE '%5551234567' AND ru.is_active
+  UNION SELECT pr.property_id FROM property_roles pr JOIN users us ON us.id=pr.user_id WHERE us.phone LIKE '%5551234567' AND pr.is_active) x;")
+PC3=$(code -X POST "$IDS/residents/$MRU/phone" -H "Authorization: Bearer $MGRS" -H "$J" -d '{"phone":"0555 999 00 46"}')
+echo "$PC1" | grep -q '"sessions_revoked":true' && echo "$PC1" | grep -q '"old_phone_notice":"SENT"' && [ "$PCOK" = "True" ] \
+  && [ "$PH5" = "+905559990045" ] && [ "${INV5:-0}" -ge 1 ] && [ "$PC2" = "409" ] && { [ "${MULTI:-1}" -le 1 ] || [ "$PC3" = "409" ]; } \
+  && ok "telefon değişikliği: oturumlar kapandı, yeni kod yeni numaraya SMS, eski numaraya uyarı SMS'i; başkasının numarası 409; birden çok sitede kayıtlı hesabın numarası tek site yönetimince değiştirilemez ($MULTI site → $PC3)" \
+  || bad "telefon değişikliği: $PC1 / sms=$PCOK / $PH5 / iptal=$INV5 / $PC2 / çoklu=$MULTI→$PC3"
 kill_tree "$IDS_PID"; kill_tree "$COMS_PID"; kill "$FAKE_PID" 2>/dev/null
 
 step "44) PDF / Excel dökümleri (TEST_RAPORU 2.6)"

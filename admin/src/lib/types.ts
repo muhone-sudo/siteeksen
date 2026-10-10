@@ -27,7 +27,7 @@ export interface Resident {
     unit_id: Id; unit: string; role: string; is_active: boolean; created_at: string;
 }
 /** Yöneticiye YALNIZCA BİR KEZ gösterilen etkinleştirme / şifre sıfırlama kodu. */
-export interface Activation { activation_code: string; purpose: "ACTIVATION" | "RESET"; expires_at: string; note: string; sms?: { status: "SENT" | "FAILED" | "NOT_CONFIGURED"; note: string } }
+export interface Activation { activation_code: string; purpose: "ACTIVATION" | "RESET"; expires_at: string; note: string; sms?: { status: "SENT" | "FAILED" | "NOT_CONFIGURED"; note: string }; email?: { status: "SENT" | "FAILED" | "NOT_CONFIGURED"; note: string } }
 /** Sakin daveti (S-20): kişinin adı/e-postası yönetime gösterilmez. */
 export interface Invitation {
     id: Id; unit_id: Id; unit: string; phone: string; role: string;

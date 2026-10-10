@@ -180,3 +180,81 @@ func (r *UserRepository) ResetLoginFailures(ctx context.Context, userID string) 
 		WHERE id = $1`, userID)
 	return err
 }
+
+var (
+	// ErrPhoneTaken: yeni numara başka bir hesapta kayıtlı (hangi hesap olduğu söylenmez).
+	ErrPhoneTaken = errors.New("bu telefon numarası başka bir hesapta kayıtlı")
+	// ErrPhoneOtherSites: kişi başka sitelerde de kayıtlı; numarasını tek bir sitenin yönetimi değiştiremez.
+	ErrPhoneOtherSites = errors.New("kişi başka sitelerde de kayıtlı")
+)
+
+// ChangePhone, sakinin giriş telefonunu yönetim adına değiştirir (Apsiyon BUG-05).
+// Hesap YALNIZCA bu siteye bağlıysa izin verilir: çok siteli bir hesabın kimliğini tek
+// sitenin yöneticisinin değiştirmesi, diğer sitelerdeki verilere el koyma yolu olurdu.
+// Dönen değerler kullanıcı kimliği, eski telefon ve şifrenin belirlenmiş olup olmadığıdır.
+func (r *UserRepository) ChangePhone(ctx context.Context, propertyID, residentUnitID, newPhone string) (string, string, bool, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return "", "", false, err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+	var userID, oldPhone string
+	var pwSet *time.Time
+	err = tx.QueryRow(ctx, `
+		SELECT u.id, u.phone, u.password_set_at
+		FROM resident_units ru
+		JOIN units un ON un.id = ru.unit_id AND un.property_id = $2
+		JOIN users u ON u.id = ru.resident_id AND u.deleted = 0
+		WHERE ru.id = $1
+		FOR UPDATE OF u`, residentUnitID, propertyID).Scan(&userID, &oldPhone, &pwSet)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", "", false, ErrResidentNotFound
+	}
+	if err != nil {
+		return "", "", false, err
+	}
+	var others int
+	if err := tx.QueryRow(ctx, `
+		SELECT count(*) FROM (
+			SELECT un.property_id AS p FROM resident_units ru JOIN units un ON un.id = ru.unit_id
+			WHERE ru.resident_id = $1 AND ru.is_active
+			UNION
+			SELECT property_id FROM property_roles WHERE user_id = $1 AND is_active
+		) x WHERE p <> $2`, userID, propertyID).Scan(&others); err != nil {
+		return "", "", false, err
+	}
+	if others > 0 {
+		return "", "", false, ErrPhoneOtherSites
+	}
+	var taken bool
+	if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM users WHERE phone = $1 AND id <> $2)`, newPhone, userID).Scan(&taken); err != nil {
+		return "", "", false, err
+	}
+	if taken {
+		return "", "", false, ErrPhoneTaken
+	}
+	if _, err := tx.Exec(ctx, `UPDATE users SET phone = $2, updated_at = now() WHERE id = $1`, userID, newPhone); err != nil {
+		return "", "", false, err
+	}
+	return userID, oldPhone, pwSet != nil, tx.Commit(ctx)
+}
+
+// UnlockLogin, yönetimin sakinin giriş kilidini kaldırmasıdır (Apsiyon BUG-06). Hesap bu sitede
+// sakin olmalıdır. Dönen değer kilidin o an etkin olup olmadığıdır.
+func (r *UserRepository) UnlockLogin(ctx context.Context, propertyID, residentUnitID string) (bool, error) {
+	var wasLocked bool
+	err := r.pool.QueryRow(ctx, `
+		WITH acct AS (
+			SELECT u.id, (u.locked_until IS NOT NULL AND u.locked_until > now()) AS locked
+			FROM resident_units ru
+			JOIN units un ON un.id = ru.unit_id AND un.property_id = $2
+			JOIN users u ON u.id = ru.resident_id AND u.deleted = 0
+			WHERE ru.id = $1),
+		upd AS (UPDATE users SET failed_login_attempts = 0, locked_until = NULL, updated_at = now()
+		        WHERE id = (SELECT id FROM acct) RETURNING id)
+		SELECT locked FROM acct`, residentUnitID, propertyID).Scan(&wasLocked)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, ErrResidentNotFound
+	}
+	return wasLocked, err
+}

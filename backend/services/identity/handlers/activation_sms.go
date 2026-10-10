@@ -46,3 +46,30 @@ func sendActivationSMS(ctx context.Context, phone string, act *models.Activation
 	}
 	return &SMSDelivery{Status: "SENT", Note: "Kod sakinin telefonuna SMS ile gönderildi."}
 }
+
+var activationEmail notify.Sender
+
+// SetActivationEmail, e-posta sağlayıcısını verir (SMTP; nil olabilir). SMS ulaşmadığında
+// sakinin e-postası kayıtlıysa kod oraya da gider (Apsiyon BUG-05: tek kanala bağımlılık).
+func SetActivationEmail(s notify.Sender) { activationEmail = s }
+
+func sendActivationEmail(ctx context.Context, email string, act *models.Activation) *SMSDelivery {
+	if act == nil || email == "" {
+		return nil
+	}
+	if activationEmail == nil {
+		return &SMSDelivery{Status: "NOT_CONFIGURED", Note: "E-posta sağlayıcısı yapılandırılmamış."}
+	}
+	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
+	_, err := activationEmail.Send(ctx, notify.Message{Channel: notify.ChannelEmail, Category: notify.CategoryTransactional,
+		Topic: "identity.activation", Recipient: email, Subject: "SiteEksen etkinleştirme kodunuz",
+		Body: "Merhaba,\n\nSiteEksen hesabınız için etkinleştirme kodunuz: " + act.Code + "\nKod " +
+			act.ExpiresAt.In(time.Local).Format("02.01.2006") + " tarihine kadar geçerlidir. Uygulamada telefon numaranız ve bu kodla " +
+			"şifrenizi belirleyin. Kodu kimseyle paylaşmayın; bu işlemi siz istemediyseniz site yönetimine bildirin."})
+	if err != nil {
+		log.Printf("[identity] etkinleştirme e-postası gönderilemedi: %v", err)
+		return &SMSDelivery{Status: "FAILED", Note: "E-posta gönderilemedi."}
+	}
+	return &SMSDelivery{Status: "SENT", Note: "Kod sakinin e-posta adresine de gönderildi."}
+}

@@ -75,6 +75,7 @@ function ActivationModal({ value, onClose }: { value: { who: string; phone: stri
                 </div>
                 <p className="text-xs text-gray-500">Son geçerlilik: {dateTime(act.expires_at)}</p>
                 {act.sms && <Notice tone={act.sms.status === "SENT" ? "green" : "amber"} title={act.sms.status === "SENT" ? "SMS gönderildi" : act.sms.status === "FAILED" ? "SMS gönderilemedi" : "SMS sağlayıcısı yok"}>{act.sms.note}</Notice>}
+                {act.email?.status === "SENT" && <Notice tone="green" title="E-posta gönderildi">{act.email.note}</Notice>}
                 <Notice tone="amber" title="Bu kod bir daha gösterilmez">{act.note}</Notice>
                 <div className="flex justify-end">
                     <Button onClick={onClose}>Kodu ilettim, kapat</Button>
@@ -96,6 +97,7 @@ export default function ResidentsPage() {
     const [form, setForm] = useState({ first_name: "", last_name: "", phone: "", email: "", unit_id: "", role: "OWNER" });
     const [edit, setEdit] = useState<Resident | null>(null);
     const [shown, setShown] = useState<{ who: string; phone: string; act: Activation } | null>(null);
+    const [phoneEdit, setPhoneEdit] = useState<{ r: Resident; phone: string } | null>(null);
     const [bulkOpen, setBulkOpen] = useState(false);
     const [bulkText, setBulkText] = useState("");
     const [bulkResult, setBulkResult] = useState<BulkResidentRow[] | null>(null);
@@ -152,6 +154,9 @@ export default function ResidentsPage() {
                                                   >
                                                       <KeyRound className="h-3.5 w-3.5" /> Kod üret
                                                   </Button>
+                                                  <Button size="sm" variant="ghost" title="Kayıp/değişen telefon: eski oturumlar kapanır, yeni kod üretilir" onClick={() => setPhoneEdit({ r, phone: "" })}>Telefon</Button>
+                                                  <Button size="sm" variant="ghost" title="Hatalı şifre kilidini beklemeden kaldır" disabled={act.pending}
+                                                      onClick={() => act.run(() => api.identity.unlockLogin(r.id), { success: (x) => x.message })}>Kilidi aç</Button>
                                                   <Button size="sm" variant="ghost" onClick={() => setEdit(r)}>Düzenle</Button>
                                               </div>
                                           ),
@@ -231,6 +236,19 @@ export default function ResidentsPage() {
             </FormModal>
 
             <ActivationModal value={shown} onClose={() => setShown(null)} />
+            <FormModal open={!!phoneEdit} onClose={() => setPhoneEdit(null)} title={`Telefon değiştir — ${phoneEdit?.r.first_name ?? ""} ${phoneEdit?.r.last_name ?? ""}`} submitLabel="Değiştir ve kod üret" pending={act.pending} error={act.error}
+                onSubmit={async () => {
+                    if (!phoneEdit) return;
+                    const x = await act.run(() => api.identity.changePhone(phoneEdit.r.id, phoneEdit.phone));
+                    if (x) {
+                        act.clear();
+                        setShown({ who: `${phoneEdit.r.first_name} ${phoneEdit.r.last_name}`, phone: x.phone, act: x.activation });
+                        setPhoneEdit(null);
+                    }
+                }}>
+                <Notice tone="amber">Kişinin kimliğini doğrulayın. Eski numarayla açık oturumlar kapanır; eski numaraya (SMS sağlayıcısı varsa) değişiklik bildirimi gider. Birden çok sitede kayıtlı hesabın numarası buradan değiştirilemez.</Notice>
+                <Field label="Yeni telefon" required><Input required value={phoneEdit?.phone ?? ""} onChange={(e) => phoneEdit && setPhoneEdit({ ...phoneEdit, phone: e.target.value })} placeholder="05xx xxx xx xx" /></Field>
+            </FormModal>
 
             <FormModal
                 open={bulkOpen}

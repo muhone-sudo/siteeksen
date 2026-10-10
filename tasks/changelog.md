@@ -12,6 +12,22 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-10 — YÖNETİM DESTEKLİ HESAP KURTARMA: TELEFON DEĞİŞİMİ, E-POSTA YEDEK KANALI, GİRİŞ KİLİDİ (Apsiyon BUG-05/06) (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **1211/1211** (adım 43: telefon değişikliğinde oturumlar kapandı, yeni kod yeni numaraya SMS
+> ile, eski numaraya uyarı SMS'i gitti (sahte Netgsm); başkasının numarası 409; 2 sitede kayıtlı hesabın numarası tek site
+> yönetimince değiştirilemedi (409); yönetim giriş kilidini kaldırdı (kilit ve sayaç sıfır), sakin 403, olmayan kayıt 404);
+> panel tsc/lint temiz.
+
+- `POST /residents/:id/phone` (yönetim): eski oturumlar iptal, bekleyen kodlar geçersiz, yeni kod üretilir ve yeni numaraya
+  gönderilir; eski numaraya "numaranız değiştirildi" uyarısı (hesap ele geçirmeye karşı). Hesap başka sitelerde de kayıtlıysa
+  reddedilir — tek sitenin yöneticisi çok siteli bir kimliği değiştiremez.
+- `POST /residents/:id/unlock` (yönetim): hatalı şifre kilidi süresini beklemeden kaldırılır. Kilit zaten en çok 15 dakikadır
+  (5 hatada); Apsiyon'daki 48 saatlik kilit/kapanmayan döngü bu sistemde yoktu.
+- Etkinleştirme/sıfırlama kodu SMS'e ek olarak, SMTP yapılandırılmışsa ve sakinin e-postası kayıtlıysa e-postayla da gider
+  (tek kanala bağımlılık giderildi). WhatsApp kanalı sağlayıcı sözleşmesi gerektirdiği için eklenmedi.
+- Panel: sakin satırında "Telefon" ve "Kilidi aç"; kod penceresinde SMS/e-posta sonucu.
+
 ### 2026-10-10 — BORCU YOKTUR BELGESİ: VADE AYRIMI, KAREKOD, KİMLİKSİZ DOĞRULAMA (migration 055, Apsiyon BUG-04) (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **1209/1209** (adım 45: vadesi geçmiş borcu olan bölüme belge yok, 422 + kalem listesi;

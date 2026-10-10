@@ -39,6 +39,11 @@ func main() {
 		handlers.SetActivationSMS(sms)
 		log.Printf("[identity] etkinleştirme kodları SMS ile gönderilecek (netgsm)")
 	}
+	if mail, err := notify.SMTPFromEnv(); err != nil {
+		log.Fatalf("SMTP yapılandırması hatalı: %v", err)
+	} else if mail != nil {
+		handlers.SetActivationEmail(mail)
+	}
 	roleService := service.NewRoleService(repository.NewRoleRepository(pool), authService, revocationChecker)
 
 	// Gin router
@@ -97,6 +102,10 @@ func main() {
 		residents.GET("/:id", handlers.GetResident(residentService))
 		residents.PATCH("/:id", handlers.UpdateResident(residentService))
 		residents.POST("/:id/activation-code", handlers.IssueActivationCode(residentService))
+		// Yönetim destekli hesap kurtarma (Apsiyon BUG-05/06): telefon değişikliği, giriş kilidi kaldırma.
+		residentAdmin := middleware.RequireRole(middleware.RoleManager, middleware.RoleBoardMember)
+		residents.POST("/:id/phone", residentAdmin, handlers.ChangeResidentPhone(userRepo, authService, revocationChecker))
+		residents.POST("/:id/unlock", residentAdmin, handlers.UnlockResidentLogin(userRepo))
 	}
 
 	// Site görevlendirmeleri: yönetici, kurul üyesi, denetçi, görevli (2026-10-03).

@@ -26,6 +26,8 @@ type Activation struct {
 	Note      string    `json:"note"`
 	// SMS, kodun SMS ile iletim sonucudur (sağlayıcı yoksa NOT_CONFIGURED).
 	SMS any `json:"sms,omitempty"`
+	// Email, kodun e-postayla (yedek kanal) iletim sonucudur.
+	Email any `json:"email,omitempty"`
 }
 
 // CreateResidentResult, sakin ekleme yanıtıdır.
