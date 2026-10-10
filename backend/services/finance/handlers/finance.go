@@ -9,7 +9,9 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/siteeksen/backend/pkg/middleware"
+	"github.com/siteeksen/backend/pkg/notify"
 	"github.com/siteeksen/backend/services/finance/models"
 	"github.com/siteeksen/backend/services/finance/repository"
 	"github.com/siteeksen/backend/services/finance/service"
@@ -143,7 +145,10 @@ func GetExpenseCategories(svc *service.FinanceService) gin.HandlerFunc {
 }
 
 // CreateAssessment yönetimin gider kalemlerine göre dönemlik aidat tahakkuku oluşturur
-func CreateAssessment(svc *service.FinanceService) gin.HandlerFunc {
+//
+// Oluşan her borç için daire sakinlerine bildirim gider (beşinci tur B1); sonuç
+// `notification` alanında sayaçlarla döner.
+func CreateAssessment(svc *service.FinanceService, n *notify.Notifier, pool *pgxpool.Pool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var input models.CreateAssessmentInput
 		if err := c.ShouldBindJSON(&input); err != nil {
@@ -157,7 +162,12 @@ func CreateAssessment(svc *service.FinanceService) gin.HandlerFunc {
 			mapAssessmentError(c, err)
 			return
 		}
-		c.JSON(http.StatusCreated, gin.H{"data": summaries})
+		ids := make([]string, 0, len(summaries))
+		for _, s := range summaries {
+			ids = append(ids, s.ID)
+		}
+		c.JSON(http.StatusCreated, gin.H{"data": summaries,
+			"notification": notify.NotifyCharges(c.Request.Context(), n, pool, propertyID, c.GetString("user_id"), ids)})
 	}
 }
 
@@ -473,7 +483,7 @@ func parsePage(c *gin.Context) (models.Page, bool) {
 }
 
 // CreateOpeningBalances devir bakiyelerini girer (site kurulumu, FAZ 8.1).
-func CreateOpeningBalances(svc *service.FinanceService) gin.HandlerFunc {
+func CreateOpeningBalances(svc *service.FinanceService, n *notify.Notifier, pool *pgxpool.Pool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var in models.OpeningBalanceInput
 		if err := c.ShouldBindJSON(&in); err != nil {
@@ -493,8 +503,13 @@ func CreateOpeningBalances(svc *service.FinanceService) gin.HandlerFunc {
 			log.Printf("[finance] devir bakiyesi yazılamadı: %v", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Devir bakiyesi kaydedilemedi"})
 		default:
+			ids := make([]string, 0, len(list))
+			for _, o := range list {
+				ids = append(ids, o.ID)
+			}
 			c.JSON(http.StatusCreated, gin.H{"data": list, "created": len(list),
-				"note": "Devir bakiyesine otomatik gecikme tazminatı işletilmez; önceki tazminat devir tutarına dahil edilmelidir."})
+				"note": "Devir bakiyesine otomatik gecikme tazminatı işletilmez; önceki tazminat devir tutarına dahil edilmelidir.",
+				"notification": notify.NotifyCharges(c.Request.Context(), n, pool, c.GetString("property_id"), c.GetString("user_id"), ids)})
 		}
 	}
 }

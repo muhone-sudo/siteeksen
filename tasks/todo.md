@@ -633,6 +633,44 @@ yaygınlaştırılmasına kayıyor.
 
 # İnceleme notları
 
+## 2026-10-10 — Beşinci tur (Şikayetvar raporu: uygulama aksaklıkları)
+
+Kaynak: `apsiyon_urun_gelistirme_raporu.md` §6.6 (koddan doğrulanmış eksikler). Kapsam kararı (kullanıcı,
+2026-10-10): yalnızca uygulama aksaklıkları ve olsa iyi olacaklar; komisyon, fiyat, faiz/gecikme tazminatı,
+sözleşme politikasına dokunulmaz. Her madde ayrı commit; her backend maddesinden sonra verify-stack,
+mobil maddelerden sonra verify-mobile, panel maddelerinden sonra tsc+lint+build.
+
+- [x] **B1 Yeni borçta sakine bildirim** (verify 1274/1274) — `pkg/notify/charges.go`: verilen tahakkuk kimliklerinden daire
+  bazında bildirim (dönem/devir, tutar, son ödeme; uygulama içi + SMTP varsa e-posta; dedupe `charge:<id>`).
+  Üç tahakkuk noktası: finance `POST /assessments`, finance `POST /opening-balances`, governance
+  `POST /budgets/:id/assessments`. Yanıta `notification` sayaçları. verify: bildirim kaydı, taşınmış sakine
+  gitmemesi, ikinci çağrıda çift kayıt olmaması.
+- [ ] **B2 Yöneticinin tahsilat girişi** — migration 061 (`payments.recorded_by`, korumaya eklenir).
+  `POST /finance/collections` {unit_id, assessment_ids, payment_method BANK_TRANSFER|CASH, value_date,
+  reference}: ödeme açılır ve aynı işlemde onaylanır (defter zinciri). Ekstrede eşleşmeyen satır
+  `assessment_ids` ile doğrudan daireye işlenir. Daire sakinine "ödemeniz kaydedildi" bildirimi.
+  Panel: muhasebede "Tahsilat gir" + ekstre satırında "Daireye işle"; yönetici uygulaması: tahsilat formu.
+- [ ] **B3 Şifremi unuttum (self-servis)** — `POST /auth/password-reset/request` {phone}: hesap var mı
+  söylenmez; kod SMS + e-postayla gider; sıklık sınırı (60 sn, saatte 3). Kod mevcut etkinleştirme
+  ekranında girilir. SMS/e-posta yapılandırılmamışsa bunu açıkça söyler. Üç istemcide "Şifremi unuttum" →
+  numara ekranı.
+- [ ] **B4 Sakinin kendi telefon/e-posta değişikliği** — e-posta: mevcut şifreyle; telefon: şifre + yeni
+  numaraya SMS kodu (sahiplik kanıtı), onayda diğer oturumlar kapanır, eski numaraya uyarı. Çok siteli kişi
+  çıkmazının mesajı bu akışa yönlendirir. Mobil profildeki "henüz hazır değil" satırları çalışır.
+- [ ] **B5 Malikin kiracı yönetimi** — malik kendi dairesine kiracı/vekil davet eder ve kiracılığı bitirir;
+  yönetime bildirim gider. Sakin uygulamasında "Dairem" bölümü.
+- [ ] **B6 Kademeli giriş kilidi** — 5. hata 30 sn, 6. hata 2 dk, 7.+ hata 15 dk; yanıt kalan süreyi söyler.
+- [ ] **B7 İlişik kesme tarihi** — pasifleştirmede `resident_units.end_date` (isteğe bağlı tarih, varsayılan
+  bugün), yeniden etkinleştirmede temizlenir; panel listesinde görünür. Changelog satır 231 düzeltilir.
+- [ ] **B8 Fatura sapma uyarısı + itiraz** — paylaştırmada kullanım alanı başına tüketim site medyanının
+  3 katını aşan bölümler listelenir, yayım yönetici teyidi ister. Sakin tüketim pusulasına itiraz eder,
+  yönetim yanıtlar, iki tarafa bildirim (063). Panel sayaç sayfası + sakin enerji ekranı.
+- [ ] **B9 Havale bildirimine dekont dosyası** — sakin bekleyen ödemesine PDF/görsel ekler (`pkg/storage`),
+  yönetim indirir. Mobil dosya seçici (yeni paket: `file_picker`).
+- [ ] **B10 Yönetim → SiteEksen destek talebi** — site yönetimi talep açar ve yazışır; SUPER_ADMIN tüm
+  siteleri görür ve yanıtlar (site verisine erişim vermeden, yalnız talep tablosu). Panel "Destek" sayfası.
+- [ ] **B11 Push bildirim** — BAŞLANMAZ: Firebase projesi ve `google-services.json` kullanıcıdan (S-10).
+
 ## 2026-10-05 — Dördüncü tur (kullanıcı kararları + TEST_RAPORU + Apsiyon şikâyetleri)
 
 Kararlar (kullanıcı, 2026-10-05): S-22 → bordro mali müşavirden gelir, sistem ödeme ve maliyeti kaydeder;

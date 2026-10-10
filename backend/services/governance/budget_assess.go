@@ -25,6 +25,7 @@ import (
 	"github.com/siteeksen/backend/pkg/dbscope"
 	"github.com/siteeksen/backend/pkg/middleware"
 	"github.com/siteeksen/backend/pkg/money"
+	"github.com/siteeksen/backend/pkg/notify"
 )
 
 // monthKeys, yıllık payın bölüneceği ayların sabit anahtarlarıdır (belirlenimci dağıtım).
@@ -48,7 +49,8 @@ func MonthlyInstallment(annual money.Kurus, month int) (money.Kurus, error) {
 }
 
 // createBudgetAssessments: POST /governance/budgets/:id/assessments (yönetim).
-func createBudgetAssessments(pool *pgxpool.Pool) gin.HandlerFunc {
+// Oluşan her borç için daire sakinlerine bildirim gider (beşinci tur B1).
+func createBudgetAssessments(pool *pgxpool.Pool, n *notify.Notifier) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var in struct {
 			PeriodMonth int    `json:"period_month"`
@@ -129,6 +131,7 @@ func createBudgetAssessments(pool *pgxpool.Pool) gin.HandlerFunc {
 		}
 
 		total, created := money.Kurus(0), 0
+		ids := make([]string, 0, len(shares))
 		for _, s := range shares {
 			amt, err := MonthlyInstallment(s.annual, in.PeriodMonth)
 			if err != nil {
@@ -138,11 +141,12 @@ func createBudgetAssessments(pool *pgxpool.Pool) gin.HandlerFunc {
 			if amt == 0 {
 				continue // payı olmayan bölüme sıfır tutarlı borç kaydı açılmaz
 			}
-			if _, err := tx.Exec(ctx, `
+			var id string
+			if err := tx.QueryRow(ctx, `
 				INSERT INTO monthly_assessments (property_id, unit_id, period_year, period_month, base_amount,
 				                                 total_amount, due_date, status, budget_id)
-				VALUES ($1, $2, $3, $4, $5::numeric, $5::numeric, $6, 'PENDING', $7)`,
-				propertyID, s.unit, year, in.PeriodMonth, amt.String(), due, c.Param("id")); err != nil {
+				VALUES ($1, $2, $3, $4, $5::numeric, $5::numeric, $6, 'PENDING', $7) RETURNING id::text`,
+				propertyID, s.unit, year, in.PeriodMonth, amt.String(), due, c.Param("id")).Scan(&id); err != nil {
 				var pg *pgconn.PgError
 				if errors.As(err, &pg) && pg.Code == "23505" {
 					c.JSON(http.StatusConflict, gin.H{"error": fmt.Sprintf("%d-%02d dönemi için tahakkuk zaten var (projeden ya da elle); aynı ay iki kez tahakkuk edilemez", year, in.PeriodMonth)})
@@ -153,6 +157,7 @@ func createBudgetAssessments(pool *pgxpool.Pool) gin.HandlerFunc {
 			}
 			total += amt
 			created++
+			ids = append(ids, id)
 		}
 		if err := tx.Commit(ctx); err != nil {
 			failAssess(c, err)
@@ -165,6 +170,7 @@ func createBudgetAssessments(pool *pgxpool.Pool) gin.HandlerFunc {
 		c.JSON(http.StatusCreated, gin.H{
 			"period": fmt.Sprintf("%d-%02d", year, in.PeriodMonth), "created": created,
 			"total_kurus": int64(total), "budget_status": status, "note": note,
+			"notification": notify.NotifyCharges(ctx, n, pool, propertyID, c.GetString("user_id"), ids),
 		})
 	}
 }

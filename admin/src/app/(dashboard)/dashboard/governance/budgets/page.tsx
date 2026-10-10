@@ -160,7 +160,7 @@ function BudgetDetail({ id, onClose, canWrite }: { id: string; onClose: () => vo
                                     options={Array.from({ length: 12 }, (_, i) => ({ value: String(i + 1), label: `${b.period_year}-${String(i + 1).padStart(2, "0")}` }))} /></Field>
                                 <Field label="Son ödeme tarihi"><Input type="date" value={assess.due_date} onChange={(e) => setAssess({ ...assess, due_date: e.target.value })} /></Field>
                                 <Button disabled={act.pending || !assess.due_date} onClick={() => act.run(() => api.governance.budgetAssessments(b.id, Number(assess.period_month), assess.due_date), {
-                                    invalidate: ["assessments"], success: (x) => `${x.period} dönemi için ${x.created} daireye ${kurus(x.total_kurus)} aidat tahakkuk edildi. ${x.note}`,
+                                    invalidate: ["assessments"], success: (x) => `${x.period} dönemi için ${x.created} daireye ${kurus(x.total_kurus)} aidat tahakkuk edildi. ${x.note} Sakin bildirimi: ${x.notification?.note ?? "—"}`,
                                 })}>Projeden aylık aidat tahakkuk et</Button>
                                 <p className="w-full text-xs text-gray-500">Her dairenin yıllık payı 12 aya kuruşu kuruşuna bölünür. Aynı ay için ikinci tahakkuk açılamaz.</p>
                             </div>

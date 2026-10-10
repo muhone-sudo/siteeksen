@@ -12,6 +12,21 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-10 — YENİ BORÇTA SAKİNE BİLDİRİM (beşinci tur B1, Şikayetvar §3.2 "habersiz borçlandırma") (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **1274/1274** (adım 49: `pkg/notify` birim testleri; tahakkukta daire sakinlerine uygulama
+> içi bildirim — bölüm, dönem, tutar, son ödeme günü; taşınmış (pasif) sakine gitmedi; son ödeme günü geçmiş kaydedilen borçta
+> bu açıkça yazıyor; devir bakiyesinde açıklama ve tutarla bildirim; adım 37: projeden tahakkukta her aktif daire sakinine
+> bildirim, sayı aktif sakin sayısına eşit). Panel tsc/lint temiz.
+
+- Önceden tahakkuk, devir bakiyesi ve işletme projesinden tahakkuk hiçbir bildirim üretmiyordu; sakin borcu uygulamayı açınca
+  ya da vade geçip aylık hatırlatma gelince görüyordu.
+- `pkg/notify/charges.go` `NotifyCharges`: verilen tahakkuklardan daire başına bildirim; alıcı `UnitResidents` (aktif
+  sakinler); uygulama içi + SMTP yapılandırılmışsa e-posta; tahakkuk başına tek kayıt (dedupe `charge:<id>:<kanal>`).
+- Üç nokta bağlandı: `POST /finance/assessments`, `POST /finance/opening-balances`, `POST /governance/budgets/:id/assessments`.
+  Yanıtlara `notification` sayaçları eklendi; panel başarı mesajında gösterir.
+- Bildirim hatası tahakkuku geri almaz (borç kayıtlıdır); sonuç yöneticiye yanıtta gösterilir.
+
 ### 2026-10-10 — KARTLA ÖDEME: iyzico ÖDEME FORMU, 3D SECURE DÖNÜŞÜ, DURUM MAKİNESİ (migration 060, TEST_RAPORU 2.5, Apsiyon BUG-09) (DOĞRULANMIŞ — sahte sağlayıcıyla)
 
 > **Kanıt:** `verify-stack.sh` → **1269/1269** (adım 48, IYZWSv2 imzasını DOĞRULAYAN sahte iyzico sunucusuyla: `pkg/iyzico`

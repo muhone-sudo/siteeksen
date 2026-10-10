@@ -75,12 +75,12 @@ export function endpoints(http: Http) {
             payments: (limit = 50) => g<T.Paged<T.Payment>>(`/finance/payments?limit=${limit}`),
             openingBalances: () => g<T.List<T.OpeningBalance>>("/finance/opening-balances"),
             createOpeningBalances: (b: { due_date: string; items: { unit_id: string; amount: number; description?: string }[] }) =>
-                http.post<{ data: T.OpeningBalance[]; created: number; note: string }>("/finance/opening-balances", b),
+                http.post<{ data: T.OpeningBalance[]; created: number; note: string; notification?: T.BroadcastResult }>("/finance/opening-balances", b),
             cancelOpeningBalance: (id: string) => http.post<Msg>(`/finance/opening-balances/${id}/cancel`),
             pendingPayments: () => g<T.List<T.Payment>>("/finance/payments/pending"),
             categories: () => g<T.List<T.FinanceCategory>>("/finance/expense-categories"),
             createAssessment: (b: { period_year: number; period_month: number; due_date: string; expense_items: { category_id: string; amount: number }[] }) =>
-                http.post<{ data: unknown[] }>("/finance/assessments", b),
+                http.post<{ data: unknown[]; notification?: T.BroadcastResult }>("/finance/assessments", b),
             confirmPayment: (id: string, reference?: string) => http.post<Msg>(`/finance/payments/${id}/confirm`, { reference }),
             rejectPayment: (id: string) => http.post<Msg>(`/finance/payments/${id}/reject`),
             clearance: (unit_id: string) => http.post<{ id: string; verification_code: string; verify_url: string; not_due_kurus: number; expires_at: string; note: string }>("/finance/clearance-certificates", { unit_id }),
@@ -355,7 +355,7 @@ export function endpoints(http: Http) {
             createBudget: (b: { period_year: number; items: T.BudgetItem[]; note?: string }) => http.post<T.Budget>("/governance/budgets", b),
             notifyBudget: (id: string, method: string) => http.post<T.Budget>(`/governance/budgets/${id}/notify`, { method }),
             budgetAssessments: (id: string, period_month: number, due_date: string) =>
-                http.post<{ period: string; created: number; total_kurus: number; budget_status: string; note: string }>(`/governance/budgets/${id}/assessments`, { period_month, due_date }),
+                http.post<{ period: string; created: number; total_kurus: number; budget_status: string; note: string; notification?: T.BroadcastResult }>(`/governance/budgets/${id}/assessments`, { period_month, due_date }),
             finalizeBudget: (id: string, agenda_item_id: string, decision_ref?: string) => http.post<{ budget: T.Budget; note: string }>(`/governance/budgets/${id}/finalize`, { agenda_item_id, decision_ref }),
             objections: (id: string) => g<T.List<T.Objection>>(`/governance/budgets/${id}/objections`),
             resolveObjection: (budgetId: string, id: string, status: string, resolution?: string) =>

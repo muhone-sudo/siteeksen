@@ -100,7 +100,7 @@ export default function AssessmentsPage() {
                         .map((i) => ({ category_id: i.category_id, amount: Number(i.amount) }));
                     const r = await act.run(
                         () => api.finance.createAssessment({ period_year: form.period_year, period_month: form.period_month, due_date: form.due_date, expense_items }),
-                        { invalidate: ["assessments", "dashboard"], success: (res) => `${res.data.length} bağımsız bölüme tahakkuk yazıldı` }
+                        { invalidate: ["assessments", "dashboard"], success: (res) => `${res.data.length} bağımsız bölüme tahakkuk yazıldı. Sakin bildirimi: ${res.notification?.note ?? "—"}` }
                     );
                     if (r) setOpen(false);
                 }}

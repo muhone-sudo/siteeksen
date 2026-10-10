@@ -76,7 +76,7 @@ export function OpeningBalances({ canWrite }: { canWrite: boolean }) {
                     if (errors.length || items.length === 0) return;
                     const r = await act.run(() => api.finance.createOpeningBalances({ due_date: due, items }), {
                         invalidate: ["opening-balances", "debtors"],
-                        success: (x) => `${x.created} devir kaydı girildi`,
+                        success: (x) => `${x.created} devir kaydı girildi. Sakin bildirimi: ${x.notification?.note ?? "—"}`,
                     });
                     if (r) { setOpen(false); setText(""); }
                 }}

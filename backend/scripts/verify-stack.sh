@@ -6205,6 +6205,14 @@ if [ -n "$A2" ] && [ -n "$ITEM2" ]; then
       SELECT s.unit_id, (SELECT round(sum(base_amount)*100)::bigint FROM monthly_assessments m WHERE m.budget_id='$B25' AND m.unit_id=s.unit_id) = s.annual_kurus
              AND (SELECT count(*) FROM monthly_assessments m WHERE m.budget_id='$B25' AND m.unit_id=s.unit_id) = 12 AS ok
       FROM operating_budget_unit_shares s WHERE s.budget_id='$B25' AND s.annual_kurus > 0) t;")
+  # Beşinci tur B1: projeden tahakkukta da daire sakinlerine yeni borç bildirimi oluşur
+  BNT=$($PSQL -t -A -c "SELECT count(*) FROM notifications WHERE topic='dues.created' AND channel='IN_APP'
+      AND payload->>'assessment_id' IN (SELECT id::text FROM monthly_assessments WHERE budget_id='$B25' AND period_month=1);")
+  BNA=$($PSQL -t -A -c "SELECT count(DISTINCT (m.id, ru.resident_id)) FROM monthly_assessments m JOIN resident_units ru ON ru.unit_id=m.unit_id AND ru.is_active
+      WHERE m.budget_id='$B25' AND m.period_month=1;")
+  [ "$BNT" -gt 0 ] && [ "$BNT" = "$BNA" ] && echo "$BA1" | grep -q '"notification":{' \
+    && ok "projeden tahakkukta her aktif daire sakinine yeni borç bildirimi oluştu ($BNT kişi)" \
+    || bad "projeden tahakkuk bildirimi: bildirim=$BNT aktif sakin=$BNA — $BA1"
   $PSQL -c "DELETE FROM monthly_assessments WHERE budget_id='$B25';" >/dev/null
   $PSQL -c "UPDATE monthly_assessments SET period_year = 2025 WHERE property_id='$DEMO_PROPERTY' AND period_year = 1999;" >/dev/null
   $PSQL -c "DELETE FROM operating_budgets WHERE id='$BDR';" >/dev/null
@@ -7592,6 +7600,59 @@ OST=$(code "$CF/payments/$P2/status" -H "Authorization: Bearer $MGRL")
   && ok "ödeme sayfası açılamayınca 502 ve 'tutar çekilmedi' notu; kayıt sistem kaynaklı başarısız (PENDING bırakılmadı, yeniden deneme açıldı); yönetim ödeme durumunu görebiliyor" \
   || bad "başlatma hatası: $P7R / $P7DB / yeniden=$P8R / yönetim=$OST"
 kill_tree "$FCRD_PID"; kill "$FIYZ_PID" 2>/dev/null
+
+step "49) Yeni borçta sakine bildirim (beşinci tur B1, Şikayetvar §3.2)"
+if go test ./pkg/notify/ -count=1 -run 'Charge|MergeResult|NotifyCharges' >/tmp/verify-charges.log 2>&1; then
+  ok "go test ./pkg/notify (bildirim metni: dönem/devir, tutar, son ödeme; geçmiş vade notu; iki kanalda alıcı tek sayılır)"
+else
+  bad "yeni borç bildirimi birim testleri"; tail -15 /tmp/verify-charges.log
+fi
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_app DB_PASSWORD="$APPPW" DB_NAME=siteeksen \
+  DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=18982 \
+  go run ./services/finance >/tmp/verify-finance-b1.log 2>&1 &
+FB1_PID=$!
+for _ in $(seq 1 60); do curl -fsS http://127.0.0.1:18982/health >/dev/null 2>&1 && break; sleep 1; done
+BF="http://127.0.0.1:18982/api/v1/finance"
+TUID='44444444-4444-4444-4444-444444444402'
+mkassess() { curl -s -X POST "$BF/assessments" -H "Authorization: Bearer $MGRL" -H "$J" \
+  -d "{\"period_year\":$1,\"period_month\":$2,\"due_date\":\"$3\",\"expense_items\":[{\"category_id\":\"55555555-5555-5555-5555-555555555501\",\"amount\":2500}]}"; }
+notes_for() { $PSQL -t -A -c "SELECT count(*) FROM notifications n JOIN monthly_assessments ma ON ma.id::text = n.payload->>'assessment_id'
+  WHERE n.topic='dues.created' AND n.recipient_user_id='$TUID' AND n.payload->>'unit_id'='$U304'
+    AND ma.period_year=$1 AND ma.period_month=$2 AND n.channel='IN_APP';"; }
+B1R=$(mkassess 2096 1 2096-01-15)
+B1N=$(notes_for 2096 1)
+B1B=$($PSQL -t -A -c "SELECT n.body FROM notifications n WHERE n.topic='dues.created' AND n.recipient_user_id='$TUID' AND n.payload->>'unit_id'='$U304' ORDER BY n.created_at DESC LIMIT 1;")
+B1U=$($PSQL -t -A -c "SELECT count(DISTINCT payload->>'unit_id') FROM notifications WHERE topic='dues.created'
+  AND payload->>'assessment_id' IN (SELECT id::text FROM monthly_assessments WHERE period_year=2096 AND period_month=1);")
+echo "$B1R" | grep -q '"notification":{' && echo "$B1R" | grep -q '"sent":[1-9]' && [ "$B1N" = "1" ] \
+  && grep -q 'A-4 bağımsız bölümü için yeni borç' <<<"$B1B" && grep -q '2096-01 dönemi aidatı' <<<"$B1B" && grep -q '15.01.2096' <<<"$B1B" \
+  && ! grep -q 'bugünden önceki' <<<"$B1B" && [ "$B1U" -gt 0 ] \
+  && ok "tahakkukta daire sakinlerine uygulama içi bildirim oluştu ($B1U bölüm): bölüm, dönem, tutar ve son ödeme günü yazıyor; yanıt sayaçları döndü" \
+  || bad "tahakkuk bildirimi: $B1R / kiracıya=$B1N / $B1B / bölüm=$B1U"
+# Taşınmış (pasif) sakine yeni borç bildirimi gitmez
+$PSQL -c "UPDATE resident_units SET is_active=false WHERE resident_id='$TUID' AND unit_id='$U304';" >/dev/null
+B2R=$(mkassess 2096 2 2096-02-15)
+B2N=$(notes_for 2096 2)
+$PSQL -c "UPDATE resident_units SET is_active=true WHERE resident_id='$TUID' AND unit_id='$U304';" >/dev/null
+# Son ödeme günü geçmiş olarak kaydedilen borçta sakine bu açıkça yazılır
+B3R=$(mkassess 2019 1 2019-01-15)
+B3B=$($PSQL -t -A -c "SELECT n.body FROM notifications n JOIN monthly_assessments ma ON ma.id::text = n.payload->>'assessment_id'
+  WHERE n.topic='dues.created' AND n.recipient_user_id='$TUID' AND n.payload->>'unit_id'='$U304' AND ma.period_year=2019 LIMIT 1;")
+[ "$B2N" = "0" ] && echo "$B2R" | grep -q '"notification":{' && grep -q 'bugünden önceki' <<<"$B3B" && grep -q '15.01.2019' <<<"$B3B" \
+  && ok "taşınmış (pasif) sakine yeni borç bildirimi gitmedi; son ödeme günü geçmiş kaydedilen borçta bu durum bildirimde açıkça yazıyor" \
+  || bad "pasif sakin / geçmiş vade: pasife=$B2N / $B2R / $B3B"
+# Devir bakiyesi de bildirilir
+B4R=$(curl -s -X POST "$BF/opening-balances" -H "Authorization: Bearer $MGRL" -H "$J" \
+  -d "{\"due_date\":\"2096-06-30\",\"items\":[{\"unit_id\":\"$U304\",\"amount\":321.5,\"description\":\"Önceki yönetimden yakıt farkı\"}]}")
+B4ID=$(echo "$B4R" | sed -n 's/.*"data":\[{"id":"\([^"]*\)".*/\1/p')
+B4B=$($PSQL -t -A -c "SELECT body FROM notifications WHERE topic='dues.created' AND payload->>'assessment_id'='$B4ID' AND recipient_user_id='$TUID';")
+[ -n "$B4ID" ] && grep -q 'Devir bakiyesi' <<<"$B4B" && grep -q 'Önceki yönetimden yakıt farkı' <<<"$B4B" && grep -q '321,50' <<<"$B4B" \
+  && ok "devir bakiyesi kaydında da daire sakinine bildirim oluştu (açıklama ve tutarla)" \
+  || bad "devir bildirimi: $B4R / $B4B"
+[ -n "$B4ID" ] && curl -s -o /dev/null -X POST "$BF/opening-balances/$B4ID/cancel" -H "Authorization: Bearer $MGRL"
+$PSQL -c "DELETE FROM assessment_details WHERE assessment_id IN (SELECT id FROM monthly_assessments WHERE property_id='$DEMO_PROPERTY' AND period_year IN (2096,2019));
+  DELETE FROM monthly_assessments WHERE property_id='$DEMO_PROPERTY' AND period_year IN (2096,2019);" >/dev/null
+kill_tree "$FB1_PID"
 
 step "SONUÇ"
 echo "  Geçen: $PASS   Başarısız: $FAIL"

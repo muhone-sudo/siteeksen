@@ -9,6 +9,7 @@ import (
 	"github.com/siteeksen/backend/pkg/iyzico"
 	"github.com/siteeksen/backend/pkg/legalparams"
 	"github.com/siteeksen/backend/pkg/middleware"
+	"github.com/siteeksen/backend/pkg/notify"
 	"github.com/siteeksen/backend/services/finance/handlers"
 	"github.com/siteeksen/backend/services/finance/repository"
 	"github.com/siteeksen/backend/services/finance/service"
@@ -36,6 +37,8 @@ func main() {
 	}
 	financeService.SetCardGateway(card)
 	startCardReconcile(financeService)
+	// Yeni borç bildirimi (beşinci tur B1): tahakkuk ve devir kaydında daire sakinlerine.
+	notifier := notify.FromEnvOrNil(pool)
 
 	// Gin router
 	r := middleware.NewRouter("finance")
@@ -111,7 +114,7 @@ func main() {
 		mgmtWrite := api.Group("")
 		mgmtWrite.Use(middleware.RequireRole(middleware.RoleManager, middleware.RoleBoardMember))
 		{
-			mgmtWrite.POST("/assessments", handlers.CreateAssessment(financeService))
+			mgmtWrite.POST("/assessments", handlers.CreateAssessment(financeService, notifier, pool))
 			// Tahsilat onayı: ödeme sağlayıcısı entegrasyonu olmadığı için havale/EFT/nakit
 			// tahsilatını yönetici onaylar. Onay, tahakkukların paid_amount değerini artırır.
 			mgmtWrite.POST("/payments/:id/confirm", handlers.ConfirmPayment(financeService))
@@ -121,7 +124,7 @@ func main() {
 			// ya da yönetici tarafından elle çalıştırılabilir.
 			mgmtWrite.POST("/late-fees/accrue", handlers.AccrueLateFees(financeService))
 			// Açılış (devir) bakiyesi: önceki yönetimden devreden borçlar (FAZ 8.1, 034).
-			mgmtWrite.POST("/opening-balances", handlers.CreateOpeningBalances(financeService))
+			mgmtWrite.POST("/opening-balances", handlers.CreateOpeningBalances(financeService, notifier, pool))
 			mgmtWrite.POST("/opening-balances/:id/cancel", handlers.CancelOpeningBalance(financeService))
 			// Alacak dekontu ve banka ekstresi mutabakatı (059, Apsiyon BUG-12).
 			mgmtWrite.POST("/credit-notes", createCreditNote(financeRepo))

@@ -18,6 +18,7 @@ import (
 	"github.com/siteeksen/backend/pkg/database"
 	"github.com/siteeksen/backend/pkg/legalparams"
 	"github.com/siteeksen/backend/pkg/middleware"
+	"github.com/siteeksen/backend/pkg/notify"
 	"github.com/siteeksen/backend/services/governance/handlers"
 	"github.com/siteeksen/backend/services/governance/repository"
 	"github.com/siteeksen/backend/services/governance/service"
@@ -34,6 +35,8 @@ func main() {
 	repo := repository.New(pool)
 	params := legalparams.New(pool)
 	svc := service.New(repo, params)
+	// Projeden tahakkukta daire sakinlerine yeni borç bildirimi (beşinci tur B1).
+	notifier := notify.FromEnvOrNil(pool)
 
 	r := middleware.NewRouter("governance")
 	// Biçimi bozuk kimlik 500 değil 404 döner (pkg/middleware/params.go).
@@ -86,7 +89,7 @@ func main() {
 		write.POST("/budgets", handlers.CreateBudget(svc))
 		write.POST("/budgets/:id/notify", handlers.NotifyBudget(svc))
 		write.POST("/budgets/:id/finalize", handlers.FinalizeBudget(svc))
-		write.POST("/budgets/:id/assessments", createBudgetAssessments(pool))
+		write.POST("/budgets/:id/assessments", createBudgetAssessments(pool, notifier))
 		write.PATCH("/budgets/:id/objections/:objectionId", handlers.ResolveObjection(svc))
 
 		write.POST("/assemblies", handlers.CreateAssembly(svc))

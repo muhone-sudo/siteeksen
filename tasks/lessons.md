@@ -673,3 +673,11 @@ kısıtı sağladığı sınanır.
 `SELECT x || '|' || (a = b)` çıktısı `…|true` olur; yalın `SELECT (a = b)` ise `t`. Aynı turda iki kez
 yanlış beklenti yazıldı (A7 ve A12). **Kural:** Birleştirilmiş mantıksal değerde `true/false`, yalın
 sütunda `t/f` beklenir.
+
+### Ders 49 — Şikayet raporundan iş çıkarırken işletme kararları kapsam dışıdır
+
+Şikayetvar'dan türetilmiş rapor değerlendirilirken komisyon, ücret gösterimi ve gecikme tazminatının
+başlangıç günü gibi konularda öneri yazıldı. Kullanıcı düzeltti: komisyonsuz işletme yaşayamaz; para,
+faiz ve sözleşme kararları işletmenindir. **Kural:** Ürün/şikayet analizinde yalnızca uygulama
+aksaklıkları ve olsa iyi olacak özellikler değerlendirilir; işletme kararı olan maddeler "kapsam dışı"
+yazılıp geçilir, öneri üretilmez.
