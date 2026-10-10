@@ -663,6 +663,10 @@ S-21 → VERBİS opsiyonel, yükümlülük site yönetiminde; S-19 ve iOS → ol
 - [x] A11 site pasifleştirme (BUG-11) — 058, verify 1248/1248
 - [x] A12 alacak dekontu + banka ekstresi mutabakatı (BUG-12) — 059, verify 1258/1258, mobil 10/10
 
+**Tur sonucu (2026-10-10):** verify-stack **1269/1269**, verify-mobile **10/10**, panel tsc/lint/build temiz;
+60 migration, RLS 117 tablo. Açık kalan yalnızca kullanıcı girdisi bekleyenler: T5b (iyzico sandbox anahtarı),
+PTS bariyer komut protokolü (A8 uzaktan açma), Netgsm/SMTP hesapları, defter baş özetinin dış çapası.
+
 ## 2026-10-04 — Üçüncü tur (tamamlandı)
 
 **Bitti (commit d71a4ea):** İşletme projesi 7579 s. Kanuna uyumlu (036): genel kurul onayı, geçici proje
