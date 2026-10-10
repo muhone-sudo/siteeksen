@@ -49,7 +49,8 @@ export default function ActivatePage() {
                             setPending(true);
                             setError("");
                             try {
-                                await api.identity.activate(phone.startsWith("+90") ? phone : `+90${phone}`, code, pw);
+                                // Sunucu E.164'e getirir; yurt dışı numara ülke koduyla korunur (Apsiyon BUG-10).
+                                await api.identity.activate(phone.trim(), code, pw);
                                 setDone(true);
                             } catch (err) {
                                 setError(toUserMessage(err, "Şifre belirlenemedi."));
@@ -60,9 +61,9 @@ export default function ActivatePage() {
                     >
                         {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                            Telefon numarası (+90 olmadan)
-                            <input type="tel" required maxLength={10} placeholder="5551234567" className={input + " mt-1"}
-                                value={phone} onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))} />
+                            Telefon numarası
+                            <input type="tel" required maxLength={20} placeholder="0555 123 45 67 · yurt dışı: +49 …" className={input + " mt-1"}
+                                value={phone} onChange={(e) => setPhone(e.target.value.replace(/[^\d+ ]/g, ""))} />
                         </label>
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                             Kod

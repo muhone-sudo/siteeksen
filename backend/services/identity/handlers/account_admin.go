@@ -32,8 +32,8 @@ func ChangeResidentPhone(users *repository.UserRepository, auth *service.AuthSer
 			return
 		}
 		phone := normalizePhone(in.Phone)
-		if len(phone) < 8 {
-			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "Telefon numarası geçersiz"})
+		if phone == "" {
+			errInvalidPhone(c)
 			return
 		}
 		ctx := c.Request.Context()

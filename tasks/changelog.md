@@ -12,6 +12,22 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-10 — YURT DIŞINDAKİ MALİKLER: ULUSLARARASI TELEFON (E.164), COĞRAFİ ENGEL YOK (Apsiyon BUG-10) (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **1243/1243** (adım 8: kong.yml ve gateway'de ülke/IP bloğu bazlı engel izi yok; adım 43:
+> `pkg/phone` birim testleri; "+352 621 123 456" ile sakin eklendi, `+352621123456` olarak saklandı, kod sahte Netgsm'e
+> `00352621123456` numarasıyla gitti, "00352 …" yazımıyla etkinleştirme 200, "+352…" ile giriş jeton döndü; "555-ABC-1234"
+> ve eksik "+90 555 123" 422); `verify-mobile.sh` 10/10 (iki uygulamada yurt dışı numara testleri); panel tsc/lint temiz.
+
+- **Kök hata:** "00352…" yazımının başına +90 ekleniyor ("+900352…"), mobil uygulamalar her numaraya +90 ekliyor, panel
+  girişi yalnızca 10 haneli Türkiye numarası kabul ediyordu: yurt dışındaki malik hesap açamıyor, giriş yapamıyordu.
+- `pkg/phone`: tek normalleştirme (E.164). "+"/"00" önekli numara ülke koduyla korunur (8–15 hane); +90 için tam 10 hane.
+  Tanınmayan numara artık sessizce saklanmaz: sakin ekleme, görev verme ve telefon değişikliğinde 422; toplu eklemede satır hatası.
+- Mobil (iki uygulama) ve panel giriş/etkinleştirme ekranlarında "+90" zorunluluğu kaldırıldı; numarayı sunucu normalleştirir.
+- Coğrafi engel: kenar katmanında (Kong) ve gateway'de ülke bazlı engel yoktur; koruma IP başına hız sınırıdır. Doğrulama
+  betiği bunu denetler — biri ileride toptan ülke engeli eklerse yakalanır.
+- Netgsm yurt dışı numaraya `00…` biçimiyle gönderir (zaten destekliyordu); hesapta yurt dışı SMS paketi gerekir (kullanıcı).
+
 ### 2026-10-10 — GEÇİŞ CİHAZI CANLILIK İZLEME VE ÇEVRİMDIŞI ALARMI (migration 057, Apsiyon BUG-08) (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **1240/1240** (adım 15: cihaz kaydında anahtar bir kez gösterildi, yalnızca SHA-256 özeti

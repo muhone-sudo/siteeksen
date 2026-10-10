@@ -114,8 +114,8 @@ class _ActivateScreenState extends State<ActivateScreen> {
                 TextFormField(
                   controller: _phone,
                   keyboardType: TextInputType.phone,
-                  decoration: const InputDecoration(labelText: 'Telefon Numarası', prefixText: '+90 ', prefixIcon: Icon(Icons.phone)),
-                  validator: (v) => v == null || normalizePhone(v).length != 13 ? 'Geçerli bir telefon numarası girin' : null,
+                  decoration: const InputDecoration(labelText: 'Telefon Numarası', hintText: '0555 123 45 67 · yurt dışı: +49 …', prefixIcon: Icon(Icons.phone)),
+                  validator: (v) => v == null || !isValidPhone(v) ? 'Geçerli bir telefon numarası girin (yurt dışı numara +ülke kodu ile)' : null,
                 ),
                 const SizedBox(height: 16),
                 TextFormField(

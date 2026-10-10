@@ -10,6 +10,7 @@ import (
 	"time"
 	"unicode"
 
+	phonepkg "github.com/siteeksen/backend/pkg/phone"
 	"github.com/siteeksen/backend/services/identity/repository"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -69,7 +70,7 @@ func ValidatePassword(pw, phone string) error {
 		return ErrWeakPassword
 	}
 	// Telefon numarası (ya da onu içeren şifre) ilk denenen tahmindir.
-	digits := strings.TrimPrefix(phone, "+90")
+	digits := phonepkg.National(phone)
 	if digits != "" && strings.Contains(pw, digits) {
 		return fmt.Errorf("%w (telefon numaranızı içeremez)", ErrWeakPassword)
 	}

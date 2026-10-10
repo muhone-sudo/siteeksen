@@ -556,6 +556,11 @@ m = re.search(r"minute:\s*(\d+)", auth); assert m and int(m.group(1)) <= 30
 assert re.search(r"allowed_payload_size:\s*25\b", s) and "size_unit: megabytes" in s
 assert "name: jwt" not in s and "'*'" not in s
 PY
+# Apsiyon BUG-10: yurt dışındaki malikler erişebilmeli — kenar katmanında ve gateway'de
+# ülke/IP bloğu bazlı toptan engel olmamalı; koruma IP başına hız sınırıdır.
+GEO=$(grep -nEi 'ip-restriction|geoip|geo-ip|country|bot-detection' "$KONG" "$BACKEND_DIR/cmd/gateway/"*.go | grep -v '_test.go' || true)
+[ -z "$GEO" ] && ok "kong.yml ve gateway'de ülke/IP bloğu bazlı engel yok (yurt dışı erişim açık; koruma IP başına hız sınırı)" \
+  || bad "coğrafi engel izi: $GEO"
 
 step "9) Yetkilendirme: site bazlı roller ve sahiplik doğrulaması (FAZ 2.4/2.5/2.9)"
 FINPORT=${VERIFY_FIN_PORT:-18092}
@@ -7140,6 +7145,31 @@ echo "$PC1" | grep -q '"sessions_revoked":true' && echo "$PC1" | grep -q '"old_p
   && [ "$PH5" = "+905559990045" ] && [ "${INV5:-0}" -ge 1 ] && [ "$PC2" = "409" ] && { [ "${MULTI:-1}" -le 1 ] || [ "$PC3" = "409" ]; } \
   && ok "telefon değişikliği: oturumlar kapandı, yeni kod yeni numaraya SMS, eski numaraya uyarı SMS'i; başkasının numarası 409; birden çok sitede kayıtlı hesabın numarası tek site yönetimince değiştirilemez ($MULTI site → $PC3)" \
   || bad "telefon değişikliği: $PC1 / sms=$PCOK / $PH5 / iptal=$INV5 / $PC2 / çoklu=$MULTI→$PC3"
+# Apsiyon BUG-10: yurt dışı numarayla (Lüksemburg +352) hesap, SMS, etkinleştirme ve giriş
+if go test ./pkg/phone/ -count=1 >/tmp/verify-phone.log 2>&1; then
+  ok "go test ./pkg/phone (E.164: TR yazımları, +352/+49/+1/+44, 00 öneki, geçersiz biçimler)"
+else
+  bad "go test ./pkg/phone"; tail -15 /tmp/verify-phone.log
+fi
+BEFORE6=$(wc -l </tmp/fake-netgsm.log)
+CR6=$(curl -s -X POST "$IDS/residents" -H "Authorization: Bearer $MGRS" -H "$J" \
+  -d "{\"first_name\":\"Yurt\",\"last_name\":\"Disi\",\"phone\":\"+352 621 123 456\",\"unit_id\":\"$SU\",\"role\":\"TENANT\"}")
+ICODE=$(echo "$CR6" | sed -n 's/.*"activation_code":"\([^"]*\)".*/\1/p')
+sleep 1
+ISMS=$(python3 -c "
+import json
+rows=[json.loads(l) for l in open('/tmp/fake-netgsm.log')][$BEFORE6:]
+print(any(r['body']['messages'][0]['no']=='00352621123456' and '$ICODE' in r['body']['messages'][0]['msg'] for r in rows))" 2>/dev/null)
+IPH=$($PSQL -t -A -c "SELECT count(*) FROM users WHERE phone='+352621123456';")
+IACT=$(code -X POST "$IDS/auth/activate" -H "$J" -d "{\"phone\":\"00352 621 123 456\",\"code\":\"$ICODE\",\"new_password\":\"Lux2026guvenli\"}")
+ILOG=$(curl -s -X POST "$IDS/auth/login" -H "$J" -d '{"phone":"+352621123456","password":"Lux2026guvenli"}' | grep -c '"access_token"')
+IBAD=$(code -X POST "$IDS/residents" -H "Authorization: Bearer $MGRS" -H "$J" \
+  -d "{\"first_name\":\"X\",\"last_name\":\"Y\",\"phone\":\"555-ABC-1234\",\"unit_id\":\"$SU\",\"role\":\"TENANT\"}")
+IBAD2=$(code -X POST "$IDS/residents" -H "Authorization: Bearer $MGRS" -H "$J" \
+  -d "{\"first_name\":\"X\",\"last_name\":\"Y\",\"phone\":\"+90 555 123\",\"unit_id\":\"$SU\",\"role\":\"TENANT\"}")
+[ -n "$ICODE" ] && [ "$ISMS" = "True" ] && [ "$IPH" = "1" ] && [ "$IACT" = "200" ] && [ "$ILOG" = "1" ] && [ "$IBAD" = "422" ] && [ "$IBAD2" = "422" ] \
+  && ok "yurt dışı numara (+352): E.164 saklandı, kod SMS ile 00352… numarasına gitti, 00 önekiyle etkinleştirme ve +352 ile giriş çalıştı; geçersiz/eksik numara 422" \
+  || bad "yurt dışı numara: kod=$ICODE sms=$ISMS db=$IPH act=$IACT login=$ILOG bad=$IBAD/$IBAD2 — $CR6"
 kill_tree "$IDS_PID"; kill_tree "$COMS_PID"; kill "$FAKE_PID" 2>/dev/null
 
 step "44) PDF / Excel dökümleri (TEST_RAPORU 2.6)"

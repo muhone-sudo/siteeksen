@@ -5,35 +5,29 @@ import (
 	"github.com/siteeksen/backend/pkg/middleware"
 	"log"
 	"net/http"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5"
+	"github.com/siteeksen/backend/pkg/phone"
 	"github.com/siteeksen/backend/services/identity/models"
 	"github.com/siteeksen/backend/services/identity/repository"
 	"github.com/siteeksen/backend/services/identity/service"
 )
 
-// normalizePhone, telefonu tek biçime (+90XXXXXXXXXX) getirir. Boşluk, tire,
-// parantez ve nokta atılır: "0 (555) 123-45-67" ile "+905551234567" aynı kişidir.
-func normalizePhone(phone string) string {
-	phone = strings.Map(func(r rune) rune {
-		switch r {
-		case ' ', '-', '(', ')', '.', '\t':
-			return -1
-		}
-		return r
-	}, strings.TrimSpace(phone))
-	if strings.HasPrefix(phone, "+90") {
-		return phone
+// normalizePhone, telefonu tek biçime (E.164) getirir: "0 (555) 123-45-67" ile
+// "+905551234567" aynı kişidir; yurt dışı numara (+352…, 0049…) da desteklenir
+// (Apsiyon BUG-10). Tanınmayan numara için boş döner — çağıran 422 verir.
+func normalizePhone(p string) string {
+	n, err := phone.Normalize(p)
+	if err != nil {
+		return ""
 	}
-	if strings.HasPrefix(phone, "0") {
-		return "+90" + phone[1:]
-	}
-	if len(phone) == 10 {
-		return "+90" + phone
-	}
-	return phone
+	return n
+}
+
+// errInvalidPhone, tanınmayan numaranın yanıtıdır.
+func errInvalidPhone(c *gin.Context) {
+	c.JSON(http.StatusUnprocessableEntity, gin.H{"error": phone.ErrInvalid.Error()})
 }
 
 // LoginRequest giriş isteği

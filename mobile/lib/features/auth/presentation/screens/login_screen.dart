@@ -104,14 +104,14 @@ class _LoginScreenState extends State<LoginScreen> {
                   decoration: const InputDecoration(
                     labelText: 'Telefon Numarası',
                     prefixIcon: Icon(Icons.phone),
-                    prefixText: '+90 ',
+                    hintText: '0555 123 45 67 · yurt dışı: +49 …',
                   ),
                   validator: (value) {
                     if (value == null || value.isEmpty) {
                       return 'Telefon numarası gerekli';
                     }
-                    if (normalizePhone(value).length != 13) {
-                      return 'Geçerli bir telefon numarası girin (5XX XXX XX XX)';
+                    if (!isValidPhone(value)) {
+                      return 'Geçerli bir telefon numarası girin (yurt dışı numara +ülke kodu ile)';
                     }
                     return null;
                   },

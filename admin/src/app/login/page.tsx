@@ -21,7 +21,8 @@ export default function LoginPage() {
 
         try {
             const result = await signIn("credentials", {
-                phone: phone.startsWith("+90") ? phone : `+90${phone}`,
+                // Sunucu E.164'e getirir: 0555…/555… → +90…, +352…/0049… yurt dışı olarak korunur (Apsiyon BUG-10).
+                phone: phone.trim(),
                 password,
                 redirect: false,
             });
@@ -69,16 +70,13 @@ export default function LoginPage() {
                             </label>
                             <div className="relative">
                                 <Phone className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
-                                <div className="absolute left-10 top-1/2 -translate-y-1/2 text-gray-500">
-                                    +90
-                                </div>
                                 <input
                                     type="tel"
                                     value={phone}
-                                    onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
-                                    placeholder="5551234567"
-                                    maxLength={10}
-                                    className="w-full rounded-lg border border-gray-300 bg-gray-50 py-3 pl-20 pr-4 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 dark:border-gray-600 dark:bg-gray-700"
+                                    onChange={(e) => setPhone(e.target.value.replace(/[^\d+ ]/g, ""))}
+                                    placeholder="0555 123 45 67 · yurt dışı: +49 …"
+                                    maxLength={20}
+                                    className="w-full rounded-lg border border-gray-300 bg-gray-50 py-3 pl-10 pr-4 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 dark:border-gray-600 dark:bg-gray-700"
                                     required
                                 />
                             </div>

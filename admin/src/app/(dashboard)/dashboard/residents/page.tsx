@@ -224,7 +224,7 @@ export default function ResidentsPage() {
                 <Grid>
                     <Field label="Ad" required><Input required value={form.first_name} onChange={(e) => setForm({ ...form, first_name: e.target.value })} /></Field>
                     <Field label="Soyad" required><Input required value={form.last_name} onChange={(e) => setForm({ ...form, last_name: e.target.value })} /></Field>
-                    <Field label="Telefon" required hint="05xx… ya da +90…"><Input required value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></Field>
+                    <Field label="Telefon" required hint="05xx… · yurt dışı: +ülke kodu (ör. +49…)"><Input required value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></Field>
                     <Field label="E-posta"><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></Field>
                     <Field label="Bağımsız bölüm" required>
                         <Select required value={form.unit_id} onChange={(e) => setForm({ ...form, unit_id: e.target.value })} options={unitOptions} placeholder="Seçin" />

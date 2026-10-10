@@ -50,6 +50,11 @@ void main() {
       expect(normalizePhone('+90 555 123 4567'), '+905551234567');
       expect(normalizePhone('5551234567'), '+905551234567');
     });
+    test('normalizePhone yurt dışı numarayı ülke koduyla korur', () {
+      expect(normalizePhone('+352 621 123 456'), '+352621123456');
+      expect(normalizePhone('0049 151 23456789'), '+4915123456789');
+      expect(normalizePhone('0090 555 123 45 67'), '+905551234567');
+    });
   });
 
   test('ApiClient.listOf {data:[...]} ve düz diziyi kabul eder', () {

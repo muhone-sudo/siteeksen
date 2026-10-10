@@ -116,7 +116,10 @@ func CreateResident(svc *service.ResidentService) gin.HandlerFunc {
 
 		// Telefon, girişle AYNI biçimde saklanır. Önceden "0555…" olduğu gibi
 		// yazılıyor, giriş ise "+90555…" arıyordu: sakin giriş yapamıyordu.
-		input.Phone = normalizePhone(input.Phone)
+		if input.Phone = normalizePhone(input.Phone); input.Phone == "" {
+			errInvalidPhone(c)
+			return
+		}
 		propertyID := c.GetString("property_id")
 		result, err := svc.Create(c.Request.Context(), propertyID, c.GetString("user_id"), getRoles(c), input)
 		if err != nil {
@@ -312,7 +315,10 @@ func GrantSiteRole(svc *service.RoleService) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "phone ve role zorunlu"})
 			return
 		}
-		in.Phone = normalizePhone(in.Phone)
+		if in.Phone = normalizePhone(in.Phone); in.Phone == "" {
+			errInvalidPhone(c)
+			return
+		}
 		res, err := svc.Grant(c.Request.Context(), c.GetString("property_id"), c.GetString("user_id"), getRoles(c), in)
 		if err != nil {
 			mapResidentError(c, err, "Görev verilemedi")
@@ -369,9 +375,13 @@ func BulkCreateResidents(svc *service.ResidentService) gin.HandlerFunc {
 		out := make([]BulkResidentRow, 0, len(in.Residents))
 		counts := map[string]int{}
 		for i, r := range in.Residents {
+			raw := r.Phone
 			row := BulkResidentRow{Row: i + 1, Phone: normalizePhone(r.Phone)}
 			r.Phone = row.Phone
 			switch {
+			case strings.TrimSpace(raw) != "" && row.Phone == "":
+				row.Status, row.Error = "error", "telefon numarası geçersiz (yurt dışı numara +ülke kodu ile)"
+				row.Phone = raw
 			case strings.TrimSpace(r.FirstName) == "" || strings.TrimSpace(r.LastName) == "" || row.Phone == "" || r.UnitID == "":
 				row.Status, row.Error = "error", "ad, soyad, telefon ve daire zorunlu"
 			default:

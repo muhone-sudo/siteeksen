@@ -69,10 +69,23 @@ String periodLabel(Object? period) {
   return month >= 1 && month <= 12 ? '${months[month]} ${m.group(1)}' : '${period ?? ''}';
 }
 
-/// Telefonu sunucunun sakladığı biçime getirir: `+90XXXXXXXXXX`.
+/// Numara geçerli mi: Türkiye için +90 ve 10 hane, yurt dışı için + ve 8–15 hane (E.164).
+bool isValidPhone(String input) {
+  final n = normalizePhone(input);
+  if (n.startsWith('+90')) return n.length == 13;
+  return RegExp(r'^\+[1-9]\d{7,14}$').hasMatch(n);
+}
+
+/// Telefonu sunucunun sakladığı biçime (E.164) getirir: `+90XXXXXXXXXX`.
 /// "0555 123 45 67", "555-123-4567", "+90 555…" hepsi aynı numaradır.
+/// "+" ya da "00" ile başlayan numara yurt dışıdır ve ülke koduyla korunur
+/// (Apsiyon BUG-10: "+352 621…" önceden "+90352621…" yapılıyordu).
 String normalizePhone(String input) {
-  var digits = input.replaceAll(RegExp(r'\D'), '');
+  final trimmed = input.trim();
+  var digits = trimmed.replaceAll(RegExp(r'\D'), '');
+  final international = trimmed.startsWith('+') || digits.startsWith('00');
+  if (digits.startsWith('00')) digits = digits.substring(2);
+  if (international && !digits.startsWith('90')) return '+$digits';
   if (digits.startsWith('90') && digits.length == 12) digits = digits.substring(2);
   if (digits.startsWith('0') && digits.length == 11) digits = digits.substring(1);
   return '+90$digits';

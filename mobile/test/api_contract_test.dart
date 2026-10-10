@@ -31,6 +31,12 @@ void main() {
         expect(normalizePhone(v), '+905551234567', reason: v);
       }
     });
+    test('yurt dışı numara ülke koduyla korunur (+90 eklenmez)', () {
+      expect(normalizePhone('+352 621 123 456'), '+352621123456');
+      expect(normalizePhone('00352 621 123 456'), '+352621123456');
+      expect(normalizePhone('+49 151 23456789'), '+4915123456789');
+      expect(normalizePhone('0090 555 123 45 67'), '+905551234567');
+    });
   });
 
   group('şifre politikası (sunucu ile aynı)', () {
