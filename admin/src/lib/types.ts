@@ -53,7 +53,7 @@ export interface Debtor { unit_id: Id; resident_id: Id | ""; name: string; unit:
 export interface Payment {
     id: Id; user_id: string; amount: number; payment_method: string; status: string;
     transaction_id?: string; created_at: string; completed_at: string; name: string; unit: string;
-    value_date?: string; payer_reference?: string; recorded_by_management?: boolean;
+    value_date?: string; payer_reference?: string; recorded_by_management?: boolean; receipt_count?: number;
 }
 export interface FinanceCategory { id: Id; property_id: Id; name: string; distribution_type: string; is_active: boolean }
 export interface LateFeeRun {
@@ -455,3 +455,6 @@ export interface StatementObjection {
     user_id: Id; user_name: string; total_kurus: number; reason: string; status: "OPEN" | "ACCEPTED" | "REJECTED";
     response?: string; responded_at?: string; responded_by_name?: string; created_at: string;
 }
+
+/** Havale bildirimine eklenen dekont dosyası (064, B9). */
+export interface PaymentReceipt { id: Id; payment_id: Id; file_name: string; content_type: string; size_bytes: number; sha256: string; created_at: string }

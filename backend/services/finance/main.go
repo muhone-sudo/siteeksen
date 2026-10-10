@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"log"
 	"os"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/siteeksen/backend/pkg/legalparams"
 	"github.com/siteeksen/backend/pkg/middleware"
 	"github.com/siteeksen/backend/pkg/notify"
+	"github.com/siteeksen/backend/pkg/storage"
 	"github.com/siteeksen/backend/services/finance/handlers"
 	"github.com/siteeksen/backend/services/finance/repository"
 	"github.com/siteeksen/backend/services/finance/service"
@@ -39,6 +41,15 @@ func main() {
 	startCardReconcile(financeService)
 	// Yeni borç bildirimi (beşinci tur B1): tahakkuk ve devir kaydında daire sakinlerine.
 	notifier := notify.FromEnvOrNil(pool)
+	// Havale dekontu deposu (064, B9). Yapılandırılmamışsa servis açılır, dekont yüklemesi 503
+	// döner; yapılandırma HATALIYSA servis açılmaz (sessiz dosya kaybı olmasın).
+	store, serr := storage.FromEnv()
+	if errors.Is(serr, storage.ErrNotConfigured) && os.Getenv("STORAGE_BACKEND") == "" {
+		log.Printf("[finance] dosya deposu yapılandırılmamış: havale dekontu saklanamaz (STORAGE_BACKEND)")
+		store = nil
+	} else if serr != nil {
+		log.Fatalf("Dosya deposu yapılandırması hatalı: %v", serr)
+	}
 
 	// Gin router
 	r := middleware.NewRouter("finance")
@@ -81,6 +92,10 @@ func main() {
 		api.POST("/payments", handlers.CreatePayment(financeService))
 		api.GET("/my-payments", handlers.GetMyPayments(financeService))
 		api.GET("/payments/:id/status", cardStatus(financeService))
+		// Havale bildirimine dekont dosyası (064, B9): bildirimi yapan sakin ekler; sakin ve yönetim görür.
+		api.POST("/payments/:id/receipts", uploadReceipt(financeRepo, store))
+		api.GET("/payments/:id/receipts", listReceipts(financeRepo))
+		api.GET("/payments/:id/receipts/:receiptId/download", downloadReceipt(financeRepo, store))
 		api.GET("/ledger/verify", handlers.VerifyLedger(financeService))
 		// Borcu yoktur belgesi (055): bölümün sakini ya da yönetim.
 		api.POST("/clearance-certificates", createClearance(pool))

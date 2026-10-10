@@ -666,10 +666,10 @@ mobil maddelerden sonra verify-mobile, panel maddelerinden sonra tsc+lint+build.
 - [x] **B8 Fatura sapma uyarısı + itiraz** (verify 1305/1305, mobil 10/10) — paylaştırmada kullanım alanı başına tüketim site medyanının
   3 katını aşan bölümler listelenir, yayım yönetici teyidi ister. Sakin tüketim pusulasına itiraz eder,
   yönetim yanıtlar, iki tarafa bildirim (063). Panel sayaç sayfası + sakin enerji ekranı.
-- [ ] **B9 Havale bildirimine dekont dosyası** — sakin bekleyen ödemesine PDF/görsel ekler (`pkg/storage`),
+- [x] **B9 Havale bildirimine dekont dosyası** (verify 1309/1309, mobil 10/10) — sakin bekleyen ödemesine PDF/görsel ekler (`pkg/storage`),
   yönetim indirir. Mobil dosya seçici (yeni paket: `file_picker`).
-- [ ] **B10 Yönetim → SiteEksen destek talebi** — site yönetimi talep açar ve yazışır; SUPER_ADMIN tüm
-  siteleri görür ve yanıtlar (site verisine erişim vermeden, yalnız talep tablosu). Panel "Destek" sayfası.
+- [ ] **B10 Yönetim → SiteEksen destek talebi** — KARAR BEKLİYOR (kullanıcı): talepleri SiteEksen tarafında kim, hangi
+  kanaldan yanıtlayacak? Sistemde platform hesabı (SUPER_ADMIN) hiç tanımlı değil (seed/panel yok); bu bir işletme kararı.
 - [ ] **B11 Push bildirim** — BAŞLANMAZ: Firebase projesi ve `google-services.json` kullanıcıdan (S-10).
 
 ## 2026-10-05 — Dördüncü tur (kullanıcı kararları + TEST_RAPORU + Apsiyon şikâyetleri)

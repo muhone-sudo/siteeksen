@@ -358,6 +358,13 @@ class ApiClient {
     return _list(response.data);
   }
 
+  /// Havale bildirimine dekont dosyası ekler (064, B9): PDF ya da görsel, en çok 5 MB, ödeme başına 3.
+  Future<Map<String, dynamic>> uploadPaymentReceipt(String paymentId, List<int> bytes, String fileName) async {
+    final form = FormData.fromMap({'file': MultipartFile.fromBytes(bytes, filename: fileName)});
+    final response = await _dio.post('/finance/payments/$paymentId/receipts', data: form);
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
   /// Kendi bölümlerimin pusula itirazları (063, B8).
   Future<List<dynamic>> getMyObjections() async => _list((await _dio.get('/consumption/objections')).data);
 

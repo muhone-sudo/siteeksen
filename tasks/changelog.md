@@ -12,6 +12,21 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-11 — HAVALE BİLDİRİMİNE DEKONT DOSYASI (migration 064, beşinci tur B9) (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **1309/1309** (adım 56: sakin onay bekleyen havale bildirimine PDF dekont ekledi — içerik
+> baytlardan tanındı, SHA-256 saklandı, dosya depoda; metin dosyası 422, başkasının ödemesi 403, depo yoksa 503; PNG/JPEG de
+> eklendi, 4. dosya 409; sakin ve yönetim listeyi görüyor, onay listesinde dekont sayısı var; yönetimin indirdiği dosya özetle
+> birebir aynı; onaylanmış ödemeye dekont eklenemiyor; kayıt uygulama rolüyle silinemiyor/değiştirilemiyor. Adım 36: RLS 119
+> tablo. `gen-deploy.py --check` temiz). `verify-mobile.sh` 10/10; panel tsc/lint temiz.
+
+- Önceden havale bildiriminde yalnız açıklama/dekont NUMARASI vardı; dosya eklenemiyordu.
+- 064 `payment_receipts` (RLS; silinemez, değiştirilemez). Dosya `pkg/storage`'da, anahtar `receipts/<site>/<ödeme>/<özet>`.
+  Finans servisi artık `STORAGE_*` alır (`gen-deploy.py` `STORAGE_SERVICES`'e eklendi; compose birimi ve k8s ortamı üretildi).
+- Dekont yalnız dayanaktır: borç yine yönetim onayıyla ya da banka ekstresi eşleşmesiyle düşer.
+- Panel: onay bekleyen ödemelerde "Dekont" sütunu ve indirme penceresi. Sakin uygulaması: havale bildiriminden sonra
+  "Dekont ekle" (yeni bağımlılık `file_picker` 11).
+
 ### 2026-10-11 — FATURA SAPMA UYARISI VE TÜKETİM PUSULASINA İTİRAZ (migration 063, beşinci tur B8) (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **1305/1305** (adım 55: sapma birim testleri; medyanın ~8,6 katı tüketen bölüm önizlemede

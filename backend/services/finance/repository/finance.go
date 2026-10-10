@@ -574,7 +574,8 @@ func (r *FinanceRepository) ListPendingPayments(ctx context.Context, propertyID 
 		SELECT DISTINCT p.id,
 		       COALESCE(u.first_name || ' ' || u.last_name, ''),
 		       COALESCE(un.block || '-' || un.door_number, ''),
-		       p.amount, p.payment_method, p.status, p.created_at, p.value_date, COALESCE(p.payer_reference, '')
+		       p.amount, p.payment_method, p.status, p.created_at, p.value_date, COALESCE(p.payer_reference, ''),
+		       (SELECT count(*) FROM payment_receipts r WHERE r.payment_id = p.id)::int
 		FROM payments p
 		JOIN payment_assessments pa ON pa.payment_id = p.id
 		JOIN monthly_assessments ma ON ma.id = pa.assessment_id
@@ -591,7 +592,7 @@ func (r *FinanceRepository) ListPendingPayments(ctx context.Context, propertyID 
 	for rows.Next() {
 		var p models.PropertyPayment
 		if err := rows.Scan(&p.ID, &p.Name, &p.Unit, &p.Amount,
-			&p.PaymentMethod, &p.Status, &p.CreatedAt, &p.ValueDate, &p.PayerReference); err != nil {
+			&p.PaymentMethod, &p.Status, &p.CreatedAt, &p.ValueDate, &p.PayerReference, &p.ReceiptCount); err != nil {
 			return nil, err
 		}
 		payments = append(payments, p)

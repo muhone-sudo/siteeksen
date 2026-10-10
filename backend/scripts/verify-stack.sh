@@ -5890,8 +5890,8 @@ ok "kullanılmayan 13 site tablosu RLS ile korunuyor"
 
 # 9) Toplam durum — RLS DIŞINDA KALAN her tablo bilinçli ve gerekçeli olmalı
 RLSCOUNT=$($PSQL -t -A -c "SELECT count(*) FROM rls_enabled_tables;")
-[ "$RLSCOUNT" = "118" ] && ok "RLS toplam 118 tabloda açık" \
-  || bad "beklenmedik RLS tablo sayısı: $RLSCOUNT (beklenen 118)"
+[ "$RLSCOUNT" = "119" ] && ok "RLS toplam 119 tabloda açık" \
+  || bad "beklenmedik RLS tablo sayısı: $RLSCOUNT (beklenen 119)"
 NOTRLS=$($PSQL -t -A -c "SELECT string_agg(t.table_name, ' ' ORDER BY t.table_name)
   FROM information_schema.tables t
   WHERE t.table_schema='public' AND t.table_type='BASE TABLE'
@@ -8035,6 +8035,61 @@ PUL=$($PSQL -t -A -c "SELECT total_kurus FROM consumption_allocation_units WHERE
   && ok "yönetim itirazı açıklamayla kabul etti, sakine bildirildi; sakin yanıtlayamaz 403, kısa açıklama 422, ikinci yanıt 409; yanıtlanmış itiraz değiştirilemiyor ve silinemiyor; pusula aynen duruyor" \
   || bad "itiraz yanıtı: sakin=$R1 / kısa=$R2 / $R3 / tekrar=$R4 / bildirim=$ON2 / $GD1 / $GD2 / pusula=$PUL"
 kill_tree "$IOB8_PID"
+
+step "56) Havale bildirimine dekont dosyası (064, beşinci tur B9)"
+RCDIR=/tmp/verify-receipts; rm -rf "$RCDIR"; mkdir -p "$RCDIR"
+STORAGE_BACKEND=local STORAGE_LOCAL_DIR="$RCDIR" DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_app DB_PASSWORD="$APPPW" DB_NAME=siteeksen \
+  DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=19682 \
+  go run ./services/finance >/tmp/verify-finance-b9.log 2>&1 &
+FB9_PID=$!
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_app DB_PASSWORD="$APPPW" DB_NAME=siteeksen \
+  DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=19683 \
+  go run ./services/finance >/tmp/verify-finance-b9n.log 2>&1 &
+FB9N_PID=$!
+for _ in $(seq 1 60); do
+  curl -fsS http://127.0.0.1:19682/health >/dev/null 2>&1 && curl -fsS http://127.0.0.1:19683/health >/dev/null 2>&1 && break; sleep 1
+done
+F9="http://127.0.0.1:19682/api/v1/finance"; RM="Authorization: Bearer $MGRL"; RT="Authorization: Bearer $TENL"
+RA=$($PSQL -t -A -c "INSERT INTO monthly_assessments (property_id, unit_id, period_year, period_month, base_amount, total_amount, due_date, status)
+  VALUES ('$DEMO_PROPERTY','$U304',2094,1,777,777,CURRENT_DATE + 10,'PENDING') RETURNING id;" | head -1)
+RPID=$(curl -s -X POST "$F9/payments" -H "$RT" -H "$J" -d "{\"assessment_ids\":[\"$RA\"],\"payment_method\":\"BANK_TRANSFER\",\"value_date\":\"$(date +%F)\",\"reference\":\"FAST 778\"}" \
+  | sed -n 's/.*"payment_id":"\([^"]*\)".*/\1/p')
+printf '%%PDF-1.4\n%% dekont\n1 0 obj << /Type /Catalog >> endobj\ntrailer << /Root 1 0 R >>\n%%%%EOF\n' >/tmp/dekont.pdf
+printf '\x89PNG\r\n\x1a\n0000000000000000IHDR' >/tmp/dekont.png
+printf '\xff\xd8\xff\xe0JFIF0000000000000000' >/tmp/dekont.jpg
+printf 'bu bir metin dosyasi' >/tmp/dekont.txt
+up9() { curl -s -w '|%{http_code}' -X POST "$1/payments/$RPID/receipts" -H "$2" -F "file=@$3"; }
+D1=$(up9 "$F9" "$RT" /tmp/dekont.pdf)
+RCID=$(echo "${D1%|*}" | python3 -c "import json,sys; print(json.load(sys.stdin)['receipt']['id'])" 2>/dev/null)
+SHAF=$(sha256sum /tmp/dekont.pdf | cut -d' ' -f1)
+RDB=$($PSQL -t -A -c "SELECT content_type||'|'||(sha256='$SHAF')||'|'||(uploaded_by='$TUID') FROM payment_receipts WHERE id='$RCID';")
+RFILE=$(find "$RCDIR" -type f -name '*.pdf' | wc -l)
+D2=$(up9 "$F9" "$RT" /tmp/dekont.txt)
+D3=$(up9 "$F9" "$RM" /tmp/dekont.png)
+D4=$(up9 "http://127.0.0.1:19683/api/v1/finance" "$RT" /tmp/dekont.png)
+[ "${D1##*|}" = "201" ] && [ "$RDB" = "application/pdf|true|true" ] && [ "$RFILE" = "1" ] && [ "${D2##*|}" = "422" ] && [ "${D3##*|}" = "403" ] && [ "${D4##*|}" = "503" ] \
+  && ok "sakin onay bekleyen havale bildirimine PDF dekont ekledi (içerik baytlardan tanındı, SHA-256 saklandı, dosya depoda); metin dosyası 422, başkasının ödemesi 403, depo yoksa 503" \
+  || bad "dekont yükleme: $D1 / $RDB / dosya=$RFILE / metin=$D2 / yönetici=$D3 / deposuz=$D4"
+D5=$(up9 "$F9" "$RT" /tmp/dekont.png); D6=$(up9 "$F9" "$RT" /tmp/dekont.jpg); D7=$(up9 "$F9" "$RT" /tmp/dekont.png)
+LT=$(curl -s "$F9/payments/$RPID/receipts" -H "$RT" | python3 -c "import json,sys; print(len(json.load(sys.stdin)['data']))" 2>/dev/null)
+LM=$(curl -s "$F9/payments/$RPID/receipts" -H "$RM" | python3 -c "import json,sys; print(len(json.load(sys.stdin)['data']))" 2>/dev/null)
+PEND=$(curl -s "$F9/payments/pending" -H "$RM" | python3 -c "
+import json,sys
+print([p.get('receipt_count') for p in json.load(sys.stdin)['data'] if p['id']=='$RPID'])" 2>/dev/null)
+DL=$(curl -s -D /tmp/dekont-h.txt -o /tmp/dekont-dl.pdf -w '%{http_code}' "$F9/payments/$RPID/receipts/$RCID/download" -H "$RM")
+DLSHA=$(sha256sum /tmp/dekont-dl.pdf | cut -d' ' -f1)
+[ "${D5##*|}" = "201" ] && [ "${D6##*|}" = "201" ] && [ "${D7##*|}" = "409" ] && [ "$LT" = "3" ] && [ "$LM" = "3" ] && [ "$PEND" = "[3]" ] \
+  && [ "$DL" = "200" ] && [ "$DLSHA" = "$SHAF" ] && grep -qi 'attachment' /tmp/dekont-h.txt \
+  && ok "PNG/JPEG dekont da eklendi, 4. dosya 409 (en çok 3); sakin ve yönetim listeyi görüyor, onay listesinde dekont sayısı var; yönetim indirdiği dosya özetle birebir aynı" \
+  || bad "dekont listesi/indirme: $D5 / $D6 / 4.=$D7 / sakin=$LT yönetim=$LM / bekleyen=$PEND / indirme=$DL özet=$([ "$DLSHA" = "$SHAF" ] && echo aynı || echo farklı)"
+curl -s -o /dev/null -X POST "$F9/payments/$RPID/confirm" -H "$RM" -H "$J" -d '{"reference":"FAST 778"}'
+D8=$(up9 "$F9" "$RT" /tmp/dekont.png)
+GD9=$(appsql46 "DELETE FROM payment_receipts WHERE id='$RCID'")
+GU9=$(appsql46 "UPDATE payment_receipts SET file_name='x' WHERE id='$RCID'")
+[ "${D8##*|}" = "403" ] && grep -qi 'permission denied' <<<"$GD9" && grep -qi 'permission denied' <<<"$GU9" \
+  && ok "onaylanmış ödemeye dekont eklenemiyor (403); dekont kaydı uygulama rolüyle silinemiyor ve değiştirilemiyor" \
+  || bad "dekont koruması: onay sonrası=$D8 / sil=$GD9 / değiştir=$GU9"
+kill_tree "$FB9_PID"; kill_tree "$FB9N_PID"
 
 step "SONUÇ"
 echo "  Geçen: $PASS   Başarısız: $FAIL"

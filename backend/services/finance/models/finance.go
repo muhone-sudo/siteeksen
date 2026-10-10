@@ -118,6 +118,8 @@ type PropertyPayment struct {
 	// ValueDate / PayerReference: sakinin beyan ettiği havale günü ve açıklaması (053).
 	ValueDate      *time.Time `json:"value_date,omitempty"`
 	PayerReference string     `json:"payer_reference,omitempty"`
+	// ReceiptCount: bildirime eklenmiş dekont dosyası sayısı (064, B9).
+	ReceiptCount int `json:"receipt_count,omitempty"`
 }
 
 // ConsumptionData tüketim verisi (grafik için)

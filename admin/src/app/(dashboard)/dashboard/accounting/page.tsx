@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { api } from "@/lib/api";
 import { useAction, useApi, useRoles } from "@/lib/use-api";
-import { ActionFeedback, Button, Card, Field, FormModal, Input, Notice, Page, QueryView, StatusBadge, Table, Tabs, Textarea } from "@/components/ui/kit";
+import { ActionFeedback, Button, Card, Field, FormModal, Input, Modal, Notice, Page, QueryView, StatusBadge, Table, Tabs, Textarea } from "@/components/ui/kit";
 import { date, dateTime, tl } from "@/lib/format";
 import { PAYMENT_STATUS } from "@/lib/labels";
 import type { LedgerEntry, Payment } from "@/lib/types";
@@ -32,6 +32,8 @@ export default function AccountingPage() {
     const [confirming, setConfirming] = useState<Payment | null>(null);
     const [reference, setReference] = useState("");
     const [collecting, setCollecting] = useState(false);
+    const [receiptsOf, setReceiptsOf] = useState<Payment | null>(null);
+    const receipts = useApi(["receipts", receiptsOf?.id], () => api.finance.receipts(receiptsOf!.id), !!receiptsOf);
 
     const paymentColumns = (withActions: boolean) => [
         { header: "Kişi", cell: (p: Payment) => <>{p.name || "—"}{p.recorded_by_management && <div className="text-xs text-gray-500">Yönetim girdi</div>}</> },
@@ -40,6 +42,7 @@ export default function AccountingPage() {
         { header: "Yöntem", cell: (p: Payment) => p.payment_method },
         { header: "Durum", cell: (p: Payment) => <StatusBadge value={p.status} map={PAYMENT_STATUS} /> },
         { header: "Tarih", cell: (p: Payment) => <>{dateTime(p.created_at)}{p.value_date && <div className="text-xs text-gray-500">Havale günü: {date(p.value_date)}</div>}{p.payer_reference && <div className="text-xs text-gray-500">Açıklama: {p.payer_reference}</div>}</> },
+        { header: "Dekont", cell: (p: Payment) => (p.receipt_count ? <Button size="sm" variant="secondary" onClick={() => setReceiptsOf(p)}>{p.receipt_count} dosya</Button> : "—") },
         ...(withActions && canWrite
             ? [{
                 header: "",
@@ -132,6 +135,21 @@ export default function AccountingPage() {
             </Card>}
 
             <CollectionModal open={collecting} onClose={() => setCollecting(false)} />
+            <Modal open={!!receiptsOf} onClose={() => setReceiptsOf(null)} title={receiptsOf ? `Dekontlar — ${receiptsOf.name} · ${tl(receiptsOf.amount)}` : ""}>
+                <QueryView q={receipts} empty="Dekont yok">
+                    {(d) => (
+                        <div className="space-y-2">
+                            {d.data.map((r) => (
+                                <div key={r.id} className="flex items-center justify-between gap-2 rounded border p-2 text-sm dark:border-gray-600">
+                                    <span>{r.file_name} <span className="text-xs text-gray-500">· {Math.ceil(r.size_bytes / 1024)} KB · {dateTime(r.created_at)}</span></span>
+                                    <Button size="sm" disabled={act.pending} onClick={() => act.run(() => api.finance.receiptDownload(r.payment_id, r.id, r.file_name))}>İndir</Button>
+                                </div>
+                            ))}
+                            <p className="text-xs text-gray-500">Dekont dayanaktır; borç, onayla ya da banka ekstresi eşleşmesiyle düşer. Her dosyanın SHA-256 özeti saklanır.</p>
+                        </div>
+                    )}
+                </QueryView>
+            </Modal>
             <FormModal
                 open={!!confirming}
                 onClose={() => setConfirming(null)}

@@ -96,6 +96,10 @@ export function endpoints(http: Http) {
             clearance: (unit_id: string) => http.post<{ id: string; verification_code: string; verify_url: string; not_due_kurus: number; expires_at: string; note: string }>("/finance/clearance-certificates", { unit_id }),
             clearancePdf: (id: string) => http.download(`/finance/clearance-certificates/${id}/pdf`, "borcu-yoktur-belgesi.pdf"),
             reversePayment: (id: string, reason: string) => http.post<Msg>(`/finance/payments/${id}/reverse`, { reason }),
+            // Havale bildirimine eklenen dekontlar (064, B9).
+            receipts: (paymentId: string) => g<T.List<T.PaymentReceipt>>(`/finance/payments/${paymentId}/receipts`),
+            receiptDownload: (paymentId: string, receiptId: string, fileName: string) =>
+                http.download(`/finance/payments/${paymentId}/receipts/${receiptId}/download`, fileName),
             ledger: () => g<{ data: T.LedgerEntry[] }>("/finance/ledger"),
             verifyLedger: () => g<T.LedgerVerification>("/finance/ledger/verify"),
             accrueLateFees: (as_of?: string) => http.post<T.LateFeeRun>("/finance/late-fees/accrue", as_of ? { as_of } : {}),

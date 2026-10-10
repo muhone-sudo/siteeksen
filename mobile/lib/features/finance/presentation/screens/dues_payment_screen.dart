@@ -16,6 +16,8 @@
 
 import 'dart:io';
 
+import 'package:dio/dio.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
@@ -631,6 +633,32 @@ class _DuesPaymentScreenState extends State<DuesPaymentScreen> {
   ///
   /// DİKKAT: `payment_gateway_ready` false olduğu sürece burada "Ödeme Başarılı"
   /// YAZILMAZ. Sunucu yalnızca bir ödeme KAYDI oluşturur; tahsilat yapılmaz.
+  /// Dekont dosyası seçip havale bildirimine ekler (PDF ya da görsel; en çok 5 MB).
+  Future<void> _attachReceipt(String paymentId) async {
+    String message;
+    try {
+      final picked = await FilePicker.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png', 'webp'],
+        withData: true,
+      );
+      final file = picked?.files.single;
+      if (file == null || file.bytes == null) return;
+      if (file.size > 5 * 1024 * 1024) {
+        message = 'Dosya 5 MB sınırını aşıyor.';
+      } else {
+        final res = await apiClient.uploadPaymentReceipt(paymentId, file.bytes!, file.name);
+        message = '${res['message'] ?? 'Dekont eklendi.'}';
+      }
+    } on DioException catch (e) {
+      final data = e.response?.data;
+      message = data is Map && data['error'] is String ? data['error'] as String : toUserMessage(e);
+    } catch (e) {
+      message = toUserMessage(e);
+    }
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+
   void _showPaymentResult(Map<String, dynamic> result) {
     final ready = (result['payment_gateway_ready'] as bool?) ?? false;
     final amount = (result['amount'] as num?)?.toDouble() ?? 0;
@@ -663,6 +691,16 @@ class _DuesPaymentScreenState extends State<DuesPaymentScreen> {
           ],
         ),
         actions: [
+          // Havale bildirimine dekont dosyası (064, B9): yönetim onay sırasında görür.
+          if (!ready && (result['value_date'] ?? '').toString().isNotEmpty && result['payment_id'] != null)
+            TextButton(
+              onPressed: () async {
+                Navigator.pop(ctx);
+                await _attachReceipt('${result['payment_id']}');
+                _load();
+              },
+              child: const Text('Dekont ekle'),
+            ),
           TextButton(
             onPressed: () {
               Navigator.pop(ctx);
