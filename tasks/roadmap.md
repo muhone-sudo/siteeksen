@@ -187,7 +187,7 @@ denemesi otomatik testte başarısız olur.
 | 4.8 | `ListPropertyPayments` tenant filtresini ödeme üzerinden kur | `[D4]` 2026-10-03 — `payments.property_id`/`unit_id`; ayrılan sakinin ödemesi listede kalıyor, verify §10 | B56 |
 | 4.9 | Gecikme tazminatı (KMK m.20/2, aylık %5 — **parametrik**) | `[D4]` `legal_parameters`, verify §10 | B52, S-05 |
 | 4.10 | Mobil ödeme ekranını gerçek API'ye bağla ya da kaldır | `[D4]` todo 0.C.1 | B49 |
-| 4.11 | Ödeme sağlayıcısı adaptörü (port/adapter, sandbox-stub ile) | `[BLOKE]` S-06 | C.4 |
+| 4.11 | Ödeme sağlayıcısı adaptörü (port/adapter, sandbox-stub ile) | `[D3]` 2026-10-10 — `pkg/iyzico` ödeme formu + 3DS dönüşü + durum makinesi + uzlaştırma (060); IYZWSv2 imzasını doğrulayan sahte sağlayıcıyla verify §48. **D4 için** kullanıcının sandbox anahtarıyla gerçek deneme gerekir | C.4, Apsiyon BUG-09 |
 
 ## FAZ 5 — Mevcut Modülleri Uçtan Uca Bitirme `[TAMAMLANDI — 2026-09-14; arayüzler 2026-09-27]`
 
@@ -206,9 +206,9 @@ Sıra, değer/çaba oranına göre. Her dilim `tasks/dogrulama-politikasi.md` §
 | 5.1 | **Duyurular** — community'deki auth'suz mock'u gerçeğe çevir (tablolar hazır) | `[D0]` | Hedefleme + okundu bilgisi + çok kanallı yayın; en hızlı kazanım |
 | 5.2 | **Talepler** tamamlama — dosya eki, `unit_id`, atama, SLA, yorum | `[D0]` | Zaten en olgun modül; C.6 |
 | 5.3 | **Sakinler** tamamlama — tarihli ilişki, malik/kiracı, devir + borcu yoktur | `[D0]` | C.2 |
-| 5.4 | **Sayaç ve tüketim** — iot'u DB'ye bağla, yönetmelik paylaşımı, tüketim detay faturası | `[D0]` | C.8; rakibin somut şikayeti |
+| 5.4 | **Sayaç ve tüketim** — iot'u DB'ye bağla, yönetmelik paylaşımı, tüketim detay faturası | `[D4]` 2026-10-10 — sayaç değişim protokolü, sapma teyidi, yayımlanan değiştirilemez tüketim pusulası + PDF (056; verify §23) | C.8; Apsiyon BUG-07 |
 | 5.5 | **Gider yönetimi** — kalıcılık, onay akışı, bütçe kontrolü, mobilden gider girme | `[BLOKE]` S-02 | C.5; rakibin en büyük boşluğu |
-| 5.6 | **Kasa/banka** — bakiye, IBAN listesi, ekstre içe aktarma + otomatik eşleştirme | `[BLOKE]` S-02 | C.4; yöneticinin ilk baktığı ekran |
+| 5.6 | **Kasa/banka** — bakiye, IBAN listesi, ekstre içe aktarma + otomatik eşleştirme | `[D4 kısmi]` 2026-10-10 — CSV/Excel ekstre içe aktarma + bekleyen ödemeyle eşleştirme + mükerrer koruması + alacak dekontu (059; verify §47). Kasa bakiyesi/IBAN listesi hâlâ yok (S-07) | C.4; Apsiyon BUG-12 |
 | 5.7 | **Sakin uygulaması** gerçek hale getirme | `[D0]` | INTERNET izni, base URL, kalıcı oturum, route erişimi, gerçek veri (B/C bölümleri) |
 | 5.8 | **Yönetici uygulaması** gerçek hale getirme | `[D0]` | base URL (`/v1` hatası), auth guard, logout, gerçek veri |
 | 5.9 | **Raporlar** — gerçek veriyle besleme, parametre, auth, kalıcı saklama | `[D0]` | C.9 |

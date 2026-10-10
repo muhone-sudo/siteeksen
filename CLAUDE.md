@@ -105,11 +105,11 @@ Bu dosyalar okunduktan sonra ilgili kaynak dosyalara geç.
 **SiteEksen** — Türkiye kat mülkiyeti kanununa uyumlu site yönetim platformu. Go mikroservis backend,
 Next.js admin paneli, iki Flutter mobil uygulaması (sakin + yönetici) içerir.
 
-### Kritik Mimari Notlar — GERÇEK DURUM (2026-09-13 itibarıyla)
+### Kritik Mimari Notlar — GERÇEK DURUM (2026-10-10 itibarıyla)
 
 > Aşağıdaki notlar **çalıştırılarak** doğrulanmıştır. Bu bölümdeki hiçbir ifade "olması gerekeni"
 > değil, **bugün gerçekte olanı** anlatır.
-> Toplu kanıt: `bash backend/scripts/verify-stack.sh` → **1165/1165**,
+> Toplu kanıt: `bash backend/scripts/verify-stack.sh` → **1269/1269**,
 > `bash backend/scripts/verify-mobile.sh` → **10/10**.
 > Tarihçe ve `dosya:satır` kanıtı: `tasks/audit-raporu.md`, `tasks/changelog.md`.
 
@@ -141,7 +141,7 @@ cd admin && npm run dev            # http://localhost:3001
   dizin tablolarını yalnızca okur, `users.password_hash`/TCKN sütunlarını
   göremez, denetim izini ve jeton iptalini silemez). Parolaları `cmd/migrate`
   `APP_DB_PASSWORD` / `IDENTITY_DB_PASSWORD` ile atar; depoya yazılmaz.
-  RLS **105 tabloda** açık; dışarıda kalan 8 tablonun her biri gerekçelidir ve
+  RLS **117 tabloda** açık; dışarıda kalan 8 tablonun her biri gerekçelidir ve
   doğrulama listeyi birebir denetler. Tüm görünümler `security_invoker`
   (aksi hâlde görünüm sahibinin yetkisiyle RLS'i atlıyordu).
 - **Dağıtım dosyaları tek kaynaktan üretilir:** `backend/scripts/gen-deploy.py`
@@ -207,11 +207,14 @@ cd admin && npm run dev            # http://localhost:3001
   (2026-09-12); ödeme artık `paid_amount`'ı günceller ve borcu düşürür (yönetici onay akışı,
   2026-09-13); gecikme tazminatı KMK m.20/2'ye göre hesaplanır.
   **Kanıt:** `verify-stack.sh` §10.
-- **Ödeme sağlayıcısı, Firebase, Kafka, MongoDB ve AI entegrasyonları hâlâ YOKTUR.**
-  `pkg/payment` (iyzico), `pkg/notification` (FCM), `pkg/ai`, `pkg/integrations/*` yazılmış
-  ama **hiçbir yerden import edilmez**. Fark: artık bunlar **var gibi gösterilmiyor** —
-  ödeme yanıtı `payment_gateway_ready:false` döndürüyor, panel/mobil "bağlı değil" diyor,
-  uydurma AI yanıtları kaldırıldı.
+- **Kartla ödeme VAR (2026-10-10, migration 060):** `pkg/iyzico` (Ödeme Formu, IYZWSv2, stdlib)
+  finans servisine bağlıdır; `IYZICO_*` verilmezse kart ödemesi `payment_gateway_ready:false`
+  döner ve bu açıkça söylenir. Geri dönüşte sonuç iyzico'dan yeniden sorgulanır; uzlaştırma
+  bekçisi askıda ödeme bırakmaz. Doğrulama sahte iyzico iledir — gerçek anahtarla denenmedi.
+  SMS (Netgsm) ve e-posta (SMTP) da `pkg/notify` üzerinden bağlıdır (yapılandırılırsa).
+- **Firebase, Kafka, MongoDB ve AI entegrasyonları hâlâ YOKTUR.** Eski `pkg/payment`,
+  `pkg/notification` (FCM), `pkg/ai`, `pkg/integrations/*` **hiçbir yerden import edilmez**
+  (ölü kod); var gibi gösterilmez, uydurma AI yanıtları kaldırıldı.
 - **Ölü şema büyük ölçüde canlandı.** `005_new_modules.sql`'in tablolarının
   neredeyse tamamı artık kullanılıyor: gider, personel, ziyaretçi, otopark,
   tesis/rezervasyon, kargo, sözleşme, demirbaş+bakım, stok+hareket, anket,
@@ -246,7 +249,7 @@ Repo yolu WSL'de: `/mnt/c/Users/md064615/Documents/Projeler/proje99`
 
 | Betik | Kapsam | Ne zaman |
 |---|---|---|
-| `bash backend/scripts/verify-stack.sh` | **1165 kontrol** — dağıtım dosyası tutarlılığı, sıfırdan PostgreSQL, `cmd/migrate` ile 46 migration ve rol ataması, RLS (105 tablo, çapraz site uçtan uca testleri, rol yetkileri), şema denetimi, tam idempotency, `pkg/audit`+`pkg/legalparams`+`pkg/money`+`pkg/storage`+nisap testleri, ve uçtan uca: identity (giriş, roller, hesap etkinleştirme, şifre değiştirme, giriş kilidi), gateway (kimlik doğrulama), finance (ödeme→borç, gecikme tazminatı), governance (işletme projesi, nisap, defter zinciri), 501 dürüstlüğü ve 20 modülün uçtan uca sınanması (gider, personel, ziyaretçi, otopark, rezervasyon, kargo, sözleşme, belge, demirbaş, stok, anket, sayaç/ısı payı, bildirim, devriye, duyuru, ilan, ayarlar, enerji, tahsilat riski, NPS/ESG) zamanlanmış bildirimler (`cmd/scheduler`), yedekten geri yükleme ve kişisel veri anahtarı döndürme (`cmd/rotate-pii`) | **Backend'e dokunan her değişiklikten sonra** |
+| `bash backend/scripts/verify-stack.sh` | **1269 kontrol** — dağıtım dosyası tutarlılığı, sıfırdan PostgreSQL, `cmd/migrate` ile 60 migration ve rol ataması, RLS (117 tablo, çapraz site uçtan uca testleri, rol yetkileri), şema denetimi, tam idempotency, `pkg/audit`+`pkg/legalparams`+`pkg/money`+`pkg/storage`+nisap testleri, ve uçtan uca: identity (giriş, roller, hesap etkinleştirme, şifre değiştirme, giriş kilidi), gateway (kimlik doğrulama), finance (ödeme→borç, gecikme tazminatı), governance (işletme projesi, nisap, defter zinciri), 501 dürüstlüğü ve 20 modülün uçtan uca sınanması (gider, personel, ziyaretçi, otopark, rezervasyon, kargo, sözleşme, belge, demirbaş, stok, anket, sayaç/ısı payı, bildirim, devriye, duyuru, ilan, ayarlar, enerji, tahsilat riski, NPS/ESG) zamanlanmış bildirimler (`cmd/scheduler`), yedekten geri yükleme ve kişisel veri anahtarı döndürme (`cmd/rotate-pii`); 2026-10-10 itibarıyla ayrıca SMS/SMTP (sahte Netgsm), PDF/Excel dökümleri, borcu yoktur belgesi, sayaç değişimi ve tüketim pusulası, geçiş cihazı canlılığı, yurt dışı telefon, site pasifleştirme, alacak dekontu ve banka ekstresi, kartla ödeme (IYZWSv2 imzasını doğrulayan sahte iyzico) | **Backend'e dokunan her değişiklikten sonra** |
 | `bash backend/scripts/verify-mobile.sh` | **10 kontrol** — iki Flutter uygulaması için `pub get` + `analyze` (bilgi düzeyi dahil) + `test`, arayüzde uydurma veri taraması ve release manifestinde INTERNET izni | Mobil değişikliklerden sonra |
 | `cd admin && npx tsc --noEmit && npm run lint && npm run build` | Panel | Panel değişikliklerinden sonra |
 | `bash backend/scripts/dev-up.sh` | Geliştirme ortamını ayağa kaldırır | Elle deneme için |
@@ -351,6 +354,7 @@ All 26 services are in docker-compose, k8s and the CI image matrix (generated by
 - `audit/`, `revocation/`, `authtoken/` — KVKK audit trail, token revocation, JWT
 - `pii/` — AES-256-GCM + HMAC blind index for TCKN/IBAN; `legalparams/` — mevzuat parametreleri; `money/` — kuruş aritmetiği
 - `notify/` — outbox bildirim + alıcı kümeleri (`audience.go`); `storage/` — local / S3 (SigV4)
+- `iyzico/` — kartla ödeme istemcisi (060); `phone/` — E.164 telefon normalleştirme (yurt dışı numara)
 - `tenant/`, `payment/`, `notification/`, `ai/`, `integrations/` — **ölü kod, hiçbir yerden import edilmez**
 
 ### API Gateway
@@ -384,20 +388,20 @@ Bildirilen ortak yığın: Riverpod, go_router, Dio, flutter_secure_storage.
   Push bildirim akışı hiç kurulmamıştır.
 - **`intl` kullanılmıyor** → para/tarih biçimlendirme elle yapılıyor ve hatalı (örn. `12.450.00`).
 - Sakin uygulamasında 13/22, yönetici uygulamasında 16 bağımlılık hiç import edilmemiş.
-- ~~Test sayısı: sakin 1 (derlenmiyor), yönetici 0~~ → **2026-09-27:** sakin 27, yönetici 27 test.
+- ~~Test sayısı: sakin 1 (derlenmiyor), yönetici 0~~ → **2026-09-27:** sakin 27, yönetici 27 test; **2026-10-10:** sakin 38+, yönetici 32 test.
 - **İki uygulama da gerçek API sözleşmesine bağlı (2026-09-27).** Alan yöntemleri yerine
   genel `getList/getMap/post…` + yol sözleşmeden (`tasks/api-sozlesmesi.md`); yönetici
   uygulamasında yükleme/hata/boş/işlem davranışı `core/widgets/api_views.dart`'ta tek yerde.
   Tarih gövdeleri `apiDate()` (YYYY-MM-DD) ya da site saatiyle RFC3339 gider.
 
 ### Infrastructure
-- **PostgreSQL 16** — tek veri deposu; şema `backend/migrations/` (46 migration, `cmd/migrate`)
+- **PostgreSQL 16** — tek veri deposu; şema `backend/migrations/` (60 migration, `cmd/migrate`)
 - Redis, MongoDB ve Kafka **kullanılmıyor** (kodda bağlantı yok) ve compose'dan kaldırıldı.
 
 ### Multi-Tenancy (site izolasyonu) — **çalışıyor, iki katmanlı**
 - **Uygulama katmanı:** JWT `property_id` (site seçiminde sahiplik doğrulanır), site bazlı roller
   (`property_roles`), her sorguda `property_id` filtresi.
-- **Veritabanı katmanı:** 105 tabloda RLS; kapsam `pkg/dbscope` ile verilir. Kapsam yoksa sorgu
+- **Veritabanı katmanı:** 117 tabloda RLS; kapsam `pkg/dbscope` ile verilir. Kapsam yoksa sorgu
   hiç satır döndürmez (fail-closed). Alt tablolar ebeveyn üzerinden `EXISTS` ile korunur.
 - Yeni tablo eklerken: RLS + politika + (alt tabloysa) ebeveyn anahtarına indeks; doğrulama
   RLS dışında kalan tablo listesini birebir denetler, eklenen tablo unutulursa yakalanır.
@@ -420,7 +424,7 @@ Bildirilen ortak yığın: Riverpod, go_router, Dio, flutter_secure_storage.
 | Giriş şifresi loglanması | **Kaldırıldı** — yalnızca maskelenmiş telefon ve HTTP durumu loglanıyor |
 | İstemci kimlik başlıkları | Gateway `X-User-*` / `X-Property-Id` / `X-Tenant-Id` başlıklarını **siler** |
 | TCKN/IBAN şifreleme | **VAR** — AES-256-GCM; arama için HMAC blind index (düz SHA-256 değil). Anahtar yoksa personel servisi açılmaz. Anahtar halkası + döndürme (`cmd/rotate-pii`, `docs/runbook-anahtar-dondurme.md`); şifreleme ve arama anahtarı HKDF ile ayrı. Varsayılan MASKELİ; maskesiz erişim ayrı `PII_REVEAL` denetim kaydı üretir |
-| Tenant izolasyonu (RLS) | **105 TABLODA AÇIK** (migration 020-026, 029). 26 servisin tamamı `pkg/dbscope` kullanır. RLS dışında kalan 8 tablo gerekçeli: `audit_logs` (yalnızca ekleme), `revoked_tokens`/`user_token_invalidation` (salt-okur), `tenants`/`invoices`/`usage_metrics`/`schema_migrations`/`user_activation_codes` (uygulama rolüne kapalı) |
+| Tenant izolasyonu (RLS) | **117 TABLODA AÇIK** (migration 020-026, 029 ve sonraki modül göçleri). 26 servisin tamamı `pkg/dbscope` kullanır. RLS dışında kalan 8 tablo gerekçeli: `audit_logs` (yalnızca ekleme), `revoked_tokens`/`user_token_invalidation` (salt-okur), `tenants`/`invoices`/`usage_metrics`/`schema_migrations`/`user_activation_codes` (uygulama rolüne kapalı) |
 | Hesap etkinleştirme / şifre | **VAR (027)** — yönetici sakin ekleyince tek kullanımlık kod bir kez gösterilir (SMS yok, yönetici iletir); kod özeti saklanır, 7 gün, 5 denemede kilit. Şifre değiştirme/sıfırlama bütün oturumları kapatır. Girişte 5 hatada 15 dk kilit. Jeton `iat` milisaniye hassasiyetinde (`pkg/revocation.Precision`) |
 | Veritabanı rolleri | **En az yetki** — kimlik servisi ayrı rol (site verisine erişemez); uygulama rolü parola özetini/TCKN'yi göremez, dizin tablolarına yazamaz, denetim izini ve jeton iptalini silemez |
 | Dağıtım | compose/k8s/CI tek kaynaktan; kaplar root değil; compose varsayılan parolayla açılmaz; k8s'te tek giriş kapısı gateway |
