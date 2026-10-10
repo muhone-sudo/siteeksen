@@ -6444,17 +6444,37 @@ SC2=$(code "$ID39/users/me" -H "Authorization: Bearer $TOK2")
 SC=$(code -X POST "$ID39/auth/login" -H "$J" -d '{"phone":"5550000039","password":"Yepyeni12"}')
 [ "$SC" = "200" ] && ok "yeni şifreyle giriş → 200" || bad "yeni şifreyle giriş → $SC"
 
-# Giriş kilidi: art arda 5 hatadan sonra doğru şifre de 15 dk reddedilir
-for i in 1 2 3 4 5; do code -X POST "$ID39/auth/login" -H "$J" -d '{"phone":"5550000039","password":"hatali"}' >/dev/null; done
+# Giriş kilidi (kademeli, beşinci tur B6): 5. hata 30 sn, 6. hata 2 dk, 7.+ hata 15 dk; kilitliyken doğru şifre de reddedilir
+if go test ./services/identity/service/ -count=1 -run 'LoginLock' >/tmp/verify-loginlock.log 2>&1; then
+  ok "go test kademeli kilit süreleri (1-4: yok, 5: 30 sn, 6: 2 dk, 7+: 15 dk)"
+else
+  bad "kademeli kilit birim testi"; tail -10 /tmp/verify-loginlock.log
+fi
+lockleft() { $PSQL -t -A -c "SELECT round(extract(epoch FROM locked_until - now()))::int FROM users WHERE phone='+905550000039';"; }
+unlock39() { $PSQL -c "UPDATE users SET locked_until = now() - interval '1 second' WHERE phone='+905550000039';" >/dev/null; }
+for i in 1 2 3 4; do code -X POST "$ID39/auth/login" -H "$J" -d '{"phone":"5550000039","password":"hatali"}' >/dev/null; done
+L4=$($PSQL -t -A -c "SELECT locked_until IS NULL FROM users WHERE phone='+905550000039';")
+code -X POST "$ID39/auth/login" -H "$J" -d '{"phone":"5550000039","password":"hatali"}' >/dev/null
 SC=$(code -X POST "$ID39/auth/login" -H "$J" -d '{"phone":"5550000039","password":"Yepyeni12"}')
-LOCK=$($PSQL -t -A -c "SELECT locked_until > now() FROM users WHERE phone='+905550000039';")
-[ "$SC" = "401" ] && [ "$LOCK" = "t" ] && ok "5 hatalı girişten sonra hesap kilitlendi; doğru şifre de 401" \
-  || bad "giriş kilidi: $SC (kilit=$LOCK)"
-$PSQL -c "UPDATE users SET locked_until = now() - interval '1 second' WHERE phone='+905550000039';" >/dev/null
+L5=$(lockleft)
+[ "$L4" = "t" ] && [ "$SC" = "401" ] && [ "${L5:-0}" -ge 20 ] && [ "${L5:-0}" -le 31 ] \
+  && ok "4 hatada kilit yok; 5. hatada 30 sn kilit ($L5 sn kaldı), kilitliyken doğru şifre de 401" \
+  || bad "giriş kilidi 5. hata: kilitsiz=$L4 doğru şifre=$SC kalan=$L5"
+unlock39
+code -X POST "$ID39/auth/login" -H "$J" -d '{"phone":"5550000039","password":"hatali"}' >/dev/null
+L6=$(lockleft); unlock39
+code -X POST "$ID39/auth/login" -H "$J" -d '{"phone":"5550000039","password":"hatali"}' >/dev/null
+L7=$(lockleft)
+MSG39=$(curl -s -X POST "$ID39/auth/login" -H "$J" -d '{"phone":"5550000039","password":"hatali"}')
+[ "${L6:-0}" -ge 100 ] && [ "${L6:-0}" -le 121 ] && [ "${L7:-0}" -ge 880 ] && [ "${L7:-0}" -le 901 ] && grep -q '30 sn' <<<"$MSG39" \
+  && ok "kilit kademeli artıyor: 6. hata 2 dk ($L6 sn), 7. hata 15 dk ($L7 sn); hata yanıtı kilit durumunu söylemeden kademeleri anlatıyor" \
+  || bad "kademeli kilit: 6.=$L6 7.=$L7 — $MSG39"
+unlock39
 SC=$(code -X POST "$ID39/auth/login" -H "$J" -d '{"phone":"5550000039","password":"Yepyeni12"}')
 N=$($PSQL -t -A -c "SELECT failed_login_attempts FROM users WHERE phone='+905550000039';")
 [ "$SC" = "200" ] && [ "$N" = "0" ] && ok "kilit süresi dolunca giriş açılıyor ve sayaç sıfırlanıyor" \
   || bad "kilit sonrası giriş $SC (sayaç $N)"
+
 # Var olan telefonla sakin eklenirse kod üretilmez, mevcut şifre bozulmaz
 CR=$(curl -s -X POST "$ID39/residents" -H "Authorization: Bearer $MGR39" -H "$J" \
   -d "{\"first_name\":\"Demo\",\"last_name\":\"Kiraci\",\"phone\":\"5559876543\",\"unit_id\":\"$FREEUNIT\",\"role\":\"TENANT\"}")

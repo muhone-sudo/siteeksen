@@ -53,7 +53,7 @@ func (s *AuthService) Login(ctx context.Context, phone, password string) (*Token
 		return nil, nil, fmt.Errorf("kullanıcı okunamadı: %w", err)
 	}
 
-	// Giriş kilidi (migration 027): art arda 5 hatadan sonra 15 dakika. Önceden
+	// Giriş kilidi (migration 027, kademeli B6): 5. hata 30 sn, 6. hata 2 dk, 7.+ 15 dk. Önceden
 	// deneme sınırı yoktu; bir telefon numarasına sınırsız şifre denenebiliyordu.
 	// Kilitliyken de karşılaştırma YAPILIR (yanıt süresi kilit durumunu sızdırmasın)
 	// ve aynı genel hata döner.
@@ -66,7 +66,7 @@ func (s *AuthService) Login(ctx context.Context, phone, password string) (*Token
 		return nil, nil, ErrInvalidCredentials
 	}
 	if mismatch {
-		if err := s.userRepo.RecordLoginFailure(ctx, user.ID, loginFailureThreshold, loginLockDuration); err != nil {
+		if err := s.userRepo.RecordLoginFailure(ctx, user.ID, LoginLockFor); err != nil {
 			return nil, nil, fmt.Errorf("hatalı giriş kaydedilemedi: %w", err)
 		}
 		return nil, nil, ErrInvalidCredentials

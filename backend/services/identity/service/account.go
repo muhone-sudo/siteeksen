@@ -26,8 +26,26 @@ const (
 	codeLength   = 8 // 32^8 ≈ 1,1 trilyon; 5 deneme sınırıyla tahmin edilemez
 	// Girişte art arda bu kadar hatadan sonra hesap kısa süreli kilitlenir.
 	loginFailureThreshold = 5
-	loginLockDuration     = 15 * time.Minute
 )
+
+// LoginLockFor, art arda n. hatalı girişten sonraki kilit süresidir (beşinci tur B6).
+//
+// Önceden 5. hatada sabit 15 dakika kilit vardı: şifresini bir kez karıştıran kullanıcı
+// çeyrek saat dışarıda kalıyordu. Kademeli: 5. hata 30 sn, 6. hata 2 dk, 7. ve sonrası 15 dk.
+// Kaba kuvvete karşı koruma korunur (dakikada en çok birkaç deneme); kilitliyken yapılan
+// denemeler sayılmaz, her kilit bitiminde bir sonraki hata bir üst basamağa çıkar.
+func LoginLockFor(n int) time.Duration {
+	switch {
+	case n < loginFailureThreshold:
+		return 0
+	case n == loginFailureThreshold:
+		return 30 * time.Second
+	case n == loginFailureThreshold+1:
+		return 2 * time.Minute
+	default:
+		return 15 * time.Minute
+	}
+}
 
 var (
 	// ErrWeakPassword: şifre politikaya uymuyor (mesajı istemciye gösterilir).

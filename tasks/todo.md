@@ -659,7 +659,8 @@ mobil maddelerden sonra verify-mobile, panel maddelerinden sonra tsc+lint+build.
   çıkmazının mesajı bu akışa yönlendirir. Mobil profildeki "henüz hazır değil" satırları çalışır.
 - [x] **B5 Malikin kiracı yönetimi** (verify 1294/1294, mobil 10/10) — malik kendi dairesine kiracı/vekil ekler ve
   kiracılığı bitirir; yönetime ayrı bildirim yok (kimlik servisi bildirim tablosuna erişemez), işlem denetim izinde. Sakin uygulamasında "Dairem" bölümü.
-- [ ] **B6 Kademeli giriş kilidi** — 5. hata 30 sn, 6. hata 2 dk, 7.+ hata 15 dk; yanıt kalan süreyi söyler.
+- [x] **B6 Kademeli giriş kilidi** (verify 1296/1296) — 5. hata 30 sn, 6. hata 2 dk, 7.+ hata 15 dk; yanıt kalan süreyi
+  SÖYLEMEZ (hesap/kilit varlığı sızardı), kademeleri sabit metinle anlatır.
 - [ ] **B7 İlişik kesme tarihi** — pasifleştirmede `resident_units.end_date` (isteğe bağlı tarih, varsayılan
   bugün), yeniden etkinleştirmede temizlenir; panel listesinde görünür. Changelog satır 231 düzeltilir.
 - [ ] **B8 Fatura sapma uyarısı + itiraz** — paylaştırmada kullanım alanı başına tüketim site medyanının

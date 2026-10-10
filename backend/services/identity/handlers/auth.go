@@ -47,7 +47,9 @@ func Login(svc *service.AuthService) gin.HandlerFunc {
 
 		tokens, user, err := svc.Login(c.Request.Context(), normalizePhone(req.Phone), req.Password)
 		if errors.Is(err, service.ErrInvalidCredentials) {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Geçersiz telefon veya şifre"})
+			// Kilit durumu yanıtta söylenmez (hesap varlığı ve kilit sızmasın); kademeler sabit metinle anlatılır (B6).
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Geçersiz telefon veya şifre",
+				"note": "Art arda hatalı denemede giriş kısa süreli kilitlenir (5. denemede 30 sn, 6.'da 2 dk, sonra 15 dk). Şifrenizi unuttuysanız 'Şifremi unuttum' ile kod isteyin."})
 			return
 		}
 		if err != nil {

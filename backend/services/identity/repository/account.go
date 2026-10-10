@@ -162,15 +162,26 @@ func (r *UserRepository) LockState(ctx context.Context, userID string) (*time.Ti
 	return until, err
 }
 
-// RecordLoginFailure, hatalı girişi sayar; eşik aşılınca hesabı kilitler.
-func (r *UserRepository) RecordLoginFailure(ctx context.Context, userID string, threshold int, lock time.Duration) error {
-	_, err := r.pool.Exec(ctx, `
-		UPDATE users
-		SET failed_login_attempts = failed_login_attempts + 1,
-		    locked_until = CASE WHEN failed_login_attempts + 1 >= $2
-		                        THEN now() + make_interval(secs => $3) ELSE locked_until END
-		WHERE id = $1`, userID, threshold, lock.Seconds())
-	return err
+// RecordLoginFailure, hatalı girişi sayar ve art arda hata sayısına göre (lockFor) hesabı
+// kilitler. Sayaç ve kilit aynı işlemde, satır kilitlenerek yazılır.
+func (r *UserRepository) RecordLoginFailure(ctx context.Context, userID string, lockFor func(int) time.Duration) error {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+	var n int
+	if err := tx.QueryRow(ctx, `UPDATE users SET failed_login_attempts = failed_login_attempts + 1
+		WHERE id = $1 RETURNING failed_login_attempts`, userID).Scan(&n); err != nil {
+		return err
+	}
+	if d := lockFor(n); d > 0 {
+		if _, err := tx.Exec(ctx, `UPDATE users SET locked_until = now() + make_interval(secs => $2) WHERE id = $1`,
+			userID, d.Seconds()); err != nil {
+			return err
+		}
+	}
+	return tx.Commit(ctx)
 }
 
 // ResetLoginFailures, başarılı girişte sayacı sıfırlar.

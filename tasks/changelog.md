@@ -12,6 +12,16 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-11 — KADEMELİ GİRİŞ KİLİDİ (beşinci tur B6) (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **1296/1296** (adım 39: birim testi; 4 hatada kilit yok, 5. hatada 30 sn kilit ve kilitliyken
+> doğru şifre de 401; 6. hata 2 dk, 7. hata 15 dk; hata yanıtı kilit durumunu söylemeden kademeleri anlatıyor; kilit bitince
+> giriş açılıyor ve sayaç sıfırlanıyor).
+
+- Önceden 5. hatada sabit 15 dakika kilit vardı. Artık `LoginLockFor`: 5. hata 30 sn, 6. hata 2 dk, 7.+ 15 dk; kilitliyken
+  yapılan denemeler sayılmaz. Sayaç ve kilit tek işlemde yazılır.
+- Hata yanıtına sabit `note` eklendi (kademeler + "Şifremi unuttum"); hesabın var olup olmadığı ya da kilitli olduğu söylenmez.
+
 ### 2026-10-11 — MALİKİN KENDİ BÖLÜMÜNDE KİRACI/VEKİL YÖNETİMİ (beşinci tur B5) (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **1294/1294** (adım 53: malik kendi bölümünün sakinlerini görüyor — telefon maskeli, e-posta
