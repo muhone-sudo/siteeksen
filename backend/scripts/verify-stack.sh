@@ -171,6 +171,9 @@ step "0) Go derleme ve statik denetim"
 cd "$BACKEND_DIR"
 if go build ./... >/tmp/verify-build.log 2>&1; then ok "go build ./..."; else bad "go build ./..."; tail -15 /tmp/verify-build.log; fi
 if go vet   ./... >/tmp/verify-vet.log   2>&1; then ok "go vet ./...";   else bad "go vet ./...";   tail -15 /tmp/verify-vet.log; fi
+# Biçim: gofmt dışı dosya kalmamalı (2026-10-11: iki dosya fark edilmeden commit edilmişti).
+GOFMT_BAD=$(gofmt -l . 2>/dev/null)
+[ -z "$GOFMT_BAD" ] && ok "gofmt: biçim farkı olan dosya yok" || bad "gofmt biçim farkı: $GOFMT_BAD"
 # Veritabanı gerektirmeyen birim testleri
 if go test ./pkg/authtoken/... -count=1 >/tmp/verify-authtoken.log 2>&1; then
   ok "go test ./pkg/authtoken/... (JWT doğrulama)"
@@ -7927,6 +7930,47 @@ ODEN=$($PSQL -t -A -c "SELECT count(*) FROM audit_logs WHERE user_id='$TUID' AND
   && ok "malik kiracılığı bitirdi (pasif); kendini/maliki 422, başka bölümün sakini 404, bozuk kimlik 404; işlemler ve kiracının reddedilen denemesi denetim izinde" \
   || bad "malik sakinlik bitirme: kendi=$O7 / başka bölüm=$O8 / bozuk=$O9 / $O10 / aktif=$OEND / iz=$OAUD / ret izi=$ODEN"
 kill_tree "$IB5_PID"
+
+step "54) Taşınan sakinde ilişik kesme tarihi (end_date) — beşinci tur B7"
+if go test ./services/identity/service/ -count=1 -run 'EndDate' >/tmp/verify-enddate.log 2>&1; then
+  ok "go test ayrılış tarihi doğrulaması (geçmiş tarih kabul; ileri tarih, biçim, aktif kayıtta tarih reddedilir)"
+else
+  bad "ayrılış tarihi birim testi"; tail -10 /tmp/verify-enddate.log
+fi
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_identity DB_PASSWORD="$IDPW" DB_NAME=siteeksen \
+  DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=19481 \
+  go run ./services/identity >/tmp/verify-identity-b7.log 2>&1 &
+IB7_PID=$!
+for _ in $(seq 1 60); do curl -fsS http://127.0.0.1:19481/health >/dev/null 2>&1 && break; sleep 1; done
+I7="http://127.0.0.1:19481/api/v1"
+M7=$(curl -s -X POST "$I7/auth/login" -H "$J" -d '{"phone":"5551234567","password":"Demo123!"}' | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+M7A="Authorization: Bearer $M7"
+RID7=$(curl -s -X POST "$I7/residents" -H "$M7A" -H "$J" \
+  -d "{\"first_name\":\"Tasinan\",\"last_name\":\"Sakin\",\"phone\":\"0555 999 00 55\",\"unit_id\":\"$U303\",\"role\":\"TENANT\"}" \
+  | python3 -c "import json,sys; print(json.load(sys.stdin)['id'])" 2>/dev/null)
+$PSQL -c "UPDATE resident_units SET start_date = CURRENT_DATE - 30 WHERE id='$RID7';" >/dev/null
+TOM=$(date -d '+1 day' +%F); YST=$(date -d '1 day ago' +%F); TODAY7=$(date +%F)
+patch7() { code -X PATCH "$I7/residents/$RID7" -H "$M7A" -H "$J" -d "$1"; }
+E1=$(patch7 "{\"is_active\":false,\"end_date\":\"$TOM\"}")
+E2=$(patch7 "{\"is_active\":true,\"end_date\":\"$YST\"}")
+E3=$(patch7 '{"is_active":false,"end_date":"2000-01-01"}')
+E4=$(patch7 "{\"is_active\":false,\"end_date\":\"$YST\"}")
+ED4=$($PSQL -t -A -c "SELECT is_active||'|'||end_date FROM resident_units WHERE id='$RID7';")
+EAPI=$(curl -s "$I7/residents/$RID7" -H "$M7A" | grep -c "\"end_date\":\"$YST")
+E5=$(patch7 '{"is_active":false}')
+ED5=$($PSQL -t -A -c "SELECT end_date FROM resident_units WHERE id='$RID7';")
+[ "$E1" = "422" ] && [ "$E2" = "422" ] && [ "$E3" = "422" ] && [ "$E4" = "200" ] && [ "$ED4" = "false|$YST" ] && [ "$EAPI" = "1" ] && [ "$E5" = "200" ] && [ "$ED5" = "$YST" ] \
+  && ok "pasifleştirmede ilişik kesme tarihi yazıldı ve yanıtta görünüyor; ileri tarih / aktif kayıtta tarih / başlangıçtan önceki tarih 422; zaten pasif kayıtta tarih korunuyor" \
+  || bad "ayrılış tarihi: ileri=$E1 aktif=$E2 erken=$E3 / $E4 $ED4 api=$EAPI / tekrar=$E5 $ED5"
+E6=$(patch7 '{"is_active":true}')
+ED6=$($PSQL -t -A -c "SELECT is_active||'|'||COALESCE(end_date::text,'yok') FROM resident_units WHERE id='$RID7';")
+E7=$(patch7 '{"is_active":false}')
+ED7=$($PSQL -t -A -c "SELECT end_date FROM resident_units WHERE id='$RID7';")
+OWEND=$($PSQL -t -A -c "SELECT ru.end_date FROM resident_units ru JOIN users u ON u.id=ru.resident_id WHERE u.phone='+905559990053' AND ru.unit_id='$U303';")
+[ "$E6" = "200" ] && [ "$ED6" = "true|yok" ] && [ "$E7" = "200" ] && [ "$ED7" = "$TODAY7" ] && [ "$OWEND" = "$TODAY7" ] \
+  && ok "yeniden etkinleştirmede tarih temizlendi; tarihsiz pasifleştirmede bugün yazıldı; malikin bitirdiği kiracılıkta da tarih var (B5)" \
+  || bad "ayrılış tarihi 2: $E6 $ED6 / $E7 $ED7 / malik=$OWEND"
+kill_tree "$IB7_PID"
 
 step "SONUÇ"
 echo "  Geçen: $PASS   Başarısız: $FAIL"

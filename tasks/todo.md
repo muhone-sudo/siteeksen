@@ -661,7 +661,7 @@ mobil maddelerden sonra verify-mobile, panel maddelerinden sonra tsc+lint+build.
   kiracılığı bitirir; yönetime ayrı bildirim yok (kimlik servisi bildirim tablosuna erişemez), işlem denetim izinde. Sakin uygulamasında "Dairem" bölümü.
 - [x] **B6 Kademeli giriş kilidi** (verify 1296/1296) — 5. hata 30 sn, 6. hata 2 dk, 7.+ hata 15 dk; yanıt kalan süreyi
   SÖYLEMEZ (hesap/kilit varlığı sızardı), kademeleri sabit metinle anlatır.
-- [ ] **B7 İlişik kesme tarihi** — pasifleştirmede `resident_units.end_date` (isteğe bağlı tarih, varsayılan
+- [x] **B7 İlişik kesme tarihi** (verify 1300/1300) — pasifleştirmede `resident_units.end_date` (isteğe bağlı tarih, varsayılan
   bugün), yeniden etkinleştirmede temizlenir; panel listesinde görünür. Changelog satır 231 düzeltilir.
 - [ ] **B8 Fatura sapma uyarısı + itiraz** — paylaştırmada kullanım alanı başına tüketim site medyanının
   3 katını aşan bölümler listelenir, yayım yönetici teyidi ister. Sakin tüketim pusulasına itiraz eder,

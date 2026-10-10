@@ -47,7 +47,7 @@ export function endpoints(http: Http) {
             residents: (q?: { search?: string; block?: string; role?: string }) => g<T.List<T.Resident>>("/residents", q),
             createResident: (b: { first_name: string; last_name: string; phone: string; email?: string; unit_id: string; role: string }) =>
                 http.post<T.CreateResidentResult>("/residents", b),
-            updateResident: (id: string, b: { role?: string; is_active?: boolean }) => http.patch<T.Resident>(`/residents/${id}`, b),
+            updateResident: (id: string, b: { role?: string; is_active?: boolean; end_date?: string }) => http.patch<T.Resident>(`/residents/${id}`, b),
             issueActivationCode: (id: string) => http.post<T.Activation>(`/residents/${id}/activation-code`),
             changePhone: (id: string, phone: string) => http.post<{ message: string; phone: string; sessions_revoked: boolean; activation: T.Activation; old_phone_notice: string }>(`/residents/${id}/phone`, { phone }),
             unlockLogin: (id: string) => http.post<{ message: string; was_locked: boolean }>(`/residents/${id}/unlock`),

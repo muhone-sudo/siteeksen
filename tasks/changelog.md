@@ -12,6 +12,19 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-11 — TAŞINAN SAKİNDE İLİŞİK KESME TARİHİ (beşinci tur B7) (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **1300/1300** (adım 54: birim testi; pasifleştirmede tarih yazıldı ve yanıtta görünüyor; ileri
+> tarih / aktif kayıtta tarih / başlangıçtan önceki tarih 422; zaten pasif kayıtta tarih korunuyor; yeniden etkinleştirmede
+> temizlendi; tarihsiz pasifleştirmede bugün; malikin bitirdiği kiracılıkta da tarih var. Adım 0: yeni `gofmt` denetimi).
+> Panel tsc/lint temiz.
+
+- Önceden pasifleştirme yalnızca `is_active` değiştiriyordu; `resident_units.end_date` sütunu hiç yazılmıyordu. Changelog'daki
+  Apsiyon BUG-01 girdisinin "end_date de yazılır" ifadesi yanlıştı; o girdi düzeltildi.
+- `PATCH /residents/:id` `end_date` alır; malikin kiracılığı bitirmesi (B5) de aynı yolu kullanır.
+- Panel: sakin düzenlemede "Ayrılış (ilişik kesme) tarihi", listede "Ayrıldı · tarih".
+- `verify-stack.sh` adım 0'a `gofmt -l` denetimi eklendi (iki dosya biçim farkıyla commit edilmişti; ayrı commit'te düzeltildi).
+
 ### 2026-10-11 — KADEMELİ GİRİŞ KİLİDİ (beşinci tur B6) (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **1296/1296** (adım 39: birim testi; 4 hatada kilit yok, 5. hatada 30 sn kilit ve kilitliyken
@@ -321,8 +334,9 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 > hatırlatma yok).
 
 - Apsiyon şikâyetlerindeki "taşındım, hâlâ borç SMS'i geliyor" hatası bu sistemde yoktu: borç hatırlatması yalnızca dairenin
-  AKTİF sakinlerine gider (`notify.UnitResidents`), taşınmada `resident_units.is_active=false` + `end_date`; borç kişiye değil
-  bağımsız bölüme yazılır. Mevcut kanıt korundu.
+  AKTİF sakinlerine gider (`notify.UnitResidents`), taşınmada `resident_units.is_active=false`; borç kişiye değil
+  bağımsız bölüme yazılır. Mevcut kanıt korundu. **Düzeltme (2026-10-11):** bu girdi önceden "taşınmada `end_date` de
+  yazılır" diyordu; yanlıştı — pasifleştirme yalnızca `is_active` değiştiriyordu. `end_date` beşinci tur B7 ile yazılıyor.
 - Eklenen: hatırlatma soyut tutar yerine `[Site] · [Blok-Kapı]` + her kalem için `[Dönem] [Tür] [Tutar]` (devir bakiyesi ayrı
   adlandırılır) dökümü verir. Sakinin bildirdiği ödeme yönetim onayı beklerken o borç için hatırlatma gönderilmez.
 

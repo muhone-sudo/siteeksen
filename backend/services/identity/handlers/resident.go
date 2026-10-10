@@ -34,6 +34,8 @@ func residentError(err error) (int, string, bool) {
 		return http.StatusUnprocessableEntity, "Sakinlik rolü OWNER, TENANT ya da PROXY olmalı; yönetim rolleri görevlendirmeyle verilir", true
 	case errors.Is(err, repository.ErrResidentNotFound):
 		return http.StatusNotFound, "Sakin bulunamadı", true
+	case errors.Is(err, repository.ErrInvalidEndDate):
+		return http.StatusUnprocessableEntity, err.Error(), true
 	case errors.Is(err, repository.ErrUnitNotFound):
 		return http.StatusBadRequest, "Belirtilen birim bu siteye ait değil", true
 	case errors.Is(err, repository.ErrPhoneAlreadyExists):

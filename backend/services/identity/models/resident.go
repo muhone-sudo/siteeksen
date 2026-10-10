@@ -15,6 +15,8 @@ type Resident struct {
 	Role      string    `json:"role"`
 	IsActive  bool      `json:"is_active"`
 	CreatedAt time.Time `json:"created_at"`
+	// EndDate: ilişik kesme (ayrılış) tarihi; pasifleştirmede yazılır (beşinci tur B7).
+	EndDate *time.Time `json:"end_date,omitempty"`
 }
 
 // Activation, yöneticiye YALNIZCA BİR KEZ gösterilen etkinleştirme kodudur.
@@ -54,6 +56,8 @@ type CreateResidentInput struct {
 type UpdateResidentInput struct {
 	Role     *string `json:"role"`
 	IsActive *bool   `json:"is_active"`
+	// EndDate: ayrılış tarihi (YYYY-AA-GG); yalnızca is_active=false ile verilir, boşsa bugün (B7).
+	EndDate *string `json:"end_date"`
 }
 
 // Invitation, sakin davetinin YÖNETİM görünümüdür (S-20, migration 032).

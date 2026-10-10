@@ -188,7 +188,33 @@ func (s *ResidentService) Update(ctx context.Context, propertyID, id string, rol
 	if input.Role != nil && !residentRoles[*input.Role] {
 		return nil, ErrInvalidResidentRole
 	}
+	if err := validateEndDate(&input, time.Now()); err != nil {
+		return nil, err
+	}
 	return s.repo.Update(ctx, propertyID, id, input)
+}
+
+// validateEndDate: ayrılış tarihi yalnızca pasifleştirmede verilir, YYYY-AA-GG biçimindedir ve
+// ileri bir tarih olamaz (B7). Boş metin "verilmedi" sayılır.
+func validateEndDate(in *models.UpdateResidentInput, now time.Time) error {
+	if in.EndDate == nil || strings.TrimSpace(*in.EndDate) == "" {
+		in.EndDate = nil
+		return nil
+	}
+	if in.IsActive == nil || *in.IsActive {
+		return fmt.Errorf("%w: ayrılış tarihi yalnızca sakin pasife alınırken verilir", repository.ErrInvalidEndDate)
+	}
+	d, err := time.ParseInLocation("2006-01-02", strings.TrimSpace(*in.EndDate), time.Local)
+	if err != nil {
+		return fmt.Errorf("%w: tarih YYYY-AA-GG biçiminde olmalı", repository.ErrInvalidEndDate)
+	}
+	y, m, dd := now.Date()
+	if d.After(time.Date(y, m, dd, 0, 0, 0, 0, time.Local)) {
+		return fmt.Errorf("%w: ileri bir tarih olamaz", repository.ErrInvalidEndDate)
+	}
+	s := d.Format("2006-01-02")
+	in.EndDate = &s
+	return nil
 }
 
 // ListUnits bir sitedeki birimleri getirir (yalnızca yönetim)

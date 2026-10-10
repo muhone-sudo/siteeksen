@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -13,6 +14,9 @@ import (
 
 // ErrResidentNotFound sakin bulunamadığında döner
 var ErrResidentNotFound = errors.New("sakin bulunamadı")
+
+// ErrInvalidEndDate: ayrılış tarihi geçersiz (ileri tarih, başlangıçtan önce ya da aktif kayıtta).
+var ErrInvalidEndDate = errors.New("ayrılış tarihi geçersiz")
 
 // ErrUnitNotFound birim bulunamadığında döner
 var ErrUnitNotFound = errors.New("birim bulunamadı")
@@ -40,14 +44,14 @@ func NewResidentRepository(pool *pgxpool.Pool) *ResidentRepository {
 const residentColumns = `
 	ru.id, u.id, u.first_name, u.last_name, u.phone, COALESCE(u.email, ''),
 	un.id, COALESCE(NULLIF(un.block, ''), '') || '-' || un.door_number,
-	ru.role, ru.is_active, ru.created_at
+	ru.role, ru.is_active, ru.created_at, ru.end_date
 `
 
 func scanResident(row pgx.Row) (*models.Resident, error) {
 	res := &models.Resident{}
 	err := row.Scan(
 		&res.ID, &res.UserID, &res.FirstName, &res.LastName, &res.Phone, &res.Email,
-		&res.UnitID, &res.Unit, &res.Role, &res.IsActive, &res.CreatedAt,
+		&res.UnitID, &res.Unit, &res.Role, &res.IsActive, &res.CreatedAt, &res.EndDate,
 	)
 	if err != nil {
 		return nil, err
@@ -212,14 +216,37 @@ func (r *ResidentRepository) Create(ctx context.Context, propertyID, actorID, pa
 // değiştirirse ikinci yazım birincinin değişikliğini sessizce geri alıyordu
 // (kayıp güncelleme). Verilmeyen alan artık veritabanındaki güncel değeri korur;
 // site denetimi aynı ifadede yapılır.
+//
+// İLİŞİK KESME TARİHİ (beşinci tur B7): pasifleştirmede `end_date` yazılır (verilmezse bugün;
+// zaten pasif kayıtta mevcut tarih korunur), yeniden etkinleştirmede temizlenir. Önceden yalnız
+// `is_active` değişiyordu; kimin ne zaman ayrıldığı kayıtta yoktu.
 func (r *ResidentRepository) Update(ctx context.Context, propertyID, id string, input models.UpdateResidentInput) (*models.Resident, error) {
+	if input.EndDate != nil {
+		var start time.Time
+		err := r.pool.QueryRow(ctx, `SELECT ru.start_date FROM resident_units ru JOIN units un ON un.id = ru.unit_id
+			WHERE ru.id = $1 AND un.property_id = $2`, id, propertyID).Scan(&start)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrResidentNotFound
+		}
+		if err != nil {
+			return nil, err
+		}
+		if *input.EndDate < start.Format("2006-01-02") {
+			return nil, fmt.Errorf("%w: ayrılış tarihi sakinliğin başladığı günden (%s) önce olamaz", ErrInvalidEndDate, start.Format("02.01.2006"))
+		}
+	}
 	tag, err := r.pool.Exec(ctx, `
 		UPDATE resident_units ru
-		SET role = COALESCE($3, ru.role), is_active = COALESCE($4, ru.is_active)
+		SET role = COALESCE($3, ru.role), is_active = COALESCE($4::boolean, ru.is_active),
+		    end_date = CASE
+		        WHEN $4::boolean IS TRUE THEN NULL
+		        WHEN $4::boolean IS FALSE THEN COALESCE($5::date,
+		             CASE WHEN COALESCE(ru.is_active, true) THEN CURRENT_DATE ELSE COALESCE(ru.end_date, CURRENT_DATE) END)
+		        ELSE ru.end_date END
 		FROM units un, users u
 		WHERE ru.id = $1 AND un.id = ru.unit_id AND un.property_id = $2
 		  AND u.id = ru.resident_id AND u.deleted = 0`,
-		id, propertyID, input.Role, input.IsActive)
+		id, propertyID, input.Role, input.IsActive, input.EndDate)
 	if err != nil {
 		return nil, err
 	}

@@ -5,7 +5,7 @@ import { KeyRound, Plus, Upload } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAction, useApi, useRoles } from "@/lib/use-api";
 import { ActionFeedback, Badge, Button, Card, Field, FormModal, Grid, Input, Modal, Notice, Page, QueryView, Select, Table, Textarea } from "@/components/ui/kit";
-import { dateTime } from "@/lib/format";
+import { date, dateTime } from "@/lib/format";
 import { RESIDENT_ROLES, ROLE_LABEL } from "@/lib/labels";
 import type { Activation, BulkResidentRow, Invitation, Resident } from "@/lib/types";
 
@@ -133,7 +133,7 @@ export default function ResidentsPage() {
                                 { header: "Telefon", cell: (r) => r.phone },
                                 { header: "Daire", cell: (r) => r.unit },
                                 { header: "Sıfat", cell: (r) => ROLE_LABEL[r.role] ?? r.role },
-                                { header: "Durum", cell: (r) => (r.is_active ? <Badge tone="green">Aktif</Badge> : <Badge>Ayrıldı</Badge>) },
+                                { header: "Durum", cell: (r) => (r.is_active ? <Badge tone="green">Aktif</Badge> : <Badge>{r.end_date ? `Ayrıldı · ${date(r.end_date)}` : "Ayrıldı"}</Badge>) },
                                 ...(canWrite
                                     ? [{
                                           header: "",
@@ -302,7 +302,7 @@ export default function ResidentsPage() {
                 error={act.error}
                 onSubmit={async () => {
                     if (!edit) return;
-                    const r = await act.run(() => api.identity.updateResident(edit.id, { role: edit.role, is_active: edit.is_active }), {
+                    const r = await act.run(() => api.identity.updateResident(edit.id, { role: edit.role, is_active: edit.is_active, end_date: edit.is_active ? undefined : edit.end_date?.slice(0, 10) || undefined }), {
                         invalidate: ["residents"],
                         success: "Sakin kaydı güncellendi",
                     });
@@ -321,6 +321,12 @@ export default function ResidentsPage() {
                                 options={[{ value: "1", label: "Aktif" }, { value: "0", label: "Ayrıldı" }]}
                             />
                         </Field>
+                        {!edit.is_active && (
+                            <Field label="Ayrılış (ilişik kesme) tarihi" hint="Boş bırakılırsa bugün yazılır. İleri bir tarih olamaz; ayrılan kişiye bildirim gitmez, yeni borç ona yansımaz.">
+                                <Input type="date" max={new Date().toLocaleDateString("sv-SE")} value={edit.end_date?.slice(0, 10) ?? ""}
+                                    onChange={(e) => setEdit({ ...edit, end_date: e.target.value })} />
+                            </Field>
+                        )}
                     </Grid>
                 )}
             </FormModal>

@@ -25,6 +25,8 @@ export interface UserProperty { property_id: Id; property_name: string; unit_id:
 export interface Resident {
     id: Id; user_id: Id; first_name: string; last_name: string; phone: string; email: string;
     unit_id: Id; unit: string; role: string; is_active: boolean; created_at: string;
+    /** İlişik kesme (ayrılış) tarihi — B7. */
+    end_date?: string;
 }
 /** Yöneticiye YALNIZCA BİR KEZ gösterilen etkinleştirme / şifre sıfırlama kodu. */
 export interface Activation { activation_code: string; purpose: "ACTIVATION" | "RESET"; expires_at: string; note: string; sms?: { status: "SENT" | "FAILED" | "NOT_CONFIGURED"; note: string }; email?: { status: "SENT" | "FAILED" | "NOT_CONFIGURED"; note: string } }
