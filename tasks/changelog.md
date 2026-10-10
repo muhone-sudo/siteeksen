@@ -12,6 +12,21 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-11 — ŞİFREMİ UNUTTUM: SAKİNİN KENDİ KOD İSTEĞİ (beşinci tur B3, Şikayetvar "SMS, giriş ve hesap erişimi") (DOĞRULANMIŞ — sahte Netgsm ile)
+
+> **Kanıt:** `verify-stack.sh` → **1284/1284** (adım 51: sıklık sınırı birim testi; kod sakinin kayıtlı +352 numarasına SMS
+> ile gitti, 15 dk geçerli ve "kendi isteği" olarak kayıtlı; kayıtsız numarada SMS yok ve yanıt BİREBİR aynı; SMS/e-posta
+> yapılandırılmamış kurulum 503 `NO_DELIVERY_CHANNEL`; 60 sn dolmadan ve saatte 3 koddan sonra yeni SMS yok, yanıt yine aynı;
+> geçersiz numara 422; SMS'teki kodla yeni şifre belirlendi, yeni şifreyle giriş var, eski şifre 401). `verify-mobile.sh` 10/10;
+> panel tsc/lint temiz. **Gerçek Netgsm hesabıyla denenmedi.**
+
+- Önceden kodu yalnızca site yönetimi üretebiliyordu; üç istemcideki "Şifremi unuttum" bağlantısı yönetimden alınacak kodun
+  girildiği ekrana gidiyordu.
+- `POST /auth/password-reset/request`: numara etkin bir hesaba aitse kod üretilir (`created_by` boş = kendi isteği) ve
+  arka planda gönderilir — yanıt metni ve süresi numaranın kayıtlı olup olmamasından bağımsızdır.
+- Panel, sakin ve yönetici uygulamalarının etkinleştirme ekranına "Kodu SMS ile gönder" (60 sn geri sayım) eklendi; kod
+  mevcut `/auth/activate` ile girilir.
+
 ### 2026-10-10 — YÖNETİMİN TAHSİLAT GİRİŞİ: BİLDİRİMSİZ HAVALE, ELDEN ÖDEME, EŞLEŞMEYEN EKSTRE SATIRI (migration 061, beşinci tur B2) (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **1280/1280** (adım 50: yönetici elden ödemeyi girdi — ödeme aynı işlemde onaylandı, borç

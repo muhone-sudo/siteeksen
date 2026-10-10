@@ -207,6 +207,13 @@ class ApiClient {
     return _map(response.data);
   }
 
+  /// "Şifremi unuttum": kayıtlı numaraya (ve e-postaya) kod gönderilmesini ister (B3).
+  /// Yanıt, numaranın kayıtlı olup olmadığını söylemez.
+  Future<Map<String, dynamic>> requestPasswordReset({required String phone}) async {
+    final response = await Dio(BaseOptions(baseUrl: baseUrl)).post('/auth/password-reset/request', data: {'phone': phone});
+    return _map(response.data);
+  }
+
   /// Şifre değiştirir; sunucu BÜTÜN oturumları kapatır, cihaz da temizlenir.
   Future<Map<String, dynamic>> changePassword(String current, String next) async {
     final response = await _dio.post('/users/me/password', data: {

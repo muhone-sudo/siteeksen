@@ -650,7 +650,7 @@ mobil maddelerden sonra verify-mobile, panel maddelerinden sonra tsc+lint+build.
   reference}: ödeme açılır ve aynı işlemde onaylanır (defter zinciri). Ekstrede eşleşmeyen satır
   `assessment_ids` ile doğrudan daireye işlenir. Daire sakinine "ödemeniz kaydedildi" bildirimi.
   Panel: muhasebede "Tahsilat gir" + ekstre satırında "Daireye işle"; yönetici uygulaması: tahsilat formu.
-- [ ] **B3 Şifremi unuttum (self-servis)** — `POST /auth/password-reset/request` {phone}: hesap var mı
+- [x] **B3 Şifremi unuttum (self-servis)** (verify 1284/1284, mobil 10/10) — `POST /auth/password-reset/request` {phone}: hesap var mı
   söylenmez; kod SMS + e-postayla gider; sıklık sınırı (60 sn, saatte 3). Kod mevcut etkinleştirme
   ekranında girilir. SMS/e-posta yapılandırılmamışsa bunu açıkça söyler. Üç istemcide "Şifremi unuttum" →
   numara ekranı.

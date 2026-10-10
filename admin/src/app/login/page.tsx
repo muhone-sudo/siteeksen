@@ -111,7 +111,7 @@ export default function LoginPage() {
                         </div>
 
                         {/* "Beni hatırla" kutusu kaldırıldı: hiçbir şeye bağlı değildi.
-                            Şifre sıfırlama kodla yapılır; kodu site yönetimi üretir. */}
+                            Şifre sıfırlama kodla yapılır; kod SMS ile istenir ya da site yönetiminden alınır (B3). */}
                         <div className="text-right">
                             <Link href="/activate" className="text-sm text-primary hover:underline">
                                 Şifremi unuttum / hesabımı etkinleştir

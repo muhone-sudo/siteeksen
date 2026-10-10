@@ -65,6 +65,9 @@ export function endpoints(http: Http) {
             /** Oturum gerektirmez: kodla ilk şifre belirleme ya da sıfırlama. */
             activate: (phone: string, code: string, new_password: string) =>
                 http.post<Msg>("/auth/activate", { phone, code, new_password }),
+            // "Şifremi unuttum" (B3): yanıt numaranın kayıtlı olup olmadığını söylemez.
+            requestPasswordReset: (phone: string) =>
+                http.post<{ message: string; retry_after_sec: number; expires_in_sec: number }>("/auth/password-reset/request", { phone }),
             units: () => g<T.List<T.Unit>>("/units"),
             createUnits: (units: T.UnitInput[]) => http.post<{ data: T.Unit[]; created: number }>("/units", { units }),
             updateUnit: (id: string, b: T.UnitInput) => http.patch<T.Unit>(`/units/${id}`, b),

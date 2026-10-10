@@ -681,3 +681,11 @@ başlangıç günü gibi konularda öneri yazıldı. Kullanıcı düzeltti: komi
 faiz ve sözleşme kararları işletmenindir. **Kural:** Ürün/şikayet analizinde yalnızca uygulama
 aksaklıkları ve olsa iyi olacak özellikler değerlendirilir; işletme kararı olan maddeler "kapsam dışı"
 yazılıp geçilir, öneri üretilmez.
+
+### Ders 50 — `grep -c … || echo 0` eşleşme yokken iki kez "0" yazar
+
+`grep -c` eşleşme bulamayınca hem `0` yazar hem 1 ile çıkar; `|| echo 0` ikinci bir `0` ekler ve değişken
+`"0\n0"` olur — karşılaştırma sessizce düşer. B3 doğrulamasında kod doğruyken kontrol iki tur kırmızı kaldı.
+Aynı turda `(a IS NULL)||'|'||…` biçiminde MANTIKSAL değerle BAŞLAYAN birleştirmenin boş döndüğü sanıldı;
+asıl neden buydu (Ders 48'in tersi değil). **Kural:** Sayaç için `n=$(grep -c … 2>/dev/null); echo "${n:-0}"`;
+kırmızı kontrolde önce hata satırının TAMAMINI (`grep -A`) oku, tahminle düzeltme yapma.

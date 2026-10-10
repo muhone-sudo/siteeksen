@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -19,7 +21,7 @@ String activationErrorMessage(Object e) {
       case 422:
         return serverMsg ?? passwordPolicyHint;
       case 429:
-        return 'Kod çok sayıda hatalı deneme nedeniyle kilitlendi. Site yönetiminden yeni kod isteyin.';
+        return 'Kod çok sayıda hatalı deneme nedeniyle kilitlendi. SMS ile yeni kod isteyin ya da site yönetiminden alın.';
     }
   }
   return toUserMessage(e);
@@ -27,9 +29,10 @@ String activationErrorMessage(Object e) {
 
 /// Hesap etkinleştirme / şifre sıfırlama.
 ///
-/// Kodu site yönetimi üretir ve size iletir (SMS bağlı değildir). Kod 7 gün
-/// geçerlidir, tek kullanımlıktır ve 5 hatalı denemede kilitlenir. Şifre
-/// belirlenince açık bütün oturumlarınız kapanır.
+/// Kodu iki yoldan alırsınız: "Kodu SMS ile gönder" (kayıtlı numaranıza, e-postanız
+/// kayıtlıysa oraya da; 15 dk geçerli — B3) ya da site yönetiminden (7 gün geçerli).
+/// Kod tek kullanımlıktır ve 5 hatalı denemede kilitlenir. Şifre belirlenince açık
+/// bütün oturumlarınız kapanır.
 class ActivateScreen extends StatefulWidget {
   const ActivateScreen({super.key});
 
@@ -45,9 +48,13 @@ class _ActivateScreenState extends State<ActivateScreen> {
   final _password2 = TextEditingController();
   bool _busy = false;
   String? _error;
+  String? _info;
+  int _cooldown = 0;
+  Timer? _timer;
 
   @override
   void dispose() {
+    _timer?.cancel();
     _phone.dispose();
     _code.dispose();
     _password.dispose();
@@ -56,6 +63,42 @@ class _ActivateScreenState extends State<ActivateScreen> {
   }
 
   static String activationError(Object e) => activationErrorMessage(e);
+
+  /// Kodu kayıtlı numaraya gönderir. Sunucu numaranın kayıtlı olup olmadığını söylemez;
+  /// aynı numara için 60 saniyede bir istenebilir.
+  Future<void> _sendCode() async {
+    if (!isValidPhone(_phone.text)) {
+      setState(() => _error = 'Önce geçerli bir telefon numarası girin (yurt dışı numara +ülke kodu ile)');
+      return;
+    }
+    setState(() {
+      _error = null;
+      _info = null;
+    });
+    try {
+      final res = await apiClient.requestPasswordReset(phone: normalizePhone(_phone.text));
+      final wait = (res['retry_after_sec'] as num?)?.toInt() ?? 60;
+      if (!mounted) return;
+      setState(() {
+        _info = '${res['message'] ?? 'Kod gönderildi.'}';
+        _cooldown = wait;
+      });
+      _timer?.cancel();
+      _timer = Timer.periodic(const Duration(seconds: 1), (t) {
+        if (!mounted || _cooldown <= 1) {
+          t.cancel();
+          if (mounted) setState(() => _cooldown = 0);
+          return;
+        }
+        setState(() => _cooldown--);
+      });
+    } catch (e) {
+      final data = e is DioException ? e.response?.data : null;
+      if (mounted) {
+        setState(() => _error = data is Map && data['error'] is String ? data['error'] as String : toUserMessage(e));
+      }
+    }
+  }
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
@@ -95,8 +138,8 @@ class _ActivateScreenState extends State<ActivateScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
-                  'Site yönetiminin size ilettiği kodla hesabınızı etkinleştirin '
-                  'ya da unuttuğunuz şifreyi sıfırlayın. Kodunuz yoksa yönetimden isteyin.',
+                  'Telefon numaranızı girip kodu SMS ile isteyin ya da site yönetiminin '
+                  'size ilettiği kodu kullanın; ardından yeni şifrenizi belirleyin.',
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
                 const SizedBox(height: 24),
@@ -117,12 +160,23 @@ class _ActivateScreenState extends State<ActivateScreen> {
                   decoration: const InputDecoration(labelText: 'Telefon Numarası', hintText: '0555 123 45 67 · yurt dışı: +49 …', prefixIcon: Icon(Icons.phone)),
                   validator: (v) => v == null || !isValidPhone(v) ? 'Geçerli bir telefon numarası girin (yurt dışı numara +ülke kodu ile)' : null,
                 ),
-                const SizedBox(height: 16),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: _cooldown > 0 ? null : _sendCode,
+                    child: Text(_cooldown > 0 ? 'Yeniden gönder (${_cooldown}s)' : 'Kodu SMS ile gönder'),
+                  ),
+                ),
+                if (_info != null) ...[
+                  Text(_info!, style: Theme.of(context).textTheme.bodySmall),
+                  const SizedBox(height: 8),
+                ],
+                const SizedBox(height: 8),
                 TextFormField(
                   controller: _code,
                   textCapitalization: TextCapitalization.characters,
                   decoration: const InputDecoration(labelText: 'Kod', prefixIcon: Icon(Icons.key)),
-                  validator: (v) => v == null || v.trim().length < 6 ? 'Yönetimden aldığınız kodu girin' : null,
+                  validator: (v) => v == null || v.trim().length < 6 ? 'SMS ile gelen ya da yönetimden aldığınız kodu girin' : null,
                 ),
                 const SizedBox(height: 16),
                 TextFormField(

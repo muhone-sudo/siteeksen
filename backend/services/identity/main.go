@@ -65,6 +65,8 @@ func main() {
 			auth.POST("/refresh", handlers.RefreshToken(authService))
 			// Etkinleştirme koduyla şifre belirleme (oturum gerektirmez).
 			auth.POST("/activate", handlers.Activate(authService))
+			// Sakinin kendi "şifremi unuttum" isteği (beşinci tur B3): kod SMS/e-postayla gider.
+			auth.POST("/password-reset/request", handlers.RequestPasswordReset(authService))
 			// Çıkış, kimlik doğrulama middleware'inin ARKASINDA DEĞİLDİR:
 			// süresi dolmuş ya da iptal edilmiş bir jetonla da çıkış denenebilmeli
 			// ve istemci anlamlı bir yanıt almalıdır. Jeton başlıktan elle okunur.

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Building2 } from "lucide-react";
 import { api } from "@/lib/api";
@@ -9,8 +9,9 @@ import { toUserMessage } from "@/components/ui/data-state";
 /**
  * Hesap etkinleştirme / şifre sıfırlama — OTURUM GEREKTİRMEZ.
  *
- * Kodu site yönetimi üretir ve kişiye iletir (SMS sağlayıcısı bağlı değildir).
- * Kod 7 gün geçerlidir, tek kullanımlıktır ve 5 hatalı denemede kilitlenir.
+ * Kod iki yoldan gelir: "Kodu SMS ile gönder" (kayıtlı numaraya, e-posta kayıtlıysa oraya
+ * da; 15 dk geçerli — beşinci tur B3) ya da site yönetiminden (7 gün geçerli). Kod tek
+ * kullanımlıktır ve 5 hatalı denemede kilitlenir. Sunucu numaranın kayıtlı olup olmadığını söylemez.
  */
 export default function ActivatePage() {
     const [phone, setPhone] = useState("");
@@ -20,6 +21,25 @@ export default function ActivatePage() {
     const [pending, setPending] = useState(false);
     const [error, setError] = useState("");
     const [done, setDone] = useState(false);
+    const [info, setInfo] = useState("");
+    const [cooldown, setCooldown] = useState(0);
+    useEffect(() => {
+        if (cooldown <= 0) return;
+        const t = setTimeout(() => setCooldown(cooldown - 1), 1000);
+        return () => clearTimeout(t);
+    }, [cooldown]);
+    const sendCode = async () => {
+        setError("");
+        setInfo("");
+        if (phone.replace(/\D/g, "").length < 10) { setError("Önce telefon numaranızı girin."); return; }
+        try {
+            const r = await api.identity.requestPasswordReset(phone.trim());
+            setInfo(r.message);
+            setCooldown(r.retry_after_sec || 60);
+        } catch (err) {
+            setError(toUserMessage(err, "Kod gönderilemedi."));
+        }
+    };
     const mismatch = pw2 !== "" && pw !== pw2;
 
     const input = "w-full rounded-lg border border-gray-300 bg-gray-50 px-4 py-3 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 dark:border-gray-600 dark:bg-gray-700";
@@ -32,7 +52,7 @@ export default function ActivatePage() {
                         <Building2 className="h-8 w-8 text-white" />
                     </div>
                     <h1 className="text-xl font-bold text-gray-900 dark:text-white">Şifre belirle</h1>
-                    <p className="text-sm text-gray-500">Site yönetiminin size ilettiği kodla hesabınızı etkinleştirin ya da şifrenizi sıfırlayın.</p>
+                    <p className="text-sm text-gray-500">Kodu SMS ile isteyin ya da site yönetiminin size ilettiği kodu kullanın; ardından yeni şifrenizi belirleyin.</p>
                 </div>
 
                 {done ? (
@@ -65,6 +85,12 @@ export default function ActivatePage() {
                             <input type="tel" required maxLength={20} placeholder="0555 123 45 67 · yurt dışı: +49 …" className={input + " mt-1"}
                                 value={phone} onChange={(e) => setPhone(e.target.value.replace(/[^\d+ ]/g, ""))} />
                         </label>
+                        <div className="text-right">
+                            <button type="button" onClick={sendCode} disabled={cooldown > 0} className="text-sm text-primary hover:underline disabled:text-gray-400 disabled:no-underline">
+                                {cooldown > 0 ? `Yeniden gönder (${cooldown} sn)` : "Kodu SMS ile gönder"}
+                            </button>
+                        </div>
+                        {info && <p className="rounded-lg bg-blue-50 p-3 text-sm text-blue-800">{info}</p>}
                         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                             Kod
                             <input required autoComplete="one-time-code" maxLength={12} className={input + " mt-1 font-mono uppercase tracking-widest"}

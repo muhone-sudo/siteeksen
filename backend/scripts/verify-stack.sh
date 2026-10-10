@@ -7729,6 +7729,68 @@ grep -q 'değiştirilemez' <<<"$G61" && [ "$LV50" = "1" ] \
   || bad "tahsilat koruması: $G61 / zincir=$LV50"
 kill_tree "$FB2_PID"
 
+step "51) Şifremi unuttum: sakinin kendi kod isteği, numara ifşa etmeyen yanıt, sıklık sınırı (beşinci tur B3)"
+if go test ./services/identity/service/ -count=1 -run 'SelfReset' >/tmp/verify-selfreset.log 2>&1; then
+  ok "go test sıklık sınırı (60 sn bekleme, saatte en çok 3 kod)"
+else
+  bad "sıklık sınırı birim testi"; tail -15 /tmp/verify-selfreset.log
+fi
+rm -f /tmp/fake-netgsm.log
+python3 /tmp/fake-netgsm.py 19190 >/dev/null 2>&1 &
+FNG3_PID=$!
+NG3="NETGSM_USERCODE=8501112233 NETGSM_PASSWORD=api-sifre NETGSM_MSGHEADER=SITEEKSEN NETGSM_API_URL=http://127.0.0.1:19190"
+env $NG3 DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_identity DB_PASSWORD="$IDPW" DB_NAME=siteeksen \
+  DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=19181 \
+  go run ./services/identity >/tmp/verify-identity-b3.log 2>&1 &
+IB3_PID=$!
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_identity DB_PASSWORD="$IDPW" DB_NAME=siteeksen \
+  DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=19183 \
+  go run ./services/identity >/tmp/verify-identity-b3n.log 2>&1 &
+IB3N_PID=$!
+for _ in $(seq 1 60); do
+  curl -fsS http://127.0.0.1:19181/health >/dev/null 2>&1 && curl -fsS http://127.0.0.1:19183/health >/dev/null 2>&1 && break; sleep 1
+done
+I3="http://127.0.0.1:19181/api/v1/auth"
+LUX=$($PSQL -t -A -c "SELECT id FROM users WHERE phone='+352621123456';")
+rreq() { curl -s -w '|%{http_code}' -X POST "$1/password-reset/request" -H "$J" -d "{\"phone\":\"$2\"}"; }
+smscount() { local n; n=$(grep -c "\"no\": \"$1\"" /tmp/fake-netgsm.log 2>/dev/null); echo "${n:-0}"; }
+R0=$(rreq "http://127.0.0.1:19183/api/v1/auth" "+352 621 123 456")
+R1=$(rreq "$I3" "+352 621 123 456"); sleep 1
+R2=$(rreq "$I3" "0555 000 00 01"); sleep 1
+RC=$(python3 -c "
+import json
+rows=[json.loads(l) for l in open('/tmp/fake-netgsm.log')]
+m=[r['body']['messages'][0]['msg'] for r in rows if r['body']['messages'][0]['no']=='00352621123456']
+import re
+x=re.search(r'kodunuz: ([A-Z0-9]{8})', m[-1]) if m else None
+print((x.group(1) if x and 'şifre sıfırlama' in m[-1] else ''))" 2>/dev/null)
+NUNK=$(smscount 5550000001)
+CEXP=$($PSQL -t -A -c "SELECT purpose||'|'||(created_by IS NULL)||'|'||(expires_at BETWEEN now() + interval '14 minutes' AND now() + interval '16 minutes')
+  FROM user_activation_codes WHERE user_id='$LUX' AND used_at IS NULL ORDER BY created_at DESC LIMIT 1;")
+case "$R0" in *NO_DELIVERY_CHANNEL*"|503") R0OK=1 ;; *) R0OK=0 ;; esac
+[ "$R0OK" = "1" ] && [ "${R1##*|}" = "200" ] && [ "$R1" = "$R2" ] && [ -n "$RC" ] && [ "$NUNK" = "0" ] && [ "$CEXP" = "RESET|true|true" ] \
+  && ok "kod sakinin kayıtlı numarasına SMS ile gitti (15 dk geçerli, kendi isteği olarak kayıtlı); kayıtsız numarada SMS yok ve yanıt birebir aynı (numara ifşa edilmiyor); gönderim kanalı olmayan kurulum 503 ile söylüyor" \
+  || bad "şifremi unuttum: kanalsız=$R0 / kayıtlı=${R1: -40} / aynı yanıt=$([ "$R1" = "$R2" ] && echo evet || echo hayır) / kod=$RC / kayıtsıza sms=$NUNK / kod kaydı=$CEXP / lux=$LUX / $($PSQL -t -A -c "SELECT purpose||' '||COALESCE(created_by::text,'-')||' '||COALESCE(used_at::text,'açık')||' '||(expires_at - now()) FROM user_activation_codes WHERE user_id::text='$LUX' ORDER BY created_at DESC LIMIT 3;" 2>&1 | tr '\n' ';')"
+N1=$(smscount 00352621123456)
+R3=$(rreq "$I3" "+352621123456"); sleep 1
+N2=$(smscount 00352621123456)
+$PSQL -c "UPDATE user_activation_codes SET created_at = now() - interval '2 minutes' WHERE user_id='$LUX' AND created_by IS NULL;
+  INSERT INTO user_activation_codes (user_id, code_hash, purpose, expires_at, created_at, used_at)
+  VALUES ('$LUX','x','RESET',now(),now() - interval '3 minutes',now()), ('$LUX','y','RESET',now(),now() - interval '4 minutes',now());" >/dev/null
+R4=$(rreq "$I3" "+352621123456"); sleep 1
+N3=$(smscount 00352621123456)
+R5=$(code -X POST "$I3/password-reset/request" -H "$J" -d '{"phone":"abc"}')
+[ "$N2" = "$N1" ] && [ "$N3" = "$N1" ] && [ "${R3##*|}" = "200" ] && [ "${R4##*|}" = "200" ] && [ "$R5" = "422" ] \
+  && ok "60 saniye dolmadan ve saatte 3 koddan sonra yeni SMS gönderilmedi (yanıt yine aynı); geçersiz numara 422" \
+  || bad "sıklık sınırı: sms $N1→$N2→$N3 / $R3 / $R4 / $R5"
+A3=$(code -X POST "$I3/activate" -H "$J" -d "{\"phone\":\"+352621123456\",\"code\":\"$RC\",\"new_password\":\"YeniSifre2026\"}")
+L3N=$(curl -s -X POST "$I3/login" -H "$J" -d '{"phone":"+352621123456","password":"YeniSifre2026"}' | grep -c '"access_token"')
+L3O=$(code -X POST "$I3/login" -H "$J" -d '{"phone":"+352621123456","password":"Lux2026guvenli"}')
+[ "$A3" = "200" ] && [ "$L3N" = "1" ] && [ "$L3O" = "401" ] \
+  && ok "SMS ile gelen kodla yeni şifre belirlendi; yeni şifreyle giriş var, eski şifre 401" \
+  || bad "kodla şifre belirleme: $A3 / yeni=$L3N / eski=$L3O"
+kill_tree "$IB3_PID"; kill_tree "$IB3N_PID"; kill "$FNG3_PID" 2>/dev/null
+
 step "SONUÇ"
 echo "  Geçen: $PASS   Başarısız: $FAIL"
 [ "$FAIL" -eq 0 ] && { echo "  TÜM KONTROLLER GEÇTİ"; exit 0; } || { echo "  BAŞARISIZ KONTROL VAR"; exit 1; }
