@@ -672,6 +672,10 @@ mobil maddelerden sonra verify-mobile, panel maddelerinden sonra tsc+lint+build.
   kanaldan yanıtlayacak? Sistemde platform hesabı (SUPER_ADMIN) hiç tanımlı değil (seed/panel yok); bu bir işletme kararı.
 - [ ] **B11 Push bildirim** — BAŞLANMAZ: Firebase projesi ve `google-services.json` kullanıcıdan (S-10).
 
+**Tur sonucu (2026-10-11):** B1-B9 tamam; verify-stack **1309/1309** (yeni `gofmt` denetimi dahil), verify-mobile **10/10**,
+panel tsc/lint/build temiz. 64 migration, RLS 119 tablo, RLS dışı 9 tablo. Açık: B10 (destek talebini kim/hangi kanaldan
+yanıtlayacak — kullanıcı kararı), B11 (Firebase).
+
 ## 2026-10-05 — Dördüncü tur (kullanıcı kararları + TEST_RAPORU + Apsiyon şikâyetleri)
 
 Kararlar (kullanıcı, 2026-10-05): S-22 → bordro mali müşavirden gelir, sistem ödeme ve maliyeti kaydeder;

@@ -109,7 +109,7 @@ Next.js admin paneli, iki Flutter mobil uygulaması (sakin + yönetici) içerir.
 
 > Aşağıdaki notlar **çalıştırılarak** doğrulanmıştır. Bu bölümdeki hiçbir ifade "olması gerekeni"
 > değil, **bugün gerçekte olanı** anlatır.
-> Toplu kanıt: `bash backend/scripts/verify-stack.sh` → **1269/1269**,
+> Toplu kanıt: `bash backend/scripts/verify-stack.sh` → **1309/1309**,
 > `bash backend/scripts/verify-mobile.sh` → **10/10**.
 > Tarihçe ve `dosya:satır` kanıtı: `tasks/audit-raporu.md`, `tasks/changelog.md`.
 
@@ -141,7 +141,7 @@ cd admin && npm run dev            # http://localhost:3001
   dizin tablolarını yalnızca okur, `users.password_hash`/TCKN sütunlarını
   göremez, denetim izini ve jeton iptalini silemez). Parolaları `cmd/migrate`
   `APP_DB_PASSWORD` / `IDENTITY_DB_PASSWORD` ile atar; depoya yazılmaz.
-  RLS **117 tabloda** açık; dışarıda kalan 8 tablonun her biri gerekçelidir ve
+  RLS **119 tabloda** açık; dışarıda kalan 9 tablonun her biri gerekçelidir ve
   doğrulama listeyi birebir denetler. Tüm görünümler `security_invoker`
   (aksi hâlde görünüm sahibinin yetkisiyle RLS'i atlıyordu).
 - **Dağıtım dosyaları tek kaynaktan üretilir:** `backend/scripts/gen-deploy.py`
@@ -212,6 +212,13 @@ cd admin && npm run dev            # http://localhost:3001
   döner ve bu açıkça söylenir. Geri dönüşte sonuç iyzico'dan yeniden sorgulanır; uzlaştırma
   bekçisi askıda ödeme bırakmaz. Doğrulama sahte iyzico iledir — gerçek anahtarla denenmedi.
   SMS (Netgsm) ve e-posta (SMTP) da `pkg/notify` üzerinden bağlıdır (yapılandırılırsa).
+- **Beşinci tur (2026-10-11, Şikayetvar raporu, migration 061-064):** yeni borçta sakine bildirim
+  (`pkg/notify/charges.go`), yönetimin tahsilat girişi (`payments.recorded_by`), sakinin kendi
+  "şifremi unuttum"u ve telefon/e-posta değişikliği (`phone_change_requests`, yalnız kimlik servisi),
+  malikin kiracı/vekil yönetimi, kademeli giriş kilidi, ilişik kesme tarihi (`resident_units.end_date`),
+  paylaştırmada medyan sapma uyarısı + pusula itirazı, havale dekontu (`payment_receipts`, finans
+  servisi artık `pkg/storage` kullanır). Kimlik servisi bildirim tablosuna erişemez: malik işlemleri
+  yönetime bildirim değil denetim izi üretir. Destek talebi (B10) ve push (B11) kullanıcı kararı bekliyor.
 - **Firebase, Kafka, MongoDB ve AI entegrasyonları hâlâ YOKTUR.** Eski `pkg/payment`,
   `pkg/notification` (FCM), `pkg/ai`, `pkg/integrations/*` **hiçbir yerden import edilmez**
   (ölü kod); var gibi gösterilmez, uydurma AI yanıtları kaldırıldı.
@@ -249,7 +256,7 @@ Repo yolu WSL'de: `/mnt/c/Users/md064615/Documents/Projeler/proje99`
 
 | Betik | Kapsam | Ne zaman |
 |---|---|---|
-| `bash backend/scripts/verify-stack.sh` | **1269 kontrol** — dağıtım dosyası tutarlılığı, sıfırdan PostgreSQL, `cmd/migrate` ile 60 migration ve rol ataması, RLS (117 tablo, çapraz site uçtan uca testleri, rol yetkileri), şema denetimi, tam idempotency, `pkg/audit`+`pkg/legalparams`+`pkg/money`+`pkg/storage`+nisap testleri, ve uçtan uca: identity (giriş, roller, hesap etkinleştirme, şifre değiştirme, giriş kilidi), gateway (kimlik doğrulama), finance (ödeme→borç, gecikme tazminatı), governance (işletme projesi, nisap, defter zinciri), 501 dürüstlüğü ve 20 modülün uçtan uca sınanması (gider, personel, ziyaretçi, otopark, rezervasyon, kargo, sözleşme, belge, demirbaş, stok, anket, sayaç/ısı payı, bildirim, devriye, duyuru, ilan, ayarlar, enerji, tahsilat riski, NPS/ESG) zamanlanmış bildirimler (`cmd/scheduler`), yedekten geri yükleme ve kişisel veri anahtarı döndürme (`cmd/rotate-pii`); 2026-10-10 itibarıyla ayrıca SMS/SMTP (sahte Netgsm), PDF/Excel dökümleri, borcu yoktur belgesi, sayaç değişimi ve tüketim pusulası, geçiş cihazı canlılığı, yurt dışı telefon, site pasifleştirme, alacak dekontu ve banka ekstresi, kartla ödeme (IYZWSv2 imzasını doğrulayan sahte iyzico) | **Backend'e dokunan her değişiklikten sonra** |
+| `bash backend/scripts/verify-stack.sh` | **1309 kontrol** — gofmt, dağıtım dosyası tutarlılığı, sıfırdan PostgreSQL, `cmd/migrate` ile 64 migration ve rol ataması, RLS (119 tablo, çapraz site uçtan uca testleri, rol yetkileri), şema denetimi, tam idempotency, `pkg/audit`+`pkg/legalparams`+`pkg/money`+`pkg/storage`+nisap testleri, ve uçtan uca: identity (giriş, roller, hesap etkinleştirme, şifre değiştirme, giriş kilidi), gateway (kimlik doğrulama), finance (ödeme→borç, gecikme tazminatı), governance (işletme projesi, nisap, defter zinciri), 501 dürüstlüğü ve 20 modülün uçtan uca sınanması (gider, personel, ziyaretçi, otopark, rezervasyon, kargo, sözleşme, belge, demirbaş, stok, anket, sayaç/ısı payı, bildirim, devriye, duyuru, ilan, ayarlar, enerji, tahsilat riski, NPS/ESG) zamanlanmış bildirimler (`cmd/scheduler`), yedekten geri yükleme ve kişisel veri anahtarı döndürme (`cmd/rotate-pii`); 2026-10-10 itibarıyla ayrıca SMS/SMTP (sahte Netgsm), PDF/Excel dökümleri, borcu yoktur belgesi, sayaç değişimi ve tüketim pusulası, geçiş cihazı canlılığı, yurt dışı telefon, site pasifleştirme, alacak dekontu ve banka ekstresi, kartla ödeme (IYZWSv2 imzasını doğrulayan sahte iyzico); 2026-10-11 itibarıyla ayrıca yeni borç bildirimi, yönetimin tahsilat girişi, şifremi unuttum, kendi telefon/e-posta değişikliği, malikin kiracı yönetimi, kademeli giriş kilidi, ilişik kesme tarihi, fatura sapma uyarısı ve pusula itirazı, havale dekontu | **Backend'e dokunan her değişiklikten sonra** |
 | `bash backend/scripts/verify-mobile.sh` | **10 kontrol** — iki Flutter uygulaması için `pub get` + `analyze` (bilgi düzeyi dahil) + `test`, arayüzde uydurma veri taraması ve release manifestinde INTERNET izni | Mobil değişikliklerden sonra |
 | `cd admin && npx tsc --noEmit && npm run lint && npm run build` | Panel | Panel değişikliklerinden sonra |
 | `bash backend/scripts/dev-up.sh` | Geliştirme ortamını ayağa kaldırır | Elle deneme için |
@@ -395,13 +402,13 @@ Bildirilen ortak yığın: Riverpod, go_router, Dio, flutter_secure_storage.
   Tarih gövdeleri `apiDate()` (YYYY-MM-DD) ya da site saatiyle RFC3339 gider.
 
 ### Infrastructure
-- **PostgreSQL 16** — tek veri deposu; şema `backend/migrations/` (60 migration, `cmd/migrate`)
+- **PostgreSQL 16** — tek veri deposu; şema `backend/migrations/` (64 migration, `cmd/migrate`)
 - Redis, MongoDB ve Kafka **kullanılmıyor** (kodda bağlantı yok) ve compose'dan kaldırıldı.
 
 ### Multi-Tenancy (site izolasyonu) — **çalışıyor, iki katmanlı**
 - **Uygulama katmanı:** JWT `property_id` (site seçiminde sahiplik doğrulanır), site bazlı roller
   (`property_roles`), her sorguda `property_id` filtresi.
-- **Veritabanı katmanı:** 117 tabloda RLS; kapsam `pkg/dbscope` ile verilir. Kapsam yoksa sorgu
+- **Veritabanı katmanı:** 119 tabloda RLS; kapsam `pkg/dbscope` ile verilir. Kapsam yoksa sorgu
   hiç satır döndürmez (fail-closed). Alt tablolar ebeveyn üzerinden `EXISTS` ile korunur.
 - Yeni tablo eklerken: RLS + politika + (alt tabloysa) ebeveyn anahtarına indeks; doğrulama
   RLS dışında kalan tablo listesini birebir denetler, eklenen tablo unutulursa yakalanır.
@@ -424,8 +431,8 @@ Bildirilen ortak yığın: Riverpod, go_router, Dio, flutter_secure_storage.
 | Giriş şifresi loglanması | **Kaldırıldı** — yalnızca maskelenmiş telefon ve HTTP durumu loglanıyor |
 | İstemci kimlik başlıkları | Gateway `X-User-*` / `X-Property-Id` / `X-Tenant-Id` başlıklarını **siler** |
 | TCKN/IBAN şifreleme | **VAR** — AES-256-GCM; arama için HMAC blind index (düz SHA-256 değil). Anahtar yoksa personel servisi açılmaz. Anahtar halkası + döndürme (`cmd/rotate-pii`, `docs/runbook-anahtar-dondurme.md`); şifreleme ve arama anahtarı HKDF ile ayrı. Varsayılan MASKELİ; maskesiz erişim ayrı `PII_REVEAL` denetim kaydı üretir |
-| Tenant izolasyonu (RLS) | **117 TABLODA AÇIK** (migration 020-026, 029 ve sonraki modül göçleri). 26 servisin tamamı `pkg/dbscope` kullanır. RLS dışında kalan 8 tablo gerekçeli: `audit_logs` (yalnızca ekleme), `revoked_tokens`/`user_token_invalidation` (salt-okur), `tenants`/`invoices`/`usage_metrics`/`schema_migrations`/`user_activation_codes` (uygulama rolüne kapalı) |
-| Hesap etkinleştirme / şifre | **VAR (027)** — yönetici sakin ekleyince tek kullanımlık kod bir kez gösterilir (SMS yok, yönetici iletir); kod özeti saklanır, 7 gün, 5 denemede kilit. Şifre değiştirme/sıfırlama bütün oturumları kapatır. Girişte 5 hatada 15 dk kilit. Jeton `iat` milisaniye hassasiyetinde (`pkg/revocation.Precision`) |
+| Tenant izolasyonu (RLS) | **119 TABLODA AÇIK** (migration 020-026, 029 ve sonraki modül göçleri). 26 servisin tamamı `pkg/dbscope` kullanır. RLS dışında kalan 9 tablo gerekçeli: `audit_logs` (yalnızca ekleme), `revoked_tokens`/`user_token_invalidation` (salt-okur), `tenants`/`invoices`/`usage_metrics`/`schema_migrations`/`user_activation_codes`/`phone_change_requests` (uygulama rolüne kapalı; son ikisi yalnızca kimlik servisi) |
+| Hesap etkinleştirme / şifre | **VAR (027)** — yönetici sakin ekleyince tek kullanımlık kod bir kez gösterilir (SMS yapılandırılmışsa sakine de gider); kod özeti saklanır, 7 gün, 5 denemede kilit. Şifre değiştirme/sıfırlama bütün oturumları kapatır. Girişte kademeli kilit: 5. hata 30 sn, 6. hata 2 dk, 7.+ 15 dk (B6). Sakin kodu kendisi de isteyebilir (`/auth/password-reset/request`, SMS/e-posta, 15 dk; yanıt numara ifşa etmez — B3). Jeton `iat` milisaniye hassasiyetinde (`pkg/revocation.Precision`) |
 | Veritabanı rolleri | **En az yetki** — kimlik servisi ayrı rol (site verisine erişemez); uygulama rolü parola özetini/TCKN'yi göremez, dizin tablolarına yazamaz, denetim izini ve jeton iptalini silemez |
 | Dağıtım | compose/k8s/CI tek kaynaktan; kaplar root değil; compose varsayılan parolayla açılmaz; k8s'te tek giriş kapısı gateway |
 | Çıkışta jeton iptali | **VAR** — `revoked_tokens` + toplu iptal. Çıkışta erişim VE yenileme jetonu iptal edilir; iptal tüm servislerde geçerlidir. Yenileme jetonu **tek kullanımlık**; tükenmiş jetonun 30 sn sonra yeniden kullanımı bütün oturumları kapatır |
