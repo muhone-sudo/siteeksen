@@ -2,6 +2,7 @@
 
 // Banka ekstresi mutabakatı (059, Apsiyon BUG-12): bankadan indirilen CSV/Excel yüklenir,
 // gelen hareketler onay bekleyen ödeme bildirimleriyle eşleştirilir; yönetici satır satır onaylar.
+// Bildirimi olmayan hareket "Daireye işle" ile doğrudan bölümün borçlarına işlenir (061).
 
 import { useState } from "react";
 import { api } from "@/lib/api";
@@ -9,6 +10,7 @@ import { useAction, useApi, useRoles } from "@/lib/use-api";
 import { ActionFeedback, Badge, Button, Card, Field, FormModal, Input, Notice, QueryView, Select, Table } from "@/components/ui/kit";
 import { date, dateTime, kurus } from "@/lib/format";
 import type { BankLine } from "@/lib/types";
+import { CollectionModal } from "@/components/finance/collection-modal";
 
 const STATUS: Record<BankLine["status"], { label: string; tone: "green" | "amber" | "red" | "blue" | undefined }> = {
     SUGGESTED: { label: "Önerildi", tone: "blue" },
@@ -30,6 +32,7 @@ export function BankStatementCard() {
     const [file, setFile] = useState<File | null>(null);
     const [pick, setPick] = useState<null | { line: BankLine; payment_id: string }>(null);
     const [ignore, setIgnore] = useState<null | { line: BankLine; note: string }>(null);
+    const [collect, setCollect] = useState<BankLine | null>(null);
 
     return (
         <>
@@ -78,6 +81,7 @@ export function BankStatementCard() {
                                         {l.status === "SUGGESTED"
                                             ? <Button size="sm" disabled={act.pending} onClick={() => act.run(() => api.finance.confirmBankLine(l.id), { invalidate: ["bank-imports", "payments", "ledger", "debtors"], success: "Ödeme onaylandı ve borçtan düşüldü" })}>Onayla</Button>
                                             : <Button size="sm" variant="secondary" onClick={() => setPick({ line: l, payment_id: "" })}>Ödeme seç</Button>}
+                                        {l.status !== "SUGGESTED" && <Button size="sm" variant="secondary" onClick={() => setCollect(l)}>Daireye işle</Button>}
                                         <Button size="sm" variant="ghost" onClick={() => setIgnore({ line: l, note: "" })}>Yok say</Button>
                                     </div>
                                 ) : null },
@@ -105,6 +109,7 @@ export function BankStatementCard() {
                     </>
                 )}
             </FormModal>
+            <CollectionModal open={!!collect} line={collect} onClose={() => setCollect(null)} />
             <FormModal open={!!ignore} onClose={() => setIgnore(null)} title="Hareketi yok say" pending={act.pending} error={act.error}
                 onSubmit={async () => {
                     if (!ignore) return;

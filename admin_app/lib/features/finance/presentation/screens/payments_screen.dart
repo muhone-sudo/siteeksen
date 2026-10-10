@@ -6,12 +6,14 @@
 // - "Onay bekleyen": `GET /finance/payments/pending`; onay (`{reference}`) borcu
 //   düşürür, ret borcu olduğu gibi bırakır.
 // - "Tümü": `GET /finance/payments` (yönetim için sitenin bütün ödemeleri).
+// - "Tahsilat gir" (061): sakinin bildirmediği havale / elden ödeme yönetimce girilir.
 
 import 'package:flutter/material.dart';
 
 import '../../../../core/network/api_client.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../../core/widgets/api_views.dart';
+import 'collection_entry_screen.dart';
 
 /// Ödeme durumu → (etiket, renk).
 (String, Color) paymentStatus(Object? status) {
@@ -120,6 +122,17 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
           title: const Text('Ödemeler'),
           bottom: const TabBar(tabs: [Tab(text: 'Onay bekleyen'), Tab(text: 'Tümü')]),
         ),
+        floatingActionButton: _canWrite
+            ? FloatingActionButton.extended(
+                onPressed: () async {
+                  final saved = await Navigator.of(context)
+                      .push<bool>(MaterialPageRoute(builder: (_) => const CollectionEntryScreen()));
+                  if (saved == true && mounted) setState(() => _token++);
+                },
+                icon: const Icon(Icons.add),
+                label: const Text('Tahsilat gir'),
+              )
+            : null,
         body: TabBarView(children: [
           ApiList(
             token: _token,

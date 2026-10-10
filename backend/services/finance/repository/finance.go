@@ -734,14 +734,19 @@ func (r *FinanceRepository) ApplyLateFee(
 // söylenmiyordu; aylık ödeyen sakinin dört yıldan eski ödemeleri hiç görünmüyordu.
 func (r *FinanceRepository) GetPaymentHistory(ctx context.Context, propertyID, userID string, page models.Page) ([]models.Payment, int, error) {
 	var total int
+	// Yönetimin girdiği tahsilat (061) ödeyen kişiye değil bölüme bağlıdır: bölümün aktif
+	// sakinleri de görür (ödemenin işlendiğini sakin kendi ekranında doğrulayabilsin).
+	const mine = `(user_id = $1 OR (recorded_by IS NOT NULL AND unit_id IN
+		(SELECT unit_id FROM resident_units WHERE resident_id = $1 AND is_active = true)))`
 	if err := r.scope(propertyID).QueryRow(ctx, `SELECT count(*) FROM payments
-		WHERE user_id = $1 AND property_id = $2 AND deleted = 0`, userID, propertyID).Scan(&total); err != nil {
+		WHERE `+mine+` AND property_id = $2 AND deleted = 0`, userID, propertyID).Scan(&total); err != nil {
 		return nil, 0, err
 	}
 	query := `
-		SELECT id, user_id, amount, payment_method, status, transaction_id, created_at, completed_at
+		SELECT id, COALESCE(user_id::text, ''), amount, payment_method, status, transaction_id, created_at, completed_at,
+		       recorded_by IS NOT NULL
 		FROM payments
-		WHERE user_id = $1 AND property_id = $2 AND deleted = 0
+		WHERE ` + mine + ` AND property_id = $2 AND deleted = 0
 		ORDER BY created_at DESC, id
 		LIMIT $3 OFFSET $4
 	`
@@ -759,7 +764,7 @@ func (r *FinanceRepository) GetPaymentHistory(ctx context.Context, propertyID, u
 		var p models.Payment
 		var txID *string
 		var completedAt *time.Time
-		if err := rows.Scan(&p.ID, &p.UserID, &p.Amount, &p.PaymentMethod, &p.Status, &txID, &p.CreatedAt, &completedAt); err != nil {
+		if err := rows.Scan(&p.ID, &p.UserID, &p.Amount, &p.PaymentMethod, &p.Status, &txID, &p.CreatedAt, &completedAt, &p.RecordedByManagement); err != nil {
 			return nil, 0, err
 		}
 		if txID != nil {
@@ -840,12 +845,14 @@ func (r *FinanceRepository) ListDebtors(ctx context.Context, propertyID string) 
 // dairesi (`payments.unit_id`) kullanılır.
 func (r *FinanceRepository) ListPropertyPayments(ctx context.Context, propertyID string, page models.Page) ([]models.PropertyPayment, int, error) {
 	query := `
-		SELECT p.id, p.user_id, p.amount, p.payment_method, p.status, COALESCE(p.transaction_id, ''),
+		SELECT p.id, COALESCE(p.user_id::text, ''), p.amount, p.payment_method, p.status, COALESCE(p.transaction_id, ''),
 		       p.created_at, p.completed_at,
-		       u.first_name, u.last_name,
-		       COALESCE(COALESCE(un.block, '') || ' Blok D.' || un.door_number, '')
+		       COALESCE(u.first_name, ''), COALESCE(u.last_name, ''),
+		       COALESCE(COALESCE(un.block, '') || ' Blok D.' || un.door_number, ''),
+		       p.recorded_by IS NOT NULL
 		FROM payments p
-		JOIN users u ON u.id = p.user_id
+		-- LEFT: yönetimin girdiği tahsilatta (061) ödeyen kişi kaydı olmayabilir.
+		LEFT JOIN users u ON u.id = p.user_id
 		LEFT JOIN units un ON un.id = p.unit_id
 		WHERE p.deleted = 0 AND p.property_id = $1
 		ORDER BY p.created_at DESC, p.id
@@ -869,7 +876,7 @@ func (r *FinanceRepository) ListPropertyPayments(ctx context.Context, propertyID
 		var txID *string
 		var completedAt *time.Time
 		if err := rows.Scan(&pp.ID, &pp.UserID, &pp.Amount, &pp.PaymentMethod, &pp.Status, &txID,
-			&pp.CreatedAt, &completedAt, &firstName, &lastName, &pp.Unit); err != nil {
+			&pp.CreatedAt, &completedAt, &firstName, &lastName, &pp.Unit, &pp.RecordedByManagement); err != nil {
 			return nil, 0, err
 		}
 		if txID != nil {
@@ -878,7 +885,10 @@ func (r *FinanceRepository) ListPropertyPayments(ctx context.Context, propertyID
 		if completedAt != nil {
 			pp.CompletedAt = *completedAt
 		}
-		pp.Name = firstName + " " + lastName
+		pp.Name = strings.TrimSpace(firstName + " " + lastName)
+		if pp.Name == "" && pp.RecordedByManagement {
+			pp.Name = "Yönetim kaydı"
+		}
 		payments = append(payments, pp)
 	}
 	return payments, total, rows.Err()
@@ -1291,8 +1301,10 @@ func (r *FinanceRepository) PayableForFreeze(ctx context.Context, propertyID, us
 		       GREATEST(round((ma.base_amount - COALESCE(ma.credited_amount,0) - COALESCE(ma.paid_amount,0)) * 100), 0)::bigint,
 		       ma.base_amount, COALESCE(ma.paid_amount, 0), round(COALESCE(ma.late_fee, 0) * 100)::bigint, ma.due_date
 		FROM monthly_assessments ma
-		JOIN resident_units ru ON ru.unit_id = ma.unit_id AND ru.is_active = true AND ru.resident_id = $2
-		WHERE ma.id = ANY($3) AND ma.property_id = $1 AND ma.deleted = 0 AND ma.kind = 'REGULAR'
+		-- userID boşsa çağıran yönetimdir (tahsilat girişi, 061): sakinlik koşulu aranmaz.
+		WHERE ($2 = '' OR EXISTS (SELECT 1 FROM resident_units ru WHERE ru.unit_id = ma.unit_id
+		                                AND ru.is_active = true AND ru.resident_id::text = $2))
+		  AND ma.id::text = ANY($3) AND ma.property_id = $1 AND ma.deleted = 0 AND ma.kind = 'REGULAR'
 		  AND ma.total_amount > COALESCE(ma.paid_amount, 0)
 		  AND NOT EXISTS (SELECT 1 FROM payment_assessments pa JOIN payments p ON p.id = pa.payment_id
 		                  WHERE pa.assessment_id = ma.id AND p.status = 'PENDING')`, propertyID, userID, ids)

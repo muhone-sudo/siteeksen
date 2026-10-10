@@ -12,6 +12,26 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-10 — YÖNETİMİN TAHSİLAT GİRİŞİ: BİLDİRİMSİZ HAVALE, ELDEN ÖDEME, EŞLEŞMEYEN EKSTRE SATIRI (migration 061, beşinci tur B2) (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **1280/1280** (adım 50: yönetici elden ödemeyi girdi — ödeme aynı işlemde onaylandı, borç
+> kapandı, ödeyen boş / giren yönetici kayıtlı, ödeme günü korundu, defter zincirine "Yönetim tahsilatı (nakit) · Makbuz 0042"
+> yazıldı; sakin bu ucu kullanamıyor 403; daire sakinine "ödemeniz kaydedildi" bildirimi, sakin ödemeyi kendi geçmişinde,
+> yönetim listede "Yönetim kaydı" olarak görüyor; ileri tarih 400, başka bölümün borcu 422, kapanmış borç 422, geçersiz yöntem
+> 400, sakinin bekleyen bildirimi varken 409; eşleşmeyen ekstre satırı doğrudan bölümün borcuna işlendi (ödeme günü hareket
+> günü), tutarı tutmayan satır 422 ve açık kaldı, sonuçlanmış satır 409; `recorded_by` uygulama rolüyle değiştirilemiyor;
+> zincir geçerli). `verify-mobile.sh` 10/10; panel tsc/lint temiz.
+
+- Önceden ödeme kaydını yalnızca sakin, kendi borcu için açabiliyordu; bildirim yapmadan gelen havale ya da elden ödeme
+  daireye işlenemiyor, ekstrede eşleşmeyen satır kapanamıyordu (`gap-analizi.md` M-51 "mobilden tahsilat girme" boşluğu).
+- 061: `payments.recorded_by` (giren yönetici; korumaya eklendi, değiştirilemez), `recorded_by` doluysa `unit_id` zorunlu.
+- `POST /finance/collections`, `POST /finance/bank-statements/lines/:id/collect`: ödeme aynı işlemde onaylanır
+  (`confirmPaymentTx`), gecikme tazminatı sakinin bildirdiği ödemeyle aynı kurala (ödeme günü, 053) tabidir.
+- Yönetim ödeme listesi `users`'a LEFT JOIN ile bağlandı (ödeyeni olmayan kayıt düşmesin); sakinin ödeme geçmişi bölümüne
+  yönetimce girilmiş tahsilatları da gösterir (`recorded_by_management`).
+- Panel: "Tahsilat gir" ve ekstre satırında "Daireye işle" (seçilen borç toplamı hareket tutarıyla karşılaştırılır).
+  Yönetici uygulaması: Ödemeler ekranında "Tahsilat gir" formu.
+
 ### 2026-10-10 — YENİ BORÇTA SAKİNE BİLDİRİM (beşinci tur B1, Şikayetvar §3.2 "habersiz borçlandırma") (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **1274/1274** (adım 49: `pkg/notify` birim testleri; tahakkukta daire sakinlerine uygulama

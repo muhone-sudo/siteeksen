@@ -51,7 +51,7 @@ export interface Debtor { unit_id: Id; resident_id: Id | ""; name: string; unit:
 export interface Payment {
     id: Id; user_id: string; amount: number; payment_method: string; status: string;
     transaction_id?: string; created_at: string; completed_at: string; name: string; unit: string;
-    value_date?: string; payer_reference?: string;
+    value_date?: string; payer_reference?: string; recorded_by_management?: boolean;
 }
 export interface FinanceCategory { id: Id; property_id: Id; name: string; distribution_type: string; is_active: boolean }
 export interface LateFeeRun {
@@ -231,6 +231,11 @@ export interface CreditNote {
     id: Id; document_no: string; assessment_id: Id; unit_id: Id; unit: string; period: string; amount_kurus: number; reason: string;
     created_by_name?: string; created_at: string; reversed_at?: string; reversal_reason?: string;
 }
+/** Yönetimin girdiği tahsilat (061). */
+export interface Collection {
+    payment_id: Id; amount_kurus: number; value_date: string; payment_method: "CASH" | "BANK_TRANSFER"; status: string;
+}
+
 export interface OpenAssessment {
     id: Id; period: string; due_date: string; total_kurus: number; paid_kurus: number; credited_kurus: number;
     outstanding_kurus: number; max_credit_kurus: number;

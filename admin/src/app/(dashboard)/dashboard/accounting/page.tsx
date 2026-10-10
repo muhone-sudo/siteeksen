@@ -9,6 +9,7 @@ import { PAYMENT_STATUS } from "@/lib/labels";
 import type { LedgerEntry, Payment } from "@/lib/types";
 import { CreditNotesCard } from "@/components/finance/credit-notes-card";
 import { BankStatementCard } from "@/components/finance/bank-statement-card";
+import { CollectionModal } from "@/components/finance/collection-modal";
 
 /**
  * Tahsilat ve borçlar.
@@ -30,9 +31,10 @@ export default function AccountingPage() {
     const { canWrite } = useRoles();
     const [confirming, setConfirming] = useState<Payment | null>(null);
     const [reference, setReference] = useState("");
+    const [collecting, setCollecting] = useState(false);
 
     const paymentColumns = (withActions: boolean) => [
-        { header: "Kişi", cell: (p: Payment) => p.name || "—" },
+        { header: "Kişi", cell: (p: Payment) => <>{p.name || "—"}{p.recorded_by_management && <div className="text-xs text-gray-500">Yönetim girdi</div>}</> },
         { header: "Daire", cell: (p: Payment) => p.unit || "—" },
         { header: "Tutar", cell: (p: Payment) => tl(p.amount) },
         { header: "Yöntem", cell: (p: Payment) => p.payment_method },
@@ -56,9 +58,10 @@ export default function AccountingPage() {
     ];
 
     return (
-        <Page title="Tahsilat ve borçlar" description="Onay bekleyen ödemeler, ödeme geçmişi ve borçlu listesi.">
+        <Page title="Tahsilat ve borçlar" description="Onay bekleyen ödemeler, ödeme geçmişi ve borçlu listesi."
+            actions={canWrite && <Button onClick={() => setCollecting(true)}>Tahsilat gir</Button>}>
             <Notice tone="amber">
-                Havale/EFT ödemesi, yönetici banka hareketini gördükten sonra onayladığında borçtan düşer; gecikme tazminatı sakinin bildirdiği havale gününde durur. Tahsilat kayıtları silinemez, düzeltme ters kayıtla yapılır.
+                Havale/EFT ödemesi, yönetici banka hareketini gördükten sonra onayladığında borçtan düşer; gecikme tazminatı sakinin bildirdiği havale gününde durur. Sakinin bildirmediği havale ya da elden ödeme &quot;Tahsilat gir&quot; ile işlenir. Tahsilat kayıtları silinemez, düzeltme ters kayıtla yapılır.
             </Notice>
             <ActionFeedback action={act} />
             <Tabs tabs={[{ id: "pending", label: "Onay bekleyen" }, { id: "all", label: "Tüm ödemeler" }, { id: "debtors", label: "Borçlular" }, { id: "ledger", label: "Tahsilat defteri" }, { id: "credit", label: "Alacak dekontları" }, { id: "bank", label: "Banka ekstresi" }]} value={tab} onChange={setTab} />
@@ -128,6 +131,7 @@ export default function AccountingPage() {
                 )}
             </Card>}
 
+            <CollectionModal open={collecting} onClose={() => setCollecting(false)} />
             <FormModal
                 open={!!confirming}
                 onClose={() => setConfirming(null)}

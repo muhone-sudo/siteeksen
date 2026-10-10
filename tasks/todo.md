@@ -645,7 +645,7 @@ mobil maddelerden sonra verify-mobile, panel maddelerinden sonra tsc+lint+build.
   Üç tahakkuk noktası: finance `POST /assessments`, finance `POST /opening-balances`, governance
   `POST /budgets/:id/assessments`. Yanıta `notification` sayaçları. verify: bildirim kaydı, taşınmış sakine
   gitmemesi, ikinci çağrıda çift kayıt olmaması.
-- [ ] **B2 Yöneticinin tahsilat girişi** — migration 061 (`payments.recorded_by`, korumaya eklenir).
+- [x] **B2 Yöneticinin tahsilat girişi** (verify 1280/1280, mobil 10/10) — migration 061 (`payments.recorded_by`, korumaya eklenir).
   `POST /finance/collections` {unit_id, assessment_ids, payment_method BANK_TRANSFER|CASH, value_date,
   reference}: ödeme açılır ve aynı işlemde onaylanır (defter zinciri). Ekstrede eşleşmeyen satır
   `assessment_ids` ile doğrudan daireye işlenir. Daire sakinine "ödemeniz kaydedildi" bildirimi.

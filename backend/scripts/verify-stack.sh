@@ -7654,6 +7654,81 @@ $PSQL -c "DELETE FROM assessment_details WHERE assessment_id IN (SELECT id FROM 
   DELETE FROM monthly_assessments WHERE property_id='$DEMO_PROPERTY' AND period_year IN (2096,2019);" >/dev/null
 kill_tree "$FB1_PID"
 
+step "50) Yönetimin tahsilat girişi: bildirimsiz havale, elden ödeme, eşleşmeyen ekstre satırı (061, beşinci tur B2)"
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_app DB_PASSWORD="$APPPW" DB_NAME=siteeksen \
+  DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=19082 \
+  go run ./services/finance >/tmp/verify-finance-b2.log 2>&1 &
+FB2_PID=$!
+for _ in $(seq 1 60); do curl -fsS http://127.0.0.1:19082/health >/dev/null 2>&1 && break; sleep 1; done
+CF2="http://127.0.0.1:19082/api/v1/finance"; CM="Authorization: Bearer $MGRL"; CT="Authorization: Bearer $TENL"
+MUID=$($PSQL -t -A -c "SELECT id FROM users WHERE phone='+905551234567';")
+U302='33333333-3333-3333-3333-333333333302'
+newa2() { $PSQL -t -A -c "INSERT INTO monthly_assessments (property_id, unit_id, period_year, period_month, base_amount, total_amount, due_date, status)
+  VALUES ('$DEMO_PROPERTY','$1',2095,$2,$3,$3,CURRENT_DATE + ($4),'PENDING') RETURNING id;" | head -1; }
+KA=$(newa2 "$U304" 1 1000 -10); KB=$(newa2 "$U304" 2 517.35 15); KC=$(newa2 "$U304" 3 300 20); KX=$(newa2 "$U302" 1 200 5)
+D2=$(date -d '2 days ago' +%Y-%m-%d); FUT2=$(date -d '+3 days' +%Y-%m-%d)
+coll() { curl -s -w '|%{http_code}' -X POST "$CF2/collections" -H "$1" -H "$J" -d "$2"; }
+K0=$(coll "$CT" "{\"unit_id\":\"$U304\",\"assessment_ids\":[\"$KA\"],\"payment_method\":\"CASH\",\"value_date\":\"$D2\"}")
+K1=$(coll "$CM" "{\"unit_id\":\"$U304\",\"assessment_ids\":[\"$KA\"],\"payment_method\":\"CASH\",\"value_date\":\"$D2\",\"reference\":\"Makbuz 0042\"}")
+KP=$(echo "$K1" | sed -n 's/.*"payment_id":"\([^"]*\)".*/\1/p')
+KDB=$($PSQL -t -A -c "SELECT p.status||'|'||COALESCE(p.user_id::text,'yok')||'|'||(p.recorded_by='$MUID')||'|'||p.payment_method||'|'||(p.value_date = CURRENT_DATE - 2)||'|'||p.amount||'|'||ma.status
+  FROM payments p, monthly_assessments ma WHERE p.id='$KP' AND ma.id='$KA';")
+KLG=$($PSQL -t -A -c "SELECT entry_type||'|'||(detail->>'reference')||'|'||(created_by='$MUID') FROM finance_ledger WHERE payment_id='$KP';")
+case "$K0" in *"|403") K0OK=1 ;; *) K0OK=0 ;; esac
+case "$K1" in *'"status":"COMPLETED"'*"|201") K1OK=1 ;; *) K1OK=0 ;; esac
+[ "$K0OK" = "1" ] && [ "$K1OK" = "1" ] && [ "$KDB" = "COMPLETED|yok|true|CASH|true|1000.00|PAID" ] \
+  && [ "$KLG" = "PAYMENT_CONFIRMED|Yönetim tahsilatı (nakit) · Makbuz 0042|true" ] \
+  && ok "yönetici elden ödemeyi girdi: ödeme aynı işlemde onaylandı, borç kapandı, ödeyen boş / giren yönetici kayıtlı, ödeme günü korundu, tahsilat defterine yazıldı; sakin bu ucu kullanamıyor (403)" \
+  || bad "tahsilat girişi: sakin=$K0 / $K1 / $KDB / $KLG"
+KN=$($PSQL -t -A -c "SELECT body FROM notifications WHERE topic='payment.recorded' AND payload->>'payment_id'='$KP' AND recipient_user_id='$TUID';")
+KMY=$(curl -s "$CF2/my-payments" -H "$CT" | python3 -c "
+import json,sys
+d=json.load(sys.stdin); r=[p for p in d.get('data',[]) if p['id']=='$KP']
+print(len(r)==1 and r[0].get('recorded_by_management') is True)" 2>/dev/null)
+KML=$(curl -s "$CF2/payments?limit=500" -H "$CM" | python3 -c "
+import json,sys
+d=json.load(sys.stdin); r=[p for p in d.get('data',[]) if p['id']=='$KP']
+print(len(r)==1 and r[0]['name']=='Yönetim kaydı' and 'A' in r[0]['unit'])" 2>/dev/null)
+grep -q 'elden (nakit) ödemeniz (1.000,00 TL) site yönetimi tarafından kaydedildi' <<<"$KN" && [ "$KMY" = "True" ] && [ "$KML" = "True" ] \
+  && ok "daire sakinine 'ödemeniz kaydedildi' bildirimi gitti; sakin ödemeyi kendi ödeme geçmişinde, yönetim ödeme listesinde 'Yönetim kaydı' olarak görüyor" \
+  || bad "tahsilat görünürlüğü: bildirim=$KN / sakin=$KMY / yönetim=$KML"
+K2=$(coll "$CM" "{\"unit_id\":\"$U304\",\"assessment_ids\":[\"$KB\"],\"payment_method\":\"CASH\",\"value_date\":\"$FUT2\"}")
+K3=$(coll "$CM" "{\"unit_id\":\"$U304\",\"assessment_ids\":[\"$KX\"],\"payment_method\":\"CASH\",\"value_date\":\"$D2\"}")
+K4=$(coll "$CM" "{\"unit_id\":\"$U304\",\"assessment_ids\":[\"$KA\"],\"payment_method\":\"CASH\",\"value_date\":\"$D2\"}")
+K5=$(coll "$CM" "{\"unit_id\":\"$U304\",\"assessment_ids\":[\"$KB\"],\"payment_method\":\"CHEQUE\",\"value_date\":\"$D2\"}")
+# Sakinin onay bekleyen bildirimi varken ikinci kayıt açılmaz
+TPAY=$(curl -s -X POST "$CF2/payments" -H "$CT" -H "$J" -d "{\"assessment_ids\":[\"$KC\"],\"payment_method\":\"BANK_TRANSFER\",\"value_date\":\"$D2\"}")
+TPID=$(echo "$TPAY" | sed -n 's/.*"payment_id":"\([^"]*\)".*/\1/p')
+K6=$(coll "$CM" "{\"unit_id\":\"$U304\",\"assessment_ids\":[\"$KC\"],\"payment_method\":\"BANK_TRANSFER\",\"value_date\":\"$D2\"}")
+curl -s -o /dev/null -X POST "$CF2/payments/$TPID/reject" -H "$CM"
+[ "${K2##*|}" = "400" ] && [ "${K3##*|}" = "422" ] && [ "${K4##*|}" = "422" ] && [ "${K5##*|}" = "400" ] && [ "${K6##*|}" = "409" ] && grep -q 'onay bekleyen' <<<"$K6" \
+  && ok "ileri tarihli ödeme 400, başka bölümün borcu 422, kapanmış borç 422, geçersiz yöntem 400; sakinin bekleyen bildirimi varken 409 (borç iki kez düşmez)" \
+  || bad "tahsilat doğrulamaları: $K2 / $K3 / $K4 / $K5 / $K6"
+# Banka ekstresinde bildirimsiz gelen havale doğrudan bölümün borcuna işlenir
+TRD1=$(date -d '1 day ago' +%d.%m.%Y)
+printf 'İşlem Tarihi;Açıklama;Tutar;Dekont No\n%s;GELEN HAVALE A4 DAIRE AIDAT SUBAT;517,35;B2-1\n%s;GELEN HAVALE ACIKLAMASIZ;123,45;B2-2\n' "$TRD1" "$TRD1" >/tmp/ekstre-b2.csv
+BI3=$(curl -s -X POST "$CF2/bank-statements" -H "$CM" -F "file=@/tmp/ekstre-b2.csv")
+BI3ID=$(echo "$BI3" | python3 -c "import json,sys; print(json.load(sys.stdin)['import']['id'])" 2>/dev/null)
+LB=$($PSQL -t -A -c "SELECT id||'|'||status FROM bank_statement_lines WHERE import_id='$BI3ID' AND line_no=2;")
+LM=$($PSQL -t -A -c "SELECT id FROM bank_statement_lines WHERE import_id='$BI3ID' AND line_no=3;")
+K7=$(curl -s -w '|%{http_code}' -X POST "$CF2/bank-statements/lines/${LB%%|*}/collect" -H "$CM" -H "$J" -d "{\"unit_id\":\"$U304\",\"assessment_ids\":[\"$KB\"]}")
+K7P=$(echo "$K7" | sed -n 's/.*"payment_id":"\([^"]*\)".*/\1/p')
+K7DB=$($PSQL -t -A -c "SELECT l.status||'|'||(l.matched_payment_id='$K7P')||'|'||p.payment_method||'|'||(p.value_date = CURRENT_DATE - 1)||'|'||ma.status
+  FROM bank_statement_lines l, payments p, monthly_assessments ma WHERE l.id='${LB%%|*}' AND p.id='$K7P' AND ma.id='$KB';")
+K8=$(curl -s -w '|%{http_code}' -X POST "$CF2/bank-statements/lines/$LM/collect" -H "$CM" -H "$J" -d "{\"unit_id\":\"$U304\",\"assessment_ids\":[\"$KC\"]}")
+K8DB=$($PSQL -t -A -c "SELECT l.status||'|'||ma.status FROM bank_statement_lines l, monthly_assessments ma WHERE l.id='$LM' AND ma.id='$KC';")
+K9=$(code -X POST "$CF2/bank-statements/lines/${LB%%|*}/collect" -H "$CM" -H "$J" -d "{\"unit_id\":\"$U304\",\"assessment_ids\":[\"$KC\"]}")
+[ "${LB##*|}" = "UNMATCHED" ] && [ "${K7##*|}" = "200" ] && [ "$K7DB" = "CONFIRMED|true|BANK_TRANSFER|true|PAID" ] \
+  && [ "${K8##*|}" = "422" ] && grep -q '123.45 TL' <<<"$K8" && [ "$K8DB" = "UNMATCHED|PENDING" ] && [ "$K9" = "409" ] \
+  && ok "eşleşmeyen ekstre satırı doğrudan bölümün borcuna işlendi (ödeme günü hareket günü, satır onaylandı); tutarı tutmayan satır 422 ve açık kaldı; sonuçlanmış satır ikinci kez işlenemez (409)" \
+  || bad "ekstreden tahsilat: satır=$LB / $K7 / $K7DB / $K8 / $K8DB / $K9"
+G61=$(appsql46 "UPDATE payments SET recorded_by = NULL WHERE id='$KP'")
+LV50=$(curl -s "$CF2/ledger/verify" -H "$CT" | grep -c '"valid":true')
+grep -q 'değiştirilemez' <<<"$G61" && [ "$LV50" = "1" ] \
+  && ok "tahsilatı girenin kaydı uygulama rolüyle değiştirilemiyor; tahsilat defteri zinciri geçerli" \
+  || bad "tahsilat koruması: $G61 / zincir=$LV50"
+kill_tree "$FB2_PID"
+
 step "SONUÇ"
 echo "  Geçen: $PASS   Başarısız: $FAIL"
 [ "$FAIL" -eq 0 ] && { echo "  TÜM KONTROLLER GEÇTİ"; exit 0; } || { echo "  BAŞARISIZ KONTROL VAR"; exit 1; }

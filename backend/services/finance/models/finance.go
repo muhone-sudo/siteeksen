@@ -91,6 +91,8 @@ type Payment struct {
 	TransactionID string    `json:"transaction_id,omitempty"`
 	CreatedAt     time.Time `json:"created_at"`
 	CompletedAt   time.Time `json:"completed_at,omitempty"`
+	// RecordedByManagement: tahsilatı yönetim girdi (sakin bildirimi değil) — 061.
+	RecordedByManagement bool `json:"recorded_by_management,omitempty"`
 }
 
 // OverdueInfo gecikmiş borç bilgisi

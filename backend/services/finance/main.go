@@ -132,6 +132,10 @@ func main() {
 			mgmtWrite.POST("/bank-statements", importBankStatement(financeRepo))
 			mgmtWrite.POST("/bank-statements/lines/:id/confirm", confirmBankLine(financeRepo))
 			mgmtWrite.POST("/bank-statements/lines/:id/ignore", ignoreBankLine(financeRepo))
+			// Yönetimin tahsilat girişi (061, beşinci tur B2): bildirimsiz havale / elden ödeme ve
+			// eşleşmeyen ekstre satırı doğrudan bölümün borçlarına işlenir.
+			mgmtWrite.POST("/collections", recordCollection(financeService, notifier, pool))
+			mgmtWrite.POST("/bank-statements/lines/:id/collect", collectBankLine(financeService, notifier, pool))
 		}
 	}
 

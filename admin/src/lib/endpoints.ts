@@ -101,6 +101,11 @@ export function endpoints(http: Http) {
             uploadBankStatement: (form: FormData) => http.upload<{ import: T.BankImport; note: string }>("/finance/bank-statements", form),
             confirmBankLine: (id: string, payment_id?: string) => http.post<Msg>(`/finance/bank-statements/lines/${id}/confirm`, payment_id ? { payment_id } : {}),
             ignoreBankLine: (id: string, note: string) => http.post<Msg>(`/finance/bank-statements/lines/${id}/ignore`, { note }),
+            // Yönetimin tahsilat girişi (061): bildirimsiz havale / elden ödeme / eşleşmeyen ekstre satırı.
+            recordCollection: (b: { unit_id: string; assessment_ids: string[]; payment_method: "CASH" | "BANK_TRANSFER"; value_date: string; reference?: string }) =>
+                http.post<{ collection: T.Collection; message: string; notification?: T.BroadcastResult }>("/finance/collections", b),
+            collectBankLine: (id: string, b: { unit_id: string; assessment_ids: string[] }) =>
+                http.post<{ collection: T.Collection; payment_id: string; message: string; notification?: T.BroadcastResult }>(`/finance/bank-statements/lines/${id}/collect`, b),
         },
         requests: {
             list: (status?: string) => g<T.List<T.ServiceRequest>>("/requests", { status }),
