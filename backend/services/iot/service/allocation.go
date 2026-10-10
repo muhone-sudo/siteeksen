@@ -33,6 +33,12 @@ type UnitAllocation struct {
 	AreaShare        int64  `json:"area_share_kurus"`
 	TotalKurus       int64  `json:"total_kurus"`
 	TotalTRY         string `json:"total_try"`
+	// Pusula (056): dönemin ilk ve son endeksi; Replaced dönemde sayaç değiştiyse true.
+	FirstDate  string `json:"first_date,omitempty"`
+	FirstValue string `json:"first_value,omitempty"`
+	LastDate   string `json:"last_date,omitempty"`
+	LastValue  string `json:"last_value,omitempty"`
+	Replaced   bool   `json:"meter_replaced"`
 }
 
 // Allocation, bir dönemin paylaştırma sonucudur.

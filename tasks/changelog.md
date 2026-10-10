@@ -12,6 +12,30 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-10 — SAYAÇ DEĞİŞİM PROTOKOLÜ, TÜKETİM SAPMASI TEYİDİ, YAYIMLANAN TÜKETİM PUSULASI (migration 056, Apsiyon BUG-07) (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **1229/1229** (adım 23: okuma ucunda "sayaç değişti" ile endeks sıfırlama 422 ve değişim
+> ucuna yönlendirme; önceki tüketimin 4 katı okuma teyitsiz 409 ANOMALY, teyitle 201 ve `anomaly_ratio=4.00` + teyit eden
+> kayıtlı; son okumadan küçük söküm endeksi 422; sakin değişim yapamıyor 403; değişimde eski sayaca 1520 söküm okuması,
+> pasif, yeni sayaç 7 montaj endeksiyle; yeni sayacın ilk tüketimi 57−7=50; değişim döneminde tüketim (1520−1500)+(57−7)=70;
+> okuması eksik dönem yayımlanamıyor 422; yayımda 3 satır, toplam tutara birebir eşit; aynı dönem ikinci yayım 409; uygulama
+> rolü pusula satırını ve değişim kaydını değiştiremiyor; sakin yalnızca kendi satırını ve kendi PDF'ini görüyor; RLS 111);
+> `verify-mobile.sh` 10/10; panel tsc/lint temiz.
+
+- **Kök hata:** okuma ucunda "sayaç değişti" denince önceki endeks SIFIR kabul ediliyordu: eski sayacın son okumadan söküme
+  kadarki tüketimi kayboluyor, yeni sayaç sıfırdan başlamıyorsa fazladan tüketim yazılıyordu. Bu yol kapatıldı;
+  `POST /meters/:id/replace` söküm endeksini eski sayaca okuma olarak yazar, sayacı pasife alır, yeni sayacı montaj
+  endeksiyle açar ve `meter_replacements` kaydı (değiştirilemez) tutar. Dönem tüketimi iki sayaçtan toplanır.
+- Sapma dedektörü: önceki okumanın tüketiminin 2,5 katını aşan okuma görevli teyidi (`confirm_anomaly`) olmadan kaydedilmez;
+  oran ve teyit eden okumaya yazılır.
+- Paylaştırma `publish:true` ile yayımlanır: bölüm bazında ilk/son okuma (tarih · endeks), net tüketim, alan, tüketim payı,
+  alan payı ve toplam değiştirilemez biçimde saklanır (Isınma Gid. Paylaştırma Yön. — gider paylaşım belgesi). Okuması eksik
+  bölüm varken ve aynı dönem ikinci kez yayımlanamaz. `GET /consumption/statements[/:id[/pdf]]`: sakin yalnızca kendi bölümü.
+- Panel: "Sayaç değiştir" formu, sapma teyit kutusu, "yayımla" seçeneği, ilk/son okuma sütunları, "Tüketim pusulaları"
+  sekmesi (PDF). Sakin uygulaması: Enerji ekranında "Tüketim pusulalarım" ve PDF.
+- Test verisi düzeltmesi: doğrulama net alanı sabit 100 m² yazıyordu; brütü küçük bölümde 049 kısıtına takılıp sessizce
+  başarısız oluyordu. Artık brüt×0,85 yazılır ve geri yükleme kontrol edilir.
+
 ### 2026-10-10 — YÖNETİM DESTEKLİ HESAP KURTARMA: TELEFON DEĞİŞİMİ, E-POSTA YEDEK KANALI, GİRİŞ KİLİDİ (Apsiyon BUG-05/06) (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **1211/1211** (adım 43: telefon değişikliğinde oturumlar kapandı, yeni kod yeni numaraya SMS

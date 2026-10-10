@@ -3096,9 +3096,9 @@ if [ "$OUP" = "1" ] && [ -n "${MGR:-}" ] && [ -n "${TEN:-}" ]; then
   [ "$SC" = "501" ] && ok "sensör ucu dürüstçe 501 dönüyor (zaman serisi deposu yok)" \
     || bad "sensör ucu → $SC (501 bekleniyordu)"
 
-  # Kullanım alanı (net_area_m2) seed'de tanımsız; ısı paylaştırması sabit payı
-  # bu alana göre dağıttığı için test verisi olarak tanımlanır.
-  $PSQL -c "UPDATE units SET net_area_m2 = 100 WHERE id IN ('$U303','$U304','$U305');" >/dev/null 2>&1
+  # Isı paylaştırması sabit payı kullanım alanına göre dağıtır; demo alanı (049, brüt×0,85)
+  # yoksa tanımlanır. Net alan brütü aşamaz (049 kısıtı).
+  $PSQL -c "UPDATE units SET net_area_m2 = round(gross_area_m2 * 0.85, 2) WHERE id IN ('$U303','$U304','$U305') AND net_area_m2 IS NULL;" >/dev/null 2>&1
 
   # 1) Sayaç kaydı
   M1=$(curl -s -X POST "$OURL/meters" -H "$OA" -H "$OJ" -d "{
@@ -3148,22 +3148,80 @@ if [ "$OUP" = "1" ] && [ -n "${MGR:-}" ] && [ -n "${TEN:-}" ]; then
       \"meter_id\":\"$M1ID\",\"reading_date\":\"2026-03-01\",\"current_value\":\"900\"}")
     BWCODE=$(echo "$BW" | tail -1)
     [ "$BWCODE" = "422" ] && ok "sayaç geriye dönemiyor → 422" || bad "geriye giden endeks kabul edildi → $BWCODE"
-    echo "$BW" | grep -q 'meter_replaced' && ok "sayaç değişimi için doğru yol gösteriliyor" || bad "yönlendirme yok"
+    echo "$BW" | grep -q 'meters/:id/replace' && ok "sayaç değişimi için doğru yol gösteriliyor" || bad "yönlendirme yok"
 
-    # Sayaç değişimi gerekçeyle kabul edilmeli
-    RP=$(curl -s -X POST "$OURL/meter-readings" -H "$OA" -H "$OJ" -d "{
+    # Apsiyon BUG-07: okuma ucunda "sayaç değişti" artık kabul edilmez (endeksi sıfırlayıp
+    # eski sayacın son tüketimini kaybettiriyordu); değişim protokolüne yönlendirilir.
+    RP=$(curl -s -w '\n%{http_code}' -X POST "$OURL/meter-readings" -H "$OA" -H "$OJ" -d "{
       \"meter_id\":\"$M1ID\",\"reading_date\":\"2026-03-01\",\"current_value\":\"50\",
       \"meter_replaced\":true,\"reason\":\"Sayac arizalandi, yenisi takildi\"}")
-    echo "$RP" | grep -q '"previous_value":"0"' && ok "sayaç değişiminde endeks sıfırdan başlıyor" \
-      || bad "sayaç değişimi: $RP"
+    [ "$(echo "$RP" | tail -1)" = "422" ] && echo "$RP" | grep -q 'meters/:id/replace' \
+      && ok "okuma ucunda endeks sıfırlama reddedildi → 422, değişim protokolüne yönlendirildi" \
+      || bad "eski sıfırlama yolu açık: $RP"
+
+    # Sapma dedektörü: önceki tüketim 100 → 400 birim (4 kat) teyitsiz kaydedilmez
+    AN=$(curl -s -w '\n%{http_code}' -X POST "$OURL/meter-readings" -H "$OA" -H "$OJ" -d "{
+      \"meter_id\":\"$M1ID\",\"reading_date\":\"2026-03-01\",\"current_value\":\"1500\"}")
+    [ "$(echo "$AN" | tail -1)" = "409" ] && echo "$AN" | grep -q '"code":"ANOMALY"' && echo "$AN" | grep -q '"ratio":"4.00"' \
+      && ok "önceki tüketimin 4 katı okuma teyitsiz kaydedilmedi → 409 ANOMALY (oran 4.00)" \
+      || bad "sapma dedektörü: $AN"
+    AN=$(curl -s -w '\n%{http_code}' -X POST "$OURL/meter-readings" -H "$OA" -H "$OJ" -d "{
+      \"meter_id\":\"$M1ID\",\"reading_date\":\"2026-03-01\",\"current_value\":\"1500\",\"confirm_anomaly\":true}")
+    ANDB=$($PSQL -t -A -c "SELECT anomaly_ratio, anomaly_confirmed_by IS NOT NULL FROM meter_readings
+      WHERE meter_id='$M1ID' AND reading_date='2026-03-01';")
+    [ "$(echo "$AN" | tail -1)" = "201" ] && [ "$ANDB" = "4.00|t" ] \
+      && ok "görevli teyidiyle kaydedildi; oran ve teyit eden kayda geçti ($ANDB)" \
+      || bad "teyitli okuma: $AN / $ANDB"
 
     # Aynı tarihe ikinci okuma
     SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$OURL/meter-readings" -H "$OA" -H "$OJ" -d "{
-      \"meter_id\":\"$M1ID\",\"reading_date\":\"2026-03-01\",\"current_value\":\"60\"}")
+      \"meter_id\":\"$M1ID\",\"reading_date\":\"2026-03-01\",\"current_value\":\"1600\"}")
     [ "$SC" = "409" ] && ok "aynı tarihe ikinci okuma engellendi → 409" || bad "çift okuma → $SC"
 
     DBR=$($PSQL -t -A -c "SELECT count(*) FROM meter_readings WHERE meter_id='$M1ID';")
     [ "$DBR" = "3" ] && ok "okumalar veritabanında (mock değil, 3 kayıt)" || bad "okuma sayısı: $DBR"
+
+    # Sayaç değişim protokolü: söküm endeksi son okumadan küçük olamaz
+    RPX=$(curl -s -w '\n%{http_code}' -X POST "$OURL/meters/$M1ID/replace" -H "$OA" -H "$OJ" -d '{
+      "removal_value":"1400","replaced_on":"2026-03-15","new_serial_number":"HT-0001B","new_initial_value":"7","reason":"Arıza"}')
+    [ "$(echo "$RPX" | tail -1)" = "422" ] && ok "son okumadan küçük söküm endeksi reddedildi → 422" || bad "söküm denetimi: $RPX"
+    SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$OURL/meters/$M1ID/replace" -H "$OT" -H "$OJ" -d '{
+      "removal_value":"1520","replaced_on":"2026-03-15","new_serial_number":"HT-0001B","new_initial_value":"7","reason":"Arıza"}')
+    [ "$SC" = "403" ] && ok "sakin sayaç değiştiremiyor → 403" || bad "sakin sayaç değiştirdi → $SC"
+    RPN=$(curl -s -w '\n%{http_code}' -X POST "$OURL/meters/$M1ID/replace" -H "$OA" -H "$OJ" -d '{
+      "removal_value":"1520","replaced_on":"2026-03-15","new_serial_number":"HT-0001B","new_initial_value":"7","reason":"Sayaç arızalandı, yenisi takıldı"}')
+    NEWM=$(echo "$RPN" | head -1 | grep -o '"new_meter_id":"[^"]*"' | cut -d'"' -f4)
+    RPDB=$($PSQL -t -A -c "SELECT (SELECT is_active FROM meters WHERE id='$M1ID'),
+      (SELECT current_value FROM meter_readings WHERE meter_id='$M1ID' AND reading_date='2026-03-15'),
+      (SELECT previous_value||'/'||current_value FROM meter_readings WHERE meter_id='$NEWM'),
+      (SELECT removal_value||'/'||initial_value FROM meter_replacements WHERE old_meter_id='$M1ID');")
+    [ "$(echo "$RPN" | tail -1)" = "201" ] && [ "$RPDB" = "f|1520.000|7.000/7.000|1520.000/7.000" ] \
+      && ok "sayaç değişti: eski sayaca söküm okuması (1520) yazıldı ve pasife alındı, yeni sayaç montaj endeksiyle (7) açıldı" \
+      || bad "sayaç değişimi: $RPN / $RPDB"
+    SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$OURL/meter-readings" -H "$OA" -H "$OJ" -d "{
+      \"meter_id\":\"$M1ID\",\"reading_date\":\"2026-04-01\",\"current_value\":\"1600\"}")
+    [ "$SC" = "409" ] && ok "sökülen sayaca okuma girilemiyor → 409" || bad "pasif sayaca okuma → $SC"
+    RNEW=$(curl -s -X POST "$OURL/meter-readings" -H "$OA" -H "$OJ" -d "{
+      \"meter_id\":\"$NEWM\",\"reading_date\":\"2026-04-01\",\"current_value\":\"57\"}")
+    echo "$RNEW" | grep -q '"previous_value":"7"' && echo "$RNEW" | grep -q '"consumption":"50"' \
+      && ok "yeni sayacın ilk tüketimi montaj endeksinden hesaplandı (57−7=50; sıfırdan değil)" || bad "yeni sayaç okuması: $RNEW"
+    SC=$(PGPASSWORD="$APPPW" psql -h 127.0.0.1 -p "$DBPORT" -U siteeksen_app -d siteeksen -t -A -c "
+      BEGIN; SET LOCAL app.property_id='$DEMO_PROPERTY';
+      UPDATE meter_replacements SET reason='x'; COMMIT;" 2>&1)
+    echo "$SC" | grep -qi 'permission denied' && ok "sayaç değişim kaydı uygulama rolüyle değiştirilemiyor" \
+      || bad "değişim kaydı değiştirilebildi: $SC"
+    # Değişim dönemi: tüketim = (söküm − eski son okuma) + (yeni son okuma − montaj) = 20 + 50 = 70
+    RAL=$(curl -s -X POST "$OURL/consumption/allocate" -H "$OA" -H "$OJ" -d '{
+      "meter_type":"HEAT","from":"2026-03-02","to":"2026-04-30","total_amount_try":1000}')
+    RALU=$(echo "$RAL" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+for u in d['allocation']['units']:
+    if u['unit_id']=='$U303': print(u['consumption'], u['meter_replaced'], u['first_value'], u['last_value'])
+" 2>/dev/null)
+    [ "$RALU" = "70 True 1500 57" ] \
+      && ok "değişim döneminde tüketim iki sayaçtan toplandı: (1520−1500)+(57−7)=70, ilk/son endeks ve değişim işaretli" \
+      || bad "değişim dönemi tüketimi: $RALU — $RAL"
   fi
 
   # 3) Paylaştırma için diğer bölümlere okuma
@@ -3264,7 +3322,48 @@ for u in d['allocation']['units']:
     "meter_type":"WATER_COLD","from":"2026-01-01","to":"2026-02-28","total_amount_try":500}')
   [ "$WA2" = "200" ] && ok "su dağıtımı kullanım alanından bağımsız çalışıyor" \
     || bad "su dağıtımı alan eksikliğinden etkilendi → $WA2"
-  $PSQL -c "UPDATE units SET net_area_m2 = 100 WHERE id = '$U305';" >/dev/null 2>&1
+  # Net alan brütü aşamaz (049); sabit 100 m² brütü küçük bölümde kısıta takılırdı.
+  RESTA=$($PSQL -t -A -c "UPDATE units SET net_area_m2 = round(gross_area_m2 * 0.85, 2) WHERE id = '$U305' RETURNING net_area_m2 IS NOT NULL;" 2>&1 | head -1)
+  [ "$RESTA" = "t" ] && ok "eksik bırakılan kullanım alanı geri yüklendi" || bad "alan geri yüklenemedi: $RESTA"
+
+  # 7c) Tüketim pusulası (Apsiyon BUG-07): okuması eksik dönem yayımlanamaz; yayımlanan değişmez
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$OURL/consumption/allocate" -H "$OA" -H "$OJ" -d '{
+    "meter_type":"HEAT","from":"2026-03-02","to":"2026-04-30","total_amount_try":1000,"publish":true}')
+  [ "$SC" = "422" ] && ok "okuması eksik bölüm varken paylaştırma yayımlanamıyor → 422" || bad "eksik okumayla yayım → $SC"
+  PB=$(curl -s -X POST "$OURL/consumption/allocate" -H "$OA" -H "$OJ" -d '{
+    "meter_type":"HEAT","from":"2026-01-01","to":"2026-02-28","total_amount_try":10000,"publish":true}')
+  ALID=$(echo "$PB" | grep -o '"allocation_id":"[^"]*"' | cut -d'"' -f4)
+  PBDB=$($PSQL -t -A -c "SELECT (SELECT total_kurus FROM consumption_allocations WHERE id='$ALID'),
+    (SELECT count(*) FROM consumption_allocation_units WHERE allocation_id='$ALID'),
+    (SELECT sum(total_kurus) FROM consumption_allocation_units WHERE allocation_id='$ALID');")
+  [ -n "$ALID" ] && [ "$PBDB" = "1000000|3|1000000" ] && echo "$PB" | grep -q 'YAYIMLANDI' \
+    && ok "paylaştırma yayımlandı: 3 bölümün pusulası saklandı, satır toplamı tutara eşit ($PBDB)" \
+    || bad "yayım: $PBDB — $PB"
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$OURL/consumption/allocate" -H "$OA" -H "$OJ" -d '{
+    "meter_type":"HEAT","from":"2026-01-01","to":"2026-02-28","total_amount_try":12000,"publish":true}')
+  [ "$SC" = "409" ] && ok "aynı dönem ikinci kez yayımlanamıyor → 409 (pusula sonradan değişmez)" || bad "ikinci yayım → $SC"
+  SC=$(PGPASSWORD="$APPPW" psql -h 127.0.0.1 -p "$DBPORT" -U siteeksen_app -d siteeksen -t -A -c "
+    BEGIN; SET LOCAL app.property_id='$DEMO_PROPERTY';
+    UPDATE consumption_allocation_units SET total_kurus = 1; COMMIT;" 2>&1)
+  echo "$SC" | grep -qi 'permission denied' && ok "yayımlanmış pusula satırı uygulama rolüyle değiştirilemiyor" \
+    || bad "pusula değiştirilebildi: $SC"
+  # Sakin (304) yalnızca kendi satırını görür; yönetim üç satırı
+  TS=$(curl -s "$OURL/consumption/statements" -H "$OT")
+  TSN=$(echo "$TS" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)['data']
+a=[x for x in d if x['id']=='$ALID']
+print(len(a), len(a[0]['lines']) if a else -1, a[0]['lines'][0]['unit_id']=='$U304' if a else False, a[0]['lines'][0]['first_value'], a[0]['lines'][0]['last_value'], a[0]['lines'][0]['consumption'])" 2>/dev/null)
+  [ "$TSN" = "1 1 True 0 200 200" ] && ok "sakin pusulasında yalnızca kendi bölümü: ilk endeks 0, son endeks 200, tüketim 200" \
+    || bad "sakin pusulası: $TSN — $TS"
+  MS=$(curl -s "$OURL/consumption/statements/$ALID" -H "$OA" | python3 -c "import json,sys; print(len(json.load(sys.stdin)['lines']))" 2>/dev/null)
+  [ "$MS" = "3" ] && ok "yönetim pusulanın tüm satırlarını görüyor (3)" || bad "yönetim pusulası: $MS"
+  curl -s -o /tmp/verify-pusula.pdf "$OURL/consumption/statements/$ALID/pdf" -H "$OT"
+  PTXT=$(python3 -c "
+import pypdf
+r=pypdf.PdfReader('/tmp/verify-pusula.pdf'); print(' '.join(p.extract_text() for p in r.pages))" 2>/dev/null | tr -d '\n')
+  echo "$PTXT" | grep -q 'tüketim pusulası' && echo "$PTXT" | grep -q 'A-4' && ! echo "$PTXT" | grep -q 'A-3' \
+    && ok "sakin pusula PDF'i üretiliyor ve yalnızca kendi bölümünü içeriyor" || bad "pusula PDF: $(echo "$PTXT" | head -c 300)"
 
   # 8) KVKK: sakin yalnızca kendi sayacını görür
   TM=$(curl -s "$OURL/meters" -H "$OT")
@@ -5717,8 +5816,8 @@ ok "kullanılmayan 13 site tablosu RLS ile korunuyor"
 
 # 9) Toplam durum — RLS DIŞINDA KALAN her tablo bilinçli ve gerekçeli olmalı
 RLSCOUNT=$($PSQL -t -A -c "SELECT count(*) FROM rls_enabled_tables;")
-[ "$RLSCOUNT" = "108" ] && ok "RLS toplam 108 tabloda açık" \
-  || bad "beklenmedik RLS tablo sayısı: $RLSCOUNT (beklenen 108)"
+[ "$RLSCOUNT" = "111" ] && ok "RLS toplam 111 tabloda açık" \
+  || bad "beklenmedik RLS tablo sayısı: $RLSCOUNT (beklenen 111)"
 NOTRLS=$($PSQL -t -A -c "SELECT string_agg(t.table_name, ' ' ORDER BY t.table_name)
   FROM information_schema.tables t
   WHERE t.table_schema='public' AND t.table_type='BASE TABLE'

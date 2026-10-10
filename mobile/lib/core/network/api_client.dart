@@ -315,6 +315,19 @@ class ApiClient {
     return response.data ?? const <int>[];
   }
 
+  /// Yayımlanmış tüketim pusulaları (056): sunucu yalnızca sakinin kendi bölümünün satırını döner.
+  Future<List<dynamic>> getConsumptionStatements() async {
+    final response = await _dio.get('/consumption/statements');
+    return _list(response.data);
+  }
+
+  /// Tüketim pusulasının PDF'i (baytlar).
+  Future<List<int>> consumptionStatementPdf(String id) async {
+    final response = await _dio.get<List<int>>('/consumption/statements/$id/pdf',
+        options: Options(responseType: ResponseType.bytes));
+    return response.data ?? const <int>[];
+  }
+
   /// Tahsilat defteri zinciri doğrulaması (054): tutar/kişi bilgisi dönmez.
   Future<Map<String, dynamic>> verifyLedger() async {
     final response = await _dio.get('/finance/ledger/verify');

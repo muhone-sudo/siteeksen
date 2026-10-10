@@ -262,10 +262,13 @@ Kalem: `{id,category_id,category_name,name,description,sku,unit,current_stock(st
 |---|---|---|---|
 | `GET /meters` | herkes (sakin: kendi dairesi) | `unit_id`,`meter_type`,`include_inactive` | `{data:[{id,unit_id,unit_name,meter_type,serial_number,brand,model,installation_date,last_calibration_date,is_active,last_reading_date,last_reading_value}],valid_types:[HEAT,WATER_COLD,WATER_HOT,GAS,ELECTRIC]}` |
 | `GET /meter-readings` | herkes (sakin: `meter_id` zorunlu, kendi sayacı) | `meter_id`,`from`,`to` | `{data:[{id,meter_id,serial_number,unit_name,reading_date,previous_value,current_value,consumption,reading_type,reader_name,created_at}]}` |
-| `POST /meter-readings` | M,B,S | `meter_id`*,`current_value`*(metin),`reading_date`,`reading_type`(MANUAL/AUTOMATIC/ESTIMATED),`meter_replaced`,`reason` | 201 `{reading,note?}` · 409/422 zincir |
+| `POST /meter-readings` | M,B,S | `meter_id`*,`current_value`*(metin),`reading_date`,`reading_type`(MANUAL/AUTOMATIC/ESTIMATED),`confirm_anomaly` | 201 `{reading,note?}` · 409/422 zincir · 409 `{code:"ANOMALY",ratio}` (önceki tüketimin 2,5 katı) · `meter_replaced:true` → 422 (değişim ucunu kullanın) |
+| `POST /meters/:id/replace` | M,B,S | `removal_value`*,`replaced_on`*,`new_serial_number`*,`new_initial_value`*,`reason`* | 201 `{new_meter_id,note}` · 422 söküm < son okuma |
+| `GET /consumption/statements` | herkes (sakin: yalnızca kendi satırı) | — | `{data:[{id,meter_type,period_from,period_to,total_kurus,consumption_share_pct,area_share_pct,basis_note,published_at,lines?}]}` |
+| `GET /consumption/statements/:id` · `/:id/pdf` | herkes (sakin: kendi satırı) | — | `{…,lines:[{unit_id,unit_name,first_date,first_value,last_date,last_value,meter_replaced,consumption,usable_area,consumption_kurus,area_kurus,total_kurus}]}` · PDF |
 | `POST /meters` | M,B | `unit_id`*,`meter_type`*,`serial_number`*,`brand`,`model`,`installation_date` | 201 `{id}` |
 | `DELETE /meters/:id` | M,B | — | `{message,note}` |
-| `POST /consumption/allocate` | M,B | `meter_type`*,`from`*,`to`*,`total_amount_try`*>0 | `{allocation:{total_kurus,consumption_part_kurus,area_part_kurus,…,units:[{unit_id,unit_name,consumption,usable_area,consumption_share_kurus,area_share_kurus,total_kurus,total_try}]},basis_note,note,…}` |
+| `POST /consumption/allocate` | M,B | `meter_type`*,`from`*,`to`*,`total_amount_try`*>0,`publish` | `{allocation:{total_kurus,consumption_part_kurus,area_part_kurus,…,units:[{unit_id,unit_name,consumption,usable_area,consumption_share_kurus,area_share_kurus,total_kurus,total_try,first_date,first_value,last_date,last_value,meter_replaced}]},basis_note,note,allocation_id?,…}` · yayımda 422 okuma eksik, 409 dönem zaten yayımlanmış |
 | `/sensors/*`, `/iot/alerts/*` | — | — | **501** (sensör altyapısı yok) |
 
 ## patrol (8099)

@@ -21,7 +21,15 @@
 //     döndürüyor, seçici hiçbir şey değiştirmiyordu.
 //   - Sabit "tasarruf ipuçları" listesi kaldırıldı (sunucuda karşılığı yok).
 
+//
+// 2026-10-10 (Apsiyon BUG-07): yayımlanmış tüketim pusulaları eklendi — sakin kendi
+// bölümünün ilk/son endeksini, net tüketimini, tüketim ve alan payını görür ve PDF indirir.
+
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:open_filex/open_filex.dart';
+import 'package:path_provider/path_provider.dart';
 
 import '../../../../core/network/api_client.dart';
 import '../../../../core/theme/apple_theme.dart';
@@ -103,8 +111,23 @@ class _EnergyConsumptionMobileScreenState
     _load();
   }
 
+  /// Yayımlanmış pusulalar; alınamazsa hata metni (uydurma satır gösterilmez).
+  List<Map<String, dynamic>> _statements = const [];
+  String? _statementsError;
+
   Future<void> _load() async {
     setState(() => _loading = true);
+
+    try {
+      _statements = (await apiClient.getConsumptionStatements())
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+      _statementsError = null;
+    } catch (e) {
+      _statements = const [];
+      _statementsError = toUserMessage(e);
+    }
 
     for (final section in _sections) {
       section.error = null;
@@ -209,14 +232,15 @@ class _EnergyConsumptionMobileScreenState
 
   List<Widget> _buildContent() {
     if (_allNotImplemented) {
-      return const [
-        SliverToBoxAdapter(
+      return [
+        const SliverToBoxAdapter(
           child: NotImplementedNotice(
             title: 'Tüketim takibi henüz hazır değil',
             detail: 'Sayaç okuma ve tüketim verisi sunucu tarafında hazır '
                 'olmadığı için tüketiminiz gösterilemiyor.',
           ),
         ),
+        SliverToBoxAdapter(child: _buildStatementsCard()),
       ];
     }
     if (_allFailed) {
@@ -245,7 +269,95 @@ class _EnergyConsumptionMobileScreenState
         ),
       ),
       SliverToBoxAdapter(child: _buildTrendCard()),
+      SliverToBoxAdapter(child: _buildStatementsCard()),
     ];
+  }
+
+  static const _typeNames = {
+    'HEAT': 'Isınma',
+    'WATER_COLD': 'Soğuk su',
+    'WATER_HOT': 'Sıcak su',
+    'GAS': 'Doğalgaz',
+    'ELECTRIC': 'Elektrik',
+  };
+
+  String _readingAt(Object? date, Object? value) =>
+      date == null ? '—' : '${formatDate(date)} · ${formatNumber(num.tryParse('$value'))}';
+
+  /// Tüketim pusulaları: yönetimin yayımladığı paylaştırmada kendi bölümünüzün satırı.
+  Widget _buildStatementsCard() {
+    return Padding(
+      key: const Key('statements'),
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: AppleTheme.cardDecoration,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Tüketim pusulalarım',
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 8),
+            if (_statementsError != null)
+              Text(_statementsError!, style: const TextStyle(fontSize: 13, color: AppleTheme.systemRed))
+            else if (_statements.isEmpty)
+              const Text('Yönetim henüz bir gider paylaştırması yayımlamadı.',
+                  style: TextStyle(fontSize: 13, color: AppleTheme.secondaryLabel))
+            else
+              for (final s in _statements) _buildStatement(s),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatement(Map<String, dynamic> s) {
+    final lines = (s['lines'] as List?)?.whereType<Map>().toList() ?? const [];
+    final line = lines.isEmpty ? null : lines.first;
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                    '${_typeNames[s['meter_type']] ?? s['meter_type']} · ${formatDate(s['period_from'])} – ${formatDate(s['period_to'])}',
+                    style: const TextStyle(fontWeight: FontWeight.w600)),
+              ),
+              TextButton(onPressed: () => _openStatementPdf('${s['id']}'), child: const Text('PDF')),
+            ],
+          ),
+          if (line != null) ...[
+            Text('İlk okuma: ${_readingAt(line['first_date'], line['first_value'])}'),
+            Text('Son okuma: ${_readingAt(line['last_date'], line['last_value'])}'
+                '${line['meter_replaced'] == true ? ' (sayaç değişti)' : ''}'),
+            Text('Net tüketim: ${formatNumber(num.tryParse('${line['consumption']}'))}'),
+            Text('Tüketim payı ${formatTry(((line['consumption_kurus'] as num?) ?? 0) / 100)} + '
+                'alan payı ${formatTry(((line['area_kurus'] as num?) ?? 0) / 100)} = '
+                '${formatTry(((line['total_kurus'] as num?) ?? 0) / 100)}',
+                style: const TextStyle(fontWeight: FontWeight.w600)),
+          ],
+          const Divider(),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _openStatementPdf(String id) async {
+    String? message;
+    try {
+      final bytes = await apiClient.consumptionStatementPdf(id);
+      final file = File('${(await getTemporaryDirectory()).path}/tuketim-pusulasi.pdf');
+      await file.writeAsBytes(bytes, flush: true);
+      final r = await OpenFilex.open(file.path, type: 'application/pdf');
+      if (r.type != ResultType.done) message = 'Pusula indirildi ama açılamadı: ${r.message}';
+    } catch (e) {
+      message = toUserMessage(e);
+    }
+    if (!mounted || message == null) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Widget _buildTotalCard() {

@@ -277,13 +277,18 @@ export function endpoints(http: Http) {
         meters: {
             list: (q?: { meter_type?: string; unit_id?: string; include_inactive?: string }) => g<T.List<T.Meter> & { valid_types: string[] }>("/meters", q),
             readings: (q?: { meter_id?: string; from?: string; to?: string }) => g<T.List<T.MeterReading>>("/meter-readings", q),
-            addReading: (b: { meter_id: string; current_value: string; reading_date?: string; reading_type?: string; meter_replaced?: boolean; reason?: string }) =>
+            addReading: (b: { meter_id: string; current_value: string; reading_date?: string; reading_type?: string; confirm_anomaly?: boolean }) =>
                 http.post<{ reading: T.MeterReading; note?: string }>("/meter-readings", b),
+            replace: (id: string, b: { removal_value: string; replaced_on: string; new_serial_number: string; new_initial_value: string; reason: string }) =>
+                http.post<{ new_meter_id: string; note: string }>(`/meters/${id}/replace`, b),
+            statements: () => g<T.List<T.PublishedAllocation>>("/consumption/statements"),
+            statement: (id: string) => g<T.PublishedAllocation>(`/consumption/statements/${id}`),
+            statementPdf: (id: string) => http.download(`/consumption/statements/${id}/pdf`, "tuketim-pusulasi.pdf"),
             create: (b: { unit_id: string; meter_type: string; serial_number: string; brand?: string }) => http.post<{ id: string }>("/meters", b),
             deactivate: (id: string) => http.del<Msg>(`/meters/${id}`),
             areaCheck: () => g<{ missing: { unit_id: string; unit: string }[]; total_units: number; ready: boolean; note: string }>("/consumption/area-check"),
-            allocate: (b: { meter_type: string; from: string; to: string; total_amount_try: number }) =>
-                http.post<{ allocation: T.Allocation; basis_note: string; note: string; warning?: string }>("/consumption/allocate", b),
+            allocate: (b: { meter_type: string; from: string; to: string; total_amount_try: number; publish?: boolean }) =>
+                http.post<{ allocation: T.Allocation; basis_note: string; note: string; warning?: string; allocation_id?: string }>("/consumption/allocate", b),
         },
         patrol: {
             summary: () => g<{ summary: T.PatrolSummary; warning?: string }>("/patrols-summary"),
@@ -446,6 +451,7 @@ export const READS: { path: string; keys: string[]; list?: boolean }[] = [
     { path: "/meters", keys: ["id", "meter_type", "serial_number", "is_active"], list: true },
     { path: "/consumption/area-check", keys: ["missing", "total_units", "ready", "note"] },
     { path: "/meter-readings", keys: ["id", "reading_date", "current_value", "consumption"], list: true },
+    { path: "/consumption/statements", keys: ["data"] },
     { path: "/patrols-summary", keys: ["summary"] },
     { path: "/patrols", keys: ["id", "status", "started_at"], list: true },
     { path: "/patrol-checkpoints", keys: ["id", "name"], list: true },

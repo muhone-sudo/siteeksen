@@ -168,10 +168,24 @@ type ReadingInput struct {
 	ReadingDate  string `json:"reading_date"`
 	CurrentValue string `json:"current_value" binding:"required"`
 	ReadingType  string `json:"reading_type"`
-	// MeterReplaced true ise sayaç değişmiş/sıfırlanmış demektir; endeks zinciri
-	// kırılmasına yalnızca gerekçeyle izin verilir.
+	// MeterReplaced artık kabul edilmez (056): değişim POST /meters/:id/replace ile söküm ve
+	// montaj endeksiyle yapılır. Alan, eski istemcilere açık hata dönebilmek için tutulur.
 	MeterReplaced bool   `json:"meter_replaced"`
 	Reason        string `json:"reason"`
+	// ConfirmAnomaly: önceki dönemin 2,5 katını aşan tüketimi görevlinin teyit etmesi (056).
+	ConfirmAnomaly bool `json:"confirm_anomaly"`
+}
+
+// AnomalyThreshold, okumanın görevli teyidi gerektirdiği tüketim oranıdır (önceki okumaya göre).
+var AnomalyThreshold = decimal.NewFromFloat(2.5)
+
+// AnomalyError, teyit edilmemiş olağandışı tüketimdir.
+type AnomalyError struct {
+	Ratio, Previous, Current string
+}
+
+func (e *AnomalyError) Error() string {
+	return "tüketim önceki okumanın " + e.Ratio + " katı; sayacı yeniden kontrol edip teyit edin"
 }
 
 // AddReading, okumayı kaydeder.
@@ -179,13 +193,18 @@ type ReadingInput struct {
 // Denetimler (hepsi sunucuda):
 //   - sayaç bu siteye mi ait, aktif mi
 //   - önceki endeks, son okumanın endeksiyle aynı mı (zincir bütünlüğü)
-//   - sayaç geriye dönmüş mü (endeks azalmışsa hata; ancak sayaç değişimi
-//     bildirilmişse gerekçeyle kabul edilir)
+//   - sayaç geriye dönmüş mü (endeks azalmışsa hata; sayaç değiştiyse değişim
+//     protokolü kullanılır — ReplaceMeter)
 //   - aynı gün için ikinci okuma var mı
 //
 // Zincir denetimi olmadan bir dönemin tüketimi iki kez faturalanabilir ya da
 // hiç faturalanmayabilir; sakine "sayacın yanlış okundu" denemez hâle gelir.
 func (r *Repository) AddReading(ctx context.Context, propertyID, userID string, in ReadingInput) (*Reading, error) {
+	if in.MeterReplaced {
+		// Önceden endeks sıfırdan başlatılıyordu: eski sayacın son okumadan söküme kadarki
+		// tüketimi kayboluyor, yeni sayaç sıfırdan başlamıyorsa fazladan tüketim yazılıyordu.
+		return nil, ErrUseReplace
+	}
 	current, err := decimal.NewFromString(strings.TrimSpace(strings.ReplaceAll(in.CurrentValue, ",", ".")))
 	if err != nil || current.IsNegative() {
 		// Önceden "sayaç geri gidemez" diyordu; sayı olmayan değer için yanıltıcıydı.
@@ -237,11 +256,11 @@ func (r *Repository) AddReading(ctx context.Context, propertyID, userID string, 
 	// gibi büyütülüp küçültülebilirdi.
 	var lastValue decimal.Decimal
 	var lastDate *time.Time
-	var lastStr *string
+	var lastStr, lastConsStr *string
 	if err := tx.QueryRow(ctx, `
-		SELECT current_value::text, reading_date FROM meter_readings
+		SELECT current_value::text, reading_date, (current_value - COALESCE(previous_value, 0))::text FROM meter_readings
 		WHERE meter_id = $1 ORDER BY reading_date DESC, created_at DESC LIMIT 1`,
-		in.MeterID).Scan(&lastStr, &lastDate); err != nil && err != pgx.ErrNoRows {
+		in.MeterID).Scan(&lastStr, &lastDate, &lastConsStr); err != nil && err != pgx.ErrNoRows {
 		return nil, err
 	}
 	if lastStr != nil {
@@ -259,22 +278,37 @@ func (r *Repository) AddReading(ctx context.Context, propertyID, userID string, 
 
 	previous := lastValue
 	if current.LessThan(previous) {
-		// Sayaç geriye dönmüş: ya yanlış okuma ya da sayaç değişimi.
-		if !in.MeterReplaced || strings.TrimSpace(in.Reason) == "" {
-			return nil, ErrBackwards
+		// Sayaç geriye dönmüş: ya yanlış okuma ya da sayaç değişimi (ReplaceMeter).
+		return nil, ErrBackwards
+	}
+
+	// Sapma dedektörü (056): önceki okumanın tüketiminin 2,5 katını aşan tüketim görevli
+	// teyidi olmadan kaydedilmez (yanlış okuma, sayaç arızası, kaçak).
+	var anomaly *string
+	if lastConsStr != nil {
+		if prevCons, perr := decimal.NewFromString(*lastConsStr); perr == nil && prevCons.IsPositive() {
+			cons := current.Sub(previous)
+			if ratio := cons.Div(prevCons); ratio.GreaterThan(AnomalyThreshold) {
+				if !in.ConfirmAnomaly {
+					return nil, &AnomalyError{Ratio: ratio.StringFixed(2), Previous: prevCons.String(), Current: cons.String()}
+				}
+				s := ratio.StringFixed(2)
+				anomaly = &s
+			}
 		}
-		// Sayaç değiştiyse yeni sayaç sıfırdan başlar; eski endeksle
-		// karşılaştırma yapılmaz.
-		previous = decimal.Zero
+	}
+	confirmer := ""
+	if anomaly != nil {
+		confirmer = userID
 	}
 
 	var id string
 	if err := tx.QueryRow(ctx, `
 		INSERT INTO meter_readings
-			(meter_id, reading_date, previous_value, current_value, reading_type, reader_user_id)
-		VALUES ($1,$2,$3,$4,$5,NULLIF($6,'')::uuid)
+			(meter_id, reading_date, previous_value, current_value, reading_type, reader_user_id, anomaly_ratio, anomaly_confirmed_by)
+		VALUES ($1,$2,$3,$4,$5,NULLIF($6,'')::uuid,$7::numeric,NULLIF($8,'')::uuid)
 		RETURNING id`,
-		in.MeterID, readingDate, previous.String(), current.String(), rType, userID).Scan(&id); err != nil {
+		in.MeterID, readingDate, previous.String(), current.String(), rType, userID, anomaly, confirmer).Scan(&id); err != nil {
 		return nil, err
 	}
 
@@ -336,6 +370,13 @@ type UnitConsumption struct {
 	Estimated bool `json:"estimated"`
 	// HasReading false ise bölümde hiç okuma yoktur.
 	HasReading bool `json:"has_reading"`
+	// Pusula bilgisi (056): dönemin ilk endeksi (ilk okumanın önceki değeri) ve son endeksi.
+	FirstDate  *time.Time `json:"-"`
+	FirstValue *string    `json:"-"`
+	LastDate   *time.Time `json:"-"`
+	LastValue  *string    `json:"-"`
+	// Replaced: dönemde sayaç değişmiş (iki sayacın okumaları toplandı).
+	Replaced bool `json:"-"`
 }
 
 // PeriodConsumption, verilen dönemde her bağımsız bölümün tüketimini ve
@@ -357,9 +398,15 @@ func (r *Repository) PeriodConsumption(ctx context.Context, propertyID, meterTyp
 		       COALESCE(u.net_area_m2, 0)::text,
 		       (u.net_area_m2 IS NULL),
 		       COALESCE(bool_or(r.reading_type = 'ESTIMATED'), false),
-		       COALESCE(bool_or(r.id IS NOT NULL), false)
+		       COALESCE(bool_or(r.id IS NOT NULL), false),
+		       min(r.reading_date),
+		       trim_scale((array_agg(r.previous_value ORDER BY r.reading_date, r.created_at) FILTER (WHERE r.id IS NOT NULL))[1])::text,
+		       max(r.reading_date),
+		       trim_scale((array_agg(r.current_value ORDER BY r.reading_date DESC, r.created_at DESC) FILTER (WHERE r.id IS NOT NULL))[1])::text,
+		       count(DISTINCT m.id) FILTER (WHERE r.id IS NOT NULL) > 1
 		FROM units u
-		JOIN meters m ON m.unit_id = u.id AND m.meter_type = $2 AND COALESCE(m.is_active,true)
+		-- Pasif sayaç da dahil (056): değiştirilen sayacın söküme kadarki tüketimi dönemde kalır.
+		JOIN meters m ON m.unit_id = u.id AND m.meter_type = $2
 		LEFT JOIN meter_readings r ON r.meter_id = m.id
 		     AND r.reading_date >= $3::date AND r.reading_date <= $4::date
 		WHERE u.property_id = $1
@@ -378,7 +425,7 @@ func (r *Repository) PeriodConsumption(ctx context.Context, propertyID, meterTyp
 		var consStr, areaStr string
 		var areaNull bool
 		if err := rows.Scan(&uc.UnitID, &uc.UnitName, &consStr, &areaStr,
-			&areaNull, &uc.Estimated, &uc.HasReading); err != nil {
+			&areaNull, &uc.Estimated, &uc.HasReading, &uc.FirstDate, &uc.FirstValue, &uc.LastDate, &uc.LastValue, &uc.Replaced); err != nil {
 			return nil, false, err
 		}
 		if uc.Consumption, err = decimal.NewFromString(consStr); err != nil {

@@ -135,6 +135,26 @@ func main() {
 	ops.Use(middleware.RequireRole(
 		middleware.RoleManager, middleware.RoleBoardMember, middleware.RoleStaff))
 	{
+		// Sayaç değişimi (056): söküm ve montaj endeksi; eski sayacın son tüketimi kaybolmaz.
+		ops.POST("/meters/:id/replace", func(c *gin.Context) {
+			var in repository.ReplaceInput
+			if err := c.ShouldBindJSON(&in); err != nil || strings.TrimSpace(in.NewSerial) == "" || strings.TrimSpace(in.Reason) == "" {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "removal_value, replaced_on, new_serial_number, new_initial_value ve reason zorunludur"})
+				return
+			}
+			newID, err := repo.ReplaceMeter(c.Request.Context(), c.GetString("property_id"), c.GetString("user_id"), c.Param("id"), in)
+			if err != nil {
+				if errors.Is(err, repository.ErrRemovalBelowLast) {
+					c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+					return
+				}
+				fail(c, err, "sayaç değişimi")
+				return
+			}
+			c.JSON(http.StatusCreated, gin.H{"new_meter_id": newID,
+				"note": "Eski sayaca söküm okuması yazıldı ve pasife alındı; yeni sayaç montaj endeksiyle açıldı. Dönem tüketimi iki sayaçtan toplanır."})
+		})
+
 		ops.POST("/meter-readings", func(c *gin.Context) {
 			var in repository.ReadingInput
 			if err := c.ShouldBindJSON(&in); err != nil {
@@ -221,6 +241,9 @@ func main() {
 				// `required` bir float için 0'ı da "yok" sayar; sıfır tutar aşağıda
 				// anlaşılır bir mesajla (422) reddedilir.
 				TotalTRY float64 `json:"total_amount_try"`
+				// Publish: paylaştırmayı yayımla — bölüm pusulaları değiştirilemez biçimde saklanır,
+				// sakinler kendi pusulasını görür (056).
+				Publish bool `json:"publish"`
 			}
 			if err := c.ShouldBindJSON(&in); err != nil {
 				c.JSON(http.StatusBadRequest, gin.H{
@@ -321,11 +344,55 @@ func main() {
 			alloc.UnitsWithoutReading = withoutReading
 			alloc.UnitsWithEstimated = estimated
 
+			// Pusula satırları (056): ilk/son endeks ve sayaç değişimi bilgisi.
+			byUnit := map[string]repository.UnitConsumption{}
+			for _, b := range basis {
+				byUnit[b.UnitID] = b
+			}
+			lines := make([]repository.StatementLine, 0, len(alloc.Units))
+			for i, u := range alloc.Units {
+				b := byUnit[u.UnitID]
+				alloc.Units[i].Replaced = b.Replaced
+				alloc.Units[i].FirstValue, alloc.Units[i].LastValue = deref(b.FirstValue), deref(b.LastValue)
+				if b.FirstDate != nil {
+					alloc.Units[i].FirstDate = b.FirstDate.Format("2006-01-02")
+				}
+				if b.LastDate != nil {
+					alloc.Units[i].LastDate = b.LastDate.Format("2006-01-02")
+				}
+				area := u.UsableArea
+				lines = append(lines, repository.StatementLine{UnitID: u.UnitID, FirstDate: b.FirstDate, FirstValue: b.FirstValue,
+					LastDate: b.LastDate, LastValue: b.LastValue, Replaced: b.Replaced, Consumption: u.Consumption, UsableArea: &area,
+					ConsumptionKurus: u.ConsumptionShare, AreaKurus: u.AreaShare, TotalKurus: u.TotalKurus})
+			}
+
 			resp := gin.H{
 				"allocation": alloc,
 				"basis_note": basisNote,
 				"note": "Paylaştırma HESAPLANDI ancak aidat tahakkuku olarak " +
 					"KAYDEDİLMEDİ; tahakkuk finance servisinden yapılır.",
+			}
+			if in.Publish {
+				if withoutReading > 0 {
+					c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "Okuması eksik bölüm varken paylaştırma yayımlanamaz; önce okumaları tamamlayın",
+						"units_without_reading": withoutReading})
+					return
+				}
+				csp, asp := alloc.ConsumptionSharePct, alloc.AreaSharePct
+				pid, perr := repo.PublishAllocation(c.Request.Context(), propertyID, c.GetString("user_id"), &repository.PublishedAllocation{
+					MeterType: meterType, PeriodFrom: *from, PeriodTo: *to, TotalKurus: alloc.TotalKurus,
+					ConsumptionSharePct: &csp, AreaSharePct: &asp, BasisNote: basisNote, Lines: lines})
+				if errors.Is(perr, repository.ErrAllocationPublished) {
+					c.JSON(http.StatusConflict, gin.H{"error": "Bu dönem ve sayaç türü için paylaştırma zaten yayımlanmış; yayımlanan pusula değiştirilemez"})
+					return
+				}
+				if perr != nil {
+					fail(c, perr, "yayımlama")
+					return
+				}
+				resp["allocation_id"] = pid
+				resp["note"] = "Paylaştırma YAYIMLANDI: her bölümün pusulası (ilk/son endeks, tüketim, tüketim ve alan payı) değiştirilemez " +
+					"biçimde saklandı ve sakinler görebilir. Aidat tahakkuku finance servisinden yapılır."
 			}
 			if withoutReading > 0 {
 				resp["warning_missing_readings"] = withoutReading
@@ -339,6 +406,43 @@ func main() {
 			c.JSON(http.StatusOK, resp)
 		})
 	}
+
+	// --- Tüketim pusulaları (056): sakin yalnızca kendi bölümünün satırını görür ---
+	api.GET("/consumption/statements", func(c *gin.Context) {
+		propertyID := c.GetString("property_id")
+		scope, ok := statementScope(c, repo, propertyID)
+		if !ok {
+			return
+		}
+		list, err := repo.ListAllocations(c.Request.Context(), propertyID, scope)
+		if err != nil {
+			fail(c, err, "pusula listeleme")
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"data": list})
+	})
+	api.GET("/consumption/statements/:id", func(c *gin.Context) {
+		propertyID := c.GetString("property_id")
+		scope, ok := statementScope(c, repo, propertyID)
+		if !ok {
+			return
+		}
+		a, err := repo.GetAllocation(c.Request.Context(), propertyID, c.Param("id"))
+		if err != nil {
+			fail(c, err, "pusula okuma")
+			return
+		}
+		if a.Lines, err = repo.AllocationLines(c.Request.Context(), propertyID, a.ID, scope); err != nil {
+			fail(c, err, "pusula satırları")
+			return
+		}
+		if scope != "" && len(a.Lines) == 0 {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Kayıt bulunamadı"})
+			return
+		}
+		c.JSON(http.StatusOK, a)
+	})
+	api.GET("/consumption/statements/:id/pdf", statementPDF(repo, pool))
 
 	// --- Gerçek OLMAYAN uçlar: bilerek 501 ---
 	// Zaman serisi deposu ve cihaz entegrasyonu yoktur; "çalışıyor" göstermek
@@ -414,6 +518,16 @@ func failParam(c *gin.Context, err error, code string) {
 }
 
 func fail(c *gin.Context, err error, op string) {
+	var anomaly *repository.AnomalyError
+	if errors.As(err, &anomaly) {
+		// 056: olağandışı tüketim görevli teyidi olmadan kaydedilmez (Apsiyon BUG-07).
+		c.JSON(http.StatusConflict, gin.H{
+			"error": "Tüketim sapması: bu okumanın tüketimi önceki okumanın " + anomaly.Ratio + " katı. Sayacı yeniden kontrol edin.",
+			"code":  "ANOMALY", "ratio": anomaly.Ratio, "previous_consumption": anomaly.Previous, "current_consumption": anomaly.Current,
+			"note": "Okuma doğruysa confirm_anomaly:true ile teyit edin; teyit eden ve oran kayda geçer.",
+		})
+		return
+	}
 	switch {
 	case errors.Is(err, repository.ErrNotFound):
 		c.JSON(http.StatusNotFound, gin.H{"error": "Sayaç bulunamadı"})
@@ -436,8 +550,14 @@ func fail(c *gin.Context, err error, op string) {
 	case errors.Is(err, repository.ErrBackwards):
 		c.JSON(http.StatusUnprocessableEntity, gin.H{
 			"error": "Endeks son okumadan küçük — sayaç geriye dönemez",
-			"note": "Sayaç değiştiyse meter_replaced=true ve gerekçe (reason) ile " +
-				"gönderin; aksi hâlde yanlış okuma kabul edilmez.",
+			"note": "Sayaç değiştiyse POST /meters/:id/replace ile söküm ve montaj endeksini " +
+				"girin; aksi hâlde yanlış okuma kabul edilmez.",
+		})
+	case errors.Is(err, repository.ErrUseReplace):
+		c.JSON(http.StatusUnprocessableEntity, gin.H{
+			"error": "Sayaç değişimi okuma olarak girilemez",
+			"note": "POST /meters/:id/replace ile eski sayacın söküm endeksini ve yeni sayacın montaj " +
+				"endeksini girin; böylece eski sayacın son tüketimi kaybolmaz.",
 		})
 	case errors.Is(err, repository.ErrNoReadings):
 		c.JSON(http.StatusUnprocessableEntity, gin.H{

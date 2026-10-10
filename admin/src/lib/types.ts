@@ -221,7 +221,19 @@ export interface MeterReading {
 }
 export interface Allocation {
     total_kurus: number; consumption_part_kurus: number; area_part_kurus: number;
-    units: { unit_id: Id; unit_name: string; consumption: string; usable_area: string; total_kurus: number; total_try: string }[];
+    units: {
+        unit_id: Id; unit_name: string; consumption: string; usable_area: string; total_kurus: number; total_try: string;
+        first_date?: string; first_value?: string; last_date?: string; last_value?: string; meter_replaced?: boolean;
+    }[];
+}
+/** Yayımlanmış tüketim pusulası (056): sakin yalnızca kendi satırını görür. */
+export interface StatementLine {
+    unit_id: Id; unit_name: string; first_date?: string; first_value?: string; last_date?: string; last_value?: string;
+    meter_replaced: boolean; consumption: string; usable_area?: string; consumption_kurus: number; area_kurus: number; total_kurus: number;
+}
+export interface PublishedAllocation {
+    id: Id; meter_type: string; period_from: string; period_to: string; total_kurus: number;
+    consumption_share_pct?: string; area_share_pct?: string; basis_note?: string; published_at: string; lines?: StatementLine[];
 }
 
 // ---------------------------------------------------------------- patrol
