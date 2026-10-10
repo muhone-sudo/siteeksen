@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../network/api_client.dart';
+import '../utils/formatters.dart';
 import '../utils/validators.dart';
 import '../widgets/data_state.dart';
 
@@ -131,4 +132,188 @@ String _passwordError(Object e) {
     if (e.response?.statusCode == 422) return msg ?? passwordPolicyHint;
   }
   return toUserMessage(e);
+}
+
+/// Sunucunun hata metnini (varsa) döner.
+String _serverError(Object e) {
+  if (e is DioException) {
+    final data = e.response?.data;
+    if (data is Map && data['error'] is String) return data['error'] as String;
+  }
+  return toUserMessage(e);
+}
+
+/// Kendi e-posta değişikliği (B4): mevcut şifreyle. Başarıda true.
+Future<bool> showChangeEmailDialog(BuildContext context, {String? current}) async {
+  final formKey = GlobalKey<FormState>();
+  final email = TextEditingController(text: current ?? '');
+  final password = TextEditingController();
+  String? error;
+  bool busy = false;
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx, setState) => AlertDialog(
+        title: const Text('E-posta adresi'),
+        content: Form(
+          key: formKey,
+          child: SingleChildScrollView(
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              if (error != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Text(error!, style: TextStyle(color: Theme.of(ctx).colorScheme.error)),
+                ),
+              TextFormField(
+                controller: email,
+                keyboardType: TextInputType.emailAddress,
+                decoration: const InputDecoration(labelText: 'Yeni e-posta'),
+                validator: (v) => v == null || !RegExp(r'^[^@\s<>]+@[^@\s<>]+\.[^@\s<>]+$').hasMatch(v.trim()) ? 'Geçerli bir e-posta girin' : null,
+              ),
+              TextFormField(
+                controller: password,
+                obscureText: true,
+                decoration: const InputDecoration(labelText: 'Mevcut şifre'),
+                validator: (v) => (v == null || v.isEmpty) ? 'Mevcut şifre gerekli' : null,
+              ),
+              const SizedBox(height: 12),
+              const Text('Kayıtlı eski adresinize değişiklik bilgisi gönderilir.', style: TextStyle(fontSize: 12)),
+            ]),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: busy ? null : () => Navigator.pop(ctx, false), child: const Text('Vazgeç')),
+          FilledButton(
+            onPressed: busy
+                ? null
+                : () async {
+                    if (!formKey.currentState!.validate()) return;
+                    setState(() {
+                      busy = true;
+                      error = null;
+                    });
+                    try {
+                      await apiClient.changeEmail(password.text, email.text);
+                      if (ctx.mounted) Navigator.pop(ctx, true);
+                    } catch (e) {
+                      setState(() {
+                        busy = false;
+                        error = _serverError(e);
+                      });
+                    }
+                  },
+            child: const Text('Kaydet'),
+          ),
+        ],
+      ),
+    ),
+  );
+  email.dispose();
+  password.dispose();
+  if (ok == true && context.mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('E-posta adresiniz güncellendi.')));
+  }
+  return ok == true;
+}
+
+/// Kendi telefon değişikliği (B4): 1) yeni numara + mevcut şifre → kod yeni numaraya SMS;
+/// 2) kod → numara değişir, bütün oturumlar kapanır ve kullanıcı yeni numarasıyla giriş yapar.
+Future<void> showChangePhoneDialog(BuildContext context) async {
+  final formKey = GlobalKey<FormState>();
+  final phone = TextEditingController();
+  final password = TextEditingController();
+  final code = TextEditingController();
+  String? error;
+  String? info;
+  bool busy = false;
+  bool codeSent = false;
+  final changed = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx, setState) => AlertDialog(
+        title: const Text('Telefon numarası'),
+        content: Form(
+          key: formKey,
+          child: SingleChildScrollView(
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              if (error != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Text(error!, style: TextStyle(color: Theme.of(ctx).colorScheme.error)),
+                ),
+              if (!codeSent) ...[
+                TextFormField(
+                  controller: phone,
+                  keyboardType: TextInputType.phone,
+                  decoration: const InputDecoration(labelText: 'Yeni numara', hintText: '0555 123 45 67 · yurt dışı: +49 …'),
+                  validator: (v) => v == null || !isValidPhone(v) ? 'Geçerli bir numara girin (yurt dışı +ülke kodu ile)' : null,
+                ),
+                TextFormField(
+                  controller: password,
+                  obscureText: true,
+                  decoration: const InputDecoration(labelText: 'Mevcut şifre'),
+                  validator: (v) => (v == null || v.isEmpty) ? 'Mevcut şifre gerekli' : null,
+                ),
+                const SizedBox(height: 12),
+                const Text('Yeni numaranıza SMS ile doğrulama kodu gönderilir.', style: TextStyle(fontSize: 12)),
+              ] else ...[
+                if (info != null) Padding(padding: const EdgeInsets.only(bottom: 8), child: Text(info!, style: const TextStyle(fontSize: 13))),
+                TextFormField(
+                  controller: code,
+                  textCapitalization: TextCapitalization.characters,
+                  decoration: const InputDecoration(labelText: 'SMS ile gelen kod'),
+                  validator: (v) => v == null || v.trim().length < 6 ? 'Kodu girin' : null,
+                ),
+              ],
+            ]),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: busy ? null : () => Navigator.pop(ctx, false), child: const Text('Vazgeç')),
+          FilledButton(
+            onPressed: busy
+                ? null
+                : () async {
+                    if (!formKey.currentState!.validate()) return;
+                    setState(() {
+                      busy = true;
+                      error = null;
+                    });
+                    try {
+                      if (!codeSent) {
+                        final res = await apiClient.requestPhoneChange(password.text, normalizePhone(phone.text));
+                        setState(() {
+                          busy = false;
+                          codeSent = true;
+                          info = '${res['message'] ?? 'Kod gönderildi.'}';
+                        });
+                      } else {
+                        await apiClient.confirmPhoneChange(code.text);
+                        if (ctx.mounted) Navigator.pop(ctx, true);
+                      }
+                    } catch (e) {
+                      setState(() {
+                        busy = false;
+                        error = _serverError(e);
+                      });
+                    }
+                  },
+            child: Text(codeSent ? 'Onayla' : 'Kod gönder'),
+          ),
+        ],
+      ),
+    ),
+  );
+  phone.dispose();
+  password.dispose();
+  code.dispose();
+  if (changed == true && context.mounted) {
+    // Sunucu bütün oturumları kapattı; cihazdaki jetonlar da temizlenir.
+    await apiClient.clearToken();
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Telefon numaranız değişti. Yeni numaranızla giriş yapın.')),
+    );
+    context.go('/login');
+  }
 }

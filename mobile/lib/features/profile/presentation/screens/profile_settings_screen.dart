@@ -9,7 +9,8 @@
 //
 // Bu sürümde: gerçek kullanıcı bilgisi, gerçekten kaydedilen biyometrik tercihi,
 // sunucuda karşılığı olmayan ayarlar için açık "henüz hazır değil" bildirimi ve
-// gerçekten çalışan çıkış.
+// gerçekten çalışan çıkış. 2026-10-11 (B4): e-posta ve telefon artık kişinin kendisi tarafından
+// değiştirilir (telefon: yeni numaraya SMS koduyla).
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -178,14 +179,16 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
             title: 'E-posta',
             subtitle: (_user?['email'] as String?) ?? 'Kayıtlı değil',
             iconColor: AppleTheme.systemBlue,
-            onTap: () => _notYetEditable('E-posta'),
+            onTap: () async {
+              if (await showChangeEmailDialog(context, current: _user?['email'] as String?)) _load();
+            },
           ),
           ListItem(
             icon: Icons.phone_rounded,
             title: 'Telefon',
             subtitle: (_user?['phone'] as String?) ?? 'Kayıtlı değil',
             iconColor: AppleTheme.systemGreen,
-            onTap: () => _notYetEditable('Telefon'),
+            onTap: () => showChangePhoneDialog(context),
             showDivider: false,
           ),
         ],
@@ -329,15 +332,6 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
     );
   }
 
-  /// Sunucuda karşılığı olmayan düzenleme işlemleri için dürüst bildirim.
-  /// Sessizce hiçbir şey yapmak, kullanıcıya dokunuşunun işe yaradığını düşündürür.
-  void _notYetEditable(String what) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('$what güncelleme henüz sunucu tarafında hazır değil.'),
-      ),
-    );
-  }
 
   Future<void> _confirmLogout() async {
     final confirmed = await showDialog<bool>(

@@ -62,6 +62,13 @@ export function endpoints(http: Http) {
             cancelInvitation: (id: string) => http.post<T.Invitation>(`/residents/invitations/${id}/cancel`),
             changePassword: (current_password: string, new_password: string) =>
                 http.post<Msg>("/users/me/password", { current_password, new_password }),
+            // Kendi telefon/e-posta değişikliği (B4).
+            requestPhoneChange: (password: string, phone: string) =>
+                http.post<{ message: string; expires_in_sec: number; retry_after_sec: number }>("/users/me/phone/request", { password, phone }),
+            confirmPhoneChange: (code: string) =>
+                http.post<{ message: string; phone: string; sessions_revoked: boolean; old_phone_notice: string }>("/users/me/phone/confirm", { code }),
+            changeEmail: (password: string, email: string) =>
+                http.post<{ message: string; email: string; old_email_notice: string }>("/users/me/email", { password, email }),
             /** Oturum gerektirmez: kodla ilk şifre belirleme ya da sıfırlama. */
             activate: (phone: string, code: string, new_password: string) =>
                 http.post<Msg>("/auth/activate", { phone, code, new_password }),

@@ -46,7 +46,7 @@ func ChangeResidentPhone(users *repository.UserRepository, auth *service.AuthSer
 			c.JSON(http.StatusConflict, gin.H{"error": "Bu numara başka bir hesapta kayıtlı"})
 			return
 		case errors.Is(err, repository.ErrPhoneOtherSites):
-			c.JSON(http.StatusConflict, gin.H{"error": "Kişi başka sitelerde de kayıtlı; numarasını tek bir sitenin yönetimi değiştiremez. Kişi kendi hesabından değiştirmeli ya da platform desteğine başvurmalı."})
+			c.JSON(http.StatusConflict, gin.H{"error": "Kişi başka sitelerde de kayıtlı; numarasını tek bir sitenin yönetimi değiştiremez. Kişi uygulamada Profil > Telefon bölümünden yeni numarasına gelen SMS koduyla kendisi değiştirebilir."})
 			return
 		case err != nil:
 			log.Printf("[identity] telefon değişikliği: %v", err)

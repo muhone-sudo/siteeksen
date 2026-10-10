@@ -195,6 +195,24 @@ class ApiClient {
     return Map<String, dynamic>.from(response.data as Map);
   }
 
+  /// Kendi telefon değişikliği (B4): şifreyle istenir, kod yeni numaraya SMS ile gider.
+  Future<Map<String, dynamic>> requestPhoneChange(String password, String phone) async {
+    final response = await _dio.post('/users/me/phone/request', data: {'password': password, 'phone': phone});
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
+  /// Yeni numaraya gelen kodla onay; başarıda bütün oturumlar kapanır.
+  Future<Map<String, dynamic>> confirmPhoneChange(String code) async {
+    final response = await _dio.post('/users/me/phone/confirm', data: {'code': code.trim().toUpperCase()});
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
+  /// Kendi e-posta değişikliği (B4).
+  Future<Map<String, dynamic>> changeEmail(String password, String email) async {
+    final response = await _dio.post('/users/me/email', data: {'password': password, 'email': email.trim()});
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
   Future<Map<String, dynamic>> login(String phone, String password) async {
     final response = await _dio.post('/auth/login', data: {
       'phone': phone,

@@ -1,0 +1,104 @@
+package service
+
+// Sakinin kendi telefon/e-posta değişikliği (migration 062, beşinci tur B4).
+//
+// Önceden numarayı yalnızca site yönetimi değiştirebiliyordu (kişi birden çok sitede
+// kayıtlıysa o da değiştiremiyordu); e-postayı ise kimse değiştiremiyordu.
+//   - Telefon: mevcut şifreyle istenir; yeni numaraya SMS ile giden kodla onaylanır (numaranın
+//     kişiye ait olduğu kanıtlanır). Onayda bütün oturumlar kapanır, eski numaraya uyarı gider.
+//   - E-posta: mevcut şifreyle değiştirilir; eski adrese (varsa) bilgi gider.
+
+import (
+	"context"
+	"errors"
+	"net/mail"
+	"strings"
+	"time"
+
+	"golang.org/x/crypto/bcrypt"
+
+	"github.com/siteeksen/backend/services/identity/repository"
+)
+
+// PhoneChangeTTL, yeni numaraya giden kodun geçerlilik süresidir.
+const PhoneChangeTTL = 15 * time.Minute
+
+var (
+	// ErrSamePhone: yeni numara mevcut numarayla aynı.
+	ErrSamePhone = errors.New("yeni numara mevcut numaranızla aynı")
+	// ErrTooSoon: sıklık sınırı (60 sn, saatte 3).
+	ErrTooSoon = errors.New("çok sık istek; 60 saniye sonra yeniden deneyin (saatte en çok 3 kod)")
+	// ErrInvalidEmail: e-posta biçimi geçersiz.
+	ErrInvalidEmail = errors.New("geçerli bir e-posta adresi girin")
+)
+
+// RequestPhoneChange, şifreyi doğrular ve yeni numara için kod üretir.
+func (s *AuthService) RequestPhoneChange(ctx context.Context, userID, password, newPhone string, now time.Time) (code string, expires time.Time, err error) {
+	user, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return "", time.Time{}, err
+	}
+	if bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)) != nil {
+		return "", time.Time{}, ErrWrongPassword
+	}
+	if newPhone == user.Phone {
+		return "", time.Time{}, ErrSamePhone
+	}
+	if taken, err := s.userRepo.PhoneTaken(ctx, newPhone, userID); err != nil {
+		return "", time.Time{}, err
+	} else if taken {
+		return "", time.Time{}, repository.ErrPhoneTaken
+	}
+	last, n, err := s.userRepo.PhoneChangeThrottle(ctx, userID)
+	if err != nil {
+		return "", time.Time{}, err
+	}
+	if !SelfResetAllowed(last, n, now) {
+		return "", time.Time{}, ErrTooSoon
+	}
+	if code, err = GenerateCode(); err != nil {
+		return "", time.Time{}, err
+	}
+	expires, err = s.userRepo.CreatePhoneChange(ctx, userID, newPhone, repository.HashCode(code), PhoneChangeTTL)
+	return code, expires, err
+}
+
+// ConfirmPhoneChange, kodu doğrular, numarayı değiştirir ve bütün oturumları kapatır.
+// Eski ve yeni numarayı döner.
+func (s *AuthService) ConfirmPhoneChange(ctx context.Context, userID, code string) (string, string, error) {
+	oldPhone, newPhone, err := s.userRepo.ConfirmPhoneChange(ctx, userID, repository.HashCode(strings.ToUpper(strings.TrimSpace(code))))
+	if err != nil {
+		return "", "", err
+	}
+	if s.revocations != nil {
+		if err := s.revocations.RevokeAll(ctx, userID, "PHONE_CHANGED_BY_USER"); err != nil {
+			return oldPhone, newPhone, err
+		}
+	}
+	return oldPhone, newPhone, nil
+}
+
+// ChangeEmail, şifreyi doğrular ve e-postayı değiştirir; önceki adresi döner.
+func (s *AuthService) ChangeEmail(ctx context.Context, userID, password, email string) (string, error) {
+	email = strings.TrimSpace(email)
+	if !ValidEmail(email) {
+		return "", ErrInvalidEmail
+	}
+	user, err := s.userRepo.GetByID(ctx, userID)
+	if err != nil {
+		return "", err
+	}
+	if bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)) != nil {
+		return "", ErrWrongPassword
+	}
+	return s.userRepo.SetEmail(ctx, userID, email)
+}
+
+// ValidEmail, tek bir yalın adres kabul eder ("Ad <a@b>" biçimi değil).
+func ValidEmail(e string) bool {
+	if e == "" || len(e) > 254 || strings.ContainsAny(e, " <>") {
+		return false
+	}
+	a, err := mail.ParseAddress(e)
+	return err == nil && a.Address == e && strings.Contains(e[strings.LastIndex(e, "@")+1:], ".")
+}

@@ -86,6 +86,10 @@ func main() {
 		// Tüm cihazlardan çıkış: hesabın ele geçirildiği şüphesinde kullanılır.
 		protected.POST("/me/logout-all", handlers.LogoutAll(revocationChecker))
 		protected.POST("/me/password", handlers.ChangePassword(authService))
+		// Sakinin kendi telefon/e-posta değişikliği (062, beşinci tur B4).
+		protected.POST("/me/phone/request", handlers.RequestPhoneChange(authService))
+		protected.POST("/me/phone/confirm", handlers.ConfirmPhoneChange(authService))
+		protected.POST("/me/email", handlers.ChangeEmail(authService))
 		// Sakin davetleri (S-20): kişi başka sitenin davetini kendisi kabul eder.
 		protected.GET("/me/invitations", handlers.MyInvitations(residentService))
 		protected.POST("/me/invitations/:id/accept", handlers.RespondInvitation(residentService, true))

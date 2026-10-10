@@ -5860,7 +5860,7 @@ AUD=$($PSQL -t -A -c "SELECT count(*) FROM audit_logs WHERE created_at > now() -
   || bad "denetim izine yazılmamış — INSERT yetkisi de gitmiş olabilir"
 appfails "UPDATE legal_parameters SET value_numeric = 0" \
   && ok "uygulama rolü mevzuat parametresini değiştiremiyor" || bad "uygulama rolü legal_parameters YAZABİLDİ"
-for T in tenants invoices usage_metrics schema_migrations user_activation_codes; do
+for T in tenants invoices usage_metrics schema_migrations user_activation_codes phone_change_requests; do
   appfails "SELECT count(*) FROM $T" && ok "uygulama rolü platform tablosuna erişemiyor: $T" \
     || bad "uygulama rolü $T okuyabiliyor"
 done
@@ -5896,10 +5896,10 @@ NOTRLS=$($PSQL -t -A -c "SELECT string_agg(t.table_name, ' ' ORDER BY t.table_na
 # audit_logs: yalnızca ekleme
 # revoked_tokens / user_token_invalidation: salt-okur, kişi bazlı (site değil)
 # tenants / invoices / usage_metrics / schema_migrations: uygulama rolüne kapalı
-# user_activation_codes: uygulama rolüne kapalı, yalnızca kimlik servisi (027)
+# user_activation_codes / phone_change_requests: uygulama rolüne kapalı, yalnızca kimlik servisi (027, 062)
 # (legal_parameters 029'dan beri RLS altında: site istisnaları yalnızca kendi sitesinde.)
-EXPECTED="audit_logs invoices revoked_tokens schema_migrations tenants usage_metrics user_activation_codes user_token_invalidation"
-[ "$NOTRLS" = "$EXPECTED" ] && ok "RLS dışındaki 8 tablonun her biri gerekçeli: $NOTRLS" \
+EXPECTED="audit_logs invoices phone_change_requests revoked_tokens schema_migrations tenants usage_metrics user_activation_codes user_token_invalidation"
+[ "$NOTRLS" = "$EXPECTED" ] && ok "RLS dışındaki 9 tablonun her biri gerekçeli: $NOTRLS" \
   || bad "RLS dışında beklenmeyen tablo var: '$NOTRLS' (beklenen: '$EXPECTED')"
 
 step "37) Sertleştirme turu: gateway yönlendirmesi, durum kodları, sahiplik (2026-09-26)"
@@ -7790,6 +7790,78 @@ L3O=$(code -X POST "$I3/login" -H "$J" -d '{"phone":"+352621123456","password":"
   && ok "SMS ile gelen kodla yeni şifre belirlendi; yeni şifreyle giriş var, eski şifre 401" \
   || bad "kodla şifre belirleme: $A3 / yeni=$L3N / eski=$L3O"
 kill_tree "$IB3_PID"; kill_tree "$IB3N_PID"; kill "$FNG3_PID" 2>/dev/null
+
+step "52) Sakinin kendi telefon ve e-posta değişikliği (062, beşinci tur B4)"
+if go test ./services/identity/service/ -count=1 -run 'ValidEmail' >/tmp/verify-email.log 2>&1; then
+  ok "go test e-posta biçimi (yalın adres; ad/liste/eksik alan reddedilir)"
+else
+  bad "e-posta biçimi birim testi"; tail -15 /tmp/verify-email.log
+fi
+rm -f /tmp/fake-netgsm.log
+python3 /tmp/fake-netgsm.py 19290 >/dev/null 2>&1 &
+FNG4_PID=$!
+NG4="NETGSM_USERCODE=8501112233 NETGSM_PASSWORD=api-sifre NETGSM_MSGHEADER=SITEEKSEN NETGSM_API_URL=http://127.0.0.1:19290"
+env $NG4 DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_identity DB_PASSWORD="$IDPW" DB_NAME=siteeksen \
+  DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=19281 \
+  go run ./services/identity >/tmp/verify-identity-b4.log 2>&1 &
+IB4_PID=$!
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_identity DB_PASSWORD="$IDPW" DB_NAME=siteeksen \
+  DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=19283 \
+  go run ./services/identity >/tmp/verify-identity-b4n.log 2>&1 &
+IB4N_PID=$!
+for _ in $(seq 1 60); do
+  curl -fsS http://127.0.0.1:19281/health >/dev/null 2>&1 && curl -fsS http://127.0.0.1:19283/health >/dev/null 2>&1 && break; sleep 1
+done
+I4="http://127.0.0.1:19281/api/v1"
+LXT=$(curl -s -X POST "$I4/auth/login" -H "$J" -d '{"phone":"+352621123456","password":"YeniSifre2026"}' | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+LXA="Authorization: Bearer $LXT"
+preq() { curl -s -w '|%{http_code}' -X POST "$1/users/me/phone/request" -H "$LXA" -H "$J" -d "$2"; }
+P0=$(preq "http://127.0.0.1:19283/api/v1" '{"password":"YeniSifre2026","phone":"+352 621 999 000"}')
+P1=$(code -X POST "$I4/users/me/phone/request" -H "$LXA" -H "$J" -d '{"password":"yanlis","phone":"+352 621 999 000"}')
+P2=$(code -X POST "$I4/users/me/phone/request" -H "$LXA" -H "$J" -d '{"password":"YeniSifre2026","phone":"+352621123456"}')
+P3=$(code -X POST "$I4/users/me/phone/request" -H "$LXA" -H "$J" -d '{"password":"YeniSifre2026","phone":"5551234567"}')
+P4=$(code -X POST "$I4/users/me/phone/request" -H "$LXA" -H "$J" -d '{"password":"YeniSifre2026","phone":"abc"}')
+case "$P0" in *NO_SMS_CHANNEL*"|503") P0OK=1 ;; *) P0OK=0 ;; esac
+[ "$P0OK" = "1" ] && [ "$P1" = "400" ] && [ "$P2" = "422" ] && [ "$P3" = "409" ] && [ "$P4" = "422" ] \
+  && ok "numara değişikliği isteği: SMS yoksa 503 (yönetime yönlendirir), yanlış şifre 400, aynı numara 422, başkasının numarası 409, geçersiz numara 422" \
+  || bad "numara isteği doğrulamaları: $P0 / $P1 / $P2 / $P3 / $P4"
+P5=$(preq "$I4" '{"password":"YeniSifre2026","phone":"+352 621 999 000"}'); sleep 1
+PCODE4=$(python3 -c "
+import json,re
+rows=[json.loads(l) for l in open('/tmp/fake-netgsm.log')]
+m=[r['body']['messages'][0]['msg'] for r in rows if r['body']['messages'][0]['no']=='00352621999000']
+x=re.search(r'doğrulama kodunuz: ([A-Z0-9]{8})', m[-1]) if m else None
+print(x.group(1) if x else '')" 2>/dev/null)
+P6=$(code -X POST "$I4/users/me/phone/request" -H "$LXA" -H "$J" -d '{"password":"YeniSifre2026","phone":"+352 621 999 000"}')
+PLAIN=$($PSQL -t -A -c "SELECT count(*) FROM phone_change_requests WHERE code_hash='$PCODE4';")
+PW1=$(code -X POST "$I4/users/me/phone/confirm" -H "$LXA" -H "$J" -d '{"code":"AAAAAAAA"}')
+PHB=$($PSQL -t -A -c "SELECT phone FROM users WHERE id='$LUX';")
+[ "${P5##*|}" = "200" ] && [ -n "$PCODE4" ] && [ "$P6" = "429" ] && [ "$PLAIN" = "0" ] && [ "$PW1" = "400" ] && [ "$PHB" = "+352621123456" ] \
+  && ok "kod YENİ numaraya SMS ile gitti (özet saklanıyor, düz kod yok); 60 sn içinde ikinci istek 429; yanlış kod 400 ve numara değişmedi" \
+  || bad "numara kodu: $P5 / kod=$PCODE4 / tekrar=$P6 / düz=$PLAIN / yanlış=$PW1 / numara=$PHB"
+PC4=$(curl -s -w '|%{http_code}' -X POST "$I4/users/me/phone/confirm" -H "$LXA" -H "$J" -d "{\"code\":\"$PCODE4\"}"); sleep 1
+PHA=$($PSQL -t -A -c "SELECT phone FROM users WHERE id='$LUX';")
+OLDN=$(python3 -c "
+import json
+rows=[json.loads(l) for l in open('/tmp/fake-netgsm.log')]
+print(any(r['body']['messages'][0]['no']=='00352621123456' and 'hesap sahibi tarafından değiştirildi' in r['body']['messages'][0]['msg'] for r in rows))" 2>/dev/null)
+OLDT=$(code "$I4/users/me" -H "$LXA")
+LXT2=$(curl -s -X POST "$I4/auth/login" -H "$J" -d '{"phone":"+352621999000","password":"YeniSifre2026"}' | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+echo "$PC4" | grep -q '"sessions_revoked":true' && echo "$PC4" | grep -q '"old_phone_notice":"SENT"' && [ "$PHA" = "+352621999000" ] \
+  && [ "$OLDN" = "True" ] && [ "$OLDT" = "401" ] && [ -n "$LXT2" ] \
+  && ok "doğru kodla numara değişti; bütün oturumlar kapandı (eski jeton 401), eski numaraya uyarı SMS'i gitti, yeni numarayla giriş çalışıyor" \
+  || bad "numara onayı: $PC4 / $PHA / eski numaraya=$OLDN / eski jeton=$OLDT / yeni giriş=${LXT2:+var}"
+LXA2="Authorization: Bearer $LXT2"
+E1=$(code -X POST "$I4/users/me/email" -H "$LXA2" -H "$J" -d '{"password":"yanlis","email":"lux.sakin@ornek.lu"}')
+E2=$(code -X POST "$I4/users/me/email" -H "$LXA2" -H "$J" -d '{"password":"YeniSifre2026","email":"lux sakin@ornek"}')
+E3=$(code -X POST "$I4/users/me/email" -H "$LXA2" -H "$J" -d '{"password":"YeniSifre2026","email":"AHMET@example.com"}')
+E4=$(curl -s -w '|%{http_code}' -X POST "$I4/users/me/email" -H "$LXA2" -H "$J" -d '{"password":"YeniSifre2026","email":"lux.sakin@ornek.lu"}')
+EDB=$($PSQL -t -A -c "SELECT email FROM users WHERE id='$LUX';")
+EME=$(curl -s "$I4/users/me" -H "$LXA2" | grep -c '"email":"lux.sakin@ornek.lu"')
+[ "$E1" = "400" ] && [ "$E2" = "422" ] && [ "$E3" = "409" ] && [ "${E4##*|}" = "200" ] && [ "$EDB" = "lux.sakin@ornek.lu" ] && [ "$EME" = "1" ] \
+  && ok "e-posta değişikliği: yanlış şifre 400, geçersiz adres 422, başka hesabın e-postası (büyük/küçük harf farkıyla) 409; doğru şifreyle güncellendi ve profilde görünüyor" \
+  || bad "e-posta: $E1 / $E2 / $E3 / $E4 / $EDB / profil=$EME"
+kill_tree "$IB4_PID"; kill_tree "$IB4N_PID"; kill "$FNG4_PID" 2>/dev/null
 
 step "SONUÇ"
 echo "  Geçen: $PASS   Başarısız: $FAIL"
