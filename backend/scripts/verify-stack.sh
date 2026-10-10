@@ -6708,7 +6708,9 @@ fingerprint() {
   $PSQL -t -A -c "SELECT (SELECT count(*) FROM pg_tables WHERE schemaname='public') || '|' ||
     (SELECT count(*) FROM schema_migrations) || '|' || (SELECT count(*) FROM rls_enabled_tables) || '|' ||
     (SELECT md5(COALESCE(string_agg(id::text || amount::text || status, ',' ORDER BY id), '')) FROM payments) || '|' ||
-    (SELECT count(*) FROM audit_logs) || '|' || (SELECT count(*) FROM pg_policy);"
+    (SELECT count(*) FROM audit_logs) || '|' || (SELECT count(*) FROM pg_policy) || '|' ||
+    (SELECT md5(string_agg(relname || COALESCE(relacl, acldefault('r', relowner))::text, ',' ORDER BY relname)) FROM pg_class
+       WHERE relnamespace = 'public'::regnamespace AND relkind = 'r');"
 }
 if bash "$SCRIPT_DIR/db-backup.sh" "$BK" >/tmp/verify-backup.log 2>&1; then
   ok "yedek alındı ve okunabilir: $(tail -1 /tmp/verify-backup.log)"

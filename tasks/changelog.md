@@ -12,6 +12,18 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-10 — DÜZELTME: GERİ YÜKLEMEDEN SONRA KALDIRILMIŞ YETKİLER GERİ GELİYORDU (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **1209/1209** (adım 41 parmak izi artık tablo ACL'lerini de karşılaştırıyor ve geri
+> yükleme sonrası yedekle birebir; adım 45 geri yüklemeden sonra uygulama rolünün korumalı tabloyu güncelleyemediğini
+> sınıyor). Bağımsız deneme: göç → yedek → geri yükleme sonrası ACL farkı yalnızca biçimsel (açık sahip ACL'i = NULL).
+
+- `db-restore.sh` (pg_restore) tabloları yeniden oluştururken 020'deki `ALTER DEFAULT PRIVILEGES` uygulama rolüne
+  SELECT/INSERT/UPDATE/DELETE veriyordu; göçlerin REVOKE ettiği yetkiler (ödeme/defter silme, sonuçlanmış kaydı
+  değiştirme, imha kaydı, ihlal olay geçmişi…) geri yüklemeden sonra sessizce geri geliyordu. Geri yükleme süresince
+  varsayılan yetkiler askıya alınır, tablolar yedekteki yetkilerle kurulur, varsayılanlar her durumda (hata dahil) geri
+  verilir. Ders 46.
+
 ### 2026-10-10 — FİNANSAL KAYITLARIN DEĞİŞTİRİLEMEZLİĞİ, TERS KAYIT, TAHSİLAT DEFTERİ ZİNCİRİ (migration 054, Apsiyon BUG-03) (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **1205/1205** (tahsilat onayı deftere dağılımıyla yazıldı; uygulama rolü ödeme ve defter

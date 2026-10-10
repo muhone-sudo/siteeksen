@@ -644,3 +644,15 @@ yüzünden hiç satır dönmedi, hata da üretmedi (sessiz). Test "kuyruk boşal
 
 **Kural:** Siteler arası tarama yapan iş yalnızca kimlik dönen `SECURITY DEFINER` fonksiyonla
 (028 deseni) site listesini alır, her siteyi kendi kapsamıyla işler.
+
+### Ders 46 — `ALTER DEFAULT PRIVILEGES` + `pg_restore`, göçlerin REVOKE'larını sessizce geri alır
+
+Yedekten geri yüklemede tablolar yeniden oluşturulurken 020'deki varsayılan yetkiler uygulama rolüne
+SELECT/INSERT/UPDATE/DELETE veriyordu; pg_dump ise tablo yetkilerini "yalnızca sahip" başlangıcına göre
+yazdığı için göçlerin kaldırdığı UPDATE/DELETE geri gelmiyordu… aksine geri GELİYORDU. Geri yüklemeden
+sonra ödeme/defter korumaları düşüyordu. Doğrulamanın geri yükleme parmak izi ACL'i içermediği için
+görülmedi; borcu yoktur belgesi testi geri yüklemeden SONRA çalıştığı için yakaladı.
+
+**Kural:** Geri yükleme varsayılan yetkileri askıya alır (`db-restore.sh`); geri yükleme parmak izi tablo
+ACL'lerini (NULL = `acldefault`) içerir. Yetki koruması sınanırken testin sırası (yedek/geri yükleme
+öncesi mi sonrası mı) göz önüne alınır.
