@@ -25,9 +25,9 @@ import (
 // chargeRow, bildirimi yazılacak tahakkuktur.
 type chargeRow struct {
 	id, unitID, unit, kind, description string
-	year, month                          int
-	kurus                                int64
-	due                                  time.Time
+	year, month                         int
+	kurus                               int64
+	due                                 time.Time
 }
 
 // SupportsChannel, kanal için kayıtlı bir sağlayıcı olup olmadığını söyler.

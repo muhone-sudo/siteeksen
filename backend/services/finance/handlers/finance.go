@@ -508,7 +508,7 @@ func CreateOpeningBalances(svc *service.FinanceService, n *notify.Notifier, pool
 				ids = append(ids, o.ID)
 			}
 			c.JSON(http.StatusCreated, gin.H{"data": list, "created": len(list),
-				"note": "Devir bakiyesine otomatik gecikme tazminatı işletilmez; önceki tazminat devir tutarına dahil edilmelidir.",
+				"note":         "Devir bakiyesine otomatik gecikme tazminatı işletilmez; önceki tazminat devir tutarına dahil edilmelidir.",
 				"notification": notify.NotifyCharges(c.Request.Context(), n, pool, c.GetString("property_id"), c.GetString("user_id"), ids)})
 		}
 	}
