@@ -21,6 +21,7 @@ import (
 
 	"github.com/jung-kurt/gofpdf"
 	"github.com/xuri/excelize/v2"
+	"rsc.io/qr"
 )
 
 //go:embed fonts/DejaVuSans.ttf
@@ -55,6 +56,8 @@ type Document struct {
 	Tables []Table
 	// SignatureLines, belgenin sonunda imza için bırakılan satırlardır (ör. "Yönetici").
 	SignatureLines []string
+	// QRText doluysa sağ üst köşeye karekod basılır (ör. doğrulama adresi).
+	QRText string
 }
 
 // VerificationCode, belge içeriğinin SHA-256 özetidir (üretim zamanı hariç).
@@ -113,6 +116,16 @@ func (d *Document) PDF() ([]byte, error) {
 	usable := pageW - 30
 
 	pdf.SetTextColor(0, 0, 0)
+	if d.QRText != "" {
+		code, err := qr.Encode(d.QRText, qr.M)
+		if err != nil {
+			return nil, fmt.Errorf("karekod üretilemedi: %w", err)
+		}
+		code.Scale = 4
+		pdf.RegisterImageOptionsReader("qr", gofpdf.ImageOptions{ImageType: "PNG"}, bytes.NewReader(code.PNG()))
+		pdf.ImageOptions("qr", pageW-15-32, 12, 32, 32, false, gofpdf.ImageOptions{ImageType: "PNG"}, 0, "")
+		usable -= 36 // başlık metni karekodun altına taşmasın
+	}
 	pdf.SetFont("DejaVu", "B", 9)
 	pdf.CellFormat(usable, 5, d.PropertyName, "", 1, "L", false, 0, "")
 	pdf.SetFont("DejaVu", "B", 14)
@@ -133,6 +146,10 @@ func (d *Document) PDF() ([]byte, error) {
 		pdf.Ln(2)
 	}
 
+	usable = pageW - 30
+	if d.QRText != "" && pdf.GetY() < 48 {
+		pdf.SetY(48) // tablolar karekodun altından başlasın
+	}
 	for _, t := range d.Tables {
 		widths := t.Widths
 		if len(widths) != len(t.Headers) {

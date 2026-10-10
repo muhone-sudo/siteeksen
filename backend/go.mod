@@ -15,6 +15,7 @@ require (
 	golang.org/x/crypto v0.47.0
 	golang.org/x/oauth2 v0.34.0
 	google.golang.org/api v0.264.0
+	rsc.io/qr v0.2.0
 )
 
 require (

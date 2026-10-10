@@ -108,7 +108,16 @@ export default function UnitsPage() {
                                     { header: "Net m²", cell: (u) => (u.net_area_m2 ? num(u.net_area_m2) : ["APARTMENT", "SHOP", "OFFICE"].includes(u.unit_type) ? <Badge tone="red">Eksik</Badge> : "—") },
                                     { header: "Brüt m²", cell: (u) => (u.gross_area_m2 ? num(u.gross_area_m2) : "—") },
                                     { header: "", cell: (u) => (u.is_commercial ? <Badge tone="amber">Ticari</Badge> : null) },
-                                    ...(canWrite ? [{ header: "", cell: (u: Unit) => <Button size="sm" variant="ghost" onClick={() => startEdit(u)}>Düzenle</Button> }] : []),
+                                    ...(canWrite ? [{ header: "", cell: (u: Unit) => (
+                                        <div className="flex gap-1">
+                                            <Button size="sm" variant="ghost" onClick={() => startEdit(u)}>Düzenle</Button>
+                                            <Button size="sm" variant="ghost" disabled={act.pending} title="Vadesi geçmiş borç yoksa karekodlu belge üretir"
+                                                onClick={async () => {
+                                                    const r = await act.run(() => api.finance.clearance(u.id), { success: (x) => `Borcu yoktur belgesi üretildi (geçerlilik ${x.expires_at}). ${x.note}` });
+                                                    if (r) await act.run(() => api.finance.clearancePdf(r.id));
+                                                }}>Borcu yoktur</Button>
+                                        </div>
+                                    ) }] : []),
                                 ]}
                             />
                         </Card>

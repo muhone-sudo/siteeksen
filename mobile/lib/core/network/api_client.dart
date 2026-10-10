@@ -302,6 +302,19 @@ class ApiClient {
   }
 
   // Finance
+  /// Borcu yoktur belgesi üretir (055); vadesi geçmiş borç varsa sunucu 422 ve kalemleri döner.
+  Future<Map<String, dynamic>> createClearance(String unitId) async {
+    final response = await _dio.post('/finance/clearance-certificates', data: {'unit_id': unitId});
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
+  /// Belgenin PDF'i (baytlar).
+  Future<List<int>> clearancePdf(String id) async {
+    final response = await _dio.get<List<int>>('/finance/clearance-certificates/$id/pdf',
+        options: Options(responseType: ResponseType.bytes));
+    return response.data ?? const <int>[];
+  }
+
   /// Tahsilat defteri zinciri doğrulaması (054): tutar/kişi bilgisi dönmez.
   Future<Map<String, dynamic>> verifyLedger() async {
     final response = await _dio.get('/finance/ledger/verify');

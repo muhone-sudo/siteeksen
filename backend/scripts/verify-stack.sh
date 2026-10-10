@@ -5717,8 +5717,8 @@ ok "kullanılmayan 13 site tablosu RLS ile korunuyor"
 
 # 9) Toplam durum — RLS DIŞINDA KALAN her tablo bilinçli ve gerekçeli olmalı
 RLSCOUNT=$($PSQL -t -A -c "SELECT count(*) FROM rls_enabled_tables;")
-[ "$RLSCOUNT" = "107" ] && ok "RLS toplam 107 tabloda açık" \
-  || bad "beklenmedik RLS tablo sayısı: $RLSCOUNT (beklenen 107)"
+[ "$RLSCOUNT" = "108" ] && ok "RLS toplam 108 tabloda açık" \
+  || bad "beklenmedik RLS tablo sayısı: $RLSCOUNT (beklenen 108)"
 NOTRLS=$($PSQL -t -A -c "SELECT string_agg(t.table_name, ' ' ORDER BY t.table_name)
   FROM information_schema.tables t
   WHERE t.table_schema='public' AND t.table_type='BASE TABLE'
@@ -6997,6 +6997,44 @@ R9=$(dl "http://127.0.0.1:18487/api/v1/governance/books/00000000-0000-0000-0000-
   && ok "karar defteri PDF zincir doğrulamasını yazıyor; işletme projesi Excel (kalemler + bölüm payları); olmayan defter 404" \
   || bad "defter/proje dökümü: $R7 / $R8 ($X8) / $R9 — $(head -c 200 <<<"$T7")"
 kill_tree "$FREP_PID"; kill_tree "$GREP_PID"
+
+step "45) Borcu yoktur belgesi: vadesi geçmiş/gelmemiş ayrımı, karekod, kimliksiz doğrulama (055, Apsiyon BUG-04)"
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_app DB_PASSWORD="$APPPW" DB_NAME=siteeksen \
+DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=18582 PUBLIC_VERIFY_BASE_URL=https://dogrula.ornek.test \
+  go run ./services/finance >/tmp/verify-finance-clr.log 2>&1 &
+FCLR_PID=$!
+for _ in $(seq 1 60); do curl -fsS http://127.0.0.1:18582/health >/dev/null 2>&1 && break; sleep 1; done
+CF="http://127.0.0.1:18582/api/v1/finance"
+U45='45454545-0000-0000-0000-0000000000a1'
+$PSQL -c "INSERT INTO units (id, property_id, block, floor, door_number, share_ratio, net_area_m2) VALUES ('$U45','$DEMO_PROPERTY','T',1,'45',1,80) ON CONFLICT (id) DO NOTHING;
+  INSERT INTO monthly_assessments (property_id, unit_id, period_year, period_month, base_amount, total_amount, due_date)
+  VALUES ('$DEMO_PROPERTY','$U45',2099,1,500,500,CURRENT_DATE + 10);" >/dev/null
+C1=$(curl -s -w '|%{http_code}' -X POST "$CF/clearance-certificates" -H "Authorization: Bearer $MGRS" -H "$J" -d "{\"unit_id\":\"$U40\"}")
+C2=$(curl -s -X POST "$CF/clearance-certificates" -H "Authorization: Bearer $MGRS" -H "$J" -d "{\"unit_id\":\"$U45\"}")
+CID=$(echo "$C2" | sed -n 's/.*"id":"\([^"]*\)".*/\1/p'); CCODE=$(echo "$C2" | sed -n 's/.*"verification_code":"\([0-9a-f]*\)".*/\1/p')
+C3=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$CF/clearance-certificates" -H "Authorization: Bearer $TENS" -H "$J" -d "{\"unit_id\":\"$U45\"}")
+case "$C1" in *'"overdue":['*"|422") COK=1 ;; *) COK=0 ;; esac
+[ "$COK" = "1" ] && [ ${#CCODE} = "64" ] && echo "$C2" | grep -q '"not_due_kurus":50000' && echo "$C2" | grep -q "https://dogrula.ornek.test/$CCODE" && [ "$C3" = "403" ] \
+  && ok "vadesi geçmiş borcu olan bölüme belge yok (422 + kalem listesi); yalnızca vadesi gelmemiş 500,00 TL'si olana belge üretildi (64 hane SHA-256 kod, doğrulama adresi); başka dairenin sakini 403" \
+  || bad "borcu yoktur belgesi: $C1 / $C2 / $C3"
+CP=$(curl -s -o /tmp/r-clr.pdf -w '%{http_code}' "$CF/clearance-certificates/$CID/pdf" -H "Authorization: Bearer $MGRS")
+TCLR=$(python3 /tmp/pdftext.py /tmp/r-clr.pdf 2>/dev/null)
+NIMG=$(python3 -c "import pypdf; print(len(pypdf.PdfReader('/tmp/r-clr.pdf').pages[0].images))" 2>/dev/null)
+[ "$CP" = "200" ] && grep -q 'Borcu yoktur belgesi' <<<"$TCLR" && grep -q 'vadesi geçmiş hiçbir aidat' <<<"$TCLR" && grep -q 'Vadesi gelmemiş tahakkuk' <<<"$TCLR" \
+  && grep -q "$CCODE" <<<"$(tr -d '\n' <<<"$TCLR")" && [ "${NIMG:-0}" -ge 1 ] \
+  && ok "belge PDF'i: Türkçe beyan, vadesi gelmemiş tutar ayrı, doğrulama kodu ve karekod görseli var" \
+  || bad "belge PDF: $CP / görsel=$NIMG — $(head -c 300 <<<"$TCLR")"
+PV1=$(curl -s "http://127.0.0.1:18582/api/v1/public/clearance/$CCODE")
+PV2=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:18582/api/v1/public/clearance/$(printf '0%.0s' $(seq 1 64))")
+PV3=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:18582/api/v1/public/clearance/abc")
+CUO=$(PGPASSWORD="$APPPW" psql -h 127.0.0.1 -p "$DBPORT" -U siteeksen_app -d siteeksen -t -A -c "BEGIN; SELECT set_config('app.property_id','11111111-1111-1111-1111-111111111111',true); UPDATE clearance_certificates SET expires_at = CURRENT_DATE + 999 WHERE id='$CID'; COMMIT;" 2>&1); CU=$(grep -c 'permission denied' <<<"$CUO")
+$PSQL -c "UPDATE clearance_certificates SET expires_at = CURRENT_DATE - 1, as_of_date = CURRENT_DATE - 40 WHERE id='$CID';" >/dev/null
+PV4=$(curl -s "http://127.0.0.1:18582/api/v1/public/clearance/$CCODE")
+echo "$PV1" | grep -q '"valid":true' && echo "$PV1" | grep -q '"unit":"T-45"' && ! echo "$PV1" | grep -qi 'phone\|first_name\|kurus' \
+  && [ "$PV2" = "404" ] && [ "$PV3" = "400" ] && [ "$CU" -ge 1 ] && echo "$PV4" | grep -q '"expired":true' \
+  && ok "kimliksiz doğrulama: geçerli belge yalnızca site/bölüm/tarih döndürüyor (kişisel veri ve tutar yok); bilinmeyen kod 404, biçimsiz 400; süresi geçen geçersiz; uygulama rolü belgeyi değiştiremez" \
+  || bad "belge doğrulama: $PV1 / $PV2 / $PV3 / değiştir=$CU ($CUO) / $PV4"
+kill_tree "$FCLR_PID"
 
 step "SONUÇ"
 echo "  Geçen: $PASS   Başarısız: $FAIL"

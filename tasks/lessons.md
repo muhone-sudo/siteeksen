@@ -649,8 +649,8 @@ yüzünden hiç satır dönmedi, hata da üretmedi (sessiz). Test "kuyruk boşal
 
 Yedekten geri yüklemede tablolar yeniden oluşturulurken 020'deki varsayılan yetkiler uygulama rolüne
 SELECT/INSERT/UPDATE/DELETE veriyordu; pg_dump ise tablo yetkilerini "yalnızca sahip" başlangıcına göre
-yazdığı için göçlerin kaldırdığı UPDATE/DELETE geri gelmiyordu… aksine geri GELİYORDU. Geri yüklemeden
-sonra ödeme/defter korumaları düşüyordu. Doğrulamanın geri yükleme parmak izi ACL'i içermediği için
+yazdığı için bu fazlalığı geri almıyordu. Sonuç: göçlerin kaldırdığı UPDATE/DELETE geri yüklemeden sonra
+geri geliyor, ödeme/defter korumaları düşüyordu. Doğrulamanın geri yükleme parmak izi ACL'i içermediği için
 görülmedi; borcu yoktur belgesi testi geri yüklemeden SONRA çalıştığı için yakaladı.
 
 **Kural:** Geri yükleme varsayılan yetkileri askıya alır (`db-restore.sh`); geri yükleme parmak izi tablo

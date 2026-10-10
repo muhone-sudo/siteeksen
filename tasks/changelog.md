@@ -12,6 +12,25 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-10 — BORCU YOKTUR BELGESİ: VADE AYRIMI, KAREKOD, KİMLİKSİZ DOĞRULAMA (migration 055, Apsiyon BUG-04) (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **1209/1209** (adım 45: vadesi geçmiş borcu olan bölüme belge yok, 422 + kalem listesi;
+> yalnızca vadesi gelmemiş 500,00 TL'si olan bölüme belge üretildi (64 hane SHA-256 kod); başka dairenin sakini 403; PDF'te
+> Türkçe beyan, vadesi gelmemiş tutar ayrı satırda, doğrulama kodu ve karekod görseli; kimliksiz doğrulama yalnızca site/
+> bölüm/tarih döndürüyor, bilinmeyen kod 404, biçimsiz 400, süresi geçen geçersiz; uygulama rolü belgeyi değiştiremiyor;
+> RLS 108); `verify-mobile.sh` 10/10; panel tsc/lint temiz.
+
+- Apsiyon'da son ödeme günü gelmemiş cari aidat "borç" sayılıp belge verilmiyordu. Burada belge yalnızca VADESİ GEÇMİŞ
+  (muaccel) borç sıfırken üretilir; vadesi gelmemiş (müeccel) tutar belgede ayrıca yazılır. Onay bekleyen ödeme bildirimi
+  varsa yanıt bunu söyler (beyan ödeme yerine geçmez).
+- `POST /finance/clearance-certificates` (bölümün aktif sakini ya da yönetim), `GET /finance/clearance-certificates/:id/pdf`
+  (karekodlu), `GET /api/v1/public/clearance/:code` — gateway'de kimlik istemeyen tek veri yolu; SECURITY DEFINER fonksiyonu
+  yalnızca site adı, bölüm ve tarihleri döndürür (kişi adı/tutar yok). Belge 30 gün geçerli, değiştirilemez.
+- Karekod: `rsc.io/qr` (saf Go) ile PDF'e gömülür; `pkg/reports` belgeleri artık karekod alabiliyor. Doğrulama adresi
+  `PUBLIC_VERIFY_BASE_URL` (varsayılan `https://app.siteeksen.com/dogrula`).
+- Panel: herkese açık `/dogrula/[kod]` sayfası; Bağımsız Bölümler satırında "Borcu yoktur". Sakin uygulaması: Aidat
+  ekranında belge üretip cihazda açma.
+
 ### 2026-10-10 — DÜZELTME: GERİ YÜKLEMEDEN SONRA KALDIRILMIŞ YETKİLER GERİ GELİYORDU (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **1209/1209** (adım 41 parmak izi artık tablo ACL'lerini de karşılaştırıyor ve geri

@@ -78,6 +78,8 @@ export function endpoints(http: Http) {
                 http.post<{ data: unknown[] }>("/finance/assessments", b),
             confirmPayment: (id: string, reference?: string) => http.post<Msg>(`/finance/payments/${id}/confirm`, { reference }),
             rejectPayment: (id: string) => http.post<Msg>(`/finance/payments/${id}/reject`),
+            clearance: (unit_id: string) => http.post<{ id: string; verification_code: string; verify_url: string; not_due_kurus: number; expires_at: string; note: string }>("/finance/clearance-certificates", { unit_id }),
+            clearancePdf: (id: string) => http.download(`/finance/clearance-certificates/${id}/pdf`, "borcu-yoktur-belgesi.pdf"),
             reversePayment: (id: string, reason: string) => http.post<Msg>(`/finance/payments/${id}/reverse`, { reason }),
             ledger: () => g<{ data: T.LedgerEntry[] }>("/finance/ledger"),
             verifyLedger: () => g<T.LedgerVerification>("/finance/ledger/verify"),

@@ -653,7 +653,7 @@ S-21 → VERBİS opsiyonel, yükümlülük site yönetiminde; S-19 ve iOS → ol
 - [x] A1 taşınan sakin (BUG-01) — mevcut koruma kanıtı + bildirim metni şeffaflığı; verify 1198/1198
 - [x] A2 havale beyanında valör, gecikme tazminatı dondurma ve iz (BUG-02) — 053, verify 1201/1201
 - [x] A3 finansal silinemezlik + ters kayıt (BUG-03) — 054, verify 1205/1205
-- [ ] A4 borcu yoktur belgesi + doğrulama (BUG-04)
+- [x] A4 borcu yoktur belgesi + doğrulama (BUG-04) — 055, verify 1209/1209
 - [ ] A5 telefon değişimi / kod yeniden üretimi (BUG-05)
 - [ ] A6 yönetici giriş kilidi kaldırma (BUG-06)
 - [ ] A7 tüketim pusulası, sayaç değişimi, sapma uyarısı (BUG-07)

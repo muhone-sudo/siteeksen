@@ -54,6 +54,9 @@ func main() {
 	//     erişebilir; AUDITOR yalnızca okuma uçlarında yer alır (KMK m.41 denetim
 	//     görevi okumayı gerektirir, tahakkuk oluşturmayı değil).
 	// -----------------------------------------------------------------------
+	// Borcu yoktur belgesinin kimliksiz doğrulaması (055): banka/tapu memuru karekodu okutur.
+	r.GET("/api/v1/public/clearance/:code", verifyClearance(pool))
+
 	api := r.Group("/api/v1/finance")
 	api.Use(middleware.AuthMiddleware(pool), middleware.AuditLog(pool, "finance"))
 	{
@@ -64,6 +67,9 @@ func main() {
 		api.POST("/payments", handlers.CreatePayment(financeService))
 		api.GET("/my-payments", handlers.GetMyPayments(financeService))
 		api.GET("/ledger/verify", handlers.VerifyLedger(financeService))
+		// Borcu yoktur belgesi (055): bölümün sakini ya da yönetim.
+		api.POST("/clearance-certificates", createClearance(pool))
+		api.GET("/clearance-certificates/:id/pdf", clearancePDF(pool))
 		api.GET("/consumption/summary", handlers.GetConsumptionSummary(financeService))
 
 		// --- Yönetim: site geneli okuma ---

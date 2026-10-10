@@ -14,7 +14,11 @@
 //     (ödeme sağlayıcısı entegrasyonu yok — bkz. questions.md S-06) kullanıcıya ödemenin
 //     ALINMADIĞI açıkça söylenir; "başarılı" denmez.
 
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:open_filex/open_filex.dart';
+import 'package:path_provider/path_provider.dart';
 
 import '../../../../core/network/api_client.dart';
 import '../../../../core/theme/apple_theme.dart';
@@ -93,6 +97,12 @@ class _DuesPaymentScreenState extends State<DuesPaymentScreen> {
         backgroundColor: Colors.white,
         surfaceTintColor: Colors.transparent,
         actions: [
+          IconButton(
+            key: const Key('clearance'),
+            tooltip: 'Borcu yoktur belgesi',
+            icon: const Icon(Icons.task_alt_rounded),
+            onPressed: _clearance,
+          ),
           IconButton(
             key: const Key('verify-ledger'),
             tooltip: 'Tahsilat kayıtlarını doğrula',
@@ -324,6 +334,37 @@ class _DuesPaymentScreenState extends State<DuesPaymentScreen> {
                   ? 'Ödenecek tahakkuk yok'
                   : '${formatTry(_currentBalance)} Öde'),
         ),
+      ),
+    );
+  }
+
+  /// Borcu yoktur belgesi (Apsiyon BUG-04): vadesi gelmemiş cari aidat borç sayılmaz;
+  /// belge karekodlu PDF olarak indirilip cihazda açılır.
+  Future<void> _clearance() async {
+    String? message;
+    try {
+      final props = await apiClient.getUserProperties();
+      final unit = props.whereType<Map>().map((p) => '${p['unit_id'] ?? ''}').firstWhere((u) => u.isNotEmpty, orElse: () => '');
+      if (unit.isEmpty) {
+        message = 'Kayıtlı bir daireniz bulunamadı.';
+      } else {
+        final cert = await apiClient.createClearance(unit);
+        final bytes = await apiClient.clearancePdf('${cert['id']}');
+        final file = File('${(await getTemporaryDirectory()).path}/borcu-yoktur-belgesi.pdf');
+        await file.writeAsBytes(bytes, flush: true);
+        final r = await OpenFilex.open(file.path, type: 'application/pdf');
+        if (r.type != ResultType.done) message = 'Belge indirildi ama açılamadı: ${r.message}';
+      }
+    } catch (e) {
+      message = toUserMessage(e);
+    }
+    if (!mounted || message == null) return;
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Borcu yoktur belgesi'),
+        content: Text(message!),
+        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Tamam'))],
       ),
     );
   }
