@@ -177,6 +177,11 @@ if go test ./pkg/authtoken/... -count=1 >/tmp/verify-authtoken.log 2>&1; then
 else
   bad "go test ./pkg/authtoken/..."; tail -15 /tmp/verify-authtoken.log
 fi
+if go test ./cmd/gateway/... -count=1 >/tmp/verify-gwtest.log 2>&1; then
+  ok "go test ./cmd/gateway/... (kimliksiz yol listesi dar: yalnızca giriş, belge doğrulama, cihaz sinyali)"
+else
+  bad "go test ./cmd/gateway/..."; tail -15 /tmp/verify-gwtest.log
+fi
 if go test ./pkg/pii/... -count=1 >/tmp/verify-pii.log 2>&1; then
   ok "go test ./pkg/pii/... (şifreleme, blind index, TCKN/IBAN doğrulama)"
 else
@@ -1509,7 +1514,7 @@ kill_tree "$VIS_PID"
 step "15) Otopark modülü — mock'tan gerçeğe (FAZ 5, 4. modül)"
 PRKPORT=${VERIFY_PRK_PORT:-18098}
 DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_app DB_PASSWORD="$APPPW" DB_NAME=siteeksen \
-DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${PRKPORT} \
+DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${PRKPORT} DEVICE_WATCH_INTERVAL=1s \
   go run ./services/parking >/tmp/verify-parking.log 2>&1 &
 PRK_PID=$!
 KUP=0
@@ -1595,6 +1600,67 @@ if [ "$KUP" = "1" ] && [ -n "${MGR:-}" ]; then
   SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$KURL/parking-logs/entry" \
     -H "Authorization: Bearer $TEN" -H "$KJ" -d '{"plate":"01 AAA 111"}')
   [ "$SC" = "403" ] && ok "sakin otopark giriş kaydı yapamıyor → 403" || bad "sakin giriş yaptı → $SC"
+
+  # --- Geçiş cihazı canlılık izleme (057, Apsiyon BUG-08) ---
+  DV=$(curl -s -X POST "$KURL/access-devices" -H "$KA" -H "$KJ" -d '{"name":"Giriş kamerası","kind":"PTS_CAMERA","location":"A kapısı","heartbeat_interval_sec":60}')
+  DVID=$(echo "$DV" | grep -o '"id":"[^"]*"' | cut -d'"' -f4)
+  DKEY=$(echo "$DV" | grep -o '"device_key":"[^"]*"' | cut -d'"' -f4)
+  DHASH=$(printf '%s' "$DKEY" | sha256sum | cut -d' ' -f1)
+  DDB=$($PSQL -t -A -c "SELECT key_hash = '$DHASH', offline_after_sec, (SELECT count(*) FROM access_devices WHERE key_hash = '$DKEY') FROM access_devices WHERE id = '$DVID';")
+  [ -n "$DVID" ] && [ "${DKEY#dev_}" != "$DKEY" ] && [ "$DDB" = "t|180|0" ] \
+    && ok "cihaz kaydedildi; anahtar bir kez gösterildi, yalnızca SHA-256 özeti saklandı, çevrimdışı eşiği 3 aralık (180 sn)" \
+    || bad "cihaz kaydı: $DDB — $DV"
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$KURL/access-devices" -H "$KA" -H "$KJ" -d '{"name":"X","kind":"UFO"}')
+  SC2=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$KURL/access-devices" -H "$KA" -H "$KJ" -d '{"name":"X","kind":"BARRIER","heartbeat_interval_sec":60,"offline_after_sec":90}')
+  SC3=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$KURL/access-devices" -H "Authorization: Bearer $TEN" -H "$KJ" -d '{"name":"X","kind":"BARRIER"}')
+  [ "$SC" = "422" ] && [ "$SC2" = "422" ] && [ "$SC3" = "403" ] \
+    && ok "geçersiz tür 422, tek aralıklık eşik 422 (gecikmiş tek sinyal alarm üretmesin), sakin cihaz ekleyemiyor 403" \
+    || bad "cihaz doğrulaması: $SC / $SC2 / $SC3"
+  HB="http://127.0.0.1:${PRKPORT}/api/v1/public/devices/heartbeat"
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$HB" -H "$KJ" -d '{}')
+  SC2=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$HB" -H "X-Device-Key: dev_yanlis" -H "$KJ" -d '{}')
+  HR=$(curl -s -X POST "$HB" -H "X-Device-Key: $DKEY" -H "$KJ" -d '{"status":"ok fw-1.2"}')
+  DL=$(curl -s "$KURL/access-devices" -H "$KA" | python3 -c "
+import json,sys
+d=[x for x in json.load(sys.stdin)['data'] if x['id']=='$DVID'][0]; print(d['online'], d['last_status'], 'open_incident_id' in d)" 2>/dev/null)
+  [ "$SC" = "401" ] && [ "$SC2" = "401" ] && echo "$HR" | grep -q '"recovered":false' && [ "$DL" = "True ok fw-1.2 False" ] \
+    && ok "anahtarsız/yanlış anahtarlı sinyal 401; doğru anahtarla sinyal kaydedildi, cihaz çevrimiçi" \
+    || bad "sinyal: $SC / $SC2 / $HR / $DL"
+  # Sinyal kesildi: son sinyal 10 dk önce → bekçi (1 sn) olay açmalı ve yönetim + görevliye bildirmeli
+  $PSQL -c "UPDATE access_devices SET last_seen_at = now() - interval '10 minutes' WHERE id = '$DVID';" >/dev/null
+  OPENED=""
+  for _ in $(seq 1 15); do
+    OPENED=$($PSQL -t -A -c "SELECT count(*) FROM device_incidents WHERE device_id = '$DVID' AND recovered_at IS NULL;")
+    [ "$OPENED" = "1" ] && break
+    sleep 1
+  done
+  sleep 2
+  INC=$($PSQL -t -A -c "SELECT (SELECT count(*) FROM device_incidents WHERE device_id = '$DVID'),
+    (SELECT count(*) FROM notifications WHERE topic = 'device.offline' AND payload->>'device_id' = '$DVID'),
+    (SELECT count(DISTINCT recipient_user_id) FROM notifications WHERE topic = 'device.offline' AND payload->>'device_id' = '$DVID'),
+    (SELECT bool_and(subject LIKE 'Plaka tanıma kamerası çevrimdışı%') FROM notifications WHERE topic = 'device.offline' AND payload->>'device_id' = '$DVID');")
+  INCN=$(echo "$INC" | cut -d'|' -f1); NTN=$(echo "$INC" | cut -d'|' -f2); NTU=$(echo "$INC" | cut -d'|' -f3)
+  [ "$OPENED" = "1" ] && [ "$INCN" = "1" ] && [ "$NTN" -ge 1 ] && [ "$NTN" = "$NTU" ] && [ "$(echo "$INC" | cut -d'|' -f4)" = "t" ] \
+    && ok "sinyal kesilince bekçi olay açtı ve yönetime bildirdi; sonraki turlarda ikinci olay/bildirim yok ($INC)" \
+    || bad "çevrimdışı alarmı: açık=$OPENED, $INC — $(tail -5 /tmp/verify-parking.log)"
+  DL=$(curl -s "$KURL/access-devices" -H "$KA" | python3 -c "
+import json,sys
+d=[x for x in json.load(sys.stdin)['data'] if x['id']=='$DVID'][0]; print(d['online'], 'open_incident_id' in d)" 2>/dev/null)
+  [ "$DL" = "False True" ] && ok "cihaz listesinde çevrimdışı ve açık olay görünüyor" || bad "liste durumu: $DL"
+  HR=$(curl -s -X POST "$HB" -H "X-Device-Key: $DKEY" -H "$KJ" -d '{"status":"ok"}')
+  REC=$($PSQL -t -A -c "SELECT (SELECT count(*) FROM device_incidents WHERE device_id = '$DVID' AND recovered_at IS NOT NULL),
+    (SELECT count(*) > 0 FROM notifications WHERE topic = 'device.recovered' AND payload->>'device_id' = '$DVID');")
+  [ "$REC" = "1|t" ] && echo "$HR" | grep -q '"recovered":true' \
+    && ok "sinyal geri gelince olay kapandı ve 'yeniden çevrimiçi' bildirimi gitti" || bad "toparlanma: $REC / $HR"
+  ICS=$(curl -s "$KURL/access-devices/incidents" -H "$KA" | grep -c "$DVID")
+  SC=$(curl -s -o /dev/null -w '%{http_code}' "$KURL/access-devices" -H "Authorization: Bearer $TEN")
+  [ "$ICS" -ge 1 ] && [ "$SC" = "403" ] && ok "olay geçmişi listeleniyor; sakin cihaz listesini göremiyor 403" || bad "olay listesi: $ICS / $SC"
+  DD=$(PGPASSWORD="$APPPW" psql -h 127.0.0.1 -p "$DBPORT" -U siteeksen_app -d siteeksen -t -A -c "
+    BEGIN; SET LOCAL app.property_id='$DEMO_PROPERTY'; DELETE FROM device_incidents; COMMIT;" 2>&1)
+  echo "$DD" | grep -qi 'permission denied' && ok "olay geçmişi uygulama rolüyle silinemiyor" || bad "olay silinebildi: $DD"
+  SC=$(curl -s -o /dev/null -w '%{http_code}' -X DELETE "$KURL/access-devices/$DVID" -H "$KA")
+  SC2=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$HB" -H "X-Device-Key: $DKEY" -H "$KJ" -d '{}')
+  [ "$SC" = "200" ] && [ "$SC2" = "401" ] && ok "pasife alınan cihazın sinyali kabul edilmiyor (401), izleme durdu" || bad "pasife alma: $SC / $SC2"
 else
   bad "parking-service başlamadı"; tail -10 /tmp/verify-parking.log
 fi
@@ -5816,8 +5882,8 @@ ok "kullanılmayan 13 site tablosu RLS ile korunuyor"
 
 # 9) Toplam durum — RLS DIŞINDA KALAN her tablo bilinçli ve gerekçeli olmalı
 RLSCOUNT=$($PSQL -t -A -c "SELECT count(*) FROM rls_enabled_tables;")
-[ "$RLSCOUNT" = "111" ] && ok "RLS toplam 111 tabloda açık" \
-  || bad "beklenmedik RLS tablo sayısı: $RLSCOUNT (beklenen 111)"
+[ "$RLSCOUNT" = "113" ] && ok "RLS toplam 113 tabloda açık" \
+  || bad "beklenmedik RLS tablo sayısı: $RLSCOUNT (beklenen 113)"
 NOTRLS=$($PSQL -t -A -c "SELECT string_agg(t.table_name, ' ' ORDER BY t.table_name)
   FROM information_schema.tables t
   WHERE t.table_schema='public' AND t.table_type='BASE TABLE'

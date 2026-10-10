@@ -226,6 +226,12 @@ export interface Allocation {
         first_date?: string; first_value?: string; last_date?: string; last_value?: string; meter_replaced?: boolean;
     }[];
 }
+/** Geçiş cihazı (057): canlılık sinyaliyle izlenir. */
+export interface AccessDevice {
+    id: Id; name: string; kind: string; location?: string; heartbeat_interval_sec: number; offline_after_sec: number;
+    last_seen_at?: string; last_status?: string; is_active: boolean; online: boolean; open_incident_id?: string; open_incident_since?: string;
+}
+export interface DeviceIncident { id: Id; device_id: Id; device_name: string; kind: string; last_seen_at?: string; detected_at: string; recovered_at?: string }
 /** Yayımlanmış tüketim pusulası (056): sakin yalnızca kendi satırını görür. */
 export interface StatementLine {
     unit_id: Id; unit_name: string; first_date?: string; first_value?: string; last_date?: string; last_value?: string;

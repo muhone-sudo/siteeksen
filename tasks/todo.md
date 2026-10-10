@@ -657,7 +657,7 @@ S-21 → VERBİS opsiyonel, yükümlülük site yönetiminde; S-19 ve iOS → ol
 - [x] A5 telefon değişimi / kod yeniden üretimi (BUG-05) — verify 1211/1211
 - [x] A6 yönetici giriş kilidi kaldırma (BUG-06) — verify 1211/1211
 - [x] A7 tüketim pusulası, sayaç değişimi, sapma uyarısı (BUG-07) — 056, verify 1229/1229, mobil 10/10
-- [ ] A8 cihaz canlılık izleme (BUG-08)
+- [x] A8 cihaz canlılık izleme (BUG-08) — 057, verify 1240/1240 · bariyer uzaktan açma donanım protokolü bekliyor (kullanıcı)
 - [ ] A10 uluslararası telefon / geo-blok yok (BUG-10)
 - [ ] A11 site pasifleştirme (BUG-11)
 - [ ] A12 alacak dekontu + banka ekstresi mutabakatı (BUG-12)

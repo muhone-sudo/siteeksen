@@ -6,6 +6,7 @@ import { api } from "@/lib/api";
 import { useAction, useApi } from "@/lib/use-api";
 import { ActionFeedback, Badge, Button, Card, Field, FormModal, Grid, Input, Page, QueryView, Select, Stats, Table, Tabs } from "@/components/ui/kit";
 import { dateTime, num, tl } from "@/lib/format";
+import { DevicesCard } from "@/components/parking/devices-card";
 
 const OWNER_TYPES = [
     { value: "RESIDENT", label: "Sakin" },
@@ -20,7 +21,7 @@ const VEHICLE_TYPES = [
 ];
 
 export default function ParkingPage() {
-    const [tab, setTab] = useState<"inside" | "vehicles" | "zones">("inside");
+    const [tab, setTab] = useState<"inside" | "vehicles" | "zones" | "devices">("inside");
     const inside = useApi(["parking", "inside"], () => api.parking.logs(true));
     const vehicles = useApi(["parking", "vehicles"], api.parking.vehicles, tab === "vehicles");
     const zones = useApi(["parking", "zones"], api.parking.zones);
@@ -50,8 +51,9 @@ export default function ParkingPage() {
                 { label: "Dolu", value: num(occupied), tone: "amber" },
                 { label: "Bölge", value: num(zones.data?.data.length) },
             ]} />
-            <Tabs tabs={[{ id: "inside", label: "İçeridekiler" }, { id: "vehicles", label: "Kayıtlı araçlar" }, { id: "zones", label: "Bölgeler" }]} value={tab} onChange={setTab} />
-            <Card padded={false}>
+            <Tabs tabs={[{ id: "inside", label: "İçeridekiler" }, { id: "vehicles", label: "Kayıtlı araçlar" }, { id: "zones", label: "Bölgeler" }, { id: "devices", label: "Cihazlar" }]} value={tab} onChange={setTab} />
+            {tab === "devices" && <DevicesCard />}
+            {tab !== "devices" && <Card padded={false}>
                 {tab === "inside" && (
                     <QueryView q={inside} empty="İçeride araç yok">
                         {(d) => (
@@ -99,7 +101,7 @@ export default function ParkingPage() {
                         )}
                     </QueryView>
                 )}
-            </Card>
+            </Card>}
 
             <FormModal open={!!entry} onClose={() => setEntry(null)} title="Araç girişi" pending={act.pending} error={act.error}
                 onSubmit={async () => {

@@ -9,6 +9,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"log"
 	"net/http"
@@ -21,6 +22,7 @@ import (
 	"github.com/siteeksen/backend/pkg/listcap"
 	"github.com/siteeksen/backend/pkg/middleware"
 	"github.com/siteeksen/backend/pkg/money"
+	"github.com/siteeksen/backend/pkg/notify"
 	"github.com/siteeksen/backend/services/parking/repository"
 )
 
@@ -45,6 +47,11 @@ func main() {
 
 	api := r.Group("/api/v1")
 	api.Use(middleware.AuthMiddleware(pool), middleware.AuditLog(pool, "parking"))
+
+	// Geçiş cihazı canlılık izleme (057, Apsiyon BUG-08).
+	notifier := notify.FromEnvOrNil(pool)
+	registerDevices(r, repo, pool, notifier)
+	startDeviceWatch(context.Background(), repo, pool, notifier)
 
 	// --- Araçlar ---
 	// Sakin kendi araçlarını görür ve kaydeder; yönetim/görevli site genelini görür.
@@ -324,6 +331,10 @@ func fail(c *gin.Context, err error, op string) {
 		c.JSON(http.StatusConflict, gin.H{"error": "Bu kayıt için açık bir giriş bulunmuyor"})
 	case errors.Is(err, repository.ErrUnitNotInSite):
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Belirtilen bağımsız bölüm bu siteye ait değil"})
+	case errors.Is(err, repository.ErrDeviceKind):
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "Geçersiz cihaz türü", "valid_kinds": repository.DeviceKinds})
+	case errors.Is(err, repository.ErrDeviceInterval):
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
 	default:
 		// İstemci kaynaklı veritabanı hatası (biçim, kısıt, uzunluk) 500 değildir.
 		if middleware.DBErrorResponse(c, err) {

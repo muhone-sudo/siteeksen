@@ -196,6 +196,11 @@ export function endpoints(http: Http) {
             vehicles: () => g<T.List<T.Vehicle>>("/vehicles"),
             createVehicle: (b: Record<string, unknown>) => http.post<{ id: string }>("/vehicles", b),
             deactivateVehicle: (id: string) => http.del<Msg>(`/vehicles/${id}`),
+            devices: () => g<T.List<T.AccessDevice> & { valid_kinds: string[] }>("/access-devices"),
+            deviceIncidents: () => g<T.List<T.DeviceIncident>>("/access-devices/incidents"),
+            createDevice: (b: { name: string; kind: string; location?: string; heartbeat_interval_sec?: number; offline_after_sec?: number }) =>
+                http.post<{ id: string; device_key: string; note: string }>("/access-devices", b),
+            deactivateDevice: (id: string) => http.del<Msg>(`/access-devices/${id}`),
             zones: () => g<T.List<T.ParkingZone>>("/parking-zones"),
             logs: (inside?: boolean) => g<T.List<T.ParkingLog>>("/parking-logs", { inside: inside ? "true" : undefined }),
             entry: (b: { plate: string; parking_zone_id?: string; entry_gate?: string }) =>

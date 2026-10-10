@@ -158,6 +158,11 @@ Ziyaretçi: `{id,unit_id,unit_name,visitor_name,visitor_phone,visitor_company,vi
 | `GET /parking-logs` | M,B,S | `inside=true` | `{data:[{id,parking_zone_id,zone_name,vehicle_id,plate,entry_at,entry_gate,entry_method,exit_at,duration_minutes,calculated_fee,paid_fee,payment_status,is_resident}]}` |
 | `POST /parking-logs/entry` | M,B,S | `plate`*,`parking_zone_id`,`entry_gate`,`entry_method` | 201 `{id,plate,is_resident_vehicle}` · 409 dolu/içeride |
 | `POST /parking-logs/:id/exit` | M,B,S | `exit_gate` | `{duration_minutes,calculated_fee,is_resident_vehicle,note?}` (ücret TAHSİL EDİLMEZ) |
+| `GET /access-devices` | M,B,S,A | — | `{data:[{id,name,kind,location,heartbeat_interval_sec,offline_after_sec,last_seen_at,last_status,is_active,online,open_incident_id?,open_incident_since?}],valid_kinds}` |
+| `GET /access-devices/incidents` | M,B,S,A | — | `{data:[{id,device_id,device_name,kind,last_seen_at,detected_at,recovered_at?}]}` |
+| `POST /access-devices` | M,B | `name`*,`kind`*(PTS_CAMERA/BARRIER/TURNSTILE/INTERCOM/OTHER),`location`,`heartbeat_interval_sec`(10–3600, vars. 60),`offline_after_sec`(≥2×aralık, vars. 3×) | 201 `{id,device_key,note}` (anahtar bir kez) |
+| `DELETE /access-devices/:id` | M,B | — | `{message,note}` (pasife alır) |
+| `POST /public/devices/heartbeat` | **kimliksiz**, `X-Device-Key` | `status` | `{status:"ok",recovered}` · 401 anahtar tanınmadı/pasif |
 
 ## reservation (8101)
 

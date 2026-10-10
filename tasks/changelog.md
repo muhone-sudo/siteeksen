@@ -12,6 +12,25 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-10 — GEÇİŞ CİHAZI CANLILIK İZLEME VE ÇEVRİMDIŞI ALARMI (migration 057, Apsiyon BUG-08) (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **1240/1240** (adım 15: cihaz kaydında anahtar bir kez gösterildi, yalnızca SHA-256 özeti
+> saklandı; geçersiz tür ve tek aralıklık eşik 422, sakin 403; anahtarsız/yanlış anahtarlı sinyal 401, doğru anahtarla
+> çevrimiçi; son sinyal 10 dk öncesine çekilince bekçi (1 sn) olay açtı ve bildirim üretti, sonraki turlarda ikinci olay/
+> bildirim yok; sinyal dönünce olay kapandı ve "yeniden çevrimiçi" bildirimi gitti; olay geçmişi uygulama rolüyle
+> silinemiyor; pasif cihazın sinyali 401; gateway kimliksiz yol listesi birim testi; rota tutarlılığı 361 rota; RLS 113);
+> panel tsc/lint temiz.
+
+- `access_devices` (PTS kamerası, bariyer, turnike, kapı telefonu) ve `device_incidents` (silinemez; cihaz başına tek açık olay).
+- Cihaz `POST /api/v1/public/devices/heartbeat` ucuna `X-Device-Key` ile sinyal gönderir (gateway'de tek kimliksiz yol);
+  site eşlemesi SECURITY DEFINER `device_heartbeat()` ile yapılır, RLS aşılmaz.
+- Bekçi parking servisinde çalışır (`DEVICE_WATCH_INTERVAL`, varsayılan 30 sn): zamanlayıcı saatlik olduğu için 3 dakikalık
+  alarm hedefini karşılayamazdı. Çevrimdışı/yeniden çevrimiçi bildirimi yönetim + görevliye gider (`notify.Operations`).
+  Pasif sitelerin cihazları izlenmez.
+- Panel: Otopark → Cihazlar (durum, son sinyal, olaylar, cihaz ekleme ve anahtarın bir kez gösterimi, pasife alma).
+- **Yapılmadı:** mobilden bariyer açma. Cihaz üreticisinin komut protokolü olmadan "açıldı" demek sakini kapıda bırakırdı;
+  donanım bilgisi kullanıcıdan bekleniyor.
+
 ### 2026-10-10 — SAYAÇ DEĞİŞİM PROTOKOLÜ, TÜKETİM SAPMASI TEYİDİ, YAYIMLANAN TÜKETİM PUSULASI (migration 056, Apsiyon BUG-07) (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **1229/1229** (adım 23: okuma ucunda "sayaç değişti" ile endeks sıfırlama 422 ve değişim

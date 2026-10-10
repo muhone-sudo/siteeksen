@@ -183,7 +183,9 @@ func isPublicPath(p string) bool {
 		return true
 	}
 	// Borcu yoktur belgesinin kimliksiz doğrulaması (055): yalnızca site adı, bölüm ve tarih döner.
-	return strings.HasPrefix(p, "/api/v1/auth/") || strings.HasPrefix(p, "/api/v1/public/clearance/")
+	// Geçiş cihazı canlılık sinyali (057): cihaz kendi anahtarıyla (X-Device-Key) doğrulanır.
+	return strings.HasPrefix(p, "/api/v1/auth/") || strings.HasPrefix(p, "/api/v1/public/clearance/") ||
+		p == "/api/v1/public/devices/heartbeat"
 }
 
 // authMiddleware — gateway'in kimlik kapısı.
@@ -329,7 +331,7 @@ func main() {
 		{meetingURL, []string{"/api/v1/meetings", "/api/v1/action-items"}},
 		{npsURL, []string{"/api/v1/nps"}},
 		{packageURL, []string{"/api/v1/packages", "/api/v1/packages-summary"}},
-		{parkingURL, []string{"/api/v1/vehicles", "/api/v1/parking-zones", "/api/v1/parking-logs"}},
+		{parkingURL, []string{"/api/v1/vehicles", "/api/v1/parking-zones", "/api/v1/parking-logs", "/api/v1/access-devices", "/api/v1/public/devices"}},
 		{patrolURL, []string{"/api/v1/patrols", "/api/v1/patrols-summary", "/api/v1/patrol-routes",
 			"/api/v1/patrol-checkpoints"}},
 		{personnelURL, []string{"/api/v1/employees", "/api/v1/leaves", "/api/v1/compliance-calendar", "/api/v1/payroll"}},
