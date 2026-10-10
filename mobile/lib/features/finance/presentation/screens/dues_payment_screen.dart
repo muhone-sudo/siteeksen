@@ -19,6 +19,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/network/api_client.dart';
 import '../../../../core/theme/apple_theme.dart';
@@ -522,6 +523,11 @@ class _DuesPaymentScreenState extends State<DuesPaymentScreen> {
       );
       if (!mounted) return;
       setState(() => _submitting = false);
+      final checkout = (result['checkout_url'] ?? '').toString();
+      if (checkout.isNotEmpty) {
+        await _runCardCheckout('${result['payment_id']}', checkout, result);
+        return;
+      }
       _showPaymentResult(result);
     } catch (e) {
       if (!mounted) return;
@@ -538,6 +544,87 @@ class _DuesPaymentScreenState extends State<DuesPaymentScreen> {
         ),
       );
     }
+  }
+
+  /// Kartla ödeme (Apsiyon BUG-09): iyzico ödeme sayfası tarayıcıda açılır (kart bilgisi ve
+  /// 3D Secure orada girilir; uygulamaya kart bilgisi gelmez). Uygulama sonucu sunucudan sorar:
+  /// "işlemde" iken beyaz ekran yerine durum gösterilir, ret olursa bankanın Türkçe nedeni yazar.
+  Future<void> _runCardCheckout(String paymentId, String url, Map<String, dynamic> result) async {
+    final opened = await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+    if (!mounted) return;
+    if (!opened) {
+      _showCardOutcome('FAILED', 'Ödeme sayfası açılamadı; tutar çekilmedi. Lütfen yeniden deneyin.');
+      return;
+    }
+    final status = ValueNotifier<String>('Ödeme sayfasında işlemi tamamlayın. Sonuç burada görünecek…');
+    var done = false;
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Ödeme işlemde'),
+        content: ValueListenableBuilder<String>(
+          valueListenable: status,
+          builder: (_, v, __) => Column(mainAxisSize: MainAxisSize.min, children: [
+            const LinearProgressIndicator(),
+            const SizedBox(height: 12),
+            Text(v),
+            if ((result['note'] ?? '').toString().isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text('${result['note']}', style: const TextStyle(fontSize: 12, color: AppleTheme.secondaryLabel)),
+            ],
+          ]),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              done = true;
+              Navigator.pop(ctx);
+              _load();
+            },
+            child: const Text('Arka planda bekle'),
+          ),
+        ],
+      ),
+    );
+    // Sonuç sunucuda kesinleşir (iyzico dönüşü ya da uzlaştırma); burada yalnızca okunur.
+    for (var i = 0; i < 120 && !done; i++) {
+      await Future<void>.delayed(const Duration(seconds: 3));
+      if (done || !mounted) return;
+      try {
+        final s = await apiClient.getPaymentStatus(paymentId);
+        final st = '${s['status']}';
+        if (st == 'COMPLETED' || st == 'FAILED') {
+          done = true;
+          if (!mounted) return;
+          Navigator.of(context, rootNavigator: true).pop();
+          _showCardOutcome(st, st == 'COMPLETED' ? 'Ödemeniz alındı ve borcunuzdan düşüldü.' : '${s['error_message'] ?? 'Ödeme tamamlanamadı.'}');
+          return;
+        }
+        status.value = s['gateway_status'] == 'PROCESSING' ? 'Banka sonucu sorgulanıyor…' : 'Ödeme sayfasında işlemi tamamlayın. Sonuç burada görünecek…';
+      } catch (_) {
+        status.value = 'Bağlantı bekleniyor; ödemeniz sunucuda güvende, sonuç kendiliğinden güncellenecek.';
+      }
+    }
+  }
+
+  void _showCardOutcome(String status, String message) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(status == 'COMPLETED' ? 'Ödeme alındı' : 'Ödeme tamamlanamadı'),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _load();
+            },
+            child: const Text('Tamam'),
+          ),
+        ],
+      ),
+    );
   }
 
   /// Ödeme sonucu diyalogu.

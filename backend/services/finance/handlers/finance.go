@@ -219,8 +219,20 @@ func CreatePayment(svc *service.FinanceService) gin.HandlerFunc {
 		}
 
 		userID := c.GetString("user_id")
-		result, err := svc.CreatePayment(c.Request.Context(), c.GetString("property_id"), userID, req.AssessmentIDs, req.PaymentMethod, req.CardToken,
-			valueDate, strings.TrimSpace(req.Reference))
+		var result *service.PaymentResult
+		var err error
+		if req.PaymentMethod == "CREDIT_CARD" && svc.CardReady() {
+			// Kartla ödeme (060): iyzico ödeme sayfası; kart bilgisi bu sisteme gelmez.
+			result, err = svc.StartCardPayment(c.Request.Context(), c.GetString("property_id"), userID, req.AssessmentIDs, c.ClientIP())
+			if errors.Is(err, service.ErrCardUnavailable) {
+				c.JSON(http.StatusBadGateway, gin.H{"error": err.Error(), "code": "CARD_GATEWAY",
+					"note": "Kartınızdan tutar çekilmedi. Gecikme tazminatı bu denemenin gününe göre hesaplanır; birazdan yeniden deneyebilirsiniz."})
+				return
+			}
+		} else {
+			result, err = svc.CreatePayment(c.Request.Context(), c.GetString("property_id"), userID, req.AssessmentIDs, req.PaymentMethod, req.CardToken,
+				valueDate, strings.TrimSpace(req.Reference))
+		}
 		if err != nil {
 			// Hata eşlemesi (2026-09-09): Önceki sürüm her hatayı `err.Error()` ile ham metin
 			// olarak döndürüyordu; bu, PostgreSQL hata mesajlarıyla tablo/sütun/kısıt adlarını

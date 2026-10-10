@@ -8,6 +8,7 @@
 #                   (isteğe bağlı: pii-encryption-key-id, pii-encryption-previous-keys)
 #   storage       : endpoint, region, bucket, access-key-id, secret-access-key
 #   notify        : (isteğe bağlı) netgsm-usercode, netgsm-password, netgsm-msgheader, smtp-host, smtp-port, smtp-username, smtp-password, smtp-from
+#   payment       : (isteğe bağlı) iyzico-api-key, iyzico-secret-key, iyzico-base-url, iyzico-callback-url, payment-result-url, public-verify-base-url
 #
 # Sıra: önce k8s/migrate-job.yaml tamamlanmalı (şemayı günceller ve rol
 # parolalarını atar), sonra bu dosya. CI bu sırayı uygular.
@@ -250,6 +251,42 @@ spec:
                 secretKeyRef:
                   name: notify
                   key: smtp-from
+                  optional: true
+            - name: IYZICO_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: payment
+                  key: iyzico-api-key
+                  optional: true
+            - name: IYZICO_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: payment
+                  key: iyzico-secret-key
+                  optional: true
+            - name: IYZICO_BASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: payment
+                  key: iyzico-base-url
+                  optional: true
+            - name: IYZICO_CALLBACK_URL
+              valueFrom:
+                secretKeyRef:
+                  name: payment
+                  key: iyzico-callback-url
+                  optional: true
+            - name: PAYMENT_RESULT_URL
+              valueFrom:
+                secretKeyRef:
+                  name: payment
+                  key: payment-result-url
+                  optional: true
+            - name: PUBLIC_VERIFY_BASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: payment
+                  key: public-verify-base-url
                   optional: true
           resources:
             requests:

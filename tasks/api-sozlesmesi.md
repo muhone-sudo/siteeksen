@@ -85,6 +85,9 @@ Giriş kilidi: art arda 5 hatalı girişte hesap 15 dk kilitlenir (kilitliyken d
 | `POST /finance/payments/:id/confirm` | M,B | `reference` | `{message}` · 404/409/403 |
 | `POST /finance/payments/:id/reject` | M,B | — | `{message}` · 404/409 |
 | `POST /finance/late-fees/accrue` | M,B | `as_of` | `{as_of,monthly_rate,legal_basis,processed_count,total_fee_kurus,total_fee_try,skipped_not_due}` |
+| `POST /finance/payments` (`payment_method:"CREDIT_CARD"`, iyzico yapılandırılmışsa) | sakin | `assessment_ids`* | `{payment_id,amount,status:"PENDING",payment_gateway_ready:true,checkout_url,gateway_status:"INITIATED",value_date,note}` · 502 `{code:"CARD_GATEWAY"}` ödeme sayfası açılamadı |
+| `GET /finance/payments/:id/status` | sahibi ya da M,B,A | — | `{payment_id,status,gateway_status,amount_kurus,error_code?,error_message?,failure_kind?(CARD/SYSTEM),value_date,created_at,completed_at?}` |
+| `POST /public/payments/iyzico/callback` | **kimliksiz** (iyzico) | form `token` | `PAYMENT_RESULT_URL` varsa 303, yoksa `{payment_id,status,message}` · 404 jeton tanınmadı |
 | `GET /finance/credit-notes` · `/:id/pdf` | herkes (sakin: kendi aktif daireleri) | — | `{data:[{id,document_no,assessment_id,unit_id,unit,period,amount_kurus,reason,created_by_name,created_at,reversed_at?,reversal_reason?}]}` · PDF |
 | `POST /finance/credit-notes` | M,B | `assessment_id`*,`amount_try`*,`reason`*(≥5) | 201 `{credit_note,note}` · 422 kalan borç/anaparayı aşıyor |
 | `POST /finance/credit-notes/:id/reverse` | M,B | `reason`*(≥5) | `{message,note}` · 409 zaten ters kaydı yapılmış |

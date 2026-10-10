@@ -12,6 +12,34 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-10 — KARTLA ÖDEME: iyzico ÖDEME FORMU, 3D SECURE DÖNÜŞÜ, DURUM MAKİNESİ (migration 060, TEST_RAPORU 2.5, Apsiyon BUG-09) (DOĞRULANMIŞ — sahte sağlayıcıyla)
+
+> **Kanıt:** `verify-stack.sh` → **1269/1269** (adım 48, IYZWSv2 imzasını DOĞRULAYAN sahte iyzico sunucusuyla: `pkg/iyzico`
+> birim testleri; yarım yapılandırmada servis açılmıyor; ödeme başlatma imzalı, kuruştan tutar, sanal sepet, kart bilgisi bu
+> sisteme gelmiyor, ödeme PENDING/INITIATED; kart reddinde sonuç iyzico'dan yeniden sorgulandı, Türkçe neden ("Kartınızın limiti
+> yetersiz."), borç değişmedi, ikinci geri dönüş aynı sonuç, tarayıcı sonuç sayfasına 303; başarılı ödemede borç kapandı ve
+> tahsilat defterine iyzico kimliğiyle yazıldı; bilinmeyen jeton 404; tutar uyuşmazlığında borç düşmedi; sonuç sorgulanamayınca
+> PROCESSING kaldı, uzlaştırma bekçisi zaman aşımıyla kapattı; 3D Secure tamamlanmayan denemeden sonra yeni deneme ilk günün
+> valörünü aldı, gecikme tazminatı 6,67'den 6,00'a indi; ödeme sayfası açılamayınca 502 ve kayıt PENDING bırakılmadı);
+> `verify-mobile.sh` 10/10; panel tsc/lint temiz. **Gerçek çekim, kullanıcının iyzico (sandbox/canlı) anahtarlarıyla denenmedi.**
+
+- `pkg/iyzico`: Ödeme Formu (Checkout Form) istemcisi, IYZWSv2 imzası, yalnızca stdlib. Kart bilgisi ve 3D Secure iyzico'nun
+  sayfasında girilir (PCI-DSS kapsamı sağlayıcıda).
+- Durum makinesi: INITIATED → PROCESSING → SUCCEEDED | FAILED | EXPIRED. Ödeme sonuçlanana kadar PENDING kalır ve
+  gecikme tazminatı deneme gününde durur (053 valör mekanizması).
+- Geri dönüş (`POST /api/v1/public/payments/iyzico/callback`, kimliksiz): sonuç geri dönüş gövdesinden DEĞİL, jetonla
+  iyzico'dan yeniden sorgulanır; çekilen tutar ve sepet kimliği doğrulanır; idempotent. Başarılı ödeme borçtan düşer ve
+  tahsilat defterine yazılır (ödeme onayıyla aynı işlem).
+- Ret nedenleri Türkçe ve CARD (kart/banka reddi) ya da SYSTEM (zaman aşımı, sağlayıcı hatası) olarak sınıflanır. SİSTEM
+  kaynaklı başarısızlıktan sonraki iki gün içinde yapılan yeni deneme ilk denemenin gününü valör alır: kullanıcı sistem
+  hatasının faizini ödemez.
+- Uzlaştırma bekçisi (`CARD_RECONCILE_INTERVAL`/`CARD_RECONCILE_AGE`): sonucu gelmeyen ödeme havada kalmaz.
+- `GET /finance/payments/:id/status`; panelde herkese açık `/odeme-sonuc` sayfası; sakin uygulaması ödeme sayfasını
+  tarayıcıda açıp sonucu sunucudan sorar ("işlemde" / Türkçe ret nedeni) — beyaz ekran yok.
+- Dağıtım: `IYZICO_*`, `PAYMENT_RESULT_URL`, `PUBLIC_VERIFY_BASE_URL` (compose, k8s `payment` gizli değeri, `.env.example`).
+- iyzico alıcı kimlik numarası zorunludur; sakinlerin TCKN'si tutulmadığı için iyzico'nun kabul ettiği yer tutucu gönderilir
+  (iyzico hesabında bu kullanımın onaylanması kullanıcı listesinde).
+
 ### 2026-10-10 — ALACAK DEKONTU VE BANKA EKSTRESİ MUTABAKATI (migration 059, Apsiyon BUG-12) (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **1258/1258** (adım 47: ekstre ayrıştırma birim testleri; dekont: sakin 403, kalan borcu aşan

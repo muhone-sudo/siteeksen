@@ -645,7 +645,8 @@ S-21 → VERBİS opsiyonel, yükümlülük site yönetiminde; S-19 ve iOS → ol
 - [x] T2 m² zorunlu + paylaştırma öncesi eksik alan listesi (TEST 2.2) — 049, verify 1177/1177
 - [x] T3 kargo teslim imzası/fotoğrafı depolamaya (TEST 2.3) — 052, verify 1188/1188, mobil 10/10
 - [x] T4 SMS (Netgsm) + SMTP adaptörü (TEST 2.4) — sahte sağlayıcıyla uçtan uca (verify 1192/1192); gerçek gönderim için kullanıcı hesap bilgisi girecek
-- [ ] T5 sanal POS (iyzico) + 3D Secure dönüşü + ödeme durumu (TEST 2.5, BUG-09) — gerçek çekim kullanıcının anahtarıyla
+- [x] T5 sanal POS (iyzico) + 3D Secure dönüşü + ödeme durumu (TEST 2.5, BUG-09) — 060, sahte iyzico ile verify 1269/1269, mobil 10/10
+- [ ] T5b iyzico sandbox anahtarıyla gerçek uçtan uca deneme — KULLANICI anahtarı bekliyor (kod hazır)
 - [x] T6 PDF/Excel rapor motoru (TEST 2.6) — verify 1197/1197, mobil 10/10
 - [x] T7 bütçe kesinleştirme — 7579 sonrası durum kanıtı (TEST 2.7) + projeden tahakkuk (050), verify 1182/1182
 - [x] T8 ziyaretçi PIN/QR + hızlı doğrulama (TEST 2.8) — 051, verify 1182/1182, mobil 10/10

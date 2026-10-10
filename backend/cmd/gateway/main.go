@@ -184,8 +184,9 @@ func isPublicPath(p string) bool {
 	}
 	// Borcu yoktur belgesinin kimliksiz doğrulaması (055): yalnızca site adı, bölüm ve tarih döner.
 	// Geçiş cihazı canlılık sinyali (057): cihaz kendi anahtarıyla (X-Device-Key) doğrulanır.
+	// Kart ödemesi geri dönüşü (060): iyzico tarayıcıyı jetonla gönderir; sonuç sağlayıcıdan yeniden sorgulanır.
 	return strings.HasPrefix(p, "/api/v1/auth/") || strings.HasPrefix(p, "/api/v1/public/clearance/") ||
-		p == "/api/v1/public/devices/heartbeat"
+		p == "/api/v1/public/devices/heartbeat" || p == "/api/v1/public/payments/iyzico/callback"
 }
 
 // authMiddleware — gateway'in kimlik kapısı.
@@ -314,7 +315,7 @@ func main() {
 		prefixes []string
 	}{
 		{identityURL, []string{"/api/v1/auth", "/api/v1/users", "/api/v1/residents", "/api/v1/units", "/api/v1/property-roles", "/api/v1/property"}},
-		{financeURL, []string{"/api/v1/finance", "/api/v1/public/clearance"}},
+		{financeURL, []string{"/api/v1/finance", "/api/v1/public/clearance", "/api/v1/public/payments"}},
 		{communityURL, []string{"/api/v1/announcements", "/api/v1/requests", "/api/v1/kvkk-requests", "/api/v1/renovations", "/api/v1/violations", "/api/v1/site-rules", "/api/v1/emergency", "/api/v1/client-errors"}},
 		{iotURL, []string{"/api/v1/meters", "/api/v1/meter-readings", "/api/v1/consumption",
 			"/api/v1/sensors", "/api/v1/iot"}},

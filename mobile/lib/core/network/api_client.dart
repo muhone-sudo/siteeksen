@@ -378,6 +378,12 @@ class ApiClient {
     return response.data;
   }
 
+  /// Kart ödemesinin durumu (060): PENDING (işlemde) → COMPLETED | FAILED (Türkçe neden).
+  Future<Map<String, dynamic>> getPaymentStatus(String paymentId) async {
+    final response = await _dio.get('/finance/payments/$paymentId/status');
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
   // Consumption
   Future<Map<String, dynamic>> getConsumptionSummary({String? meterType}) async {
     final response = await _dio.get('/finance/consumption/summary', queryParameters: {

@@ -230,6 +230,14 @@ def compose():
                     "      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-}",
                     "      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-}",
                     "      S3_FORCE_PATH_STYLE: ${S3_FORCE_PATH_STYLE:-}"]
+        if directory == "finance":
+            # Kartla ödeme (060): dördü birlikte verilmeli; hiçbiri yoksa kart ödemesi "bağlı değil" döner.
+            out += ["      IYZICO_API_KEY: ${IYZICO_API_KEY:-}",
+                    "      IYZICO_SECRET_KEY: ${IYZICO_SECRET_KEY:-}",
+                    "      IYZICO_BASE_URL: ${IYZICO_BASE_URL:-}",
+                    "      IYZICO_CALLBACK_URL: ${IYZICO_CALLBACK_URL:-}",
+                    "      PAYMENT_RESULT_URL: ${PAYMENT_RESULT_URL:-}",
+                    "      PUBLIC_VERIFY_BASE_URL: ${PUBLIC_VERIFY_BASE_URL:-}"]
         if directory in STORAGE_SERVICES:
             # Aynı birim: kargo teslim kanıtı da belge deposuna yazılır (anahtar öneki packages/).
             out += ["    volumes:", "      - document_files:/data/files"]
@@ -410,6 +418,7 @@ SECRETS_DOC = ["#",
                "#                   (isteğe bağlı: pii-encryption-key-id, pii-encryption-previous-keys)",
                "#   storage       : endpoint, region, bucket, access-key-id, secret-access-key",
     "#   notify        : (isteğe bağlı) netgsm-usercode, netgsm-password, netgsm-msgheader, smtp-host, smtp-port, smtp-username, smtp-password, smtp-from",
+    "#   payment       : (isteğe bağlı) iyzico-api-key, iyzico-secret-key, iyzico-base-url, iyzico-callback-url, payment-result-url, public-verify-base-url",
                "#",
                "# Sıra: önce k8s/migrate-job.yaml tamamlanmalı (şemayı günceller ve rol",
                "# parolalarını atar), sonra bu dosya. CI bu sırayı uygular."]
@@ -474,6 +483,13 @@ def k8s():
             # Döndürme sırasında doldurulur; yoksa birincil kimlik "k1", eski anahtar yok.
             env += k8s_env_secret("PII_ENCRYPTION_KEY_ID", "app-secrets", "pii-encryption-key-id", optional=True)
             env += k8s_env_secret("PII_ENCRYPTION_PREVIOUS_KEYS", "app-secrets", "pii-encryption-previous-keys", optional=True)
+        if directory == "finance":
+            # Kartla ödeme (060): isteğe bağlı "payment" gizli değeri. İki kopyanın uzlaştırma
+            # bekçisi aynı ödemeyi sorsa da kapanış idempotenttir (satır kilidi + PENDING koşulu).
+            for var, key in (("IYZICO_API_KEY", "iyzico-api-key"), ("IYZICO_SECRET_KEY", "iyzico-secret-key"),
+                             ("IYZICO_BASE_URL", "iyzico-base-url"), ("IYZICO_CALLBACK_URL", "iyzico-callback-url"),
+                             ("PAYMENT_RESULT_URL", "payment-result-url"), ("PUBLIC_VERIFY_BASE_URL", "public-verify-base-url")):
+                env += k8s_env_secret(var, "payment", key, optional=True)
         if directory in STORAGE_SERVICES:
             # Kümede yerel disk kalıcı değildir; belge servisi S3 uyumlu depolama
             # ister ve yapılandırma eksikse AÇILMAZ (sessiz dosya kaybı olmasın).

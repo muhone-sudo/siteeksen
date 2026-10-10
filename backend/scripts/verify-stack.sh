@@ -7418,6 +7418,181 @@ case "$BC1" in *"|200") BC1OK=1 ;; *) BC1OK=0 ;; esac
   || bad "ekstre onayı: $BC1 / $BCDB / $BLG / $BC2 / $BC3 / $BC4"
 kill_tree "$FADJ_PID"
 
+step "48) Kartla ödeme: iyzico ödeme formu, 3D Secure dönüşü, durum makinesi (060, TEST_RAPORU 2.5, Apsiyon BUG-09)"
+# Gerçek çekim kullanıcının iyzico hesabıyla yapılır; burada iyzico API biçimini ve IYZWSv2 imzasını
+# DOĞRULAYAN yerel sahte sunucuya karşı uçtan uca sınanır.
+if go test ./pkg/iyzico/ -count=1 >/tmp/verify-iyzico.log 2>&1; then
+  ok "go test ./pkg/iyzico (IYZWSv2 imzası, kuruştan tutar metni, ret kodu sınıflandırma, yarım yapılandırma reddi)"
+else
+  bad "go test ./pkg/iyzico"; tail -15 /tmp/verify-iyzico.log
+fi
+cat >/tmp/fake-iyzico.py <<'PYEOF'
+import http.server, json, sys, base64, hmac, hashlib, os
+SECRET, KEY, STATE = b'sandbox-sk', 'sandbox-ak', {'n': 0, 'tok': {}}
+def mode(name, default):
+    try: return open(name).read().strip() or default
+    except FileNotFoundError: return default
+class H(http.server.BaseHTTPRequestHandler):
+    def do_POST(self):
+        body = self.rfile.read(int(self.headers.get('Content-Length', 0)))
+        rnd = self.headers.get('x-iyzi-rnd', '')
+        auth = base64.b64decode(self.headers.get('Authorization', 'IYZWSv2 ')[8:] or b'').decode()
+        parts = dict(p.split(':', 1) for p in auth.split('&') if ':' in p)
+        sig = hmac.new(SECRET, (rnd + self.path).encode() + body, hashlib.sha256).hexdigest()
+        ok = parts.get('apiKey') == KEY and parts.get('randomKey') == rnd and hmac.compare_digest(parts.get('signature', ''), sig)
+        req = json.loads(body or b'{}')
+        with open('/tmp/fake-iyzico.log', 'a') as f:
+            f.write(json.dumps({'path': self.path, 'sig_ok': ok, 'body': req}) + '\n')
+        if not ok:
+            out = {'status': 'failure', 'errorCode': '1001', 'errorMessage': 'imza geçersiz'}
+        elif self.path.endswith('/initialize/auth/ecom'):
+            if mode('/tmp/fake-iyzico-init', 'OK') == 'FAIL':
+                out = {'status': 'failure', 'errorCode': '5013', 'errorMessage': 'Geçersiz istek'}
+            else:
+                STATE['n'] += 1; tok = 'tok-%d' % STATE['n']
+                STATE['tok'][tok] = {'basketId': req['basketId'], 'price': req['paidPrice'], 'n': STATE['n']}
+                out = {'status': 'success', 'token': tok, 'paymentPageUrl': 'https://sandbox-cpp.iyzipay.test/pay/' + tok, 'tokenExpireTime': 1800}
+        else:
+            t = STATE['tok'].get(req.get('token'))
+            m = mode('/tmp/fake-iyzico-mode', 'SUCCESS')
+            if t is None or m == 'APIFAIL':
+                out = {'status': 'failure', 'errorCode': '5139', 'errorMessage': 'Hata'}
+            elif m == 'SUCCESS' or m == 'WRONG_PRICE':
+                price = t['price'] if m == 'SUCCESS' else str(float(t['price']) + 1)
+                out = {'status': 'success', 'paymentStatus': 'SUCCESS', 'paymentId': 'FAKEPAY-%d' % t['n'], 'paidPrice': price, 'basketId': t['basketId']}
+            elif m == 'INIT':
+                out = {'status': 'success', 'paymentStatus': 'INIT_THREEDS', 'basketId': t['basketId']}
+            else:
+                _, code, msg = m.split(':', 2)
+                out = {'status': 'success', 'paymentStatus': 'FAILURE', 'errorCode': code, 'errorMessage': msg, 'basketId': t['basketId']}
+        raw = json.dumps(out).encode()
+        self.send_response(200); self.send_header('Content-Type', 'application/json'); self.send_header('Content-Length', str(len(raw))); self.end_headers()
+        self.wfile.write(raw)
+    def log_message(self, *a): pass
+http.server.HTTPServer(('127.0.0.1', int(sys.argv[1])), H).serve_forever()
+PYEOF
+rm -f /tmp/fake-iyzico.log /tmp/fake-iyzico-mode /tmp/fake-iyzico-init
+python3 /tmp/fake-iyzico.py 18890 >/dev/null 2>&1 &
+FIYZ_PID=$!
+IZ="IYZICO_API_KEY=sandbox-ak IYZICO_SECRET_KEY=sandbox-sk IYZICO_BASE_URL=http://127.0.0.1:18890 IYZICO_CALLBACK_URL=http://127.0.0.1:8888/api/v1/public/payments/iyzico/callback"
+# Yarım yapılandırma servisi açmaz
+IYZICO_API_KEY=x DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_app DB_PASSWORD="$APPPW" DB_NAME=siteeksen \
+  DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=18883 timeout 60 go run ./services/finance >/tmp/verify-finance-cardbad.log 2>&1
+grep -q 'Kart ödeme yapılandırması hatalı' /tmp/verify-finance-cardbad.log && ok "yarım iyzico yapılandırmasıyla finans servisi açılmıyor" \
+  || bad "yarım iyzico yapılandırması: $(tail -2 /tmp/verify-finance-cardbad.log)"
+env $IZ CARD_RECONCILE_INTERVAL=1s CARD_RECONCILE_AGE=30s PAYMENT_RESULT_URL=https://app.ornek.test/odeme-sonuc \
+  DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_app DB_PASSWORD="$APPPW" DB_NAME=siteeksen \
+  DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=18882 \
+  go run ./services/finance >/tmp/verify-finance-card.log 2>&1 &
+FCRD_PID=$!
+for _ in $(seq 1 60); do curl -fsS http://127.0.0.1:18882/health >/dev/null 2>&1 && break; sleep 1; done
+CF="http://127.0.0.1:18882/api/v1/finance"; CB="http://127.0.0.1:18882/api/v1/public/payments/iyzico/callback"
+newass() { $PSQL -t -A -c "INSERT INTO monthly_assessments (property_id, unit_id, period_year, period_month, base_amount, total_amount, due_date, status)
+  VALUES ('$DEMO_PROPERTY','$U304',2097,$1,$2,$2,CURRENT_DATE + ($3),'PENDING') RETURNING id;" | head -1; }
+cardpay() { curl -s -X POST "$CF/payments" -H "$AT" -H "$J" -d "{\"assessment_ids\":[\"$1\"],\"payment_method\":\"CREDIT_CARD\"}"; }
+pid_of() { echo "$1" | sed -n 's/.*"payment_id":"\([^"]*\)".*/\1/p'; }
+tok_of() { $PSQL -t -A -c "SELECT gateway_token FROM payments WHERE id='$1';"; }
+# 1) Kart reddi: Türkçe neden, borç değişmez, idempotent geri dönüş
+C1=$(newass 1 500 -5)
+echo 'FAILURE:10051:Kartınızın limiti yetersiz.' >/tmp/fake-iyzico-mode
+P1R=$(cardpay "$C1"); P1=$(pid_of "$P1R"); T1=$(tok_of "$P1")
+P1DB=$($PSQL -t -A -c "SELECT status||'|'||gateway_status||'|'||(value_date = CURRENT_DATE)||'|'||round(amount*100)::bigint FROM payments WHERE id='$P1';")
+INIOK=$(python3 -c "
+import json
+rows=[json.loads(l) for l in open('/tmp/fake-iyzico.log')]
+r=[x for x in rows if x['path'].endswith('/initialize/auth/ecom') and x['body']['basketId']=='$P1'][-1]
+b=r['body']; amt=int('$P1DB'.split('|')[3])
+price=('%d.%02d'%(amt//100,amt%100)).rstrip('0'); price=price+'0' if price.endswith('.') else price
+print(r['sig_ok'] and b['paidPrice']==price and b['currency']=='TRY' and b['locale']=='tr' and b['callbackUrl'].endswith('/public/payments/iyzico/callback') and b['basketItems'][0]['itemType']=='VIRTUAL' and 'cardNumber' not in json.dumps(b))" 2>/dev/null)
+ST1=$(curl -s "$CF/payments/$P1/status" -H "$AT")
+echo "$P1R" | grep -q '"payment_gateway_ready":true' && echo "$P1R" | grep -q '"checkout_url":"https://sandbox-cpp.iyzipay.test/pay/tok-' \
+  && [ "$P1DB" != "" ] && [ "${P1DB%|*}" = "PENDING|INITIATED|true" ] && [ "$INIOK" = "True" ] && echo "$ST1" | grep -q '"gateway_status":"INITIATED"' \
+  && ok "kart ödemesi başlatıldı: imzalı (IYZWSv2) istek, kuruştan tutar, sanal sepet, kart bilgisi bu sisteme gelmiyor; ödeme PENDING/INITIATED, gecikme bugün donduruldu" \
+  || bad "kart başlatma: $P1R / $P1DB / imza+gövde=$INIOK / $ST1"
+CB1=$(curl -s -X POST "$CB" -H 'Accept: application/json' --data-urlencode "token=$T1")
+CB1B=$(curl -s -X POST "$CB" -H 'Accept: application/json' --data-urlencode "token=$T1")
+CB1R=$(curl -s -o /dev/null -w '%{http_code}|%{redirect_url}' -X POST "$CB" --data-urlencode "token=$T1")
+F1DB=$($PSQL -t -A -c "SELECT p.status||'|'||p.gateway_status||'|'||p.failure_kind||'|'||p.gateway_error_code||'|'||COALESCE(ma.paid_amount,0)
+  FROM payments p, monthly_assessments ma WHERE p.id='$P1' AND ma.id='$C1';")
+DSIG=$(python3 -c "
+import json
+rows=[json.loads(l) for l in open('/tmp/fake-iyzico.log')]
+print(all(r['sig_ok'] for r in rows if r['path'].endswith('/detail')) and any(r['body'].get('token')=='$T1' for r in rows))" 2>/dev/null)
+echo "$CB1" | grep -q '"status":"FAILED"' && echo "$CB1" | grep -q 'Kartınızın limiti yetersiz' && [ "$F1DB" = "FAILED|FAILED|CARD|10051|0.00" ] \
+  && [ "$CB1B" = "$CB1" ] && echo "$CB1R" | grep -q '^303|https://app.ornek.test/odeme-sonuc?message=' && echo "$CB1R" | grep -q 'status=FAILED' && [ "$DSIG" = "True" ] \
+  && ok "kart reddi: sonuç iyzico'dan imzalı istekle yeniden sorgulandı, Türkçe neden (limit yetersiz) gösterildi, borç değişmedi; ikinci geri dönüş aynı sonucu verdi; tarayıcı sonuç sayfasına yönlendirildi" \
+  || bad "kart reddi: $CB1 / $F1DB / tekrar=$CB1B / yönlendirme=$CB1R / imza=$DSIG"
+# 2) Başarılı ödeme: borç düşer, tahsilat defterine yazılır
+echo 'SUCCESS' >/tmp/fake-iyzico-mode
+P2=$(pid_of "$(cardpay "$C1")"); T2=$(tok_of "$P2")
+CB2=$(curl -s -X POST "$CB" -H 'Accept: application/json' --data-urlencode "token=$T2")
+S2DB=$($PSQL -t -A -c "SELECT p.status||'|'||p.gateway_status||'|'||ma.status||'|'||(ma.paid_amount = p.amount)
+  FROM payments p, monthly_assessments ma WHERE p.id='$P2' AND ma.id='$C1';")
+S2LG=$($PSQL -t -A -c "SELECT entry_type||'|'||(detail->>'reference') FROM finance_ledger WHERE payment_id='$P2';")
+LV2=$(curl -s "$CF/ledger/verify" -H "$AT" | grep -c '"valid":true')
+echo "$CB2" | grep -q '"status":"COMPLETED"' && [ "$S2DB" = "COMPLETED|SUCCEEDED|PAID|true" ] && echo "$S2LG" | grep -q '^PAYMENT_CONFIRMED|iyzico:FAKEPAY-' && [ "$LV2" = "1" ] \
+  && ok "başarılı kart ödemesi: borç kapandı, tahsilat defterine iyzico ödeme kimliğiyle yazıldı, zincir geçerli" \
+  || bad "başarılı kart ödemesi: $CB2 / $S2DB / $S2LG / zincir=$LV2"
+U1=$(code -X POST "$CB" -H 'Accept: application/json' --data-urlencode "token=tok-yok")
+U2=$(code -X POST "$CB" -H 'Accept: application/json')
+[ "$U1" = "404" ] && [ "$U2" = "404" ] && ok "bilinmeyen ya da boş jetonla geri dönüş 404 (sahte geri dönüş borç düşüremez)" || bad "bilinmeyen jeton: $U1 / $U2"
+# 3) Tutar/sepet uyuşmazlığı: borç düşmez
+C2=$(newass 2 300 20)
+echo 'WRONG_PRICE' >/tmp/fake-iyzico-mode
+P3=$(pid_of "$(cardpay "$C2")"); T3=$(tok_of "$P3")
+curl -s -o /dev/null -X POST "$CB" -H 'Accept: application/json' --data-urlencode "token=$T3"
+M3=$($PSQL -t -A -c "SELECT p.status||'|'||p.gateway_error_code||'|'||COALESCE(ma.paid_amount,0) FROM payments p, monthly_assessments ma WHERE p.id='$P3' AND ma.id='$C2';")
+[ "$M3" = "FAILED|AMOUNT_MISMATCH|0.00" ] && ok "bankadan dönen tutar ödemeyle uyuşmayınca borç düşürülmedi (AMOUNT_MISMATCH, yönetim incelemesi)" || bad "tutar uyuşmazlığı: $M3"
+# 4) Sağlayıcıya ulaşılamayan sonuç havada kalmaz: uzlaştırma zaman aşımıyla kapatır
+C4=$(newass 4 200 20)
+echo 'APIFAIL' >/tmp/fake-iyzico-mode
+P4=$(pid_of "$(cardpay "$C4")"); T4=$(tok_of "$P4")
+CB4=$(curl -s -X POST "$CB" -H 'Accept: application/json' --data-urlencode "token=$T4")
+G4=$($PSQL -t -A -c "SELECT status||'|'||gateway_status FROM payments WHERE id='$P4';")
+$PSQL -c "UPDATE payments SET created_at = created_at - interval '1 hour' WHERE id='$P4';" >/dev/null
+E4=""
+for _ in $(seq 1 10); do
+  E4=$($PSQL -t -A -c "SELECT status||'|'||gateway_status||'|'||failure_kind||'|'||gateway_error_code FROM payments WHERE id='$P4';")
+  [ "${E4%%|*}" = "FAILED" ] && break; sleep 1
+done
+echo "$CB4" | grep -q '"status":"PENDING"' && [ "$G4" = "PENDING|PROCESSING" ] && [ "$E4" = "FAILED|EXPIRED|SYSTEM|TIMEOUT" ] \
+  && ok "sonuç sorgulanamayınca ödeme PROCESSING kaldı (beyaz ekranda bırakılmadı); uzlaştırma bekçisi süre dolunca sistem kaynaklı zaman aşımıyla kapattı" \
+  || bad "uzlaştırma: $CB4 / $G4 / $E4"
+# 5) 3D Secure tamamlanmadı (sistem kaynaklı) → yeni deneme ilk denemenin gününü devralır; faiz o günde durur
+C3=$(newass 3 400 -10)
+echo 'INIT' >/tmp/fake-iyzico-mode
+P5=$(pid_of "$(cardpay "$C3")")
+$PSQL -c "UPDATE payments SET created_at = created_at - interval '1 hour', value_date = CURRENT_DATE - 1 WHERE id='$P5';" >/dev/null
+E5=""
+for _ in $(seq 1 10); do
+  E5=$($PSQL -t -A -c "SELECT status||'|'||gateway_status||'|'||failure_kind||'|'||gateway_error_code FROM payments WHERE id='$P5';")
+  [ "${E5%%|*}" = "FAILED" ] && break; sleep 1
+done
+echo 'SUCCESS' >/tmp/fake-iyzico-mode
+curl -s -o /dev/null -X POST "$CF/late-fees/accrue" -H "Authorization: Bearer $MGRL" -H "$J" -d '{}'
+LF5=$($PSQL -t -A -c "SELECT late_fee FROM monthly_assessments WHERE id='$C3';")
+P6R=$(cardpay "$C3"); P6=$(pid_of "$P6R"); T6=$(tok_of "$P6")
+V6=$($PSQL -t -A -c "SELECT (value_date = CURRENT_DATE - 1) FROM payments WHERE id='$P6';")
+LF6=$($PSQL -t -A -c "SELECT late_fee FROM monthly_assessments WHERE id='$C3';")
+curl -s -o /dev/null -X POST "$CB" -H 'Accept: application/json' --data-urlencode "token=$T6"
+S6=$($PSQL -t -A -c "SELECT status FROM payments WHERE id='$P6';")
+[ "$E5" = "FAILED|EXPIRED|SYSTEM|3DS_TIMEOUT" ] && [ "$V6" = "t" ] && echo "$P6R" | grep -q 'sistem kaynaklı' && [ "$LF5" = "6.67" ] && [ "$LF6" = "6.00" ] && [ "$S6" = "COMPLETED" ] \
+  && ok "3D Secure tamamlanmayan deneme zaman aşımıyla kapandı; yeni deneme ilk denemenin gününü valör aldı, gecikme tazminatı 10 günden (6,67) o güne (9 gün = 6,00 TL) indi, ödeme tamamlandı" \
+  || bad "sistem hatası faiz koruması: $E5 / valör=$V6 / tazminat=$LF5→$LF6 / $S6 — $P6R"
+# 6) Ödeme sayfası açılamazsa: 502, kayıt sistem kaynaklı başarısız, tutar çekilmedi
+C5=$(newass 5 150 20)
+echo 'FAIL' >/tmp/fake-iyzico-init
+P7R=$(curl -s -w '|%{http_code}' -X POST "$CF/payments" -H "$AT" -H "$J" -d "{\"assessment_ids\":[\"$C5\"],\"payment_method\":\"CREDIT_CARD\"}")
+P7DB=$($PSQL -t -A -c "SELECT p.status||'|'||p.failure_kind FROM payments p JOIN payment_assessments pa ON pa.payment_id=p.id WHERE pa.assessment_id='$C5' ORDER BY p.created_at DESC LIMIT 1;")
+rm -f /tmp/fake-iyzico-init
+P8R=$(cardpay "$C5")
+case "$P7R" in *CARD_GATEWAY*"Geçersiz istek"*"|502") P7OK=1 ;; *) P7OK=0 ;; esac
+OST=$(code "$CF/payments/$P2/status" -H "Authorization: Bearer $MGRL")
+[ "$P7OK" = "1" ] && [ "$P7DB" = "FAILED|SYSTEM" ] && echo "$P8R" | grep -q '"payment_gateway_ready":true' && [ "$OST" = "200" ] \
+  && ok "ödeme sayfası açılamayınca 502 ve 'tutar çekilmedi' notu; kayıt sistem kaynaklı başarısız (PENDING bırakılmadı, yeniden deneme açıldı); yönetim ödeme durumunu görebiliyor" \
+  || bad "başlatma hatası: $P7R / $P7DB / yeniden=$P8R / yönetim=$OST"
+kill_tree "$FCRD_PID"; kill "$FIYZ_PID" 2>/dev/null
+
 step "SONUÇ"
 echo "  Geçen: $PASS   Başarısız: $FAIL"
 [ "$FAIL" -eq 0 ] && { echo "  TÜM KONTROLLER GEÇTİ"; exit 0; } || { echo "  BAŞARISIZ KONTROL VAR"; exit 1; }

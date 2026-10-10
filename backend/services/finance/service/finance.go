@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/siteeksen/backend/pkg/iyzico"
 	"github.com/siteeksen/backend/pkg/legalparams"
 	"github.com/siteeksen/backend/pkg/middleware"
 	"github.com/siteeksen/backend/pkg/money"
@@ -36,6 +37,8 @@ func isFinanceManagement(roles []string) bool {
 type FinanceService struct {
 	repo   *repository.FinanceRepository
 	params *legalparams.Resolver
+	// card: iyzico istemcisi (060); nil ise kartla ödeme yapılamaz ve bu açıkça söylenir.
+	card *iyzico.Client
 }
 
 // NewFinanceService yeni servis oluşturur.
@@ -138,6 +141,8 @@ type PaymentResult struct {
 	// başarılı gibi sonlandırmamalıdır.
 	PaymentGatewayReady bool   `json:"payment_gateway_ready"`
 	CheckoutURL         string `json:"checkout_url,omitempty"`
+	// GatewayStatus: kart ödemesinde INITIATED (ödeme sayfası açıldı) — 060.
+	GatewayStatus string `json:"gateway_status,omitempty"`
 	// ValueDate: beyan edilen ödeme (valör) günü; gecikme tazminatı bu günde durur (053).
 	ValueDate string `json:"value_date,omitempty"`
 	Note      string `json:"note,omitempty"`

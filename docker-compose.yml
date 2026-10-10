@@ -101,6 +101,12 @@ services:
       dockerfile: services/finance/Dockerfile
     environment:
       <<: *app-env
+      IYZICO_API_KEY: ${IYZICO_API_KEY:-}
+      IYZICO_SECRET_KEY: ${IYZICO_SECRET_KEY:-}
+      IYZICO_BASE_URL: ${IYZICO_BASE_URL:-}
+      IYZICO_CALLBACK_URL: ${IYZICO_CALLBACK_URL:-}
+      PAYMENT_RESULT_URL: ${PAYMENT_RESULT_URL:-}
+      PUBLIC_VERIFY_BASE_URL: ${PUBLIC_VERIFY_BASE_URL:-}
     depends_on: *after-migrate
     restart: unless-stopped
 

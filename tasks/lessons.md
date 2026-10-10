@@ -656,3 +656,20 @@ görülmedi; borcu yoktur belgesi testi geri yüklemeden SONRA çalıştığı i
 **Kural:** Geri yükleme varsayılan yetkileri askıya alır (`db-restore.sh`); geri yükleme parmak izi tablo
 ACL'lerini (NULL = `acldefault`) içerir. Yetki koruması sınanırken testin sırası (yedek/geri yükleme
 öncesi mi sonrası mı) göz önüne alınır.
+
+### Ders 47 — Hata yolundaki güncelleme bir kısıta takılırsa kayıt "ara durumda" kalır
+
+Kart ödeme sayfası açılamadığında ödeme FAILED yapılıyordu; ama `gateway` sütunu henüz boştu ve
+`gateway_status IS NULL OR gateway IS NOT NULL` kısıtı güncellemeyi reddetti. Hata yalnızca günlüğe
+yazıldı, ödeme PENDING kaldı ve aynı tahakkuk için yeni denemeyi ("onay bekleyen ödeme var") engelleyecekti.
+HTTP yanıtı doğruydu (502); kusuru yalnızca veritabanı durumunu soran test yakaladı.
+
+**Kural:** Hata/geri alma yolunun testi HTTP kodunu değil kalıcı durumu denetler (satır son hâli +
+"yeniden deneme açık mı"). Durum makinesine yeni kısıt eklerken her geçiş yolunun (başarısızlık dahil)
+kısıtı sağladığı sınanır.
+
+### Ders 48 — psql'de mantıksal değer birleştirilince "t" değil "true" yazar
+
+`SELECT x || '|' || (a = b)` çıktısı `…|true` olur; yalın `SELECT (a = b)` ise `t`. Aynı turda iki kez
+yanlış beklenti yazıldı (A7 ve A12). **Kural:** Birleştirilmiş mantıksal değerde `true/false`, yalın
+sütunda `t/f` beklenir.

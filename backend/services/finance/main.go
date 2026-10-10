@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/siteeksen/backend/pkg/database"
+	"github.com/siteeksen/backend/pkg/iyzico"
 	"github.com/siteeksen/backend/pkg/legalparams"
 	"github.com/siteeksen/backend/pkg/middleware"
 	"github.com/siteeksen/backend/services/finance/handlers"
@@ -27,6 +28,14 @@ func main() {
 	// Mevzuata bağlı oranlar (gecikme tazminatı vb.) veritabanından okunur; koda gömülmez.
 	params := legalparams.New(pool)
 	financeService := service.NewFinanceService(financeRepo, params)
+	// Kartla ödeme (060): iyzico yapılandırması yarımsa servis açılmaz; hiç yoksa kart ödemesi
+	// "sağlayıcı bağlı değil" yanıtıyla döner (payment_gateway_ready:false).
+	card, err := iyzico.FromEnv()
+	if err != nil {
+		log.Fatalf("Kart ödeme yapılandırması hatalı: %v", err)
+	}
+	financeService.SetCardGateway(card)
+	startCardReconcile(financeService)
 
 	// Gin router
 	r := middleware.NewRouter("finance")
@@ -56,6 +65,8 @@ func main() {
 	// -----------------------------------------------------------------------
 	// Borcu yoktur belgesinin kimliksiz doğrulaması (055): banka/tapu memuru karekodu okutur.
 	r.GET("/api/v1/public/clearance/:code", verifyClearance(pool))
+	// iyzico 3D Secure / ödeme formu geri dönüşü (060): kimliksiz; sonuç sağlayıcıdan yeniden sorgulanır.
+	r.POST("/api/v1/public/payments/iyzico/callback", cardCallback(financeService))
 
 	api := r.Group("/api/v1/finance")
 	api.Use(middleware.AuthMiddleware(pool), middleware.AuditLog(pool, "finance"))
@@ -66,6 +77,7 @@ func main() {
 		api.GET("/assessments/:id", handlers.GetAssessmentDetails(financeService))
 		api.POST("/payments", handlers.CreatePayment(financeService))
 		api.GET("/my-payments", handlers.GetMyPayments(financeService))
+		api.GET("/payments/:id/status", cardStatus(financeService))
 		api.GET("/ledger/verify", handlers.VerifyLedger(financeService))
 		// Borcu yoktur belgesi (055): bölümün sakini ya da yönetim.
 		api.POST("/clearance-certificates", createClearance(pool))
