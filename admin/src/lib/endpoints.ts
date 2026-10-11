@@ -52,6 +52,14 @@ export function endpoints(http: Http) {
             changePhone: (id: string, phone: string) => http.post<{ message: string; phone: string; sessions_revoked: boolean; activation: T.Activation; old_phone_notice: string }>(`/residents/${id}/phone`, { phone }),
             unlockLogin: (id: string) => http.post<{ message: string; was_locked: boolean }>(`/residents/${id}/unlock`),
             invitations: () => g<T.List<T.Invitation>>("/residents/invitations"),
+            /** Kiracılığın bitişi — yönetim yolu (069, D4). */
+            tenancyRequests: () => g<T.List<T.TenancyEndRequest> & { attestation_text: string }>("/residents/tenancy-requests"),
+            startTenancyEnd: (form: FormData) => http.upload<{ id: string; status: string; objection_deadline: string; message: string }>("/residents/tenancy-requests", form),
+            addTenancyDocument: (id: string, form: FormData) => http.upload<{ status: string; message: string }>(`/residents/tenancy-requests/${id}/documents`, form),
+            completeTenancyEnd: (id: string) => http.post<{ status: string; message: string }>(`/residents/tenancy-requests/${id}/complete`),
+            cancelTenancyEnd: (id: string, note: string) => http.post<{ status: string; message: string }>(`/residents/tenancy-requests/${id}/cancel`, { note }),
+            reverseTenancyEnd: (id: string, b: { reason: string; password: string }) => http.post<{ status: string; message: string }>(`/residents/tenancy-requests/${id}/reverse`, b),
+            tenancyDocument: (id: string, docId: string, name: string) => http.download(`/residents/tenancy-requests/${id}/documents/${docId}`, name),
             /** Yönetimin daire daveti (D3): dairede aktif kiracı varken kiracı daveti 409. */
             inviteResident: (b: { first_name?: string; last_name?: string; phone: string; email?: string; unit_id: string; role: string }) =>
                 http.post<T.InvitationOutcome>("/residents/invitations", b),

@@ -345,6 +345,39 @@ class ApiClient {
   Future<Map<String, dynamic>> endUnitResident(String unitId, String residentUnitId) async =>
       Map<String, dynamic>.from((await _dio.post('/users/me/units/$unitId/residents/$residentUnitId/end')).data as Map);
 
+  // Kiracılığın bitişi (069, altıncı tur D4)
+  /// Kişinin dairelerindeki bitiş istekleri (kiracı ya da malik/vekil olarak).
+  Future<List<dynamic>> getTenancyRequests() async => _list((await _dio.get('/users/me/tenancy-requests')).data);
+
+  /// Malik kiracılığın bitmesini ister; kiracı onaylamadan bitmez.
+  Future<Map<String, dynamic>> requestTenancyEnd(String unitId, String reason) async => Map<String, dynamic>.from(
+      (await _dio.post('/users/me/units/$unitId/tenancy-end', data: {'reason': reason})).data as Map);
+
+  /// Kiracı kendi çıkışını bildirir (hemen biter).
+  Future<Map<String, dynamic>> tenancyExit(String unitId, String reason) async => Map<String, dynamic>.from(
+      (await _dio.post('/users/me/units/$unitId/tenancy-exit', data: {'reason': reason})).data as Map);
+
+  /// Kiracı isteği onaylar ya da reddeder.
+  Future<Map<String, dynamic>> respondTenancyRequest(String id, bool approve, {String note = ''}) async =>
+      Map<String, dynamic>.from((await _dio.post('/users/me/tenancy-requests/$id/${approve ? 'approve' : 'decline'}',
+              data: {'note': note}))
+          .data as Map);
+
+  /// Kiracı yönetim yoluna 7 gün içinde itiraz eder (işlem askıya alınır).
+  Future<Map<String, dynamic>> objectTenancyRequest(String id, String reason) async => Map<String, dynamic>.from(
+      (await _dio.post('/users/me/tenancy-requests/$id/object', data: {'reason': reason})).data as Map);
+
+  /// Malik kendi isteğini geri çeker.
+  Future<Map<String, dynamic>> cancelTenancyRequest(String id) async =>
+      Map<String, dynamic>.from((await _dio.post('/users/me/tenancy-requests/$id/cancel')).data as Map);
+
+  /// Yönetim yolu belgesi (yalnız kiracı).
+  Future<List<int>> tenancyDocument(String id, String docId) async {
+    final response = await _dio.get<List<int>>('/users/me/tenancy-requests/$id/documents/$docId',
+        options: Options(responseType: ResponseType.bytes, headers: {'Accept': '*/*'}));
+    return response.data ?? const <int>[];
+  }
+
   // Finance
   /// Borcu yoktur belgesi üretir (055); vadesi geçmiş borç varsa sunucu 422 ve kalemleri döner.
   Future<Map<String, dynamic>> createClearance(String unitId) async {

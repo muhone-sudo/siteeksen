@@ -12,6 +12,28 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-11 — KİRACILIĞIN BİTİŞİ: KİRACI ONAYI, KENDİ ÇIKIŞI, YÖNETİM YOLU (migration 069, altıncı tur D4) (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **1341/1341** (adım 60: malik isteği — ikinci açık istek 409, malik olmayan 403 —, kiracı reddetti
+> kiracılık sürdü, yönetim doğrudan pasifleştiremedi 409; kiracı onayladı, kiracılık bugün bitti, hanesi bitti, daire boş;
+> kiracının çıkışı açık malik isteğini kapattı, maliklere haber verildi; yönetim yolu — dairenin maliki olan yönetici 403,
+> beyansız 422, yanlış şifre 400, metin dosyası 422, UYAP kodsuz belgeyle başladı, beyan/IP/özet kayıtlı, 7 günlük pencere,
+> ikinci yol 409 —; kiracı belgeyi indirdi, malik indiremedi; süre dolmadan tamamlanamadı; itirazla askı; yeni belgeyle yeni
+> pencere; süre dolunca itiraz 409, tamamlandı; sahte çıkınca şifreyle geri alındı, aynı kayıtla açıldı; olay kaydı eksiksiz;
+> kimlik rolü akış dışında kiracıyı pasifleştiremedi, olay kaydı silinemedi, uygulama rolü erişemedi). Adım 36: RLS 122 tablo.
+> `verify-mobile.sh` 10/10; panel tsc/lint temiz.
+
+- Kullanıcı kararları: malik isteği kiracının onayı olmadan sonuçlanmaz; yönetim yolunda UYAP kodu isteğe bağlı (kodsuz belgeler
+  de var), 1 hafta itiraz ve kimlik bilgisiyle onay. Varsayılanlar: V1 kiracı kendi çıkışını yapar; V2 itirazda askı, başlatan
+  dairenin maliki/vekili olamaz, geri alma; V7 ikinci onaycı zorunlu değil; V8 kiracılık bitince daire boş.
+- 069: `tenancy_end_requests`, `tenancy_end_documents`, `tenancy_end_events` (yalnız kimlik servisi, RLS, silme yok, olaylar
+  `clock_timestamp` ile sıralı). Aktif kiracı bağı yalnız akışın açtığı `siteeksen.tenancy_end` ayarıyla pasifleşir (tetikleyici;
+  `PATCH /residents/:id` 409); kiracı ayrılınca hanesi biter.
+- Kimlik servisi artık `pkg/storage` kullanır (gen-deploy `STORAGE_SERVICES`); depo yoksa yönetim yolu 503. Kimlik servisi bildirim
+  tablosuna yazamadığı için taraflara SMS/e-posta doğrudan gider, sonuç sayaçlarla döner; uygulamada istek listesi var.
+- Panel: Sakinler sayfasında "Kiracılık bitişleri" (yönetim yolu, yeni belge, tamamla, iptal, geri al, belge indirme, olay kaydı).
+  Sakin uygulaması: "Kiracılık işlemleri" ekranı (onay/ret/itiraz, belgeyi açma, geri çekme); daire ekranında "Kiracılığın bitmesini
+  iste" (malik) ve "Çıkışımı bildir" (kiracı).
 ### 2026-10-11 — KAYIT VE DAVET: TEK KİRACI, KODLA KATILIM, HANE ÜYESİ (migration 068, altıncı tur D3) (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **1331/1331** (adım 59: yönetim kiracı davet etti, kod yalnız yönetime, sağlayıcısızlık dürüstçe

@@ -193,7 +193,7 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
               subtitle: 'Sakinleri görün; kiracı, vekil ya da hane üyesi davet edin',
               iconColor: AppleTheme.systemIndigo,
               onTap: () => Navigator.of(context).push(MaterialPageRoute(
-                builder: (_) => UnitResidentsScreen(unitId: '${units[i]['unit_id']}', unitName: '${units[i]['unit_name'] ?? 'Bölüm'}'),
+                builder: (_) => UnitResidentsScreen(unitId: '${units[i]['unit_id']}', unitName: '${units[i]['unit_name'] ?? 'Bölüm'}', role: '${units[i]['role']}'),
               )),
               showDivider: i < units.length - 1,
             ),

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"log"
 	"os"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/siteeksen/backend/pkg/middleware"
 	"github.com/siteeksen/backend/pkg/notify"
 	"github.com/siteeksen/backend/pkg/revocation"
+	"github.com/siteeksen/backend/pkg/storage"
 	"github.com/siteeksen/backend/services/identity/handlers"
 	"github.com/siteeksen/backend/services/identity/repository"
 	"github.com/siteeksen/backend/services/identity/service"
@@ -44,6 +46,15 @@ func main() {
 		log.Fatalf("SMTP yapılandırması hatalı: %v", err)
 	} else if mail != nil {
 		handlers.SetActivationEmail(mail)
+	}
+	// Kiracılık bitişi belgeleri (069, D4). Yapılandırılmamışsa servis açılır, yönetim yolu 503 döner;
+	// yapılandırma HATALIYSA servis açılmaz (sessiz dosya kaybı olmasın).
+	store, serr := storage.FromEnv()
+	if errors.Is(serr, storage.ErrNotConfigured) && os.Getenv("STORAGE_BACKEND") == "" {
+		log.Printf("[identity] dosya deposu yapılandırılmamış: kiracılık bitişi yönetim yolu belgesi saklanamaz (STORAGE_BACKEND)")
+		store = nil
+	} else if serr != nil {
+		log.Fatalf("Dosya deposu yapılandırması hatalı: %v", serr)
 	}
 	roleService := service.NewRoleService(repository.NewRoleRepository(pool), authService, revocationChecker)
 
@@ -97,6 +108,15 @@ func main() {
 		// Altıncı tur D3: malik ve oturan doğrudan eklemez, davet gönderir (SMS + e-posta).
 		protected.POST("/me/units/:id/invitations", handlers.OwnerInvite(residentService))
 		protected.POST("/me/units/:id/residents/:residentId/end", handlers.OwnerEndResident(residentService))
+		// Kiracılığın bitişi (069, D4): malik ister + kiracı onaylar; kiracı kendi çıkışını bildirir; itiraz.
+		protected.POST("/me/units/:id/tenancy-end", handlers.OwnerRequestTenancyEnd(residentService))
+		protected.POST("/me/units/:id/tenancy-exit", handlers.TenantExitHandler(residentService))
+		protected.GET("/me/tenancy-requests", handlers.MyTenancyRequests(residentService))
+		protected.POST("/me/tenancy-requests/:id/approve", handlers.TenantRespondHandler(residentService, true))
+		protected.POST("/me/tenancy-requests/:id/decline", handlers.TenantRespondHandler(residentService, false))
+		protected.POST("/me/tenancy-requests/:id/object", handlers.TenantObjectHandler(residentService))
+		protected.POST("/me/tenancy-requests/:id/cancel", handlers.OwnerCancelHandler(residentService))
+		protected.GET("/me/tenancy-requests/:id/documents/:docId", handlers.EndDocumentDownload(residentService, store))
 		// Sakin davetleri (S-20): kişi başka sitenin davetini kendisi kabul eder.
 		protected.GET("/me/invitations", handlers.MyInvitations(residentService))
 		protected.POST("/me/invitations/:id/accept", handlers.RespondInvitation(residentService, true))
@@ -113,6 +133,14 @@ func main() {
 		residents.GET("/invitations", handlers.ListInvitations(residentService))
 		residents.POST("/invitations", handlers.ManagementInvite(residentService))
 		residents.POST("/invitations/:id/cancel", handlers.CancelInvitation(residentService))
+		// Kiracılığın bitişi — yönetim yolu (069, D4): belge + şifreyle beyan + 7 gün itiraz.
+		residents.GET("/tenancy-requests", handlers.ManagementTenancyRequests(residentService))
+		residents.POST("/tenancy-requests", handlers.ManagementStartHandler(residentService, store))
+		residents.POST("/tenancy-requests/:id/documents", handlers.ManagementNewDocumentHandler(residentService, store))
+		residents.POST("/tenancy-requests/:id/complete", handlers.ManagementCompleteHandler(residentService))
+		residents.POST("/tenancy-requests/:id/cancel", handlers.ManagementCancelHandler(residentService))
+		residents.POST("/tenancy-requests/:id/reverse", handlers.ManagementReverseHandler(residentService))
+		residents.GET("/tenancy-requests/:id/documents/:docId", handlers.EndDocumentDownload(residentService, store))
 		residents.GET("/:id", handlers.GetResident(residentService))
 		residents.PATCH("/:id", handlers.UpdateResident(residentService))
 		residents.POST("/:id/activation-code", handlers.IssueActivationCode(residentService))

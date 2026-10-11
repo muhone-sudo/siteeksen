@@ -5890,8 +5890,8 @@ ok "kullanılmayan 13 site tablosu RLS ile korunuyor"
 
 # 9) Toplam durum — RLS DIŞINDA KALAN her tablo bilinçli ve gerekçeli olmalı
 RLSCOUNT=$($PSQL -t -A -c "SELECT count(*) FROM rls_enabled_tables;")
-[ "$RLSCOUNT" = "119" ] && ok "RLS toplam 119 tabloda açık" \
-  || bad "beklenmedik RLS tablo sayısı: $RLSCOUNT (beklenen 119)"
+[ "$RLSCOUNT" = "122" ] && ok "RLS toplam 122 tabloda açık (069: kiracılık bitişi tabloları)" \
+  || bad "beklenmedik RLS tablo sayısı: $RLSCOUNT (beklenen 122)"
 NOTRLS=$($PSQL -t -A -c "SELECT string_agg(t.table_name, ' ' ORDER BY t.table_name)
   FROM information_schema.tables t
   WHERE t.table_schema='public' AND t.table_type='BASE TABLE'
@@ -8007,7 +8007,10 @@ ODEN=$($PSQL -t -A -c "SELECT count(*) FROM audit_logs WHERE user_id='$TUID' AND
   && [ "${O12##*|}" = "200" ] && [ "$OEND" = "f" ] && [ "${OAUD:-0}" -ge 2 ] && [ "${ODEN:-0}" -ge 1 ] \
   && ok "dairede aktif kiracı varken yönetim de ikinci kiracı kaydedemiyor (409); malik kiracılığı tek başına bitiremiyor (409), kiracılı dairede hane üyesi davet edemiyor (422), kendini 422; vekilliği bitirdi; işlemler ve kiracının reddedilen denemesi denetim izinde" \
   || bad "malik işlemleri: kiracı=$TN ikinci=$TN2 / kiracılık bitir=$O8 / hane=$O9 / kendi=$O10 / bozuk=$O11 / vekil=$O12 aktif=$OEND / iz=$OAUD / ret izi=$ODEN"
-curl -s -o /dev/null -X PATCH "$I5/residents/$TN" -H "$MGR5" -H "$J" -d '{"is_active":false}'
+# D4: aktif kiracı doğrudan pasifleştirilemez (409); temizlik süper kullanıcıyla
+TNP=$(code -X PATCH "$I5/residents/$TN" -H "$MGR5" -H "$J" -d '{"is_active":false}')
+[ "$TNP" = "409" ] && ok "yönetim aktif kiracıyı doğrudan pasifleştiremiyor (409 → kiracılık bitiş akışı)" || bad "kiracıyı doğrudan pasifleştirme: $TNP"
+$PSQL -c "UPDATE resident_units SET is_active=false, end_date=CURRENT_DATE WHERE id='$TN';" >/dev/null
 kill_tree "$IB5_PID"
 
 step "54) Taşınan sakinde ilişik kesme tarihi (end_date) — beşinci tur B7"
@@ -8025,7 +8028,7 @@ I7="http://127.0.0.1:19481/api/v1"
 M7=$(curl -s -X POST "$I7/auth/login" -H "$J" -d '{"phone":"5551234567","password":"Demo123!"}' | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
 M7A="Authorization: Bearer $M7"
 RID7=$(curl -s -X POST "$I7/residents" -H "$M7A" -H "$J" \
-  -d "{\"first_name\":\"Tasinan\",\"last_name\":\"Sakin\",\"phone\":\"0555 999 00 55\",\"unit_id\":\"$U303\",\"role\":\"TENANT\"}" \
+  -d "{\"first_name\":\"Tasinan\",\"last_name\":\"Sakin\",\"phone\":\"0555 999 00 55\",\"unit_id\":\"$U303\",\"role\":\"PROXY\"}" \
   | python3 -c "import json,sys; print(json.load(sys.stdin)['id'])" 2>/dev/null)
 $PSQL -c "UPDATE resident_units SET start_date = CURRENT_DATE - 30 WHERE id='$RID7';" >/dev/null
 TOM=$(date -d '+1 day' +%F); YST=$(date -d '1 day ago' +%F); TODAY7=$(date +%F)
@@ -8432,6 +8435,137 @@ $PSQL -c "DELETE FROM monthly_assessments WHERE unit_id IN ('$UA9','$UB9','$UC9'
   DELETE FROM resident_units WHERE unit_id IN ('$UA9','$UB9','$UC9');
   DELETE FROM units WHERE id IN ('$UA9','$UB9','$UC9');" >/dev/null
 kill_tree "$ID3_PID"; kill_tree "$FD3_PID"
+
+step "60) Kiracılığın bitişi: malik isteği + kiracı onayı, kiracının çıkışı, yönetim yolu (belge, beyan, 7 gün itiraz, geri alma) (069, altıncı tur D4)"
+TEDIR=/tmp/verify-tenancy-docs; rm -rf "$TEDIR"; mkdir -p "$TEDIR"
+STORAGE_BACKEND=local STORAGE_LOCAL_DIR="$TEDIR" DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_identity DB_PASSWORD="$IDPW" \
+  DB_NAME=siteeksen DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=19788 \
+  go run ./services/identity >/tmp/verify-identity-d4.log 2>&1 &
+ID4_PID=$!
+for _ in $(seq 1 60); do curl -fsS http://127.0.0.1:19788/health >/dev/null 2>&1 && break; sleep 1; done
+I60="http://127.0.0.1:19788/api/v1"
+login60() { curl -s -X POST "$I60/auth/login" -H "$J" -d "{\"phone\":\"$1\",\"password\":\"$2\"}" | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p'; }
+M60="Authorization: Bearer $(login60 5551234567 'Demo123!')"
+T60="Authorization: Bearer $(login60 5559876543 'Demo123!')"
+O60="Authorization: Bearer $(login60 5550000039 Yepyeni12)"
+OWN60=$($PSQL -t -A -c "SELECT id FROM users WHERE phone='+905550000039';")
+mkunit60() { $PSQL -t -A -c "INSERT INTO units (property_id, block, floor, door_number, share_ratio, unit_type, net_area_m2)
+  VALUES ('$DEMO_PROPERTY','Z',3,'$1',1,'APARTMENT',80) RETURNING id;" | head -1; }
+UA0=$(mkunit60 60A); UB0=$(mkunit60 60B)
+$PSQL -c "INSERT INTO resident_units (resident_id, unit_id, role) VALUES
+  ('$OWN60','$UA0','OWNER'), ('$TUID','$UA0','TENANT'), ('44444444-4444-4444-4444-444444444401','$UB0','OWNER'), ('$TUID','$UB0','TENANT');" >/dev/null
+TL0=$($PSQL -t -A -c "SELECT id FROM resident_units WHERE unit_id='$UA0' AND role='TENANT';")
+reactivate60() { $PSQL -c "UPDATE resident_units SET is_active=true, end_date=NULL WHERE id='$TL0';" >/dev/null; }
+myreq() { curl -s "$I60/users/me/tenancy-requests" -H "$1" | python3 -c "
+import json,sys
+d=[r for r in json.load(sys.stdin)['data'] if r['unit_id']=='$UA0']
+print(' '.join(r['kind']+':'+r['status']+':'+str(r['is_tenant']).lower() for r in d[:1]))" 2>/dev/null; }
+# 1) Malik ister, kiracı reddeder → sürer; yeniden ister, kiracı onaylar → biter (hanesi biter, daire boş)
+R1=$(curl -s -w '|%{http_code}' -X POST "$I60/users/me/units/$UA0/tenancy-end" -H "$O60" -H "$J" -d '{"reason":"Konutu kendim kullanacağım"}')
+RQ1=$(echo "${R1%|*}" | python3 -c "import json,sys; print(json.load(sys.stdin)['id'])" 2>/dev/null)
+R1B=$(code -X POST "$I60/users/me/units/$UA0/tenancy-end" -H "$O60" -H "$J" -d '{"reason":"Ikinci istek deneme"}')
+R1C=$(code -X POST "$I60/users/me/units/$UA0/tenancy-end" -H "$T60" -H "$J" -d '{"reason":"Kiracı malik değil"}')
+SEEN=$(myreq "$T60")
+R1D=$(code -X POST "$I60/users/me/tenancy-requests/$RQ1/decline" -H "$T60" -H "$J" -d '{"note":"Sözleşmem sürüyor"}')
+ACT1=$($PSQL -t -A -c "SELECT is_active FROM resident_units WHERE id='$TL0';")
+R1E=$(code -X PATCH "$I60/residents/$TL0" -H "$M60" -H "$J" -d '{"is_active":false}')
+[ "${R1##*|}" = "201" ] && [ "$R1B" = "409" ] && [ "$R1C" = "403" ] && [ "$SEEN" = "OWNER_REQUEST:PENDING_TENANT:true" ] && [ "$R1D" = "200" ] && [ "$ACT1" = "t" ] && [ "$R1E" = "409" ] \
+  && ok "malik kiracılığın bitmesini istedi (ikinci açık istek 409, malik olmayan 403); kiracı isteği uygulamasında gördü ve reddetti, kiracılık sürüyor; yönetim de kiracıyı doğrudan pasifleştiremiyor (409)" \
+  || bad "malik isteği/ret: ${R1##*|} / ikinci=$R1B / kiracı=$R1C / görünen=$SEEN / ret=$R1D / aktif=$ACT1 / yönetim=$R1E"
+HHM=$($PSQL -t -A -c "SELECT id FROM users WHERE phone='+905559990071';")
+$PSQL -c "INSERT INTO resident_units (resident_id, unit_id, role) VALUES ('$HHM','$UA0','HOUSEHOLD');" >/dev/null
+RQ2=$(curl -s -X POST "$I60/users/me/units/$UA0/tenancy-end" -H "$O60" -H "$J" -d '{"reason":"Konutu kendim kullanacağım"}' | python3 -c "import json,sys; print(json.load(sys.stdin)['id'])" 2>/dev/null)
+R2=$(code -X POST "$I60/users/me/tenancy-requests/$RQ2/approve" -H "$T60" -H "$J" -d '{}')
+END2=$($PSQL -t -A -c "SELECT is_active||'|'||(end_date=CURRENT_DATE) FROM resident_units WHERE id='$TL0';")
+HH2=$($PSQL -t -A -c "SELECT is_active FROM resident_units WHERE resident_id='$HHM' AND unit_id='$UA0';")
+OCC2=$($PSQL -t -A -c "SELECT unit_occupancy('$UA0');")
+EV2=$($PSQL -t -A -c "SELECT string_agg(event, ',' ORDER BY created_at) FROM tenancy_end_events WHERE request_id='$RQ2';")
+[ "$R2" = "200" ] && [ "$END2" = "false|true" ] && [ "$HH2" = "f" ] && [ "$OCC2" = "VACANT" ] && [ "$EV2" = "CREATED,APPROVED" ] \
+  && ok "kiracı onaylayınca kiracılık bugün bitti, kiracının hanesi de bitti, daire boş; olay kaydı CREATED→APPROVED" \
+  || bad "kiracı onayı: $R2 / bağ=$END2 / hane=$HH2 / oturum=$OCC2 / olaylar=$EV2"
+# 2) Kiracının kendi çıkışı (V1): açık malik isteği varsa onu da kapatır
+reactivate60
+RQ3=$(curl -s -X POST "$I60/users/me/units/$UA0/tenancy-end" -H "$O60" -H "$J" -d '{"reason":"Konutu satıyorum"}' | python3 -c "import json,sys; print(json.load(sys.stdin)['id'])" 2>/dev/null)
+R3=$(curl -s -w '|%{http_code}' -X POST "$I60/users/me/units/$UA0/tenancy-exit" -H "$T60" -H "$J" -d '{"reason":"Taşındım"}')
+R3B=$(code -X POST "$I60/users/me/units/$UA0/tenancy-exit" -H "$O60" -H "$J" -d '{}')
+ST3=$($PSQL -t -A -c "SELECT (SELECT status FROM tenancy_end_requests WHERE id='$RQ3')||'|'||(SELECT is_active FROM resident_units WHERE id='$TL0');")
+[ "${R3##*|}" = "200" ] && grep -q '"recipients":1' <<<"$R3" && [ "$R3B" = "403" ] && [ "$ST3" = "CANCELLED|false" ] \
+  && ok "kiracı çıkışını kendisi bildirdi (malike haber verildi); açık malik isteği kapandı; kiracı olmayan çıkış bildiremiyor (403)" \
+  || bad "kiracı çıkışı: ${R3##*|} / malik=$R3B / $ST3 — ${R3%|*}"
+# 3) Yönetim yolu: belge + şifreyle beyan + 7 gün itiraz
+reactivate60
+printf '%%PDF-1.4\n%% tahliye\n1 0 obj << /Type /Catalog >> endobj\ntrailer << /Root 1 0 R >>\n%%%%EOF\n' >/tmp/tahliye.pdf
+printf 'duz metin' >/tmp/tahliye.txt
+mstart() { curl -s -w '|%{http_code}' -X POST "$I60/residents/tenancy-requests" -H "$M60" \
+  -F "unit_id=$1" -F "reason=Kiracı 3 aydır dairede oturmuyor; taşınma tutanağı ektedir" -F "document_kind=TASINMA_TUTANAGI" \
+  -F "password=$2" -F "attest=$3" -F "file=@$4"; }
+M1=$(mstart "$UB0" 'Demo123!' true /tmp/tahliye.pdf)
+M2=$(mstart "$UA0" 'Demo123!' false /tmp/tahliye.pdf)
+M3=$(mstart "$UA0" 'yanlis-sifre' true /tmp/tahliye.pdf)
+M4=$(mstart "$UA0" 'Demo123!' true /tmp/tahliye.txt)
+M5=$(mstart "$UA0" 'Demo123!' true /tmp/tahliye.pdf)
+MID=$(echo "${M5%|*}" | python3 -c "import json,sys; print(json.load(sys.stdin)['id'])" 2>/dev/null)
+MDOC=$($PSQL -t -A -c "SELECT d.document_kind||'|'||(d.uyap_code IS NULL)||'|'||(d.attestation_text LIKE '%TCK m.204%')||'|'||(d.attested_ip <> '')||'|'||d.sha256
+  FROM tenancy_end_documents d WHERE d.request_id='$MID';")
+MDL=$($PSQL -t -A -c "SELECT status||'|'||(objection_deadline BETWEEN now() + interval '6 days 23 hours' AND now() + interval '7 days 1 hour') FROM tenancy_end_requests WHERE id='$MID';")
+MFILE=$(find "$TEDIR" -type f -name '*.pdf' | wc -l)
+M6=$(mstart "$UA0" 'Demo123!' true /tmp/tahliye.pdf)
+SHAF=$(sha256sum /tmp/tahliye.pdf | cut -d' ' -f1)
+[ "${M1##*|}" = "403" ] && [ "${M2##*|}" = "422" ] && [ "${M3##*|}" = "400" ] && [ "${M4##*|}" = "422" ] && [ "${M5##*|}" = "201" ] \
+  && [ "$MDOC" = "TASINMA_TUTANAGI|true|true|true|$SHAF" ] && [ "$MDL" = "OBJECTION_WINDOW|true" ] && [ "$MFILE" = "1" ] && [ "${M6##*|}" = "409" ] \
+  && ok "yönetim yolu: dairenin maliki olan yönetici başlatamıyor (403); beyansız 422, yanlış şifre 400, metin dosyası 422; UYAP kodu olmadan belgeyle başladı — beyan metni, IP ve özet kayıtlı, dosya depoda, 7 günlük itiraz penceresi; aynı kiracılık için ikinci yol 409" \
+  || bad "yönetim yolu başlatma: malik=${M1##*|} beyansız=${M2##*|} şifre=${M3##*|} metin=${M4##*|} / ${M5##*|} / $MDOC / $MDL / dosya=$MFILE / ikinci=${M6##*|}"
+# Kiracı belgeyi görür ve indirir; malik indiremez; süre dolmadan tamamlanamaz; itiraz askıya alır
+DOCID=$($PSQL -t -A -c "SELECT id FROM tenancy_end_documents WHERE request_id='$MID' LIMIT 1;")
+D1=$(curl -s -o /tmp/tahliye-dl.pdf -w '%{http_code}' "$I60/users/me/tenancy-requests/$MID/documents/$DOCID" -H "$T60")
+DLSHA=$(sha256sum /tmp/tahliye-dl.pdf | cut -d' ' -f1)
+D2=$(code "$I60/users/me/tenancy-requests/$MID/documents/$DOCID" -H "$O60")
+C1=$(code -X POST "$I60/residents/tenancy-requests/$MID/complete" -H "$M60")
+OB1=$(code -X POST "$I60/users/me/tenancy-requests/$MID/object" -H "$T60" -H "$J" -d '{"reason":"Dairede oturuyorum, tutanak gerçeğe aykırı"}')
+OB2=$(code -X POST "$I60/users/me/tenancy-requests/$MID/object" -H "$T60" -H "$J" -d '{"reason":"Tekrar itiraz"}')
+C2=$(code -X POST "$I60/residents/tenancy-requests/$MID/complete" -H "$M60")
+ST4=$($PSQL -t -A -c "SELECT status FROM tenancy_end_requests WHERE id='$MID';")
+[ "$D1" = "200" ] && [ "$DLSHA" = "$SHAF" ] && [ "$D2" = "404" ] && [ "$C1" = "409" ] && [ "$OB1" = "200" ] && [ "$OB2" = "409" ] && [ "$C2" = "409" ] && [ "$ST4" = "SUSPENDED" ] \
+  && ok "kiracı belgeyi indirdi (özet aynı), malik indiremiyor (404); süre dolmadan tamamlanamıyor (409); kiracının itirazıyla işlem askıda, askıdayken tamamlanamıyor" \
+  || bad "itiraz: indirme=$D1 ($([ "$DLSHA" = "$SHAF" ] && echo aynı || echo farklı)) / malik=$D2 / erken=$C1 / itiraz=$OB1 / tekrar=$OB2 / askıda tamamla=$C2 / $ST4"
+# Yeni belgeyle yeni pencere; süre itirazsız dolunca tamamlanır; sahte çıkarsa geri alınır
+N1=$(curl -s -w '|%{http_code}' -X POST "$I60/residents/tenancy-requests/$MID/documents" -H "$M60" \
+  -F "document_kind=ICRA_TAHLIYE" -F "uyap_code=ABC123XYZ" -F "password=Demo123!" -F "attest=true" -F "file=@/tmp/tahliye.pdf")
+ST5=$($PSQL -t -A -c "SELECT status||'|'||(SELECT count(*) FROM tenancy_end_documents WHERE request_id='$MID')||'|'||(SELECT uyap_code FROM tenancy_end_documents WHERE request_id='$MID' AND document_kind='ICRA_TAHLIYE') FROM tenancy_end_requests WHERE id='$MID';")
+$PSQL -c "UPDATE tenancy_end_requests SET objection_deadline = now() - interval '1 minute' WHERE id='$MID';" >/dev/null
+OB3=$(code -X POST "$I60/users/me/tenancy-requests/$MID/object" -H "$T60" -H "$J" -d '{"reason":"Geç kalan itiraz"}')
+C3=$(code -X POST "$I60/residents/tenancy-requests/$MID/complete" -H "$M60")
+ST6=$($PSQL -t -A -c "SELECT (SELECT status FROM tenancy_end_requests WHERE id='$MID')||'|'||(SELECT is_active FROM resident_units WHERE id='$TL0');")
+RV1=$(code -X POST "$I60/residents/tenancy-requests/$MID/reverse" -H "$M60" -H "$J" -d '{"reason":"Tutanağın sahte olduğu anlaşıldı","password":"yanlis"}')
+RV2=$(code -X POST "$I60/residents/tenancy-requests/$MID/reverse" -H "$M60" -H "$J" -d '{"reason":"Tutanağın sahte olduğu anlaşıldı","password":"Demo123!"}')
+ST7=$($PSQL -t -A -c "SELECT (SELECT status FROM tenancy_end_requests WHERE id='$MID')||'|'||(SELECT is_active||'|'||COALESCE(end_date::text,'yok') FROM resident_units WHERE id='$TL0');")
+EV7=$($PSQL -t -A -c "SELECT string_agg(event, ',' ORDER BY created_at) FROM tenancy_end_events WHERE request_id='$MID';")
+[ "${N1##*|}" = "200" ] && [ "$ST5" = "OBJECTION_WINDOW|2|ABC123XYZ" ] && [ "$OB3" = "409" ] && [ "$C3" = "200" ] && [ "$ST6" = "COMPLETED|false" ] \
+  && [ "$RV1" = "400" ] && [ "$RV2" = "200" ] && [ "$ST7" = "REVERSED|true|yok" ] \
+  && [ "$EV7" = "CREATED,DOCUMENT_ADDED,OBJECTED,DOCUMENT_ADDED,COMPLETED,REVERSED" ] \
+  && ok "askıdaki yola yeni belge (UYAP kodlu) yeni 7 günlük pencere açtı; süre dolunca itiraz 409, yönetim tamamladı; belge sahte çıkınca şifreyle geri alındı, kiracılık aynı kayıtla açıldı; olay kaydı eksiksiz" \
+  || bad "yeni belge/tamamla/geri al: ${N1##*|} / $ST5 / geç itiraz=$OB3 / tamamla=$C3 / $ST6 / yanlış şifre=$RV1 / geri al=$RV2 / $ST7 / $EV7"
+# Veritabanı koruması: kimlik rolü akış dışında kiracıyı pasifleştiremez; uygulama rolü kayıtları göremez; olay kaydı silinemez
+GI=$(PGPASSWORD="$IDPW" psql -h 127.0.0.1 -p "$DBPORT" -U siteeksen_identity -d siteeksen -t -A -c "UPDATE resident_units SET is_active=false WHERE id='$TL0';" 2>&1)
+GD=$(PGPASSWORD="$IDPW" psql -h 127.0.0.1 -p "$DBPORT" -U siteeksen_identity -d siteeksen -t -A -c "DELETE FROM tenancy_end_events WHERE request_id='$MID';" 2>&1)
+GA=$(appsql46 "SELECT count(*) FROM tenancy_end_requests")
+grep -q 'yalnız bitiş akışıyla biter' <<<"$GI" && grep -qi 'permission denied' <<<"$GD" && grep -qi 'permission denied' <<<"$GA" \
+  && ok "kimlik rolü bile aktif kiracıyı akış dışında pasifleştiremiyor (tetikleyici); olay kaydı silinemiyor; uygulama rolü bitiş kayıtlarına erişemiyor" \
+  || bad "bitiş koruması: $GI / $GD / $GA"
+# İptaller: malik kendi isteğini geri çeker; yönetim açık yolunu iptal eder
+RQ8=$(curl -s -X POST "$I60/users/me/units/$UA0/tenancy-end" -H "$O60" -H "$J" -d '{"reason":"Deneme isteği"}' | python3 -c "import json,sys; print(json.load(sys.stdin)['id'])" 2>/dev/null)
+X1=$(code -X POST "$I60/users/me/tenancy-requests/$RQ8/cancel" -H "$T60")
+X2=$(code -X POST "$I60/users/me/tenancy-requests/$RQ8/cancel" -H "$O60")
+M8=$(mstart "$UA0" 'Demo123!' true /tmp/tahliye.pdf); MID8=$(echo "${M8%|*}" | python3 -c "import json,sys; print(json.load(sys.stdin)['id'])" 2>/dev/null)
+X3=$(code -X POST "$I60/residents/tenancy-requests/$MID8/cancel" -H "$M60" -H "$J" -d '{"note":"Taraflar anlaştı"}')
+X4=$(code "$I60/residents/tenancy-requests" -H "$T60")
+ACT8=$($PSQL -t -A -c "SELECT is_active FROM resident_units WHERE id='$TL0';")
+[ "$X1" = "404" ] && [ "$X2" = "200" ] && [ "$X3" = "200" ] && [ "$X4" = "403" ] && [ "$ACT8" = "t" ] \
+  && ok "malik kendi isteğini geri çekti (kiracı malik isteğini iptal edemez — 404); yönetim açık yolunu iptal etti; kiracı yönetim listesini göremiyor (403); kiracılık sürüyor" \
+  || bad "iptaller: kiracı=$X1 malik=$X2 yönetim=$X3 liste=$X4 aktif=$ACT8"
+$PSQL -c "DELETE FROM tenancy_end_requests WHERE unit_id IN ('$UA0','$UB0');
+  DELETE FROM resident_units WHERE unit_id IN ('$UA0','$UB0'); DELETE FROM units WHERE id IN ('$UA0','$UB0');" >/dev/null
+kill_tree "$ID4_PID"
 
 step "SONUÇ"
 echo "  Geçen: $PASS   Başarısız: $FAIL"

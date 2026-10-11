@@ -25,7 +25,7 @@ var (
 	// ErrNotUnitMember: çağıran bu dairenin aktif maliki ya da kiracısı değil.
 	ErrNotUnitMember = errors.New("bu dairenin aktif maliki ya da kiracısı değilsiniz; sakin işlemleri için site yönetimine başvurun")
 	// ErrTenancyEndNeedsConsent: kiracılık malikin tek taraflı işlemiyle bitmez.
-	ErrTenancyEndNeedsConsent = errors.New("kiracılık malikin tek taraflı işlemiyle bitirilemez; kiracının onayı ya da yönetim yolu gerekir")
+	ErrTenancyEndNeedsConsent = errors.New("kiracılık malikin tek taraflı işlemiyle bitirilemez; kiracılığın bitmesini isteyin (kiracı onaylayınca biter) ya da yönetim yoluna başvurun")
 )
 
 // inviteRoles: yönetimin davet edebileceği roller.

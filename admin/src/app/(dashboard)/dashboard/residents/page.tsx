@@ -8,6 +8,7 @@ import { ActionFeedback, Badge, Button, Card, Field, FormModal, Grid, Input, Mod
 import { date, dateTime } from "@/lib/format";
 import { RESIDENT_ROLES, ROLE_LABEL } from "@/lib/labels";
 import type { Activation, BulkResidentRow, Invitation, Resident } from "@/lib/types";
+import { TenancyEndsCard } from "@/components/residents/tenancy-ends";
 
 const BULK_STATUS: Record<BulkResidentRow["status"], string> = {
     created: "Hesap açıldı", linked: "Var olan hesap bağlandı", invited: "Davet gönderildi", error: "Eklenmedi",
@@ -171,6 +172,8 @@ export default function ResidentsPage() {
                     )}
                 </QueryView>
             </Card>
+
+            <TenancyEndsCard />
 
             <Card title="Sakin davetleri">
                 <p className="mb-3 text-sm text-gray-600 dark:text-gray-400">

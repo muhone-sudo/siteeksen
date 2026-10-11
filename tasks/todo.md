@@ -670,20 +670,62 @@ D3 kullanıcı kararları (2026-10-11): (1) Davet edilen kişinin hesabı yoksa 
 e-postayla gider; kişi kodu girince (hesabını etkinleştirince) davet kabul edilmiş olur ve devir gerçekleşir. Hesabı olan kişi
 uygulamada kabul eder. (2) Hane üyesini dairede oturan ve yönetim ekler; kiracılı dairede malik ekleyemez. (3) Yönetim kiracıyı
 doğrudan da kaydeder, davet de gönderir; ikisinde de aktif kiracı varken engel. (4) Kiracı gelince malikin o dairedeki hane
-üyelerinin kaydı biter (pasif, iz kalır).- [x] **D3 Kayıt ve davet** (verify 1331/1331, mobil 10/10, panel tsc/lint) — yönetim maliki/kiracıyı kaydeder; malik ya da yönetim kiracıyı SMS + e-postayla davet eder
-  (dolu dairede engel); kiracı kodla katılır, kabulde devir; kiracılı daireye malik daveti; hane üyesi daveti. B5'in doğrudan
-  ekleme/bitirme uçları kaldırılır.
-- [ ] **D4 Kiracılık bitişi** — malik isteği + kiracı onayı; kiracının kendi çıkışı (V1); yönetim yolu (belge, şifreyle
-  kimlik doğrulama ve beyan, 7 gün itiraz, askı, geri alma — V2); değiştirilemez kayıt.
-- [ ] **D5 Mali yönlendirme** — borç sorumlusu (V3, V6): sakin borç ekranları, ödeme yetkisi (kart dahil), yeni borç / gecikme /
-  tahsilat bildirimleri, borcu yoktur belgesi (malik tam, kiracı KULLANIM), borçlu listesi ve dökümler sınıfla.
-- [ ] **D6 Görünürlük politikası** — site bazında, yönetim belirler, kurul üyesi onayı, varsayılan en dar, kiracıya şeffaf,
-  değişiklikte bildirim.
-- [ ] **D7 Kullanım işlemlerinde oturan denetimi** — talep, rezervasyon, ziyaretçi, kargo, otopark, acil durum, tadilat,
-  sayaç/pusula/itiraz ve kullanım bildirimleri oturana (ve hanesine); malik oturmuyorsa yapamaz.
-- [ ] **D8 Arayüzler** — panel (sınıf seçimi, oturum durumu, davetler, bitiş akışı, politika) ve sakin uygulaması (dairem,
-  davetler, hane, onaylar).
+üyelerinin kaydı biter (pasif, iz kalır).
+- [x] **D3 Kayıt ve davet** (verify 1331/1331, mobil 10/10, panel tsc/lint) — yönetim maliki/kiracıyı kaydeder; malik ya da
+  yönetim kiracıyı SMS + e-postayla davet eder (dolu dairede engel); kiracı kodla katılır, kabulde devir; kiracılı daireye malik
+  daveti; hane üyesi daveti. B5'in doğrudan ekleme/bitirme uçları kaldırıldı.
 
+### Kalan plan (2026-10-11, kullanıcı: "önce planla sonra uygula")
+
+İlke: her madde kendi arayüzüyle (panel + sakin uygulaması) birlikte biter; ayrı commit; verify-stack + verify-mobile + panel
+tsc/lint. Sıra: D4 → D5 → D6 → D7 → D8. Kararlar: V1–V6 (yukarıda) ve aşağıdaki V7–V9 (varsayılan; kullanıcı aksini
+söyleyene kadar). Kullanıcı cevabı (2026-10-11, 5. soru): UYAP doğrulama kodu olmayan belgeler de var → kod isteğe bağlı;
+1 hafta itiraz yolu ve kimlik bilgisiyle onay kalır.
+
+- V7 Yönetim yolunda ikinci onaycı ZORUNLU DEĞİL (kullanıcı yalnız itiraz + kimlik onayını tuttu). Koruma: başlatan o dairenin
+  maliki/vekili olamaz, şifre yeniden girilerek beyan, belge kiracıya açık, itirazla askı, geri alma.
+- V8 Kiracılık bitince daire "boş" olur (`owner_occupied=false`); malik oturuyorsa yönetim ya da malik değiştirir. Kiracının
+  hanesinin kaydı da biter.
+- V9 Görünürlük politikasının seçenekli alanları (hepsi varsayılan KAPALI): kiracının adı ve maskeli telefonu; kiracı
+  sorumluluğundaki kullanım borcunun toplamı; vadesi geçen kullanım borcu ve malike uyarısı; dairenin arıza/talep kayıtları.
+  Her zaman görünür (seçenek değil): malik sınıfı borçlar, genel kurul/oy, dairenin oturum durumu, kiracılık bitiş süreçleri,
+  kiracılık bitmişse açık kullanım borcu (V6). Hiç görünmez: ziyaretçi, kargo, sayaç/pusula ayrıntısı, hane üyeleri.
+
+- [x] **D4 Kiracılık bitişi** (verify 1341/1341, mobil 10/10, panel tsc/lint) — 069 `tenancy_end_requests` (yalnız kimlik servisi, RLS, silme yok):
+  tür OWNER_REQUEST / TENANT_EXIT / MANAGEMENT; durum PENDING_TENANT / OBJECTION_WINDOW / SUSPENDED / COMPLETED / REJECTED /
+  CANCELLED / REVERSED; kiracı bağı başına tek açık istek.
+  - Malik isteği → kiracı onaylar (biter) ya da reddeder (kalır); malik bekleyen isteğini iptal eder.
+  - Kiracının kendi çıkışı (V1) → hemen biter; maliklere SMS/e-posta bilgisi.
+  - Yönetim yolu: yönetici/kurul üyesi, o dairenin maliki/vekili DEĞİLSE; belge (PDF/görsel, `pkg/storage`; depo yoksa 503),
+    belge türü, UYAP kodu isteğe bağlı, gerekçe, şifre yeniden girilerek beyan (TCK m.204–207 uyarısı, IP ve zaman kaydı).
+    7 gün itiraz penceresi; kiracı belgeyi görür, itiraz ederse SUSPENDED; askıdaki istek yalnız kiracı onayıyla ya da yeni
+    belgeyle (yeni 7 gün) ilerler; süre itirazsız dolunca yönetim "tamamla" der; sahte çıkarsa "geri al" kiracılığı açar.
+  - Bitişte: kiracı bağı pasif + bitiş tarihi, hanesi biter (tetikleyici), daire boş (V8).
+  - Yönetimin PATCH ile aktif kiracıyı pasifleştirmesi / kiracı rolünü değiştirmesi kapanır (409 → bitiş akışı).
+  - Kimlik servisi bildirim tablosuna yazamaz: tarafa SMS/e-posta doğrudan + uygulamada istek listesi; işlemler denetim izinde.
+  - Arayüz: panel "Kiracılık bitişleri" (yönetim yolu, tamamla, geri al, belge); sakin uygulaması istekler ekranı (onay/ret/
+    itiraz, belgeyi görme), kiracının "çıkışımı bildir", malikin "kiracılığın bitmesini iste".
+- [ ] **D5 Mali yönlendirme** — 070: `monthly_assessments.tenant_link_id` (KULLANIM borcu kiracılıkta tahakkuk ettiyse o kiracı
+  bağı; V6 anlık görüntü). Eski veride: dairenin şu anki aktif kiracısı, dönemi kiracılık başlangıcından sonraysa (V5).
+  - Görünürlük kuralı tek SQL işlevinde (`assessment_visible_to(assessment, user)`): kiracı yalnız kendi kiracılığının kullanım
+    borcu; malik/vekil malik sınıfı + kendisine düşen kullanım borcu + kiracılığı bitmiş açık kullanım borcu; hane üyesi hiç.
+  - Sakin borç listesi/özet, ödeme ve kart ödemesi yetkisi, alacak dekontları, borcu yoktur belgesi (malik tam; kiracı yalnız
+    kendi kullanım borcu) bu işlevle; yeni borç / tahsilat / gecikme bildirimleri borcun sorumlusuna.
+  - V3: maliksiz dairede malik sınıfı borç yönetim listesinde "malik kaydı yok" ile; kimseye bildirim gitmez.
+  - Yönetim: borçlu listesi, tahakkuk özeti ve PDF/Excel dökümleri sınıf + sorumlu sütunuyla.
+  - Arayüz: panel tahakkuk/borçlu sütunları; sakin uygulamasında borçlarda sınıf etiketi.
+- [ ] **D6 Görünürlük politikası** — 071 `owner_visibility_policies` (site başına tek etkin sürüm + değiştirilemez geçmiş):
+  V9 seçenekleri, varsayılan hepsi kapalı. Yönetim önerir, öneren dışında bir KURUL ÜYESİ onaylayınca yürürlüğe girer; etkilenen
+  kiracılara bildirim. Uygulama: kimlik servisi (kiracı adı/telefonu), finans (kiracı borç toplamı, vadesi geçen uyarısı),
+  topluluk (daire talepleri), zamanlayıcı (malike vadesi geçen uyarısı). Kiracı ve malik politikayı uygulamada görür.
+  - Arayüz: panel politika sayfası (öner/onayla/geçmiş); sakin uygulamasında "Malikim neyi görüyor".
+- [ ] **D7 Kullanım işlemlerinde oturan denetimi** — kullanım işlemlerini oturan ve hanesi yapar (`resident_is_occupant`):
+  talep, rezervasyon, ziyaretçi, kargo, otopark, acil durum yanıtı, sayaç/pusula/itiraz, ilan panosu, anket/NPS (anket mülkiyetle
+  ilgiliyse malik — yönetim seçer). Tadilat izni: oturan ya da malik. Kullanım bildirimleri (`notify.UnitOccupants`): kargo,
+  ziyaretçi, rezervasyon, kural ihlali (ihlal malike de). Oturmayan malik 403 + açıklama.
+  - Arayüz: sakin uygulamasında oturmayan malike kullanım menüleri gizli/açıklamalı.
+- [ ] **D8 Kapanış** — `questions.md`'ye V1–V9; `legal/kvkk-aydinlatma.md` (bitiş belgeleri, görünürlük politikası, davet
+  verisi); CLAUDE.md ve changelog; uçtan uca gözden geçirme (panel build dahil).
 ## 2026-10-10 — Beşinci tur (Şikayetvar raporu: uygulama aksaklıkları)
 
 Kaynak: `apsiyon_urun_gelistirme_raporu.md` §6.6 (koddan doğrulanmış eksikler). Kapsam kararı (kullanıcı,

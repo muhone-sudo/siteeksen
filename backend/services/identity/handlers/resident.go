@@ -35,6 +35,8 @@ func residentError(err error) (int, string, bool) {
 	case errors.Is(err, repository.ErrUnitHasTenant), errors.Is(err, repository.ErrTenantInvitePending),
 		errors.Is(err, repository.ErrUnitHasOwner), errors.Is(err, repository.ErrAlreadyLinked):
 		return http.StatusConflict, err.Error(), true
+	case errors.Is(err, repository.ErrTenancyEndFlow):
+		return http.StatusConflict, err.Error(), true
 	case errors.Is(err, repository.ErrNoOccupant):
 		return http.StatusUnprocessableEntity, err.Error(), true
 	case errors.Is(err, repository.ErrResidentNotFound):

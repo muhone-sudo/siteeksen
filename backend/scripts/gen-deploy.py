@@ -84,7 +84,7 @@ def req(var, why):
 
 
 # Dosya depolama kullanan servisler (pkg/storage): belge arşivi, kargo teslim kanıtı, havale dekontu (064).
-STORAGE_SERVICES = ("document", "package", "finance")
+STORAGE_SERVICES = ("document", "package", "finance", "identity")
 
 # --------------------------------------------------------------------------- Dockerfile
 def dockerfile(directory, port, name, build_path):

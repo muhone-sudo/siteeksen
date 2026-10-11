@@ -11,6 +11,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../../core/widgets/data_state.dart';
+import 'tenancy_requests_screen.dart';
 
 const _roleLabels = {'OWNER': 'Kat maliki', 'TENANT': 'Kiracı', 'PROXY': 'Vekil', 'HOUSEHOLD': 'Hane üyesi'};
 
@@ -38,7 +39,10 @@ String _deliveryText(Object? d) {
 class UnitResidentsScreen extends StatefulWidget {
   final String unitId;
   final String unitName;
-  const UnitResidentsScreen({super.key, required this.unitId, required this.unitName});
+
+  /// Kişinin bu dairedeki sıfatı: OWNER ya da TENANT (kiracılık bitişi düğmeleri buna göre).
+  final String role;
+  const UnitResidentsScreen({super.key, required this.unitId, required this.unitName, this.role = 'OWNER'});
 
   @override
   State<UnitResidentsScreen> createState() => _UnitResidentsScreenState();
@@ -94,6 +98,44 @@ class _UnitResidentsScreenState extends State<UnitResidentsScreen> {
       final res = await apiClient.endUnitResident(widget.unitId, '${r['id']}');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${res['message'] ?? 'Sakinlik bitirildi.'}')));
+      _load();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_err(e))));
+    }
+  }
+
+  /// Malik: kiracılığın bitmesini ister (kiracı onaylamadan bitmez). Kiracı: kendi çıkışını bildirir.
+  Future<void> _tenancyAction() async {
+    final owner = widget.role == 'OWNER';
+    final ctrl = TextEditingController();
+    final reason = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(owner ? 'Kiracılığın bitmesini iste' : 'Çıkışımı bildir'),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          Text(owner
+              ? 'İstek kiracıya iletilir. Kiracı onaylarsa kiracılık biter; reddederse sürer.'
+              : 'Kiracılığınız bugün itibarıyla sona erer; malike bilgi verilir. Bu daire için bildirim almazsınız.'),
+          TextField(controller: ctrl, maxLines: 2, decoration: InputDecoration(labelText: owner ? 'Gerekçe (en az 5 karakter)' : 'Not (isteğe bağlı)')),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Vazgeç')),
+          FilledButton(
+            onPressed: () {
+              if (owner && ctrl.text.trim().length < 5) return;
+              Navigator.pop(ctx, ctrl.text.trim());
+            },
+            child: Text(owner ? 'İste' : 'Bildir'),
+          ),
+        ],
+      ),
+    );
+    ctrl.dispose();
+    if (reason == null || !mounted) return;
+    try {
+      final res = owner ? await apiClient.requestTenancyEnd(widget.unitId, reason) : await apiClient.tenancyExit(widget.unitId, reason);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${res['message'] ?? 'İşlem tamamlandı.'}')));
       _load();
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_err(e))));
@@ -201,7 +243,21 @@ class _UnitResidentsScreenState extends State<UnitResidentsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('${widget.unitName} sakinleri')),
+      appBar: AppBar(title: Text('${widget.unitName} sakinleri'), actions: [
+        IconButton(
+          tooltip: 'Kiracılık işlemleri',
+          icon: const Icon(Icons.assignment_outlined),
+          onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const TenancyRequestsScreen())),
+        ),
+        // Dairede aktif kiracı yoksa sunucu açıkça söyler (409); malik devirden sonra kiracıyı göremeyebilir (D6).
+        if (widget.role == 'OWNER' || widget.role == 'TENANT')
+          PopupMenuButton<String>(
+            onSelected: (_) => _tenancyAction(),
+            itemBuilder: (_) => [
+              PopupMenuItem(value: 'end', child: Text(widget.role == 'OWNER' ? 'Kiracılığın bitmesini iste' : 'Çıkışımı bildir')),
+            ],
+          ),
+      ]),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _add,
         icon: const Icon(Icons.person_add_alt_1),

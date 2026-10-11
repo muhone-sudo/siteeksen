@@ -43,6 +43,16 @@ export interface InvitationOutcome {
     invitation: Invitation; new_account: boolean; activation?: Activation; note: string;
     delivery?: { sms?: Delivery | null; email?: Delivery | null };
 }
+/** Kiracılığın bitişi (069, D4). */
+export interface TenancyDocument { id: Id; document_kind: string; uyap_code?: string; file_name: string; content_type: string; size_bytes: number; sha256: string; created_at: string }
+export interface TenancyEvent { event: string; note: string; created_at: string; by: "TENANT" | "OWNER" | "MANAGEMENT" }
+export interface TenancyEndRequest {
+    id: Id; unit_id: Id; unit: string; tenant_link_id: Id; tenant_name: string;
+    kind: "OWNER_REQUEST" | "TENANT_EXIT" | "MANAGEMENT";
+    status: "PENDING_TENANT" | "OBJECTION_WINDOW" | "SUSPENDED" | "COMPLETED" | "REJECTED" | "CANCELLED" | "REVERSED";
+    reason: string; objection_deadline?: string; end_date?: string; created_at: string; closed_at?: string;
+    documents: TenancyDocument[]; events: TenancyEvent[];
+}
 /** Bağ kurulduysa sakin alanları; kişi başka sitede kayıtlıysa yalnızca `invitation` döner (202). */
 export type CreateResidentResult = Partial<Resident> & { activation?: Activation; invitation?: Invitation; note?: string };
 export interface Unit {

@@ -193,6 +193,16 @@ func (s *ResidentService) Update(ctx context.Context, propertyID, id string, rol
 	if err := validateEndDate(&input, time.Now()); err != nil {
 		return nil, err
 	}
+	// D4 (069): aktif kiracı doğrudan pasifleştirilemez ya da rolü değiştirilemez; bitiş akışı kullanılır.
+	if (input.IsActive != nil && !*input.IsActive) || (input.Role != nil && *input.Role != "TENANT") {
+		role, active, err := s.repo.LinkRole(ctx, propertyID, id)
+		if err != nil {
+			return nil, err
+		}
+		if role == "TENANT" && active {
+			return nil, repository.ErrTenancyEndFlow
+		}
+	}
 	return s.repo.Update(ctx, propertyID, id, input)
 }
 
