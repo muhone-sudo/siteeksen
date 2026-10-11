@@ -12,6 +12,19 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-11 — DAİRE OTURUM MODELİ (migration 067, altıncı tur D2) (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **1325/1325** (adım 58: malikli daire "malik oturuyor", kimsesiz "kayıtsız", yalnız kiracılı
+> "kiracı oturuyor" + malik kaydı yok; yönetim "boş" işaretleyince yanıtta ve listede boş, malik oturan değil, kiracı 403;
+> kiracı gelince kiracı oturan, ayrılınca daire yeniden boş, "malik oturuyor" ile malik oturan; hane üyesi rolü veritabanında
+> kabul edilip oturan sayılıyor, API'den eklemesi D3'e kadar 422; uygulama rolü aynı işlevi okuyor). Panel tsc/lint temiz.
+
+- "Dairede kim oturuyor" artık tek yerde: `unit_occupancy(unit)` ve `resident_is_occupant(resident_unit)`. Durum saklanmaz,
+  kayıtlardan hesaplanır (iki kaynak kopamaz). Kiracı varsa kiracı oturur; yoksa `units.owner_occupied` ile malik oturur ya da
+  daire boştur; boş daire tanım gereği malikli; aktif malik ve kiracı yoksa kayıtsız.
+- `HOUSEHOLD` (hane üyesi) rolü şemaya açıldı; jeton rolü üretmez (mali ekran göremez, V4); ekleme akışı D3'te.
+- `GET /units` oturum alanları; `PATCH /units/:id` `owner_occupied`; `GET /residents` `is_occupant`. Panelde Oturum sütunu,
+  "kiracı yokken: malik oturuyor / daire boş" seçimi, malik kaydı olmayan daireler uyarısı, sakin listesinde "Oturan".
 ### 2026-10-11 — GİDER SINIFI: KULLANIM (OTURAN) / MALİK (migration 066, altıncı tur D1 — kullanıcı kararı) (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **1320/1320** (adım 57: kalemin varsayılan sınıfı dönüyor; kullanım + malik kalemli elle

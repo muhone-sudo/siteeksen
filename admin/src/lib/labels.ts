@@ -54,7 +54,7 @@ export const RESIDENT_ROLES = [
     { value: "TENANT", label: "Kiracı" },
     { value: "PROXY", label: "Vekil" },
 ];
-export const ROLE_LABEL: Record<string, string> = { OWNER: "Kat maliki", TENANT: "Kiracı", PROXY: "Vekil" };
+export const ROLE_LABEL: Record<string, string> = { OWNER: "Kat maliki", TENANT: "Kiracı", PROXY: "Vekil", HOUSEHOLD: "Hane üyesi" };
 
 export const DISTRIBUTION = [
     { value: "EQUAL", label: "Eşit (KMK m.20/1-a)" },

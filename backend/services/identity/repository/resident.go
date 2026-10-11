@@ -44,14 +44,14 @@ func NewResidentRepository(pool *pgxpool.Pool) *ResidentRepository {
 const residentColumns = `
 	ru.id, u.id, u.first_name, u.last_name, u.phone, COALESCE(u.email, ''),
 	un.id, COALESCE(NULLIF(un.block, ''), '') || '-' || un.door_number,
-	ru.role, ru.is_active, ru.created_at, ru.end_date
+	ru.role, ru.is_active, ru.created_at, ru.end_date, resident_is_occupant(ru.id)
 `
 
 func scanResident(row pgx.Row) (*models.Resident, error) {
 	res := &models.Resident{}
 	err := row.Scan(
 		&res.ID, &res.UserID, &res.FirstName, &res.LastName, &res.Phone, &res.Email,
-		&res.UnitID, &res.Unit, &res.Role, &res.IsActive, &res.CreatedAt, &res.EndDate,
+		&res.UnitID, &res.Unit, &res.Role, &res.IsActive, &res.CreatedAt, &res.EndDate, &res.IsOccupant,
 	)
 	if err != nil {
 		return nil, err
@@ -261,7 +261,7 @@ func (r *ResidentRepository) ListUnits(ctx context.Context, propertyID string) (
 	query := `
 		SELECT id, property_id, COALESCE(block, ''), floor, door_number, share_ratio,
 		       COALESCE(gross_area_m2, 0), COALESCE(net_area_m2, 0), COALESCE(unit_type, 'APARTMENT'),
-		       COALESCE(is_commercial, false), COALESCE(is_ground_floor, false)
+		       COALESCE(is_commercial, false), COALESCE(is_ground_floor, false), ` + unitOccupancyColumns + `
 		FROM units
 		WHERE property_id = $1 AND deleted = 0
 		ORDER BY block, floor, door_number
@@ -276,9 +276,11 @@ func (r *ResidentRepository) ListUnits(ctx context.Context, propertyID string) (
 	for rows.Next() {
 		u := &models.Unit{}
 		if err := rows.Scan(&u.ID, &u.PropertyID, &u.Block, &u.Floor, &u.DoorNumber, &u.ShareRatio,
-			&u.GrossAreaM2, &u.NetAreaM2, &u.UnitType, &u.IsCommercial, &u.IsGroundFloor); err != nil {
+			&u.GrossAreaM2, &u.NetAreaM2, &u.UnitType, &u.IsCommercial, &u.IsGroundFloor,
+			&u.OwnerOccupied, &u.Occupancy, &u.OwnerCount, &u.TenantCount); err != nil {
 			return nil, err
 		}
+		u.OwnerMissing = u.OwnerCount == 0 && u.TenantCount > 0
 		units = append(units, u)
 	}
 	return units, rows.Err()
@@ -430,14 +432,21 @@ func (r *ResidentRepository) RespondInvitation(ctx context.Context, userID, id s
 // ErrUnitExists aynı blok ve kapı numarasıyla bölüm zaten varsa döner.
 var ErrUnitExists = errors.New("bu blok ve kapı numarasıyla bir bağımsız bölüm zaten var")
 
+// unitOccupancyColumns, bölümün oturum durumu (067): kayıtlardan hesaplanır, saklanmaz.
+const unitOccupancyColumns = `owner_occupied, unit_occupancy(id),
+	(SELECT count(*) FROM resident_units r WHERE r.unit_id = units.id AND r.is_active AND r.role = 'OWNER'),
+	(SELECT count(*) FROM resident_units r WHERE r.unit_id = units.id AND r.is_active AND r.role = 'TENANT')`
+
 const unitReturning = `RETURNING id, property_id, COALESCE(block, ''), floor, door_number, share_ratio,
 	COALESCE(gross_area_m2, 0), COALESCE(net_area_m2, 0), COALESCE(unit_type, 'APARTMENT'),
-	COALESCE(is_commercial, false), COALESCE(is_ground_floor, false)`
+	COALESCE(is_commercial, false), COALESCE(is_ground_floor, false), ` + unitOccupancyColumns
 
 func scanUnit(row pgx.Row) (*models.Unit, error) {
 	u := &models.Unit{}
 	err := row.Scan(&u.ID, &u.PropertyID, &u.Block, &u.Floor, &u.DoorNumber, &u.ShareRatio,
-		&u.GrossAreaM2, &u.NetAreaM2, &u.UnitType, &u.IsCommercial, &u.IsGroundFloor)
+		&u.GrossAreaM2, &u.NetAreaM2, &u.UnitType, &u.IsCommercial, &u.IsGroundFloor,
+		&u.OwnerOccupied, &u.Occupancy, &u.OwnerCount, &u.TenantCount)
+	u.OwnerMissing = u.OwnerCount == 0 && u.TenantCount > 0
 	return u, err
 }
 
@@ -514,17 +523,26 @@ func (r *ResidentRepository) UpdateUnit(ctx context.Context, propertyID, id stri
 		    is_commercial   = COALESCE($9, is_commercial),
 		    is_ground_floor = COALESCE($10, is_ground_floor),
 		    net_area_m2     = COALESCE($11, net_area_m2),
+		    owner_occupied  = COALESCE($12, owner_occupied),
 		    updated_at      = NOW()
 		WHERE id = $1 AND property_id = $2 AND deleted = 0 `+unitReturning,
 		id, propertyID, in.Block, in.Floor, in.DoorNumber, in.ShareRatio, in.GrossAreaM2,
-		in.UnitType, in.IsCommercial, in.IsGroundFloor, in.NetAreaM2))
+		in.UnitType, in.IsCommercial, in.IsGroundFloor, in.NetAreaM2, in.OwnerOccupied))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrUnitNotFound
 	}
 	if isUniqueViolation(err) {
 		return nil, ErrUnitExists
 	}
-	return u, err
+	if err != nil {
+		return nil, err
+	}
+	// RETURNING içindeki unit_occupancy() ifadenin başındaki anlık görüntüyü okur (eski owner_occupied);
+	// durum güncellemeden sonra ayrı sorguyla yeniden hesaplanır.
+	if err := r.pool.QueryRow(ctx, `SELECT unit_occupancy($1)`, id).Scan(&u.Occupancy); err != nil {
+		return nil, err
+	}
+	return u, nil
 }
 
 // unitTaken, aynı sitede aynı blok + kapı numarasının (büyük/küçük harf ve boş

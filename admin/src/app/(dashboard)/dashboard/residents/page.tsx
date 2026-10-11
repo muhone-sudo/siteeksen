@@ -132,7 +132,7 @@ export default function ResidentsPage() {
                                 { header: "Ad Soyad", cell: (r) => `${r.first_name} ${r.last_name}` },
                                 { header: "Telefon", cell: (r) => r.phone },
                                 { header: "Daire", cell: (r) => r.unit },
-                                { header: "Sıfat", cell: (r) => ROLE_LABEL[r.role] ?? r.role },
+                                { header: "Sıfat", cell: (r) => <span className="inline-flex items-center gap-1">{ROLE_LABEL[r.role] ?? r.role}{r.is_occupant && <Badge tone="blue">Oturan</Badge>}</span> },
                                 { header: "Durum", cell: (r) => (r.is_active ? <Badge tone="green">Aktif</Badge> : <Badge>{r.end_date ? `Ayrıldı · ${date(r.end_date)}` : "Ayrıldı"}</Badge>) },
                                 ...(canWrite
                                     ? [{

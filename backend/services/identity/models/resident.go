@@ -17,6 +17,8 @@ type Resident struct {
 	CreatedAt time.Time `json:"created_at"`
 	// EndDate: ilişik kesme (ayrılış) tarihi; pasifleştirmede yazılır (beşinci tur B7).
 	EndDate *time.Time `json:"end_date,omitempty"`
+	// IsOccupant: bu kayıt dairede oturan tarafta mı (kiracı, hane üyesi ya da kiracısız dairede oturan malik) — 067.
+	IsOccupant bool `json:"is_occupant"`
 }
 
 // Activation, yöneticiye YALNIZCA BİR KEZ gösterilen etkinleştirme kodudur.

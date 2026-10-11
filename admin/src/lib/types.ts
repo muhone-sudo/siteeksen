@@ -27,6 +27,8 @@ export interface Resident {
     unit_id: Id; unit: string; role: string; is_active: boolean; created_at: string;
     /** İlişik kesme (ayrılış) tarihi — B7. */
     end_date?: string;
+    /** Dairede oturan tarafta mı (kiracı, hane üyesi ya da kiracısız dairede oturan malik) — 067. */
+    is_occupant?: boolean;
 }
 /** Yöneticiye YALNIZCA BİR KEZ gösterilen etkinleştirme / şifre sıfırlama kodu. */
 export interface Activation { activation_code: string; purpose: "ACTIVATION" | "RESET"; expires_at: string; note: string; sms?: { status: "SENT" | "FAILED" | "NOT_CONFIGURED"; note: string }; email?: { status: "SENT" | "FAILED" | "NOT_CONFIGURED"; note: string } }
@@ -40,11 +42,14 @@ export type CreateResidentResult = Partial<Resident> & { activation?: Activation
 export interface Unit {
     id: Id; property_id: Id; block: string; floor: number; door_number: string; share_ratio: number;
     gross_area_m2: number; net_area_m2: number; unit_type: string; is_commercial: boolean; is_ground_floor?: boolean;
+    /** Oturum modeli (067): kayıtlardan hesaplanır. owner_occupied yalnız kiracısız dairede anlamlıdır. */
+    owner_occupied?: boolean; occupancy?: "TENANT_OCCUPIED" | "OWNER_OCCUPIED" | "VACANT" | "UNREGISTERED";
+    owner_count?: number; tenant_count?: number; owner_missing?: boolean;
 }
 /** Bölüm ekleme/güncelleme girdisi; güncellemede verilmeyen alan değişmez. */
 export interface UnitInput {
     block?: string; floor?: number; door_number?: string; share_ratio?: number; gross_area_m2?: number; net_area_m2?: number;
-    unit_type?: string; is_commercial?: boolean; is_ground_floor?: boolean;
+    unit_type?: string; is_commercial?: boolean; is_ground_floor?: boolean; owner_occupied?: boolean;
 }
 
 // ---------------------------------------------------------------- finance

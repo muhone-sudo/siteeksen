@@ -8268,6 +8268,65 @@ $PSQL -c "DELETE FROM expense_distributions WHERE expense_id IN (SELECT id FROM 
   DELETE FROM expenses WHERE invoice_number LIKE 'FT-D1-%';" >/dev/null 2>&1
 kill_tree "$D1_finance"; kill_tree "$D1_governance"; kill_tree "$D1_expense"
 
+step "58) Daire oturum modeli: kiracı / malik oturuyor / boş / kayıtsız (067, altıncı tur D2)"
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_identity DB_PASSWORD="$IDPW" DB_NAME=siteeksen \
+  DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=19785 \
+  go run ./services/identity >/tmp/verify-identity-d2.log 2>&1 &
+ID2_PID=$!
+for _ in $(seq 1 60); do curl -fsS http://127.0.0.1:19785/health >/dev/null 2>&1 && break; sleep 1; done
+I58="http://127.0.0.1:19785/api/v1"
+M58=$(curl -s -X POST "$I58/auth/login" -H "$J" -d '{"phone":"5551234567","password":"Demo123!"}' | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+T58=$(curl -s -X POST "$I58/auth/login" -H "$J" -d '{"phone":"5559876543","password":"Demo123!"}' | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
+MA58="Authorization: Bearer $M58"
+OWN58='44444444-4444-4444-4444-444444444401'
+# Üç yeni bölüm: Z-58A (malik), Z-58B (kimse), Z-58C (yalnız kiracı)
+UA=$($PSQL -t -A -c "INSERT INTO units (property_id, block, floor, door_number, share_ratio, unit_type, net_area_m2)
+  VALUES ('$DEMO_PROPERTY','Z',1,'58A',1,'APARTMENT',80) RETURNING id;" | head -1)
+UB=$($PSQL -t -A -c "INSERT INTO units (property_id, block, floor, door_number, share_ratio, unit_type, net_area_m2)
+  VALUES ('$DEMO_PROPERTY','Z',1,'58B',1,'APARTMENT',80) RETURNING id;" | head -1)
+UC=$($PSQL -t -A -c "INSERT INTO units (property_id, block, floor, door_number, share_ratio, unit_type, net_area_m2)
+  VALUES ('$DEMO_PROPERTY','Z',1,'58C',1,'APARTMENT',80) RETURNING id;" | head -1)
+$PSQL -c "INSERT INTO resident_units (resident_id, unit_id, role) VALUES ('$OWN58','$UA','OWNER'), ('$TUID','$UC','TENANT');" >/dev/null
+occ() { curl -s "$I58/units" -H "$MA58" | python3 -c "
+import json,sys
+d={u['id']:u for u in json.load(sys.stdin)['data']}
+print(' '.join(d[i]['occupancy']+('/maliksiz' if d[i]['owner_missing'] else '') for i in sys.argv[1:]))" "$@" 2>/dev/null; }
+occ_res() { curl -s "$I58/residents" -H "$MA58" | python3 -c "
+import json,sys
+d=json.load(sys.stdin); d=d.get('data',d)
+print(' '.join(r['role']+'='+str(r['is_occupant']).lower() for r in sorted(d, key=lambda r: r['role']) if r['unit_id']==sys.argv[1] and r['is_active']))" "$1" 2>/dev/null; }
+S1=$(occ "$UA" "$UB" "$UC"); R1=$(occ_res "$UA")
+[ "$S1" = "OWNER_OCCUPIED UNREGISTERED TENANT_OCCUPIED/maliksiz" ] && [ "$R1" = "OWNER=true" ] \
+  && ok "oturum durumu kayıtlardan hesaplanıyor: malikli daire 'malik oturuyor', kimsesiz daire 'kayıtsız', yalnız kiracılı daire 'kiracı oturuyor' + malik kaydı yok uyarısı; malik oturan olarak görünüyor" \
+  || bad "oturum durumu: $S1 / sakinler: $R1"
+P1=$(curl -s -w '|%{http_code}' -X PATCH "$I58/units/$UA" -H "$MA58" -H "$J" -d '{"owner_occupied":false}')
+P1O=$(echo "${P1%|*}" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['occupancy'], d['owner_occupied'])" 2>/dev/null)
+S2=$(occ "$UA"); R2=$(occ_res "$UA")
+P2=$(code -X PATCH "$I58/units/$UA" -H "Authorization: Bearer $T58" -H "$J" -d '{"owner_occupied":true}')
+[ "${P1##*|}" = "200" ] && [ "$P1O" = "VACANT False" ] && [ "$S2" = "VACANT" ] && [ "$R2" = "OWNER=false" ] && [ "$P2" = "403" ] \
+  && ok "yönetim daireyi 'boş' işaretledi: durum güncelleme yanıtında ve listede 'boş', malik artık oturan değil; kiracı bölüm durumunu değiştiremiyor (403)" \
+  || bad "boş daire: ${P1##*|} $P1O / liste=$S2 / sakin=$R2 / kiracı=$P2"
+# Boş daireye kiracı gelince kiracı oturur, malik oturan değildir; kiracı çıkınca malik oturuyor seçeneği geri gelir
+$PSQL -c "INSERT INTO resident_units (resident_id, unit_id, role) VALUES ('$TUID','$UA','TENANT');" >/dev/null
+S3=$(occ "$UA"); R3=$(occ_res "$UA")
+$PSQL -c "UPDATE resident_units SET is_active=false, end_date=CURRENT_DATE WHERE unit_id='$UA' AND role='TENANT';" >/dev/null
+S4=$(occ "$UA")
+curl -s -o /dev/null -X PATCH "$I58/units/$UA" -H "$MA58" -H "$J" -d '{"owner_occupied":true}'
+S5=$(occ "$UA"); R5=$(occ_res "$UA")
+[ "$S3" = "TENANT_OCCUPIED" ] && [ "$R3" = "OWNER=false TENANT=true" ] && [ "$S4" = "VACANT" ] && [ "$S5" = "OWNER_OCCUPIED" ] && [ "$R5" = "OWNER=true" ] \
+  && ok "kiracı gelince kiracı oturan, malik değil; kiracı ayrılınca daire yeniden boş (malik kayıtlı); yönetim 'malik oturuyor' deyince malik oturan" \
+  || bad "devir: kiracılı=$S3 ($R3) / ayrılınca=$S4 / malik oturuyor=$S5 ($R5)"
+# Hane üyesi: şemada var, oturan sayılır, jeton rolü üretmez; ekleme akışı D3'e kadar kapalı
+HH=$($PSQL -t -A -c "INSERT INTO resident_units (resident_id, unit_id, role) VALUES ('$TUID','$UA','HOUSEHOLD') RETURNING id;" | head -1)
+HHO=$($PSQL -t -A -c "SELECT resident_is_occupant('$HH');")
+HHA=$(code -X POST "$I58/residents" -H "$MA58" -H "$J" -d "{\"first_name\":\"Hane\",\"last_name\":\"Uyesi\",\"phone\":\"0555 999 00 58\",\"unit_id\":\"$UB\",\"role\":\"HOUSEHOLD\"}")
+HAPP=$(appsql46 "SELECT unit_occupancy('$UA') || '|' || unit_occupancy('$UB')")
+grep -q 'OWNER_OCCUPIED|UNREGISTERED' <<<"$HAPP" && [ -n "$HH" ] && [ "$HHO" = "t" ] && [ "$HHA" = "422" ] \
+  && ok "hane üyesi rolü veritabanında kabul ediliyor ve oturan sayılıyor; API'den ekleme davet akışına (D3) kadar 422; diğer servisler (uygulama rolü) oturum durumunu aynı işlevden okuyor" \
+  || bad "hane üyesi / uygulama rolü: kayıt=$HH oturan=$HHO api=$HHA / $HAPP"
+$PSQL -c "DELETE FROM resident_units WHERE unit_id IN ('$UA','$UB','$UC'); DELETE FROM units WHERE id IN ('$UA','$UB','$UC');" >/dev/null
+kill_tree "$ID2_PID"
+
 step "SONUÇ"
 echo "  Geçen: $PASS   Başarısız: $FAIL"
 [ "$FAIL" -eq 0 ] && { echo "  TÜM KONTROLLER GEÇTİ"; exit 0; } || { echo "  BAŞARISIZ KONTROL VAR"; exit 1; }

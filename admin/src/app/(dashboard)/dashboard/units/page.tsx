@@ -16,6 +16,13 @@ const UNIT_TYPES = [
     { value: "STORAGE", label: "Depo" },
 ];
 const TYPE_LABEL = Object.fromEntries(UNIT_TYPES.map((t) => [t.value, t.label]));
+/** Oturum durumu (067): kayıtlardan hesaplanır — kiracı varsa kiracı oturur; yoksa malik oturur ya da daire boştur. */
+const OCCUPANCY: Record<string, { label: string; tone: "green" | "blue" | "gray" | "red" }> = {
+    TENANT_OCCUPIED: { label: "Kiracı oturuyor", tone: "blue" },
+    OWNER_OCCUPIED: { label: "Malik oturuyor", tone: "green" },
+    VACANT: { label: "Boş", tone: "gray" },
+    UNREGISTERED: { label: "Kayıtsız", tone: "red" },
+};
 
 /**
  * Toplu içe aktarma satırı: `blok;kat;kapı;arsa payı;net m²;brüt m²` (blok ve brüt m² boş
@@ -72,6 +79,7 @@ export default function UnitsPage() {
         setForm({
             block: u.block, floor: u.floor, door_number: u.door_number, share_ratio: u.share_ratio,
             gross_area_m2: u.gross_area_m2 || undefined, net_area_m2: u.net_area_m2 || undefined, unit_type: u.unit_type, is_commercial: u.is_commercial,
+            owner_occupied: u.owner_occupied ?? true,
         });
     };
 
@@ -94,7 +102,14 @@ export default function UnitsPage() {
                             { label: "Bölüm", value: num(d.data.length) },
                             { label: "Toplam arsa payı", value: num(d.data.reduce((a, u) => a + Number(u.share_ratio || 0), 0)) },
                             { label: "Ticari", value: num(d.data.filter((u) => u.is_commercial).length) },
+                            { label: "Boş", value: num(d.data.filter((u) => u.occupancy === "VACANT").length) },
+                            { label: "Kayıtsız", value: num(d.data.filter((u) => u.occupancy === "UNREGISTERED").length) },
                         ]} />
+                        {d.data.some((u) => u.owner_missing) && (
+                            <Notice tone="amber" title="Maliki kayıtlı olmayan daireler">
+                                {d.data.filter((u) => u.owner_missing).map((u) => `${u.block ? u.block + "-" : ""}${u.door_number}`).join(", ")} — kiracı kayıtlı ama malik yok. Malik giderleri bu dairelerde yönetimde bekler; maliki kaydedin.
+                            </Notice>
+                        )}
                         <Card padded={false}>
                             <Table
                                 rows={d.data}
@@ -107,6 +122,7 @@ export default function UnitsPage() {
                                     { header: "Arsa payı", cell: (u) => num(u.share_ratio) },
                                     { header: "Net m²", cell: (u) => (u.net_area_m2 ? num(u.net_area_m2) : ["APARTMENT", "SHOP", "OFFICE"].includes(u.unit_type) ? <Badge tone="red">Eksik</Badge> : "—") },
                                     { header: "Brüt m²", cell: (u) => (u.gross_area_m2 ? num(u.gross_area_m2) : "—") },
+                                    { header: "Oturum", cell: (u) => (u.occupancy ? <Badge tone={OCCUPANCY[u.occupancy].tone}>{OCCUPANCY[u.occupancy].label}</Badge> : "—") },
                                     { header: "", cell: (u) => (u.is_commercial ? <Badge tone="amber">Ticari</Badge> : null) },
                                     ...(canWrite ? [{ header: "", cell: (u: Unit) => (
                                         <div className="flex gap-1">
@@ -155,6 +171,12 @@ export default function UnitsPage() {
                         <Field label="Ticari mi?" hint="Ticari bölümler bazı gider kalemlerinden muaf tutulabilir">
                             <Select value={form.is_commercial ? "1" : "0"} onChange={(e) => setForm({ ...form, is_commercial: e.target.value === "1" })} options={[{ value: "0", label: "Hayır" }, { value: "1", label: "Evet" }]} />
                         </Field>
+                        {editId && (
+                            <Field label="Kiracı yokken" hint="Kiracı kayıtlıyken kiracı oturur. Boş dairede kullanım ve malik giderlerinin tamamı malike düşer.">
+                                <Select value={form.owner_occupied === false ? "0" : "1"} onChange={(e) => setForm({ ...form, owner_occupied: e.target.value === "1" })}
+                                    options={[{ value: "1", label: "Malik oturuyor" }, { value: "0", label: "Daire boş" }]} />
+                            </Field>
+                        )}
                     </Grid>
                 )}
             </FormModal>

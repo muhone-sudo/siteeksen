@@ -661,8 +661,11 @@ Aşamalar (her biri ayrı commit, verify-stack + gerekirse verify-mobile + panel
 - [x] **D1 Gider sınıfı** (verify 1320/1320, panel tsc/lint) — 066: `expense_categories.default_liability`, `expenses.liability`, `operating_budget_items.liability`,
   `assessment_details.liability`, `monthly_assessments.liability`; dönem benzersizliği (bölüm, dönem, sınıf). Elle tahakkuk,
   işletme projesinden tahakkuk, devir bakiyesi ve gider kaydı sınıfı alır; bir bölüme dönem başına sınıf başına bir tahakkuk.
-- [ ] **D2 Daire oturum modeli** — 067: oturan bayrağı, HANE üyesi rolü, daire başına tek oturan başı; durum görünümü
-  (BOŞ / MALİK OTURUYOR / KİRACI OTURUYOR / KAYITSIZ); boş daire malik ister.
+- [x] **D2 Daire oturum modeli** (verify 1325/1325, panel tsc/lint) — 067: `units.owner_occupied`, HOUSEHOLD rolü (şemada;
+  ekleme D3), `unit_occupancy()` / `resident_is_occupant()` (durum saklanmaz, kayıtlardan hesaplanır: KİRACI OTURUYOR /
+  MALİK OTURUYOR / BOŞ / KAYITSIZ; boş daire tanım gereği malikli). Panel: Oturum sütunu, "kiracı yokken" seçimi, malik
+  kaydı yok uyarısı, sakinlerde "Oturan". **D3'e taşındı:** daire başına tek aktif kiracı kısıtı — mevcut kiracı ekleme
+  akışları (ve verify'daki çoklu kiracılı fixture'lar) davet akışıyla birlikte değişecek.
 - [ ] **D3 Kayıt ve davet** — yönetim maliki/kiracıyı kaydeder; malik ya da yönetim kiracıyı SMS + e-postayla davet eder
   (dolu dairede engel); kiracı kodla katılır, kabulde devir; kiracılı daireye malik daveti; hane üyesi daveti. B5'in doğrudan
   ekleme/bitirme uçları kaldırılır.

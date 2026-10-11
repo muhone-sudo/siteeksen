@@ -86,6 +86,14 @@ type Unit struct {
 	UnitType      string  `json:"unit_type"`
 	IsCommercial  bool    `json:"is_commercial"`
 	IsGroundFloor bool    `json:"is_ground_floor"`
+	// Oturum modeli (067). OwnerOccupied yalnız kiracısız dairede anlamlıdır (false: daire boş).
+	OwnerOccupied bool `json:"owner_occupied"`
+	// Occupancy: TENANT_OCCUPIED | OWNER_OCCUPIED | VACANT | UNREGISTERED (kayıtlardan hesaplanır).
+	Occupancy   string `json:"occupancy"`
+	OwnerCount  int    `json:"owner_count"`
+	TenantCount int    `json:"tenant_count"`
+	// OwnerMissing: kiracı oturuyor ama maliki kayıtlı değil (yönetim maliki sonradan davet etmeli).
+	OwnerMissing bool `json:"owner_missing"`
 }
 
 // UnitInput, bağımsız bölüm oluşturma/güncelleme girdisi (site kurulumu, FAZ 8.1).
@@ -102,4 +110,6 @@ type UnitInput struct {
 	UnitType      *string  `json:"unit_type"`
 	IsCommercial  *bool    `json:"is_commercial"`
 	IsGroundFloor *bool    `json:"is_ground_floor"`
+	// OwnerOccupied: kiracısız dairede malik oturuyor (true) ya da daire boş (false) — 067.
+	OwnerOccupied *bool `json:"owner_occupied"`
 }
