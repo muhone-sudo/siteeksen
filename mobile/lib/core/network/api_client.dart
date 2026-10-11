@@ -207,9 +207,15 @@ class ApiClient {
     return Map<String, dynamic>.from(response.data as Map);
   }
 
-  /// Kendi e-posta değişikliği (B4).
-  Future<Map<String, dynamic>> changeEmail(String password, String email) async {
+  /// Kendi e-posta değişikliği (B4, 065): şifreyle istenir, kod YENİ adrese gider.
+  Future<Map<String, dynamic>> requestEmailChange(String password, String email) async {
     final response = await _dio.post('/users/me/email', data: {'password': password, 'email': email.trim()});
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
+  /// Yeni adrese gelen kodla onay; adres ancak bu adımda değişir.
+  Future<Map<String, dynamic>> confirmEmailChange(String code) async {
+    final response = await _dio.post('/users/me/email/confirm', data: {'code': code.trim().toUpperCase()});
     return Map<String, dynamic>.from(response.data as Map);
   }
 

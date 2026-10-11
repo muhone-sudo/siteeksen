@@ -89,7 +89,8 @@ func main() {
 		// Sakinin kendi telefon/e-posta değişikliği (062, beşinci tur B4).
 		protected.POST("/me/phone/request", handlers.RequestPhoneChange(authService))
 		protected.POST("/me/phone/confirm", handlers.ConfirmPhoneChange(authService))
-		protected.POST("/me/email", handlers.ChangeEmail(authService))
+		protected.POST("/me/email", handlers.RequestEmailChange(authService))
+		protected.POST("/me/email/confirm", handlers.ConfirmEmailChange(authService))
 		// Malikin kendi bölümündeki kiracı/vekil yönetimi (beşinci tur B5).
 		protected.GET("/me/units/:id/residents", handlers.OwnerUnitResidents(residentService))
 		protected.POST("/me/units/:id/residents", handlers.OwnerAddResident(residentService))

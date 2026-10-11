@@ -5863,7 +5863,7 @@ AUD=$($PSQL -t -A -c "SELECT count(*) FROM audit_logs WHERE created_at > now() -
   || bad "denetim izine yazılmamış — INSERT yetkisi de gitmiş olabilir"
 appfails "UPDATE legal_parameters SET value_numeric = 0" \
   && ok "uygulama rolü mevzuat parametresini değiştiremiyor" || bad "uygulama rolü legal_parameters YAZABİLDİ"
-for T in tenants invoices usage_metrics schema_migrations user_activation_codes phone_change_requests; do
+for T in tenants invoices usage_metrics schema_migrations user_activation_codes phone_change_requests email_change_requests; do
   appfails "SELECT count(*) FROM $T" && ok "uygulama rolü platform tablosuna erişemiyor: $T" \
     || bad "uygulama rolü $T okuyabiliyor"
 done
@@ -5899,10 +5899,10 @@ NOTRLS=$($PSQL -t -A -c "SELECT string_agg(t.table_name, ' ' ORDER BY t.table_na
 # audit_logs: yalnızca ekleme
 # revoked_tokens / user_token_invalidation: salt-okur, kişi bazlı (site değil)
 # tenants / invoices / usage_metrics / schema_migrations: uygulama rolüne kapalı
-# user_activation_codes / phone_change_requests: uygulama rolüne kapalı, yalnızca kimlik servisi (027, 062)
+# user_activation_codes / phone_change_requests / email_change_requests: uygulama rolüne kapalı, yalnızca kimlik servisi (027, 062, 065)
 # (legal_parameters 029'dan beri RLS altında: site istisnaları yalnızca kendi sitesinde.)
-EXPECTED="audit_logs invoices phone_change_requests revoked_tokens schema_migrations tenants usage_metrics user_activation_codes user_token_invalidation"
-[ "$NOTRLS" = "$EXPECTED" ] && ok "RLS dışındaki 9 tablonun her biri gerekçeli: $NOTRLS" \
+EXPECTED="audit_logs email_change_requests invoices phone_change_requests revoked_tokens schema_migrations tenants usage_metrics user_activation_codes user_token_invalidation"
+[ "$NOTRLS" = "$EXPECTED" ] && ok "RLS dışındaki 10 tablonun her biri gerekçeli: $NOTRLS" \
   || bad "RLS dışında beklenmeyen tablo var: '$NOTRLS' (beklenen: '$EXPECTED')"
 
 step "37) Sertleştirme turu: gateway yönlendirmesi, durum kodları, sahiplik (2026-09-26)"
@@ -7814,7 +7814,7 @@ L3O=$(code -X POST "$I3/login" -H "$J" -d '{"phone":"+352621123456","password":"
   || bad "kodla şifre belirleme: $A3 / yeni=$L3N / eski=$L3O"
 kill_tree "$IB3_PID"; kill_tree "$IB3N_PID"; kill "$FNG3_PID" 2>/dev/null
 
-step "52) Sakinin kendi telefon ve e-posta değişikliği (062, beşinci tur B4)"
+step "52) Sakinin kendi telefon ve e-posta değişikliği (062, 065, beşinci tur B4)"
 if go test ./services/identity/service/ -count=1 -run 'ValidEmail' >/tmp/verify-email.log 2>&1; then
   ok "go test e-posta biçimi (yalın adres; ad/liste/eksik alan reddedilir)"
 else
@@ -7823,8 +7823,52 @@ fi
 rm -f /tmp/fake-netgsm.log
 python3 /tmp/fake-netgsm.py 19290 >/dev/null 2>&1 &
 FNG4_PID=$!
+cat >/tmp/fake-smtp.py <<'PYEOF'
+import socket, sys, threading, json, email
+from email.header import decode_header, make_header
+def handle(c):
+    f = c.makefile('rwb')
+    def w(s):
+        f.write((s + '\r\n').encode()); f.flush()
+    w('220 fake-smtp')
+    rcpt = []
+    while True:
+        line = f.readline()
+        if not line:
+            break
+        cmd = line.decode(errors='replace').strip(); u = cmd.upper()
+        if u.startswith('EHLO') or u.startswith('HELO'):
+            w('250 fake-smtp')
+        elif u.startswith('RCPT TO'):
+            rcpt.append(cmd.split(':', 1)[1].strip(' <>')); w('250 OK')
+        elif u == 'DATA':
+            w('354 devam'); buf = b''
+            while True:
+                l = f.readline()
+                if l in (b'.\r\n', b'.\n', b''):
+                    break
+                buf += l
+            msg = email.message_from_bytes(buf)
+            body = (msg.get_payload(decode=True) or b'').decode('utf-8', 'replace')
+            with open('/tmp/fake-smtp.log', 'a') as fh:
+                fh.write(json.dumps({'to': rcpt, 'subject': str(make_header(decode_header(msg['Subject'] or ''))), 'body': body}) + '\n')
+            rcpt = []; w('250 queued')
+        elif u == 'QUIT':
+            w('221 bye'); break
+        else:
+            w('250 OK')
+    c.close()
+s = socket.socket(); s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+s.bind(('127.0.0.1', int(sys.argv[1]))); s.listen(8)
+while True:
+    conn, _ = s.accept(); threading.Thread(target=handle, args=(conn,), daemon=True).start()
+PYEOF
+rm -f /tmp/fake-smtp.log
+python3 /tmp/fake-smtp.py 19225 >/dev/null 2>&1 &
+FSM4_PID=$!
+SM4="SMTP_HOST=127.0.0.1 SMTP_PORT=19225 SMTP_TLS=none SMTP_FROM=bildirim@siteeksen.test"
 NG4="NETGSM_USERCODE=8501112233 NETGSM_PASSWORD=api-sifre NETGSM_MSGHEADER=SITEEKSEN NETGSM_API_URL=http://127.0.0.1:19290"
-env $NG4 DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_identity DB_PASSWORD="$IDPW" DB_NAME=siteeksen \
+env $NG4 $SM4 DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_identity DB_PASSWORD="$IDPW" DB_NAME=siteeksen \
   DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=19281 \
   go run ./services/identity >/tmp/verify-identity-b4.log 2>&1 &
 IB4_PID=$!
@@ -7875,16 +7919,33 @@ echo "$PC4" | grep -q '"sessions_revoked":true' && echo "$PC4" | grep -q '"old_p
   && ok "doğru kodla numara değişti; bütün oturumlar kapandı (eski jeton 401), eski numaraya uyarı SMS'i gitti, yeni numarayla giriş çalışıyor" \
   || bad "numara onayı: $PC4 / $PHA / eski numaraya=$OLDN / eski jeton=$OLDT / yeni giriş=${LXT2:+var}"
 LXA2="Authorization: Bearer $LXT2"
+# E-posta değişikliği (065): kod YENİ adrese gider, kodla onaylanınca değişir
+E0=$(curl -s -w '|%{http_code}' -X POST "http://127.0.0.1:19283/api/v1/users/me/email" -H "$LXA2" -H "$J" -d '{"password":"YeniSifre2026","email":"lux.sakin@ornek.lu"}')
 E1=$(code -X POST "$I4/users/me/email" -H "$LXA2" -H "$J" -d '{"password":"yanlis","email":"lux.sakin@ornek.lu"}')
 E2=$(code -X POST "$I4/users/me/email" -H "$LXA2" -H "$J" -d '{"password":"YeniSifre2026","email":"lux sakin@ornek"}')
 E3=$(code -X POST "$I4/users/me/email" -H "$LXA2" -H "$J" -d '{"password":"YeniSifre2026","email":"AHMET@example.com"}')
-E4=$(curl -s -w '|%{http_code}' -X POST "$I4/users/me/email" -H "$LXA2" -H "$J" -d '{"password":"YeniSifre2026","email":"lux.sakin@ornek.lu"}')
+EBEF=$($PSQL -t -A -c "SELECT COALESCE(email,'yok') FROM users WHERE id='$LUX';")
+E4=$(curl -s -w '|%{http_code}' -X POST "$I4/users/me/email" -H "$LXA2" -H "$J" -d '{"password":"YeniSifre2026","email":"lux.sakin@ornek.lu"}'); sleep 1
+EMID=$($PSQL -t -A -c "SELECT COALESCE(email,'yok') FROM users WHERE id='$LUX';")
+ECODE=$(python3 -c "
+import json,re
+rows=[json.loads(l) for l in open('/tmp/fake-smtp.log')]
+m=[r for r in rows if 'lux.sakin@ornek.lu' in r['to']]
+x=re.search(r'doğrulama kodunuz: ([A-Z0-9]{8})', m[-1]['body']) if m else None
+print(x.group(1) if x else '')" 2>/dev/null)
+case "$E0" in *NO_EMAIL_CHANNEL*"|503") E0OK=1 ;; *) E0OK=0 ;; esac
+[ "$E0OK" = "1" ] && [ "$E1" = "400" ] && [ "$E2" = "422" ] && [ "$E3" = "409" ] && [ "${E4##*|}" = "200" ] && [ -n "$ECODE" ] && [ "$EMID" = "$EBEF" ] \
+  && ok "e-posta değişikliği isteği: e-posta yoksa 503, yanlış şifre 400, geçersiz adres 422, başka hesabın e-postası 409; kod YENİ adrese gitti ve adres kod girilmeden DEĞİŞMEDİ" \
+  || bad "e-posta isteği: $E0 / $E1 / $E2 / $E3 / $E4 / kod=$ECODE / önce=$EBEF sonra=$EMID"
+EW=$(code -X POST "$I4/users/me/email/confirm" -H "$LXA2" -H "$J" -d '{"code":"AAAAAAAA"}')
+EC=$(curl -s -w '|%{http_code}' -X POST "$I4/users/me/email/confirm" -H "$LXA2" -H "$J" -d "{\"code\":\"$ECODE\"}")
 EDB=$($PSQL -t -A -c "SELECT email FROM users WHERE id='$LUX';")
 EME=$(curl -s "$I4/users/me" -H "$LXA2" | grep -c '"email":"lux.sakin@ornek.lu"')
-[ "$E1" = "400" ] && [ "$E2" = "422" ] && [ "$E3" = "409" ] && [ "${E4##*|}" = "200" ] && [ "$EDB" = "lux.sakin@ornek.lu" ] && [ "$EME" = "1" ] \
-  && ok "e-posta değişikliği: yanlış şifre 400, geçersiz adres 422, başka hesabın e-postası (büyük/küçük harf farkıyla) 409; doğru şifreyle güncellendi ve profilde görünüyor" \
-  || bad "e-posta: $E1 / $E2 / $E3 / $E4 / $EDB / profil=$EME"
-kill_tree "$IB4_PID"; kill_tree "$IB4N_PID"; kill "$FNG4_PID" 2>/dev/null
+EPLAIN=$($PSQL -t -A -c "SELECT count(*) FROM email_change_requests WHERE code_hash='$ECODE';")
+[ "$EW" = "400" ] && [ "${EC##*|}" = "200" ] && [ "$EDB" = "lux.sakin@ornek.lu" ] && [ "$EME" = "1" ] && [ "$EPLAIN" = "0" ] \
+  && ok "yanlış kod 400; yeni adrese gelen kodla e-posta doğrulandı, güncellendi ve profilde görünüyor (kod özetle saklanıyor)" \
+  || bad "e-posta onayı: yanlış=$EW / $EC / $EDB / profil=$EME / düz=$EPLAIN"
+kill_tree "$IB4_PID"; kill_tree "$IB4N_PID"; kill "$FNG4_PID" "$FSM4_PID" 2>/dev/null
 
 step "53) Malikin kendi bölümündeki kiracı/vekil yönetimi (beşinci tur B5)"
 DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_identity DB_PASSWORD="$IDPW" DB_NAME=siteeksen \

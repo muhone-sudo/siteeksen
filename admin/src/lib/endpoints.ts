@@ -67,8 +67,10 @@ export function endpoints(http: Http) {
                 http.post<{ message: string; expires_in_sec: number; retry_after_sec: number }>("/users/me/phone/request", { password, phone }),
             confirmPhoneChange: (code: string) =>
                 http.post<{ message: string; phone: string; sessions_revoked: boolean; old_phone_notice: string }>("/users/me/phone/confirm", { code }),
-            changeEmail: (password: string, email: string) =>
-                http.post<{ message: string; email: string; old_email_notice: string }>("/users/me/email", { password, email }),
+            requestEmailChange: (password: string, email: string) =>
+                http.post<{ message: string; expires_in_sec: number; retry_after_sec: number }>("/users/me/email", { password, email }),
+            confirmEmailChange: (code: string) =>
+                http.post<{ message: string; email: string; old_email_notice: string }>("/users/me/email/confirm", { code }),
             /** Oturum gerektirmez: kodla ilk şifre belirleme ya da sıfırlama. */
             activate: (phone: string, code: string, new_password: string) =>
                 http.post<Msg>("/auth/activate", { phone, code, new_password }),

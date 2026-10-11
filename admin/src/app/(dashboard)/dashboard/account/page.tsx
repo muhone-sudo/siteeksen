@@ -102,27 +102,45 @@ function PhoneCard() {
     );
 }
 
-/** E-posta: mevcut şifreyle değişir; eski adrese (varsa) bilgi gider. */
+/** E-posta (065): mevcut şifre + yeni adres → kod yeni adrese gider; kodla onaylanınca adres değişir. */
 function EmailCard() {
     const act = useAction();
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
+    const [code, setCode] = useState("");
+    const [sent, setSent] = useState(false);
     return (
         <Card title="E-posta adresi">
             <form className="max-w-md space-y-4" onSubmit={async (e) => {
                 e.preventDefault();
-                const r = await act.run(() => api.identity.changeEmail(password, email.trim()), { success: (x) => x.message });
-                if (r) setPassword("");
+                if (!sent) {
+                    const r = await act.run(() => api.identity.requestEmailChange(password, email.trim()), { success: (x) => x.message });
+                    if (r) { setSent(true); setPassword(""); }
+                } else {
+                    const r = await act.run(() => api.identity.confirmEmailChange(code), { success: (x) => x.message });
+                    if (r) { setSent(false); setCode(""); setEmail(""); }
+                }
             }}>
                 {act.error && <Notice tone="red">{act.error}</Notice>}
                 {act.message && <Notice tone="green">{act.message}</Notice>}
-                <Field label="Yeni e-posta" required>
-                    <Input type="email" required maxLength={254} value={email} onChange={(e) => setEmail(e.target.value)} />
-                </Field>
-                <Field label="Mevcut şifre" required>
-                    <Input type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
-                </Field>
-                <Button type="submit" disabled={act.pending}>E-postayı güncelle</Button>
+                {!sent ? (
+                    <>
+                        <Field label="Yeni e-posta" required>
+                            <Input type="email" required maxLength={254} value={email} onChange={(e) => setEmail(e.target.value)} />
+                        </Field>
+                        <Field label="Mevcut şifre" required>
+                            <Input type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+                        </Field>
+                        <Button type="submit" disabled={act.pending}>Yeni adrese kod gönder</Button>
+                    </>
+                ) : (
+                    <>
+                        <Field label="E-postayla gelen kod" required>
+                            <Input required autoComplete="one-time-code" maxLength={12} className="font-mono uppercase tracking-widest" value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} />
+                        </Field>
+                        <Button type="submit" disabled={act.pending}>Onayla</Button>
+                    </>
+                )}
             </form>
         </Card>
     );

@@ -143,13 +143,17 @@ String _serverError(Object e) {
   return toUserMessage(e);
 }
 
-/// Kendi e-posta değişikliği (B4): mevcut şifreyle. Başarıda true.
+/// Kendi e-posta değişikliği (B4, 065): 1) yeni adres + mevcut şifre → kod yeni adrese gider;
+/// 2) kod → adres değişir. Başarıda true.
 Future<bool> showChangeEmailDialog(BuildContext context, {String? current}) async {
   final formKey = GlobalKey<FormState>();
   final email = TextEditingController(text: current ?? '');
   final password = TextEditingController();
+  final code = TextEditingController();
   String? error;
+  String? info;
   bool busy = false;
+  bool codeSent = false;
   final ok = await showDialog<bool>(
     context: context,
     builder: (ctx) => StatefulBuilder(
@@ -164,20 +168,30 @@ Future<bool> showChangeEmailDialog(BuildContext context, {String? current}) asyn
                   padding: const EdgeInsets.only(bottom: 12),
                   child: Text(error!, style: TextStyle(color: Theme.of(ctx).colorScheme.error)),
                 ),
-              TextFormField(
-                controller: email,
-                keyboardType: TextInputType.emailAddress,
-                decoration: const InputDecoration(labelText: 'Yeni e-posta'),
-                validator: (v) => v == null || !RegExp(r'^[^@\s<>]+@[^@\s<>]+\.[^@\s<>]+$').hasMatch(v.trim()) ? 'Geçerli bir e-posta girin' : null,
-              ),
-              TextFormField(
-                controller: password,
-                obscureText: true,
-                decoration: const InputDecoration(labelText: 'Mevcut şifre'),
-                validator: (v) => (v == null || v.isEmpty) ? 'Mevcut şifre gerekli' : null,
-              ),
-              const SizedBox(height: 12),
-              const Text('Kayıtlı eski adresinize değişiklik bilgisi gönderilir.', style: TextStyle(fontSize: 12)),
+              if (!codeSent) ...[
+                TextFormField(
+                  controller: email,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: const InputDecoration(labelText: 'Yeni e-posta'),
+                  validator: (v) => v == null || !RegExp(r'^[^@\s<>]+@[^@\s<>]+\.[^@\s<>]+$').hasMatch(v.trim()) ? 'Geçerli bir e-posta girin' : null,
+                ),
+                TextFormField(
+                  controller: password,
+                  obscureText: true,
+                  decoration: const InputDecoration(labelText: 'Mevcut şifre'),
+                  validator: (v) => (v == null || v.isEmpty) ? 'Mevcut şifre gerekli' : null,
+                ),
+                const SizedBox(height: 12),
+                const Text('Yeni adresinize doğrulama kodu gönderilir; adres kodu girince değişir.', style: TextStyle(fontSize: 12)),
+              ] else ...[
+                if (info != null) Padding(padding: const EdgeInsets.only(bottom: 8), child: Text(info!, style: const TextStyle(fontSize: 13))),
+                TextFormField(
+                  controller: code,
+                  textCapitalization: TextCapitalization.characters,
+                  decoration: const InputDecoration(labelText: 'E-postayla gelen kod'),
+                  validator: (v) => v == null || v.trim().length < 6 ? 'Kodu girin' : null,
+                ),
+              ],
             ]),
           ),
         ),
@@ -193,8 +207,17 @@ Future<bool> showChangeEmailDialog(BuildContext context, {String? current}) asyn
                       error = null;
                     });
                     try {
-                      await apiClient.changeEmail(password.text, email.text);
-                      if (ctx.mounted) Navigator.pop(ctx, true);
+                      if (!codeSent) {
+                        final res = await apiClient.requestEmailChange(password.text, email.text);
+                        setState(() {
+                          busy = false;
+                          codeSent = true;
+                          info = '${res['message'] ?? 'Kod gönderildi.'}';
+                        });
+                      } else {
+                        await apiClient.confirmEmailChange(code.text);
+                        if (ctx.mounted) Navigator.pop(ctx, true);
+                      }
                     } catch (e) {
                       setState(() {
                         busy = false;
@@ -202,7 +225,7 @@ Future<bool> showChangeEmailDialog(BuildContext context, {String? current}) asyn
                       });
                     }
                   },
-            child: const Text('Kaydet'),
+            child: Text(codeSent ? 'Onayla' : 'Kod gönder'),
           ),
         ],
       ),
@@ -210,12 +233,12 @@ Future<bool> showChangeEmailDialog(BuildContext context, {String? current}) asyn
   );
   email.dispose();
   password.dispose();
+  code.dispose();
   if (ok == true && context.mounted) {
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('E-posta adresiniz güncellendi.')));
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('E-posta adresiniz doğrulandı ve güncellendi.')));
   }
   return ok == true;
 }
-
 /// Kendi telefon değişikliği (B4): 1) yeni numara + mevcut şifre → kod yeni numaraya SMS;
 /// 2) kod → numara değişir, bütün oturumlar kapanır ve kullanıcı yeni numarasıyla giriş yapar.
 Future<void> showChangePhoneDialog(BuildContext context) async {

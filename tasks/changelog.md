@@ -12,6 +12,17 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-11 — E-POSTA DEĞİŞİKLİĞİNDE YENİ ADRESE ONAY KODU (migration 065, B4 ek — kullanıcı kararı) (DOĞRULANMIŞ — sahte SMTP ile)
+
+> **Kanıt:** `verify-stack.sh` → **1312/1312** (adım 52: e-posta yoksa 503, yanlış şifre 400, geçersiz adres 422, başka hesabın
+> e-postası 409; kod YENİ adrese gitti — kodu SMTP oturumundan okuyan sahte sunucuyla — ve adres kod girilmeden değişmedi;
+> yanlış kod 400; doğru kodla güncellendi ve profilde görünüyor; kod özetle saklanıyor. Adım 36: `email_change_requests`
+> uygulama rolüne kapalı, RLS dışı 10 tablo gerekçeli). `verify-mobile.sh` 10/10; panel tsc/lint temiz.
+
+- 062'de e-posta yalnız mevcut şifreyle değişiyordu; yanlış yazılmış ya da başkasına ait adres doğrulanmadan kaydedilebiliyordu.
+- `POST /users/me/email` artık kod gönderir, `POST /users/me/email/confirm` adresi değiştirir. 065 `email_change_requests`
+  (yalnız kimlik servisi). Sakin uygulaması ve panel Hesabım sayfası iki adımlı.
+
 ### 2026-10-11 — HAVALE BİLDİRİMİNE DEKONT DOSYASI (migration 064, beşinci tur B9) (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **1309/1309** (adım 56: sakin onay bekleyen havale bildirimine PDF dekont ekledi — içerik

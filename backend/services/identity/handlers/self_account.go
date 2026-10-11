@@ -3,7 +3,8 @@ package handlers
 // Sakinin kendi telefon/e-posta değişikliği (migration 062, beşinci tur B4).
 //   POST /me/phone/request {password, phone} → yeni numaraya SMS kodu
 //   POST /me/phone/confirm {code}            → numara değişir, bütün oturumlar kapanır
-//   POST /me/email {password, email}         → e-posta değişir
+//   POST /me/email {password, email}         → yeni adrese doğrulama kodu (065)
+//   POST /me/email/confirm {code}            → e-posta değişir, eski adrese bilgi gider
 
 import (
 	"context"
@@ -24,7 +25,7 @@ func selfAccountError(c *gin.Context, err error, op string) {
 	case errors.Is(err, service.ErrWrongPassword):
 		// 401 DEĞİL: istemciler 401'de oturumu kapatır; şifre değiştirmedeki gibi 400.
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Mevcut şifreniz hatalı"})
-	case errors.Is(err, service.ErrSamePhone), errors.Is(err, service.ErrInvalidEmail):
+	case errors.Is(err, service.ErrSamePhone), errors.Is(err, service.ErrInvalidEmail), errors.Is(err, service.ErrSameEmail):
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
 	case errors.Is(err, repository.ErrPhoneTaken):
 		c.JSON(http.StatusConflict, gin.H{"error": "Bu numara başka bir hesapta kayıtlı"})
@@ -125,21 +126,60 @@ func ConfirmPhoneChange(auth *service.AuthService) gin.HandlerFunc {
 	}
 }
 
-// ChangeEmail: POST /me/email.
-func ChangeEmail(auth *service.AuthService) gin.HandlerFunc {
+// RequestEmailChange: POST /me/email {password, email} — kod YENİ adrese gider (065).
+func RequestEmailChange(auth *service.AuthService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var in struct {
 			Password string `json:"password"`
 			Email    string `json:"email"`
 		}
-		if err := c.ShouldBindJSON(&in); err != nil || in.Password == "" {
+		if err := c.ShouldBindJSON(&in); err != nil || in.Password == "" || strings.TrimSpace(in.Email) == "" {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "password ve email zorunludur"})
 			return
 		}
+		// Yeni adresin kişiye ait olduğu yalnızca o adrese giden kodla kanıtlanabilir.
+		if activationEmail == nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"code": "NO_EMAIL_CHANNEL",
+				"error": "Bu kurulumda e-posta gönderimi yapılandırılmamış; e-posta adresi şu an değiştirilemez."})
+			return
+		}
 		email := strings.TrimSpace(in.Email)
-		old, err := auth.ChangeEmail(c.Request.Context(), c.GetString("user_id"), in.Password, email)
+		code, expires, err := auth.RequestEmailChange(c.Request.Context(), c.GetString("user_id"), in.Password, email, time.Now())
 		if err != nil {
-			selfAccountError(c, err, "e-posta değişikliği")
+			selfAccountError(c, err, "e-posta değişikliği isteği")
+			return
+		}
+		ctx, cancel := context.WithTimeout(c.Request.Context(), 20*time.Second)
+		defer cancel()
+		if _, err := activationEmail.Send(ctx, notify.Message{Channel: notify.ChannelEmail, Category: notify.CategoryTransactional,
+			Topic: "identity.email_change", Recipient: email, Subject: "SiteEksen e-posta doğrulama kodunuz",
+			Body: "Merhaba,\n\nSiteEksen hesabınıza bu adresi eklemek için doğrulama kodunuz: " + code + "\nKod saat " +
+				expires.In(time.Local).Format("15:04") + "'e kadar geçerlidir. Bu isteği siz yapmadıysanız bu iletiyi dikkate almayın."}); err != nil {
+			log.Printf("[identity] e-posta doğrulama kodu gönderilemedi: %v", err)
+			c.JSON(http.StatusBadGateway, gin.H{"error": "Doğrulama kodu yeni adrese gönderilemedi; adresi kontrol edip yeniden deneyin."})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{
+			"message":         "Doğrulama kodu yeni e-posta adresinize gönderildi. Kodu girdiğinizde adresiniz değişir.",
+			"expires_in_sec":  int(service.PhoneChangeTTL.Seconds()),
+			"retry_after_sec": int(service.SelfResetCooldown.Seconds()),
+		})
+	}
+}
+
+// ConfirmEmailChange: POST /me/email/confirm {code} — adres değişir, eski adrese bilgi gider.
+func ConfirmEmailChange(auth *service.AuthService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var in struct {
+			Code string `json:"code"`
+		}
+		if err := c.ShouldBindJSON(&in); err != nil || strings.TrimSpace(in.Code) == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "code zorunludur"})
+			return
+		}
+		old, email, err := auth.ConfirmEmailChange(c.Request.Context(), c.GetString("user_id"), in.Code)
+		if err != nil {
+			selfAccountError(c, err, "e-posta değişikliği onayı")
 			return
 		}
 		notice := "NONE"
@@ -159,6 +199,6 @@ func ChangeEmail(auth *service.AuthService) gin.HandlerFunc {
 				}
 			}
 		}
-		c.JSON(http.StatusOK, gin.H{"message": "E-posta adresiniz güncellendi.", "email": email, "old_email_notice": notice})
+		c.JSON(http.StatusOK, gin.H{"message": "E-posta adresiniz doğrulandı ve güncellendi.", "email": email, "old_email_notice": notice})
 	}
 }
