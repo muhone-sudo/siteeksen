@@ -384,6 +384,31 @@ değişen oranlara bağlıdır ve hata doğrudan çalışan ücretine yansır. S
 b) bordro mali müşavirden gelir, sistem yalnızca net ödemeyi ve maliyeti kaydeder.
 **KARAR (kullanıcı, 2026-10-05):** b) — bordro mali müşavirden gelir; sistem dönem bazında net ödemeyi ve
 işveren maliyetini kaydeder, ücret/vergi/SGK HESAPLAMAZ. iOS paket kimliği de olduğu gibi kalır (ios/ yok).
+### S-23. Altıncı tur (malik / kiracı / oturan, gider sınıfı) — kararlar ve varsayılanlar (2026-10-11)
+
+**KARAR (kullanıcı):** her mali kalem girişte KULLANIM (oturan öder) ya da MALİK (demirbaş, yenilik, yeni tesis) sınıfı alır ve
+bütün mali işler sınıfa uyar; sakin kendi başına üye olamaz; maliki yönetim kaydeder, yönetim malik olmadan kiracıyı da
+kaydedebilir, yalnız kiracıyla kayıtlı daireye malik davet edilir; daire boş olabilir ama malik olmalı, boş dairede her şey
+malike düşer; kiracıyı malik ya da yönetim SMS + e-postayla davet eder, aktif kiracı varken davet yok (yönetim dahil); hane
+üyesi olur; devirden sonra malik kullanım işlemi yapmaz; malikin görünürlüğünü yönetim belirler (site bazında, en dar
+varsayılan, kurul üyesi onayı, kiracıya şeffaf); kiracılık bitişi: malik isterse kiracı onayı şart; yönetim yolu belge (UYAP
+kodu isteğe bağlı), kimlik bilgisiyle onay, 1 hafta itiraz. D3: davetli kişinin hesabı yoksa hemen açılır, kodu girince
+bağlanır; hane üyesini oturan ve yönetim ekler; yönetim kiracıyı doğrudan da kaydeder; kiracı gelince malikin hanesi biter.
+
+**Varsayılanlar (uygulandı; kullanıcı aksini söylerse değişir):**
+- V1 Kiracı kendi çıkışını malik onayı olmadan bildirir; malike bilgi gider. *(kullanıcı D4 öncesi "tamam" dedi)*
+- V2 Yönetim yolunda itiraz edilirse işlem askıda kalır; yalnız kiracının onayıyla ya da yeni belgeyle (yeni 7 gün) ilerler;
+  başlatan o dairenin maliki/vekili olamaz; belge sahte çıkarsa geri alınır. *(kullanıcı D4 öncesi "tamam" dedi)*
+- V3 Maliksiz dairede malik sınıfı borç yönetimde "malik kaydı yok" ile bekler; kiracıya yansımaz, kimseye bildirim gitmez.
+- V4 Hane üyesi kullanım özelliklerini kullanır; borç, ödeme, pusula ve tüketim tutarlarını görmez.
+- V5 Eski veride aktif kiracılı dairede kiracı, olmayanda malik oturan sayıldı; dönemi kiracılık başlangıcından sonra olan
+  kullanım borcu kiracılığa bağlandı.
+- V6 Borcun sorumlusu tahakkuk anında saptanır; kiracılık bitince açık kullanım borcu malike görünür ve malik öder.
+- V7 Yönetim yolunda ikinci onaycı zorunlu değil (koruma: çıkar çatışması yasağı, şifreyle beyan, kiracıya açık belge, itiraz).
+- V8 Kiracılık bitince daire "boş" işaretlenir; malik oturuyorsa yönetim değiştirir.
+- V9 Görünürlük seçenekleri (hepsi varsayılan kapalı): kiracının adı/maskeli telefonu, kiracı borcu toplamı, vadesi geçen borç
+  + malike aylık uyarı, daire talepleri. Hiç görünmeyenler: ziyaretçi, kargo, sayaç/pusula ayrıntısı, hane üyeleri.
+- Kapsam dışı bırakılanlar (D7): ilan panosu, anket/NPS, tadilat izni, kural ihlali bildirimi — gerekçeler `todo.md` D7'de.
 ---
 
 ## E. CEVAPLANMIŞ SORULAR

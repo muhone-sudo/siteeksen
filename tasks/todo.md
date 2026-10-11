@@ -725,8 +725,12 @@ söyleyene kadar). Kullanıcı cevabı (2026-10-11, 5. soru): UYAP doğrulama ko
   pusula ve itiraz, tüketim verisi (para içerenlerde hane üyesi hariç — V4); kargo ve ziyaretçi bildirimleri
   `notify.UnitUsers`. **Bilerek kapsam dışı:** ilan panosu (malik satılık/kiralık ilanı verebilir), anket/NPS (anket servisi
   malik oyunu ayrıca sayar), tadilat izni (malik/vekil başvurur — kiracının tadilatı malik iznine bağlı, TBK m.321), kural
-  ihlali bildirimi (malik de muhatap). Mobil: sunucunun 403 nedeni artık kullanıcıya gösteriliyor.- [ ] **D8 Kapanış** — `questions.md`'ye V1–V9; `legal/kvkk-aydinlatma.md` (bitiş belgeleri, görünürlük politikası, davet
+  ihlali bildirimi (malik de muhatap). Mobil: sunucunun 403 nedeni artık kullanıcıya gösteriliyor.- [x] **D8 Kapanış** (panel tsc/lint/build temiz; verify 1359/1359; mobil 10/10) — `questions.md`'ye V1–V9; `legal/kvkk-aydinlatma.md` (bitiş belgeleri, görünürlük politikası, davet
   verisi); CLAUDE.md ve changelog; uçtan uca gözden geçirme (panel build dahil).
+**Altıncı tur sonucu (2026-10-11):** D1–D8 tamamlandı — migration 066-072, verify-stack **1359/1359**, verify-mobile
+**10/10**, panel tsc/lint/build temiz, RLS 123 tablo. Kararlar ve varsayılanlar `questions.md` S-23. Kullanıcı girdisi
+bekleyenler değişmedi: B10 (destek kanalı), B11 (Firebase), iyzico sandbox anahtarı, Netgsm/SMTP gerçek hesap, PTS protokolü,
+defter baş özetinin dış çapası.
 ## 2026-10-10 — Beşinci tur (Şikayetvar raporu: uygulama aksaklıkları)
 
 Kaynak: `apsiyon_urun_gelistirme_raporu.md` §6.6 (koddan doğrulanmış eksikler). Kapsam kararı (kullanıcı,

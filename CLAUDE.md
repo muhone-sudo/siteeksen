@@ -219,6 +219,12 @@ cd admin && npm run dev            # http://localhost:3001
   paylaştırmada medyan sapma uyarısı + pusula itirazı, havale dekontu (`payment_receipts`, finans
   servisi artık `pkg/storage` kullanır). Kimlik servisi bildirim tablosuna erişemez: malik işlemleri
   yönetime bildirim değil denetim izi üretir. Destek talebi (B10) ve push (B11) kullanıcı kararı bekliyor.
+- **Altıncı tur (2026-10-11, malik / kiracı / oturan, migration 066-072):** her mali kalem KULLANIM ya da MALİK sınıfı
+  alır (066); dairenin oturum durumu kayıtlardan hesaplanır (`unit_occupancy`, 067); daire başına tek aktif kiracı, davetle
+  kayıt, hane üyesi (068); kiracılık yalnız bitiş akışıyla biter — kiracı onayı, kendi çıkışı ya da belge + şifreyle beyan +
+  7 gün itirazlı yönetim yolu (069, kimlik servisi artık `pkg/storage` kullanır); borcun sorumlusu tahakkuk anında saptanır,
+  kim görür/öder tek kuralda (`assessment_visible_to`, 070); malikin kiracılı dairede gördüklerini yönetim belirler, kurul
+  üyesi onaylar (071); kullanım işlemleri `resident_can_use` kuralına bağlı (072). Kararlar ve varsayılanlar: `tasks/questions.md` S-23.
 - **Firebase, Kafka, MongoDB ve AI entegrasyonları hâlâ YOKTUR.** Eski `pkg/payment`,
   `pkg/notification` (FCM), `pkg/ai`, `pkg/integrations/*` **hiçbir yerden import edilmez**
   (ölü kod); var gibi gösterilmez, uydurma AI yanıtları kaldırıldı.

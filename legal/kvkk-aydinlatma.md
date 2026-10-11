@@ -127,6 +127,9 @@ toplanır:
 | İşlem güvenliği ve erişim kayıtları | **Veri sorumlusunun meşru menfaati** (m.5/2-f) ve 5651 s. Kanun |
 | Bildirim/hatırlatma gönderimi (SMS, e-posta, push) | **Açık rıza** (m.5/1) — dilediğiniz an geri alabilirsiniz |
 | Biyometrik geçiş sistemleri (kullanılıyorsa) | **Açık rıza** (m.6/2) — özel nitelikli kişisel veri |
+| Kiracı / hane üyesi daveti (davet edenin girdiği ad, telefon, e-posta; davetliye işlemsel SMS/e-posta) | **Sözleşmenin ifası** (m.5/2-c) — kiralanan bağımsız bölümün kullanımı; davet kabul edilmezse bağ kurulmaz |
+| Kiracılığın bitişi: yönetim yolunda yüklenen belge (tahliye kararı, icra, taşınma tutanağı), yükleyenin şifreyle onayladığı beyan, IP ve zaman | **Bir hakkın tesisi, kullanılması veya korunması** (m.5/2-e) — belgeyi yalnız ilgili kiracı ve yönetim görür; kayıt silinmez, sahtelik hâlinde delil niteliğindedir |
+| Kiracılı dairede malikin görebildiği seçenekli bilgiler (kiracının adı/maskeli telefonu, borç toplamı, vadesi geçen borç, daire talepleri) | **Meşru menfaat** (m.5/2-f) ve ölçülülük (m.4) — varsayılan KAPALI; açılması yönetimin önerisi ve öneren dışındaki kurul üyesinin onayıyla olur, kiracılara bildirilir |
 
 Açık rızaya dayanan işlemeler için rızanızı geri almanız hâlinde ilgili işleme
 durdurulur; kanuni yükümlülüğe veya sözleşmenin ifasına dayanan işlemeler ise
