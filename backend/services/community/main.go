@@ -80,6 +80,8 @@ func main() {
 	{
 		requests.GET("", handlers.ListRequests(requestService))
 		requests.POST("", handlers.CreateRequest(requestService))
+		// Malikin dairesinin talepleri — kiracılı dairede site görünürlük politikasına bağlı (071, D6).
+		requests.GET("/units/:unitId", ownerUnitRequests(pool))
 		requests.PATCH("/:id/status", handlers.UpdateRequestStatus(requestService))
 		requests.POST("/:id/confirm-resolution", handlers.ConfirmRequestResolution(requestService))
 	}

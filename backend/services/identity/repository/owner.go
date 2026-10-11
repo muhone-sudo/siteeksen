@@ -51,6 +51,13 @@ func (r *ResidentRepository) ListUnitResidents(ctx context.Context, propertyID, 
 	return out, rows.Err()
 }
 
+// OwnerSeesTenantContact: sitenin etkin görünürlük politikası kiracının adını/maskeli telefonunu malike açıyor mu (071).
+func (r *ResidentRepository) OwnerSeesTenantContact(ctx context.Context, propertyID string) (bool, error) {
+	var ok bool
+	err := r.pool.QueryRow(ctx, `SELECT show_tenant_contact FROM owner_visibility($1)`, propertyID).Scan(&ok)
+	return ok, err
+}
+
 // ResidentLink, bir daire bağının özetidir.
 type ResidentLink struct {
 	UnitID, Role, ResidentID string

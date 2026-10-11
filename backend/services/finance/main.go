@@ -98,6 +98,8 @@ func main() {
 		api.GET("/payments/:id/receipts/:receiptId/download", downloadReceipt(financeRepo, store))
 		api.GET("/ledger/verify", handlers.VerifyLedger(financeService))
 		// Borcu yoktur belgesi (055): bölümün sakini ya da yönetim.
+		// Malikin kiracılı dairesindeki kiracı borcu özeti — site görünürlük politikasına bağlı (071, D6).
+		api.GET("/tenant-debt-summary", tenantDebtSummary(pool))
 		api.POST("/clearance-certificates", createClearance(pool))
 		api.GET("/clearance-certificates/:id/pdf", clearancePDF(pool))
 		api.GET("/consumption/summary", handlers.GetConsumptionSummary(financeService))

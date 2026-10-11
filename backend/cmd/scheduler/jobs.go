@@ -104,7 +104,8 @@ func overdueDues(ctx context.Context, pool *pgxpool.Pool, propertyID string) ([]
 		                  || ' ' || (round((ma.total_amount - COALESCE(ma.paid_amount,0)) * 100))::bigint::text,
 		                  ';' ORDER BY ma.due_date),
 		       (SELECT name FROM properties WHERE id = $1),
-		       string_agg(ma.id::text, ',')
+		       string_agg(ma.id::text, ','),
+		       COALESCE(t.is_active, false)
 		FROM monthly_assessments ma
 		JOIN units u ON u.id = ma.unit_id
 		LEFT JOIN resident_units t ON t.id = ma.tenant_link_id
@@ -124,6 +125,7 @@ func overdueDues(ctx context.Context, pool *pgxpool.Pool, propertyID string) ([]
 	type row struct {
 		unitID, label, month string
 		items, site, ids     string
+		tenantGroup          bool
 		periods              int
 		remaining            int64
 		oldest               time.Time
@@ -131,7 +133,7 @@ func overdueDues(ctx context.Context, pool *pgxpool.Pool, propertyID string) ([]
 	var list []row
 	for rows.Next() {
 		var r row
-		if err := rows.Scan(&r.unitID, &r.label, &r.periods, &r.remaining, &r.oldest, &r.month, &r.items, &r.site, &r.ids); err != nil {
+		if err := rows.Scan(&r.unitID, &r.label, &r.periods, &r.remaining, &r.oldest, &r.month, &r.items, &r.site, &r.ids, &r.tenantGroup); err != nil {
 			rows.Close()
 			return nil, err
 		}
@@ -142,8 +144,31 @@ func overdueDues(ctx context.Context, pool *pgxpool.Pool, propertyID string) ([]
 		return nil, err
 	}
 
+	// D6 (071): yönetimin politikası açıksa kiracının vadesi geçen borcu malike de ayrı bir uyarıyla bildirilir
+	// (yalnız tutar ve kalem sayısı; döküm kiracıda kalır).
+	var ownerOverdue bool
+	if err := dbscope.For(pool, propertyID).QueryRow(ctx, `SELECT show_tenant_overdue FROM owner_visibility($1)`, propertyID).Scan(&ownerOverdue); err != nil {
+		return nil, err
+	}
 	out := make([]notice, 0, len(list))
 	for _, r := range list {
+		if r.tenantGroup && ownerOverdue {
+			owners, err := notify.UnitOwners(ctx, pool, propertyID, r.unitID)
+			if err != nil {
+				return nil, err
+			}
+			if len(owners) > 0 {
+				out = append(out, notice{recipients: owners, msg: notify.Message{
+					PropertyID: propertyID, Channel: notify.ChannelInApp, Category: notify.CategoryTransactional,
+					Topic: "dues.overdue.tenant", Subject: "Kiracı sorumluluğunda gecikmiş borç",
+					Body: fmt.Sprintf("%s · %s bağımsız bölümünde kiracı sorumluluğundaki %d kalem kullanım borcunun vadesi geçti; kalan toplam %s. "+
+						"Siteye karşı asıl borçlu malik olduğundan (KMK m.20) bilginize sunulur; bu bildirimi site yönetiminin görünürlük politikası açtı.",
+						r.site, r.label, r.periods, money.Kurus(r.remaining).Display()),
+					Payload:   map[string]any{"unit_id": r.unitID, "periods": r.periods, "remaining_kurus": r.remaining},
+					DedupeKey: "dues.overdue.tenant:" + r.unitID + ":" + r.month,
+				}})
+			}
+		}
 		recipients, err := notify.AssessmentPayers(ctx, pool, propertyID, strings.Split(r.ids, ","))
 		if err != nil {
 			return nil, err

@@ -43,6 +43,17 @@ export interface InvitationOutcome {
     invitation: Invitation; new_account: boolean; activation?: Activation; note: string;
     delivery?: { sms?: Delivery | null; email?: Delivery | null };
 }
+/** Malikin görünürlük politikası (071, D6). */
+export interface VisibilityPolicy {
+    id?: Id; status: "DEFAULT" | "PENDING" | "ACTIVE" | "SUPERSEDED" | "REJECTED" | "CANCELLED";
+    show_tenant_contact: boolean; show_tenant_debt_total: boolean; show_tenant_overdue: boolean; show_unit_requests: boolean;
+    note?: string; proposed_by?: Id; proposed_by_name?: string; proposed_at?: string; decided_by_name?: string; decided_at?: string; decision_note?: string;
+}
+export interface VisibilityState {
+    active: VisibilityPolicy; pending?: VisibilityPolicy; history?: VisibilityPolicy[];
+    options: { key: keyof Pick<VisibilityPolicy, "show_tenant_contact" | "show_tenant_debt_total" | "show_tenant_overdue" | "show_unit_requests">; label: string }[];
+    always_visible: string[]; never_visible: string[]; note: string;
+}
 /** Kiracılığın bitişi (069, D4). */
 export interface TenancyDocument { id: Id; document_kind: string; uyap_code?: string; file_name: string; content_type: string; size_bytes: number; sha256: string; created_at: string }
 export interface TenancyEvent { event: string; note: string; created_at: string; by: "TENANT" | "OWNER" | "MANAGEMENT" }

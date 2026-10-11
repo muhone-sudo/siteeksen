@@ -11,6 +11,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../../core/widgets/data_state.dart';
+import 'owner_visibility_screen.dart';
 import 'tenancy_requests_screen.dart';
 
 const _roleLabels = {'OWNER': 'Kat maliki', 'TENANT': 'Kiracı', 'PROXY': 'Vekil', 'HOUSEHOLD': 'Hane üyesi'};
@@ -53,6 +54,9 @@ class _UnitResidentsScreenState extends State<UnitResidentsScreen> {
   String? _error;
   List<Map<String, dynamic>> _items = [];
 
+  /// Malik: kiracı borcu özeti (site görünürlük politikasının açtığı ölçüde — D6). Politika kapalıysa null.
+  Map<String, dynamic>? _tenantDebt;
+
   @override
   void initState() {
     super.initState();
@@ -66,9 +70,20 @@ class _UnitResidentsScreenState extends State<UnitResidentsScreen> {
     });
     try {
       final list = await apiClient.getUnitResidents(widget.unitId);
+      Map<String, dynamic>? debt;
+      if (widget.role == 'OWNER') {
+        try {
+          final s = await apiClient.getTenantDebtSummary();
+          final rows = (s['data'] as List? ?? []).whereType<Map>().where((r) => '${r['unit_id']}' == widget.unitId);
+          if (rows.isNotEmpty) debt = Map<String, dynamic>.from(rows.first);
+        } catch (_) {
+          // Özet isteğe bağlı bilgidir; alınamazsa sakin listesi yine gösterilir.
+        }
+      }
       if (!mounted) return;
       setState(() {
         _items = list.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
+        _tenantDebt = debt;
         _loading = false;
       });
     } catch (e) {
@@ -137,6 +152,36 @@ class _UnitResidentsScreenState extends State<UnitResidentsScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${res['message'] ?? 'İşlem tamamlandı.'}')));
       _load();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_err(e))));
+    }
+  }
+
+  /// Dairenin talep kayıtları (malik). Kiracılı dairede yönetimin politikası kapalıysa sunucu açıklamayla reddeder.
+  Future<void> _unitRequests() async {
+    try {
+      final list = await apiClient.getUnitRequests(widget.unitId);
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Daire talepleri'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: list.isEmpty
+                ? const Text('Bu daire için talep kaydı yok.')
+                : ListView(shrinkWrap: true, children: [
+                    for (final r in list.whereType<Map>())
+                      ListTile(
+                        dense: true,
+                        title: Text('${r['title']}'),
+                        subtitle: Text('${r['ticket_number']} · ${r['status']} · ${formatDate(r['created_at'])}'),
+                      ),
+                  ]),
+          ),
+          actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Kapat'))],
+        ),
+      );
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_err(e))));
     }
@@ -245,6 +290,13 @@ class _UnitResidentsScreenState extends State<UnitResidentsScreen> {
     return Scaffold(
       appBar: AppBar(title: Text('${widget.unitName} sakinleri'), actions: [
         IconButton(
+          tooltip: 'Malikin görebildikleri',
+          icon: const Icon(Icons.privacy_tip_outlined),
+          onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const OwnerVisibilityScreen())),
+        ),
+        if (widget.role == 'OWNER')
+          IconButton(tooltip: 'Daire talepleri', icon: const Icon(Icons.build_outlined), onPressed: _unitRequests),
+        IconButton(
           tooltip: 'Kiracılık işlemleri',
           icon: const Icon(Icons.assignment_outlined),
           onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const TenancyRequestsScreen())),
@@ -272,6 +324,19 @@ class _UnitResidentsScreenState extends State<UnitResidentsScreen> {
                   : RefreshIndicator(
                       onRefresh: _load,
                       child: ListView(padding: const EdgeInsets.only(bottom: 96), children: [
+                        if (_tenantDebt != null)
+                          Card(
+                            margin: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                            child: ListTile(
+                              leading: const Icon(Icons.account_balance_wallet_outlined),
+                              title: const Text('Kiracı sorumluluğundaki borç'),
+                              subtitle: Text([
+                                if (_tenantDebt!['total_kurus'] != null) 'Açık toplam: ${formatTry((_tenantDebt!['total_kurus'] as num) / 100)}',
+                                if (_tenantDebt!['overdue_kurus'] != null) 'Vadesi geçen: ${formatTry((_tenantDebt!['overdue_kurus'] as num) / 100)}',
+                                'Site yönetiminin görünürlük politikasına göre gösterilir.',
+                              ].join('\n')),
+                            ),
+                          ),
                         for (final r in _items)
                           ListTile(
                             leading: Icon(r['is_active'] == true ? Icons.person : Icons.person_off,

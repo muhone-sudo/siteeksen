@@ -12,6 +12,24 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-11 — MALİKİN GÖRÜNÜRLÜK POLİTİKASI (migration 071, altıncı tur D6) (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **1353/1353** (adım 62: varsayılan en dar — kiracı politikayı görüyor, kiracılı dairede malik
+> kiracıyı/haneyi, kiracı borç tutarını, daire taleplerini göremiyor; kiracı öneremiyor, gerekçesiz öneri 422, ikinci bekleyen
+> 409, kurul üyesi olmayan yönetici onaylayamıyor, onaylanana kadar politika değişmiyor; kurul üyesi onaylayınca yürürlük ve
+> kiracıya bildirim; açık politikada malik kiracıyı (hanesini değil), borç toplamını ve vadesi geçeni, talepleri (talep
+> edenin kimliği/açıklaması olmadan) görüyor; zamanlayıcı kiracıya hatırlatma, malike ayrı uyarı, hane üyesine hiçbiri;
+> kurul üyesi kendi önerisini onaylayamıyor, yürürlükteki politika değiştirilemiyor/silinemiyor). Adım 36: RLS 123 tablo.
+> `verify-mobile.sh` 10/10; panel tsc/lint temiz.
+
+- Kullanıcı kararları: malikin neyi göreceğini yönetim belirler (malik kiracıya baskı kurabilir); site genelinde tek
+  politika, varsayılan en dar, değişiklik kurul üyesi onayı, kiracıya şeffaf. Seçenekler (V9): kiracının adı/maskeli telefonu,
+  kiracı borcu toplamı, vadesi geçen borç + malike uyarı, daire talepleri.
+- 071: `owner_visibility_policies` (öner → dört gözle onay; seçenekler ve öneren değiştirilemez; silme yok) ve
+  `owner_visibility(site)` işlevi. Uygulama: kimlik (daire sakin listesi), finans (`GET /finance/tenant-debt-summary`),
+  topluluk (`GET /requests/units/:id`), zamanlayıcı (`dues.overdue.tenant`). `notify.Tenants`, `notify.UnitOwners`.
+- Panel Ayarlar → "Malik görünürlüğü" (öner, onayla/reddet, geri çek, geçmiş). Sakin uygulaması: "Malikin görebildikleri"
+  ekranı; malikin daire ekranında kiracı borcu kartı ve daire talepleri (politikaya göre).
 ### 2026-10-11 — MALİ YÖNLENDİRME: BORCUN SORUMLUSU (migration 070, altıncı tur D5) (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **1348/1348** (adım 61: kiracılıkta tahakkuk eden kullanım borcu kiracılığa bağlandı, malik

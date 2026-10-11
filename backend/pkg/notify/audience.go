@@ -120,6 +120,33 @@ func BlockNeighbors(ctx context.Context, pool *pgxpool.Pool, propertyID, unitID 
 		ORDER BY ru.resident_id, ru.role`, propertyID, unitID)
 }
 
+// Tenants, sitenin aktif kiracıları (görünürlük politikası değişikliği gibi kiracıyı ilgilendiren konular — 071).
+func Tenants(ctx context.Context, pool *pgxpool.Pool, propertyID string) ([]Recipient, error) {
+	return queryRecipients(ctx, pool, propertyID, `
+		SELECT DISTINCT ON (ru.resident_id)
+		       ru.resident_id::text, ru.unit_id::text, ru.role
+		FROM resident_units ru
+		JOIN units u ON u.id = ru.unit_id
+		WHERE u.property_id = $1 AND ru.role = 'TENANT' AND COALESCE(ru.is_active, true)
+		  AND (ru.end_date IS NULL OR ru.end_date >= CURRENT_DATE)
+		ORDER BY ru.resident_id`, propertyID)
+}
+
+// UnitOwners, bölümün aktif malik ve vekilleri (kiracılı dairede malike yönelik bilgilendirme — 071).
+func UnitOwners(ctx context.Context, pool *pgxpool.Pool, propertyID, unitID string) ([]Recipient, error) {
+	if unitID == "" {
+		return nil, nil
+	}
+	return queryRecipients(ctx, pool, propertyID, `
+		SELECT DISTINCT ON (ru.resident_id)
+		       ru.resident_id::text, ru.unit_id::text, ru.role
+		FROM resident_units ru
+		JOIN units u ON u.id = ru.unit_id
+		WHERE u.property_id = $1 AND ru.unit_id = $2::uuid AND ru.role IN ('OWNER', 'PROXY')
+		  AND COALESCE(ru.is_active, true) AND (ru.end_date IS NULL OR ru.end_date >= CURRENT_DATE)
+		ORDER BY ru.resident_id, ru.role`, propertyID, unitID)
+}
+
 // Managers, sitenin yönetim yetkisi olan kullanıcılarını döner.
 //
 // Stok azalması, devriye aksaması gibi konular sakinleri değil YÖNETİMİ

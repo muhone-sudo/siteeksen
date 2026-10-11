@@ -363,7 +363,12 @@ export function endpoints(http: Http) {
             expireDue: () => http.post<{ expired_count: number }>("/bulletins/expire-due"),
         },
         settings: {
-            list: () => g<{ data: T.Setting[]; note: string }>("/settings"),
+            /** Malikin görünürlük politikası (071): yönetim önerir, öneren dışındaki kurul üyesi onaylar. */
+            ownerVisibility: () => g<T.VisibilityState>("/settings/owner-visibility"),
+            proposeOwnerVisibility: (b: Partial<T.VisibilityPolicy> & { note: string }) => http.post<{ id: string; message: string }>("/settings/owner-visibility", b),
+            approveOwnerVisibility: (id: string, note: string) => http.post<{ message: string }>(`/settings/owner-visibility/${id}/approve`, { note }),
+            rejectOwnerVisibility: (id: string, note: string) => http.post<{ message: string }>(`/settings/owner-visibility/${id}/reject`, { note }),
+            cancelOwnerVisibility: (id: string) => http.post<{ message: string }>(`/settings/owner-visibility/${id}/cancel`),            list: () => g<{ data: T.Setting[]; note: string }>("/settings"),
             definitions: () => g<{ data: T.SettingDef[] }>("/settings/definitions"),
             set: (key: string, value: unknown) => http.put<{ setting: T.Setting }>(`/settings/${key}`, { value }),
             reset: (key: string) => http.del<Msg>(`/settings/${key}`),

@@ -28,6 +28,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/siteeksen/backend/pkg/database"
 	"github.com/siteeksen/backend/pkg/middleware"
+	"github.com/siteeksen/backend/pkg/notify"
 	"github.com/siteeksen/backend/pkg/stub"
 	"github.com/siteeksen/backend/services/settings/repository"
 )
@@ -41,6 +42,8 @@ func main() {
 	defer database.Close()
 
 	repo := repository.New(pool)
+	// Görünürlük politikası değişikliğinde kiracılara bildirim (071).
+	visibilityNotifier = notify.FromEnvOrNil(pool)
 
 	r := middleware.NewRouter("settings")
 	// Biçimi bozuk kimlik 500 değil 404 döner (pkg/middleware/params.go).
@@ -86,6 +89,8 @@ func main() {
 
 	// Yazma ve geçmiş: yalnızca yönetim.
 	// Kamera ve biyometrik envanteri (FAZ 7.8): kamera listesi aydınlatma amacıyla herkese açık.
+	// Malikin görünürlük politikası (071, D6): herkes etkin politikayı görür (kiracıya şeffaflık).
+	api.GET("/settings/owner-visibility", getVisibility(pool))
 	api.GET("/privacy/cameras", listCameras(pool, isPrivacyManager))
 	api.GET("/privacy/biometrics", middleware.RequireRole(middleware.RoleManager, middleware.RoleBoardMember, middleware.RoleAuditor), listBiometrics(pool))
 
@@ -127,6 +132,11 @@ func main() {
 
 		// "Son ödeme günü ayın 5'iydi, kim 20 yaptı?" sorusunun cevabı.
 		write.PUT("/retention-rules/:category", setRetention(pool))
+		// Görünürlük: yönetim önerir; öneren dışındaki kurul üyesi onaylar/reddeder (işleyicide denetlenir).
+		write.POST("/settings/owner-visibility", proposeVisibility(pool))
+		write.POST("/settings/owner-visibility/:id/approve", decideVisibility(pool, true))
+		write.POST("/settings/owner-visibility/:id/reject", decideVisibility(pool, false))
+		write.POST("/settings/owner-visibility/:id/cancel", cancelVisibility(pool))
 		write.POST("/privacy/cameras", createCamera(pool))
 		write.PUT("/privacy/cameras/:id", updateCamera(pool))
 		write.POST("/privacy/biometrics", createBiometric(pool))

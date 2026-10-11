@@ -714,7 +714,7 @@ söyleyene kadar). Kullanıcı cevabı (2026-10-11, 5. soru): UYAP doğrulama ko
   - V3: maliksiz dairede malik sınıfı borç yönetim listesinde "malik kaydı yok" ile; kimseye bildirim gitmez.
   - Yönetim: borçlu listesi, tahakkuk özeti ve PDF/Excel dökümleri sınıf + sorumlu sütunuyla.
   - Arayüz: panel tahakkuk/borçlu sütunları; sakin uygulamasında borçlarda sınıf etiketi.
-- [ ] **D6 Görünürlük politikası** — 071 `owner_visibility_policies` (site başına tek etkin sürüm + değiştirilemez geçmiş):
+- [x] **D6 Görünürlük politikası** (verify 1353/1353, mobil 10/10, panel tsc/lint) — 071 `owner_visibility_policies` (site başına tek etkin sürüm + değiştirilemez geçmiş):
   V9 seçenekleri, varsayılan hepsi kapalı. Yönetim önerir, öneren dışında bir KURUL ÜYESİ onaylayınca yürürlüğe girer; etkilenen
   kiracılara bildirim. Uygulama: kimlik servisi (kiracı adı/telefonu), finans (kiracı borç toplamı, vadesi geçen uyarısı),
   topluluk (daire talepleri), zamanlayıcı (malike vadesi geçen uyarısı). Kiracı ve malik politikayı uygulamada görür.

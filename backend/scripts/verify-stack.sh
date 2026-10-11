@@ -5890,8 +5890,8 @@ ok "kullanılmayan 13 site tablosu RLS ile korunuyor"
 
 # 9) Toplam durum — RLS DIŞINDA KALAN her tablo bilinçli ve gerekçeli olmalı
 RLSCOUNT=$($PSQL -t -A -c "SELECT count(*) FROM rls_enabled_tables;")
-[ "$RLSCOUNT" = "122" ] && ok "RLS toplam 122 tabloda açık (069: kiracılık bitişi tabloları)" \
-  || bad "beklenmedik RLS tablo sayısı: $RLSCOUNT (beklenen 122)"
+[ "$RLSCOUNT" = "123" ] && ok "RLS toplam 123 tabloda açık (069 kiracılık bitişi, 071 görünürlük politikası)" \
+  || bad "beklenmedik RLS tablo sayısı: $RLSCOUNT (beklenen 123)"
 NOTRLS=$($PSQL -t -A -c "SELECT string_agg(t.table_name, ' ' ORDER BY t.table_name)
   FROM information_schema.tables t
   WHERE t.table_schema='public' AND t.table_type='BASE TABLE'
@@ -8664,6 +8664,103 @@ $PSQL -c "CREATE TEMP TABLE d5p AS SELECT DISTINCT payment_id FROM payment_asses
   DELETE FROM monthly_assessments WHERE period_year=2088;
   DELETE FROM resident_units WHERE unit_id IN ('$UA1','$UB1'); DELETE FROM units WHERE id IN ('$UA1','$UB1');" >/dev/null 2>&1
 kill_tree "$FD5_PID"; kill_tree "$ID5_PID"
+
+step "62) Malikin görünürlük politikası: yönetim önerir, kurul üyesi onaylar, varsayılan en dar, kiracıya şeffaf (071, altıncı tur D6)"
+startsvc62() { DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=$3 DB_PASSWORD="$4" DB_NAME=siteeksen \
+  DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=$1 go run ./services/$2 >/tmp/verify-d6-$2.log 2>&1 & }
+startsvc62 19791 identity siteeksen_identity "$IDPW"; S62I=$!
+startsvc62 19792 finance siteeksen_app "$APPPW"; S62F=$!
+startsvc62 19793 community siteeksen_app "$APPPW"; S62C=$!
+startsvc62 19794 settings siteeksen_app "$APPPW"; S62S=$!
+for _ in $(seq 1 90); do
+  curl -fsS http://127.0.0.1:19791/health >/dev/null 2>&1 && curl -fsS http://127.0.0.1:19792/health >/dev/null 2>&1 \
+    && curl -fsS http://127.0.0.1:19793/health >/dev/null 2>&1 && curl -fsS http://127.0.0.1:19794/health >/dev/null 2>&1 && break; sleep 1
+done
+I62="http://127.0.0.1:19791/api/v1"; F62="http://127.0.0.1:19792/api/v1/finance"; C62="http://127.0.0.1:19793/api/v1"; S62="http://127.0.0.1:19794/api/v1"
+# Kurul üyesi (önerenden farklı onaycı)
+$PSQL -c "INSERT INTO users (id, first_name, last_name, phone, password_hash, roles)
+  SELECT '44444444-4444-4444-4444-444444444462', 'Kurul', 'Uyesi', '+905550000062', password_hash, ARRAY['RESIDENT'] FROM users WHERE phone LIKE '%5551234567'
+  ON CONFLICT (id) DO NOTHING;
+  INSERT INTO property_roles (user_id, property_id, role) VALUES ('44444444-4444-4444-4444-444444444462','$DEMO_PROPERTY','BOARD_MEMBER')
+  ON CONFLICT DO NOTHING;" >/dev/null 2>&1
+login62() { curl -s -X POST "$I62/auth/login" -H "$J" -d "{\"phone\":\"$1\",\"password\":\"$2\"}" | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p'; }
+M62="Authorization: Bearer $(login62 5551234567 'Demo123!')"
+B62="Authorization: Bearer $(login62 5550000062 'Demo123!')"
+T62="Authorization: Bearer $(login62 5559876543 'Demo123!')"
+O62="Authorization: Bearer $(login62 5550000039 Yepyeni12)"
+OWN62=$($PSQL -t -A -c "SELECT id FROM users WHERE phone='+905550000039';")
+HH62=$($PSQL -t -A -c "SELECT id FROM users WHERE phone='+905559990071';")
+UA2=$($PSQL -t -A -c "INSERT INTO units (property_id, block, floor, door_number, share_ratio, unit_type, net_area_m2)
+  VALUES ('$DEMO_PROPERTY','Z',5,'62A',1,'APARTMENT',80) RETURNING id;" | head -1)
+$PSQL -c "INSERT INTO resident_units (resident_id, unit_id, role) VALUES ('$OWN62','$UA2','OWNER'), ('$TUID','$UA2','TENANT'), ('$HH62','$UA2','HOUSEHOLD');
+  INSERT INTO monthly_assessments (property_id, unit_id, period_year, period_month, base_amount, total_amount, due_date, status, liability)
+  VALUES ('$DEMO_PROPERTY','$UA2',2087,1,250,250,CURRENT_DATE - 3,'PENDING','USAGE');
+  INSERT INTO requests (property_id, unit_id, resident_id, ticket_number, title, description, status)
+  VALUES ('$DEMO_PROPERTY','$UA2','$TUID','TKT-D6-62','Mutfak musluğu damlatıyor','Kiracının özel notu','OPEN');" >/dev/null
+ownview() { curl -s "$I62/users/me/units/$UA2/residents" -H "$O62" | python3 -c "
+import json,sys
+print(sorted(r['role'] for r in json.load(sys.stdin)['data'] if r['is_active']))" 2>/dev/null; }
+pol() { curl -s "$S62/settings/owner-visibility" -H "$1" | python3 -c "
+import json,sys
+d=json.load(sys.stdin); a=d['active']
+print(a['status'], a['show_tenant_contact'], a['show_tenant_debt_total'], a['show_tenant_overdue'], a['show_unit_requests'], 'history' in d, len(d['options']))" 2>/dev/null; }
+# 1) Varsayılan en dar: malik kiracıyı/haneyi, borç tutarını, talepleri göremez; kiracı politikayı görür
+P0=$(pol "$T62"); V0=$(ownview)
+FS0=$(curl -s "$F62/tenant-debt-summary" -H "$O62" | python3 -c "import json,sys; d=json.load(sys.stdin); print(len(d['data']), d['policy']['show_tenant_debt_total'])" 2>/dev/null)
+CR0=$(code "$C62/requests/units/$UA2" -H "$O62")
+[ "$P0" = "DEFAULT False False False False False 4" ] && [ "$V0" = "['OWNER']" ] && [ "$FS0" = "0 False" ] && [ "$CR0" = "403" ] \
+  && ok "varsayılan en dar: kiracı politikayı görüyor (4 seçenek, hepsi kapalı, geçmiş yalnız yönetime); kiracılı dairede malik kiracıyı ve haneyi göremiyor, kiracı borcu tutarı yok, daire talepleri 403" \
+  || bad "varsayılan politika: kiracı=$P0 / malik sakin listesi=$V0 / borç özeti=$FS0 / talepler=$CR0"
+# 2) Öner → kurul üyesi onaylar (öneren onaylayamaz, kiracı öneremez)
+X1=$(code -X POST "$S62/settings/owner-visibility" -H "$T62" -H "$J" -d '{"show_tenant_contact":true,"note":"Kiracı önerisi denemesi"}')
+X2=$(code -X POST "$S62/settings/owner-visibility" -H "$M62" -H "$J" -d '{"show_tenant_contact":true,"note":"kısa"}')
+X3=$(curl -s -w '|%{http_code}' -X POST "$S62/settings/owner-visibility" -H "$M62" -H "$J" \
+  -d '{"show_tenant_contact":true,"show_tenant_debt_total":true,"show_tenant_overdue":true,"show_unit_requests":true,"note":"Genel kurul talebi üzerine malik bilgilendirmesi"}')
+PID62=$(echo "${X3%|*}" | python3 -c "import json,sys; print(json.load(sys.stdin)['id'])" 2>/dev/null)
+X4=$(code -X POST "$S62/settings/owner-visibility" -H "$M62" -H "$J" -d '{"show_unit_requests":true,"note":"İkinci öneri denemesi"}')
+X5=$(code -X POST "$S62/settings/owner-visibility/$PID62/approve" -H "$M62" -H "$J" -d '{}')
+PB=$(pol "$T62")
+X6=$(curl -s -w '|%{http_code}' -X POST "$S62/settings/owner-visibility/$PID62/approve" -H "$B62" -H "$J" -d '{"note":"Kurul kararıyla"}')
+PA=$(pol "$T62")
+NT=$($PSQL -t -A -c "SELECT count(*) FROM notifications WHERE topic='visibility.policy' AND recipient_user_id='$TUID' AND payload->>'policy_id'='$PID62';")
+[ "$X1" = "403" ] && [ "$X2" = "422" ] && [ "${X3##*|}" = "201" ] && [ "$X4" = "409" ] && [ "$X5" = "403" ] && [ "${PB%% *}" = "DEFAULT" ] \
+  && [ "${X6##*|}" = "200" ] && [ "$PA" = "ACTIVE True True True True False 4" ] && [ "$NT" = "1" ] \
+  && ok "kiracı öneremiyor (403), gerekçesiz öneri 422, yönetim önerdi (ikinci bekleyen 409); yönetici (kurul üyesi değil) onaylayamıyor, öneri onaylanana kadar politika değişmedi; kurul üyesi onaylayınca yürürlüğe girdi ve kiracıya bildirildi" \
+  || bad "öneri/onay: kiracı=$X1 kısa=$X2 öneri=${X3##*|} ikinci=$X4 yönetici onayı=$X5 önce=$PB / kurul=${X6##*|} sonra=$PA / bildirim=$NT"
+# 3) Açık politika: malik kiracının adını (haneyi değil), borç toplamını ve vadesi geçeni, talepleri görür; zamanlayıcı malike uyarı gönderir
+V1=$(ownview)
+FS1=$(curl -s "$F62/tenant-debt-summary" -H "$O62" | python3 -c "
+import json,sys
+d=[x for x in json.load(sys.stdin)['data'] if x['unit_id']=='$UA2']
+print(d[0].get('total_kurus'), d[0].get('overdue_kurus'))" 2>/dev/null)
+CR1=$(curl -s "$C62/requests/units/$UA2" -H "$O62" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)['data']
+print(len(d), d[0]['ticket_number'], 'description' in d[0], 'resident_id' in d[0])" 2>/dev/null)
+CR2=$(code "$C62/requests/units/$UA2" -H "$T62")
+sched_once /tmp/verify-sched-d6.json
+NO=$($PSQL -t -A -c "SELECT count(*) FROM notifications WHERE topic='dues.overdue.tenant' AND recipient_user_id='$OWN62' AND payload->>'unit_id'='$UA2';")
+NT2=$($PSQL -t -A -c "SELECT count(*) FROM notifications WHERE topic='dues.overdue' AND recipient_user_id='$TUID' AND payload->>'unit_id'='$UA2';")
+NH=$($PSQL -t -A -c "SELECT count(*) FROM notifications WHERE topic LIKE 'dues.overdue%' AND recipient_user_id='$HH62' AND payload->>'unit_id'='$UA2';")
+[ "$V1" = "['OWNER', 'TENANT']" ] && [ "$FS1" = "25000 25000" ] && [ "$CR1" = "1 TKT-D6-62 False False" ] && [ "$CR2" = "403" ] \
+  && [ "$NO" = "1" ] && [ "$NT2" = "1" ] && [ "$NH" = "0" ] \
+  && ok "politika açıkken malik kiracıyı (hanesini değil), kiracı borcunun toplamını ve vadesi geçenini, dairenin taleplerini (talep edenin kimliği ve açıklaması olmadan) görüyor; kiracı bu ucu kullanamıyor; zamanlayıcı kiracıya hatırlatma, malike ayrı uyarı gönderdi, hane üyesine hiçbiri" \
+  || bad "açık politika: sakin listesi=$V1 / borç özeti=$FS1 / talepler=$CR1 kiracı=$CR2 / malik uyarısı=$NO kiracı hatırlatması=$NT2 hane=$NH"
+# 4) Dört göz ve değiştirilemezlik
+Y1=$(curl -s -X POST "$S62/settings/owner-visibility" -H "$B62" -H "$J" -d '{"note":"En dar ayara dönüş önerisi"}' | python3 -c "import json,sys; print(json.load(sys.stdin)['id'])" 2>/dev/null)
+Y2=$(code -X POST "$S62/settings/owner-visibility/$Y1/approve" -H "$B62" -H "$J" -d '{}')
+Y3=$(code -X POST "$S62/settings/owner-visibility/$Y1/cancel" -H "$M62")
+Y4=$(code -X POST "$S62/settings/owner-visibility/$Y1/cancel" -H "$B62")
+GU=$(appsql46 "UPDATE owner_visibility_policies SET show_tenant_contact = false WHERE id='$PID62'")
+GD=$(appsql46 "DELETE FROM owner_visibility_policies WHERE id='$PID62'")
+HIST=$(curl -s "$S62/settings/owner-visibility" -H "$M62" | python3 -c "import json,sys; print(sorted(h['status'] for h in json.load(sys.stdin)['history'] if h['id'] in ('$PID62','$Y1')))" 2>/dev/null)
+[ "$Y2" = "403" ] && [ "$Y3" = "404" ] && [ "$Y4" = "200" ] && grep -q 'değiştirilemez' <<<"$GU" && grep -qi 'permission denied' <<<"$GD" && [ "$HIST" = "['ACTIVE', 'CANCELLED']" ] \
+  && ok "kurul üyesi kendi önerisini onaylayamıyor (dört göz); öneriyi yalnız öneren geri çekiyor; yürürlükteki politika uygulama rolüyle değiştirilemiyor ve silinemiyor; geçmiş yönetimde görünüyor" \
+  || bad "dört göz/koruma: kendi onayı=$Y2 başkası geri çekme=$Y3 öneren=$Y4 / değiştir=$GU / sil=$GD / geçmiş=$HIST"
+$PSQL -c "DELETE FROM owner_visibility_policies WHERE property_id='$DEMO_PROPERTY';
+  DELETE FROM requests WHERE unit_id='$UA2'; DELETE FROM monthly_assessments WHERE unit_id='$UA2';
+  DELETE FROM resident_units WHERE unit_id='$UA2'; DELETE FROM units WHERE id='$UA2';" >/dev/null
+kill_tree "$S62I"; kill_tree "$S62F"; kill_tree "$S62C"; kill_tree "$S62S"
 
 step "SONUÇ"
 echo "  Geçen: $PASS   Başarısız: $FAIL"

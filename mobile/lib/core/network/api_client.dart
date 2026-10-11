@@ -345,6 +345,17 @@ class ApiClient {
   Future<Map<String, dynamic>> endUnitResident(String unitId, String residentUnitId) async =>
       Map<String, dynamic>.from((await _dio.post('/users/me/units/$unitId/residents/$residentUnitId/end')).data as Map);
 
+  // Malikin görünürlük politikası (071, altıncı tur D6)
+  /// Etkin politika: malikin kiracılı dairede neyi gördüğü (kiracıya şeffaflık).
+  Future<Map<String, dynamic>> getOwnerVisibility() async =>
+      Map<String, dynamic>.from((await _dio.get('/settings/owner-visibility')).data as Map);
+
+  /// Malikin kiracılı dairelerindeki kiracı borcu özeti (politikanın açtığı ölçüde).
+  Future<Map<String, dynamic>> getTenantDebtSummary() async =>
+      Map<String, dynamic>.from((await _dio.get('/finance/tenant-debt-summary')).data as Map);
+
+  /// Dairenin talep kayıtları (malik; kiracılı dairede politikaya bağlı — kapalıysa 403).
+  Future<List<dynamic>> getUnitRequests(String unitId) async => _list((await _dio.get('/requests/units/$unitId')).data);
   // Kiracılığın bitişi (069, altıncı tur D4)
   /// Kişinin dairelerindeki bitiş istekleri (kiracı ya da malik/vekil olarak).
   Future<List<dynamic>> getTenancyRequests() async => _list((await _dio.get('/users/me/tenancy-requests')).data);

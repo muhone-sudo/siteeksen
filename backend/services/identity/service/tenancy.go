@@ -125,14 +125,31 @@ func (s *ResidentService) UnitInvite(ctx context.Context, propertyID, userID, un
 
 // UnitResidents, dairenin maliki ya da kiracısının gördüğü sakin listesi (telefon maskeli).
 func (s *ResidentService) UnitResidents(ctx context.Context, propertyID, userID, unitID string) ([]repository.UnitResident, error) {
-	isOwner, isTenant, _, err := s.repo.UnitRelation(ctx, propertyID, userID, unitID)
+	isOwner, isTenant, occupancy, err := s.repo.UnitRelation(ctx, propertyID, userID, unitID)
 	if err != nil {
 		return nil, err
 	}
 	if !isOwner && !isTenant {
 		return nil, ErrNotUnitMember
 	}
-	return s.repo.ListUnitResidents(ctx, propertyID, unitID, userID)
+	list, err := s.repo.ListUnitResidents(ctx, propertyID, unitID, userID)
+	if err != nil || isTenant || occupancy != "TENANT_OCCUPIED" {
+		return list, err
+	}
+	// D6 (071): kiracılı dairede malik, kiracının hanesini hiç; kiracının adını/maskeli telefonunu yalnız yönetimin
+	// belirlediği site politikası açıksa görür (malik değil yönetim karar verir — baskı aracı olmasın).
+	contact, err := s.repo.OwnerSeesTenantContact(ctx, propertyID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]repository.UnitResident, 0, len(list))
+	for _, r := range list {
+		if r.Role == "HOUSEHOLD" || (r.Role == "TENANT" && !contact) {
+			continue
+		}
+		out = append(out, r)
+	}
+	return out, nil
 }
 
 // UnitEndResident: malik vekilliği bitirir; oturan (kiracı ya da oturan malik) kendi hanesinin üyesinin kaydını
