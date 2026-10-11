@@ -12,6 +12,25 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-11 — KAYIT VE DAVET: TEK KİRACI, KODLA KATILIM, HANE ÜYESİ (migration 068, altıncı tur D3) (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **1331/1331** (adım 59: yönetim kiracı davet etti, kod yalnız yönetime, sağlayıcısızlık dürüstçe
+> söylendi; kişi kodu girince daireye bağlandı, davet kabul edildi, malikin hanesinin kaydı bitti, malik artık oturan değil;
+> kiracılı daireye ikinci kiracı ne davet ne kayıt (409); malik daveti yalnız maliksiz daireye; kiracı hanesine üye davet etti,
+> kod ona gösterilmedi; kiracılı dairede malik hane üyesi davet edemiyor; hesabı olan kişinin bekleyen kabulü kural değişince
+> 409; hane üyesi borcu görmüyor ve ödeyemiyor. Adım 53 davet akışına göre yeniden yazıldı). `verify-mobile.sh` 10/10;
+> panel tsc/lint temiz.
+
+- Kullanıcı kararları: davetli kişinin hesabı yoksa hesap hemen açılır, kod SMS + e-postayla gider, kodu girince davet kabul
+  edilir; hane üyesini oturan ve yönetim ekler; yönetim kiracıyı doğrudan da kaydeder; kiracı gelince malikin hanesi biter.
+- 068: daire başına tek aktif kiracı (benzersiz indeks), dairede tek bekleyen kiracı daveti, kiracı gelince hane üyelerini
+  bitiren tetikleyici, davette HOUSEHOLD ve `invited_as` (MANAGEMENT / OWNER / OCCUPANT). Kurallar her yolda (kayıt, davet,
+  kabul, etkinleştirme) aynı; kabul anında yeniden denetlenir.
+- Malikin doğrudan kiracı ekleme ucu (`POST /users/me/units/:id/residents`) kaldırıldı → `POST /users/me/units/:id/invitations`.
+  Kod davet edene gösterilmez (malik kiracısının şifresini belirleyemesin). Kiracılık malikin tek taraflı işlemiyle bitmez (409;
+  kiracı onayı / yönetim yolu D4). Yönetim daveti `POST /residents/invitations`.
+- Hane üyesi (V4) finans sorgularında ve mali bildirimlerde (`notify.UnitPayers`: yeni borç, tahsilat, gecikme) yok.
+- Mobil "Dairemin sakinleri" malik ve kiracıya açık, davet gönderir; panelde "Davet gönder" ve Hane üyesi sıfatı.
 ### 2026-10-11 — DAİRE OTURUM MODELİ (migration 067, altıncı tur D2) (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **1325/1325** (adım 58: malikli daire "malik oturuyor", kimsesiz "kayıtsız", yalnız kiracılı

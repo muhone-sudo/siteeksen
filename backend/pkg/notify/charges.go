@@ -84,7 +84,7 @@ func NotifyCharges(ctx context.Context, n *Notifier, pool *pgxpool.Pool, propert
 	noResident := 0
 	today := time.Now()
 	for _, c := range list {
-		recipients, err := UnitResidents(ctx, pool, propertyID, c.unitID)
+		recipients, err := UnitPayers(ctx, pool, propertyID, c.unitID)
 		if err != nil {
 			total.Failed++
 			if len(total.Errors) < maxReportedErrors {

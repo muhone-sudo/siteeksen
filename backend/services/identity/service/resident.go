@@ -16,7 +16,7 @@ import (
 // ErrResidentForbidden yalnızca yönetim rollerinin yapabileceği bir işlem denendiğinde döner
 var ErrResidentForbidden = errors.New("bu işlem için yetkiniz yok")
 
-// ErrInvalidResidentRole sakinlik rolü OWNER/TENANT/PROXY dışında.
+// ErrInvalidResidentRole sakinlik rolü OWNER/TENANT/PROXY/HOUSEHOLD dışında.
 var ErrInvalidResidentRole = errors.New("geçersiz sakinlik rolü")
 
 // residentRoles, bir daire bağının taşıyabileceği roller.
@@ -27,7 +27,9 @@ var ErrInvalidResidentRole = errors.New("geçersiz sakinlik rolü")
 // bir sonraki girişte YÖNETİCİ olabiliyordu (KMK m.34 atama izi atlanarak);
 // "SUPER_ADMIN" dizesi de jetona giriyordu. Yönetim rolleri yalnızca
 // property_roles üzerinden verilir. Veritabanı da kısıtlar (migration 031).
-var residentRoles = map[string]bool{"OWNER": true, "TENANT": true, "PROXY": true}
+//
+// HOUSEHOLD (hane üyesi, 067/068) jeton rolü üretmez; yalnız dairede oturan varken eklenir.
+var residentRoles = map[string]bool{"OWNER": true, "TENANT": true, "PROXY": true, "HOUSEHOLD": true}
 
 // ResidentService sakin yönetimi iş kuralları
 type ResidentService struct {

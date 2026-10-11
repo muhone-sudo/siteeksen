@@ -29,6 +29,7 @@ func main() {
 	authService := service.NewAuthService(userRepo, os.Getenv("JWT_SECRET")).
 		WithRevocations(revocationChecker)
 	residentRepo := repository.NewResidentRepository(pool)
+	authService.WithInvitations(residentRepo)
 	residentService := service.NewResidentService(residentRepo).WithActivation(authService, userRepo)
 
 	// Etkinleştirme kodu SMS ile (Netgsm; TEST_RAPORU 2.4). Yapılandırma yoksa kod
@@ -93,7 +94,8 @@ func main() {
 		protected.POST("/me/email/confirm", handlers.ConfirmEmailChange(authService))
 		// Malikin kendi bölümündeki kiracı/vekil yönetimi (beşinci tur B5).
 		protected.GET("/me/units/:id/residents", handlers.OwnerUnitResidents(residentService))
-		protected.POST("/me/units/:id/residents", handlers.OwnerAddResident(residentService))
+		// Altıncı tur D3: malik ve oturan doğrudan eklemez, davet gönderir (SMS + e-posta).
+		protected.POST("/me/units/:id/invitations", handlers.OwnerInvite(residentService))
 		protected.POST("/me/units/:id/residents/:residentId/end", handlers.OwnerEndResident(residentService))
 		// Sakin davetleri (S-20): kişi başka sitenin davetini kendisi kabul eder.
 		protected.GET("/me/invitations", handlers.MyInvitations(residentService))
@@ -109,6 +111,7 @@ func main() {
 		residents.POST("", handlers.CreateResident(residentService))
 		residents.POST("/bulk", handlers.BulkCreateResidents(residentService))
 		residents.GET("/invitations", handlers.ListInvitations(residentService))
+		residents.POST("/invitations", handlers.ManagementInvite(residentService))
 		residents.POST("/invitations/:id/cancel", handlers.CancelInvitation(residentService))
 		residents.GET("/:id", handlers.GetResident(residentService))
 		residents.PATCH("/:id", handlers.UpdateResident(residentService))

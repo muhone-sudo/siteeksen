@@ -52,6 +52,9 @@ export function endpoints(http: Http) {
             changePhone: (id: string, phone: string) => http.post<{ message: string; phone: string; sessions_revoked: boolean; activation: T.Activation; old_phone_notice: string }>(`/residents/${id}/phone`, { phone }),
             unlockLogin: (id: string) => http.post<{ message: string; was_locked: boolean }>(`/residents/${id}/unlock`),
             invitations: () => g<T.List<T.Invitation>>("/residents/invitations"),
+            /** Yönetimin daire daveti (D3): dairede aktif kiracı varken kiracı daveti 409. */
+            inviteResident: (b: { first_name?: string; last_name?: string; phone: string; email?: string; unit_id: string; role: string }) =>
+                http.post<T.InvitationOutcome>("/residents/invitations", b),
             kvkkRequests: () => g<T.List<T.KVKKRequest>>("/kvkk-requests"),
             respondKvkk: (id: string, b: { status: string; response: string }) => http.post<{ request: T.KVKKRequest }>(`/kvkk-requests/${id}/respond`, b),
             bulkResidents: (residents: { first_name: string; last_name: string; phone: string; unit_id: string; role: string }[]) =>

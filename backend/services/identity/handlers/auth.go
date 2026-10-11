@@ -226,7 +226,7 @@ func Activate(svc *service.AuthService) gin.HandlerFunc {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Telefon, kod ve yeni şifre zorunludur"})
 			return
 		}
-		err := svc.Activate(c.Request.Context(), normalizePhone(in.Phone), in.Code, in.NewPassword)
+		join, err := svc.Activate(c.Request.Context(), normalizePhone(in.Phone), in.Code, in.NewPassword)
 		switch {
 		case errors.Is(err, service.ErrWeakPassword):
 			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
@@ -238,7 +238,14 @@ func Activate(svc *service.AuthService) gin.HandlerFunc {
 			log.Printf("[identity] etkinleştirme başarısız: %v", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Şifre belirlenemedi"})
 		default:
-			c.JSON(http.StatusOK, gin.H{"message": "Şifreniz belirlendi; şimdi giriş yapabilirsiniz"})
+			msg := "Şifreniz belirlendi; şimdi giriş yapabilirsiniz"
+			if join.Accepted > 0 {
+				msg += ". Davet edildiğiniz daireye bağlandınız"
+			}
+			if len(join.Waiting) > 0 {
+				msg += ". Bazı davetler kabul edilemedi; uygulamadaki davetlerinizden ayrıntıya bakın"
+			}
+			c.JSON(http.StatusOK, gin.H{"message": msg, "invitations": join})
 		}
 	}
 }

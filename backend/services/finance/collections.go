@@ -74,7 +74,7 @@ func notifyCollection(ctx context.Context, n *notify.Notifier, pool *pgxpool.Poo
 	if n == nil {
 		return &notify.BroadcastResult{Note: "Bildirim altyapısı kurulu değil; sakine bildirim oluşturulmadı."}
 	}
-	recipients, err := notify.UnitResidents(ctx, pool, propertyID, unitID)
+	recipients, err := notify.UnitPayers(ctx, pool, propertyID, unitID)
 	if err != nil {
 		log.Printf("[finance] tahsilat bildirimi alıcıları: %v", err)
 		return &notify.BroadcastResult{Note: "Bölüm sakinleri okunamadı; bildirim oluşturulmadı."}

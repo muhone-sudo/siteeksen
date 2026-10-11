@@ -1,6 +1,6 @@
 package repository
 
-// Malikin kendi bölümündeki kiracı/vekil yönetimi (beşinci tur B5).
+// Dairenin malik ve kiracısının gördüğü sakin listesi (beşinci tur B5; altıncı tur D3'te davet akışına geçti).
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// UnitResident, malikin kendi bölümünde gördüğü sakin bilgisidir. Telefon maskelenir,
+// UnitResident, malik ya da kiracının kendi dairesinde gördüğü sakin bilgisidir. Telefon maskelenir,
 // e-posta gösterilmez: malik kiracısını tanır ama sistem gereğinden fazla veri paylaşmaz (KVKK m.4).
 type UnitResident struct {
 	ID          string     `json:"id"`
@@ -22,17 +22,6 @@ type UnitResident struct {
 	IsSelf      bool       `json:"is_self"`
 	CreatedAt   time.Time  `json:"created_at"`
 	EndDate     *time.Time `json:"end_date,omitempty"`
-}
-
-// IsActiveOwner, kullanıcının bölümün AKTİF maliki olup olmadığını söyler.
-func (r *ResidentRepository) IsActiveOwner(ctx context.Context, propertyID, userID, unitID string) (bool, error) {
-	var ok bool
-	err := r.pool.QueryRow(ctx, `SELECT EXISTS (
-		SELECT 1 FROM resident_units ru JOIN units un ON un.id = ru.unit_id
-		WHERE ru.unit_id = $1 AND un.property_id = $2 AND un.deleted = 0
-		  AND ru.resident_id = $3 AND ru.role = 'OWNER' AND ru.is_active
-		  AND (ru.end_date IS NULL OR ru.end_date >= CURRENT_DATE))`, unitID, propertyID, userID).Scan(&ok)
-	return ok, err
 }
 
 // ListUnitResidents, bölümün sakinlerini döner (aktifler önce; ayrılanlar son 1 yıl).

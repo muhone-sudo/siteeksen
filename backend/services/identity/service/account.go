@@ -110,26 +110,47 @@ func (s *AuthService) IssueActivation(ctx context.Context, userID, createdBy str
 	return code, expires, purpose, err
 }
 
+// JoinResult, etkinleştirmede kabul edilen davetlerin sonucu (D3).
+type JoinResult struct {
+	Accepted int `json:"accepted"`
+	// Waiting: kabul edilemeyip bekleyen davetler ve nedenleri (ör. daireye bu arada kiracı gelmiş).
+	Waiting []string `json:"waiting,omitempty"`
+}
+
 // Activate, telefon + kod ile şifre belirler ve kullanıcının açık TÜM
 // oturumlarını iptal eder (kod bir şifre sıfırlamaysa eski oturumlar kapanmalı).
-func (s *AuthService) Activate(ctx context.Context, phone, code, newPassword string) error {
+// Davet edilen kişi kodu girince bekleyen davetleri kabul edilmiş olur (altıncı tur D3 kararı).
+func (s *AuthService) Activate(ctx context.Context, phone, code, newPassword string) (*JoinResult, error) {
 	if err := ValidatePassword(newPassword, phone); err != nil {
-		return err
+		return nil, err
 	}
 	hash, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	userID, err := s.userRepo.ActivateWithCode(ctx, phone, strings.ToUpper(strings.TrimSpace(code)), string(hash))
+	userID, first, err := s.userRepo.ActivateWithCode(ctx, phone, strings.ToUpper(strings.TrimSpace(code)), string(hash))
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if s.revocations != nil {
 		if err := s.revocations.RevokeAll(ctx, userID, "PASSWORD_SET"); err != nil {
-			return fmt.Errorf("şifre belirlendi ama eski oturumlar kapatılamadı: %w", err)
+			return nil, fmt.Errorf("şifre belirlendi ama eski oturumlar kapatılamadı: %w", err)
 		}
 	}
-	return nil
+	join := &JoinResult{}
+	// Yalnız İLK etkinleştirmede: hesabı davetle açılan kişi kodu girince kabul etmiş olur. Mevcut hesabın
+	// şifre sıfırlaması bekleyen bir daveti kendiliğinden kabul ETMEZ (kişi uygulamada kendisi karar verir).
+	if s.invitations != nil && first {
+		accepted, failed, err := s.invitations.AcceptPendingFor(ctx, userID)
+		if err != nil {
+			return nil, fmt.Errorf("şifre belirlendi ama davetler işlenemedi; uygulamadaki davetlerden kabul edin: %w", err)
+		}
+		join.Accepted = accepted
+		for _, reason := range failed {
+			join.Waiting = append(join.Waiting, reason)
+		}
+	}
+	return join, nil
 }
 
 // ChangePassword, mevcut şifreyi doğrulayıp yenisini yazar; diğer oturumlar kapanır.

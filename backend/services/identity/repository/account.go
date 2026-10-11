@@ -87,58 +87,59 @@ func (r *UserRepository) CreateActivationCode(ctx context.Context, userID, creat
 // ActivateWithCode, telefon + kod doğruysa şifreyi belirler ve kodu kullanılmış
 // sayar. Hatalı denemede kodun sayacı artar; sınır aşılınca kod kilitlenir.
 // Dönen değer kullanıcı kimliğidir (çağıran açık oturumları iptal eder).
-func (r *UserRepository) ActivateWithCode(ctx context.Context, phone, code, passwordHash string) (string, error) {
+func (r *UserRepository) ActivateWithCode(ctx context.Context, phone, code, passwordHash string) (string, bool, error) {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
-		return "", err
+		return "", false, err
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 
 	var userID, codeID, storedHash string
 	var attempts int
+	var first bool // hesabın İLK etkinleştirmesi mi (şifre hiç belirlenmemiş) — D3 davet kabulü için
 	err = tx.QueryRow(ctx, `
-		SELECT u.id, c.id, c.code_hash, c.failed_attempts
+		SELECT u.id, c.id, c.code_hash, c.failed_attempts, u.password_set_at IS NULL
 		FROM users u
 		JOIN user_activation_codes c ON c.user_id = u.id
 		WHERE u.phone = $1 AND u.deleted = 0 AND COALESCE(u.is_active, true)
 		  AND c.used_at IS NULL AND c.expires_at > now()
 		ORDER BY c.created_at DESC
 		LIMIT 1
-		FOR UPDATE OF c`, phone).Scan(&userID, &codeID, &storedHash, &attempts)
+		FOR UPDATE OF c`, phone).Scan(&userID, &codeID, &storedHash, &attempts, &first)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return "", ErrInvalidCode
+		return "", false, ErrInvalidCode
 	}
 	if err != nil {
-		return "", err
+		return "", false, err
 	}
 	if attempts >= MaxCodeAttempts {
-		return "", ErrCodeLocked
+		return "", false, ErrCodeLocked
 	}
 	if subtle.ConstantTimeCompare([]byte(storedHash), []byte(HashCode(code))) != 1 {
 		if _, err := tx.Exec(ctx,
 			`UPDATE user_activation_codes SET failed_attempts = failed_attempts + 1 WHERE id = $1`, codeID); err != nil {
-			return "", err
+			return "", false, err
 		}
 		if err := tx.Commit(ctx); err != nil {
-			return "", err
+			return "", false, err
 		}
 		if attempts+1 >= MaxCodeAttempts {
-			return "", ErrCodeLocked
+			return "", false, ErrCodeLocked
 		}
-		return "", ErrInvalidCode
+		return "", false, ErrInvalidCode
 	}
 
 	if _, err := tx.Exec(ctx, `
 		UPDATE users SET password_hash = $2, password_set_at = now(),
 		       failed_login_attempts = 0, locked_until = NULL, updated_at = now()
 		WHERE id = $1`, userID, passwordHash); err != nil {
-		return "", err
+		return "", false, err
 	}
 	if _, err := tx.Exec(ctx,
 		`UPDATE user_activation_codes SET used_at = now() WHERE id = $1`, codeID); err != nil {
-		return "", err
+		return "", false, err
 	}
-	return userID, tx.Commit(ctx)
+	return userID, first, tx.Commit(ctx)
 }
 
 // SetPassword, şifreyi değiştirir (mevcut şifre çağıran tarafından doğrulanmıştır).

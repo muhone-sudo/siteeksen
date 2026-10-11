@@ -177,7 +177,7 @@ func (r *FinanceRepository) ListCreditNotes(ctx context.Context, propertyID, res
 		JOIN monthly_assessments ma ON ma.id = c.assessment_id
 		LEFT JOIN users us ON us.id = c.created_by
 		WHERE c.property_id = $1
-		  AND ($2 = '' OR EXISTS (SELECT 1 FROM resident_units ru WHERE ru.unit_id = c.unit_id AND ru.is_active AND ru.resident_id = NULLIF($2,'')::uuid))
+		  AND ($2 = '' OR EXISTS (SELECT 1 FROM resident_units ru WHERE ru.unit_id = c.unit_id AND ru.is_active AND ru.role <> 'HOUSEHOLD' AND ru.resident_id = NULLIF($2,'')::uuid))
 		ORDER BY c.created_at DESC LIMIT 500`, propertyID, residentID)
 	if err != nil {
 		return nil, err

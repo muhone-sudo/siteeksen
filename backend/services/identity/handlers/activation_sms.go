@@ -73,3 +73,67 @@ func sendActivationEmail(ctx context.Context, email string, act *models.Activati
 	}
 	return &SMSDelivery{Status: "SENT", Note: "Kod sakinin e-posta adresine de gönderildi."}
 }
+
+// Davet iletimi (altıncı tur D3). Hesabı davetle açılan kişiye kod, hesabı olan kişiye davet bildirimi gider.
+
+func sendInvitationActivationSMS(ctx context.Context, phone, what string, act *models.Activation) *SMSDelivery {
+	if act == nil {
+		return nil
+	}
+	if activationSMS == nil {
+		return &SMSDelivery{Status: "NOT_CONFIGURED", Note: "SMS sağlayıcısı yapılandırılmamış."}
+	}
+	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
+	body := "SiteEksen: " + what + ". Etkinleştirme kodunuz: " + act.Code + " (" +
+		act.ExpiresAt.In(time.Local).Format("02.01.2006") + " tarihine kadar). Uygulamada 'Hesabımı etkinleştir' ile kodu girince daireye bağlanırsınız."
+	if _, err := activationSMS.Send(ctx, notify.Message{Channel: notify.ChannelSMS, Category: notify.CategoryTransactional,
+		Topic: "identity.invitation", Recipient: phone, Body: body}); err != nil {
+		log.Printf("[identity] davet SMS'i gönderilemedi: %v", err)
+		return &SMSDelivery{Status: "FAILED", Note: "SMS gönderilemedi."}
+	}
+	return &SMSDelivery{Status: "SENT", Note: "Kod davet edilen kişinin telefonuna SMS ile gönderildi."}
+}
+
+func sendInvitationActivationEmail(ctx context.Context, email, what string, act *models.Activation) *SMSDelivery {
+	if act == nil || email == "" {
+		return nil
+	}
+	if activationEmail == nil {
+		return &SMSDelivery{Status: "NOT_CONFIGURED", Note: "E-posta sağlayıcısı yapılandırılmamış."}
+	}
+	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
+	if _, err := activationEmail.Send(ctx, notify.Message{Channel: notify.ChannelEmail, Category: notify.CategoryTransactional,
+		Topic: "identity.invitation", Recipient: email, Subject: "SiteEksen daire daveti",
+		Body: "Merhaba,\n\n" + what + ".\nEtkinleştirme kodunuz: " + act.Code + "\nKod " + act.ExpiresAt.In(time.Local).Format("02.01.2006") +
+			" tarihine kadar geçerlidir. Uygulamada telefon numaranız ve bu kodla şifrenizi belirlediğinizde daireye bağlanırsınız. " +
+			"Kodu kimseyle paylaşmayın; bu daveti beklemiyorsanız site yönetimine bildirin."}); err != nil {
+		log.Printf("[identity] davet e-postası gönderilemedi: %v", err)
+		return &SMSDelivery{Status: "FAILED", Note: "E-posta gönderilemedi."}
+	}
+	return &SMSDelivery{Status: "SENT", Note: "Kod davet edilen kişinin e-posta adresine gönderildi."}
+}
+
+// sendInvitationNotice, hesabı olan kişiye davet bildirimi (telefon ya da e-posta; biri boş olur).
+func sendInvitationNotice(ctx context.Context, phone, email, what string) *SMSDelivery {
+	sender, recipient, channel := activationSMS, phone, notify.ChannelSMS
+	if phone == "" {
+		sender, recipient, channel = activationEmail, email, notify.ChannelEmail
+	}
+	if recipient == "" {
+		return nil
+	}
+	if sender == nil {
+		return &SMSDelivery{Status: "NOT_CONFIGURED", Note: "Sağlayıcı yapılandırılmamış; davet uygulamada görünür."}
+	}
+	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
+	if _, err := sender.Send(ctx, notify.Message{Channel: channel, Category: notify.CategoryTransactional,
+		Topic: "identity.invitation", Recipient: recipient, Subject: "SiteEksen daire daveti",
+		Body: "SiteEksen: " + what + ". Uygulamadaki davetlerinizden kabul ya da reddedebilirsiniz (14 gün)."}); err != nil {
+		log.Printf("[identity] davet bildirimi gönderilemedi: %v", err)
+		return &SMSDelivery{Status: "FAILED", Note: "Gönderilemedi; davet uygulamada görünür."}
+	}
+	return &SMSDelivery{Status: "SENT", Note: "Davet bildirimi gönderildi."}
+}

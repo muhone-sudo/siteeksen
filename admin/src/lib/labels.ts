@@ -53,6 +53,7 @@ export const RESIDENT_ROLES = [
     { value: "OWNER", label: "Kat maliki" },
     { value: "TENANT", label: "Kiracı" },
     { value: "PROXY", label: "Vekil" },
+    { value: "HOUSEHOLD", label: "Hane üyesi" },
 ];
 export const ROLE_LABEL: Record<string, string> = { OWNER: "Kat maliki", TENANT: "Kiracı", PROXY: "Vekil", HOUSEHOLD: "Hane üyesi" };
 

@@ -173,10 +173,10 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
     );
   }
 
-  /// Aktif sitede malik olunan bölümler (B5: kiracı/vekil yönetimi).
+  /// Aktif sitede malik ya da kiracı olunan bölümler (B5; D3: davet).
   List<Map> get _ownedUnits => _properties
       .whereType<Map>()
-      .where((p) => p['role'] == 'OWNER' && '${p['property_id']}' == '${_user?['active_property_id'] ?? ''}')
+      .where((p) => (p['role'] == 'OWNER' || p['role'] == 'TENANT') && '${p['property_id']}' == '${_user?['active_property_id'] ?? ''}')
       .toList();
 
   Widget _buildOwnedUnits() {
@@ -190,7 +190,7 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
             ListItem(
               icon: Icons.people_alt_rounded,
               title: '${units[i]['unit_name'] ?? 'Bölüm'} sakinleri',
-              subtitle: 'Kiracı/vekil ekleyin ya da kiracılığı bitirin',
+              subtitle: 'Sakinleri görün; kiracı, vekil ya da hane üyesi davet edin',
               iconColor: AppleTheme.systemIndigo,
               onTap: () => Navigator.of(context).push(MaterialPageRoute(
                 builder: (_) => UnitResidentsScreen(unitId: '${units[i]['unit_id']}', unitName: '${units[i]['unit_name'] ?? 'Bölüm'}'),

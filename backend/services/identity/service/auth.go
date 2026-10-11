@@ -30,6 +30,19 @@ type AuthService struct {
 	// revocations, jeton iptal denetimidir (FAZ 2.7). Yenileme akışında
 	// kullanılır; nil bırakılırsa iptal denetimi YAPILMAZ.
 	revocations *revocation.Checker
+	// invitations, hesabını etkinleştiren davetlinin bekleyen davetlerini kabul eder (altıncı tur D3).
+	invitations InvitationAcceptor
+}
+
+// InvitationAcceptor, kişinin bekleyen davetlerini kabul etmeyi dener (kabul edilemeyenin nedeniyle).
+type InvitationAcceptor interface {
+	AcceptPendingFor(ctx context.Context, userID string) (int, map[string]string, error)
+}
+
+// WithInvitations, etkinleştirmede davet kabulünü bağlar.
+func (s *AuthService) WithInvitations(a InvitationAcceptor) *AuthService {
+	s.invitations = a
+	return s
 }
 
 // NewAuthService yeni servis oluşturur

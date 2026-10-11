@@ -142,7 +142,7 @@ func overdueDues(ctx context.Context, pool *pgxpool.Pool, propertyID string) ([]
 
 	out := make([]notice, 0, len(list))
 	for _, r := range list {
-		recipients, err := notify.UnitResidents(ctx, pool, propertyID, r.unitID)
+		recipients, err := notify.UnitPayers(ctx, pool, propertyID, r.unitID)
 		if err != nil {
 			return nil, err
 		}

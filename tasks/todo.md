@@ -666,7 +666,11 @@ Aşamalar (her biri ayrı commit, verify-stack + gerekirse verify-mobile + panel
   MALİK OTURUYOR / BOŞ / KAYITSIZ; boş daire tanım gereği malikli). Panel: Oturum sütunu, "kiracı yokken" seçimi, malik
   kaydı yok uyarısı, sakinlerde "Oturan". **D3'e taşındı:** daire başına tek aktif kiracı kısıtı — mevcut kiracı ekleme
   akışları (ve verify'daki çoklu kiracılı fixture'lar) davet akışıyla birlikte değişecek.
-- [ ] **D3 Kayıt ve davet** — yönetim maliki/kiracıyı kaydeder; malik ya da yönetim kiracıyı SMS + e-postayla davet eder
+D3 kullanıcı kararları (2026-10-11): (1) Davet edilen kişinin hesabı yoksa hesap HEMEN açılır, etkinleştirme kodu SMS +
+e-postayla gider; kişi kodu girince (hesabını etkinleştirince) davet kabul edilmiş olur ve devir gerçekleşir. Hesabı olan kişi
+uygulamada kabul eder. (2) Hane üyesini dairede oturan ve yönetim ekler; kiracılı dairede malik ekleyemez. (3) Yönetim kiracıyı
+doğrudan da kaydeder, davet de gönderir; ikisinde de aktif kiracı varken engel. (4) Kiracı gelince malikin o dairedeki hane
+üyelerinin kaydı biter (pasif, iz kalır).- [x] **D3 Kayıt ve davet** (verify 1331/1331, mobil 10/10, panel tsc/lint) — yönetim maliki/kiracıyı kaydeder; malik ya da yönetim kiracıyı SMS + e-postayla davet eder
   (dolu dairede engel); kiracı kodla katılır, kabulde devir; kiracılı daireye malik daveti; hane üyesi daveti. B5'in doğrudan
   ekleme/bitirme uçları kaldırılır.
 - [ ] **D4 Kiracılık bitişi** — malik isteği + kiracı onayı; kiracının kendi çıkışı (V1); yönetim yolu (belge, şifreyle

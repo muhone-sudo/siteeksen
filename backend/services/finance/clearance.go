@@ -57,7 +57,7 @@ func canRequestFor(c *gin.Context, pool *pgxpool.Pool, propertyID, unitID string
 	var ok bool
 	err := dbscope.For(pool, propertyID).QueryRow(c.Request.Context(), `
 		SELECT EXISTS (SELECT 1 FROM resident_units ru JOIN units u ON u.id = ru.unit_id
-		               WHERE ru.unit_id = $1 AND ru.resident_id = $2 AND ru.is_active AND u.property_id = $3)`,
+		               WHERE ru.unit_id = $1 AND ru.resident_id = $2 AND ru.is_active AND ru.role <> 'HOUSEHOLD' AND u.property_id = $3)`,
 		unitID, c.GetString("user_id"), propertyID).Scan(&ok)
 	return ok, err
 }

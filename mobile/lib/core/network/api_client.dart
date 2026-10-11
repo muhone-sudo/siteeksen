@@ -332,15 +332,16 @@ class ApiClient {
     return _list(response.data);
   }
 
-  /// Malikin kendi bölümündeki sakinler (B5).
+  /// Dairenin sakinleri — malik ya da kiracı görür (B5, D3).
   Future<List<dynamic>> getUnitResidents(String unitId) async =>
       _list((await _dio.get('/users/me/units/$unitId/residents')).data);
 
-  /// Malik kiracı/vekil ekler (B5): {first_name,last_name,phone,email?,role: TENANT|PROXY}.
-  Future<Map<String, dynamic>> addUnitResident(String unitId, Map<String, dynamic> body) async =>
-      Map<String, dynamic>.from((await _dio.post('/users/me/units/$unitId/residents', data: body)).data as Map);
+  /// Daire daveti (altıncı tur D3): {first_name,last_name,phone,email?,role}. Malik: TENANT | PROXY |
+  /// (dairede oturuyorsa) HOUSEHOLD; kiracı: HOUSEHOLD. Kişiye SMS + e-posta gider; kod davet edene gösterilmez.
+  Future<Map<String, dynamic>> inviteToUnit(String unitId, Map<String, dynamic> body) async =>
+      Map<String, dynamic>.from((await _dio.post('/users/me/units/$unitId/invitations', data: body)).data as Map);
 
-  /// Malik kiracılığı/vekilliği bitirir (B5).
+  /// Malik vekilliği, oturan hane üyeliğini bitirir; kiracılık bu yoldan bitmez (409).
   Future<Map<String, dynamic>> endUnitResident(String unitId, String residentUnitId) async =>
       Map<String, dynamic>.from((await _dio.post('/users/me/units/$unitId/residents/$residentUnitId/end')).data as Map);
 

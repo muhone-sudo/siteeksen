@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { KeyRound, Plus, Upload } from "lucide-react";
+import { KeyRound, Mail, Plus, Upload } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAction, useApi, useRoles } from "@/lib/use-api";
 import { ActionFeedback, Badge, Button, Card, Field, FormModal, Grid, Input, Modal, Notice, Page, QueryView, Select, Table, Textarea } from "@/components/ui/kit";
@@ -14,6 +14,7 @@ const BULK_STATUS: Record<BulkResidentRow["status"], string> = {
 };
 const ROLE_ALIASES: Record<string, string> = {
     MALIK: "OWNER", "KAT MALIKI": "OWNER", OWNER: "OWNER", KIRACI: "TENANT", TENANT: "TENANT", VEKIL: "PROXY", PROXY: "PROXY",
+    "HANE UYESI": "HOUSEHOLD", "HANE ÜYESI": "HOUSEHOLD", HOUSEHOLD: "HOUSEHOLD",
 };
 
 /**
@@ -94,6 +95,8 @@ export default function ResidentsPage() {
     const act = useAction();
     const { canWrite } = useRoles();
     const [open, setOpen] = useState(false);
+    const [inviteOpen, setInviteOpen] = useState(false);
+    const [invite, setInvite] = useState({ first_name: "", last_name: "", phone: "", email: "", unit_id: "", role: "TENANT" });
     const [form, setForm] = useState({ first_name: "", last_name: "", phone: "", email: "", unit_id: "", role: "OWNER" });
     const [edit, setEdit] = useState<Resident | null>(null);
     const [shown, setShown] = useState<{ who: string; phone: string; act: Activation } | null>(null);
@@ -113,6 +116,7 @@ export default function ResidentsPage() {
             actions={canWrite && (
                 <div className="flex gap-2">
                     <Button variant="secondary" onClick={() => setBulkOpen(true)}><Upload className="h-4 w-4" /> Toplu ekle</Button>
+                    <Button variant="secondary" onClick={() => setInviteOpen(true)}><Mail className="h-4 w-4" /> Davet gönder</Button>
                     <Button onClick={() => setOpen(true)}><Plus className="h-4 w-4" /> Sakin ekle</Button>
                 </div>
             )}
@@ -170,8 +174,9 @@ export default function ResidentsPage() {
 
             <Card title="Sakin davetleri">
                 <p className="mb-3 text-sm text-gray-600 dark:text-gray-400">
-                    Telefonu başka bir sitede kayıtlı olan kişi doğrudan eklenmez; kişiye davet gider ve kendi uygulamasından
-                    kabul ettiğinde daireye bağlanır (14 gün geçerli). Kişisel verilerin korunması için kişinin adı burada gösterilmez.
+                    Yönetim, malik ya da kiracı davet gönderir; kişiye SMS ve e-posta gider. Hesabı olmayan kişi için hesap açılır ve
+                    kişi etkinleştirme kodunu girince daireye bağlanır; hesabı olan kişi uygulamasından kabul eder (14 gün geçerli).
+                    Dairede aktif kiracı varken kiracı daveti gönderilemez. Kişisel verilerin korunması için kişinin adı burada gösterilmez.
                 </p>
                 <QueryView q={invitations} empty="Davet yok">
                     {(d) => (
@@ -231,6 +236,36 @@ export default function ResidentsPage() {
                     </Field>
                     <Field label="Sıfat" required>
                         <Select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })} options={RESIDENT_ROLES} />
+                    </Field>
+                </Grid>
+            </FormModal>
+
+            <FormModal
+                open={inviteOpen}
+                onClose={() => setInviteOpen(false)}
+                title="Daire daveti gönder"
+                submitLabel="Davet gönder"
+                pending={act.pending}
+                error={act.error}
+                onSubmit={async () => {
+                    const r = await act.run(() => api.identity.inviteResident(invite), { invalidate: ["residents"], success: (x) => x.note });
+                    if (r) {
+                        setInviteOpen(false);
+                        if (r.activation) setShown({ who: `${invite.first_name} ${invite.last_name}`, phone: invite.phone, act: { ...r.activation, sms: r.delivery?.sms ?? undefined, email: r.delivery?.email ?? undefined } });
+                    }
+                }}
+            >
+                <Notice tone="blue">Malik daveti yalnız maliki kayıtlı olmayan daireye; hane üyesi daveti yalnız dairede oturan varken gönderilir. Hesabı olan kişi için ad/soyad gerekmez.</Notice>
+                <Grid>
+                    <Field label="Ad"><Input value={invite.first_name} onChange={(e) => setInvite({ ...invite, first_name: e.target.value })} /></Field>
+                    <Field label="Soyad"><Input value={invite.last_name} onChange={(e) => setInvite({ ...invite, last_name: e.target.value })} /></Field>
+                    <Field label="Telefon" required hint="05xx… · yurt dışı: +ülke kodu"><Input required value={invite.phone} onChange={(e) => setInvite({ ...invite, phone: e.target.value })} /></Field>
+                    <Field label="E-posta" hint="Davet e-postayla da gider"><Input type="email" value={invite.email} onChange={(e) => setInvite({ ...invite, email: e.target.value })} /></Field>
+                    <Field label="Bağımsız bölüm" required>
+                        <Select required value={invite.unit_id} onChange={(e) => setInvite({ ...invite, unit_id: e.target.value })} options={unitOptions} placeholder="Seçin" />
+                    </Field>
+                    <Field label="Sıfat" required>
+                        <Select value={invite.role} onChange={(e) => setInvite({ ...invite, role: e.target.value })} options={RESIDENT_ROLES} />
                     </Field>
                 </Grid>
             </FormModal>

@@ -6480,7 +6480,7 @@ N=$($PSQL -t -A -c "SELECT failed_login_attempts FROM users WHERE phone='+905550
 
 # Var olan telefonla sakin eklenirse kod üretilmez, mevcut şifre bozulmaz
 CR=$(curl -s -X POST "$ID39/residents" -H "Authorization: Bearer $MGR39" -H "$J" \
-  -d "{\"first_name\":\"Demo\",\"last_name\":\"Kiraci\",\"phone\":\"5559876543\",\"unit_id\":\"$FREEUNIT\",\"role\":\"TENANT\"}")
+  -d "{\"first_name\":\"Demo\",\"last_name\":\"Kiraci\",\"phone\":\"5559876543\",\"unit_id\":\"$FREEUNIT\",\"role\":\"PROXY\"}")
 SC=$(code -X POST "$ID39/auth/login" -H "$J" -d '{"phone":"5559876543","password":"Demo123!"}')
 echo "$CR" | grep -q activation_code && bad "var olan hesaba kod üretildi: $CR" \
   || { [ "$SC" = "200" ] && ok "var olan hesap ikinci daireye bağlanınca kod üretilmiyor, şifresi bozulmuyor" \
@@ -6534,12 +6534,12 @@ PROPS=$(curl -s "$ID39/users/me/properties" -H "Authorization: Bearer $GZ")
 echo "$PROPS" | grep -q "$DEMO_PROPERTY" && ok "kabulden sonra site, kişinin site listesinde" || bad "site listesi: $(echo "$PROPS" | head -c 200)"
 
 # İptal ve süre dolumu
-CR=$(invite 5550000080 TENANT); INV2=$(echo "$CR" | sed '$d' | jfield 'd["invitation"]["id"]')
+CR=$(invite 5550000080 PROXY); INV2=$(echo "$CR" | sed '$d' | jfield 'd["invitation"]["id"]')
 SC=$(code -X POST "$ID39/residents/invitations/$INV2/cancel" -H "Authorization: Bearer $MGR39")
 GZ2=$(curl -s -X POST "$ID39/auth/login" -H "$J" -d '{"phone":"5550000080","password":"Demo123!"}' | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
 SC2=$(code -X POST "$ID39/users/me/invitations/$INV2/accept" -H "Authorization: Bearer $GZ2")
 [ "$SC" = "200" ] && [ "$SC2" = "409" ] && ok "yönetimin iptal ettiği davet kabul edilemiyor → 409" || bad "iptal: $SC, iptal sonrası kabul $SC2"
-CR=$(invite 5550000080 TENANT); INV3=$(echo "$CR" | sed '$d' | jfield 'd["invitation"]["id"]')
+CR=$(invite 5550000080 PROXY); INV3=$(echo "$CR" | sed '$d' | jfield 'd["invitation"]["id"]')
 $PSQL -c "UPDATE resident_invitations SET expires_at = now() - interval '1 minute' WHERE id='${INV3:-00000000-0000-0000-0000-000000000000}';" >/dev/null
 NMY=$(curl -s "$ID39/users/me/invitations" -H "Authorization: Bearer $GZ2" | jfield 'len(d["data"])')
 SC=$(code -X POST "$ID39/users/me/invitations/$INV3/accept" -H "Authorization: Bearer $GZ2")
@@ -6547,7 +6547,7 @@ EXP=$(curl -s "$ID39/residents/invitations" -H "Authorization: Bearer $MGR39" | 
 [ -n "$INV3" ] && [ "$NMY" = "0" ] && [ "$SC" = "409" ] && [ "$EXP" = "EXPIRED" ] \
   && ok "süresi dolan davet kişiye görünmüyor, kabul edilemiyor (409), yönetimde EXPIRED" \
   || bad "süre dolumu: davet '$INV3', görünen $NMY, kabul $SC, durum $EXP"
-SC=$(invite 5550000080 TENANT | tail -1)
+SC=$(invite 5550000080 PROXY | tail -1)
 DBEXP=$($PSQL -t -A -c "SELECT status FROM resident_invitations WHERE id='${INV3:-00000000-0000-0000-0000-000000000000}';")
 [ "$SC" = "202" ] && [ "$DBEXP" = "EXPIRED" ] && ok "süresi dolan davet kapatılıp yenisi açılabiliyor" || bad "yeniden davet: $SC (eski $DBEXP)"
 L80=$($PSQL -t -A -c "SELECT count(*) FROM resident_units ru JOIN users u ON u.id = ru.resident_id WHERE u.phone='+905550000080';")
@@ -7143,7 +7143,7 @@ grep -q 'SMS yapılandırması hatalı' /tmp/verify-identity-bad.log && ok "yar�
 # Yönetim destekli hesap kurtarma (Apsiyon BUG-05/06): telefon değişikliği ve giriş kilidi
 IDS="http://127.0.0.1:18381/api/v1"
 CR5=$(curl -s -X POST "$IDS/residents" -H "Authorization: Bearer $MGRS" -H "$J" \
-  -d "{\"first_name\":\"Kayip\",\"last_name\":\"Telefon\",\"phone\":\"0555 999 00 44\",\"unit_id\":\"$SU\",\"role\":\"TENANT\"}")
+  -d "{\"first_name\":\"Kayip\",\"last_name\":\"Telefon\",\"phone\":\"0555 999 00 44\",\"unit_id\":\"$SU\",\"role\":\"PROXY\"}")
 RU5=$(echo "$CR5" | sed -n 's/.*"id":"\([^"]*\)".*/\1/p' | head -1)
 U5=$($PSQL -t -A -c "SELECT id FROM users WHERE phone='+905559990044';")
 $PSQL -c "UPDATE users SET failed_login_attempts = 5, locked_until = now() + interval '15 minutes' WHERE id='$U5';" >/dev/null
@@ -7184,7 +7184,7 @@ else
 fi
 BEFORE6=$(wc -l </tmp/fake-netgsm.log)
 CR6=$(curl -s -X POST "$IDS/residents" -H "Authorization: Bearer $MGRS" -H "$J" \
-  -d "{\"first_name\":\"Yurt\",\"last_name\":\"Disi\",\"phone\":\"+352 621 123 456\",\"unit_id\":\"$SU\",\"role\":\"TENANT\"}")
+  -d "{\"first_name\":\"Yurt\",\"last_name\":\"Disi\",\"phone\":\"+352 621 123 456\",\"unit_id\":\"$SU\",\"role\":\"PROXY\"}")
 ICODE=$(echo "$CR6" | sed -n 's/.*"activation_code":"\([^"]*\)".*/\1/p')
 sleep 1
 ISMS=$(python3 -c "
@@ -7947,7 +7947,7 @@ EPLAIN=$($PSQL -t -A -c "SELECT count(*) FROM email_change_requests WHERE code_h
   || bad "e-posta onayı: yanlış=$EW / $EC / $EDB / profil=$EME / düz=$EPLAIN"
 kill_tree "$IB4_PID"; kill_tree "$IB4N_PID"; kill "$FNG4_PID" "$FSM4_PID" 2>/dev/null
 
-step "53) Malikin kendi bölümündeki kiracı/vekil yönetimi (beşinci tur B5)"
+step "53) Malik ve kiracının daire işlemleri: davet, vekil/hane üyesi, tek kiracı (beşinci tur B5, altıncı tur D3)"
 DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_identity DB_PASSWORD="$IDPW" DB_NAME=siteeksen \
   DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=19381 \
   go run ./services/identity >/tmp/verify-identity-b5.log 2>&1 &
@@ -7958,38 +7958,56 @@ OWT=$(curl -s -X POST "$I5/auth/login" -H "$J" -d '{"phone":"5551234567","passwo
 TNT=$(curl -s -X POST "$I5/auth/login" -H "$J" -d '{"phone":"5559876543","password":"Demo123!"}' | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
 OWA="Authorization: Bearer $OWT"; TNA="Authorization: Bearer $TNT"
 U303='33333333-3333-3333-3333-333333333303'
-O1=$(code "$I5/users/me/units/$U304/residents" -H "$TNA")
+# D3: dairenin maliki ve kiracısı kendi dairesinin sakinlerini görür; başka daireyi göremez
+O1=$(code "$I5/users/me/units/$U303/residents" -H "$TNA")
+O1B=$(code "$I5/users/me/units/$U304/residents" -H "$TNA")
 O2=$(curl -s -w '|%{http_code}' "$I5/users/me/units/$U303/residents" -H "$OWA")
 O2OK=$(echo "${O2%|*}" | python3 -c "
 import json,sys
 d=json.load(sys.stdin)['data']; me=[x for x in d if x['is_self']]
 print(len(me)==1 and me[0]['role']=='OWNER' and me[0]['phone_masked'].endswith('4567') and '*' in me[0]['phone_masked'] and 'email' not in me[0])" 2>/dev/null)
-[ "$O1" = "403" ] && [ "${O2##*|}" = "200" ] && [ "$O2OK" = "True" ] \
-  && ok "malik kendi bölümünün sakinlerini görüyor (telefon maskeli, e-posta yok); kiracı malik olmadığı bölümde 403" \
-  || bad "bölüm sakinleri: kiracı=$O1 / malik=$O2 / $O2OK"
-O3=$(curl -s -w '|%{http_code}' -X POST "$I5/users/me/units/$U303/residents" -H "$OWA" -H "$J" \
+[ "$O1" = "403" ] && [ "$O1B" = "200" ] && [ "${O2##*|}" = "200" ] && [ "$O2OK" = "True" ] \
+  && ok "malik ve kiracı kendi dairesinin sakinlerini görüyor (telefon maskeli, e-posta yok); başka daire 403" \
+  || bad "daire sakinleri: kiracı başka daire=$O1 kendi=$O1B / malik=$O2 / $O2OK"
+# Malik kiracıyı doğrudan eklemez, DAVET eder; kod malike gösterilmez (kiracının şifresini belirleyemesin)
+O3=$(curl -s -w '|%{http_code}' -X POST "$I5/users/me/units/$U303/invitations" -H "$OWA" -H "$J" \
   -d '{"first_name":"Yeni","last_name":"Kiraci","phone":"0555 999 00 53","role":"tenant"}')
-ORU=$(echo "${O3%|*}" | python3 -c "import json,sys; print(json.load(sys.stdin)['id'])" 2>/dev/null)
-OACT=$(echo "$O3" | grep -c '"activation_code":"')
-ODB=$($PSQL -t -A -c "SELECT ru.role||'|'||ru.is_active FROM resident_units ru JOIN users u ON u.id=ru.resident_id WHERE u.phone='+905559990053' AND ru.unit_id='$U303';")
-O4=$(code -X POST "$I5/users/me/units/$U303/residents" -H "$OWA" -H "$J" -d '{"first_name":"A","last_name":"B","phone":"0555 999 00 54","role":"OWNER"}')
-O5=$(code -X POST "$I5/users/me/units/$U304/residents" -H "$OWA" -H "$J" -d '{"first_name":"A","last_name":"B","phone":"0555 999 00 54","role":"TENANT"}')
-O6=$(code -X POST "$I5/users/me/units/$U303/residents" -H "$OWA" -H "$J" -d '{"first_name":"A","last_name":"B","phone":"abc","role":"TENANT"}')
-[ "${O3##*|}" = "201" ] && [ -n "$ORU" ] && [ "$OACT" = "1" ] && [ "$ODB" = "TENANT|true" ] && [ "$O4" = "422" ] && [ "$O5" = "403" ] && [ "$O6" = "422" ] \
-  && ok "malik kendi bölümüne kiracı ekledi (yeni hesaba etkinleştirme kodu üretildi); malik rolü 422, başka bölüm 403, geçersiz numara 422" \
-  || bad "malik kiracı ekleme: $O3 / kod=$OACT / $ODB / $O4 / $O5 / $O6"
+OINV=$(echo "${O3%|*}" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['invitation']['id'], d['new_account'], 'activation' in d, 'delivery' in d)" 2>/dev/null)
+ODB=$($PSQL -t -A -c "SELECT i.status||'|'||i.invited_as||'|'||i.role||'|'||(SELECT count(*) FROM resident_units ru WHERE ru.resident_id=i.user_id)
+  FROM resident_invitations i JOIN users u ON u.id=i.user_id WHERE u.phone='+905559990053' AND i.unit_id='$U303';")
+O3B=$(code -X POST "$I5/users/me/units/$U303/invitations" -H "$OWA" -H "$J" -d '{"first_name":"Iki","last_name":"Kiraci","phone":"0555 999 00 63","role":"TENANT"}')
+O4=$(code -X POST "$I5/users/me/units/$U303/invitations" -H "$OWA" -H "$J" -d '{"first_name":"A","last_name":"B","phone":"0555 999 00 54","role":"OWNER"}')
+O5=$(code -X POST "$I5/users/me/units/$U304/invitations" -H "$OWA" -H "$J" -d '{"first_name":"A","last_name":"B","phone":"0555 999 00 54","role":"TENANT"}')
+O6=$(code -X POST "$I5/users/me/units/$U303/invitations" -H "$OWA" -H "$J" -d '{"first_name":"A","last_name":"B","phone":"abc","role":"TENANT"}')
+O6B=$(code -X POST "$I5/users/me/units/$U304/invitations" -H "$TNA" -H "$J" -d '{"first_name":"A","last_name":"B","phone":"0555 999 00 64","role":"TENANT"}')
+O7OLD=$(code -X POST "$I5/users/me/units/$U303/residents" -H "$OWA" -H "$J" -d '{"first_name":"A","last_name":"B","phone":"0555 999 00 65","role":"TENANT"}')
+[ "${O3##*|}" = "201" ] && [ "${OINV#* }" = "True False True" ] && [ "$ODB" = "PENDING|OWNER|TENANT|0" ] && [ "$O3B" = "409" ] \
+  && [ "$O4" = "422" ] && [ "$O5" = "403" ] && [ "$O6" = "422" ] && [ "$O6B" = "422" ] && [ "$O7OLD" = "404" ] \
+  && ok "malik kiracı DAVETİ gönderdi (hesap açıldı, kod malike gösterilmedi, iletim sonucu döndü; kişi kabul edene kadar daireye bağlı değil); ikinci bekleyen kiracı daveti 409, malik daveti 422, başka daire 403, geçersiz numara 422, kiracı kiracı davet edemez 422, eski doğrudan ekleme ucu kaldırıldı" \
+  || bad "malik daveti: ${O3##*|} $OINV / $ODB / ikinci=$O3B / malik=$O4 / başka=$O5 / numara=$O6 / kiracı=$O6B / eski uç=$O7OLD"
+# Malik vekilliği bitirir; kiracılığı tek başına bitiremez; kiracılı dairede hane üyesi ekleyemez
+MGR5="$OWA"
+PX=$(curl -s -X POST "$I5/residents" -H "$MGR5" -H "$J" -d "{\"first_name\":\"Vekil\",\"last_name\":\"Kisi\",\"phone\":\"0555 999 00 56\",\"unit_id\":\"$U303\",\"role\":\"PROXY\"}" \
+  | python3 -c "import json,sys; print(json.load(sys.stdin)['id'])" 2>/dev/null)
+OINVID=${OINV%% *}
+curl -s -o /dev/null -X POST "$I5/residents/invitations/$OINVID/cancel" -H "$MGR5"
+TN=$(curl -s -X POST "$I5/residents" -H "$MGR5" -H "$J" -d "{\"first_name\":\"Kayitli\",\"last_name\":\"Kiraci\",\"phone\":\"0555 999 00 57\",\"unit_id\":\"$U303\",\"role\":\"TENANT\"}" \
+  | python3 -c "import json,sys; print(json.load(sys.stdin)['id'])" 2>/dev/null)
+TN2=$(curl -s -w '|%{http_code}' -X POST "$I5/residents" -H "$MGR5" -H "$J" -d "{\"first_name\":\"Ikinci\",\"last_name\":\"Kiraci\",\"phone\":\"0555 999 00 58\",\"unit_id\":\"$U303\",\"role\":\"TENANT\"}")
+O8=$(code -X POST "$I5/users/me/units/$U303/residents/$TN/end" -H "$OWA")
+O9=$(code -X POST "$I5/users/me/units/$U303/invitations" -H "$OWA" -H "$J" -d '{"first_name":"Hane","last_name":"Uye","phone":"0555 999 00 59","role":"HOUSEHOLD"}')
 OWNRU=$($PSQL -t -A -c "SELECT id FROM resident_units WHERE unit_id='$U303' AND resident_id='44444444-4444-4444-4444-444444444401' AND role='OWNER';")
-TENRU=$($PSQL -t -A -c "SELECT id FROM resident_units WHERE unit_id='$U304' AND resident_id='$TUID' AND role='TENANT';")
-O7=$(code -X POST "$I5/users/me/units/$U303/residents/$OWNRU/end" -H "$OWA")
-O8=$(code -X POST "$I5/users/me/units/$U303/residents/$TENRU/end" -H "$OWA")
-O9=$(code -X POST "$I5/users/me/units/$U303/residents/not-a-uuid/end" -H "$OWA")
-O10=$(curl -s -w '|%{http_code}' -X POST "$I5/users/me/units/$U303/residents/$ORU/end" -H "$OWA")
-OEND=$($PSQL -t -A -c "SELECT is_active FROM resident_units WHERE id='$ORU';")
+O10=$(code -X POST "$I5/users/me/units/$U303/residents/$OWNRU/end" -H "$OWA")
+O11=$(code -X POST "$I5/users/me/units/$U303/residents/not-a-uuid/end" -H "$OWA")
+O12=$(curl -s -w '|%{http_code}' -X POST "$I5/users/me/units/$U303/residents/$PX/end" -H "$OWA")
+OEND=$($PSQL -t -A -c "SELECT is_active FROM resident_units WHERE id='$PX';")
 OAUD=$($PSQL -t -A -c "SELECT count(*) FROM audit_logs WHERE user_id='44444444-4444-4444-4444-444444444401' AND entity_id='$U303' AND action IN ('CREATE','UPDATE') AND status_code < 300;")
-ODEN=$($PSQL -t -A -c "SELECT count(*) FROM audit_logs WHERE user_id='$TUID' AND entity_id='$U304' AND action='DENIED';")
-[ "$O7" = "422" ] && [ "$O8" = "404" ] && [ "$O9" = "404" ] && [ "${O10##*|}" = "200" ] && [ "$OEND" = "f" ] && [ "${OAUD:-0}" -ge 2 ] && [ "${ODEN:-0}" -ge 1 ] \
-  && ok "malik kiracılığı bitirdi (pasif); kendini/maliki 422, başka bölümün sakini 404, bozuk kimlik 404; işlemler ve kiracının reddedilen denemesi denetim izinde" \
-  || bad "malik sakinlik bitirme: kendi=$O7 / başka bölüm=$O8 / bozuk=$O9 / $O10 / aktif=$OEND / iz=$OAUD / ret izi=$ODEN"
+ODEN=$($PSQL -t -A -c "SELECT count(*) FROM audit_logs WHERE user_id='$TUID' AND entity_id='$U303' AND action='DENIED';")
+[ -n "$TN" ] && [ "${TN2##*|}" = "409" ] && grep -q 'aktif bir kiracı var' <<<"$TN2" && [ "$O8" = "409" ] && [ "$O9" = "422" ] && [ "$O10" = "422" ] && [ "$O11" = "404" ] \
+  && [ "${O12##*|}" = "200" ] && [ "$OEND" = "f" ] && [ "${OAUD:-0}" -ge 2 ] && [ "${ODEN:-0}" -ge 1 ] \
+  && ok "dairede aktif kiracı varken yönetim de ikinci kiracı kaydedemiyor (409); malik kiracılığı tek başına bitiremiyor (409), kiracılı dairede hane üyesi davet edemiyor (422), kendini 422; vekilliği bitirdi; işlemler ve kiracının reddedilen denemesi denetim izinde" \
+  || bad "malik işlemleri: kiracı=$TN ikinci=$TN2 / kiracılık bitir=$O8 / hane=$O9 / kendi=$O10 / bozuk=$O11 / vekil=$O12 aktif=$OEND / iz=$OAUD / ret izi=$ODEN"
+curl -s -o /dev/null -X PATCH "$I5/residents/$TN" -H "$MGR5" -H "$J" -d '{"is_active":false}'
 kill_tree "$IB5_PID"
 
 step "54) Taşınan sakinde ilişik kesme tarihi (end_date) — beşinci tur B7"
@@ -8027,9 +8045,9 @@ E6=$(patch7 '{"is_active":true}')
 ED6=$($PSQL -t -A -c "SELECT is_active||'|'||COALESCE(end_date::text,'yok') FROM resident_units WHERE id='$RID7';")
 E7=$(patch7 '{"is_active":false}')
 ED7=$($PSQL -t -A -c "SELECT end_date FROM resident_units WHERE id='$RID7';")
-OWEND=$($PSQL -t -A -c "SELECT ru.end_date FROM resident_units ru JOIN users u ON u.id=ru.resident_id WHERE u.phone='+905559990053' AND ru.unit_id='$U303';")
+OWEND=$($PSQL -t -A -c "SELECT ru.end_date FROM resident_units ru JOIN users u ON u.id=ru.resident_id WHERE u.phone='+905559990056' AND ru.unit_id='$U303';")
 [ "$E6" = "200" ] && [ "$ED6" = "true|yok" ] && [ "$E7" = "200" ] && [ "$ED7" = "$TODAY7" ] && [ "$OWEND" = "$TODAY7" ] \
-  && ok "yeniden etkinleştirmede tarih temizlendi; tarihsiz pasifleştirmede bugün yazıldı; malikin bitirdiği kiracılıkta da tarih var (B5)" \
+  && ok "yeniden etkinleştirmede tarih temizlendi; tarihsiz pasifleştirmede bugün yazıldı; malikin bitirdiği vekillikte de tarih var (B5/D3)" \
   || bad "ayrılış tarihi 2: $E6 $ED6 / $E7 $ED7 / malik=$OWEND"
 kill_tree "$IB7_PID"
 
@@ -8322,10 +8340,98 @@ HHO=$($PSQL -t -A -c "SELECT resident_is_occupant('$HH');")
 HHA=$(code -X POST "$I58/residents" -H "$MA58" -H "$J" -d "{\"first_name\":\"Hane\",\"last_name\":\"Uyesi\",\"phone\":\"0555 999 00 58\",\"unit_id\":\"$UB\",\"role\":\"HOUSEHOLD\"}")
 HAPP=$(appsql46 "SELECT unit_occupancy('$UA') || '|' || unit_occupancy('$UB')")
 grep -q 'OWNER_OCCUPIED|UNREGISTERED' <<<"$HAPP" && [ -n "$HH" ] && [ "$HHO" = "t" ] && [ "$HHA" = "422" ] \
-  && ok "hane üyesi rolü veritabanında kabul ediliyor ve oturan sayılıyor; API'den ekleme davet akışına (D3) kadar 422; diğer servisler (uygulama rolü) oturum durumunu aynı işlevden okuyor" \
+  && ok "hane üyesi rolü veritabanında kabul ediliyor ve oturan sayılıyor; oturanı olmayan daireye hane üyesi kaydı 422 (D3); diğer servisler (uygulama rolü) oturum durumunu aynı işlevden okuyor" \
   || bad "hane üyesi / uygulama rolü: kayıt=$HH oturan=$HHO api=$HHA / $HAPP"
 $PSQL -c "DELETE FROM resident_units WHERE unit_id IN ('$UA','$UB','$UC'); DELETE FROM units WHERE id IN ('$UA','$UB','$UC');" >/dev/null
 kill_tree "$ID2_PID"
+
+step "59) Kayıt ve davet: kodla katılım, tek kiracı, malik hanesinin bitişi, hane üyesine mali ekran yok (068, altıncı tur D3)"
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_identity DB_PASSWORD="$IDPW" DB_NAME=siteeksen \
+  DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=19787 \
+  go run ./services/identity >/tmp/verify-identity-d3.log 2>&1 &
+ID3_PID=$!
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_app DB_PASSWORD="$APPPW" DB_NAME=siteeksen \
+  DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=19786 \
+  go run ./services/finance >/tmp/verify-finance-d3.log 2>&1 &
+FD3_PID=$!
+for _ in $(seq 1 60); do
+  curl -fsS http://127.0.0.1:19787/health >/dev/null 2>&1 && curl -fsS http://127.0.0.1:19786/health >/dev/null 2>&1 && break; sleep 1
+done
+I59="http://127.0.0.1:19787/api/v1"; F59="http://127.0.0.1:19786/api/v1/finance"
+login59() { curl -s -X POST "$I59/auth/login" -H "$J" -d "{\"phone\":\"$1\",\"password\":\"$2\"}" | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p'; }
+M59="Authorization: Bearer $(login59 5551234567 'Demo123!')"
+T59="Authorization: Bearer $(login59 5559876543 'Demo123!')"
+OWN59='44444444-4444-4444-4444-444444444401'
+mkunit59() { $PSQL -t -A -c "INSERT INTO units (property_id, block, floor, door_number, share_ratio, unit_type, net_area_m2)
+  VALUES ('$DEMO_PROPERTY','Z',2,'$1',1,'APARTMENT',80) RETURNING id;" | head -1; }
+UA9=$(mkunit59 59A); UB9=$(mkunit59 59B); UC9=$(mkunit59 59C)
+HH9=$($PSQL -t -A -c "SELECT id FROM users WHERE phone='+905550000039';")
+$PSQL -c "INSERT INTO resident_units (resident_id, unit_id, role) VALUES
+  ('$OWN59','$UA9','OWNER'), ('$HH9','$UA9','HOUSEHOLD'), ('$TUID','$UB9','TENANT'), ('$OWN59','$UC9','OWNER');" >/dev/null
+# 1) Yönetimin kiracı daveti: hesap açılır, kod yönetime bir kez gösterilir; kişi kodu girince daireye bağlanır
+D1R=$(curl -s -w '|%{http_code}' -X POST "$I59/residents/invitations" -H "$M59" -H "$J" \
+  -d "{\"first_name\":\"Davetli\",\"last_name\":\"Kiraci\",\"phone\":\"0555 999 00 71\",\"email\":\"davetli@example.com\",\"unit_id\":\"$UA9\",\"role\":\"TENANT\"}")
+D1C=$(echo "${D1R%|*}" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['activation']['activation_code'], d['new_account'], d['delivery']['sms']['status'], d['delivery']['email']['status'])" 2>/dev/null)
+D1CODE=${D1C%% *}
+PRE=$($PSQL -t -A -c "SELECT count(*) FROM resident_units ru JOIN users u ON u.id=ru.resident_id WHERE u.phone='+905559990071';")
+ACT=$(curl -s -w '|%{http_code}' -X POST "$I59/auth/activate" -H "$J" -d "{\"phone\":\"0555 999 00 71\",\"code\":\"$D1CODE\",\"new_password\":\"Davetli2026x\"}")
+POST=$($PSQL -t -A -c "SELECT ru.role||'|'||ru.is_active FROM resident_units ru JOIN users u ON u.id=ru.resident_id WHERE u.phone='+905559990071' AND ru.unit_id='$UA9';")
+INVS=$($PSQL -t -A -c "SELECT i.status||'|'||i.invited_as FROM resident_invitations i JOIN users u ON u.id=i.user_id WHERE u.phone='+905559990071';")
+HHS=$($PSQL -t -A -c "SELECT is_active||'|'||(end_date=CURRENT_DATE) FROM resident_units WHERE resident_id='$HH9' AND unit_id='$UA9';")
+OCC=$($PSQL -t -A -c "SELECT unit_occupancy('$UA9')||'|'||resident_is_occupant((SELECT id FROM resident_units WHERE resident_id='$OWN59' AND unit_id='$UA9'));")
+[ "${D1R##*|}" = "201" ] && [ "${D1C#* }" = "True NOT_CONFIGURED NOT_CONFIGURED" ] && [ "$PRE" = "0" ] && [ "${ACT##*|}" = "200" ] \
+  && grep -q '"accepted":1' <<<"$ACT" && [ "$POST" = "TENANT|true" ] && [ "$INVS" = "ACCEPTED|MANAGEMENT" ] && [ "$HHS" = "false|true" ] && [ "$OCC" = "TENANT_OCCUPIED|false" ] \
+  && ok "yönetim kiracı davet etti (hesap açıldı, kod yalnız yönetime; SMS/e-posta sağlayıcısızlığı dürüstçe söylendi); kişi kodu girince daireye bağlandı, davet kabul edildi; malikin hanesinin kaydı bugün bitti; malik artık oturan değil" \
+  || bad "kodla katılım: ${D1R##*|} $D1C / önce=$PRE / etkinleştirme=$ACT / bağ=$POST / davet=$INVS / malik hanesi=$HHS / oturum=$OCC"
+# 2) Dairede aktif kiracı varken kiracı daveti ve kaydı yok (yönetim dahil); malik daveti yalnız maliksiz daireye
+D2A=$(curl -s -w '|%{http_code}' -X POST "$I59/residents/invitations" -H "$M59" -H "$J" -d "{\"first_name\":\"X\",\"last_name\":\"Y\",\"phone\":\"0555 999 00 72\",\"unit_id\":\"$UA9\",\"role\":\"TENANT\"}")
+D2B=$(code -X POST "$I59/residents" -H "$M59" -H "$J" -d "{\"first_name\":\"X\",\"last_name\":\"Y\",\"phone\":\"0555 999 00 72\",\"unit_id\":\"$UA9\",\"role\":\"TENANT\"}")
+D2C=$(code -X POST "$I59/residents/invitations" -H "$M59" -H "$J" -d "{\"first_name\":\"Malik\",\"last_name\":\"Aday\",\"phone\":\"0555 999 00 73\",\"unit_id\":\"$UB9\",\"role\":\"OWNER\"}")
+D2D=$(code -X POST "$I59/residents/invitations" -H "$M59" -H "$J" -d "{\"first_name\":\"Malik\",\"last_name\":\"Iki\",\"phone\":\"0555 999 00 74\",\"unit_id\":\"$UA9\",\"role\":\"OWNER\"}")
+D2E=$(code -X POST "$I59/residents/invitations" -H "Authorization: Bearer $(login59 5550000039 Yepyeni12)" -H "$J" -d "{\"first_name\":\"X\",\"last_name\":\"Y\",\"phone\":\"0555 999 00 75\",\"unit_id\":\"$UA9\",\"role\":\"TENANT\"}")
+[ "${D2A##*|}" = "409" ] && grep -q 'aktif bir kiracı' <<<"$D2A" && [ "$D2B" = "409" ] && [ "$D2C" = "201" ] && [ "$D2D" = "409" ] && [ "$D2E" = "403" ] \
+  && ok "kiracılı daireye ikinci kiracı ne davet edilebiliyor ne kaydedilebiliyor (409, yönetim dahil); yalnız kiracıyla kayıtlı daireye malik davet edildi, malikli daireye 409; yetkisiz kişi yönetim daveti gönderemiyor (403)" \
+  || bad "tek kiracı / malik daveti: davet=$D2A / kayıt=$D2B / maliksiz=$D2C / malikli=$D2D / yetkisiz=$D2E"
+# 3) Yeni kiracı kendi hanesine üye davet eder (kod ona gösterilmez); kiracı gelmeden önceki hane bitmişti
+TN9="Authorization: Bearer $(login59 5559990071 Davetli2026x)"
+D3A=$(curl -s -w '|%{http_code}' -X POST "$I59/users/me/units/$UA9/invitations" -H "$TN9" -H "$J" -d '{"first_name":"Kiraci","last_name":"Esi","phone":"0555 999 00 76","role":"HOUSEHOLD"}')
+D3AS=$(echo "${D3A%|*}" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['invitation']['role'], 'activation' in d)" 2>/dev/null)
+D3B=$($PSQL -t -A -c "SELECT invited_as FROM resident_invitations i JOIN users u ON u.id=i.user_id WHERE u.phone='+905559990076';")
+D3C=$(code -X POST "$I59/users/me/units/$UA9/invitations" -H "$M59" -H "$J" -d '{"first_name":"Malik","last_name":"Hanesi","phone":"0555 999 00 77","role":"HOUSEHOLD"}')
+[ "${D3A##*|}" = "201" ] && [ "$D3AS" = "HOUSEHOLD False" ] && [ "$D3B" = "OCCUPANT" ] && [ "$D3C" = "422" ] \
+  && ok "kiracı hanesine üye davet etti (kod davet edene gösterilmedi, sıfat OCCUPANT); kiracılı dairede malik hane üyesi davet edemiyor (422)" \
+  || bad "hane daveti: ${D3A##*|} $D3AS / sıfat=$D3B / malik=$D3C"
+# 4) Hesabı olan kişi bekleyen daveti kabul ederken kural yeniden denetlenir
+D4A=$(curl -s -X POST "$I59/residents/invitations" -H "$M59" -H "$J" -d "{\"phone\":\"5559876543\",\"unit_id\":\"$UC9\",\"role\":\"TENANT\"}" \
+  | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['invitation']['id'], d['new_account'], 'activation' in d)" 2>/dev/null)
+D4ID=${D4A%% *}
+D4B=$(code -X POST "$I59/residents/invitations" -H "$M59" -H "$J" -d "{\"first_name\":\"Rakip\",\"last_name\":\"Kiraci\",\"phone\":\"0555 999 00 78\",\"unit_id\":\"$UC9\",\"role\":\"TENANT\"}")
+D4C=$(code -X POST "$I59/residents" -H "$M59" -H "$J" -d "{\"first_name\":\"Rakip\",\"last_name\":\"Kiraci\",\"phone\":\"0555 999 00 78\",\"unit_id\":\"$UC9\",\"role\":\"TENANT\"}")
+D4D=$(curl -s -w '|%{http_code}' -X POST "$I59/users/me/invitations/$D4ID/accept" -H "$T59")
+D4E=$($PSQL -t -A -c "SELECT status FROM resident_invitations WHERE id='$D4ID';")
+[ "${D4A#* }" = "False False" ] && [ "$D4B" = "409" ] && [ "$D4C" = "201" ] && [ "${D4D##*|}" = "409" ] && grep -q 'aktif bir kiracı' <<<"$D4D" && [ "$D4E" = "PENDING" ] \
+  && ok "hesabı olan kişiye davet (kod üretilmedi); dairede bekleyen kiracı daveti varken ikinci kiracı daveti 409; yönetim bu arada kiracıyı doğrudan kaydedince bekleyen davetin kabulü 409, davet bekliyor" \
+  || bad "kabulde yeniden denetim: $D4A / ikinci davet=$D4B / kayıt=$D4C / kabul=$D4D / durum=$D4E"
+# 5) Hane üyesi mali ekranı görmez (V4): dairenin borcu hane üyesinde yok, kiracıda var
+$PSQL -c "INSERT INTO resident_units (resident_id, unit_id, role) VALUES ('$HH9','$UA9','HOUSEHOLD')
+  ON CONFLICT (resident_id, unit_id, role) DO UPDATE SET is_active=true, end_date=NULL;
+  INSERT INTO monthly_assessments (property_id, unit_id, period_year, period_month, base_amount, total_amount, due_date, status)
+  VALUES ('$DEMO_PROPERTY','$UA9',2091,1,321,321,CURRENT_DATE + 10,'PENDING');" >/dev/null
+units_debt() { curl -s "$F59/assessments?year=2091" -H "$1" | python3 -c "
+import json,sys
+print(len(json.load(sys.stdin).get('data') or []))" 2>/dev/null; }
+HHT="Authorization: Bearer $(login59 5550000039 Yepyeni12)"
+V4H=$(units_debt "$HHT"); V4T=$(units_debt "$TN9")
+V4P=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$F59/payments" -H "$HHT" -H "$J" \
+  -d "{\"assessment_ids\":[\"$($PSQL -t -A -c "SELECT id FROM monthly_assessments WHERE unit_id='$UA9' AND period_year=2091;")\"],\"payment_method\":\"BANK_TRANSFER\",\"value_date\":\"$(date +%F)\",\"reference\":\"X\"}")
+[ "$V4H" = "0" ] && [ "$V4T" = "1" ] && [ "$V4P" != "201" ] \
+  && ok "hane üyesi dairenin borcunu görmüyor ve ödeyemiyor ($V4P); aynı borç kiracıda görünüyor" \
+  || bad "hane üyesi mali erişim: hane=$V4H kiracı=$V4T ödeme=$V4P"
+$PSQL -c "DELETE FROM monthly_assessments WHERE unit_id IN ('$UA9','$UB9','$UC9');
+  DELETE FROM resident_invitations WHERE unit_id IN ('$UA9','$UB9','$UC9');
+  DELETE FROM resident_units WHERE unit_id IN ('$UA9','$UB9','$UC9');
+  DELETE FROM units WHERE id IN ('$UA9','$UB9','$UC9');" >/dev/null
+kill_tree "$ID3_PID"; kill_tree "$FD3_PID"
 
 step "SONUÇ"
 echo "  Geçen: $PASS   Başarısız: $FAIL"

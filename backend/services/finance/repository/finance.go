@@ -86,7 +86,7 @@ func (r *FinanceRepository) GetUnitBalance(ctx context.Context, propertyID, user
 		WHERE ub.unit_id IN (
 			SELECT ru.unit_id
 			FROM resident_units ru
-			WHERE ru.resident_id = $1 AND ru.is_active = true
+			WHERE ru.resident_id = $1 AND ru.is_active = true AND ru.role <> 'HOUSEHOLD'
 		)
 	`
 	var balance float64
@@ -101,7 +101,7 @@ func (r *FinanceRepository) GetOverdueInfo(ctx context.Context, propertyID, user
 		FROM monthly_assessments ma
 		JOIN resident_units ru ON ma.unit_id = ru.unit_id
 		WHERE ru.resident_id = $1 
-		  AND ru.is_active = true
+		  AND ru.is_active = true AND ru.role <> 'HOUSEHOLD'
 		  AND ma.due_date < CURRENT_DATE
 		  AND ma.status != 'PAID'
 		  AND ma.deleted = 0
@@ -118,7 +118,7 @@ func (r *FinanceRepository) GetNextDueAssessment(ctx context.Context, propertyID
 		FROM monthly_assessments ma
 		JOIN resident_units ru ON ma.unit_id = ru.unit_id
 		WHERE ru.resident_id = $1 
-		  AND ru.is_active = true
+		  AND ru.is_active = true AND ru.role <> 'HOUSEHOLD'
 		  AND ma.due_date >= CURRENT_DATE
 		  AND ma.status != 'PAID'
 		  AND ma.deleted = 0
@@ -140,7 +140,7 @@ func (r *FinanceRepository) GetAssessments(ctx context.Context, propertyID, user
 		FROM monthly_assessments ma
 		JOIN resident_units ru ON ma.unit_id = ru.unit_id
 		WHERE ru.resident_id = $1 
-		  AND ru.is_active = true
+		  AND ru.is_active = true AND ru.role <> 'HOUSEHOLD'
 		  AND ma.period_year = $2
 		  AND ma.deleted = 0
 		ORDER BY ma.period_month DESC
@@ -219,7 +219,7 @@ func (r *FinanceRepository) GetAssessmentDetails(ctx context.Context, propertyID
 		FROM monthly_assessments ma
 		WHERE ma.id = $1 AND ma.deleted = 0
 		  AND ($2 = '' OR ma.unit_id IN (SELECT ru.unit_id FROM resident_units ru
-		                                 WHERE ru.resident_id = NULLIF($2,'')::uuid AND ru.is_active = true))
+		                                 WHERE ru.resident_id = NULLIF($2,'')::uuid AND ru.is_active = true AND ru.role <> 'HOUSEHOLD'))
 	`
 	detail := &models.AssessmentDetail{}
 	err := r.scope(propertyID).QueryRow(ctx, query, assessmentID, residentID).Scan(
@@ -308,7 +308,7 @@ func (r *FinanceRepository) CreatePayment(
 	rows, err := tx.Query(ctx, `
 		SELECT ma.id, (ma.total_amount - COALESCE(ma.paid_amount, 0))::text AS remaining, ma.unit_id
 		FROM monthly_assessments ma
-		JOIN resident_units ru ON ru.unit_id = ma.unit_id AND ru.is_active = true
+		JOIN resident_units ru ON ru.unit_id = ma.unit_id AND ru.is_active = true AND ru.role <> 'HOUSEHOLD'
 		WHERE ma.id = ANY($1)
 		  AND ru.resident_id = $2
 		  AND ma.property_id = $3
@@ -738,7 +738,7 @@ func (r *FinanceRepository) GetPaymentHistory(ctx context.Context, propertyID, u
 	// Yönetimin girdiği tahsilat (061) ödeyen kişiye değil bölüme bağlıdır: bölümün aktif
 	// sakinleri de görür (ödemenin işlendiğini sakin kendi ekranında doğrulayabilsin).
 	const mine = `(user_id = $1 OR (recorded_by IS NOT NULL AND unit_id IN
-		(SELECT unit_id FROM resident_units WHERE resident_id = $1 AND is_active = true)))`
+		(SELECT unit_id FROM resident_units WHERE resident_id = $1 AND is_active = true AND role <> 'HOUSEHOLD')))`
 	if err := r.scope(propertyID).QueryRow(ctx, `SELECT count(*) FROM payments
 		WHERE `+mine+` AND property_id = $2 AND deleted = 0`, userID, propertyID).Scan(&total); err != nil {
 		return nil, 0, err
@@ -813,7 +813,7 @@ func (r *FinanceRepository) ListDebtors(ctx context.Context, propertyID string) 
 			         || CASE WHEN bool_and(ru.role <> 'OWNER') THEN ' (malik kayıtlı değil)' ELSE '' END AS names
 			FROM resident_units ru
 			JOIN users u ON u.id = ru.resident_id
-			WHERE ru.unit_id = un.id AND ru.is_active = true AND ru.role <> 'PROXY'
+			WHERE ru.unit_id = un.id AND ru.is_active = true AND ru.role <> 'HOUSEHOLD' AND ru.role <> 'PROXY'
 			  AND (ru.role = 'OWNER' OR NOT EXISTS (
 			        SELECT 1 FROM resident_units o
 			        WHERE o.unit_id = un.id AND o.is_active = true AND o.role = 'OWNER'))
@@ -903,7 +903,7 @@ func (r *FinanceRepository) GetConsumptionData(ctx context.Context, propertyID, 
 		JOIN meters m ON ci.meter_id = m.id
 		JOIN resident_units ru ON m.unit_id = ru.unit_id
 		WHERE ru.resident_id = $1 
-		  AND ru.is_active = true
+		  AND ru.is_active = true AND ru.role <> 'HOUSEHOLD'
 		  AND m.meter_type = $2
 		ORDER BY ci.period_start DESC
 		LIMIT $3
@@ -1315,7 +1315,7 @@ func (r *FinanceRepository) PayableForFreeze(ctx context.Context, propertyID, us
 		FROM monthly_assessments ma
 		-- userID boşsa çağıran yönetimdir (tahsilat girişi, 061): sakinlik koşulu aranmaz.
 		WHERE ($2 = '' OR EXISTS (SELECT 1 FROM resident_units ru WHERE ru.unit_id = ma.unit_id
-		                                AND ru.is_active = true AND ru.resident_id::text = $2))
+		                                AND ru.is_active = true AND ru.role <> 'HOUSEHOLD' AND ru.resident_id::text = $2))
 		  AND ma.id::text = ANY($3) AND ma.property_id = $1 AND ma.deleted = 0 AND ma.kind = 'REGULAR'
 		  AND ma.total_amount > COALESCE(ma.paid_amount, 0)
 		  AND NOT EXISTS (SELECT 1 FROM payment_assessments pa JOIN payments p ON p.id = pa.payment_id

@@ -31,7 +31,12 @@ func residentError(err error) (int, string, bool) {
 	case errors.Is(err, service.ErrResidentForbidden):
 		return http.StatusForbidden, "Bu işlem için yetkiniz yok", true
 	case errors.Is(err, service.ErrInvalidResidentRole):
-		return http.StatusUnprocessableEntity, "Sakinlik rolü OWNER, TENANT ya da PROXY olmalı; yönetim rolleri görevlendirmeyle verilir", true
+		return http.StatusUnprocessableEntity, "Sakinlik rolü OWNER, TENANT, PROXY ya da HOUSEHOLD olmalı; yönetim rolleri görevlendirmeyle verilir", true
+	case errors.Is(err, repository.ErrUnitHasTenant), errors.Is(err, repository.ErrTenantInvitePending),
+		errors.Is(err, repository.ErrUnitHasOwner), errors.Is(err, repository.ErrAlreadyLinked):
+		return http.StatusConflict, err.Error(), true
+	case errors.Is(err, repository.ErrNoOccupant):
+		return http.StatusUnprocessableEntity, err.Error(), true
 	case errors.Is(err, repository.ErrResidentNotFound):
 		return http.StatusNotFound, "Sakin bulunamadı", true
 	case errors.Is(err, repository.ErrInvalidEndDate):

@@ -37,6 +37,12 @@ export interface Invitation {
     id: Id; unit_id: Id; unit: string; phone: string; role: string;
     status: "PENDING" | "ACCEPTED" | "DECLINED" | "CANCELLED" | "EXPIRED"; created_at: string; expires_at: string; responded_at?: string;
 }
+/** Davet sonucu (altıncı tur D3). Kod yalnız yönetime döner; kişiye SMS + e-posta gider. */
+export interface Delivery { status: "SENT" | "FAILED" | "NOT_CONFIGURED"; note: string }
+export interface InvitationOutcome {
+    invitation: Invitation; new_account: boolean; activation?: Activation; note: string;
+    delivery?: { sms?: Delivery | null; email?: Delivery | null };
+}
 /** Bağ kurulduysa sakin alanları; kişi başka sitede kayıtlıysa yalnızca `invitation` döner (202). */
 export type CreateResidentResult = Partial<Resident> & { activation?: Activation; invitation?: Invitation; note?: string };
 export interface Unit {

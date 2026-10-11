@@ -73,6 +73,25 @@ func UnitResidents(ctx context.Context, pool *pgxpool.Pool, propertyID, unitID s
 		ORDER BY ru.resident_id, ru.role`, propertyID, unitID)
 }
 
+// UnitPayers, bölümün mali bildirim alıcıları: aktif sakinler, HANE ÜYELERİ HARİÇ.
+//
+// Hane üyesi kullanım özelliklerini kullanır ama mali ekranları görmez (altıncı tur V4); yeni borç, tahsilat ve
+// gecikme bildirimleri ona gitmez. Borcun kime yönleneceği (kullanım / malik sınıfı) D5 ile daraltılır.
+func UnitPayers(ctx context.Context, pool *pgxpool.Pool, propertyID, unitID string) ([]Recipient, error) {
+	if unitID == "" {
+		return nil, nil
+	}
+	return queryRecipients(ctx, pool, propertyID, `
+		SELECT DISTINCT ON (ru.resident_id)
+		       ru.resident_id::text, ru.unit_id::text, ru.role
+		FROM resident_units ru
+		JOIN units u ON u.id = ru.unit_id
+		WHERE u.property_id = $1 AND ru.unit_id = $2::uuid
+		  AND COALESCE(ru.is_active, true) AND ru.role <> 'HOUSEHOLD'
+		  AND (ru.end_date IS NULL OR ru.end_date >= CURRENT_DATE)
+		ORDER BY ru.resident_id, ru.role`, propertyID, unitID)
+}
+
 // BlockNeighbors, bir bağımsız bölümle AYNI BLOKTAKİ diğer bölümlerin aktif
 // sakinlerini döner (bölümün kendi sakinleri hariç).
 //

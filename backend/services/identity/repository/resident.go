@@ -119,12 +119,14 @@ func (r *ResidentRepository) Create(ctx context.Context, propertyID, actorID, pa
 	}
 	defer tx.Rollback(ctx)
 
-	var unitExists bool
-	if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM units WHERE id = $1 AND property_id = $2)`, input.UnitID, propertyID).Scan(&unitExists); err != nil {
+	// D3 (068): dairede aktif kiracı varken kiracı kaydedilmez (davet de açılmaz); hane üyesi oturanın
+	// hanesine eklenir. Bölüm satırı kilitlenir: aynı anda iki kiracı kaydı yarışamaz.
+	occupancy, owners, err := unitOccupancy(ctx, tx, propertyID, input.UnitID)
+	if err != nil {
 		return nil, false, nil, err
 	}
-	if !unitExists {
-		return nil, false, nil, ErrUnitNotFound
+	if err := checkLinkRule(occupancy, owners, input.Role, false); err != nil {
+		return nil, false, nil, err
 	}
 
 	var userID, existingName string // existingName yanıtta KULLANILMAZ (B25)
@@ -192,11 +194,15 @@ func (r *ResidentRepository) Create(ctx context.Context, propertyID, actorID, pa
 	}
 
 	var residentUnitID string
+
 	err = tx.QueryRow(ctx, `
 		INSERT INTO resident_units (resident_id, unit_id, role)
 		VALUES ($1, $2, $3)
 		RETURNING id
 	`, userID, input.UnitID, input.Role).Scan(&residentUnitID)
+	if isTenantConflict(err) {
+		return nil, false, nil, ErrUnitHasTenant
+	}
 	if err != nil {
 		return nil, false, nil, err
 	}
@@ -247,6 +253,9 @@ func (r *ResidentRepository) Update(ctx context.Context, propertyID, id string, 
 		WHERE ru.id = $1 AND un.id = ru.unit_id AND un.property_id = $2
 		  AND u.id = ru.resident_id AND u.deleted = 0`,
 		id, propertyID, input.Role, input.IsActive, input.EndDate)
+	if isTenantConflict(err) {
+		return nil, ErrUnitHasTenant
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -409,11 +418,8 @@ func (r *ResidentRepository) RespondInvitation(ctx context.Context, userID, id s
 	newStatus := "DECLINED"
 	if accept {
 		newStatus = "ACCEPTED"
-		if _, err := tx.Exec(ctx, `
-			INSERT INTO resident_units (resident_id, unit_id, role)
-			VALUES ($1, $2, $3)
-			ON CONFLICT (resident_id, unit_id, role)
-			DO UPDATE SET is_active = true, end_date = NULL`, userID, unitID, role); err != nil {
+		// Kural kabul anında yeniden denetlenir (davetten sonra daireye kiracı gelmiş olabilir — D3).
+		if _, err := linkResidentTx(ctx, tx, propertyID, userID, unitID, role); err != nil {
 			return "", err
 		}
 	}
