@@ -18,7 +18,8 @@ import (
 // hatırlatma gelince görüyordu ("haberim yoktu"). Üç tahakkuk noktası da bu tek
 // fonksiyonu çağırır; metin ve alıcı kümesi tek yerde kalır.
 //
-// Alıcı dairenin AKTİF sakinleridir (UnitResidents): taşınmış kişiye gitmez.
+// Alıcı borcun SORUMLUSUDUR (AssessmentPayers, 070): kiracılığa bağlı kullanım borcunda kiracı, diğerinde malik ve
+// vekil; taşınmış kişiye ve hane üyesine gitmez.
 // Bildirim tahakkuk başına bir kez oluşur (dedupe `charge:<tahakkuk>`); aynı çağrı
 // yinelenirse çift kayıt açılmaz.
 
@@ -84,7 +85,7 @@ func NotifyCharges(ctx context.Context, n *Notifier, pool *pgxpool.Pool, propert
 	noResident := 0
 	today := time.Now()
 	for _, c := range list {
-		recipients, err := UnitPayers(ctx, pool, propertyID, c.unitID)
+		recipients, err := AssessmentPayers(ctx, pool, propertyID, []string{c.id})
 		if err != nil {
 			total.Failed++
 			if len(total.Errors) < maxReportedErrors {
@@ -93,7 +94,7 @@ func NotifyCharges(ctx context.Context, n *Notifier, pool *pgxpool.Pool, propert
 			continue
 		}
 		if len(recipients) == 0 {
-			noResident++
+			noResident++ // maliksiz dairenin malik borcu (V3) ya da sakinsiz bölüm
 			continue
 		}
 		subject, body := chargeText(c, today)
@@ -113,7 +114,7 @@ func NotifyCharges(ctx context.Context, n *Notifier, pool *pgxpool.Pool, propert
 	}
 	total.Note = summarize(total)
 	if noResident > 0 {
-		total.Note += fmt.Sprintf(" %d bölümde kayıtlı aktif sakin olmadığı için bildirim oluşturulmadı.", noResident)
+		total.Note += fmt.Sprintf(" %d borcun kayıtlı sorumlusu olmadığı için bildirim oluşturulmadı (sakinsiz bölüm ya da malik kaydı yok).", noResident)
 	}
 	if len(channels) == 1 {
 		total.Note += " E-posta sağlayıcısı yapılandırılmadığı için yalnız uygulama içi bildirim oluşturuldu."

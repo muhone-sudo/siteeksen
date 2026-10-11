@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { api } from "@/lib/api";
 import { useAction, useApi, useRoles } from "@/lib/use-api";
-import { ActionFeedback, Button, Card, Field, FormModal, Input, Modal, Notice, Page, QueryView, StatusBadge, Table, Tabs, Textarea } from "@/components/ui/kit";
+import { ActionFeedback, Badge, Button, Card, Field, FormModal, Input, Modal, Notice, Page, QueryView, StatusBadge, Table, Tabs, Textarea } from "@/components/ui/kit";
 import { date, dateTime, tl } from "@/lib/format";
 import { PAYMENT_STATUS } from "@/lib/labels";
 import type { LedgerEntry, Payment } from "@/lib/types";
@@ -122,10 +122,11 @@ export default function AccountingPage() {
                         {(d) => (
                             <Table
                                 rows={d.data}
-                                rowKey={(x) => x.unit_id}
+                                rowKey={(x) => `${x.unit_id}-${x.responsible}`}
                                 columns={[
                                     { header: "Kişi", cell: (x) => x.name },
                                     { header: "Daire", cell: (x) => x.unit },
+                                    { header: "Sorumlu", cell: (x) => (x.responsible === "TENANT" ? <Badge tone="blue">Kiracı</Badge> : x.owner_missing ? <Badge tone="red">Malik kaydı yok</Badge> : <Badge>Malik</Badge>) },
                                     { header: "Borç", cell: (x) => <span className="font-medium text-red-600">{tl(x.amount)}</span> },
                                 ]}
                             />

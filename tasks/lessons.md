@@ -695,3 +695,15 @@ kırmızı kontrolde önce hata satırının TAMAMINI (`grep -A`) oku, tahminle 
 B8 doğrulamasında sapma oranı "8,70" diye sabit yazıldı; bölümlerin hepsinde kullanım alanı olduğu için hesap m² başına
 yapıldı ve oran 8,63 çıktı. Kod doğruydu, test yanlış varsayımla kırmızı kaldı. **Kural:** Birden çok veri kaynağına bağlı
 sayısal sonuçta testte ya kuralı (`> 3`) denetle ya da beklenen değeri aynı yanıttan oku; sonucu ezbere sabitleme.
+
+### Ders 52 — Uygulanmış migration'daki işlevin dönüş tipini sonraki migration'da değiştirme
+
+D5'te (070) 055'teki `verify_clearance_certificate` işlevi `DROP` + yeni dönüş tipiyle yeniden yazıldı. Doğrulamanın
+"migration'lar yeniden uygulanabilir" adımı 055'i tekrar çalıştırınca `CREATE OR REPLACE` dönüş tipi uyuşmazlığıyla düştü.
+**Kural:** Var olan bir SQL işlevinin imzası/dönüş tipi değişecekse yeni adla (`…_scoped`, `…_v2`) yeni işlev yaz; eskisine
+dokunma. Aynı şey görünüm sütunları için de geçerli (`CREATE OR REPLACE VIEW` sütun silemez/yeniden sıralayamaz).
+
+### Ders 53 — Yanıt kodunu varsayma, mevcut testten oku
+
+D5 adım 61'de ödeme bildiriminin 201 döndüğü varsayıldı; uç 200 döner (B4'teki hane testi zaten `!= 201` ile yazılmıştı).
+**Kural:** Var olan bir ucu yeni testte kullanırken önce o uç için yazılmış eski kontrolün beklediği kodu ara (`grep`).

@@ -705,7 +705,7 @@ söyleyene kadar). Kullanıcı cevabı (2026-10-11, 5. soru): UYAP doğrulama ko
   - Kimlik servisi bildirim tablosuna yazamaz: tarafa SMS/e-posta doğrudan + uygulamada istek listesi; işlemler denetim izinde.
   - Arayüz: panel "Kiracılık bitişleri" (yönetim yolu, tamamla, geri al, belge); sakin uygulaması istekler ekranı (onay/ret/
     itiraz, belgeyi görme), kiracının "çıkışımı bildir", malikin "kiracılığın bitmesini iste".
-- [ ] **D5 Mali yönlendirme** — 070: `monthly_assessments.tenant_link_id` (KULLANIM borcu kiracılıkta tahakkuk ettiyse o kiracı
+- [x] **D5 Mali yönlendirme** (verify 1348/1348, mobil 10/10, panel tsc/lint) — 070: `monthly_assessments.tenant_link_id` (KULLANIM borcu kiracılıkta tahakkuk ettiyse o kiracı
   bağı; V6 anlık görüntü). Eski veride: dairenin şu anki aktif kiracısı, dönemi kiracılık başlangıcından sonraysa (V5).
   - Görünürlük kuralı tek SQL işlevinde (`assessment_visible_to(assessment, user)`): kiracı yalnız kendi kiracılığının kullanım
     borcu; malik/vekil malik sınıfı + kendisine düşen kullanım borcu + kiracılığı bitmiş açık kullanım borcu; hane üyesi hiç.

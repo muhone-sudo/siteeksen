@@ -89,14 +89,16 @@ Giriş kilidi: art arda 5 hatalı girişte hesap 15 dk kilitlenir (kilitliyken d
 
 | Uç | Rol | Gövde / Sorgu | Yanıt |
 |---|---|---|---|
-| `GET /finance/debt-status` | herkes | — | `{has_debt,current_balance,overdue_amount,overdue_months,next_due_date,next_due_amount}` |
-| `GET /finance/assessments` | herkes (kendi daireleri) | `year` | `{data:[{id,period,base_amount,late_fee,total_amount,paid_amount,status,liability}]}` — `liability`: USAGE (kullanım/oturan) · OWNER (malik) (066) |
+| `GET /finance/debt-status` | herkes | — | `{has_debt,current_balance,overdue_amount,overdue_months,next_due_date,next_due_amount}` — yalnız kişinin sorumlusu olduğu borç (070) |
+| `GET /finance/assessments` | herkes (kendi daireleri) | `year` | `{data:[{id,period,base_amount,late_fee,total_amount,paid_amount,status,liability,responsible}]}` — `liability`: USAGE (kullanım/oturan) · OWNER (malik) (066). Yalnız kişinin sorumlusu olduğu borç döner (070): kiracı kendi kiracılığının kullanım borcunu; malik/vekil malik sınıfını, kiracısız dönemi ve kiracılığı bitmiş borcu; hane üyesi hiçbirini. `responsible`: TENANT/OWNER |
 | `GET /finance/assessments/:id` | sakin: yalnız kendi dairesi; M/B/A: tümü | — | `{id,property_id,unit_id,period_year,period_month,base_amount,late_fee,total_amount,paid_amount,due_date,status,created_at,details:[{category,amount,calculation_basis}]}` |
-| `POST /finance/payments` | herkes | `assessment_ids`*[],`payment_method`*,`card_token`,`save_card` | `{payment_id,amount,status:"PENDING",payment_gateway_ready:false}` (tahsilat YAPILMAZ) |
+| `POST /finance/payments` | herkes | `assessment_ids`*[],`payment_method`*,`card_token`,`save_card` | `{payment_id,amount,status:"PENDING",payment_gateway_ready:false}` (tahsilat YAPILMAZ) | · yalnız kişinin sorumlusu olduğu tahakkuk ödenir (070; aksi 400) |
 | `GET /finance/my-payments` | herkes | `limit`(≤500, vars. 50),`offset` | `{data:[…kendi ödemeleri],total,limit,offset}` |
 | `GET /finance/consumption/summary` | herkes | `meter_type` | `{meter_type,unit,data:[{period,consumption,amount,status}]}` |
-| `GET /finance/debtors` | M,B,A | — | `{data:[{unit_id,resident_id,name,unit,amount}]}` — daire başına tek satır (2026-10-03); `resident_id` malik/sakin yoksa boş |
-| `GET /finance/payments` | M,B,A | `limit`(≤500, vars. 50),`offset` | `{data:[{id,user_id,amount,payment_method,status,transaction_id?,created_at,completed_at,name,unit}],total,limit,offset}` |
+| `GET /finance/debtors` | M,B,A | — | `{data:[{unit_id,resident_id,name,unit,amount,responsible,owner_missing}]}` — borcun sorumlusuna göre satır (070): aktif kiracılığa bağlı kullanım borcu kiracının (`responsible:TENANT`, ad "(kiracı)"), kalanı malik(ler)in; maliksiz dairenin malik borcu "Malik kaydı yok" (`owner_missing`, V3) |
+| `POST /finance/clearance-certificates` | yönetim ya da bölümün sakini | `unit_id`* | 201 `{id,verification_code,verify_url,as_of_date,expires_at,not_due_kurus,scope,note}` · vadesi geçmiş borç varsa 422 `{overdue:[{period,due_date,remaining_kurus,payment_pending_approval,responsible}],overdue_kurus}` — `scope` (070): yönetim ve malik/vekil UNIT (bütün daire; malik kiracı sorumluluğundaki borcun tutarını görmez, kalem "Kiracı sorumluluğundaki borç"), kiracı TENANCY (yalnız kendi kiracılığının kullanım borcu; malikin borcu engel değil) |
+| `GET /finance/clearance-certificates/:id/pdf` | yönetim ya da bölümün sakini | — | PDF; TENANCY belgesinde kapsam ve kiracı adı yazar |
+| `GET /public/clearance/:code` | açık (kimliksiz) | — | `{valid,expired,property_name,unit,as_of_date,issued_at,expires_at,scope,statement}` — kişi adı/tutar dönmez || `GET /finance/payments` | M,B,A | `limit`(≤500, vars. 50),`offset` | `{data:[{id,user_id,amount,payment_method,status,transaction_id?,created_at,completed_at,name,unit}],total,limit,offset}` |
 | `GET /finance/payments/pending` | M,B,A | — | aynı biçim |
 | `GET /finance/assessments/overview` | M,B,A | `year` | `{data:[{period,due_date,total_amount,collected_amount,rate,status}]}` — `rate` yüzde, tek ondalık, aşağı yuvarlanmış (2026-10-03) |
 | `GET /finance/opening-balances` | M,B,A | — | `{data:[{id,unit_id,unit,amount,paid_amount,due_date,description,status,created_at,liability}]}` |

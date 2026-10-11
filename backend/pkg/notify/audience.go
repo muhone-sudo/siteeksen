@@ -73,23 +73,24 @@ func UnitResidents(ctx context.Context, pool *pgxpool.Pool, propertyID, unitID s
 		ORDER BY ru.resident_id, ru.role`, propertyID, unitID)
 }
 
-// UnitPayers, bölümün mali bildirim alıcıları: aktif sakinler, HANE ÜYELERİ HARİÇ.
-//
-// Hane üyesi kullanım özelliklerini kullanır ama mali ekranları görmez (altıncı tur V4); yeni borç, tahsilat ve
-// gecikme bildirimleri ona gitmez. Borcun kime yönleneceği (kullanım / malik sınıfı) D5 ile daraltılır.
-func UnitPayers(ctx context.Context, pool *pgxpool.Pool, propertyID, unitID string) ([]Recipient, error) {
-	if unitID == "" {
+// AssessmentPayers, verilen tahakkukların sorumlusu olan aktif sakinler (070, D5): kiracılığa bağlı kullanım
+// borcunda kiracı; malik sınıfı, kiracısız dönem ya da kiracılığı bitmiş borçta malik ve vekil. Kural tek yerde,
+// veritabanındaki assessment_visible_to işlevindedir; hane üyesi hiçbir zaman alıcı değildir (V4). Maliksiz dairenin
+// malik borcunda alıcı yoktur (V3: yönetimde bekler).
+func AssessmentPayers(ctx context.Context, pool *pgxpool.Pool, propertyID string, assessmentIDs []string) ([]Recipient, error) {
+	if len(assessmentIDs) == 0 {
 		return nil, nil
 	}
 	return queryRecipients(ctx, pool, propertyID, `
 		SELECT DISTINCT ON (ru.resident_id)
 		       ru.resident_id::text, ru.unit_id::text, ru.role
-		FROM resident_units ru
-		JOIN units u ON u.id = ru.unit_id
-		WHERE u.property_id = $1 AND ru.unit_id = $2::uuid
-		  AND COALESCE(ru.is_active, true) AND ru.role <> 'HOUSEHOLD'
+		FROM monthly_assessments ma
+		JOIN units u ON u.id = ma.unit_id
+		JOIN resident_units ru ON ru.unit_id = ma.unit_id AND COALESCE(ru.is_active, true)
+		WHERE u.property_id = $1 AND ma.id::text = ANY($2)
 		  AND (ru.end_date IS NULL OR ru.end_date >= CURRENT_DATE)
-		ORDER BY ru.resident_id, ru.role`, propertyID, unitID)
+		  AND assessment_visible_to(ma.id, ru.resident_id)
+		ORDER BY ru.resident_id, ru.role`, propertyID, assessmentIDs)
 }
 
 // BlockNeighbors, bir bağımsız bölümle AYNI BLOKTAKİ diğer bölümlerin aktif

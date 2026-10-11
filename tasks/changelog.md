@@ -12,6 +12,26 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-11 — MALİ YÖNLENDİRME: BORCUN SORUMLUSU (migration 070, altıncı tur D5) (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **1348/1348** (adım 61: kiracılıkta tahakkuk eden kullanım borcu kiracılığa bağlandı, malik
+> borcu bağlanmadı; kiracı yalnız kendi borcunu, malik yalnız malik borcunu görüyor; maliksiz dairenin malik borcu kiracıya
+> yansımıyor; kiracı malik borcunu, malik kiracının borcunu ödeyemiyor (400); sorumlu sonradan değiştirilemiyor (tetikleyici);
+> borçlu listesi sorumluya göre ayrıldı, maliksiz daire "Malik kaydı yok"; borcu yoktur — kiracının vadesi geçmiş kendi borcu
+> engelledi, malikin talebinde kiracı borcu tutarsız bildirildi, ödenince kiracıya kiracılık kapsamlı belge (kimliksiz doğrulama
+> kapsamı söylüyor), malike bütün daire belgesi; yeni borç bildirimi sorumluya gitti, maliksiz dairenin malik borcunda kimseye
+> gitmedi; kiracılık bitince açık kullanım borcu malike göründü ve malik ödedi). `verify-mobile.sh` 10/10; panel tsc/lint temiz.
+
+- 070: `monthly_assessments.tenant_link_id` — kullanım borcu kiracılıkta tahakkuk ettiyse o kiracılık; her tahakkuk yolunda
+  tetikleyiciyle kurulur, sonradan değiştirilemez; eski veride dönemi kiracılık başlangıcından sonra olan borç bağlandı (V5).
+  Tek kural: `assessment_visible_to(tahakkuk, kişi)` ve `assessment_responsible(tahakkuk)`.
+- Finans: sakin bakiyesi/vadesi geçen/sonraki vade/tahakkuk listesi/ayrıntı, ödeme ve kart ödemesi, gecikme tazminatı
+  dondurma, ödeme geçmişi, alacak dekontları bu kurala bağlandı; borçlu listesi ve PDF/Excel dökümü sorumlu sütunuyla.
+- Bildirim: `notify.AssessmentPayers` — yeni borç, yönetimin tahsilat kaydı ve gecikmiş aidat hatırlatması borcun
+  sorumlusuna (kiracı / malik ve vekil); maliksiz dairenin malik borcu yönetimde bekler (V3). `UnitPayers` kaldırıldı.
+- Borcu yoktur belgesi kapsamlı: UNIT (yönetim, malik, vekil) / TENANCY (kiracı); kimliksiz doğrulama kapsamı söyler
+  (`verify_clearance_certificate_scoped`; 055'teki işlev yeniden uygulanabilirlik için değiştirilmedi — Ders 52).
+- Panel muhasebe "Borçlular" sekmesinde Sorumlu sütunu; sakin uygulamasında malik sınıfı borç "· Malik gideri" etiketiyle.
 ### 2026-10-11 — KİRACILIĞIN BİTİŞİ: KİRACI ONAYI, KENDİ ÇIKIŞI, YÖNETİM YOLU (migration 069, altıncı tur D4) (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **1341/1341** (adım 60: malik isteği — ikinci açık istek 409, malik olmayan 403 —, kiracı reddetti

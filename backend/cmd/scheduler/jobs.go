@@ -87,9 +87,9 @@ func trDate(t time.Time) string { return t.Format("02.01.2006") }
 // asıl önemli olanı da görmez. Anahtar ayı içerdiği için borç sürdükçe her ay
 // bir kez hatırlatılır, ödenince durur.
 //
-// Alıcı dairenin AKTİF sakinleridir (malik, kiracı, vekil); ödemeyi hangisinin
-// yapacağı aralarındaki anlaşmaya bağlıdır ve sistem bunu bilmez. Taşınmış
-// sakine bildirim gitmez (pkg/notify.UnitResidents).
+// Alıcı borcun SORUMLUSUDUR (070, D5): kiracılığa bağlı kullanım borcu kiracıya, malik sınıfı / kiracısız dönem /
+// kiracılığı bitmiş borç malik ve vekile ayrı hatırlatma olarak gider (pkg/notify.AssessmentPayers). Taşınmış sakine
+// ve hane üyesine gitmez; maliksiz dairenin malik borcu yönetimde bekler (V3).
 func overdueDues(ctx context.Context, pool *pgxpool.Pool, propertyID string) ([]notice, error) {
 	rows, err := dbscope.For(pool, propertyID).Query(ctx, `
 		SELECT ma.unit_id::text,
@@ -103,9 +103,11 @@ func overdueDues(ctx context.Context, pool *pgxpool.Pool, propertyID string) ([]
 		                       ELSE to_char(make_date(ma.period_year, ma.period_month, 1), 'YYYY-MM') || ' aidat' END
 		                  || ' ' || (round((ma.total_amount - COALESCE(ma.paid_amount,0)) * 100))::bigint::text,
 		                  ';' ORDER BY ma.due_date),
-		       (SELECT name FROM properties WHERE id = $1)
+		       (SELECT name FROM properties WHERE id = $1),
+		       string_agg(ma.id::text, ',')
 		FROM monthly_assessments ma
 		JOIN units u ON u.id = ma.unit_id
+		LEFT JOIN resident_units t ON t.id = ma.tenant_link_id
 		WHERE ma.property_id = $1 AND u.property_id = $1
 		  AND ma.deleted = 0
 		  AND COALESCE(ma.status,'') <> 'PAID'
@@ -114,14 +116,14 @@ func overdueDues(ctx context.Context, pool *pgxpool.Pool, propertyID string) ([]
 		  -- Sakinin bildirdiği ödeme yönetim onayı bekliyorsa hatırlatma gönderilmez (Apsiyon BUG-02).
 		  AND NOT EXISTS (SELECT 1 FROM payment_assessments pa JOIN payments p ON p.id = pa.payment_id
 		                  WHERE pa.assessment_id = ma.id AND p.status = 'PENDING')
-		GROUP BY ma.unit_id, u.block, u.door_number
+		GROUP BY ma.unit_id, u.block, u.door_number, COALESCE(t.is_active, false)
 		ORDER BY 2`, propertyID)
 	if err != nil {
 		return nil, err
 	}
 	type row struct {
 		unitID, label, month string
-		items, site          string
+		items, site, ids     string
 		periods              int
 		remaining            int64
 		oldest               time.Time
@@ -129,7 +131,7 @@ func overdueDues(ctx context.Context, pool *pgxpool.Pool, propertyID string) ([]
 	var list []row
 	for rows.Next() {
 		var r row
-		if err := rows.Scan(&r.unitID, &r.label, &r.periods, &r.remaining, &r.oldest, &r.month, &r.items, &r.site); err != nil {
+		if err := rows.Scan(&r.unitID, &r.label, &r.periods, &r.remaining, &r.oldest, &r.month, &r.items, &r.site, &r.ids); err != nil {
 			rows.Close()
 			return nil, err
 		}
@@ -142,9 +144,12 @@ func overdueDues(ctx context.Context, pool *pgxpool.Pool, propertyID string) ([]
 
 	out := make([]notice, 0, len(list))
 	for _, r := range list {
-		recipients, err := notify.UnitPayers(ctx, pool, propertyID, r.unitID)
+		recipients, err := notify.AssessmentPayers(ctx, pool, propertyID, strings.Split(r.ids, ","))
 		if err != nil {
 			return nil, err
+		}
+		if len(recipients) == 0 {
+			continue // maliksiz dairenin malik borcu (V3): yönetim listesinde "malik kaydı yok" ile görünür
 		}
 		// Soyut tutar yerine döküm: [Site] [Blok/Kapı] [Dönem] [Borç türü] [Tutar].
 		lines := []string{}

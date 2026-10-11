@@ -64,20 +64,28 @@ func debtorsReport(svc *service.FinanceService, pool *pgxpool.Pool) gin.HandlerF
 			if name == "" {
 				name = "— (kayıtlı malik/sakin yok)"
 			}
-			rows = append(rows, []string{d.Unit, name, reports.Money(k)})
+			who := "Malik"
+			if d.Responsible == "TENANT" {
+				who = "Kiracı"
+			} else if d.OwnerMissing {
+				who = "Malik (kayıt yok)"
+			}
+			rows = append(rows, []string{d.Unit, name, who, reports.Money(k)})
 		}
 		doc := &reports.Document{
 			PropertyName: reports.PropertyName(c.Request.Context(), pool, propertyID),
 			Title:        "Borçlu listesi", Subtitle: "Bağımsız bölüm bazında ödenmemiş aidat ve ortak gider bakiyesi",
 			GeneratedAt: time.Now(),
 			Facts:       [][2]string{{"Borçlu bölüm", strconv.Itoa(len(list))}, {"Toplam alacak", reports.Money(total)}},
-			Tables: []reports.Table{{Title: "Borçlu bölümler", Headers: []string{"Bölüm", "Malik / sakin", "Borç"},
-				Widths: []float64{30, 100, 50}, RightAlign: []int{2}, Rows: rows,
-				Footer: []string{"Toplam", "", reports.Money(total)}}},
+			Tables: []reports.Table{{Title: "Borçlu bölümler", Headers: []string{"Bölüm", "Sorumlu kişi", "Sorumlu", "Borç"},
+				Widths: []float64{28, 82, 30, 40}, RightAlign: []int{3}, Rows: rows,
+				Footer: []string{"Toplam", "", "", reports.Money(total)}}},
 			Notes: []string{
 				"KVKK: Bu liste yalnızca yönetimin iç kullanımı içindir. Borçlu listesinin ortak alanlara asılması ya da " +
 					"site gruplarında paylaşılması hukuka aykırıdır (KVK Kurulu 2026/348 sayılı karar, RG 31.03.2026).",
 				"Bakiye, vadesi gelmemiş cari dönem tahakkukunu da içerir; vadesi geçmiş borç ayrımı borcu yoktur belgesinde yapılır.",
+				"Sorumlu: kiracılık döneminde tahakkuk eden kullanım gideri kiracının, malik gideri ve kiracısız dönem malikindir. " +
+					"Siteye karşı asıl borçlu her durumda maliktir; kiracı kira bedeliyle sınırlı müteselsil sorumludur (KMK m.20, m.22).",
 			},
 		}
 		writeReport(c, doc, "borclu-listesi")

@@ -165,7 +165,7 @@ func (r *FinanceRepository) ReverseCreditNote(ctx context.Context, propertyID, u
 	return tx.Commit(ctx)
 }
 
-// ListCreditNotes, dekontları verir; residentID doluysa yalnızca o kişinin aktif dairelerinin dekontları.
+// ListCreditNotes, dekontları verir; residentID doluysa yalnızca o kişinin sorumlusu olduğu borçların dekontları (070).
 func (r *FinanceRepository) ListCreditNotes(ctx context.Context, propertyID, residentID string) ([]CreditNote, error) {
 	rows, err := r.scope(propertyID).Query(ctx, `
 		SELECT c.id, c.document_no, c.assessment_id::text, c.unit_id::text, COALESCE(u.block,'') || '-' || COALESCE(u.door_number,''),
@@ -177,7 +177,8 @@ func (r *FinanceRepository) ListCreditNotes(ctx context.Context, propertyID, res
 		JOIN monthly_assessments ma ON ma.id = c.assessment_id
 		LEFT JOIN users us ON us.id = c.created_by
 		WHERE c.property_id = $1
-		  AND ($2 = '' OR EXISTS (SELECT 1 FROM resident_units ru WHERE ru.unit_id = c.unit_id AND ru.is_active AND ru.role <> 'HOUSEHOLD' AND ru.resident_id = NULLIF($2,'')::uuid))
+		  -- D5 (070): sakin yalnız sorumlusu olduğu borcun dekontunu görür.
+		  AND ($2 = '' OR assessment_visible_to(c.assessment_id, NULLIF($2, '')::uuid))
 		ORDER BY c.created_at DESC LIMIT 500`, propertyID, residentID)
 	if err != nil {
 		return nil, err

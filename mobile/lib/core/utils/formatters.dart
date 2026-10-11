@@ -96,7 +96,14 @@ DateTime? _parseDate(Object? value) {
 /// Tahakkuk başlığı: `2026-01` → `Ocak 2026`; devreden borç (kind=OPENING, 034)
 /// dönem adıyla değil açıklamasıyla ("Devir bakiyesi") gösterilir — aksi hâlde
 /// devir, vade ayının aidatı sanılırdı. Biçim beklenenden farklıysa ham değer.
+///
+/// Malik sınıfı borç (066, D1/D5) "· Malik gideri" ekiyle ayrılır: demirbaş, yenilik gibi malikin ödediği kalem.
 String assessmentLabel(Map<dynamic, dynamic> a) {
+  final base = _assessmentBase(a);
+  return a['liability'] == 'OWNER' ? '$base · Malik gideri' : base;
+}
+
+String _assessmentBase(Map<dynamic, dynamic> a) {
   if (a['kind'] == 'OPENING') {
     final d = '${a['description'] ?? ''}'.trim();
     return d.isEmpty ? 'Devir bakiyesi' : d;

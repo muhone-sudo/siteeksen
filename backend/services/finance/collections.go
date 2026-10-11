@@ -44,7 +44,7 @@ func recordCollection(svc *service.FinanceService, n *notify.Notifier, pool *pgx
 		}
 		c.JSON(http.StatusCreated, gin.H{"collection": res,
 			"message":      "Tahsilat kaydedildi; borç düşüldü ve tahsilat defterine yazıldı",
-			"notification": notifyCollection(c.Request.Context(), n, pool, c.GetString("property_id"), c.GetString("user_id"), in.UnitID, res)})
+			"notification": notifyCollection(c.Request.Context(), n, pool, c.GetString("property_id"), c.GetString("user_id"), in.UnitID, in.AssessmentIDs, res)})
 	}
 }
 
@@ -64,17 +64,18 @@ func collectBankLine(svc *service.FinanceService, n *notify.Notifier, pool *pgxp
 		}
 		c.JSON(http.StatusOK, gin.H{"collection": res, "payment_id": res.PaymentID,
 			"message":      "Banka hareketi bölümün borçlarına işlendi; borç düşüldü ve tahsilat defterine yazıldı",
-			"notification": notifyCollection(c.Request.Context(), n, pool, c.GetString("property_id"), c.GetString("user_id"), in.UnitID, res)})
+			"notification": notifyCollection(c.Request.Context(), n, pool, c.GetString("property_id"), c.GetString("user_id"), in.UnitID, in.AssessmentIDs, res)})
 	}
 }
 
 // notifyCollection, bölümün aktif sakinlerine "ödemeniz kaydedildi" bildirimi gönderir.
 // Hata tahsilatı geri almaz; sonuç yanıtta döner.
-func notifyCollection(ctx context.Context, n *notify.Notifier, pool *pgxpool.Pool, propertyID, actorID, unitID string, res *service.CollectionResult) *notify.BroadcastResult {
+func notifyCollection(ctx context.Context, n *notify.Notifier, pool *pgxpool.Pool, propertyID, actorID, unitID string, assessmentIDs []string, res *service.CollectionResult) *notify.BroadcastResult {
 	if n == nil {
 		return &notify.BroadcastResult{Note: "Bildirim altyapısı kurulu değil; sakine bildirim oluşturulmadı."}
 	}
-	recipients, err := notify.UnitPayers(ctx, pool, propertyID, unitID)
+	// Alıcı ödenen borcun sorumlusudur (070): kiracının borcu kiracıya, malikin borcu malike.
+	recipients, err := notify.AssessmentPayers(ctx, pool, propertyID, assessmentIDs)
 	if err != nil {
 		log.Printf("[finance] tahsilat bildirimi alıcıları: %v", err)
 		return &notify.BroadcastResult{Note: "Bölüm sakinleri okunamadı; bildirim oluşturulmadı."}

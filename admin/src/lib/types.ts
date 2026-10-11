@@ -70,7 +70,8 @@ export interface UnitInput {
 
 // ---------------------------------------------------------------- finance
 export interface AssessmentPeriod { period: string; due_date: string; total_amount: number; collected_amount: number; rate: number; status: string }
-export interface Debtor { unit_id: Id; resident_id: Id | ""; name: string; unit: string; amount: number }
+/** Borçlu satırı (070): borcun sorumlusuna göre — kiracılığa bağlı kullanım borcu kiracının, kalanı malikin. */
+export interface Debtor { unit_id: Id; resident_id: Id | ""; name: string; unit: string; amount: number; responsible: "TENANT" | "OWNER"; owner_missing: boolean }
 export interface Payment {
     id: Id; user_id: string; amount: number; payment_method: string; status: string;
     transaction_id?: string; created_at: string; completed_at: string; name: string; unit: string;

@@ -81,13 +81,10 @@ func NewFinanceRepository(pool *pgxpool.Pool) *FinanceRepository {
 // panelin borçlu listesiyle (ListDebtors) aynı kaynak.
 func (r *FinanceRepository) GetUnitBalance(ctx context.Context, propertyID, userID string) (float64, error) {
 	query := `
-		SELECT COALESCE(SUM(ub.balance), 0) AS balance
-		FROM unit_balances ub
-		WHERE ub.unit_id IN (
-			SELECT ru.unit_id
-			FROM resident_units ru
-			WHERE ru.resident_id = $1 AND ru.is_active = true AND ru.role <> 'HOUSEHOLD'
-		)
+		-- D5 (070): yalnız kişinin sorumlu olduğu / görebildiği borç (kiracı kendi kiracılığının, malik kendi payının).
+		SELECT COALESCE(SUM(ma.total_amount - COALESCE(ma.paid_amount, 0)), 0) AS balance
+		FROM monthly_assessments ma
+		WHERE ma.deleted = 0 AND assessment_visible_to(ma.id, $1::uuid)
 	`
 	var balance float64
 	err := r.scope(propertyID).QueryRow(ctx, query, userID).Scan(&balance)
@@ -99,9 +96,7 @@ func (r *FinanceRepository) GetOverdueInfo(ctx context.Context, propertyID, user
 	query := `
 		SELECT COALESCE(SUM(total_amount - paid_amount), 0), COUNT(*)
 		FROM monthly_assessments ma
-		JOIN resident_units ru ON ma.unit_id = ru.unit_id
-		WHERE ru.resident_id = $1 
-		  AND ru.is_active = true AND ru.role <> 'HOUSEHOLD'
+		WHERE assessment_visible_to(ma.id, $1::uuid)
 		  AND ma.due_date < CURRENT_DATE
 		  AND ma.status != 'PAID'
 		  AND ma.deleted = 0
@@ -116,9 +111,7 @@ func (r *FinanceRepository) GetNextDueAssessment(ctx context.Context, propertyID
 	query := `
 		SELECT ma.id, ma.total_amount, ma.due_date
 		FROM monthly_assessments ma
-		JOIN resident_units ru ON ma.unit_id = ru.unit_id
-		WHERE ru.resident_id = $1 
-		  AND ru.is_active = true AND ru.role <> 'HOUSEHOLD'
+		WHERE assessment_visible_to(ma.id, $1::uuid)
 		  AND ma.due_date >= CURRENT_DATE
 		  AND ma.status != 'PAID'
 		  AND ma.deleted = 0
@@ -136,11 +129,10 @@ func (r *FinanceRepository) GetAssessments(ctx context.Context, propertyID, user
 		SELECT ma.id, 
 			   TO_CHAR(MAKE_DATE(ma.period_year, ma.period_month, 1), 'YYYY-MM'),
 			   ma.base_amount, ma.late_fee, ma.total_amount, 
-			   COALESCE(ma.paid_amount, 0), ma.status, ma.kind, COALESCE(ma.description, ''), ma.liability
+			   COALESCE(ma.paid_amount, 0), ma.status, ma.kind, COALESCE(ma.description, ''), ma.liability,
+			   assessment_responsible(ma.id)
 		FROM monthly_assessments ma
-		JOIN resident_units ru ON ma.unit_id = ru.unit_id
-		WHERE ru.resident_id = $1 
-		  AND ru.is_active = true AND ru.role <> 'HOUSEHOLD'
+		WHERE assessment_visible_to(ma.id, $1::uuid)
 		  AND ma.period_year = $2
 		  AND ma.deleted = 0
 		ORDER BY ma.period_month DESC
@@ -154,7 +146,7 @@ func (r *FinanceRepository) GetAssessments(ctx context.Context, propertyID, user
 	assessments := []models.AssessmentSummary{}
 	for rows.Next() {
 		var a models.AssessmentSummary
-		if err := rows.Scan(&a.ID, &a.Period, &a.BaseAmount, &a.LateFee, &a.TotalAmount, &a.PaidAmount, &a.Status, &a.Kind, &a.Description, &a.Liability); err != nil {
+		if err := rows.Scan(&a.ID, &a.Period, &a.BaseAmount, &a.LateFee, &a.TotalAmount, &a.PaidAmount, &a.Status, &a.Kind, &a.Description, &a.Liability, &a.Responsible); err != nil {
 			return nil, err
 		}
 		assessments = append(assessments, a)
@@ -218,8 +210,7 @@ func (r *FinanceRepository) GetAssessmentDetails(ctx context.Context, propertyID
 			   ma.due_date, ma.status, ma.created_at
 		FROM monthly_assessments ma
 		WHERE ma.id = $1 AND ma.deleted = 0
-		  AND ($2 = '' OR ma.unit_id IN (SELECT ru.unit_id FROM resident_units ru
-		                                 WHERE ru.resident_id = NULLIF($2,'')::uuid AND ru.is_active = true AND ru.role <> 'HOUSEHOLD'))
+		  AND ($2 = '' OR assessment_visible_to(ma.id, NULLIF($2, '')::uuid))
 	`
 	detail := &models.AssessmentDetail{}
 	err := r.scope(propertyID).QueryRow(ctx, query, assessmentID, residentID).Scan(
@@ -308,9 +299,9 @@ func (r *FinanceRepository) CreatePayment(
 	rows, err := tx.Query(ctx, `
 		SELECT ma.id, (ma.total_amount - COALESCE(ma.paid_amount, 0))::text AS remaining, ma.unit_id
 		FROM monthly_assessments ma
-		JOIN resident_units ru ON ru.unit_id = ma.unit_id AND ru.is_active = true AND ru.role <> 'HOUSEHOLD'
 		WHERE ma.id = ANY($1)
-		  AND ru.resident_id = $2
+		  -- D5 (070): yalnız kişinin sorumlu olduğu borç ödenir (kiracı malik borcunu, malik kiracının borcunu ödeyemez).
+		  AND assessment_visible_to(ma.id, $2::uuid)
 		  AND ma.property_id = $3
 		  AND ma.deleted = 0
 		FOR UPDATE OF ma
@@ -737,8 +728,8 @@ func (r *FinanceRepository) GetPaymentHistory(ctx context.Context, propertyID, u
 	var total int
 	// Yönetimin girdiği tahsilat (061) ödeyen kişiye değil bölüme bağlıdır: bölümün aktif
 	// sakinleri de görür (ödemenin işlendiğini sakin kendi ekranında doğrulayabilsin).
-	const mine = `(user_id = $1 OR (recorded_by IS NOT NULL AND unit_id IN
-		(SELECT unit_id FROM resident_units WHERE resident_id = $1 AND is_active = true AND role <> 'HOUSEHOLD')))`
+	const mine = `(user_id = $1 OR (recorded_by IS NOT NULL AND EXISTS (SELECT 1 FROM payment_assessments pa
+		WHERE pa.payment_id = payments.id AND assessment_visible_to(pa.assessment_id, $1::uuid))))`
 	if err := r.scope(propertyID).QueryRow(ctx, `SELECT count(*) FROM payments
 		WHERE `+mine+` AND property_id = $2 AND deleted = 0`, userID, propertyID).Scan(&total); err != nil {
 		return nil, 0, err
@@ -792,31 +783,36 @@ func (r *FinanceRepository) GetPaymentHistory(ctx context.Context, propertyID, u
 // asıl borçlu malik değildir); kimse kayıtlı değilse bu açıkça yazılır. Vekil
 // (PROXY) borçlu sayılmaz.
 func (r *FinanceRepository) ListDebtors(ctx context.Context, propertyID string) ([]models.Debtor, error) {
+	// D5 (070): borç sorumlusuna göre ayrılır. Aktif kiracılığa bağlı kullanım borcu kiracının satırıdır;
+	// geri kalanı (malik sınıfı, kiracısız dönem, kiracılığı bitmiş) malik(ler)in. Maliksiz dairede malik borcu
+	// "Malik kaydı yok" ile bekler (V3) — kiracıya yansımaz.
 	query := `
 		WITH debt AS (
-			SELECT ma.unit_id, SUM(ma.total_amount - COALESCE(ma.paid_amount, 0)) AS amount
+			SELECT ma.unit_id,
+			       CASE WHEN COALESCE(t.is_active, false) THEN 'TENANT' ELSE 'OWNER' END AS responsible,
+			       CASE WHEN COALESCE(t.is_active, false) THEN t.resident_id END AS tenant_id,
+			       SUM(ma.total_amount - COALESCE(ma.paid_amount, 0)) AS amount
 			FROM monthly_assessments ma
+			LEFT JOIN resident_units t ON t.id = ma.tenant_link_id
 			WHERE ma.property_id = $1 AND ma.deleted = 0
 			  AND ma.total_amount > COALESCE(ma.paid_amount, 0)
-			GROUP BY ma.unit_id
+			GROUP BY 1, 2, 3
 		)
 		SELECT d.unit_id::text,
 		       COALESCE(p.resident_id, ''),
-		       COALESCE(p.names, 'Kayıtlı malik/sakin yok'),
+		       COALESCE(p.names || CASE WHEN d.responsible = 'TENANT' THEN ' (kiracı)' ELSE '' END, 'Malik kaydı yok'),
 		       COALESCE(un.block, '') || ' Blok D.' || un.door_number,
-		       d.amount
+		       d.amount, d.responsible, p.names IS NULL
 		FROM debt d
 		JOIN units un ON un.id = d.unit_id
 		LEFT JOIN LATERAL (
 			SELECT (array_agg(u.id::text ORDER BY u.last_name, u.first_name))[1] AS resident_id,
-			       string_agg(u.first_name || ' ' || u.last_name, ', ' ORDER BY u.last_name, u.first_name)
-			         || CASE WHEN bool_and(ru.role <> 'OWNER') THEN ' (malik kayıtlı değil)' ELSE '' END AS names
-			FROM resident_units ru
-			JOIN users u ON u.id = ru.resident_id
-			WHERE ru.unit_id = un.id AND ru.is_active = true AND ru.role <> 'HOUSEHOLD' AND ru.role <> 'PROXY'
-			  AND (ru.role = 'OWNER' OR NOT EXISTS (
-			        SELECT 1 FROM resident_units o
-			        WHERE o.unit_id = un.id AND o.is_active = true AND o.role = 'OWNER'))
+			       string_agg(u.first_name || ' ' || u.last_name, ', ' ORDER BY u.last_name, u.first_name) AS names
+			FROM users u
+			WHERE (d.responsible = 'TENANT' AND u.id = d.tenant_id)
+			   OR (d.responsible = 'OWNER' AND u.id IN (SELECT ru.resident_id FROM resident_units ru
+			                                          WHERE ru.unit_id = un.id AND ru.is_active AND ru.role = 'OWNER'))
+			HAVING count(*) > 0
 		) p ON true
 		ORDER BY d.amount DESC, un.block, un.door_number
 	`
@@ -829,7 +825,7 @@ func (r *FinanceRepository) ListDebtors(ctx context.Context, propertyID string) 
 	debtors := []models.Debtor{}
 	for rows.Next() {
 		var d models.Debtor
-		if err := rows.Scan(&d.UnitID, &d.ResidentID, &d.Name, &d.Unit, &d.Amount); err != nil {
+		if err := rows.Scan(&d.UnitID, &d.ResidentID, &d.Name, &d.Unit, &d.Amount, &d.Responsible, &d.OwnerMissing); err != nil {
 			return nil, err
 		}
 		debtors = append(debtors, d)
@@ -1314,8 +1310,7 @@ func (r *FinanceRepository) PayableForFreeze(ctx context.Context, propertyID, us
 		       ma.base_amount, COALESCE(ma.paid_amount, 0), round(COALESCE(ma.late_fee, 0) * 100)::bigint, ma.due_date
 		FROM monthly_assessments ma
 		-- userID boşsa çağıran yönetimdir (tahsilat girişi, 061): sakinlik koşulu aranmaz.
-		WHERE ($2 = '' OR EXISTS (SELECT 1 FROM resident_units ru WHERE ru.unit_id = ma.unit_id
-		                                AND ru.is_active = true AND ru.role <> 'HOUSEHOLD' AND ru.resident_id::text = $2))
+		WHERE ($2 = '' OR assessment_visible_to(ma.id, NULLIF($2, '')::uuid))
 		  AND ma.id::text = ANY($3) AND ma.property_id = $1 AND ma.deleted = 0 AND ma.kind = 'REGULAR'
 		  AND ma.total_amount > COALESCE(ma.paid_amount, 0)
 		  AND NOT EXISTS (SELECT 1 FROM payment_assessments pa JOIN payments p ON p.id = pa.payment_id

@@ -696,7 +696,7 @@ print("%d|%.2f|%s" % (len(r), sum(x["amount"] for x in r), r[0]["name"] if r els
   $PSQL -c "UPDATE resident_units SET is_active=false WHERE id = ANY(string_to_array('$OWNERS', ',')::uuid[]);" >/dev/null
   DR=$(debtor_rows)
   [ "${DR%%|*}" = "1" ] && [ "$(echo "$DR" | cut -d'|' -f2)" = "$UDEBT" ] \
-    && echo "$DR" | grep -qE 'malik kayıtlı değil|Kayıtlı malik/sakin yok' \
+    && echo "$DR" | grep -qE 'malik kayıtlı değil|Kayıtlı malik/sakin yok|Malik kaydı yok' \
     && ok "maliki kayıtlı olmayan dairenin borcu listeden kaybolmuyor ve bu işaretleniyor ($(echo "$DR" | cut -d'|' -f3))" \
     || bad "maliksiz daire: '$DR'"
   $PSQL -c "UPDATE resident_units SET is_active=true WHERE id = ANY(string_to_array('$OWNERS', ',')::uuid[]);" >/dev/null
@@ -8566,6 +8566,104 @@ ACT8=$($PSQL -t -A -c "SELECT is_active FROM resident_units WHERE id='$TL0';")
 $PSQL -c "DELETE FROM tenancy_end_requests WHERE unit_id IN ('$UA0','$UB0');
   DELETE FROM resident_units WHERE unit_id IN ('$UA0','$UB0'); DELETE FROM units WHERE id IN ('$UA0','$UB0');" >/dev/null
 kill_tree "$ID4_PID"
+
+step "61) Mali yönlendirme: borcun sorumlusu (kiracılık / malik), ödeme yetkisi, bildirim, borçlu listesi, borcu yoktur kapsamı (070, altıncı tur D5)"
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_app DB_PASSWORD="$APPPW" DB_NAME=siteeksen \
+  DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=19789 \
+  go run ./services/finance >/tmp/verify-finance-d5.log 2>&1 &
+FD5_PID=$!
+DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_identity DB_PASSWORD="$IDPW" DB_NAME=siteeksen \
+  DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=19790 \
+  go run ./services/identity >/tmp/verify-identity-d5.log 2>&1 &
+ID5_PID=$!
+for _ in $(seq 1 60); do
+  curl -fsS http://127.0.0.1:19789/health >/dev/null 2>&1 && curl -fsS http://127.0.0.1:19790/health >/dev/null 2>&1 && break; sleep 1
+done
+F61="http://127.0.0.1:19789/api/v1/finance"; I61="http://127.0.0.1:19790/api/v1"
+login61() { curl -s -X POST "$I61/auth/login" -H "$J" -d "{\"phone\":\"$1\",\"password\":\"$2\"}" | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p'; }
+M61="Authorization: Bearer $(login61 5551234567 'Demo123!')"
+T61="Authorization: Bearer $(login61 5559876543 'Demo123!')"
+O61="Authorization: Bearer $(login61 5550000039 Yepyeni12)"
+OWN61=$($PSQL -t -A -c "SELECT id FROM users WHERE phone='+905550000039';")
+mkunit61() { $PSQL -t -A -c "INSERT INTO units (property_id, block, floor, door_number, share_ratio, unit_type, net_area_m2)
+  VALUES ('$DEMO_PROPERTY','Z',4,'$1',1,'APARTMENT',80) RETURNING id;" | head -1; }
+UA1=$(mkunit61 61A); UB1=$(mkunit61 61B)
+$PSQL -c "INSERT INTO resident_units (resident_id, unit_id, role) VALUES ('$OWN61','$UA1','OWNER'), ('$TUID','$UA1','TENANT'), ('$TUID','$UB1','TENANT');" >/dev/null
+TL1=$($PSQL -t -A -c "SELECT id FROM resident_units WHERE unit_id='$UA1' AND role='TENANT';")
+mkassess61() { $PSQL -t -A -c "INSERT INTO monthly_assessments (property_id, unit_id, period_year, period_month, base_amount, total_amount, due_date, status, liability)
+  VALUES ('$DEMO_PROPERTY','$1',2088,$2,$3,$3,$4,'PENDING','$5') RETURNING id;" | head -1; }
+A1=$(mkassess61 "$UA1" 1 400 "CURRENT_DATE - 5" USAGE)
+A2=$(mkassess61 "$UA1" 1 900 "CURRENT_DATE + 20" OWNER)
+A3=$(mkassess61 "$UB1" 1 700 "CURRENT_DATE + 20" OWNER)
+LNK=$($PSQL -t -A -c "SELECT (SELECT tenant_link_id::text FROM monthly_assessments WHERE id='$A1') = '$TL1', (SELECT tenant_link_id IS NULL FROM monthly_assessments WHERE id='$A2');" | tr '\n' ' ')
+mine61() { curl -s "$F61/assessments?year=2088" -H "$1" | python3 -c "
+import json,sys
+ids={'$A1':'A1','$A2':'A2','$A3':'A3'}
+d=json.load(sys.stdin).get('data') or []
+print(' '.join(sorted(ids[a['id']]+':'+a.get('responsible','') for a in d if a['id'] in ids)))" 2>/dev/null; }
+VT=$(mine61 "$T61"); VO=$(mine61 "$O61")
+[ "$LNK" = "t|t " ] && [ "$VT" = "A1:TENANT" ] && [ "$VO" = "A2:OWNER" ] \
+  && ok "kiracılıkta tahakkuk eden kullanım borcu kiracılığa bağlandı (malik borcu bağlanmadı); kiracı yalnız kendi borcunu, malik yalnız malik borcunu görüyor; maliksiz dairenin malik borcu kiracıya yansımıyor" \
+  || bad "borç sorumlusu: bağ=$LNK / kiracı=$VT / malik=$VO"
+pay61() { code -X POST "$F61/payments" -H "$1" -H "$J" -d "{\"assessment_ids\":[\"$2\"],\"payment_method\":\"BANK_TRANSFER\",\"value_date\":\"$(date +%F)\",\"reference\":\"D5\"}"; }
+P1=$(pay61 "$T61" "$A2"); P2=$(pay61 "$O61" "$A1"); P3=$(pay61 "$T61" "$A3")
+G1=$(appsql46 "UPDATE monthly_assessments SET tenant_link_id = NULL WHERE id='$A1'")
+[ "$P1" = "400" ] && [ "$P2" = "400" ] && [ "$P3" = "400" ] && grep -q 'sorumlusu (kiracılık) tahakkuktan sonra değiştirilemez' <<<"$G1" \
+  && ok "kiracı malik borcunu, malik kiracının borcunu ödeyemiyor (400); maliksiz dairenin malik borcu kiracıdan alınmıyor; borcun sorumlusu sonradan değiştirilemiyor (tetikleyici)" \
+  || bad "ödeme yetkisi: kiracı→malik borcu=$P1 malik→kiracı borcu=$P2 maliksiz=$P3 / koruma=$G1"
+# Borçlu listesi sorumluya göre; maliksiz dairenin malik borcu "Malik kaydı yok"
+DBT=$(curl -s "$F61/debtors" -H "$M61" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)['data']
+a=sorted((x['responsible'], round(float(x['amount']),2), x['name'].endswith('(kiracı)'), x['owner_missing']) for x in d if x['unit_id']=='$UA1')
+b=[(x['responsible'], x['name'], x['owner_missing']) for x in d if x['unit_id']=='$UB1']
+print(a, b)" 2>/dev/null)
+[ "$DBT" = "[('OWNER', 900.0, False, False), ('TENANT', 400.0, True, False)] [('OWNER', 'Malik kaydı yok', True)]" ] \
+  && ok "borçlu listesi borcun sorumlusuna göre ayrıldı (kiracı satırı ve malik satırı); maliksiz dairenin malik borcu 'Malik kaydı yok' ile yönetimde bekliyor" \
+  || bad "borçlu listesi: $DBT"
+# Borcu yoktur: kiracının belgesi yalnız kendi kiracılığını, malikinki bütün daireyi kapsar; malik kiracı borcunun tutarını görmez
+CT1=$(curl -s -w '|%{http_code}' -X POST "$F61/clearance-certificates" -H "$T61" -H "$J" -d "{\"unit_id\":\"$UA1\"}")
+CO1=$(curl -s -w '|%{http_code}' -X POST "$F61/clearance-certificates" -H "$O61" -H "$J" -d "{\"unit_id\":\"$UA1\"}")
+CO1I=$(echo "${CO1%|*}" | python3 -c "import json,sys; d=json.load(sys.stdin); print([(o['responsible'], o['remaining_kurus']) for o in d['overdue']], d['overdue_kurus'])" 2>/dev/null)
+$PSQL -c "UPDATE monthly_assessments SET paid_amount = total_amount, status='PAID' WHERE id='$A1';" >/dev/null
+CT2=$(curl -s -w '|%{http_code}' -X POST "$F61/clearance-certificates" -H "$T61" -H "$J" -d "{\"unit_id\":\"$UA1\"}")
+CT2S=$(echo "${CT2%|*}" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['scope'], d['verification_code'])" 2>/dev/null)
+PUB=$(curl -s "http://127.0.0.1:19789/api/v1/public/clearance/${CT2S#* }" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['scope'], 'kiracılık' in d['statement'])" 2>/dev/null)
+CO2=$(curl -s "$F61/clearance-certificates" -X POST -H "$O61" -H "$J" -d "{\"unit_id\":\"$UA1\"}" | python3 -c "import json,sys; print(json.load(sys.stdin)['scope'])" 2>/dev/null)
+[ "${CT1##*|}" = "422" ] && grep -q '40000' <<<"${CT1%|*}" && [ "${CO1##*|}" = "422" ] && [ "$CO1I" = "[('TENANT', 0)] 0" ] && grep -q 'Kiracı sorumluluğunda' <<<"${CO1%|*}" \
+  && [ "${CT2##*|}" = "201" ] && [ "${CT2S%% *}" = "TENANCY" ] && [ "$PUB" = "TENANCY True" ] && [ "$CO2" = "UNIT" ] \
+  && ok "borcu yoktur: kiracının vadesi geçmiş kendi borcu belgesini engelledi; malik bütün daire için istedi, kiracı borcu tutarsız 'kiracı sorumluluğunda' diye bildirildi; ödenince kiracıya kiracılık kapsamlı belge (kimliksiz doğrulama kapsamı söylüyor), malike bütün daire belgesi" \
+  || bad "borcu yoktur kapsamı: kiracı=$CT1 / malik=$CO1 ($CO1I) / ödendikten sonra kiracı=$CT2S ${CT2##*|} / doğrulama=$PUB / malik=$CO2"
+# Yeni borç bildirimi sorumluya gider
+NA=$(curl -s -X POST "$F61/assessments" -H "$M61" -H "$J" \
+  -d '{"period_year":2088,"period_month":2,"due_date":"2088-02-15","expense_items":[{"category_id":"55555555-5555-5555-5555-555555555501","amount":2700},{"category_id":"55555555-5555-5555-5555-555555555501","amount":270,"liability":"OWNER"}]}' -w '|%{http_code}')
+NU=$($PSQL -t -A -c "SELECT string_agg(n.recipient_user_id::text, ',') FROM notifications n JOIN monthly_assessments ma ON ma.id::text = n.payload->>'assessment_id'
+  WHERE n.topic='dues.created' AND n.channel='IN_APP' AND ma.unit_id='$UA1' AND ma.period_year=2088 AND ma.period_month=2 AND ma.liability='USAGE';")
+NO=$($PSQL -t -A -c "SELECT string_agg(n.recipient_user_id::text, ',') FROM notifications n JOIN monthly_assessments ma ON ma.id::text = n.payload->>'assessment_id'
+  WHERE n.topic='dues.created' AND n.channel='IN_APP' AND ma.unit_id='$UA1' AND ma.period_year=2088 AND ma.period_month=2 AND ma.liability='OWNER';")
+NB=$($PSQL -t -A -c "SELECT count(*) FROM notifications n JOIN monthly_assessments ma ON ma.id::text = n.payload->>'assessment_id'
+  WHERE n.topic='dues.created' AND ma.unit_id='$UB1' AND ma.period_year=2088 AND ma.period_month=2 AND ma.liability='OWNER';")
+[ "${NA##*|}" = "201" ] && [ "$NU" = "$TUID" ] && [ "$NO" = "$OWN61" ] && [ "$NB" = "0" ] \
+  && ok "yeni borç bildirimi sorumluya gitti: kullanım borcu kiracıya, malik borcu malike; maliksiz dairenin malik borcu için kimseye gitmedi (V3)" \
+  || bad "borç bildirimi: ${NA##*|} / kullanım→$NU (beklenen $TUID) / malik→$NO (beklenen $OWN61) / maliksiz=$NB"
+# Kiracılık bitince açık kullanım borcu malike görünür (V6)
+A4=$(mkassess61 "$UA1" 3 150 "CURRENT_DATE + 20" USAGE)
+$PSQL -c "UPDATE resident_units SET is_active=false, end_date=CURRENT_DATE WHERE id='$TL1';" >/dev/null
+V6O=$(curl -s "$F61/assessments?year=2088" -H "$O61" | python3 -c "
+import json,sys
+print(any(a['id']=='$A4' and a['responsible']=='OWNER' for a in json.load(sys.stdin)['data']))" 2>/dev/null)
+V6P=$(pay61 "$O61" "$A4")
+[ "$V6O" = "True" ] && [ "$V6P" = "200" ] \
+  && ok "kiracılık bitince açık kullanım borcu malike görünüyor ve malik ödeyebiliyor (KMK m.20 — V6)" \
+  || bad "kiracılık sonrası: malik görüyor=$V6O ödeme=$V6P"
+$PSQL -c "CREATE TEMP TABLE d5p AS SELECT DISTINCT payment_id FROM payment_assessments WHERE assessment_id IN (SELECT id FROM monthly_assessments WHERE period_year=2088);
+  DELETE FROM payment_assessments WHERE payment_id IN (SELECT payment_id FROM d5p);
+  DELETE FROM payments WHERE id IN (SELECT payment_id FROM d5p);
+  DELETE FROM clearance_certificates WHERE unit_id IN ('$UA1','$UB1');
+  DELETE FROM assessment_details WHERE assessment_id IN (SELECT id FROM monthly_assessments WHERE period_year=2088);
+  DELETE FROM monthly_assessments WHERE period_year=2088;
+  DELETE FROM resident_units WHERE unit_id IN ('$UA1','$UB1'); DELETE FROM units WHERE id IN ('$UA1','$UB1');" >/dev/null 2>&1
+kill_tree "$FD5_PID"; kill_tree "$ID5_PID"
 
 step "SONUÇ"
 echo "  Geçen: $PASS   Başarısız: $FAIL"

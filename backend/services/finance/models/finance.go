@@ -30,7 +30,9 @@ type AssessmentSummary struct {
 	// Kind: REGULAR (dönem aidatı) ya da OPENING (devreden borç, 034).
 	Kind string `json:"kind,omitempty"`
 	// Liability: USAGE (oturan) | OWNER (malik) — 066.
-	Liability   string `json:"liability,omitempty"`
+	Liability string `json:"liability,omitempty"`
+	// Responsible: TENANT (kiracılığa bağlı) | OWNER — 070.
+	Responsible string `json:"responsible,omitempty"`
 	Description string `json:"description,omitempty"`
 }
 
@@ -114,6 +116,10 @@ type Debtor struct {
 	Name       string  `json:"name"`
 	Unit       string  `json:"unit"`
 	Amount     float64 `json:"amount"`
+	// Responsible: TENANT (aktif kiracılığa bağlı kullanım borcu) | OWNER — 070.
+	Responsible string `json:"responsible"`
+	// OwnerMissing: borç malikin ama dairede kayıtlı malik yok (V3: yönetimde bekler).
+	OwnerMissing bool `json:"owner_missing"`
 }
 
 // PropertyPayment site genelindeki bir ödeme kaydı (yönetim görünümü)
