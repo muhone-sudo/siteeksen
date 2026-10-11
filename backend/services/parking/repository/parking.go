@@ -24,7 +24,7 @@ var (
 	// eşleyicide 500'e düşüyordu.
 	ErrPlateRequired = errors.New("plaka zorunludur")
 	ErrInvalidOwner  = errors.New("geçersiz araç sahibi türü")
-	ErrNotYourUnit   = errors.New("bağımsız bölüm size ait değil")
+	ErrNotYourUnit   = errors.New("bu bağımsız bölümde kullanım hakkınız yok (kiracılı dairede kullanım işlemlerini kiracı ve hanesi yapar)")
 	ErrUnitRequired  = errors.New("bağımsız bölüm zorunludur")
 )
 
@@ -34,7 +34,7 @@ var OwnerTypes = []string{"RESIDENT", "VISITOR", "STAFF", "SERVICE"}
 // ownUnitSQL, bağımsız bölümün verilen kullanıcının AKTİF dairesi olup
 // olmadığını denetler.
 const ownUnitSQL = `SELECT EXISTS (SELECT 1 FROM resident_units ru
-	WHERE ru.unit_id = $1 AND ru.resident_id = $2 AND ru.is_active = true)`
+	WHERE ru.unit_id = $1 AND ru.resident_id = $2 AND ru.is_active = true AND resident_can_use(ru.id))`
 
 // Vehicle, kayıtlı araçtır.
 type Vehicle struct {
@@ -135,7 +135,7 @@ func (r *Repository) ListVehicles(ctx context.Context, propertyID, residentUserI
 		WHERE v.property_id = $1
 		  AND ($2 = '' OR v.unit_id IN (
 		        SELECT ru.unit_id FROM resident_units ru
-		        WHERE ru.resident_id = NULLIF($2,'')::uuid AND ru.is_active = true))
+		        WHERE ru.resident_id = NULLIF($2,'')::uuid AND ru.is_active = true AND resident_can_use(ru.id)))
 		ORDER BY v.is_active DESC, u.block, u.door_number`, propertyID, residentUserID)
 	if err != nil {
 		return nil, err
@@ -244,7 +244,7 @@ func (r *Repository) DeactivateVehicle(ctx context.Context, propertyID, ownerUse
 		`UPDATE vehicles SET is_active = false, updated_at = now()
 		 WHERE id = $1 AND property_id = $2 AND COALESCE(is_active,true)
 		   AND ($3 = '' OR unit_id IN (SELECT ru.unit_id FROM resident_units ru
-		                               WHERE ru.resident_id = NULLIF($3,'')::uuid AND ru.is_active = true))`,
+		                               WHERE ru.resident_id = NULLIF($3,'')::uuid AND ru.is_active = true AND resident_can_use(ru.id)))`,
 		id, propertyID, ownerUserID)
 	if err != nil {
 		return err

@@ -20,7 +20,7 @@ var ErrRequestNotFound = errors.New("talep bulunamadı")
 var ErrStatusChanged = errors.New("talebin durumu bu sırada değişti")
 
 // ErrUnitNotYours talepte belirtilen daire çağıranın bu sitedeki aktif dairesi değil.
-var ErrUnitNotYours = errors.New("belirtilen daire size ait değil")
+var ErrUnitNotYours = errors.New("belirtilen dairede kullanım hakkınız yok (kiracılı dairede kullanım işlemlerini kiracı ve hanesi yapar)")
 
 // RequestRepository talep veritabanı işlemleri
 type RequestRepository struct {
@@ -138,6 +138,7 @@ func (r *RequestRepository) Create(ctx context.Context, propertyID, residentID, 
 		SELECT ru.unit_id::text
 		FROM resident_units ru JOIN units un ON un.id = ru.unit_id
 		WHERE ru.resident_id = $1 AND ru.is_active = true AND un.property_id = $2
+		  AND resident_can_use(ru.id) -- D7 (072): kiracılı dairede malik kullanım talebi açmaz
 		GROUP BY ru.unit_id`, residentID, propertyID)
 	if err != nil {
 		return nil, err

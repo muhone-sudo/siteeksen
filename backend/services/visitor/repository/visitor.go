@@ -17,7 +17,24 @@ var (
 	ErrNotFound      = errors.New("ziyaretçi kaydı bulunamadı")
 	ErrUnitNotInSite = errors.New("belirtilen bağımsız bölüm bu siteye ait değil")
 	ErrBadState      = errors.New("ziyaretçi bu işlem için uygun durumda değil")
+	// ErrNoUsage: sakinin bu dairede kullanım hakkı yok (072, D7).
+	ErrNoUsage = errors.New("bu dairede ziyaretçi kaydetme hakkınız yok (kiracılı dairede kullanım işlemlerini kiracı ve hanesi yapar)")
 )
+
+// UsageUnit, sakinin ziyaretçi kaydedebileceği daireyi çözer: verilen daire ya da (verilmediyse) kullanım hakkı olan
+// ilk dairesi. Önceden sakinin daireyle ilişkisi hiç denetlenmiyordu; herhangi bir daireye ön kayıt açılabiliyordu.
+func (r *Repository) UsageUnit(ctx context.Context, propertyID, userID, unitID string) (string, error) {
+	var id string
+	err := r.scope(propertyID).QueryRow(ctx, `
+		SELECT ru.unit_id::text FROM resident_units ru JOIN units u ON u.id = ru.unit_id
+		WHERE ru.resident_id = $1::uuid AND u.property_id = $2 AND u.deleted = 0 AND resident_can_use(ru.id)
+		  AND ($3 = '' OR ru.unit_id = NULLIF($3, '')::uuid)
+		ORDER BY ru.role LIMIT 1`, userID, propertyID, unitID).Scan(&id)
+	if err == pgx.ErrNoRows {
+		return "", ErrNoUsage
+	}
+	return id, err
+}
 
 type Repository struct{ pool *pgxpool.Pool }
 
@@ -61,7 +78,7 @@ func (r *Repository) List(ctx context.Context, propertyID, status, residentUserI
 		  AND ($3 = false OR v.status = 'CHECKED_IN')
 		  AND ($4 = '' OR v.unit_id IN (
 		        SELECT ru.unit_id FROM resident_units ru
-		        WHERE ru.resident_id = NULLIF($4,'')::uuid AND ru.is_active = true))
+		        WHERE ru.resident_id = NULLIF($4,'')::uuid AND ru.is_active = true AND resident_can_use(ru.id)))
 		ORDER BY COALESCE(v.checked_in_at, v.expected_at, v.created_at) DESC
 		LIMIT 501`, propertyID, status, inside, residentUserID)
 	if err != nil {
@@ -206,7 +223,7 @@ func (r *Repository) Cancel(ctx context.Context, propertyID, ownerUserID, id str
 		WHERE id = $1 AND property_id = $2 AND status = 'EXPECTED'
 		  AND ($3 = '' OR created_by = NULLIF($3,'')::uuid
 		       OR unit_id IN (SELECT ru.unit_id FROM resident_units ru
-		                      WHERE ru.resident_id = NULLIF($3,'')::uuid AND ru.is_active = true))`,
+		                      WHERE ru.resident_id = NULLIF($3,'')::uuid AND ru.is_active = true AND resident_can_use(ru.id)))`,
 		id, propertyID, ownerUserID)
 	if err != nil {
 		return err

@@ -18,7 +18,7 @@ var (
 	ErrNotFound      = errors.New("kayıt bulunamadı")
 	ErrUnitNotInSite = errors.New("bağımsız bölüm bu siteye ait değil")
 	ErrBadState      = errors.New("paket bu işlem için uygun durumda değil")
-	ErrNoUnit        = errors.New("kullanıcının sitede aktif bir bağımsız bölümü yok")
+	ErrNoUnit        = errors.New("kullanım hakkınız olan aktif bir bağımsız bölümünüz yok (kiracılı dairede kullanım işlemlerini kiracı ve hanesi yapar)")
 )
 
 // Package, teslim alınan bir kargo/paket kaydıdır.
@@ -135,7 +135,7 @@ func (r *Repository) ResidentUnit(ctx context.Context, propertyID, userID string
 		SELECT ru.unit_id::text
 		FROM resident_units ru
 		JOIN units u ON u.id = ru.unit_id
-		WHERE ru.resident_id = $1 AND ru.is_active = true AND u.property_id = $2
+		WHERE ru.resident_id = $1 AND ru.is_active = true AND u.property_id = $2 AND resident_can_use(ru.id)
 		LIMIT 1`, userID, propertyID).Scan(&unitID)
 	if err == pgx.ErrNoRows {
 		return "", ErrNoUnit

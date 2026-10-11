@@ -12,6 +12,19 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-11 — KULLANIM HAKKI: KİRACILI DAİREDE KULLANIM İŞLEMLERİNİ KİRACI YAPAR (migration 072, altıncı tur D7) (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **1359/1359** (adım 63: kural tek işlevde — kiracılı dairede malik hayır, kiracı ve hane üyesi
+> evet, boş dairede malik evet; talep: malik 422 (nedeniyle), kiracı ve hane üyesi 201, malik boş dairesi için 201; ziyaretçi:
+> malik 403, hane 201, sakin başka daireye 403 (önceden açabiliyordu), malik boş dairesine ve yönetim her daireye 201; araç:
+> malik 403, kiracı 201; kargo bildirimi kiracıya ve hane üyesine gitti, malike gitmedi). `verify-mobile.sh` 10/10.
+
+- Kullanıcı kararı: devirden sonra malik o dairede kullanım işlemi yapmaz. 072 `resident_can_use(bağ)`: kiracı ve hane üyesi;
+  malik/vekil yalnız kiracı yokken (boş dairede her şey malike düşer — TBK m.301 kiracının kullanma hakkı).
+- Bağlananlar: talep, ziyaretçi ön kaydı, araç, kargo, rezervasyon, acil durum kartı ve yanıtı, sayaç, pusula ve itiraz, tüketim
+  verisi (para içerenlerde hane üyesi hariç). `notify.UnitUsers` kargo ve ziyaretçi bildirimlerinde.
+- **Düzeltilen açık:** sakin, ziyaretçi ön kaydını HERHANGİ bir daireye açabiliyordu (daire ilişkisi denetlenmiyordu).
+- Kapsam dışı bırakılanlar ve gerekçeleri `tasks/todo.md` D7 maddesinde. Mobil uygulama sunucunun 403 nedenini gösteriyor.
 ### 2026-10-11 — MALİKİN GÖRÜNÜRLÜK POLİTİKASI (migration 071, altıncı tur D6) (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **1353/1353** (adım 62: varsayılan en dar — kiracı politikayı görüyor, kiracılı dairede malik

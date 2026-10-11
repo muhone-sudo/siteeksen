@@ -115,6 +115,23 @@ func main() {
 			expectedAt = &t
 		}
 
+		// D7 (072): sakin yalnız kullanım hakkı olduğu daireye ziyaretçi kaydeder; güvenlik/yönetim her daireye.
+		if !hasSecurityScope(c) {
+			unit, uerr := repo.UsageUnit(c.Request.Context(), c.GetString("property_id"), c.GetString("user_id"), in.UnitID)
+			if errors.Is(uerr, repository.ErrNoUsage) {
+				c.JSON(http.StatusForbidden, gin.H{"error": uerr.Error()})
+				return
+			}
+			if uerr != nil {
+				if middleware.DBErrorResponse(c, uerr) {
+					return
+				}
+				log.Printf("[visitor] daire çözümleme: %v", uerr)
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Ziyaretçi kaydı oluşturulamadı"})
+				return
+			}
+			in.UnitID = unit
+		}
 		id, err := repo.Create(c.Request.Context(), c.GetString("property_id"),
 			c.GetString("user_id"), in, expectedAt)
 		if err != nil {
@@ -270,7 +287,8 @@ func notifyCheckIn(c *gin.Context, n *notify.Notifier, repo *repository.Reposito
 	propertyID := c.GetString("property_id")
 	var recipients []notify.Recipient
 	if info.UnitID != "" {
-		rs, err := notify.UnitResidents(c.Request.Context(), pool, propertyID, info.UnitID)
+		// D7 (072): ziyaretçi bildirimi kullanım hakkı olana (kiracılı dairede malike değil).
+		rs, err := notify.UnitUsers(c.Request.Context(), pool, propertyID, info.UnitID)
 		if err != nil {
 			log.Printf("[visitor] daire sakinleri alınamadı: %v", err)
 			return &notify.BroadcastResult{

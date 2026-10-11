@@ -73,6 +73,21 @@ func UnitResidents(ctx context.Context, pool *pgxpool.Pool, propertyID, unitID s
 		ORDER BY ru.resident_id, ru.role`, propertyID, unitID)
 }
 
+// UnitUsers, bölümde KULLANIM hakkı olanlar (072, D7): kiracı ve hane üyesi; kiracı yoksa malik ve vekil. Kargo,
+// ziyaretçi gibi kullanım bildirimleri buraya gider — kiracılı dairede malike kiracının kargosu bildirilmez.
+func UnitUsers(ctx context.Context, pool *pgxpool.Pool, propertyID, unitID string) ([]Recipient, error) {
+	if unitID == "" {
+		return nil, nil
+	}
+	return queryRecipients(ctx, pool, propertyID, `
+		SELECT DISTINCT ON (ru.resident_id)
+		       ru.resident_id::text, ru.unit_id::text, ru.role
+		FROM resident_units ru
+		JOIN units u ON u.id = ru.unit_id
+		WHERE u.property_id = $1 AND ru.unit_id = $2::uuid AND resident_can_use(ru.id)
+		ORDER BY ru.resident_id, ru.role`, propertyID, unitID)
+}
+
 // AssessmentPayers, verilen tahakkukların sorumlusu olan aktif sakinler (070, D5): kiracılığa bağlı kullanım
 // borcunda kiracı; malik sınıfı, kiracısız dönem ya da kiracılığı bitmiş borçta malik ve vekil. Kural tek yerde,
 // veritabanındaki assessment_visible_to işlevindedir; hane üyesi hiçbir zaman alıcı değildir (V4). Maliksiz dairenin

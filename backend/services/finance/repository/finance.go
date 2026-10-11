@@ -898,8 +898,9 @@ func (r *FinanceRepository) GetConsumptionData(ctx context.Context, propertyID, 
 		FROM consumption_invoices ci
 		JOIN meters m ON ci.meter_id = m.id
 		JOIN resident_units ru ON m.unit_id = ru.unit_id
-		WHERE ru.resident_id = $1 
-		  AND ru.is_active = true AND ru.role <> 'HOUSEHOLD'
+		WHERE ru.resident_id = $1
+		  -- D7 (072): tüketim oturanın; kiracılı dairede malik görmez. Tutar içerdiği için hane üyesi de görmez (V4).
+		  AND resident_can_use(ru.id) AND ru.role <> 'HOUSEHOLD'
 		  AND m.meter_type = $2
 		ORDER BY ci.period_start DESC
 		LIMIT $3

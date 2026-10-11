@@ -320,7 +320,7 @@ func fail(c *gin.Context, err error, op string) {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{
 			"error": "Araç sahibi türü geçersiz", "owner_types": repository.OwnerTypes})
 	case errors.Is(err, repository.ErrNotYourUnit):
-		c.JSON(http.StatusForbidden, gin.H{"error": "Yalnızca kendi dairenize araç kaydedebilirsiniz"})
+		c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 	case errors.Is(err, repository.ErrZoneFull):
 		c.JSON(http.StatusConflict, gin.H{"error": "Otopark bölgesi dolu"})
 	case errors.Is(err, repository.ErrPlateExists):

@@ -294,7 +294,8 @@ func notifyPackage(c *gin.Context, n *notify.Notifier, repo *repository.Reposito
 	}
 
 	propertyID := c.GetString("property_id")
-	recipients, err := notify.UnitResidents(c.Request.Context(), pool, propertyID, in.UnitID)
+	// D7 (072): kargo bildirimi kullanım hakkı olana (kiracılı dairede malike değil).
+	recipients, err := notify.UnitUsers(c.Request.Context(), pool, propertyID, in.UnitID)
 	if err != nil {
 		log.Printf("[package] kargo bildirimi alıcıları alınamadı: %v", err)
 		return &notify.BroadcastResult{

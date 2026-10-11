@@ -707,3 +707,10 @@ dokunma. Aynı şey görünüm sütunları için de geçerli (`CREATE OR REPLACE
 
 D5 adım 61'de ödeme bildiriminin 201 döndüğü varsayıldı; uç 200 döner (B4'teki hane testi zaten `!= 201` ile yazılmıştı).
 **Kural:** Var olan bir ucu yeni testte kullanırken önce o uç için yazılmış eski kontrolün beklediği kodu ara (`grep`).
+
+### Ders 54 — AFTER ROW tetikleyicisi çok satırlı INSERT'in sonunda çalışır
+
+D7 testinde malik, kiracı ve hane üyesi tek `INSERT … VALUES (…), (…), (…)` ile eklendi. Kiracı gelişi tetikleyicisi
+(068, AFTER INSERT FOR EACH ROW) deyim SONUNDA çalıştığı için aynı deyimdeki hane kaydını "önceki hane" sanıp bitirdi.
+Kod doğruydu; kurgu yanlıştı. **Kural:** Sırası anlam taşıyan kayıtları (kiracı → hanesi) ayrı deyimlerle ekle. Rol
+içeren jetonlar girişte hesaplanır: test kurgusunu bitirdikten SONRA giriş yap.

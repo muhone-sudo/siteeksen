@@ -183,6 +183,9 @@ String toUserMessage(Object error) {
       return 'Oturumunuzun süresi dolmuş. Lütfen yeniden giriş yapın.';
     }
     if (code == 403) {
+      // Sunucu 403 nedenini söyler (ör. kiracılı dairede kullanım işlemlerini kiracı yapar — D7); varsa o gösterilir.
+      final msg = error.response?.data;
+      if (msg is Map && msg['error'] is String && (msg['error'] as String).isNotEmpty) return msg['error'] as String;
       return 'Bu işlem için yetkiniz yok.';
     }
     if (code != null && code >= 500) {

@@ -471,3 +471,10 @@ Roller: okuma M,B,A · yazma M,B. İtiraz: kat maliki/vekil ya da yönetim.
 | `POST /settings/owner-visibility/:id/approve` · `/reject` | BOARD_MEMBER, öneren DIŞINDA | `note` | 200 — onayda önceki sürüm SUPERSEDED, kiracılara `visibility.policy` bildirimi; kurul üyesi değilse ya da öneren ise 403 |
 | `POST /settings/owner-visibility/:id/cancel` | öneren | — | 200 · başkası 404 |
 | `GET /requests/units/:unitId` (community) | dairenin aktif maliki/vekili | — | `{data:[{id,ticket_number,title,category,status,priority,created_at,resolved_at?}]}` — kiracılı dairede yalnız `show_unit_requests` açıksa (aksi 403); talep edenin kimliği ve açıklaması dönmez |
+
+## Kullanım hakkı (072 — altıncı tur D7)
+
+Kullanım işlemleri (`POST /requests` daireli talep, `POST /visitors` sakin ön kaydı, `POST /vehicles`, rezervasyon, kargo
+listesi, acil durum kartı/yanıtı, sayaç/pusula/itiraz, tüketim verisi) `resident_can_use` kuralına bağlıdır: kiracı ve hane
+üyesi; malik/vekil yalnız dairede aktif kiracı yokken. Kiracılı dairede malik: talep 422, ziyaretçi/araç 403 — yanıt nedeni söyler.
+`POST /visitors` sakin için artık daire ilişkisini denetler (başka dairenin ziyaretçisi 403); yönetim ve görevli her daireye kaydeder.

@@ -242,7 +242,7 @@ func (r *EmergencyRepository) UpsertCard(ctx context.Context, propertyID, userID
 	if err := r.scope(propertyID).QueryRow(ctx, `
 		SELECT EXISTS (SELECT 1 FROM resident_units ru JOIN units u ON u.id = ru.unit_id
 		               WHERE ru.unit_id = $1::uuid AND u.property_id = $2 AND ru.resident_id = $3::uuid
-		                 AND COALESCE(ru.is_active, true) AND (ru.end_date IS NULL OR ru.end_date >= CURRENT_DATE))`,
+		                 AND resident_can_use(ru.id))`,
 		unitID, propertyID, userID).Scan(&member); err != nil {
 		return err
 	}
@@ -366,8 +366,8 @@ func (r *EmergencyRepository) Respond(ctx context.Context, propertyID, checkID, 
 		INSERT INTO safety_check_responses (check_id, user_id, unit_id, status, note)
 		VALUES ($1, $2::uuid,
 		        (SELECT ru.unit_id FROM resident_units ru JOIN units u ON u.id = ru.unit_id
-		          WHERE ru.resident_id = $2::uuid AND u.property_id = $5 AND COALESCE(ru.is_active, true)
-		            AND (ru.end_date IS NULL OR ru.end_date >= CURRENT_DATE) ORDER BY ru.role LIMIT 1),
+		          WHERE ru.resident_id = $2::uuid AND u.property_id = $5 AND resident_can_use(ru.id)
+		          ORDER BY ru.role LIMIT 1),
 		        $3, NULLIF($4,''))
 		ON CONFLICT (check_id, user_id) DO UPDATE
 		SET status = EXCLUDED.status, note = EXCLUDED.note, responded_at = now()`,

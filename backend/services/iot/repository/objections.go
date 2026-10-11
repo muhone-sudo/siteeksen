@@ -17,7 +17,7 @@ var (
 	// ErrObjectionClosed: itiraz zaten yanıtlanmış.
 	ErrObjectionClosed = errors.New("itiraz zaten yanıtlanmış")
 	// ErrNotUnitResident: çağıran bölümün aktif sakini değil ya da bölüm pusulada yok.
-	ErrNotUnitResident = errors.New("bu bölümün aktif sakini değilsiniz ya da bölüm bu pusulada yok")
+	ErrNotUnitResident = errors.New("bu bölümde pusulaya itiraz hakkınız yok ya da bölüm bu pusulada yok (kiracılı dairede kullanım işlemlerini kiracı ve hanesi yapar)")
 )
 
 // Objection, pusula itirazıdır.
@@ -71,7 +71,8 @@ func (r *Repository) CreateObjection(ctx context.Context, propertyID, userID, al
 	var ok bool
 	if err := tx.QueryRow(ctx, `SELECT EXISTS (
 		SELECT 1 FROM consumption_allocation_units cu
-		JOIN resident_units ru ON ru.unit_id = cu.unit_id AND ru.resident_id = $3 AND ru.is_active
+		JOIN resident_units ru ON ru.unit_id = cu.unit_id AND ru.resident_id = $3 AND ru.is_active AND resident_can_use(ru.id)
+		     AND ru.role <> 'HOUSEHOLD' -- pusula tutar içerir; itiraz ödeyenindir (V4)
 		WHERE cu.allocation_id = $1 AND cu.unit_id = $2)`, allocationID, unitID, userID).Scan(&ok); err != nil {
 		return nil, err
 	}
@@ -99,7 +100,7 @@ func (r *Repository) CreateObjection(ctx context.Context, propertyID, userID, al
 func (r *Repository) ListObjections(ctx context.Context, propertyID, residentID, status string) ([]*Objection, error) {
 	rows, err := r.scope(propertyID).Query(ctx, objectionSelect+`
 		WHERE o.property_id = $1 AND ($2 = '' OR o.status = $2)
-		  AND ($3 = '' OR o.unit_id IN (SELECT unit_id FROM resident_units WHERE resident_id::text = $3 AND is_active))
+		  AND ($3 = '' OR o.unit_id IN (SELECT unit_id FROM resident_units WHERE resident_id::text = $3 AND is_active AND resident_can_use(id) AND role <> 'HOUSEHOLD'))
 		ORDER BY (o.status = 'OPEN') DESC, o.created_at DESC
 		LIMIT 500`, propertyID, status, residentID)
 	if err != nil {

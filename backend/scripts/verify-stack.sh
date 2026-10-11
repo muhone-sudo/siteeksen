@@ -8762,6 +8762,74 @@ $PSQL -c "DELETE FROM owner_visibility_policies WHERE property_id='$DEMO_PROPERT
   DELETE FROM resident_units WHERE unit_id='$UA2'; DELETE FROM units WHERE id='$UA2';" >/dev/null
 kill_tree "$S62I"; kill_tree "$S62F"; kill_tree "$S62C"; kill_tree "$S62S"
 
+step "63) Kullanım hakkı: kiracılı dairede kullanım işlemlerini kiracı ve hanesi yapar, malik yapmaz (072, altıncı tur D7)"
+startsvc63() { DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=$3 DB_PASSWORD="$4" DB_NAME=siteeksen \
+  DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=$1 go run ./services/$2 >/tmp/verify-d7-$2.log 2>&1 & }
+startsvc63 19795 community siteeksen_app "$APPPW"; S63C=$!
+startsvc63 19796 visitor siteeksen_app "$APPPW"; S63V=$!
+startsvc63 19797 parking siteeksen_app "$APPPW"; S63P=$!
+startsvc63 19798 package siteeksen_app "$APPPW"; S63K=$!
+startsvc63 19799 identity siteeksen_identity "$IDPW"; S63I=$!
+for _ in $(seq 1 90); do
+  ALL=1; for P in 19795 19796 19797 19798 19799; do curl -fsS http://127.0.0.1:$P/health >/dev/null 2>&1 || ALL=0; done
+  [ "$ALL" = "1" ] && break; sleep 1
+done
+login63() { curl -s -X POST "http://127.0.0.1:19799/api/v1/auth/login" -H "$J" -d "{\"phone\":\"$1\",\"password\":\"$2\"}" | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p'; }
+OWN63=$($PSQL -t -A -c "SELECT id FROM users WHERE phone='+905550000039';")
+HH63=$($PSQL -t -A -c "SELECT id FROM users WHERE phone='+905559990071';")
+mkunit63() { $PSQL -t -A -c "INSERT INTO units (property_id, block, floor, door_number, share_ratio, unit_type, net_area_m2, owner_occupied)
+  VALUES ('$DEMO_PROPERTY','Z',6,'$1',1,'APARTMENT',80,$2) RETURNING id;" | head -1; }
+UA3=$(mkunit63 63A true); UB3=$(mkunit63 63B false)
+# Hane üyesi kiracıdan SONRA ayrı deyimle eklenir: kiracı gelişi tetikleyicisi (068) deyim sonunda çalışır ve o ana
+# kadarki hane kayıtlarını (malikin hanesi) bitirir.
+$PSQL -c "INSERT INTO resident_units (resident_id, unit_id, role) VALUES
+  ('$OWN63','$UA3','OWNER'), ('$TUID','$UA3','TENANT'), ('$OWN63','$UB3','OWNER');" >/dev/null
+$PSQL -c "INSERT INTO resident_units (resident_id, unit_id, role) VALUES ('$HH63','$UA3','HOUSEHOLD');" >/dev/null
+# Jeton rolleri girişte hesaplanır: kayıtlardan sonra giriş yapılır.
+M63="Authorization: Bearer $(login63 5551234567 'Demo123!')"
+T63="Authorization: Bearer $(login63 5559876543 'Demo123!')"
+O63="Authorization: Bearer $(login63 5550000039 Yepyeni12)"
+H63="Authorization: Bearer $(login63 5559990071 Davetli2026x)"
+CU=$($PSQL -t -A -c "SELECT
+  resident_can_use((SELECT id FROM resident_units WHERE unit_id='$UA3' AND role='OWNER'))||'|'||
+  resident_can_use((SELECT id FROM resident_units WHERE unit_id='$UA3' AND role='TENANT'))||'|'||
+  resident_can_use((SELECT id FROM resident_units WHERE unit_id='$UA3' AND role='HOUSEHOLD'))||'|'||
+  resident_can_use((SELECT id FROM resident_units WHERE unit_id='$UB3' AND role='OWNER'));")
+[ "$CU" = "false|true|true|true" ] \
+  && ok "kullanım hakkı tek işlevde: kiracılı dairede malik hayır, kiracı ve hane üyesi evet; boş dairede malik evet" \
+  || bad "resident_can_use: $CU (beklenen false|true|true|true)"
+# Talep
+req63() { curl -s -w '|%{http_code}' -X POST "http://127.0.0.1:19795/api/v1/requests" -H "$1" -H "$J" \
+  -d "{\"title\":\"Kombi arızası\",\"description\":\"Sıcak su gelmiyor\",\"unit_id\":\"$2\"}"; }
+Q1=$(req63 "$O63" "$UA3"); Q2=$(req63 "$T63" "$UA3"); Q3=$(req63 "$H63" "$UA3"); Q4=$(req63 "$O63" "$UB3")
+[ "${Q1##*|}" = "422" ] && grep -q 'kiracı ve hanesi' <<<"$Q1" && [ "${Q2##*|}" = "201" ] && [ "${Q3##*|}" = "201" ] && [ "${Q4##*|}" = "201" ] \
+  && ok "talep: kiracılı dairede malik açamıyor (422, nedeniyle); kiracı ve hane üyesi açıyor; malik boş dairesi için açıyor" \
+  || bad "talep: malik=${Q1##*|} kiracı=${Q2##*|} hane=${Q3##*|} boş daire=${Q4##*|} — ${Q1%|*}"
+# Ziyaretçi ön kaydı (önceden daireyle ilişki hiç denetlenmiyordu)
+vis63() { code -X POST "http://127.0.0.1:19796/api/v1/visitors" -H "$1" -H "$J" -d "{\"unit_id\":\"$2\",\"visitor_name\":\"Misafir D7\",\"purpose\":\"Misafir\"}"; }
+W1=$(vis63 "$O63" "$UA3"); W2=$(vis63 "$H63" "$UA3"); W3=$(vis63 "$T63" "$UB3"); W4=$(vis63 "$O63" "$UB3"); W5=$(vis63 "$M63" "$UA3")
+[ "$W1" = "403" ] && [ "$W2" = "201" ] && [ "$W3" = "403" ] && [ "$W4" = "201" ] && [ "$W5" = "201" ] \
+  && ok "ziyaretçi: kiracılı dairede malik kaydedemiyor (403), hane üyesi kaydediyor; sakin başkasının dairesine kayıt açamıyor (403 — önceden açabiliyordu); malik boş dairesine, yönetim her daireye kaydediyor" \
+  || bad "ziyaretçi: malik=$W1 hane=$W2 başka daire=$W3 boş daire=$W4 yönetim=$W5"
+# Araç
+veh63() { code -X POST "http://127.0.0.1:19797/api/v1/vehicles" -H "$1" -H "$J" -d "{\"unit_id\":\"$UA3\",\"plate\":\"$2\",\"brand\":\"Test\",\"model\":\"D7\"}"; }
+K1=$(veh63 "$O63" "34 DS 6301"); K2=$(veh63 "$T63" "34 DS 6302")
+[ "$K1" = "403" ] && [ "$K2" = "201" ] \
+  && ok "araç kaydı: kiracılı dairede malik kaydedemiyor (403), kiracı kaydediyor" \
+  || bad "araç: malik=$K1 kiracı=$K2"
+# Kargo bildirimi kullanım hakkı olana gider (malike değil)
+PK=$(code -X POST "http://127.0.0.1:19798/api/v1/packages" -H "$M63" -H "$J" -d "{\"unit_id\":\"$UA3\",\"recipient_name\":\"Kiraci\",\"carrier\":\"Aras\",\"storage_location\":\"Kulube\"}")
+NR=$($PSQL -t -A -c "SELECT string_agg(recipient_user_id::text, ',' ORDER BY recipient_user_id::text) FROM notifications
+  WHERE topic='package.received' AND channel='IN_APP' AND payload->>'unit_id'='$UA3';")
+EXP63=$(printf '%s\n%s\n' "$TUID" "$HH63" | sort | paste -sd, -)
+[ "$PK" = "201" ] && [ "$NR" = "$EXP63" ] \
+  && ok "kargo bildirimi kiracıya ve hane üyesine gitti, kiracılı dairenin malikine gitmedi" \
+  || bad "kargo bildirimi: $PK / alıcılar=$NR (beklenen $EXP63)"
+$PSQL -c "DELETE FROM packages WHERE unit_id IN ('$UA3','$UB3'); DELETE FROM vehicles WHERE unit_id IN ('$UA3','$UB3');
+  DELETE FROM visitors WHERE unit_id IN ('$UA3','$UB3'); DELETE FROM requests WHERE unit_id IN ('$UA3','$UB3');
+  DELETE FROM resident_units WHERE unit_id IN ('$UA3','$UB3'); DELETE FROM units WHERE id IN ('$UA3','$UB3');" >/dev/null 2>&1
+kill_tree "$S63C"; kill_tree "$S63V"; kill_tree "$S63P"; kill_tree "$S63K"; kill_tree "$S63I"
+
 step "SONUÇ"
 echo "  Geçen: $PASS   Başarısız: $FAIL"
 [ "$FAIL" -eq 0 ] && { echo "  TÜM KONTROLLER GEÇTİ"; exit 0; } || { echo "  BAŞARISIZ KONTROL VAR"; exit 1; }

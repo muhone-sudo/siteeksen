@@ -719,12 +719,13 @@ söyleyene kadar). Kullanıcı cevabı (2026-10-11, 5. soru): UYAP doğrulama ko
   kiracılara bildirim. Uygulama: kimlik servisi (kiracı adı/telefonu), finans (kiracı borç toplamı, vadesi geçen uyarısı),
   topluluk (daire talepleri), zamanlayıcı (malike vadesi geçen uyarısı). Kiracı ve malik politikayı uygulamada görür.
   - Arayüz: panel politika sayfası (öner/onayla/geçmiş); sakin uygulamasında "Malikim neyi görüyor".
-- [ ] **D7 Kullanım işlemlerinde oturan denetimi** — kullanım işlemlerini oturan ve hanesi yapar (`resident_is_occupant`):
-  talep, rezervasyon, ziyaretçi, kargo, otopark, acil durum yanıtı, sayaç/pusula/itiraz, ilan panosu, anket/NPS (anket mülkiyetle
-  ilgiliyse malik — yönetim seçer). Tadilat izni: oturan ya da malik. Kullanım bildirimleri (`notify.UnitOccupants`): kargo,
-  ziyaretçi, rezervasyon, kural ihlali (ihlal malike de). Oturmayan malik 403 + açıklama.
-  - Arayüz: sakin uygulamasında oturmayan malike kullanım menüleri gizli/açıklamalı.
-- [ ] **D8 Kapanış** — `questions.md`'ye V1–V9; `legal/kvkk-aydinlatma.md` (bitiş belgeleri, görünürlük politikası, davet
+- [x] **D7 Kullanım hakkı** (verify 1359/1359, mobil 10/10) — 072 `resident_can_use()`: kiracı ve hane üyesi kullanır; malik/vekil
+  yalnız dairede aktif kiracı yokken (malik oturuyor ya da boş — boş dairede her şey malike düşer). Bağlananlar: talep, ziyaretçi
+  ön kaydı (önceden daireyle ilişki HİÇ denetlenmiyordu), araç, kargo listesi, rezervasyon, acil durum kartı/yanıtı, sayaç,
+  pusula ve itiraz, tüketim verisi (para içerenlerde hane üyesi hariç — V4); kargo ve ziyaretçi bildirimleri
+  `notify.UnitUsers`. **Bilerek kapsam dışı:** ilan panosu (malik satılık/kiralık ilanı verebilir), anket/NPS (anket servisi
+  malik oyunu ayrıca sayar), tadilat izni (malik/vekil başvurur — kiracının tadilatı malik iznine bağlı, TBK m.321), kural
+  ihlali bildirimi (malik de muhatap). Mobil: sunucunun 403 nedeni artık kullanıcıya gösteriliyor.- [ ] **D8 Kapanış** — `questions.md`'ye V1–V9; `legal/kvkk-aydinlatma.md` (bitiş belgeleri, görünürlük politikası, davet
   verisi); CLAUDE.md ve changelog; uçtan uca gözden geçirme (panel build dahil).
 ## 2026-10-10 — Beşinci tur (Şikayetvar raporu: uygulama aksaklıkları)
 

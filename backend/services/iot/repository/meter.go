@@ -470,7 +470,8 @@ func (r *Repository) ResidentUnit(ctx context.Context, propertyID, userID string
 		SELECT ru.unit_id::text
 		FROM resident_units ru
 		JOIN units u ON u.id = ru.unit_id
-		WHERE ru.resident_id = $1 AND ru.is_active = true AND u.property_id = $2
+		-- D7 (072): sayaç ve pusula oturanın; pusula tutar içerdiği için hane üyesine açılmaz (V4).
+		WHERE ru.resident_id = $1 AND ru.is_active = true AND u.property_id = $2 AND resident_can_use(ru.id) AND ru.role <> 'HOUSEHOLD'
 		LIMIT 1`, userID, propertyID).Scan(&unitID)
 	if err == pgx.ErrNoRows {
 		return "", ErrNotFound
