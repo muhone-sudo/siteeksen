@@ -28,7 +28,9 @@ type AssessmentSummary struct {
 	PaidAmount  float64 `json:"paid_amount"`
 	Status      string  `json:"status"`
 	// Kind: REGULAR (dönem aidatı) ya da OPENING (devreden borç, 034).
-	Kind        string `json:"kind,omitempty"`
+	Kind string `json:"kind,omitempty"`
+	// Liability: USAGE (oturan) | OWNER (malik) — 066.
+	Liability   string `json:"liability,omitempty"`
 	Description string `json:"description,omitempty"`
 }
 
@@ -65,12 +67,16 @@ type ExpenseCategory struct {
 	AppliesToGroundFloor bool   `json:"applies_to_ground_floor"`
 	CustomFormula        string `json:"custom_formula"`
 	IsActive             bool   `json:"is_active"`
+	// DefaultLiability: USAGE (oturan) | OWNER (malik); girişte önerilen sınıf (066).
+	DefaultLiability string `json:"default_liability"`
 }
 
 // AssessmentExpenseItem tahakkuk oluşturma isteğindeki tek gider kalemi
 type AssessmentExpenseItem struct {
 	CategoryID string  `json:"category_id" binding:"required"`
 	Amount     float64 `json:"amount" binding:"required,gt=0"`
+	// Liability: USAGE (oturan öder) | OWNER (malik öder); boşsa kategorinin varsayılanı (066).
+	Liability string `json:"liability"`
 }
 
 // CreateAssessmentInput aidat tahakkuku oluşturma isteği
@@ -151,8 +157,10 @@ type Page struct {
 
 // OpeningBalanceInput, açılış (devir) bakiyesi girişi (FAZ 8.1, migration 034).
 type OpeningBalanceInput struct {
-	DueDate string               `json:"due_date" binding:"required"` // YYYY-MM-DD
-	Items   []OpeningBalanceItem `json:"items" binding:"required,min=1,max=2000,dive"`
+	DueDate string `json:"due_date" binding:"required"` // YYYY-MM-DD
+	// Liability: devreden borcun sınıfı (USAGE | OWNER); satırda verilmezse bu, o da boşsa USAGE (066).
+	Liability string               `json:"liability"`
+	Items     []OpeningBalanceItem `json:"items" binding:"required,min=1,max=2000,dive"`
 }
 
 // OpeningBalanceItem bir bölümün devreden borcu.
@@ -160,6 +168,8 @@ type OpeningBalanceItem struct {
 	UnitID      string  `json:"unit_id" binding:"required"`
 	Amount      float64 `json:"amount" binding:"required,gt=0"`
 	Description string  `json:"description"`
+	// Liability: satırın sınıfı; boşsa girişin sınıfı. Bir bölüme kullanım ve malik devri ayrı satırla girilir (066).
+	Liability string `json:"liability"`
 }
 
 // OpeningBalance kayıtlı devir bakiyesi.
@@ -173,4 +183,5 @@ type OpeningBalance struct {
 	Description string    `json:"description"`
 	Status      string    `json:"status"`
 	CreatedAt   time.Time `json:"created_at"`
+	Liability   string    `json:"liability"`
 }

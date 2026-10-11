@@ -12,6 +12,27 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-11 — GİDER SINIFI: KULLANIM (OTURAN) / MALİK (migration 066, altıncı tur D1 — kullanıcı kararı) (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **1320/1320** (adım 57: kalemin varsayılan sınıfı dönüyor; kullanım + malik kalemli elle
+> tahakkukta bölüme sınıf başına ayrı kayıt, tutarlar kuruşu kuruşuna, kalem satırları başlıkla aynı sınıfta; aynı dönem + aynı
+> sınıf 409, girişte seçilen sınıf varsayılanı eziyor, tanınmayan sınıf 400 ve kayıt yok; sınıf uygulama rolüyle
+> değiştirilemiyor (tetikleyici); devirde bir bölüme kullanım + malik ayrı satır, aynı sınıfta ikinci devir 409; işletme
+> projesinde yeni tesis kalemi malik sınıfına düştü, bölüm payı kullanım/malik olarak ayrıldı, projeden aylık tahakkuk sınıf
+> başına ayrı kayıt; gider kaydında sınıf kategoriden önerildi ve değiştirilebildi. Adım 33: ortak kalem sayısı 13).
+> Panel `tsc --noEmit` + `lint` temiz.
+
+- Her mali kalem girişte sınıf alır: **USAGE** (oturanın gideri — kapıcı, temizlik, ısınma…) ya da **OWNER** (malikin gideri —
+  demirbaş, yenileme, yeni tesis; KMK m.42-43, TBK m.302). Siteye karşı borçlu yine malik (KMK m.20, m.22); sınıf, borcun kimin
+  ekranında görüneceğini ve kimin ödeyeceğini belirler (yönlendirme D5'te).
+- 066: `expense_categories.default_liability`; `expenses`, `operating_budget_items`, `assessment_details`, `monthly_assessments`
+  `liability`; `operating_budget_unit_shares.annual_usage_kurus/annual_owner_kurus` (toplamı yıllık paya eşit, CHECK);
+  dönem ve devir benzersizliği sınıf bazında; tahakkukun sınıfı sonradan değiştirilemez; üç ortak malik kalemi
+  (Demirbaş Alımı, Yenileme / Büyük Onarım, Yeni Tesis / Yenilik). Mevcut kayıtlar KULLANIM sayılır.
+- Elle tahakkuk, işletme projesinden tahakkuk, devir bakiyesi (satır bazında) ve gider kaydı sınıfı alır. Panelde dört formda
+  sınıf seçimi (kalem seçilince varsayılanı gelir) ve listelerde "Sınıf" sütunu.
+- Finans tahakkuku yalnız sitenin kendi kalemlerini kullanır; ortak malik kalemleri gider modülünde ve işletme projesinde
+  görünür, elle tahakkukta sınıf satırda seçilir.
 ### 2026-10-11 — E-POSTA DEĞİŞİKLİĞİNDE YENİ ADRESE ONAY KODU (migration 065, B4 ek — kullanıcı kararı) (DOĞRULANMIŞ — sahte SMTP ile)
 
 > **Kanıt:** `verify-stack.sh` → **1312/1312** (adım 52: e-posta yoksa 503, yanlış şifre 400, geçersiz adres 422, başka hesabın

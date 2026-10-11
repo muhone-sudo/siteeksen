@@ -55,7 +55,7 @@ export interface Payment {
     transaction_id?: string; created_at: string; completed_at: string; name: string; unit: string;
     value_date?: string; payer_reference?: string; recorded_by_management?: boolean; receipt_count?: number;
 }
-export interface FinanceCategory { id: Id; property_id: Id; name: string; distribution_type: string; is_active: boolean }
+export interface FinanceCategory { id: Id; property_id: Id; name: string; distribution_type: string; is_active: boolean; default_liability?: "USAGE" | "OWNER" }
 export interface LateFeeRun {
     as_of: string; monthly_rate: string; legal_basis: string; processed_count: number;
     total_fee_kurus: number; total_fee_try: string; skipped_not_due: number;
@@ -86,10 +86,11 @@ export interface Preference { channel: string; category: string; enabled: boolea
 export interface ExpenseCategory {
     id: Id; property_id?: string; name: string; description?: string; distribution_type: string;
     reflects_to_assessment: boolean; is_default: boolean; is_active: boolean; legal_basis?: string;
+    default_liability?: "USAGE" | "OWNER";
 }
 export interface Expense {
     id: Id; category_id: Id; category_name?: string; description: string; amount: number; expense_date: string;
-    is_invoiced: boolean; invoice_reason?: string; distribution_type: string; status: string;
+    is_invoiced: boolean; invoice_reason?: string; distribution_type: string; status: string; liability?: "USAGE" | "OWNER";
     rejection_reason?: string; vendor_name?: string; invoice_number?: string; created_at: string;
     per_unit_amount?: number; distributions?: { unit_id: Id; unit_name?: string; amount: number; is_paid: boolean }[];
 }
@@ -295,8 +296,8 @@ export interface SettingDef { key: string; type: string; description: string; de
 export interface SettingHistory { key: string; old_value?: string; new_value: string; changed_by_name?: string; changed_at: string }
 
 // ---------------------------------------------------------------- governance
-export interface BudgetItem { id?: Id; category_id?: string; name: string; amount: number; distribution_type: string; kind?: string; note?: string }
-export interface UnitShare { unit_id: Id; unit_name?: string; annual_kurus: number; monthly_kurus: number; breakdown?: Record<string, number> }
+export interface BudgetItem { id?: Id; category_id?: string; name: string; amount: number; distribution_type: string; kind?: string; note?: string; liability?: string }
+export interface UnitShare { unit_id: Id; unit_name?: string; annual_kurus: number; monthly_kurus: number; breakdown?: Record<string, number>; annual_usage_kurus?: number; annual_owner_kurus?: number }
 export interface Budget {
     id: Id; period_year: number; status: string; total_amount: number; notified_at?: string; notice_method?: string;
     objection_deadline?: string; approval_deadline?: string; approved_agenda_item_id?: string;
@@ -379,6 +380,7 @@ export interface BulkResidentRow {
 /** Açılış (devir) bakiyesi (034). */
 export interface OpeningBalance {
     id: Id; unit_id: Id; unit: string; amount: number; paid_amount: number; due_date: string; description: string; status: string; created_at: string;
+    liability?: "USAGE" | "OWNER";
 }
 
 /** KVKK ilgili kişi başvurusu (035). */

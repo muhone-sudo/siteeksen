@@ -138,9 +138,9 @@ func (r *Repository) CreateBudget(
 		}
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO operating_budget_items
-				(budget_id, category_id, name, amount, distribution_type, kind, note, sort_order)
-			VALUES ($1, NULLIF($2,'')::uuid, $3, $4, $5, $6, NULLIF($7,''), $8)`,
-			budgetID, it.CategoryID, it.Name, it.Amount, it.DistributionType, kind, it.Note, i); err != nil {
+				(budget_id, category_id, name, amount, distribution_type, kind, note, sort_order, liability)
+			VALUES ($1, NULLIF($2,'')::uuid, $3, $4, $5, $6, NULLIF($7,''), $8, COALESCE(NULLIF($9,''), 'USAGE'))`,
+			budgetID, it.CategoryID, it.Name, it.Amount, it.DistributionType, kind, it.Note, i, it.Liability); err != nil {
 			return "", err
 		}
 	}
@@ -152,9 +152,9 @@ func (r *Repository) CreateBudget(
 		}
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO operating_budget_unit_shares
-				(budget_id, unit_id, annual_kurus, monthly_kurus, breakdown)
-			VALUES ($1, $2, $3, $4, $5)`,
-			budgetID, s.UnitID, s.AnnualKurus, s.MonthlyKurus, breakdown); err != nil {
+				(budget_id, unit_id, annual_kurus, monthly_kurus, breakdown, annual_usage_kurus, annual_owner_kurus)
+			VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+			budgetID, s.UnitID, s.AnnualKurus, s.MonthlyKurus, breakdown, s.AnnualUsageKurus, s.AnnualOwnerKurus); err != nil {
 			return "", err
 		}
 	}
@@ -199,7 +199,7 @@ func (r *Repository) GetBudget(ctx context.Context, propertyID, budgetID string)
 
 	itemRows, err := r.scope(propertyID).Query(ctx, `
 		SELECT id, COALESCE(category_id::text,''), name, amount, distribution_type,
-		       kind, COALESCE(note,''), sort_order
+		       kind, COALESCE(note,''), sort_order, liability
 		FROM operating_budget_items WHERE budget_id = $1 ORDER BY sort_order`, budgetID)
 	if err != nil {
 		return nil, err
@@ -208,7 +208,7 @@ func (r *Repository) GetBudget(ctx context.Context, propertyID, budgetID string)
 	for itemRows.Next() {
 		var it models.BudgetItem
 		if err := itemRows.Scan(&it.ID, &it.CategoryID, &it.Name, &it.Amount,
-			&it.DistributionType, &it.Kind, &it.Note, &it.SortOrder); err != nil {
+			&it.DistributionType, &it.Kind, &it.Note, &it.SortOrder, &it.Liability); err != nil {
 			return nil, err
 		}
 		b.Items = append(b.Items, it)
@@ -216,7 +216,7 @@ func (r *Repository) GetBudget(ctx context.Context, propertyID, budgetID string)
 
 	shareRows, err := r.scope(propertyID).Query(ctx, `
 		SELECT s.unit_id, COALESCE(u.block,'') || '-' || COALESCE(u.door_number,''),
-		       s.annual_kurus, s.monthly_kurus, COALESCE(s.breakdown, '{}'::jsonb)
+		       s.annual_kurus, s.monthly_kurus, COALESCE(s.breakdown, '{}'::jsonb), s.annual_usage_kurus, s.annual_owner_kurus
 		FROM operating_budget_unit_shares s
 		JOIN units u ON u.id = s.unit_id
 		WHERE s.budget_id = $1
@@ -228,7 +228,7 @@ func (r *Repository) GetBudget(ctx context.Context, propertyID, budgetID string)
 	for shareRows.Next() {
 		var s models.UnitShare
 		raw := []byte{}
-		if err := shareRows.Scan(&s.UnitID, &s.UnitName, &s.AnnualKurus, &s.MonthlyKurus, &raw); err != nil {
+		if err := shareRows.Scan(&s.UnitID, &s.UnitName, &s.AnnualKurus, &s.MonthlyKurus, &raw, &s.AnnualUsageKurus, &s.AnnualOwnerKurus); err != nil {
 			return nil, err
 		}
 		_ = json.Unmarshal(raw, &s.Breakdown)
@@ -1237,6 +1237,14 @@ func (r *Repository) UnitDebt(ctx context.Context, propertyID, unitID string) (p
 // CategoryVisible, gider kaleminin bu sitede kullanılabilir olduğunu söyler
 // (siteye ait ya da ortak şablon). Yabancı anahtar denetimi RLS'i atlar;
 // denetlenmeseydi başka sitenin kalemi bütçeye bağlanabilirdi.
+// CategoryDefaultLiability, kategorinin önerilen gider sınıfını döner (066).
+func (r *Repository) CategoryDefaultLiability(ctx context.Context, propertyID, categoryID string) (string, error) {
+	var l string
+	err := r.scope(propertyID).QueryRow(ctx, `SELECT default_liability FROM expense_categories
+		WHERE id = $1 AND (property_id = $2 OR property_id IS NULL)`, categoryID, propertyID).Scan(&l)
+	return l, err
+}
+
 func (r *Repository) CategoryVisible(ctx context.Context, propertyID, categoryID string) (bool, error) {
 	var ok bool
 	err := r.scope(propertyID).QueryRow(ctx, `

@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/shopspring/decimal"
@@ -24,6 +25,8 @@ var (
 	ErrInvoiceReasonRequired = errors.New("faturasız gider için gerekçe zorunludur")
 	// ErrUnknownDistribution, tanınmayan dağıtım türü.
 	ErrUnknownDistribution = errors.New("bilinmeyen dağıtım türü")
+	// ErrInvalidLiability, gider sınıfı USAGE (oturan) ya da OWNER (malik) değil (066).
+	ErrInvalidLiability = errors.New("gider sınıfı USAGE (kullanım/oturan) ya da OWNER (malik) olmalı")
 )
 
 type Service struct{ repo *repository.Repository }
@@ -87,6 +90,14 @@ func (s *Service) Create(ctx context.Context, propertyID, userID string, in mode
 	distributionType := in.DistributionType
 	if distributionType == "" {
 		distributionType = category.DistributionType
+	}
+	// Gider sınıfı (066): girişte seçilir; verilmezse kalemin varsayılanı.
+	in.Liability = strings.ToUpper(strings.TrimSpace(in.Liability))
+	if in.Liability == "" {
+		in.Liability = category.DefaultLiability
+	}
+	if in.Liability != "USAGE" && in.Liability != "OWNER" {
+		return nil, ErrInvalidLiability
 	}
 
 	distributions := []models.Distribution{}

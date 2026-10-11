@@ -633,6 +633,50 @@ yaygınlaştırılmasına kayıyor.
 
 # İnceleme notları
 
+## 2026-10-11 — Altıncı tur: malik / kiracı / oturan ve gider sınıfı (KMK m.20, m.22, m.42-43; TBK m.302, 317, 341)
+
+Kullanıcı kararları (2026-10-11):
+- Her mali kalemde sınıf girişte seçilir: **KULLANIM** (oturan öder: kapıcı, temizlik, ısınma, ortak elektrik/su…) ya da
+  **MALİK** (demirbaş, yenilik, havuz gibi yeni tesis, ana yapı onarımı). Uygulamadaki TÜM mali işler bu sınıfa uyar.
+- Sakin kendi başına üye olamaz. Maliki yönetim kaydeder; yönetim malik olmadan kiracıyı da kaydedebilir; yalnız kiracıyla
+  kayıtlı daireye malik sonradan davet edilir. Daire boş olabilir ama malik kayıtlı olmalı; boş dairede her şey malike düşer.
+- Kiracıyı malik ya da yönetim SMS + e-postayla davet eder. Dairede aktif kiracı varken davet gönderilemez (yönetim dahil).
+- Hane üyesi olur (oturanın hanesi). Devirden sonra malik o dairede kullanım işlemi (talep, rezervasyon, ziyaretçi…) yapmaz.
+- Devirden sonra malikin göreceği seçenekli alanları malik DEĞİL yönetim belirler; site bazında tek politika, varsayılan en dar,
+  değişiklik kurul üyesi onayı ister; kiracı malikin neyi gördüğünü görür.
+- Kiracılık bitişi: malik isterse kiracı onayı şart. Yönetim yolu: belge (UYAP kodu isteğe bağlı), kimlik bilgisiyle onay,
+  1 hafta itiraz.
+
+Varsayılan kararlar (kullanıcı aksini söyleyene kadar; `questions.md`'ye işlenecek):
+- V1 Kiracı kendi çıkışını malik onayı olmadan yapar (oturanın hakkı); malike bilgi gider.
+- V2 Yönetim yolunda itiraz edilirse işlem askıda kalır; yalnız kiracının onayıyla ya da yeni bir belgeyle (yeni 7 gün) ilerler.
+  İşlemi başlatan, o dairenin maliki olamaz. Sahte çıkarsa kiracılık geçmişiyle geri açılır.
+- V3 Malik kaydı olmayan dairede MALİK sınıfı borç "malik kaydı yok" uyarısıyla yönetimde bekler; kiracıya yansımaz.
+- V4 Hane üyesi kullanım özelliklerini kullanır, mali ekranları görmez; oturanın kaydı bitince düşer.
+- V5 Mevcut veride aktif kiracısı olan dairede kiracı, olmayanda malik "oturan" sayılır; yönetim düzeltebilir.
+- V6 Borcun sorumlusu tahakkuk anında saptanır (sınıf + o günkü oturan); kiracılık bitince açık KULLANIM borcu malike de görünür
+  (KMK m.20 asıl sorumlu malik).
+
+Aşamalar (her biri ayrı commit, verify-stack + gerekirse verify-mobile + panel):
+- [x] **D1 Gider sınıfı** (verify 1320/1320, panel tsc/lint) — 066: `expense_categories.default_liability`, `expenses.liability`, `operating_budget_items.liability`,
+  `assessment_details.liability`, `monthly_assessments.liability`; dönem benzersizliği (bölüm, dönem, sınıf). Elle tahakkuk,
+  işletme projesinden tahakkuk, devir bakiyesi ve gider kaydı sınıfı alır; bir bölüme dönem başına sınıf başına bir tahakkuk.
+- [ ] **D2 Daire oturum modeli** — 067: oturan bayrağı, HANE üyesi rolü, daire başına tek oturan başı; durum görünümü
+  (BOŞ / MALİK OTURUYOR / KİRACI OTURUYOR / KAYITSIZ); boş daire malik ister.
+- [ ] **D3 Kayıt ve davet** — yönetim maliki/kiracıyı kaydeder; malik ya da yönetim kiracıyı SMS + e-postayla davet eder
+  (dolu dairede engel); kiracı kodla katılır, kabulde devir; kiracılı daireye malik daveti; hane üyesi daveti. B5'in doğrudan
+  ekleme/bitirme uçları kaldırılır.
+- [ ] **D4 Kiracılık bitişi** — malik isteği + kiracı onayı; kiracının kendi çıkışı (V1); yönetim yolu (belge, şifreyle
+  kimlik doğrulama ve beyan, 7 gün itiraz, askı, geri alma — V2); değiştirilemez kayıt.
+- [ ] **D5 Mali yönlendirme** — borç sorumlusu (V3, V6): sakin borç ekranları, ödeme yetkisi (kart dahil), yeni borç / gecikme /
+  tahsilat bildirimleri, borcu yoktur belgesi (malik tam, kiracı KULLANIM), borçlu listesi ve dökümler sınıfla.
+- [ ] **D6 Görünürlük politikası** — site bazında, yönetim belirler, kurul üyesi onayı, varsayılan en dar, kiracıya şeffaf,
+  değişiklikte bildirim.
+- [ ] **D7 Kullanım işlemlerinde oturan denetimi** — talep, rezervasyon, ziyaretçi, kargo, otopark, acil durum, tadilat,
+  sayaç/pusula/itiraz ve kullanım bildirimleri oturana (ve hanesine); malik oturmuyorsa yapamaz.
+- [ ] **D8 Arayüzler** — panel (sınıf seçimi, oturum durumu, davetler, bitiş akışı, politika) ve sakin uygulaması (dairem,
+  davetler, hane, onaylar).
+
 ## 2026-10-10 — Beşinci tur (Şikayetvar raporu: uygulama aksaklıkları)
 
 Kaynak: `apsiyon_urun_gelistirme_raporu.md` §6.6 (koddan doğrulanmış eksikler). Kapsam kararı (kullanıcı,

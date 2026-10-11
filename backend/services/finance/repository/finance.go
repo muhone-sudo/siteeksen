@@ -136,7 +136,7 @@ func (r *FinanceRepository) GetAssessments(ctx context.Context, propertyID, user
 		SELECT ma.id, 
 			   TO_CHAR(MAKE_DATE(ma.period_year, ma.period_month, 1), 'YYYY-MM'),
 			   ma.base_amount, ma.late_fee, ma.total_amount, 
-			   COALESCE(ma.paid_amount, 0), ma.status, ma.kind, COALESCE(ma.description, '')
+			   COALESCE(ma.paid_amount, 0), ma.status, ma.kind, COALESCE(ma.description, ''), ma.liability
 		FROM monthly_assessments ma
 		JOIN resident_units ru ON ma.unit_id = ru.unit_id
 		WHERE ru.resident_id = $1 
@@ -154,7 +154,7 @@ func (r *FinanceRepository) GetAssessments(ctx context.Context, propertyID, user
 	assessments := []models.AssessmentSummary{}
 	for rows.Next() {
 		var a models.AssessmentSummary
-		if err := rows.Scan(&a.ID, &a.Period, &a.BaseAmount, &a.LateFee, &a.TotalAmount, &a.PaidAmount, &a.Status, &a.Kind, &a.Description); err != nil {
+		if err := rows.Scan(&a.ID, &a.Period, &a.BaseAmount, &a.LateFee, &a.TotalAmount, &a.PaidAmount, &a.Status, &a.Kind, &a.Description, &a.Liability); err != nil {
 			return nil, err
 		}
 		assessments = append(assessments, a)
@@ -943,6 +943,7 @@ type unitShare struct {
 // assessmentDetailRow birime düşen gider kalemi payı
 type assessmentDetailRow struct {
 	unitID           string
+	liability        string
 	categoryID       string
 	amount           money.Kurus
 	calculationBasis string
@@ -1014,21 +1015,27 @@ func (r *FinanceRepository) CreateAssessment(ctx context.Context, propertyID str
 		return nil, ErrNoUnitsInProperty
 	}
 
-	unitTotals := make(map[string]money.Kurus, len(units))
+	// Gider sınıfı (066): her bölüme dönem başına SINIF başına bir tahakkuk açılır.
+	type unitClass struct{ unit, liability string }
+	unitTotals := make(map[unitClass]money.Kurus, len(units))
 	details := []assessmentDetailRow{}
 
 	for _, item := range input.ExpenseItems {
-		var distType string
+		var distType, defLiability string
 		var appliesCommercial, appliesGround bool
 		err := tx.QueryRow(ctx, `
-			SELECT distribution_type, applies_to_commercial, applies_to_ground_floor
+			SELECT distribution_type, applies_to_commercial, applies_to_ground_floor, default_liability
 			FROM expense_categories WHERE id = $1 AND property_id = $2 AND is_active = true
-		`, item.CategoryID, propertyID).Scan(&distType, &appliesCommercial, &appliesGround)
+		`, item.CategoryID, propertyID).Scan(&distType, &appliesCommercial, &appliesGround, &defLiability)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrExpenseCategoryNotFound
 		}
 		if err != nil {
 			return nil, err
+		}
+		liability, lerr := NormalizeLiability(item.Liability, defLiability)
+		if lerr != nil {
+			return nil, lerr
 		}
 
 		shares := make([]money.Share, 0, len(units))
@@ -1073,49 +1080,52 @@ func (r *FinanceRepository) CreateAssessment(ctx context.Context, propertyID str
 			totalWeight = totalWeight.Add(s.Weight)
 		}
 		for _, s := range dist {
-			unitTotals[s.Key] += s.Amount
+			unitTotals[unitClass{s.Key, liability}] += s.Amount
 			details = append(details, assessmentDetailRow{
-				unitID: s.Key, categoryID: item.CategoryID, amount: s.Amount,
+				unitID: s.Key, liability: liability, categoryID: item.CategoryID, amount: s.Amount,
 				calculationBasis: distType, shareValue: s.Weight.Div(totalWeight).InexactFloat64(),
 			})
 		}
 	}
 
 	period := fmt.Sprintf("%04d-%02d", input.PeriodYear, input.PeriodMonth)
-	assessmentIDs := make(map[string]string, len(unitTotals))
+	assessmentIDs := make(map[unitClass]string, len(unitTotals))
 	summaries := make([]models.AssessmentSummary, 0, len(unitTotals))
 	for _, u := range units { // belirlenimci sıra
-		total, ok := unitTotals[u.id]
-		if !ok {
-			continue
-		}
-		id := uuid.New().String()
-		_, err := tx.Exec(ctx, `
-			INSERT INTO monthly_assessments (id, property_id, unit_id, period_year, period_month, base_amount, total_amount, due_date, status)
-			VALUES ($1, $2, $3, $4, $5, $6::numeric, $6::numeric, $7, 'PENDING')
-		`, id, propertyID, u.id, input.PeriodYear, input.PeriodMonth, total.String(), dueDate)
-		if err != nil {
-			var pgErr *pgconn.PgError
-			if errors.As(err, &pgErr) && pgErr.Code == "23505" {
-				return nil, ErrAssessmentPeriodExists
+		for _, liability := range Liabilities {
+			total, ok := unitTotals[unitClass{u.id, liability}]
+			if !ok {
+				continue
 			}
-			return nil, err
+			id := uuid.New().String()
+			_, err := tx.Exec(ctx, `
+				INSERT INTO monthly_assessments (id, property_id, unit_id, period_year, period_month, base_amount, total_amount, due_date, status, liability)
+				VALUES ($1, $2, $3, $4, $5, $6::numeric, $6::numeric, $7, 'PENDING', $8)
+			`, id, propertyID, u.id, input.PeriodYear, input.PeriodMonth, total.String(), dueDate, liability)
+			if err != nil {
+				var pgErr *pgconn.PgError
+				if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+					return nil, ErrAssessmentPeriodExists
+				}
+				return nil, err
+			}
+			assessmentIDs[unitClass{u.id, liability}] = id
+			summaries = append(summaries, models.AssessmentSummary{
+				ID:          id,
+				Period:      period,
+				BaseAmount:  total.TRY().InexactFloat64(),
+				TotalAmount: total.TRY().InexactFloat64(),
+				Status:      "PENDING",
+				Liability:   liability,
+			})
 		}
-		assessmentIDs[u.id] = id
-		summaries = append(summaries, models.AssessmentSummary{
-			ID:          id,
-			Period:      period,
-			BaseAmount:  total.TRY().InexactFloat64(),
-			TotalAmount: total.TRY().InexactFloat64(),
-			Status:      "PENDING",
-		})
 	}
 
 	for _, d := range details {
 		_, err := tx.Exec(ctx, `
-			INSERT INTO assessment_details (id, assessment_id, expense_category_id, amount, calculation_basis, share_value)
-			VALUES ($1, $2, $3, $4::numeric, $5, $6)
-		`, uuid.New().String(), assessmentIDs[d.unitID], d.categoryID, d.amount.String(), d.calculationBasis, d.shareValue)
+			INSERT INTO assessment_details (id, assessment_id, expense_category_id, amount, calculation_basis, share_value, liability)
+			VALUES ($1, $2, $3, $4::numeric, $5, $6, $7)
+		`, uuid.New().String(), assessmentIDs[unitClass{d.unitID, d.liability}], d.categoryID, d.amount.String(), d.calculationBasis, d.shareValue, d.liability)
 		if err != nil {
 			return nil, err
 		}
@@ -1131,7 +1141,7 @@ func (r *FinanceRepository) CreateAssessment(ctx context.Context, propertyID str
 func (r *FinanceRepository) ListExpenseCategories(ctx context.Context, propertyID string) ([]models.ExpenseCategory, error) {
 	rows, err := r.scope(propertyID).Query(ctx, `
 		SELECT id, property_id, name, distribution_type, applies_to_commercial, applies_to_ground_floor,
-		       COALESCE(custom_formula::text, ''), is_active
+		       COALESCE(custom_formula::text, ''), is_active, default_liability
 		FROM expense_categories
 		WHERE property_id = $1 AND is_active = true
 		ORDER BY sort_order, name
@@ -1145,7 +1155,7 @@ func (r *FinanceRepository) ListExpenseCategories(ctx context.Context, propertyI
 	for rows.Next() {
 		var ec models.ExpenseCategory
 		if err := rows.Scan(&ec.ID, &ec.PropertyID, &ec.Name, &ec.DistributionType,
-			&ec.AppliesToCommercial, &ec.AppliesToGroundFloor, &ec.CustomFormula, &ec.IsActive); err != nil {
+			&ec.AppliesToCommercial, &ec.AppliesToGroundFloor, &ec.CustomFormula, &ec.IsActive, &ec.DefaultLiability); err != nil {
 			return nil, err
 		}
 		categories = append(categories, ec)
@@ -1183,6 +1193,7 @@ var (
 // OpeningItem kuruşa çevrilmiş devir satırı.
 type OpeningItem struct {
 	UnitID      string
+	Liability   string
 	Amount      money.Kurus
 	Description string
 }
@@ -1190,14 +1201,14 @@ type OpeningItem struct {
 const openingSelect = `
 	SELECT ma.id::text, ma.unit_id::text, COALESCE(NULLIF(un.block, ''), '') || '-' || un.door_number,
 	       ma.total_amount::float8, COALESCE(ma.paid_amount, 0)::float8, ma.due_date,
-	       COALESCE(ma.description, ''), ma.status, ma.created_at
+	       COALESCE(ma.description, ''), ma.status, ma.created_at, ma.liability
 	FROM monthly_assessments ma
 	JOIN units un ON un.id = ma.unit_id`
 
 func scanOpening(row pgx.Row) (*models.OpeningBalance, error) {
 	o := &models.OpeningBalance{}
 	err := row.Scan(&o.ID, &o.UnitID, &o.Unit, &o.Amount, &o.PaidAmount, &o.DueDate,
-		&o.Description, &o.Status, &o.CreatedAt)
+		&o.Description, &o.Status, &o.CreatedAt, &o.Liability)
 	return o, err
 }
 
@@ -1227,15 +1238,15 @@ func (r *FinanceRepository) CreateOpeningBalances(ctx context.Context, propertyI
 		o, err := scanOpening(tx.QueryRow(ctx, `
 			WITH ins AS (
 				INSERT INTO monthly_assessments (property_id, unit_id, period_year, period_month,
-				    base_amount, total_amount, due_date, status, kind, description)
+				    base_amount, total_amount, due_date, status, kind, description, liability)
 				VALUES ($1, $2, EXTRACT(YEAR FROM $3::date)::int, EXTRACT(MONTH FROM $3::date)::int,
-				    $4::numeric, $4::numeric, $3::date, 'PENDING', 'OPENING', $5)
+				    $4::numeric, $4::numeric, $3::date, 'PENDING', 'OPENING', $5, $6)
 				RETURNING *)
 			SELECT ins.id::text, ins.unit_id::text, COALESCE(NULLIF(un.block, ''), '') || '-' || un.door_number,
 			       ins.total_amount::float8, COALESCE(ins.paid_amount, 0)::float8, ins.due_date,
-			       COALESCE(ins.description, ''), ins.status, ins.created_at
+			       COALESCE(ins.description, ''), ins.status, ins.created_at, ins.liability
 			FROM ins JOIN units un ON un.id = ins.unit_id`,
-			propertyID, it.UnitID, due.Format("2006-01-02"), it.Amount.String(), desc))
+			propertyID, it.UnitID, due.Format("2006-01-02"), it.Amount.String(), desc, it.Liability))
 		if err != nil {
 			var pgErr *pgconn.PgError
 			if errors.As(err, &pgErr) && pgErr.Code == "23505" {

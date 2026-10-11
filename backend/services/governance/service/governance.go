@@ -103,6 +103,7 @@ func (s *Service) CreateBudget(ctx context.Context, propertyID, userID string, i
 		if strings.TrimSpace(it.Name) == "" {
 			return nil, invalid("Her kalemin adı olmalıdır")
 		}
+		def := "USAGE"
 		if it.CategoryID != "" {
 			ok, err := s.repo.CategoryVisible(ctx, propertyID, it.CategoryID)
 			if err != nil {
@@ -111,6 +112,17 @@ func (s *Service) CreateBudget(ctx context.Context, propertyID, userID string, i
 			if !ok {
 				return nil, repository.ErrCategoryNotInSite
 			}
+			if def, err = s.repo.CategoryDefaultLiability(ctx, propertyID, it.CategoryID); err != nil {
+				return nil, err
+			}
+		}
+		// Gider sınıfı (066): girişte seçilir; boşsa kategorinin varsayılanı.
+		it.Liability = strings.ToUpper(strings.TrimSpace(it.Liability))
+		if it.Liability == "" {
+			it.Liability = def
+		}
+		if !oneOf(it.Liability, "USAGE", "OWNER") {
+			return nil, invalid("Gider sınıfı geçersiz: "+it.Name, "USAGE", "OWNER")
 		}
 	}
 	units, err := s.repo.ListUnits(ctx, propertyID)
@@ -120,6 +132,7 @@ func (s *Service) CreateBudget(ctx context.Context, propertyID, userID string, i
 
 	// unitID -> yıllık kuruş ve kalem bazlı döküm
 	annual := make(map[string]int64, len(units))
+	annualOwner := make(map[string]int64, len(units))
 	breakdown := make(map[string]map[string]int64, len(units))
 	for _, u := range units {
 		breakdown[u.ID] = map[string]int64{}
@@ -147,6 +160,9 @@ func (s *Service) CreateBudget(ctx context.Context, propertyID, userID string, i
 		for _, d := range dist {
 			annual[d.Key] += int64(d.Amount)
 			breakdown[d.Key][item.Name] += int64(d.Amount)
+			if item.Liability == "OWNER" {
+				annualOwner[d.Key] += int64(d.Amount)
+			}
 		}
 	}
 
@@ -157,11 +173,13 @@ func (s *Service) CreateBudget(ctx context.Context, propertyID, userID string, i
 	for _, u := range units {
 		a := annual[u.ID]
 		unitShares = append(unitShares, models.UnitShare{
-			UnitID:       u.ID,
-			UnitName:     u.Name,
-			AnnualKurus:  a,
-			MonthlyKurus: a / 12,
-			Breakdown:    breakdown[u.ID],
+			UnitID:           u.ID,
+			UnitName:         u.Name,
+			AnnualKurus:      a,
+			MonthlyKurus:     a / 12,
+			Breakdown:        breakdown[u.ID],
+			AnnualUsageKurus: a - annualOwner[u.ID],
+			AnnualOwnerKurus: annualOwner[u.ID],
 		})
 	}
 

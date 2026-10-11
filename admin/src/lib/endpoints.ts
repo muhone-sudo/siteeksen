@@ -86,12 +86,12 @@ export function endpoints(http: Http) {
             debtors: () => g<T.List<T.Debtor>>("/finance/debtors"),
             payments: (limit = 50) => g<T.Paged<T.Payment>>(`/finance/payments?limit=${limit}`),
             openingBalances: () => g<T.List<T.OpeningBalance>>("/finance/opening-balances"),
-            createOpeningBalances: (b: { due_date: string; items: { unit_id: string; amount: number; description?: string }[] }) =>
+            createOpeningBalances: (b: { due_date: string; liability?: string; items: { unit_id: string; amount: number; description?: string; liability?: string }[] }) =>
                 http.post<{ data: T.OpeningBalance[]; created: number; note: string; notification?: T.BroadcastResult }>("/finance/opening-balances", b),
             cancelOpeningBalance: (id: string) => http.post<Msg>(`/finance/opening-balances/${id}/cancel`),
             pendingPayments: () => g<T.List<T.Payment>>("/finance/payments/pending"),
             categories: () => g<T.List<T.FinanceCategory>>("/finance/expense-categories"),
-            createAssessment: (b: { period_year: number; period_month: number; due_date: string; expense_items: { category_id: string; amount: number }[] }) =>
+            createAssessment: (b: { period_year: number; period_month: number; due_date: string; expense_items: { category_id: string; amount: number; liability?: string }[] }) =>
                 http.post<{ data: unknown[]; notification?: T.BroadcastResult }>("/finance/assessments", b),
             confirmPayment: (id: string, reference?: string) => http.post<Msg>(`/finance/payments/${id}/confirm`, { reference }),
             rejectPayment: (id: string) => http.post<Msg>(`/finance/payments/${id}/reject`),

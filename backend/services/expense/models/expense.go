@@ -28,6 +28,8 @@ type Category struct {
 	IsActive             bool   `json:"is_active"`
 	// LegalBasis, dağıtım türünün KMK dayanağını açıklar (arayüzde gösterilir).
 	LegalBasis string `json:"legal_basis,omitempty"`
+	// DefaultLiability: USAGE (oturan) | OWNER (malik) — girişte önerilen sınıf (066).
+	DefaultLiability string `json:"default_liability"`
 }
 
 // Expense, tek bir gider kaydıdır.
@@ -46,6 +48,8 @@ type Expense struct {
 	ReflectsToAssessment bool   `json:"reflects_to_assessment"`
 	AssessmentPeriod     string `json:"assessment_period,omitempty"`
 	DistributionType     string `json:"distribution_type"`
+	// Liability: USAGE (oturan öder) | OWNER (malik öder) — 066.
+	Liability string `json:"liability"`
 
 	Status          string     `json:"status"`
 	ApprovedBy      string     `json:"approved_by,omitempty"`
@@ -88,6 +92,8 @@ type CreateExpenseInput struct {
 	AssessmentPeriod     string `json:"assessment_period"` // YYYY-AA
 	// DistributionType verilmezse kalemin varsayılanı kullanılır.
 	DistributionType string `json:"distribution_type"`
+	// Liability: USAGE (oturan öder) | OWNER (malik öder); verilmezse kalemin varsayılanı (066).
+	Liability string `json:"liability"`
 
 	VendorName    string `json:"vendor_name"`
 	VendorTaxID   string `json:"vendor_tax_id"`

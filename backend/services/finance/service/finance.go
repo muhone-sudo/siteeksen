@@ -361,18 +361,28 @@ func (s *FinanceService) CreateOpeningBalances(ctx context.Context, propertyID s
 	if err != nil {
 		return nil, fmt.Errorf("%w: vade tarihi YYYY-MM-DD olmalı", repository.ErrInvalidAssessmentInput)
 	}
+	defLiability, err := repository.NormalizeLiability(in.Liability, repository.LiabilityUsage)
+	if err != nil {
+		return nil, err
+	}
 	seen := map[string]int{}
 	items := make([]repository.OpeningItem, 0, len(in.Items))
 	for i, it := range in.Items {
-		if prev, ok := seen[it.UnitID]; ok {
-			return nil, fmt.Errorf("%w: %d. ve %d. satır aynı bölüm", repository.ErrInvalidAssessmentInput, prev, i+1)
+		liability, err := repository.NormalizeLiability(it.Liability, defLiability)
+		if err != nil {
+			return nil, fmt.Errorf("%d. satır: %w", i+1, err)
 		}
-		seen[it.UnitID] = i + 1
+		// Bir bölüme sınıf başına bir devir (066): kullanım ve malik devri aynı istekte ayrı satırdır.
+		key := it.UnitID + "|" + liability
+		if prev, ok := seen[key]; ok {
+			return nil, fmt.Errorf("%w: %d. ve %d. satır aynı bölüm ve aynı sınıf", repository.ErrInvalidAssessmentInput, prev, i+1)
+		}
+		seen[key] = i + 1
 		k := money.FromFloatTRY(it.Amount)
 		if k <= 0 {
 			return nil, fmt.Errorf("%w: %d. satır: tutar sıfırdan büyük olmalı", repository.ErrInvalidAssessmentInput, i+1)
 		}
-		items = append(items, repository.OpeningItem{UnitID: it.UnitID, Amount: k, Description: it.Description})
+		items = append(items, repository.OpeningItem{UnitID: it.UnitID, Liability: liability, Amount: k, Description: it.Description})
 	}
 	return s.repo.CreateOpeningBalances(ctx, propertyID, due, items)
 }

@@ -6,7 +6,7 @@ import { api } from "@/lib/api";
 import { useAction, useApi, useRoles } from "@/lib/use-api";
 import { ActionFeedback, Badge, Button, Card, Field, FormModal, Grid, Input, Modal, Notice, Page, QueryView, ReadOnlyHint, Select, Stats, StatusBadge, Table, Textarea } from "@/components/ui/kit";
 import { date, num, tl, today } from "@/lib/format";
-import { DISTRIBUTION, EXPENSE_STATUS, opts } from "@/lib/labels";
+import { DISTRIBUTION, EXPENSE_STATUS, LIABILITY_LABEL, LIABILITY_OPTIONS, opts } from "@/lib/labels";
 import type { Expense } from "@/lib/types";
 
 export default function ExpensesPage() {
@@ -23,7 +23,7 @@ export default function ExpensesPage() {
     const detailQ = useApi(["expenses", "detail", detail], () => api.expenses.get(detail!), !!detail);
     const [rejecting, setRejecting] = useState<Expense | null>(null);
     const [reason, setReason] = useState("");
-    const empty = { category_id: "", description: "", amount: "", expense_date: today(), is_invoiced: true, invoice_reason: "", vendor_name: "", invoice_number: "", distribution_type: "", notes: "" };
+    const empty = { category_id: "", description: "", amount: "", expense_date: today(), is_invoiced: true, invoice_reason: "", vendor_name: "", invoice_number: "", distribution_type: "", notes: "", liability: "USAGE" };
     const [form, setForm] = useState(empty);
 
     const s = summary.data;
@@ -53,6 +53,7 @@ export default function ExpensesPage() {
                             { header: "Tarih", cell: (e) => date(e.expense_date) },
                             { header: "Açıklama", cell: (e) => <div><p className="font-medium">{e.description}</p><p className="text-xs text-gray-500">{e.category_name}{e.vendor_name ? ` · ${e.vendor_name}` : ""}</p></div> },
                             { header: "Tutar", cell: (e) => tl(e.amount) },
+                            { header: "Sınıf", cell: (e) => LIABILITY_LABEL[e.liability ?? "USAGE"] },
                             { header: "Fatura", cell: (e) => (e.is_invoiced ? <Badge tone="green">Var</Badge> : <Badge tone="amber">Yok</Badge>) },
                             { header: "Durum", cell: (e) => <StatusBadge value={e.status} map={EXPENSE_STATUS} /> },
                             { header: "", cell: (e) => (
@@ -81,11 +82,14 @@ export default function ExpensesPage() {
                 }}>
                 <Grid>
                     <Field label="Gider kalemi" required>
-                        <Select required value={form.category_id} onChange={(e) => setForm({ ...form, category_id: e.target.value })}
+                        <Select required value={form.category_id} onChange={(e) => setForm({ ...form, category_id: e.target.value, liability: (cats.data?.data ?? []).find((c) => c.id === e.target.value)?.default_liability ?? "USAGE" })}
                             options={(cats.data?.data ?? []).map((c) => ({ value: c.id, label: c.name }))} placeholder="Seçin" />
                     </Field>
                     <Field label="Tutar (TL)" required><Input required type="number" step="0.01" min="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} /></Field>
                     <Field label="Gider tarihi" required><Input required type="date" value={form.expense_date} onChange={(e) => setForm({ ...form, expense_date: e.target.value })} /></Field>
+                    <Field label="Gider sınıfı" required hint="Kullanım giderini daireyi kullanan, malik giderini (demirbaş, yenilik, yeni tesis) malik öder.">
+                        <Select value={form.liability} onChange={(e) => setForm({ ...form, liability: e.target.value })} options={LIABILITY_OPTIONS} />
+                    </Field>
                     <Field label="Dağıtım" hint="Boş bırakılırsa kalemin varsayılanı kullanılır.">
                         <Select value={form.distribution_type} onChange={(e) => setForm({ ...form, distribution_type: e.target.value })} options={DISTRIBUTION} placeholder="Kalem varsayılanı" />
                     </Field>

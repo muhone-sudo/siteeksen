@@ -71,3 +71,10 @@ export const METER_TYPES = [
 ];
 
 export const opts = (m: Map) => Object.entries(m).map(([value, [label]]) => ({ value, label }));
+
+/** Gider sınıfı (066): kullanım giderini oturan, malik giderini malik öder (KMK m.20, m.22, m.42-43). */
+export const LIABILITY_OPTIONS = [
+    { value: "USAGE", label: "Kullanım — oturan öder (kapıcı, temizlik, ısınma…)" },
+    { value: "OWNER", label: "Malik — demirbaş, yenilik, yeni tesis, ana yapı onarımı" },
+];
+export const LIABILITY_LABEL: Record<string, string> = { USAGE: "Kullanım", OWNER: "Malik" };

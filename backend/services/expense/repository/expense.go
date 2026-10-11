@@ -74,7 +74,7 @@ func (r *Repository) ListCategories(ctx context.Context, propertyID string) ([]m
 		       COALESCE(reflects_to_assessment, true),
 		       COALESCE(applies_to_ground_floor, true),
 		       COALESCE(is_default,false), COALESCE(display_order, sort_order, 0),
-		       COALESCE(is_active,true)
+		       COALESCE(is_active,true), default_liability
 		FROM expense_categories
 		WHERE property_id = $1 OR property_id IS NULL
 		ORDER BY COALESCE(display_order, sort_order, 0), name`, propertyID)
@@ -88,7 +88,7 @@ func (r *Repository) ListCategories(ctx context.Context, propertyID string) ([]m
 		var c models.Category
 		if err := rows.Scan(&c.ID, &c.PropertyID, &c.Name, &c.Description, &c.Type,
 			&c.DistributionType, &c.ReflectsToAssessment, &c.AppliesToGroundFloor,
-			&c.IsDefault, &c.DisplayOrder, &c.IsActive); err != nil {
+			&c.IsDefault, &c.DisplayOrder, &c.IsActive, &c.DefaultLiability); err != nil {
 			return nil, err
 		}
 		c.LegalBasis = legalBasisFor(c.DistributionType)
@@ -123,12 +123,12 @@ func (r *Repository) GetCategory(ctx context.Context, propertyID, categoryID str
 		       COALESCE(reflects_to_assessment, true),
 		       COALESCE(applies_to_ground_floor, true),
 		       COALESCE(is_default,false), COALESCE(display_order, sort_order, 0),
-		       COALESCE(is_active,true)
+		       COALESCE(is_active,true), default_liability
 		FROM expense_categories
 		WHERE id = $1 AND (property_id = $2 OR property_id IS NULL)`,
 		categoryID, propertyID).Scan(&c.ID, &c.PropertyID, &c.Name, &c.Description, &c.Type,
 		&c.DistributionType, &c.ReflectsToAssessment, &c.AppliesToGroundFloor,
-		&c.IsDefault, &c.DisplayOrder, &c.IsActive)
+		&c.IsDefault, &c.DisplayOrder, &c.IsActive, &c.DefaultLiability)
 	if err == pgx.ErrNoRows {
 		return nil, ErrCategoryInvalid
 	}
@@ -171,14 +171,14 @@ func (r *Repository) Create(
 			(property_id, category_id, description, amount, expense_date,
 			 is_invoiced, invoice_reason, reflects_to_assessment, assessment_period,
 			 distribution_type, status, vendor_name, vendor_tax_id, invoice_number,
-			 invoice_date, notes, created_by)
+			 invoice_date, notes, created_by, liability)
 		VALUES ($1,$2,$3,$4,$5,$6,NULLIF($7,''),$8,NULLIF($9,''),$10,$11,
-		        NULLIF($12,''),NULLIF($13,''),NULLIF($14,''),$15,NULLIF($16,''),$17)
+		        NULLIF($12,''),NULLIF($13,''),NULLIF($14,''),$15,NULLIF($16,''),$17,$18)
 		RETURNING id`,
 		propertyID, in.CategoryID, in.Description, in.Amount, expenseDate,
 		isInvoiced, in.InvoiceReason, reflects, in.AssessmentPeriod,
 		distributionType, status, in.VendorName, in.VendorTaxID, in.InvoiceNumber,
-		invoiceDate, in.Notes, userID).Scan(&id)
+		invoiceDate, in.Notes, userID, in.Liability).Scan(&id)
 	if err != nil {
 		return "", err
 	}
@@ -206,7 +206,7 @@ SELECT e.id, e.property_id, e.category_id, COALESCE(c.name,''), e.description,
        COALESCE(e.approved_by::text,''), e.approved_at, COALESCE(e.rejection_reason,''),
        COALESCE(e.vendor_name,''), COALESCE(e.vendor_tax_id,''),
        COALESCE(e.invoice_number,''), e.invoice_date, COALESCE(e.notes,''),
-       COALESCE(e.created_by::text,''), e.created_at
+       COALESCE(e.created_by::text,''), e.created_at, e.liability
 FROM expenses e
 LEFT JOIN expense_categories c ON c.id = e.category_id`
 
@@ -216,7 +216,7 @@ func scanExpense(row pgx.Row) (*models.Expense, error) {
 		&e.Amount, &e.Currency, &e.ExpenseDate, &e.IsInvoiced, &e.InvoiceReason,
 		&e.ReflectsToAssessment, &e.AssessmentPeriod, &e.DistributionType, &e.Status,
 		&e.ApprovedBy, &e.ApprovedAt, &e.RejectionReason, &e.VendorName, &e.VendorTaxID,
-		&e.InvoiceNumber, &e.InvoiceDate, &e.Notes, &e.CreatedBy, &e.CreatedAt)
+		&e.InvoiceNumber, &e.InvoiceDate, &e.Notes, &e.CreatedBy, &e.CreatedAt, &e.Liability)
 	if err != nil {
 		return nil, err
 	}

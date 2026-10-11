@@ -74,7 +74,7 @@ Giriş kilidi: art arda 5 hatalı girişte hesap 15 dk kilitlenir (kilitliyken d
 | Uç | Rol | Gövde / Sorgu | Yanıt |
 |---|---|---|---|
 | `GET /finance/debt-status` | herkes | — | `{has_debt,current_balance,overdue_amount,overdue_months,next_due_date,next_due_amount}` |
-| `GET /finance/assessments` | herkes (kendi daireleri) | `year` | `{data:[{id,period,base_amount,late_fee,total_amount,paid_amount,status}]}` |
+| `GET /finance/assessments` | herkes (kendi daireleri) | `year` | `{data:[{id,period,base_amount,late_fee,total_amount,paid_amount,status,liability}]}` — `liability`: USAGE (kullanım/oturan) · OWNER (malik) (066) |
 | `GET /finance/assessments/:id` | sakin: yalnız kendi dairesi; M/B/A: tümü | — | `{id,property_id,unit_id,period_year,period_month,base_amount,late_fee,total_amount,paid_amount,due_date,status,created_at,details:[{category,amount,calculation_basis}]}` |
 | `POST /finance/payments` | herkes | `assessment_ids`*[],`payment_method`*,`card_token`,`save_card` | `{payment_id,amount,status:"PENDING",payment_gateway_ready:false}` (tahsilat YAPILMAZ) |
 | `GET /finance/my-payments` | herkes | `limit`(≤500, vars. 50),`offset` | `{data:[…kendi ödemeleri],total,limit,offset}` |
@@ -83,11 +83,11 @@ Giriş kilidi: art arda 5 hatalı girişte hesap 15 dk kilitlenir (kilitliyken d
 | `GET /finance/payments` | M,B,A | `limit`(≤500, vars. 50),`offset` | `{data:[{id,user_id,amount,payment_method,status,transaction_id?,created_at,completed_at,name,unit}],total,limit,offset}` |
 | `GET /finance/payments/pending` | M,B,A | — | aynı biçim |
 | `GET /finance/assessments/overview` | M,B,A | `year` | `{data:[{period,due_date,total_amount,collected_amount,rate,status}]}` — `rate` yüzde, tek ondalık, aşağı yuvarlanmış (2026-10-03) |
-| `GET /finance/opening-balances` | M,B,A | — | `{data:[{id,unit_id,unit,amount,paid_amount,due_date,description,status,created_at}]}` |
-| `POST /finance/opening-balances` | M,B | `due_date`*,`items`*:[{`unit_id`*,`amount`*>0,`description`}] (en çok 2000) | 201 `{data,created,note,notification}` — tek işlem; bölüm başına tek devir (409); daire sakinlerine yeni borç bildirimi (B1); devire otomatik gecikme tazminatı işletilmez, dönem özetine girmez |
+| `GET /finance/opening-balances` | M,B,A | — | `{data:[{id,unit_id,unit,amount,paid_amount,due_date,description,status,created_at,liability}]}` |
+| `POST /finance/opening-balances` | M,B | `due_date`*,`liability`(USAGE/OWNER, satır varsayılanı),`items`*:[{`unit_id`*,`amount`*>0,`description`,`liability`}] (en çok 2000) | 201 `{data,created,note,notification}` — tek işlem; bölüm başına sınıf başına tek devir (409); daire sakinlerine yeni borç bildirimi (B1); devire otomatik gecikme tazminatı işletilmez, dönem özetine girmez |
 | `POST /finance/opening-balances/:id/cancel` | M,B | — | 200 · ödemesi/bekleyen ödemesi varsa 409 |
-| `GET /finance/expense-categories` | M,B,A | — | `{data:[{id,property_id,name,distribution_type,applies_to_commercial,applies_to_ground_floor,custom_formula,is_active}]}` |
-| `POST /finance/assessments` | M,B | `period_year`*,`period_month`*(1-12),`due_date`*,`expense_items`*[{`category_id`*,`amount`*>0}] | 201 `{data:[özet],notification}` · 409 dönem var · `notification`: daire sakinlerine yeni borç bildiriminin sayaçları (B1) |
+| `GET /finance/expense-categories` | M,B,A | — | `{data:[{id,property_id,name,distribution_type,applies_to_commercial,applies_to_ground_floor,custom_formula,is_active,default_liability}]}` — `default_liability`: girişte önerilen sınıf (066) |
+| `POST /finance/assessments` | M,B | `period_year`*,`period_month`*(1-12),`due_date`*,`expense_items`*[{`category_id`*,`amount`*>0,`liability`(USAGE/OWNER; boşsa kalemin varsayılanı)}] | 201 `{data:[özet],notification}` — bölüme sınıf başına ayrı tahakkuk (aynı ay kullanım + malik iki kayıt) · 409 dönem + sınıf var · 400 tanınmayan sınıf · `notification`: daire sakinlerine yeni borç bildiriminin sayaçları (B1) |
 | `POST /finance/payments/:id/confirm` | M,B | `reference` | `{message}` · 404/409/403 |
 | `POST /finance/payments/:id/reject` | M,B | — | `{message}` · 404/409 |
 | `POST /finance/late-fees/accrue` | M,B | `as_of` | `{as_of,monthly_rate,legal_basis,processed_count,total_fee_kurus,total_fee_try,skipped_not_due}` |
@@ -135,11 +135,11 @@ Gider nesnesi: `{id,category_id,category_name,description,amount,currency,expens
 
 | Uç | Rol | Gövde / Sorgu | Yanıt |
 |---|---|---|---|
-| `GET /expense-categories` | M,B,A | — | `{data:[{id,property_id,name,description,type,distribution_type,reflects_to_assessment,applies_to_ground_floor,is_default,display_order,is_active,legal_basis}]}` |
+| `GET /expense-categories` | M,B,A | — | `{data:[{id,property_id,name,description,type,distribution_type,reflects_to_assessment,applies_to_ground_floor,is_default,display_order,is_active,legal_basis,default_liability}]}` |
 | `GET /expenses` | M,B,A | `year`,`month`,`status`,`category_id` | `{data:[Gider]}` |
 | `GET /expenses/summary` | M,B,A | `year`,`month` | `{period_year,period_month,total_amount,invoiced_amount,non_invoiced_amount,pending_count,by_category:[{category_id,category_name,amount,count}]}` |
 | `GET /expenses/:id` | M,B,A | — | Gider (+dağıtım) |
-| `POST /expenses` | M,B | `category_id`*,`description`*,`amount`*>0,`expense_date`*,`is_invoiced`(true),`invoice_reason`(faturasızsa zorunlu),`reflects_to_assessment`,`assessment_period`(YYYY-MM),`distribution_type`(EQUAL/SHARE_RATIO/AREA_M2),`vendor_name`,`vendor_tax_id`,`invoice_number`,`invoice_date`,`notes` | 201 `{expense, note?}` |
+| `POST /expenses` | M,B | `category_id`*,`description`*,`amount`*>0,`expense_date`*,`is_invoiced`(true),`invoice_reason`(faturasızsa zorunlu),`reflects_to_assessment`,`assessment_period`(YYYY-MM),`distribution_type`(EQUAL/SHARE_RATIO/AREA_M2),`vendor_name`,`vendor_tax_id`,`invoice_number`,`invoice_date`,`notes`,`liability`(USAGE/OWNER; boşsa kalemin varsayılanı) | 201 `{expense, note?}` · 422 tanınmayan sınıf (066) |
 | `POST /expenses/:id/approve` · `/reject` | M,B | reject: `reason`* | `{message}` · 404/409 |
 
 ## personnel (8100)
@@ -347,10 +347,11 @@ Roller: okuma M,B,A · yazma M,B. İtiraz: kat maliki/vekil ya da yönetim.
 
 | Uç | Gövde / Sorgu | Yanıt |
 |---|---|---|
-| `GET /governance/budgets` · `/budgets/:id` | — | `{data:[{id,period_year,status(DRAFT/NOTIFIED/FINAL),total_amount,notified_at,objection_deadline,approval_deadline,finalized_at}]}` · tam bütçe `{…,items:[{id,category_id,name,amount,distribution_type,kind,note,sort_order}],unit_shares:[{unit_id,unit_name,annual_kurus,monthly_kurus,breakdown}],open_objections,approval_deadline,approved_agenda_item_id,cap_base_budget_id,cap_rate,cap_amount,decision_ref}` |
-| `POST /governance/budgets` | `period_year`*(2000-2200),`items`*[{`name`*,`amount`*>0,`distribution_type`*(EQUAL/SHARE_RATIO/AREA_M2),`kind`(EXPENSE/INCOME),`category_id`,`note`}],`note` | 201 bütçe |
+| `GET /governance/budgets` · `/budgets/:id` | — | `{data:[{id,period_year,status(DRAFT/NOTIFIED/FINAL),total_amount,notified_at,objection_deadline,approval_deadline,finalized_at}]}` · tam bütçe `{…,items:[{id,category_id,name,amount,distribution_type,kind,note,sort_order,liability}],unit_shares:[{unit_id,unit_name,annual_kurus,annual_usage_kurus,annual_owner_kurus,monthly_kurus,breakdown}],open_objections,approval_deadline,approved_agenda_item_id,cap_base_budget_id,cap_rate,cap_amount,decision_ref}` |
+| `POST /governance/budgets` | `period_year`*(2000-2200),`items`*[{`name`*,`amount`*>0,`distribution_type`*(EQUAL/SHARE_RATIO/AREA_M2),`kind`(EXPENSE/INCOME),`category_id`,`note`,`liability`(USAGE/OWNER; boşsa kategorinin varsayılanı, o da yoksa USAGE)}],`note` | 201 bütçe — bölüm payı `annual_usage_kurus` + `annual_owner_kurus` = `annual_kurus` (066) · 422 tanınmayan sınıf |
 | `POST /budgets/:id/notify` | `method`*(IMZA_KARSILIGI/TAAHHUTLU_MEKTUP/ELEKTRONIK) | bütçe — geçici proje; `approval_deadline` = +3 ay (KMK m.37, 7579). 422: yeniden değerleme tavanı aşıldı ya da oran tanımsız |
 | `POST /budgets/:id/finalize` | `agenda_item_id`* (yapılmış genel kurulda kabul edilmiş madde), `decision_ref` | `{budget,note}` (İİK m.68 belgesi) · 422 madde kabul edilmemiş · 409 madde başka projede / proje kesinleşmiş |
+| `POST /budgets/:id/assessments` | `period_month`*(1-12),`due_date`* | 201 `{period,created,created_by_class:{USAGE,OWNER},total_kurus,budget_status,note,notification}` — bildirilmiş/kesinleşmiş projeden aylık tahakkuk; bölüme sınıf başına ayrı kayıt (066) · 409 aynı ay + sınıf var · 422 taslak proje / vade aydan önce |
 | `GET/POST /budgets/:id/objections` | POST: `unit_id`*,`reason`* | `{data:[{id,unit_id,user_id,reason,submitted_at,status,resolution,resolved_at,in_time}]}` · 201 `{objection,warning?}` |
 | `PATCH /budgets/:id/objections/:objectionId` | `status`*(ACCEPTED/REJECTED/WITHDRAWN),`resolution` | `{message}` · 409 zaten sonuçlanmış |
 | `GET /governance/assemblies` · `/assemblies/:id` | — | `{data:[…]}` · `{id,kind,call_number,scheduled_at,location,notice_sent_at,notice_method,status(PLANNED/NOTIFIED/HELD),held_at,total_units,total_share_ratio,attended_units,attended_share_ratio,quorum_met,agenda_items:[{id,order_no,title,description,required_majority_code,decision_text,decision_status,votes_for,votes_against,votes_abstain,share_for,share_against,share_abstain}]}` |

@@ -4,7 +4,8 @@ import { useState } from "react";
 import { Upload } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAction, useApi } from "@/lib/use-api";
-import { ActionFeedback, Button, Card, Field, FormModal, Input, Notice, QueryView, Table, Textarea } from "@/components/ui/kit";
+import { ActionFeedback, Button, Card, Field, FormModal, Input, Notice, QueryView, Select, Table, Textarea } from "@/components/ui/kit";
+import { LIABILITY_LABEL, LIABILITY_OPTIONS } from "@/lib/labels";
 import { date, tl, today } from "@/lib/format";
 
 /**
@@ -19,6 +20,7 @@ export function OpeningBalances({ canWrite }: { canWrite: boolean }) {
     const [open, setOpen] = useState(false);
     const [due, setDue] = useState(today());
     const [text, setText] = useState("");
+    const [liability, setLiability] = useState("USAGE");
 
     const byLabel = new Map((units.data?.data ?? []).map((u) => [`${u.block}-${u.door_number}`.toUpperCase(), u.id]));
     const items: { unit_id: string; amount: number; description?: string }[] = [];
@@ -52,6 +54,7 @@ export function OpeningBalances({ canWrite }: { canWrite: boolean }) {
                             { header: "Ödenen", cell: (o) => tl(o.paid_amount) },
                             { header: "Vade", cell: (o) => date(o.due_date) },
                             { header: "Açıklama", cell: (o) => o.description },
+                            { header: "Sınıf", cell: (o) => LIABILITY_LABEL[o.liability ?? "USAGE"] },
                             ...(canWrite ? [{
                                 header: "",
                                 cell: (o: { id: string; paid_amount: number }) => o.paid_amount === 0 ? (
@@ -74,7 +77,7 @@ export function OpeningBalances({ canWrite }: { canWrite: boolean }) {
                 error={act.error}
                 onSubmit={async () => {
                     if (errors.length || items.length === 0) return;
-                    const r = await act.run(() => api.finance.createOpeningBalances({ due_date: due, items }), {
+                    const r = await act.run(() => api.finance.createOpeningBalances({ due_date: due, liability, items }), {
                         invalidate: ["opening-balances", "debtors"],
                         success: (x) => `${x.created} devir kaydı girildi. Sakin bildirimi: ${x.notification?.note ?? "—"}`,
                     });
@@ -86,6 +89,9 @@ export function OpeningBalances({ canWrite }: { canWrite: boolean }) {
                     Her daireye bir devir kaydı girilir; hepsi tek seferde kaydedilir.
                 </Notice>
                 <Field label="Vade tarihi" required><Input type="date" required value={due} onChange={(e) => setDue(e.target.value)} /></Field>
+                <Field label="Gider sınıfı" required hint="Kullanım borcunu daireyi kullanan, malik borcunu malik öder. Farklı sınıftaki devirleri ayrı girin; her daireye sınıf başına bir devir kaydı açılır.">
+                    <Select value={liability} onChange={(e) => setLiability(e.target.value)} options={LIABILITY_OPTIONS} />
+                </Field>
                 <p className="text-sm text-gray-600 dark:text-gray-400">Her satıra: <code>daire;tutar;açıklama</code> (daire &quot;A-3&quot; biçiminde).</p>
                 <Textarea rows={8} value={text} onChange={(e) => setText(e.target.value)} placeholder={"A-3;1.500,50;Önceki yönetimden devir\nB-1;250"} />
                 {errors.length > 0

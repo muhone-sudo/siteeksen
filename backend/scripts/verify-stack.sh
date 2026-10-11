@@ -5637,11 +5637,11 @@ done
 
 # 5) Ortak gider kalemleri: sayı sabit, iki sitede de görünür, uygulama üretemez
 GEC=$($PSQL -t -A -c "SELECT count(*) FROM expense_categories WHERE property_id IS NULL;")
-[ "$GEC" = "10" ] && ok "ortak gider kalemi sayısı tohum verisiyle aynı (10)" \
-  || bad "ortak gider kalemi sayısı değişmiş ($GEC, beklenen 10)"
+[ "$GEC" = "13" ] && ok "ortak gider kalemi sayısı tohum verisiyle aynı (10 + 066 malik kalemleri 3)" \
+  || bad "ortak gider kalemi sayısı değişmiş ($GEC, beklenen 13)"
 GD=$(qscoped "SELECT count(*) FROM expense_categories WHERE property_id IS NULL;")
 GO=$(qscoped "SELECT count(*) FROM expense_categories WHERE property_id IS NULL;" "$OTHERPROP")
-[ "$GD" = "10" ] && [ "$GO" = "10" ] && ok "ortak gider kalemleri her iki sitede de görünüyor" \
+[ "$GD" = "13" ] && [ "$GO" = "13" ] && ok "ortak gider kalemleri her iki sitede de görünüyor" \
   || bad "ortak gider kalemleri kayboldu (demo=$GD diğer=$GO)"
 if PGPASSWORD="$APPPW" psql -h 127.0.0.1 -p "${DBPORT}" -U siteeksen_app -d siteeksen \
   -v ON_ERROR_STOP=1 -q -c "SET LOCAL app.property_id = '$DEMO_PROPERTY';
@@ -8151,6 +8151,122 @@ GU9=$(appsql46 "UPDATE payment_receipts SET file_name='x' WHERE id='$RCID'")
   && ok "onaylanmış ödemeye dekont eklenemiyor (403); dekont kaydı uygulama rolüyle silinemiyor ve değiştirilemiyor" \
   || bad "dekont koruması: onay sonrası=$D8 / sil=$GD9 / değiştir=$GU9"
 kill_tree "$FB9_PID"; kill_tree "$FB9N_PID"
+
+step "57) Gider sınıfı: kullanım (oturan) / malik — tahakkuk, işletme projesi, devir, gider (066, altıncı tur D1)"
+for P in 19782:finance 19783:governance 19784:expense; do
+  DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_app DB_PASSWORD="$APPPW" DB_NAME=siteeksen \
+    DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${P%%:*} \
+    go run ./services/${P##*:} >/tmp/verify-d1-${P##*:}.log 2>&1 &
+  eval "D1_${P##*:}=\$!"
+done
+for _ in $(seq 1 60); do
+  curl -fsS http://127.0.0.1:19782/health >/dev/null 2>&1 && curl -fsS http://127.0.0.1:19783/health >/dev/null 2>&1 \
+    && curl -fsS http://127.0.0.1:19784/health >/dev/null 2>&1 && break; sleep 1
+done
+LF="http://127.0.0.1:19782/api/v1/finance"; LG="http://127.0.0.1:19783/api/v1/governance"; LE="http://127.0.0.1:19784/api/v1"
+LM="Authorization: Bearer $MGRL"
+C_EQ='55555555-5555-5555-5555-555555555501'; C_OWN='10000000-0000-0000-0000-000000000103'; C_SR2='55555555-5555-5555-5555-555555555502'
+# Finans tahakkuku sitenin kendi kalemlerini kullanır; kalemin varsayılan sınıfının işlediğini görmek için biri malik yapılır
+$PSQL -c "UPDATE expense_categories SET default_liability='OWNER' WHERE id='$C_SR2';" >/dev/null
+NU=$($PSQL -t -A -c "SELECT count(*) FROM units WHERE property_id='$DEMO_PROPERTY' AND deleted=0;")
+CDEF=$(curl -s "$LF/expense-categories" -H "$LM" | python3 -c "
+import json,sys
+d={c['id']:c.get('default_liability') for c in json.load(sys.stdin)['data']}
+print(d.get('$C_EQ'), d.get('$C_SR2'))" 2>/dev/null)
+# Karışık sınıflı tahakkuk: kullanım kalemi + malik kalemi (sınıf kategoriden) → bölüm başına iki kayıt
+LQ="property_id='$DEMO_PROPERTY' AND period_year=2092 AND period_month=3"
+L1=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$LF/assessments" -H "$LM" -H "$J" \
+  -d "{\"period_year\":2092,\"period_month\":3,\"due_date\":\"2092-03-15\",\"expense_items\":[{\"category_id\":\"$C_EQ\",\"amount\":1000},{\"category_id\":\"$C_SR2\",\"amount\":600}]}")
+LROW=$($PSQL -t -A -c "SELECT (SELECT count(*) FROM monthly_assessments WHERE $LQ AND liability='USAGE')||'|'||
+  ((SELECT count(*) FROM monthly_assessments WHERE $LQ AND liability='OWNER') > 0)||'|'||
+  (SELECT COALESCE(sum(total_amount),0) FROM monthly_assessments WHERE $LQ AND liability='OWNER')||'|'||
+  (SELECT COALESCE(sum(total_amount),0) FROM monthly_assessments WHERE $LQ AND liability='USAGE')||'|'||
+  (SELECT count(*) FROM assessment_details d JOIN monthly_assessments ma ON ma.id=d.assessment_id WHERE $LQ AND d.liability<>ma.liability)||'|'||
+  (SELECT count(*) FROM monthly_assessments ma WHERE $LQ AND ma.total_amount <> (SELECT sum(amount) FROM assessment_details d WHERE d.assessment_id=ma.id));")
+LAPI=$(curl -s "$LF/assessments?year=2092" -H "$LM" | python3 -c "
+import json,sys
+d=json.load(sys.stdin).get('data') or []
+print(sorted(set(a.get('liability') for a in d)))" 2>/dev/null)
+[ "$CDEF" = "USAGE OWNER" ] && [ "$L1" = "201" ] && [ "$LROW" = "$NU|true|600.00|1000.00|0|0" ] \
+  && ok "kalemin varsayılan sınıfı dönüyor; kullanım + malik kalemli tahakkukta bölüme sınıf başına ayrı kayıt açıldı: malik toplamı 600,00, kullanım 1.000,00 kuruşu kuruşuna, kalem satırları başlıkla aynı sınıfta" \
+  || bad "karışık sınıflı tahakkuk: kategori=$CDEF / $L1 / $LROW (beklenen $NU|true|600.00|1000.00|0|0) / liste=$LAPI"
+L2=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$LF/assessments" -H "$LM" -H "$J" \
+  -d "{\"period_year\":2092,\"period_month\":3,\"due_date\":\"2092-03-15\",\"expense_items\":[{\"category_id\":\"$C_SR2\",\"amount\":300}]}")
+L3=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$LF/assessments" -H "$LM" -H "$J" \
+  -d "{\"period_year\":2092,\"period_month\":4,\"due_date\":\"2092-04-15\",\"expense_items\":[{\"category_id\":\"$C_EQ\",\"amount\":240,\"liability\":\"OWNER\"}]}")
+L3R=$($PSQL -t -A -c "SELECT string_agg(DISTINCT liability, ',') FROM monthly_assessments WHERE property_id='$DEMO_PROPERTY' AND period_year=2092 AND period_month=4;")
+L4=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$LF/assessments" -H "$LM" -H "$J" \
+  -d "{\"period_year\":2092,\"period_month\":5,\"due_date\":\"2092-05-15\",\"expense_items\":[{\"category_id\":\"$C_EQ\",\"amount\":240,\"liability\":\"KIRACI\"}]}")
+L4N=$($PSQL -t -A -c "SELECT count(*) FROM monthly_assessments WHERE property_id='$DEMO_PROPERTY' AND period_year=2092 AND period_month=5;")
+$PSQL -c "UPDATE expense_categories SET default_liability='USAGE' WHERE id='$C_SR2';" >/dev/null
+[ "$L2" = "409" ] && [ "$L3" = "201" ] && [ "$L3R" = "OWNER" ] && [ "$L4" = "400" ] && [ "$L4N" = "0" ] \
+  && ok "aynı dönem + aynı sınıf ikinci kez tahakkuk edilemiyor (409); girişte seçilen sınıf kategorinin varsayılanını eziyor; tanınmayan sınıf 400 ve hiç kayıt yok" \
+  || bad "tahakkuk sınıf kuralları: tekrar=$L2 / seçilen=$L3 ($L3R) / geçersiz=$L4 kayıt=$L4N"
+# Tahakkukun sınıfı sonradan değiştirilemez (uygulama rolü)
+LUID=$($PSQL -t -A -c "SELECT id FROM monthly_assessments WHERE $LQ AND liability='USAGE' LIMIT 1;")
+LG1=$(appsql46 "UPDATE monthly_assessments SET liability='OWNER' WHERE id='$LUID'")
+LG1V=$($PSQL -t -A -c "SELECT liability FROM monthly_assessments WHERE id='$LUID';")
+grep -q 'sınıfı (kullanım/malik) değiştirilemez' <<<"$LG1" && [ "$LG1V" = "USAGE" ] \
+  && ok "tahakkukun sınıfı uygulama rolüyle değiştirilemiyor (tetikleyici); kayıt kullanım sınıfında kaldı" \
+  || bad "sınıf koruması: $LG1 / $LG1V"
+$PSQL -c "DELETE FROM assessment_details WHERE assessment_id IN (SELECT id FROM monthly_assessments WHERE property_id='$DEMO_PROPERTY' AND period_year=2092);
+  DELETE FROM monthly_assessments WHERE property_id='$DEMO_PROPERTY' AND period_year=2092;" >/dev/null
+# Devir bakiyesi: aynı bölüme kullanım ve malik devri ayrı girilir; aynı sınıfta ikinci devir 409
+LO=$(curl -s -w '|%{http_code}' -X POST "$LF/opening-balances" -H "$LM" -H "$J" \
+  -d "{\"due_date\":\"2092-06-30\",\"items\":[{\"unit_id\":\"$U304\",\"amount\":50,\"description\":\"Yakıt farkı\"},{\"unit_id\":\"$U304\",\"amount\":100,\"description\":\"Asansör yenileme payı\",\"liability\":\"OWNER\"}]}")
+LO2=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$LF/opening-balances" -H "$LM" -H "$J" \
+  -d "{\"due_date\":\"2092-06-30\",\"items\":[{\"unit_id\":\"$U304\",\"amount\":10,\"liability\":\"OWNER\"}]}")
+LOR=$($PSQL -t -A -c "SELECT string_agg(liability||'='||total_amount, ',' ORDER BY liability) FROM monthly_assessments
+  WHERE kind='OPENING' AND deleted=0 AND unit_id='$U304';")
+LOAPI=$(curl -s "$LF/opening-balances" -H "$LM" | python3 -c "
+import json,sys
+print(sorted(o['liability'] for o in json.load(sys.stdin)['data'] if o.get('unit_id')=='$U304' and o.get('status')!='CANCELLED'))" 2>/dev/null)
+[ "${LO##*|}" = "201" ] && [ "$LO2" = "409" ] && [ "$LOR" = "OWNER=100.00,USAGE=50.00" ] && [ "$LOAPI" = "['OWNER', 'USAGE']" ] \
+  && ok "devir bakiyesi sınıfıyla girildi (bir bölüme kullanım + malik devri); aynı sınıfta ikinci devir 409; listede sınıf görünüyor" \
+  || bad "devir sınıfı: ${LO##*|} / ikinci=$LO2 / $LOR / liste=$LOAPI — ${LO%|*}"
+for X in $($PSQL -t -A -c "SELECT id FROM monthly_assessments WHERE kind='OPENING' AND deleted=0 AND unit_id='$U304';"); do
+  curl -s -o /dev/null -X POST "$LF/opening-balances/$X/cancel" -H "$LM"
+done
+# İşletme projesi: malik kalemi bölüm payında ayrı tutulur; projeden tahakkuk sınıf başına ayrı kayıt açar
+LB=$(curl -s -w '|%{http_code}' -X POST "$LG/budgets" -H "$LM" -H "$J" -d "{\"period_year\":2093,\"items\":[
+  {\"name\":\"Kapici\",\"amount\":12000,\"distribution_type\":\"EQUAL\"},
+  {\"name\":\"Havuz yapimi\",\"amount\":2400,\"distribution_type\":\"EQUAL\",\"category_id\":\"$C_OWN\"}]}")
+LBID=$(echo "${LB%|*}" | python3 -c "import json,sys; print(json.load(sys.stdin)['id'])" 2>/dev/null)
+LBS=$($PSQL -t -A -c "SELECT bool_and(annual_usage_kurus + annual_owner_kurus = annual_kurus)||'|'||sum(annual_owner_kurus)||'|'||sum(annual_usage_kurus)
+  FROM operating_budget_unit_shares WHERE budget_id='${LBID:-00000000-0000-0000-0000-000000000000}';")
+LBI=$($PSQL -t -A -c "SELECT string_agg(name||'='||liability, ',' ORDER BY sort_order) FROM operating_budget_items WHERE budget_id='${LBID:-00000000-0000-0000-0000-000000000000}';")
+LBX=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$LG/budgets" -H "$LM" -H "$J" \
+  -d '{"period_year":2094,"items":[{"name":"x","amount":100,"distribution_type":"EQUAL","liability":"KIRACI"}]}')
+[ "${LB##*|}" = "201" ] && [ "$LBS" = "true|240000|1200000" ] && [ "$LBI" = "Kapici=USAGE,Havuz yapimi=OWNER" ] && [ "$LBX" = "422" ] \
+  && ok "işletme projesinde yeni tesis kalemi kategorisinden malik sınıfına düştü; bölüm payı kullanım 12.000 / malik 2.400 TL olarak ayrıldı (toplam yıllık paya eşit); tanınmayan sınıf 422" \
+  || bad "proje sınıfı: ${LB##*|} / pay=$LBS / kalemler=$LBI / geçersiz=$LBX — ${LB%|*}"
+$PSQL -c "UPDATE operating_budgets SET status='FINAL' WHERE id='${LBID:-00000000-0000-0000-0000-000000000000}';" >/dev/null
+LBA=$(curl -s -w '|%{http_code}' -X POST "$LG/budgets/$LBID/assessments" -H "$LM" -H "$J" -d '{"period_month":1,"due_date":"2093-01-28"}')
+LBC=$(echo "${LBA%|*}" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['created'], d['created_by_class'].get('USAGE'), d['created_by_class'].get('OWNER'))" 2>/dev/null)
+# Her bölümün aylık taksiti kendi sınıf payının 1/12'si (kalan kuruşlar aylara dağıtıldığı için en çok 1 kuruş fark)
+LBD=$($PSQL -t -A -c "SELECT count(*) FROM monthly_assessments m JOIN operating_budget_unit_shares s ON s.budget_id=m.budget_id AND s.unit_id=m.unit_id
+  WHERE m.budget_id='$LBID' AND abs(round(m.base_amount*100) - (CASE m.liability WHEN 'OWNER' THEN s.annual_owner_kurus ELSE s.annual_usage_kurus END) / 12.0) >= 1;")
+SHN=$($PSQL -t -A -c "SELECT count(*) FROM operating_budget_unit_shares WHERE budget_id='$LBID' AND annual_kurus > 0;")
+[ "${LBA##*|}" = "201" ] && [ "$LBC" = "$((SHN*2)) $SHN $SHN" ] && [ "$LBD" = "0" ] \
+  && ok "projeden aylık tahakkuk sınıf başına ayrı kayıt açtı ($SHN kullanım + $SHN malik); her kayıt bölümün o sınıftaki yıllık payının 1/12'si" \
+  || bad "projeden sınıflı tahakkuk: ${LBA##*|} / $LBC (beklenen $((SHN*2)) $SHN $SHN) / $LBD — ${LBA%|*}"
+$PSQL -c "DELETE FROM monthly_assessments WHERE budget_id='$LBID'; DELETE FROM operating_budgets WHERE id='$LBID';" >/dev/null
+# Gider kaydı: sınıf kategoriden önerilir, girişte değiştirilebilir, geçersizi 422
+LE1=$(curl -s -X POST "$LE/expenses" -H "$LM" -H "$J" -d "{\"category_id\":\"$C_OWN\",\"description\":\"Havuz pompası\",\"amount\":3000,\"expense_date\":\"2026-03-10\",\"vendor_name\":\"Test\",\"invoice_number\":\"FT-D1-1\"}")
+LE2=$(curl -s -X POST "$LE/expenses" -H "$LM" -H "$J" -d "{\"category_id\":\"$C_OWN\",\"description\":\"Havuz bakımı\",\"amount\":500,\"expense_date\":\"2026-03-10\",\"vendor_name\":\"Test\",\"invoice_number\":\"FT-D1-2\",\"liability\":\"USAGE\"}")
+LE3=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$LE/expenses" -H "$LM" -H "$J" -d "{\"category_id\":\"$C_OWN\",\"description\":\"x\",\"amount\":5,\"expense_date\":\"2026-03-10\",\"vendor_name\":\"Test\",\"invoice_number\":\"FT-D1-3\",\"liability\":\"KIRACI\"}")
+lval() { python3 -c "import json,sys; d=json.load(sys.stdin); d=d.get('expense',d); print(d.get('liability'))" 2>/dev/null; }
+LE1L=$(echo "$LE1" | lval); LE2L=$(echo "$LE2" | lval)
+LECAT=$(curl -s "$LE/expense-categories" -H "$LM" | python3 -c "
+import json,sys
+d=json.load(sys.stdin); d=d.get('data',d)
+print([c.get('default_liability') for c in d if c['id']=='$C_OWN'])" 2>/dev/null)
+[ "$LE1L" = "OWNER" ] && [ "$LE2L" = "USAGE" ] && [ "$LE3" = "422" ] && [ "$LECAT" = "['OWNER']" ] \
+  && ok "gider kaydında sınıf kategoriden önerildi (malik), girişte kullanım olarak değiştirilebildi; tanınmayan sınıf 422" \
+  || bad "gider sınıfı: öneri=$LE1L / seçilen=$LE2L / geçersiz=$LE3 / kategori=$LECAT — $LE1"
+$PSQL -c "DELETE FROM expense_distributions WHERE expense_id IN (SELECT id FROM expenses WHERE invoice_number LIKE 'FT-D1-%');
+  DELETE FROM expenses WHERE invoice_number LIKE 'FT-D1-%';" >/dev/null 2>&1
+kill_tree "$D1_finance"; kill_tree "$D1_governance"; kill_tree "$D1_expense"
 
 step "SONUÇ"
 echo "  Geçen: $PASS   Başarısız: $FAIL"

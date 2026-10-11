@@ -7,6 +7,7 @@ import { useAction, useApi, useRoles } from "@/lib/use-api";
 import { ActionFeedback, Badge, Button, Card, Field, FormModal, Grid, Input, Notice, Page, QueryView, ReadOnlyHint, Select, Table } from "@/components/ui/kit";
 import { date, pct, tl, today } from "@/lib/format";
 import { OpeningBalances } from "@/components/finance/opening-balances";
+import { LIABILITY_OPTIONS } from "@/lib/labels";
 
 /**
  * Aylık aidat tahakkuku (KMK m.20). Tutar, seçilen gider kalemlerinin dağıtım
@@ -26,7 +27,7 @@ export default function AssessmentsPage() {
         period_year: now.getFullYear(),
         period_month: now.getMonth() + 1,
         due_date: today(),
-        items: [{ category_id: "", amount: "" }],
+        items: [{ category_id: "", amount: "", liability: "USAGE" }],
     });
     const [lateAsOf, setLateAsOf] = useState(today());
 
@@ -97,10 +98,10 @@ export default function AssessmentsPage() {
                 onSubmit={async () => {
                     const expense_items = form.items
                         .filter((i) => i.category_id && Number(i.amount) > 0)
-                        .map((i) => ({ category_id: i.category_id, amount: Number(i.amount) }));
+                        .map((i) => ({ category_id: i.category_id, amount: Number(i.amount), liability: i.liability }));
                     const r = await act.run(
                         () => api.finance.createAssessment({ period_year: form.period_year, period_month: form.period_month, due_date: form.due_date, expense_items }),
-                        { invalidate: ["assessments", "dashboard"], success: (res) => `${res.data.length} bağımsız bölüme tahakkuk yazıldı. Sakin bildirimi: ${res.notification?.note ?? "—"}` }
+                        { invalidate: ["assessments", "dashboard"], success: (res) => `${res.data.length} tahakkuk yazıldı (kullanım ve malik kalemleri ayrı kayıt). Bildirim: ${res.notification?.note ?? "—"}` }
                     );
                     if (r) setOpen(false);
                 }}
@@ -118,15 +119,20 @@ export default function AssessmentsPage() {
                     {form.items.map((it, i) => (
                         <div key={i} className="flex gap-2">
                             <Select className="flex-1" value={it.category_id} options={catOptions} placeholder="Kalem seçin"
-                                onChange={(e) => setForm({ ...form, items: form.items.map((x, j) => (j === i ? { ...x, category_id: e.target.value } : x)) })} />
+                                onChange={(e) => {
+                                    const def = (cats.data?.data ?? []).find((c) => c.id === e.target.value)?.default_liability ?? "USAGE";
+                                    setForm({ ...form, items: form.items.map((x, j) => (j === i ? { ...x, category_id: e.target.value, liability: def } : x)) });
+                                }} />
+                            <Select className="w-56" value={it.liability} options={LIABILITY_OPTIONS} aria-label="Gider sınıfı"
+                                onChange={(e) => setForm({ ...form, items: form.items.map((x, j) => (j === i ? { ...x, liability: e.target.value } : x)) })} />
                             <Input className="w-40" type="number" step="0.01" min="0" placeholder="Tutar (TL)" value={it.amount}
                                 onChange={(e) => setForm({ ...form, items: form.items.map((x, j) => (j === i ? { ...x, amount: e.target.value } : x)) })} />
                             <Button variant="ghost" onClick={() => setForm({ ...form, items: form.items.filter((_, j) => j !== i) })} aria-label="Kalemi çıkar"><Trash2 className="h-4 w-4" /></Button>
                         </div>
                     ))}
-                    <Button variant="secondary" size="sm" onClick={() => setForm({ ...form, items: [...form.items, { category_id: "", amount: "" }] })}>+ Kalem</Button>
+                    <Button variant="secondary" size="sm" onClick={() => setForm({ ...form, items: [...form.items, { category_id: "", amount: "", liability: "USAGE" }] })}>+ Kalem</Button>
                 </div>
-                <Notice tone="blue">Aynı dönem için ikinci tahakkuk oluşturulamaz. Paylar sunucuda kuruş hassasiyetinde hesaplanır; toplam, kalem tutarlarına birebir eşittir.</Notice>
+                <Notice tone="blue">Her kalemde sınıf seçin: <b>kullanım</b> giderini daireyi kullanan (kiracı ya da oturan malik), <b>malik</b> giderini (demirbaş, yenilik, havuz gibi yeni tesis, ana yapı onarımı) malik öder. Bir bölüme dönem başına her sınıftan bir tahakkuk açılır; aynı dönem ve sınıf ikinci kez tahakkuk edilemez. Paylar sunucuda kuruş hassasiyetinde hesaplanır.</Notice>
             </FormModal>
         </Page>
     );

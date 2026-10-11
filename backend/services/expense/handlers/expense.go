@@ -28,7 +28,7 @@ func mapError(c *gin.Context, err error, op string) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Sitede tanımlı bağımsız bölüm yok; gider paylaştırılamaz"})
 	case errors.Is(err, service.ErrInvalidDate),
 		errors.Is(err, service.ErrInvoiceReasonRequired),
-		errors.Is(err, service.ErrUnknownDistribution):
+		errors.Is(err, service.ErrUnknownDistribution), errors.Is(err, service.ErrInvalidLiability):
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
 	default:
 		// İstemci kaynaklı veritabanı hatası (biçim, kısıt, uzunluk) 500 değildir.

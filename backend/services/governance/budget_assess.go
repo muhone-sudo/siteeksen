@@ -96,8 +96,9 @@ func createBudgetAssessments(pool *pgxpool.Pool, n *notify.Notifier) gin.Handler
 			return
 		}
 
+		// Gider sınıfı (066): bölümün yıllık payı kullanım (oturan) ve malik olarak ayrı tahakkuk edilir.
 		rows, err := tx.Query(ctx, `
-			SELECT s.unit_id::text, s.annual_kurus FROM operating_budget_unit_shares s
+			SELECT s.unit_id::text, s.annual_usage_kurus, s.annual_owner_kurus FROM operating_budget_unit_shares s
 			JOIN units u ON u.id = s.unit_id AND u.deleted = 0
 			WHERE s.budget_id = $1 ORDER BY s.unit_id`, c.Param("id"))
 		if err != nil {
@@ -106,18 +107,18 @@ func createBudgetAssessments(pool *pgxpool.Pool, n *notify.Notifier) gin.Handler
 		}
 		type share struct {
 			unit   string
-			annual money.Kurus
+			annual map[string]money.Kurus // sınıf → yıllık pay
 		}
 		shares := []share{}
 		for rows.Next() {
 			var s share
-			var a int64
-			if err := rows.Scan(&s.unit, &a); err != nil {
+			var usage, owner int64
+			if err := rows.Scan(&s.unit, &usage, &owner); err != nil {
 				rows.Close()
 				failAssess(c, err)
 				return
 			}
-			s.annual = money.Kurus(a)
+			s.annual = map[string]money.Kurus{"USAGE": money.Kurus(usage), "OWNER": money.Kurus(owner)}
 			shares = append(shares, s)
 		}
 		rows.Close()
@@ -132,32 +133,36 @@ func createBudgetAssessments(pool *pgxpool.Pool, n *notify.Notifier) gin.Handler
 
 		total, created := money.Kurus(0), 0
 		ids := make([]string, 0, len(shares))
+		byClass := map[string]int{}
 		for _, s := range shares {
-			amt, err := MonthlyInstallment(s.annual, in.PeriodMonth)
-			if err != nil {
-				failAssess(c, err)
-				return
-			}
-			if amt == 0 {
-				continue // payı olmayan bölüme sıfır tutarlı borç kaydı açılmaz
-			}
-			var id string
-			if err := tx.QueryRow(ctx, `
-				INSERT INTO monthly_assessments (property_id, unit_id, period_year, period_month, base_amount,
-				                                 total_amount, due_date, status, budget_id)
-				VALUES ($1, $2, $3, $4, $5::numeric, $5::numeric, $6, 'PENDING', $7) RETURNING id::text`,
-				propertyID, s.unit, year, in.PeriodMonth, amt.String(), due, c.Param("id")).Scan(&id); err != nil {
-				var pg *pgconn.PgError
-				if errors.As(err, &pg) && pg.Code == "23505" {
-					c.JSON(http.StatusConflict, gin.H{"error": fmt.Sprintf("%d-%02d dönemi için tahakkuk zaten var (projeden ya da elle); aynı ay iki kez tahakkuk edilemez", year, in.PeriodMonth)})
+			for _, liability := range []string{"USAGE", "OWNER"} {
+				amt, err := MonthlyInstallment(s.annual[liability], in.PeriodMonth)
+				if err != nil {
+					failAssess(c, err)
 					return
 				}
-				failAssess(c, err)
-				return
+				if amt == 0 {
+					continue // payı olmayan bölüme / sınıfa sıfır tutarlı borç kaydı açılmaz
+				}
+				var id string
+				if err := tx.QueryRow(ctx, `
+					INSERT INTO monthly_assessments (property_id, unit_id, period_year, period_month, base_amount,
+					                                 total_amount, due_date, status, budget_id, liability)
+					VALUES ($1, $2, $3, $4, $5::numeric, $5::numeric, $6, 'PENDING', $7, $8) RETURNING id::text`,
+					propertyID, s.unit, year, in.PeriodMonth, amt.String(), due, c.Param("id"), liability).Scan(&id); err != nil {
+					var pg *pgconn.PgError
+					if errors.As(err, &pg) && pg.Code == "23505" {
+						c.JSON(http.StatusConflict, gin.H{"error": fmt.Sprintf("%d-%02d dönemi için aynı sınıfta tahakkuk zaten var (projeden ya da elle); aynı ay iki kez tahakkuk edilemez", year, in.PeriodMonth)})
+						return
+					}
+					failAssess(c, err)
+					return
+				}
+				total += amt
+				created++
+				byClass[liability]++
+				ids = append(ids, id)
 			}
-			total += amt
-			created++
-			ids = append(ids, id)
 		}
 		if err := tx.Commit(ctx); err != nil {
 			failAssess(c, err)
@@ -169,7 +174,7 @@ func createBudgetAssessments(pool *pgxpool.Pool, n *notify.Notifier) gin.Handler
 		}
 		c.JSON(http.StatusCreated, gin.H{
 			"period": fmt.Sprintf("%d-%02d", year, in.PeriodMonth), "created": created,
-			"total_kurus": int64(total), "budget_status": status, "note": note,
+			"total_kurus": int64(total), "budget_status": status, "note": note, "created_by_class": byClass,
 			"notification": notify.NotifyCharges(ctx, n, pool, propertyID, c.GetString("user_id"), ids),
 		})
 	}

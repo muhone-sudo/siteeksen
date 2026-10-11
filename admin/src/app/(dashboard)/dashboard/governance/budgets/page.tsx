@@ -6,7 +6,7 @@ import { api } from "@/lib/api";
 import { useAction, useApi, useRoles } from "@/lib/use-api";
 import { ActionFeedback, Badge, Button, Card, Field, FormModal, Grid, Input, Modal, Notice, Page, QueryView, ReadOnlyHint, Select, StatusBadge, Table, Tabs, Textarea } from "@/components/ui/kit";
 import { date, kurus, tl } from "@/lib/format";
-import { BUDGET_STATUS, DISTRIBUTION, OBJECTION_STATUS } from "@/lib/labels";
+import { BUDGET_STATUS, DISTRIBUTION, LIABILITY_LABEL, LIABILITY_OPTIONS, OBJECTION_STATUS } from "@/lib/labels";
 import type { BudgetItem } from "@/lib/types";
 
 const NOTICE_METHODS = [
@@ -28,7 +28,7 @@ export default function BudgetsPage() {
     const { canWrite } = useRoles();
     const [open, setOpen] = useState(false);
     const [form, setForm] = useState<{ period_year: number; note: string; items: (BudgetItem & { amountText: string })[] }>({
-        period_year: new Date().getFullYear() + 1, note: "", items: [{ name: "", amount: 0, amountText: "", distribution_type: "SHARE_RATIO", kind: "EXPENSE" }],
+        period_year: new Date().getFullYear() + 1, note: "", items: [{ name: "", amount: 0, amountText: "", distribution_type: "SHARE_RATIO", kind: "EXPENSE", liability: "USAGE" }],
     });
     const [selected, setSelected] = useState<string | null>(null);
 
@@ -70,20 +70,22 @@ export default function BudgetsPage() {
                     <p className="text-sm font-medium">Kalemler</p>
                     {form.items.map((it, i) => (
                         <div key={i} className="grid grid-cols-12 gap-2">
-                            <Input className="col-span-4" placeholder="Kalem adı (ör. Kapıcı gideri)" value={it.name}
+                            <Input className="col-span-3" placeholder="Kalem adı (ör. Kapıcı gideri)" value={it.name}
                                 onChange={(e) => setForm({ ...form, items: form.items.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)) })} />
                             <Input className="col-span-2" type="number" step="0.01" min="0" placeholder="Yıllık TL" value={it.amountText}
                                 onChange={(e) => setForm({ ...form, items: form.items.map((x, j) => (j === i ? { ...x, amountText: e.target.value } : x)) })} />
-                            <Select className="col-span-3" value={it.distribution_type} options={DISTRIBUTION}
+                            <Select className="col-span-2" value={it.distribution_type} options={DISTRIBUTION}
                                 onChange={(e) => setForm({ ...form, items: form.items.map((x, j) => (j === i ? { ...x, distribution_type: e.target.value } : x)) })} />
+                            <Select className="col-span-2" value={it.liability ?? "USAGE"} options={LIABILITY_OPTIONS} aria-label="Gider sınıfı" disabled={it.kind === "INCOME"}
+                                onChange={(e) => setForm({ ...form, items: form.items.map((x, j) => (j === i ? { ...x, liability: e.target.value } : x)) })} />
                             <Select className="col-span-2" value={it.kind ?? "EXPENSE"} options={[{ value: "EXPENSE", label: "Gider" }, { value: "INCOME", label: "Gelir" }]}
                                 onChange={(e) => setForm({ ...form, items: form.items.map((x, j) => (j === i ? { ...x, kind: e.target.value } : x)) })} />
                             <Button className="col-span-1" variant="ghost" aria-label="Kalemi çıkar" onClick={() => setForm({ ...form, items: form.items.filter((_, j) => j !== i) })}><Trash2 className="h-4 w-4" /></Button>
                         </div>
                     ))}
-                    <Button size="sm" variant="secondary" onClick={() => setForm({ ...form, items: [...form.items, { name: "", amount: 0, amountText: "", distribution_type: "SHARE_RATIO", kind: "EXPENSE" }] })}>+ Kalem</Button>
+                    <Button size="sm" variant="secondary" onClick={() => setForm({ ...form, items: [...form.items, { name: "", amount: 0, amountText: "", distribution_type: "SHARE_RATIO", kind: "EXPENSE", liability: "USAGE" }] })}>+ Kalem</Button>
                 </div>
-                <Notice tone="blue">Kapıcı, kaloriferci, bahçıvan ve bekçi giderleri eşit; sigorta ve ortak yer bakım/onarım giderleri arsa payına göre paylaştırılır (KMK m.20). Paylar sunucuda kuruş hassasiyetinde hesaplanır.</Notice>
+                <Notice tone="blue">Kapıcı, kaloriferci, bahçıvan ve bekçi giderleri eşit; sigorta ve ortak yer bakım/onarım giderleri arsa payına göre paylaştırılır (KMK m.20). Her kalemde sınıf seçin: <b>kullanım</b> giderini daireyi kullanan, <b>malik</b> giderini (demirbaş, yenilik, havuz gibi yeni tesis, ana yapı onarımı — KMK m.42-43) malik öder; aylık tahakkukta iki sınıf ayrı kayıt olur. Paylar sunucuda kuruş hassasiyetinde hesaplanır.</Notice>
             </FormModal>
 
             {selected && <BudgetDetail id={selected} onClose={() => setSelected(null)} canWrite={canWrite} />}
@@ -172,6 +174,7 @@ function BudgetDetail({ id, onClose, canWrite }: { id: string; onClose: () => vo
                                 { header: "Tutar", cell: (i) => tl(i.amount) },
                                 { header: "Dağıtım", cell: (i) => DISTRIBUTION.find((d) => d.value === i.distribution_type)?.label ?? i.distribution_type },
                                 { header: "Tür", cell: (i) => (i.kind === "INCOME" ? <Badge tone="green">Gelir</Badge> : "Gider") },
+                                { header: "Sınıf", cell: (i) => (i.kind === "INCOME" ? "—" : LIABILITY_LABEL[i.liability ?? "USAGE"]) },
                             ]} />
                         )}
                         {tab === "shares" && (

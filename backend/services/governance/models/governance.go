@@ -29,6 +29,8 @@ type BudgetItem struct {
 	Kind             string  `json:"kind,omitempty"` // EXPENSE | INCOME
 	Note             string  `json:"note,omitempty"`
 	SortOrder        int     `json:"sort_order,omitempty"`
+	// Liability: USAGE (oturan öder) | OWNER (malik öder); boşsa kategorinin varsayılanı, o da yoksa USAGE (066).
+	Liability string `json:"liability,omitempty"`
 }
 
 // UnitShare, bir bağımsız bölüme düşen yıllık/aylık paydır (kuruş).
@@ -38,6 +40,9 @@ type UnitShare struct {
 	AnnualKurus  int64            `json:"annual_kurus"`
 	MonthlyKurus int64            `json:"monthly_kurus"`
 	Breakdown    map[string]int64 `json:"breakdown,omitempty"`
+	// Sınıf dökümü (066): kullanım (oturan) + malik = yıllık pay.
+	AnnualUsageKurus int64 `json:"annual_usage_kurus"`
+	AnnualOwnerKurus int64 `json:"annual_owner_kurus"`
 }
 
 // Budget, işletme projesidir.
