@@ -148,3 +148,109 @@ flowchart TD
 | **P1 (Yüksek)** | PTS Çevrimdışı Mod & Otomatik Sağlık Kontrolü (Heartbeat) | Yüksek | Orta | %10 |
 | **P2 (Orta)** | Payölçer / Sayaç Tüketim Anomali Algılama | Yüksek | Yüksek | %8 |
 | **P2 (Orta)** | Şeffaf Sözleşme, Taahhüt ve Self-Servis Fesih Portalı | Orta | Düşük | %7 |
+
+---
+
+## 6. SiteEksen Durum Değerlendirmesi (2026-10-10)
+
+> Her satır koddan doğrulandı (dosya konumu verildi). Toplu kanıt: `verify-stack.sh` 1269/1269, `verify-mobile.sh` 10/10.
+> İşaretler: **VAR** (yapıldı ve sınandı) · **KISMİ** · **YOK**.
+>
+> **Kapsam:** yalnızca uygulamanın aksaklıkları ve olsa iyi olacak özellikler. Komisyon/hizmet bedeli,
+> fiyatlandırma, faiz/gecikme tazminatı ve sözleşme/cayma politikası işletme kararıdır; bu bölümde
+> değerlendirilmez (§3.1, §3.3, Özellik 1, 3 ve 11 kapsam dışı).
+
+### 6.1. Şikayet temaları — bizde karşılığı
+
+| Şikayet teması (adet) | Durum | Bizdeki karşılığı / eksik |
+|---|---|---|
+| SMS, giriş & hesap erişimi (26) | **KISMİ** | Var: Netgsm SMS, SMS'le aynı anda e-posta yedeği, yönetimin numara değiştirmesi (eski oturumlar kapanır, eski numaraya uyarı gider — `identity/handlers/account_admin.go`), yönetimin kilit açması, yurt dışı numara (E.164). **Yok:** sakinin kendi "şifremi unuttum" akışı (yalnız `login/refresh/activate/logout` açık — `identity/main.go:64-71`; kodu sadece yönetim üretir), sakinin kendi numara/e-posta değişikliği, kademeli kilit (sabit 15 dk — `identity/service/account.go:29`), WhatsApp, e-Devlet. |
+| Doğalgaz / sayaç / payölçer (18) | **KISMİ** | Var: ısı payı oranları `legal_parameters`'ta (koda gömülü değil), okuma önceki döneme göre 2,5 katı aşarsa görevli teyidi zorunlu (`iot/repository/meter.go:180-296`), sayaç değişimi ve tüketim pusulası (056). **Yok:** site/blok medyanına göre yayın engeli (enerji analizinde yalnız rapor), faturaya özel itiraz akışı (sakin yalnız genel talep açabilir). |
+| PTS & otopark (14) | **KISMİ** | Var: cihaz canlılık sinyali, süre aşımında olay kaydı ve yönetime uygulama içi bildirim (057). **Yok:** PTS kamera entegrasyonu/plaka eşitleme (protokol bekleniyor), çevrimdışı mod, bariyer, push. |
+| Havale/EFT eşleme gecikmesi (12) | **KISMİ** | Var: sakin havale bildirimini ödeme günü ve açıklama/dekont no ile yapar (053, `finance/service/finance.go:163-179`); banka ekstresi CSV yükleme + tutar/açıklama/±3 gün ile öneri (059, `finance/repository/bank.go:157`). **Yok:** sakin bildirim yapmadan gelen havaleyi yöneticinin daireye işlemesi — ödeme kaydı yalnız sakinin kendi borcuna açılabiliyor (`finance/repository/finance.go:308-317`), ekstrede eşleşmeyen satır bir ödemeye bağlanmadan kapanamıyor (`bank.go:301`). Dekont dosyası yükleme, MT940/banka API'si yok. |
+| Müşteri hizmetlerine ulaşamama (8) | **YOK** | Sakin→yönetim talep sistemi var; yönetim→SiteEksen destek kanalı (çağrı takibi) yok. |
+
+### 6.2. Rapordaki hata başlıkları (§2–3)
+
+| Madde | Durum | Not |
+|---|---|---|
+| 2.1 Numara değişikliğinde SMS eski numaraya gidiyor | **KISMİ** | Yönetim değiştirince oturumlar kapanıyor, kod yeni numaraya gidiyor. **Çıkmaz:** kişi birden çok sitede kayıtlıysa yönetim değiştiremiyor ve hata "kişi kendi hesabından değiştirmeli" diyor (`account_admin.go:49`) — ama böyle bir uç yok. SMS sağlayıcısında yedek (ikinci operatör) yok. |
+| 2.2 Havale yansımıyor | **KISMİ** | Bildirimli havale ekstreyle eşleşiyor; bildirimsiz havale daireye işlenemiyor (6.1). |
+| 2.3 PTS eşitleme kaybı | **KISMİ** | Kopma fark ediliyor; eşitleme/çevrimdışı yok. |
+| 2.4 Payölçer hatalı katsayı | **KISMİ** | Katsayılar parametrede, okuma sapması teyitli; medyan engeli yok. |
+| 3.2 Habersiz borçlandırma | **YOK — bizde de aynı açık var** | Tahakkuk/ek bütçe oluşunca sakine bildirim gitmiyor: finance ve governance servislerinde tek `notify` çağrısı yok; yalnız vadesi geçmiş borç için zamanlanmış hatırlatma var (`cmd/scheduler/jobs.go`). Sakin borcu uygulamayı açınca görüyor. |
+
+### 6.3. Önerilen özellikler (§4)
+
+| # | Özellik | Durum | Not |
+|---|---|---|---|
+| 2 | OCR ile dekont eşleme | **YOK** | Ekstre CSV eşleştirmesi var (kural tabanlı, OCR değil). |
+| 4 | Çok kanallı doğrulama (WhatsApp/e-posta) | **KISMİ** | E-posta SMS'le aynı anda gider; "45 sn sonra başka kanal" ve WhatsApp yok. |
+| 5 | Self-servis numara güncelleme, daire içi rol | **YOK** | Numarayı yalnız yönetim değiştirir; malik kiracısını ekleyip çıkaramaz (yalnız MANAGER/BOARD_MEMBER — `identity/service/resident.go` `canWriteResidents`). |
+| 6 | Yurt dışı sakin | **KISMİ** | +352/+49 numara girişi ve SMS hedefi var (`pkg/phone`); CDN altyapı kararı. |
+| 7 | PTS heartbeat & sağlık paneli | **KISMİ** | Sinyal, olay, panel kartı var; push yok, SiteEksen teknik ekibine bildirim yok. |
+| 8 | Mobilden bariyer / "kayıtlı plaka teyidi" | **YOK** | |
+| 9 | Sayaç anomali algılama | **KISMİ** | Dairenin kendi geçmişine göre engel var; site medyanına göre yok. |
+| 10 | Finansal olay bildirimi (push + e-posta) | **YOK** | Push hiç yok: `firebase_messaging` paketi kurulu ama tek satır kullanılmıyor; `ios/` klasörü yok. |
+
+### 6.4. Yapılırsa LEHİMİZE (öncelik sırasıyla)
+
+| Sıra | İş | Neden lehimize | Dış bağımlılık |
+|---|---|---|---|
+| 1 | **Yeni tahakkuk / ek bütçede sakine bildirim** | Apsiyon'un 3.2 şikayeti ("haberim yoktu") bizde birebir tekrarlanabilir durumda. | Yok (uygulama içi; SMS/e-posta yapılandırılmışsa onlar da) |
+| 2 | **Yöneticinin tahsilat girişi** (bildirimsiz havale/nakit) ve ekstrede eşleşmeyen satırı doğrudan daireye işleme | "Ödedim, borç silinmedi" şikayetinin bizdeki kalan yolu bu. | Yok |
+| 3 | **Sakinin kendi "şifremi unuttum"u** (SMS/e-posta ile kod) + çok siteli kişinin numara çıkmazının giderilmesi | 26 şikayetlik erişim temasının ana nedeni "ulaşamama"; şu an kod yalnız yönetimden geliyor. Yanlış yönlendiren hata mesajı da düzelir. | Yok (Netgsm/SMTP hesabı varsa gerçek gönderim) |
+| 4 | Malikin kendi dairesinin kiracısını eklemesi/çıkarması | Yönetici yükü azalır; kiracı değişiminde gecikme olmaz. | Yok |
+| 5 | Kademeli giriş kilidi (30 sn → 2 dk → 15 dk) | Unutkan kullanıcı 15 dk kilitlenmez; kaba kuvvete karşı koruma kalır. | Yok |
+| 6 | Isı/sayaç faturasında site medyanının 3 katına yayın uyarısı + faturaya itiraz akışı | 18 şikayetlik tema; itiraz kaydı iz bırakır. | Yok |
+| 7 | Taşınan sakinde ilişik kesme tarihi (`end_date`) | "Kim ne zaman ayrıldı" kanıtı. Changelog'daki "end_date yazılıyor" ifadesi yanlış, düzeltilmeli. | Yok |
+| 8 | Yönetim→SiteEksen destek talebi (çağrı takibi) | "Ulaşamıyorum" (8) şikayetini doğrudan karşılar. | Yok |
+| 9 | Push bildirim (Firebase) | Bildirim uygulama kapalıyken de ulaşır. | Firebase projesi, `google-services.json`, iOS için APNs + `ios/` klasörü |
+| 10 | Dekont dosyası yükleme (yönetici görsün, eşleştirmeye yardım) | Yönetici onayını hızlandırır. | Yok (`pkg/storage` hazır) |
+
+### 6.5. Yapılırsa ALEYHİMİZE ya da dikkat gerektiren
+
+| İş / karar | Risk |
+|---|---|
+| OCR/dekont fotoğrafıyla borcu **otomatik** kapatmak | Sahte dekontla borç kapatma riski. Dekont yalnız öneri olmalı; kesin kapanış banka ekstresi ya da yönetici onayıyla. |
+| Mobilden GPS teyidiyle bariyer açmak | Konum taklidiyle yetkisiz giriş; güvenlik sorumluluğu bize geçer; donanım protokolü yok. Daha güvenli seçenek: güvenliğe "kayıtlı plaka teyidi" uyarısı. |
+| Her olay için SMS | Maliyet ve "spam" algısı; kanal tercihi sakinde olmalı (ticari ileti onayı ayrı, işlem bildirimi ayrı). |
+| e-Devlet doğrulamasını kendimiz yazmak | Kurum anlaşması gerekir; aracı kurumla yapılmalı. |
+| Medyan kuralıyla faturayı **kalıcı** engellemek | Gerçekten yüksek tüketen daireyi bekletir; engel yönetici teyidiyle açılabilmeli (mevcut 2,5 kat kuralı böyle). |
+| Kart ödemesini gerçek anahtarla denemeden canlıya almak | Sahte iyzico ile sınandı; sandbox anahtarıyla uçtan uca deneme şart. |
+
+### 6.6. Eksiklerin ikinci denetimi — benzer ya da yakın özellik var mı?
+
+> Backend, panel (`admin/`), sakin (`mobile/`) ve yönetici (`admin_app/`) uygulamalarında arandı.
+
+| # | Eksik | Sonuç | Benzer / yakın olan |
+|---|---|---|---|
+| 1 | Yeni borç / ek bütçede sakine bildirim | **YOK** | Bildirim konuları arasında borç oluşturma yok (`announcement`, `package.received`, `dues.overdue`… — `services/*`, `cmd/scheduler/jobs.go`). Yakın: zamanlanmış **gecikmiş borç** hatırlatması (`jobs.go:172`, yalnız vadesi geçince); yöneticinin **elle bildirim/duyuru** göndermesi (`notification/main.go:126`, community duyuru). |
+| 2 | Yöneticinin tahsilat girmesi (bildirimsiz havale/nakit) | **YOK** | `payments` kaydı tek yerden açılıyor ve yalnız sakinin kendi dairesine (`finance/repository/finance.go:308-317, 396`); panelde ve yönetici uygulamasında yalnız onay/ret/iptal var. Yakın: alacak dekontu (borcu düşürür ama **tahsilat sayılmaz** — 059), devir bakiyesi. `gap-analizi.md` M-51 bu eksiği zaten not etmiş. |
+| 3 | Sakinin kendi "şifremi unuttum"u | **KISMİ** | Üç istemcide de "Şifremi unuttum" bağlantısı var ama **etkinleştirme ekranına** gider; kodu yalnız yönetim üretir (`POST /residents/:id/activation-code`, panel notu `login/page.tsx:114`). Sakinin kod isteyeceği uç yok (`identity/main.go:64-71`). |
+| 3b | Sakinin kendi telefon/e-posta değişikliği | **YOK** | Sakin uygulamasında E-posta ve Telefon satırları var ama tıklanınca "güncelleme henüz sunucu tarafında hazır değil" diyor (`mobile/.../profile_settings_screen.dart:181,188,334`). E-postayı yönetim de değiştiremiyor (`UpdateResidentInput` yalnız rol/aktiflik). Yakın: yönetimin telefon değiştirmesi (çok siteli kişide 409 + var olmayan ekrana yönlendiren mesaj). |
+| 4 | Malikin kiracı eklemesi/çıkarması | **YOK** | Yalnız MANAGER/BOARD_MEMBER (`canWriteResidents`). Yakın: yönetimin **davet** akışı (032, sakin kabul/ret eder). |
+| 5 | Kademeli giriş kilidi | **YOK** | 5 hata → sabit 15 dk (`account.go:28-29`). Yakın: yönetimin kilidi kaldırması (`/residents/:id/unlock`), Kong'da IP bazlı hız sınırı (yalnız `--profile kong`). |
+| 6 | Faturada site medyanına göre uyarı + fatura itirazı | **KISMİ** | Medyan analizi **var** ama ayrı rapor: enerji analizi medyanın 2 katını işaretler (`energy_analytics/service/analysis.go:75-128`); paylaştırmada (`iot/main.go:236`) kullanılmıyor. Paylaştırmada önizleme→yayımla adımı var. Okuma bazında 2,5 kat teyidi var. Fatura itirazı yok; sakin yalnız genel talep açabilir. |
+| 7 | Taşınmada ilişik kesme tarihi | **YOK** | `resident_units.end_date` sütunu var; pasifleştirmede yazılmıyor (`identity/repository/resident.go:218`). Tek yazıldığı yer bir kerelik veri düzeltmesi (`033_site_founder_manager.sql:44`). Changelog satır 231 yanlış. |
+| 8 | Yönetim→SiteEksen destek kanalı | **YOK** | Hiçbir istemcide destek/iletişim ekranı, e-posta ya da telefon bağlantısı yok. Yakın: sakin→yönetim talep sistemi. |
+| 9 | Push bildirim | **YOK** | `notify`'da `PUSH` kanalı tanımlı ama göndericisi yok (kuyrukta kalır); `firebase_messaging` kodda kullanılmıyor; `admin_app/lib/main.dart:14` `Firebase.initializeApp()` çağırıyor ama `google-services.json` yok (hata yakalanıp geçiliyor). Karar bekliyor: `questions.md` S-10. |
+| 10 | Havale bildirimine dekont dosyası | **YOK** | Ödeme bildiriminde yalnız açıklama/dekont **numarası** (`reference`). Mobilde dosya/fotoğraf seçici paketi kullanılmıyor. Yakın: belge arşivi yükleme (yalnız yönetim — `document/main.go:171`), talepte `photo_urls` (metin adres, yükleme değil). |
+
+### 6.7. Beşinci tur sonrası durum (2026-10-11)
+
+> Kanıt: `verify-stack.sh` 1309/1309, `verify-mobile.sh` 10/10, panel tsc/lint/build temiz. Ayrıntı: `tasks/changelog.md`.
+
+| # | Eksik (6.6) | Durum | Commit |
+|---|---|---|---|
+| 1 | Yeni borçta sakine bildirim | **YAPILDI** | 8f81de3 |
+| 2 | Yöneticinin tahsilat girişi (bildirimsiz havale/nakit, eşleşmeyen ekstre satırı) | **YAPILDI** | 4f3ff16 |
+| 3 | Şifremi unuttum (SMS/e-posta ile kod, numara ifşa etmeyen yanıt) | **YAPILDI** | 66ca195 |
+| 3b | Sakinin kendi telefon/e-posta değişikliği (çok siteli kişi çıkmazı giderildi) | **YAPILDI** | 54c11bb |
+| 4 | Malikin kiracı/vekil yönetimi | **YAPILDI** (yönetime bildirim yerine denetim izi) | c767e8a |
+| 5 | Kademeli giriş kilidi (30 sn → 2 dk → 15 dk) | **YAPILDI** | 1554dd6 |
+| 6 | Medyan sapma uyarısı + pusula itirazı | **YAPILDI** | f3cbb36 |
+| 7 | İlişik kesme tarihi (+ changelog düzeltmesi) | **YAPILDI** | 94b187e |
+| 8 | Yönetim → SiteEksen destek kanalı | **KARAR BEKLİYOR** — talepleri kim, hangi kanaldan yanıtlayacak? | — |
+| 9 | Push bildirim | **KARAR BEKLİYOR** — Firebase projesi gerekli | — |
+| 10 | Havale bildirimine dekont dosyası | **YAPILDI** | c678fb9 |
