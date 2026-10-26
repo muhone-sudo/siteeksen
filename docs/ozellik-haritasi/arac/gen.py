@@ -382,7 +382,7 @@ def write_common():
     for r in cg:
         if r["Topics"] or r["Audience"]:
             o.append("| `%s %s` | %s · `%s` | %s | %s |" % (r["Method"], r["Path"], r["Svc"], r["Where"], ", ".join("`%s`" % t for t in r["Topics"] or []) or "—", ", ".join(r["Audience"] or []) or "işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta"))
-    o += ["", "## 4.3 Zamanlanmış işler (`backend/cmd/scheduler`, varsayılan 15 dk'da bir, `SCHEDULER_INTERVAL`)", "",
+    o += ["", "## 4.3 Zamanlanmış işler (`backend/cmd/scheduler`, varsayılan 15 dk'da bir, `SCHEDULER_INTERVAL`) — 14 iş", "",
           "| İş | Ne yapar | Konu | Alıcı | Kod |", "|---|---|---|---|---|",
           "| dues.overdue | Vadesi geçmiş aidat: daireye ayda en fazla bir hatırlatma; kiracı sorumluluğundaysa malike de | `dues.overdue`, `dues.overdue.tenant` | AssessmentPayers; UnitOwners | `backend/cmd/scheduler/jobs.go:93` |",
           "| contract.notice | İhbar son günü yaklaşan/geçen sözleşme | `contract.notice` | Managers | `jobs.go:221` |",
@@ -395,11 +395,15 @@ def write_common():
           "| compliance.employer | SGK işe giriş/çıkış, MUHSGK/prim son günü | `compliance.*` | Managers | `jobs.go:670` |",
           "| kvkk.destruction | Saklama süresi dolan ziyaretçi/otopark/kargo kayıtlarını anonimleştirir (≤6 ayda bir); süre tanımsızsa hatırlatır | `kvkk.destruction.done`, `kvkk.destruction.undefined` | Managers | `jobs.go:721` |",
           "| dask.renewal | 30 gün içinde biten/bitmiş DASK poliçesi | `dask.*` | UnitResidents (malik) | `jobs.go:775` |",
+          "| activity.purge | Saklama süresi dolan uygulama içi etkinlik kayıtlarını siler (ACTIVITY_LOG_RETENTION_DAYS) | — | — | `jobs.go` purgeClientActivity |",
+          "| sensor.purge | 365 günden eski sensör okumalarını siler | — | — | `jobs.go` purgeSensorReadings |",
+          "| patrol.track.purge | 1 yıldan eski devriye konum izini siler | — | — | `jobs.go` purgePatrolTracks |",
           "", "Mükerrer gönderim `DedupeKey` ile engellenir (ör. `dues.overdue:<daire>:<ay>`, `jobs.go:209`).", "",
           "## 4.4 Servis içi bekçiler", "",
           "| Bekçi | Aralık | Ne yapar | Kod |", "|---|---|---|---|",
           "| Kart ödemesi uzlaştırma | 1 dk (`CARD_RECONCILE_INTERVAL`), 20 dk'dan eski askıdaki ödemeler (`CARD_RECONCILE_AGE`) | Sonucu iyzico'dan yeniden sorgular, askıda ödeme bırakmaz | `backend/services/finance/card.go:85` |",
           "| Geçiş cihazı canlılığı | 30 sn (`DEVICE_WATCH_INTERVAL`) | Sinyal kesilen cihaz için olay açar; `device.offline`/`device.recovered` bildirimi → Operations | `backend/services/parking/devices.go:144` |",
+          "| Sensör sinyal bekçisi | 60 sn (`SENSOR_WATCH_INTERVAL`) | Sinyali kesilen sensör için OFFLINE alarmı açar; `iot.offline` → Operations (074) | `backend/services/iot/sensors.go` startSensorWatch |",
           "| Kargo teslim kanıtı imhası | 15 dk (`PACKAGE_PURGE_INTERVAL`) | Silme kuyruğundaki kanıt dosyalarını depodan siler | `backend/services/package/proof.go:296` |", ""]
     o += ["## 4.5 Veritabanı tetikleyicileri (son tanım geçerli)", "", "| Tablo | Tetikleyici | Ne zaman | Etki / engel | Migration |", "|---|---|---|---|---|"]
     for t in trig:

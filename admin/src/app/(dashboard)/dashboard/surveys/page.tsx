@@ -26,6 +26,8 @@ export default function SurveysPage() {
     const blank = { title: "", description: "", survey_type: "POLL", is_anonymous: true, is_weighted: false, allow_comments: true, show_results_before_end: false, ends_at: "", options: ["", ""] };
     const [form, setForm] = useState(blank);
     const [view, setView] = useState<string | null>(null);
+    const [commentsOf, setCommentsOf] = useState<string | null>(null);
+    const comments = useApi(["surveys", "comments", commentsOf], () => api.surveys.comments(commentsOf!), !!commentsOf);
     const detail = useApi(["surveys", "detail", view], () => api.surveys.get(view!), !!view);
     const [cancelling, setCancelling] = useState<string | null>(null);
     const [reason, setReason] = useState("");
@@ -46,6 +48,7 @@ export default function SurveysPage() {
                             { header: "", cell: (s) => (
                                 <div className="flex gap-1">
                                     <Button size="sm" variant="ghost" onClick={() => setView(s.id)}>Sonuç</Button>
+                                    <Button size="sm" variant="ghost" onClick={() => setCommentsOf(s.id)}>Yorumlar</Button>
                                     {s.status === "DRAFT" && <Button size="sm" disabled={act.pending} onClick={() => act.run(() => api.surveys.publish(s.id), { invalidate: ["surveys"], success: (r) => `Yayımlandı${r.notification ? ` — ${r.notification.sent} sakine bildirim` : ""}` })}>Yayımla</Button>}
                                     {s.status === "ACTIVE" && <Button size="sm" variant="secondary" disabled={act.pending} onClick={() => act.run(() => api.surveys.close(s.id), { invalidate: ["surveys"], success: "Anket kapatıldı" })}>Kapat</Button>}
                                     {(s.status === "DRAFT" || s.status === "ACTIVE") && <Button size="sm" variant="ghost" onClick={() => { setReason(""); setCancelling(s.id); }}>İptal</Button>}
@@ -110,6 +113,20 @@ export default function SurveysPage() {
                 }}>
                 <Field label="Gerekçe" required><Textarea required value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
             </FormModal>
+            <Modal open={!!commentsOf} onClose={() => setCommentsOf(null)} title="Anket yorumları" wide>
+                <QueryView q={comments} empty="Yorum yok">
+                    {(d) => (
+                        <>
+                            <Table rows={d.data} rowKey={(c) => `${c.voted_at}-${c.comment.slice(0, 16)}`} columns={[
+                                { header: "Zaman", cell: (c) => dateTime(c.voted_at) },
+                                { header: "Yazan", cell: (c) => c.voter_name ?? "Anonim" },
+                                { header: "Yorum", cell: (c) => <span className="whitespace-pre-wrap">{c.comment}</span> },
+                            ]} />
+                            {d.truncated && <p className="px-4 py-2 text-xs text-gray-500">İlk {d.limit} yorum gösteriliyor.</p>}
+                        </>
+                    )}
+                </QueryView>
+            </Modal>
         </Page>
     );
 }

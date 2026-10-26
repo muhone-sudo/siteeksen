@@ -688,6 +688,68 @@ class ApiClient {
     return _list(response.data);
   }
 
+  // --- FAZ H.6: sakin uygulaması eksik ekranları ---
+
+  /// Kendi ödeme geçmişi (yönetimin girdiği tahsilatlar dahil): `{data,total,limit,offset}`.
+  Future<Map<String, dynamic>> getMyPayments({int limit = 50, int offset = 0}) async {
+    final response = await _dio.get('/finance/my-payments', queryParameters: {'limit': limit, 'offset': offset});
+    return Map<String, dynamic>.from(response.data as Map);
+  }
+
+  Future<List<dynamic>> getVehicles() async => _list((await _dio.get('/vehicles')).data);
+
+  Future<Map<String, dynamic>> createVehicle(Map<String, dynamic> data) async =>
+      Map<String, dynamic>.from((await _dio.post('/vehicles', data: data)).data as Map);
+
+  Future<Map<String, dynamic>> deleteVehicle(String id) async =>
+      Map<String, dynamic>.from((await _dio.delete('/vehicles/$id')).data as Map);
+
+  Future<Map<String, dynamic>> cancelVisitor(String id) async =>
+      Map<String, dynamic>.from((await _dio.post('/visitors/$id/cancel')).data as Map);
+
+  Future<Map<String, dynamic>> reissueVisitorPass(String id) async =>
+      Map<String, dynamic>.from((await _dio.post('/visitors/$id/pass')).data as Map);
+
+  Future<List<dynamic>> getMyMeters() async => _list((await _dio.get('/meters')).data);
+
+  Future<List<dynamic>> getMeterReadings(String meterId) async =>
+      _list((await _dio.get('/meter-readings', queryParameters: {'meter_id': meterId})).data);
+
+  Future<List<int>> packageProof(String id, String kind) async {
+    final response = await _dio.get<List<int>>('/packages/$id/proof/$kind',
+        options: Options(responseType: ResponseType.bytes, headers: {'Accept': '*/*'}));
+    return response.data ?? const [];
+  }
+
+  Future<Map<String, dynamic>> cancelRenovation(String id) async =>
+      Map<String, dynamic>.from((await _dio.post('/renovations/$id/cancel')).data as Map);
+
+  Future<List<dynamic>> getNps() async => _list((await _dio.get('/nps')).data);
+
+  Future<Map<String, dynamic>> respondNps(String id, int score, String comment) async =>
+      Map<String, dynamic>.from((await _dio.post('/nps/$id/respond', data: {'score': score, 'comment': comment})).data as Map);
+
+  Future<List<dynamic>> getBulletinComments(String id) async => _list((await _dio.get('/bulletins/$id/comments')).data);
+
+  Future<Map<String, dynamic>> addBulletinComment(String id, String content, bool anonymous) async =>
+      Map<String, dynamic>.from((await _dio.post('/bulletins/$id/comments', data: {'content': content, 'is_anonymous': anonymous})).data as Map);
+
+  Future<List<dynamic>> getSurveyComments(String id) async => _list((await _dio.get('/surveys/$id/comments')).data);
+
+  /// Bütün cihazlardaki oturumları kapatır (bu cihaz dahil).
+  Future<void> logoutAllDevices() async {
+    await _dio.post('/users/me/logout-all');
+  }
+
+  Future<Map<String, dynamic>> getMyBudgets() async =>
+      Map<String, dynamic>.from((await _dio.get('/governance/my-budgets')).data as Map);
+
+  Future<Map<String, dynamic>> getMyBudget(String id) async =>
+      Map<String, dynamic>.from((await _dio.get('/governance/my-budgets/$id')).data as Map);
+
+  Future<Map<String, dynamic>> addBudgetObjection(String id, String unitId, String reason) async =>
+      Map<String, dynamic>.from((await _dio.post('/governance/budgets/$id/objections', data: {'unit_id': unitId, 'reason': reason})).data as Map);
+
   // Visitors
   Future<List<dynamic>> getVisitors() async {
     final response = await _dio.get('/visitors');

@@ -162,6 +162,9 @@ class NotImplementedNotice extends StatelessWidget {
 }
 
 /// Sunucu yanıtının "henüz uygulanmadı" (501) olup olmadığını söyler.
+/// Sunucu 404 döndü mü (kayıt yok).
+bool isNotFound(Object error) => error is DioException && error.response?.statusCode == 404;
+
 bool isNotImplemented(Object error) {
   if (error is DioException) {
     return error.response?.statusCode == 501;

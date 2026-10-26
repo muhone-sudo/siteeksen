@@ -111,7 +111,21 @@ func main() {
 	}
 
 	// İtiraz hakkı kat malikinindir; yönetim rolü aranmaz (KMK m.37/2).
-	api.POST("/budgets/:id/objections", handlers.AddObjection(svc))
+	api.POST("/budgets/:id/objections", func(c *gin.Context) {
+		// Görüş/itiraz alımı site ayarıyla kapatılabilir (K3, OWNER_PLAN_OBJECTIONS).
+		enabled, err := ownerObjectionsEnabled(c.Request.Context(), pool, c.GetString("property_id"))
+		if err != nil {
+			ownerFail(c, err, "ayar")
+			return
+		}
+		if !enabled {
+			c.JSON(http.StatusConflict, gin.H{"error": "Site yönetimi işletme projesine çevrim içi görüş/itiraz alımını kapattı",
+				"note": "Görüşünüzü genel kurulda ya da yönetime yazılı olarak iletebilirsiniz (KMK m.37)."})
+			return
+		}
+		handlers.AddObjection(svc)(c)
+	})
+	registerOwnerPlan(r, svc, pool)
 	// Kat maliki kendi ortak alan geliri payını görür (beyan için).
 	api.GET("/common-area/my-share", incomeReport(pool, true))
 

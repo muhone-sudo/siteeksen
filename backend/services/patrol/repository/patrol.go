@@ -38,6 +38,15 @@ type Checkpoint struct {
 	QRCode      string `json:"qr_code,omitempty"`
 	IsActive    bool   `json:"is_active"`
 	Order       int    `json:"display_order"`
+	// 075: konum doğrulaması.
+	Latitude      *float64   `json:"latitude"`
+	Longitude     *float64   `json:"longitude"`
+	RadiusM       int        `json:"radius_m"`
+	AccuracyM     *float64   `json:"location_accuracy_m"`
+	LocationSetAt *time.Time `json:"location_set_at"`
+	LocationCheck string     `json:"location_check"`
+	ExemptReason  string     `json:"exempt_reason,omitempty"`
+	QRValue       string     `json:"qr_value,omitempty"`
 }
 
 // Route, sıralı kontrol noktalarından oluşan tur güzergâhıdır.
@@ -113,7 +122,9 @@ func (r *Repository) ListCheckpoints(ctx context.Context, propertyID string, inc
 		SELECT id, name, COALESCE(description,''), COALESCE(location,''),
 		       COALESCE(building,''), COALESCE(floor,''),
 		       COALESCE(nfc_tag_id,''), COALESCE(qr_code,''),
-		       COALESCE(is_active,true), COALESCE(display_order,0)
+		       COALESCE(is_active,true), COALESCE(display_order,0),
+		       latitude::float8, longitude::float8, radius_m, location_accuracy_m::float8, location_set_at,
+		       location_check, COALESCE(exempt_reason,''), 'SITEEKSEN-PATROL:' || qr_token
 		FROM patrol_checkpoints
 		WHERE property_id = $1 AND ($2 OR COALESCE(is_active,true))
 		ORDER BY display_order, name`, propertyID, includeInactive)
@@ -126,7 +137,9 @@ func (r *Repository) ListCheckpoints(ctx context.Context, propertyID string, inc
 	for rows.Next() {
 		var c Checkpoint
 		if err := rows.Scan(&c.ID, &c.Name, &c.Description, &c.Location,
-			&c.Building, &c.Floor, &c.NFCTagID, &c.QRCode, &c.IsActive, &c.Order); err != nil {
+			&c.Building, &c.Floor, &c.NFCTagID, &c.QRCode, &c.IsActive, &c.Order,
+			&c.Latitude, &c.Longitude, &c.RadiusM, &c.AccuracyM, &c.LocationSetAt,
+			&c.LocationCheck, &c.ExemptReason, &c.QRValue); err != nil {
 			return nil, err
 		}
 		out = append(out, c)

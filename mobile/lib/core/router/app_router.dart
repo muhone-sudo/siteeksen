@@ -1,6 +1,12 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../features/finance/presentation/screens/payment_history_screen.dart';
+import '../../features/vehicles/presentation/screens/vehicles_screen.dart';
+import '../../features/visitors/presentation/screens/my_visitors_screen.dart';
+import '../../features/meters/presentation/screens/my_meters_screen.dart';
+import '../../features/nps/presentation/screens/nps_screen.dart';
+import '../../features/governance/presentation/screens/my_budgets_screen.dart';
 import '../../features/auth/presentation/screens/login_screen.dart';
 import '../../features/auth/presentation/screens/kvkk_consent_screen.dart';
 import '../../features/auth/presentation/screens/activate_screen.dart';
@@ -114,6 +120,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         name: 'myReservations',
         builder: (context, state) => const MyReservationsScreen(),
       ),
+      // FAZ H.6: sakin uygulamasının eksik ekranları
+      GoRoute(path: '/payment-history', name: 'paymentHistory', builder: (context, state) => const PaymentHistoryScreen()),
+      GoRoute(path: '/vehicles', name: 'vehicles', builder: (context, state) => const VehiclesScreen()),
+      GoRoute(path: '/my-visitors', name: 'myVisitors', builder: (context, state) => const MyVisitorsScreen()),
+      GoRoute(path: '/my-meters', name: 'myMeters', builder: (context, state) => const MyMetersScreen()),
+      GoRoute(path: '/nps', name: 'nps', builder: (context, state) => const NpsScreen()),
+      GoRoute(path: '/my-budgets', name: 'myBudgets', builder: (context, state) => const MyBudgetsScreen()),
       GoRoute(
         path: '/notifications',
         name: 'notifications',

@@ -61,9 +61,9 @@ for page, calls in page_api.items():
 
 # --- mobil ---
 VERB = {"get": "GET", "getList": "GET", "getMap": "GET", "post": "POST", "postMultipart": "POST", "put": "PUT",
-        "patch": "PATCH", "delete": "DELETE", "downloadBytes": "GET"}
+        "patch": "PATCH", "delete": "DELETE", "downloadBytes": "GET", "openDownload": "GET", "optionsFrom": "GET", "_open": "GET"}
 DIO = re.compile(r"\.(get|post|put|patch|delete)(?:<[^(]*?>)?\(\s*(['\"])(/(?:[^'\"$]|\$\{[^}]*\}|\$\w)+)\2")
-GEN = re.compile(r"(?<![\w])(?:\w+\.)?(getList|getMap|post|put|patch|delete|postMultipart|downloadBytes)\(\s*(['\"])(/(?:[^'\"$]|\$\{[^}]*\}|\$\w)+)\2")
+GEN = re.compile(r"(?<![\w])(?:\w+\.)?(getList|getMap|post|put|patch|delete|postMultipart|downloadBytes|openDownload|optionsFrom|_open)\(\s*(?:context,\s*)?(['\"])(/(?:[^'\"$]|\$\{[^}]*\}|\$\w)+)\2")
 METH = re.compile(r"^\s*Future<.*?>\s+(\w+)\(", re.M)
 mobile_named = {}
 for app in ("mobile", "admin_app"):

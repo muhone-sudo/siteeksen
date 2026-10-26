@@ -8,7 +8,7 @@ import {
     LayoutDashboard, Users, Receipt, Gauge, Bell, MessageSquare, FileText, Settings, Building2,
     Calculator, BellRing, KeyRound, TrendingDown, Car, UserCog, CalendarCheck, UserCheck, MapPin, X,
     Landmark, Package, FileSignature, FolderArchive, Wrench, Boxes, Vote, ShieldCheck, Megaphone,
-    Zap, AlertTriangle, Smile, Leaf, History,
+    Zap, AlertTriangle, Smile, Leaf, History, Radio,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import apiClient from "@/lib/api-client";
@@ -72,6 +72,7 @@ const sections: { title: string; items: NavItem[] }[] = [
             { name: "Personel", href: "/dashboard/personnel", icon: UserCog },
             { name: "Demirbaş", href: "/dashboard/assets", icon: Wrench },
             { name: "Stok", href: "/dashboard/inventory", icon: Boxes },
+            { name: "Sensörler", href: "/dashboard/sensors", icon: Radio },
         ],
     },
     {

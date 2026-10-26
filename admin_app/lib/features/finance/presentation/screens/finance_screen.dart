@@ -11,6 +11,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../../core/widgets/api_views.dart';
+import 'finance_tools_screen.dart';
 
 class FinanceScreen extends StatefulWidget {
   const FinanceScreen({super.key});
@@ -34,18 +35,19 @@ class _FinanceScreenState extends State<FinanceScreen> {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 2,
+      length: 3,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Finans'),
           actions: [
+            if (_canWrite) IconButton(tooltip: 'Gecikme tazminatı işlet', icon: const Icon(Icons.percent), onPressed: () => accrueLateFees(context)),
             IconButton(
               tooltip: 'Ödemeler',
               icon: const Icon(Icons.payments_outlined),
               onPressed: () => context.push('/finance/payments'),
             ),
           ],
-          bottom: const TabBar(tabs: [Tab(text: 'Dönemler'), Tab(text: 'Borçlular')]),
+          bottom: const TabBar(tabs: [Tab(text: 'Dönemler'), Tab(text: 'Borçlular'), Tab(text: 'Devir bakiyeleri')]),
         ),
         floatingActionButton: _canWrite
             ? FloatingActionButton.extended(
@@ -107,6 +109,7 @@ class _FinanceScreenState extends State<FinanceScreen> {
               trailing: Text(formatTry(toNum(d['amount'])), style: const TextStyle(fontWeight: FontWeight.w600)),
             ),
           ),
+          OpeningBalancesTab(canWrite: _canWrite),
         ]),
       ),
     );

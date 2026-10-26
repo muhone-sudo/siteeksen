@@ -9,6 +9,10 @@ import 'package:flutter/material.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../../core/widgets/api_views.dart';
+import '../../../../core/widgets/forms.dart';
+
+const _units = ['ADET', 'KG', 'LT', 'METRE', 'M2', 'M3', 'PAKET', 'KUTU'];
+const _moveLabels = {'IN': 'Giriş', 'OUT': 'Çıkış', 'ADJUST': 'Sayım'};
 
 class InventoryManagementScreen extends StatefulWidget {
   const InventoryManagementScreen({super.key});
@@ -20,6 +24,29 @@ class InventoryManagementScreen extends StatefulWidget {
 class _InventoryManagementScreenState extends State<InventoryManagementScreen> {
   bool _belowOnly = false;
   bool _canAdjust = false;
+  final _list = GlobalKey<ApiListState>();
+
+  Future<void> _addCategory() async {
+    await formAction(context, 'Stok kategorisi ekle', const [
+      FSpec('name', 'Ad', required: true),
+      FSpec('description', 'Açıklama'),
+    ], (v) => apiClient.post('/inventory-categories', v), success: 'Kategori eklendi');
+  }
+
+  Future<void> _addItem() async {
+    final cats = await optionsFrom('/inventory-categories', (c) => '${c['name']}').catchError((_) => <(String, String)>[]);
+    if (!mounted) return;
+    if (await formAction(context, 'Stok kalemi ekle', [
+      const FSpec('name', 'Ad', required: true),
+      FSpec('unit', 'Birim', type: FType.select, options: [for (final u in _units) (u, u)], initial: 'ADET', required: true),
+      FSpec('category_id', 'Kategori', type: FType.select, options: cats),
+      const FSpec('sku', 'Stok kodu'),
+      const FSpec('minimum_stock', 'Asgari stok', hint: 'ör. 5'),
+      const FSpec('location', 'Konum'),
+    ], (v) => apiClient.post('/inventory', v), success: 'Kalem eklendi (açılış stoğu 0 — mevcut stoğu sayım düzeltmesiyle girin)')) {
+      await _list.currentState?.reload();
+    }
+  }
 
   @override
   void initState() {
@@ -95,10 +122,17 @@ class _InventoryManagementScreenState extends State<InventoryManagementScreen> {
         title: const Text('Stok'),
         actions: [
           FilterChip(label: const Text('Asgarinin altı'), selected: _belowOnly, onSelected: (v) => setState(() => _belowOnly = v)),
-          const SizedBox(width: 8),
+          IconButton(
+            tooltip: 'Son hareketler',
+            icon: const Icon(Icons.history),
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => _Movements(title: 'Son hareketler', load: () => apiClient.getList('/inventory-movements', query: {'limit': 100})))),
+          ),
+          if (_canAdjust) IconButton(tooltip: 'Kategori ekle', icon: const Icon(Icons.create_new_folder_outlined), onPressed: _addCategory),
         ],
       ),
+      floatingActionButton: _canAdjust ? FloatingActionButton.extended(onPressed: _addItem, icon: const Icon(Icons.add), label: const Text('Kalem')) : null,
       body: ApiList(
+        key: _list,
         token: _belowOnly,
         load: () => apiClient.getList('/inventory', query: {if (_belowOnly) 'below_minimum': 'true'}),
         empty: _belowOnly ? 'Asgarinin altında kalem yok' : 'Stok kalemi yok',
@@ -125,7 +159,49 @@ class _InventoryManagementScreenState extends State<InventoryManagementScreen> {
           ].join(' · ')),
           leading: Icon(i['below_minimum'] == true ? Icons.warning_amber : Icons.inventory_2,
               color: i['below_minimum'] == true ? Colors.orange : null),
-          trailing: IconButton(icon: const Icon(Icons.swap_vert), tooltip: 'Hareket', onPressed: () => _move(i, reload)),
+          trailing: RowMenu([
+            ('Hareket gir', () => _move(i, reload)),
+            ('Hareket geçmişi', () async {
+              await Navigator.of(context).push(MaterialPageRoute(builder: (_) => _Movements(title: '${i['name']} — geçmiş', load: () => apiClient.getList('/inventory/${i['id']}/movements', query: {'limit': 100}))));
+            }),
+            if (_canAdjust)
+              ('Pasife al', () async {
+                if (await reasonAction(context, '${i['name']} pasife al', (r) => apiClient.delete('/inventory/${i['id']}', {'reason': r}),
+                    success: 'Kalem pasife alındı; hareket geçmişi korunur')) {
+                  await reload();
+                }
+              }),
+          ]),
+        ),
+      ),
+    );
+  }
+}
+
+class _Movements extends StatelessWidget {
+  final String title;
+  final Future<List<dynamic>> Function() load;
+  const _Movements({required this.title, required this.load});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text(title)),
+      body: ApiList(
+        load: load,
+        empty: 'Hareket yok',
+        itemBuilder: (context, m, _) => ListTile(
+          leading: Icon(switch (m['movement_type']) { 'IN' => Icons.south, 'OUT' => Icons.north, _ => Icons.tune }),
+          title: Text([
+            if ((m['item_name'] ?? '').toString().isNotEmpty) '${m['item_name']}',
+            '${_moveLabels[m['movement_type']] ?? m['movement_type']} ${m['quantity']} ${m['unit'] ?? ''}',
+          ].join(' · ')),
+          subtitle: Text([
+            '${m['previous_stock']} → ${m['new_stock']}',
+            formatDateTime(m['created_at']),
+            if ((m['created_by_name'] ?? '').toString().isNotEmpty) '${m['created_by_name']}',
+            if ((m['notes'] ?? '').toString().isNotEmpty) '${m['notes']}',
+          ].join(' · ')),
         ),
       ),
     );

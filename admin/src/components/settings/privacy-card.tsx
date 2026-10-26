@@ -21,7 +21,8 @@ export function PrivacyCard() {
     const cams = useApi(["cameras"], api.settings.cameras);
     const bios = useApi(["biometrics"], api.settings.biometrics);
     const act = useAction();
-    const [cam, setCam] = useState<typeof blankCamera | null>(null);
+    // id doluysa düzenleme (PUT /privacy/cameras/:id, FAZ H.8 P5); is_active ile kayıt pasife alınabilir.
+    const [cam, setCam] = useState<(typeof blankCamera & { id?: string; is_active?: boolean }) | null>(null);
     const [bio, setBio] = useState<{ name: string; method: string; purpose: string; alternative_method: string; retention_note: string } | null>(null);
     const flag = (k: keyof typeof blankCamera, label: string) => cam && (
         <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={Boolean(cam[k])} onChange={(e) => setCam({ ...cam, [k]: e.target.checked })} /> {label}</label>
@@ -38,6 +39,10 @@ export function PrivacyCard() {
                                 { header: "Konum", cell: (x) => <><b>{x.location}</b><div className="text-xs text-gray-500">{AREA[x.area_type] ?? x.area_type}</div></> },
                                 { header: "Amaç", cell: (x) => x.purpose },
                                 { header: "Saklama", cell: (x) => `${x.retention_days} gün` },
+                                { header: "", cell: (x) => <Button size="sm" variant="ghost" onClick={() => setCam({
+                                    id: x.id, is_active: x.is_active, location: x.location, area_type: x.area_type, purpose: x.purpose, retention_days: x.retention_days,
+                                    notice_posted: x.notice_posted, masked: x.masked, audio_recording: x.audio_recording, face_recognition: x.face_recognition,
+                                    intensive_justification: x.intensive_justification ?? "", decision_ref: x.decision_ref ?? "", access_note: x.access_note ?? "" })}>Düzenle</Button> },
                                 { header: "Uygunluk", cell: (x) => (x.issues?.length ? <ul className="list-disc pl-4 text-xs text-amber-700">{x.issues.map((i) => <li key={i}>{i}</li>)}</ul> : <Badge tone="green">Sorun yok</Badge>) },
                             ]} />
                             {d.open_issues ? <p className="px-4 py-3 text-xs text-amber-700">{d.open_issues} açık uygunluk notu.</p> : null}
@@ -57,9 +62,15 @@ export function PrivacyCard() {
                     )}
                 </QueryView>
             </Card>
-            <FormModal open={!!cam} onClose={() => setCam(null)} title="Kamera ekle" pending={act.pending} error={act.error}
+            <FormModal open={!!cam} onClose={() => setCam(null)} title={cam?.id ? "Kamera kaydını düzenle" : "Kamera ekle"} pending={act.pending} error={act.error}
                 onSubmit={async () => {
                     if (!cam) return;
+                    if (cam.id) {
+                        const { id, is_active, ...rest } = cam;
+                        const u = await act.run(() => api.settings.updateCamera(id, { ...rest, is_active: is_active ?? true }), { invalidate: ["cameras"], success: "Kamera kaydı güncellendi" });
+                        if (u) setCam(null);
+                        return;
+                    }
                     const r = await act.run(() => api.settings.createCamera(cam), { invalidate: ["cameras"], success: (x) => (x.issues.length ? `Kaydedildi; ${x.issues.length} uygunluk notu var` : "Kaydedildi") });
                     if (r) setCam(null);
                 }}>
@@ -73,6 +84,7 @@ export function PrivacyCard() {
                     </Grid>
                     <Field label="Amaç" required><Input required value={cam.purpose} onChange={(e) => setCam({ ...cam, purpose: e.target.value })} /></Field>
                     <Field label="Kayıtlara kimler erişir"><Input value={cam.access_note} onChange={(e) => setCam({ ...cam, access_note: e.target.value })} /></Field>
+                    {cam.id && <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={cam.is_active !== false} onChange={(e) => setCam({ ...cam, is_active: e.target.checked })} /> Kayıt etkin (kamera kullanımda)</label>}
                     <div className="grid gap-1 sm:grid-cols-2">{flag("notice_posted", "Aydınlatma levhası asılı")}{flag("masked", "Gereksiz alanlar maskelendi")}{flag("audio_recording", "Ses kaydı yapıyor")}{flag("face_recognition", "Yüz tanıma var")}</div>
                     {(cam.audio_recording || cam.face_recognition || cam.area_type === "ELEVATOR") && (
                         <Field label="Somut gerekçe" required><Textarea required value={cam.intensive_justification} onChange={(e) => setCam({ ...cam, intensive_justification: e.target.value })} /></Field>

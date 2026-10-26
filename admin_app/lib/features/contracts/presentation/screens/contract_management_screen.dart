@@ -128,6 +128,23 @@ class _ContractManagementScreenState extends State<ContractManagementScreen> {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Sözleşmeler'),
+          actions: [
+            if (_canWrite)
+              IconButton(
+                tooltip: 'Süresi dolanları kapat',
+                icon: const Icon(Icons.event_busy),
+                onPressed: () async {
+                  if (!await confirm(context, 'Süresi dolanları kapat', 'Bitiş tarihi geçmiş ve yenilenmemiş sözleşmeler "süresi doldu" olarak işaretlensin mi?')) return;
+                  if (!context.mounted) return;
+                  if (await runAction(context, () async {
+                    final r = await apiClient.post('/contracts/expire-due');
+                    return {...r, 'message': '${r['expired_count'] ?? 0} sözleşme kapatıldı'};
+                  })) {
+                    _changed();
+                  }
+                },
+              ),
+          ],
           bottom: const TabBar(tabs: [Tab(text: 'Yürürlükte'), Tab(text: '60 günde bitenler'), Tab(text: 'Tümü')]),
         ),
         floatingActionButton: _canWrite

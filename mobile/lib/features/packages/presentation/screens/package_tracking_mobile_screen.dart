@@ -6,6 +6,8 @@
 // Eksik alanlar '12:00', 'Bugün', 'Yakında' gibi uydurma değerlerle
 // dolduruluyordu. Artık sunucunun alanları olduğu gibi gösterilir.
 
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 
 import '../../../../core/network/api_client.dart';
@@ -102,6 +104,38 @@ class _PackageTrackingMobileScreenState extends State<PackageTrackingMobileScree
       title: Text([p['carrier'], p['recipient_name']].where((v) => v != null && '$v'.isNotEmpty).join(' · ')),
       subtitle: Text(lines.join('\n')),
       isThreeLine: true,
+      // Teslim kanıtı (052, FAZ H.6 S5): imza ve fotoğraf; yoksa sunucu 404 döner.
+      trailing: status == 'DELIVERED'
+          ? PopupMenuButton<String>(
+              tooltip: 'Teslim kanıtı',
+              icon: const Icon(Icons.verified_outlined),
+              onSelected: (kind) => _showProof(context, '${p['id']}', kind),
+              itemBuilder: (_) => const [
+                PopupMenuItem(value: 'signature', child: Text('İmzayı gör')),
+                PopupMenuItem(value: 'photo', child: Text('Fotoğrafı gör')),
+              ],
+            )
+          : null,
     );
+  }
+
+  Future<void> _showProof(BuildContext context, String id, String kind) async {
+    try {
+      final bytes = await apiClient.packageProof(id, kind);
+      if (!context.mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text(kind == 'signature' ? 'Teslim imzası' : 'Teslim fotoğrafı'),
+          content: Image.memory(Uint8List.fromList(bytes), fit: BoxFit.contain),
+          actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Kapat'))],
+        ),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(isNotFound(e) ? (kind == 'signature' ? 'Bu teslimde imza alınmamış' : 'Bu teslimde fotoğraf çekilmemiş') : toUserMessage(e)),
+      ));
+    }
   }
 }

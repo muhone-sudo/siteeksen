@@ -63,6 +63,8 @@ func jobs() []job {
 		{name: "kvkk.destruction", what: "Saklama süresi dolan ziyaretçi, otopark ve kargo kayıtlarını en geç 6 ayda bir anonimleştirir (İmha Yönetmeliği m.11); süre tanımlı değilse yönetime hatırlatır", run: periodicDestruction},
 		{name: "dask.renewal", what: "DASK poliçesi 30 gün içinde biten ya da bitmiş bağımsız bölümün malikine hatırlatma (6305 m.10/3)", run: daskRenewal},
 		{name: "emergency.drill", what: "Son tatbikatın üzerinden yasal süre (yılda bir) geçmiş ya da personel çalıştırdığı hâlde hiç tatbikat kaydı olmayan site → yönetim", run: drillDue},
+		{name: "sensor.purge", what: "365 günden eski sensör okumalarını siler (alarmlar ve sensör tanımları silinmez) (074)", run: purgeSensorReadings},
+		{name: "patrol.track.purge", what: "1 yıldan eski devriye konum izini siler (KVKK m.4 ölçülülük; okutma kanıtları kalır) (075)", run: purgePatrolTracks},
 		{name: "activity.purge", what: "Saklama süresi (ACTIVITY_LOG_RETENTION_DAYS, varsayılan 180 gün) dolan uygulama içi etkinlik kayıtlarını siler; zorunlu kayıtlara dokunmaz (073)", run: purgeClientActivity},
 		{name: "budget.approval", what: "Genel kurulda karara bağlanma süresi (KMK m.37, 3 ay) yaklaşan ya da geçen geçici işletme projesi → yönetim", run: budgetApprovalDue},
 	}
@@ -858,6 +860,33 @@ func purgeClientActivity(ctx context.Context, pool *pgxpool.Pool, propertyID str
 	}
 	if n > 0 {
 		log.Printf("[scheduler] %s: %d istemci etkinliği kaydı silindi (saklama %d gün)", propertyID, n, days)
+	}
+	return nil, nil
+}
+
+// purgeSensorReadings, 365 günden eski sensör okumalarını siler (074). Alarm kayıtları kalır.
+func purgeSensorReadings(ctx context.Context, pool *pgxpool.Pool, propertyID string) ([]notice, error) {
+	tag, err := dbscope.For(pool, propertyID).Exec(ctx,
+		`DELETE FROM sensor_readings WHERE property_id = $1 AND recorded_at < now() - interval '365 days'`, propertyID)
+	if err != nil {
+		return nil, err
+	}
+	if tag.RowsAffected() > 0 {
+		log.Printf("[scheduler] %s: %d eski sensör okuması silindi", propertyID, tag.RowsAffected())
+	}
+	return nil, nil
+}
+
+// purgePatrolTracks, 1 yıldan eski devriye konum izini siler (075). Görevlinin konumu kişisel veridir;
+// okutma denemeleri (kanıt) silinmez.
+func purgePatrolTracks(ctx context.Context, pool *pgxpool.Pool, propertyID string) ([]notice, error) {
+	tag, err := dbscope.For(pool, propertyID).Exec(ctx,
+		`DELETE FROM patrol_track_points WHERE property_id = $1 AND recorded_at < now() - interval '365 days'`, propertyID)
+	if err != nil {
+		return nil, err
+	}
+	if tag.RowsAffected() > 0 {
+		log.Printf("[scheduler] %s: %d eski devriye konum noktası silindi", propertyID, tag.RowsAffected())
 	}
 	return nil, nil
 }

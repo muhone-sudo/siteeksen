@@ -36,11 +36,18 @@ export default function AssetsPage() {
     const [maint, setMaint] = useState<null | Record<string, string>>(null);
     const [disposing, setDisposing] = useState<Asset | null>(null);
     const [dispose, setDispose] = useState({ reason: "", decision_ref: "" });
+    const [catForm, setCatForm] = useState<null | { name: string; description: string; depreciation_years: string }>(null);
+    const [assign, setAssign] = useState<null | { id: string; name: string; assigned_to: string }>(null);
     const s = summary.data;
 
     return (
         <Page title="Demirbaş" description="Ortak alan demirbaşları, amortisman ve bakım takibi."
-            actions={canWrite && <Button onClick={() => { setForm(blank); setOpen(true); }}><Plus className="h-4 w-4" /> Demirbaş ekle</Button>}>
+            actions={canWrite && (
+                <>
+                    <Button variant="secondary" onClick={() => setCatForm({ name: "", description: "", depreciation_years: "" })}><Plus className="h-4 w-4" /> Kategori</Button>
+                    <Button onClick={() => { setForm(blank); setOpen(true); }}><Plus className="h-4 w-4" /> Demirbaş ekle</Button>
+                </>
+            )}>
             <ActionFeedback action={act} />
             <Stats items={[
                 { label: "Aktif demirbaş", value: num(s?.active) },
@@ -100,6 +107,11 @@ export default function AssetsPage() {
                         {canMaintain && detail?.status !== "DISPOSED" && (
                             <Button size="sm" onClick={() => setMaint({ maintenance_type: "PREVENTIVE", description: "", labor_cost: "", parts_cost: "", performed_by: "", performed_at: today(), new_condition: "" })}>Bakım kaydı</Button>
                         )}
+                        {canWrite && detail && detail.status !== "DISPOSED" && (
+                            <Button size="sm" variant="secondary" onClick={() => setAssign({ id: detail.id, name: detail.name, assigned_to: detail.assigned_to ?? "" })}>
+                                {detail.assigned_to ? `Zimmet: ${detail.assigned_to}` : "Zimmetle"}
+                            </Button>
+                        )}
                         {canWrite && detail?.status !== "DISPOSED" && <Button size="sm" variant="danger" onClick={() => { setDispose({ reason: "", decision_ref: "" }); setDisposing(detail); }}>Hurdaya ayır</Button>}
                     </div>
                     <QueryView q={history} empty="Bakım kaydı yok">
@@ -144,6 +156,33 @@ export default function AssetsPage() {
                 }}>
                 <Field label="Gerekçe" required><Textarea required value={dispose.reason} onChange={(e) => setDispose({ ...dispose, reason: e.target.value })} /></Field>
                 <Field label="Karar referansı" required hint="Yönetim/kurul kararının tarih ve numarası"><Input required value={dispose.decision_ref} onChange={(e) => setDispose({ ...dispose, decision_ref: e.target.value })} /></Field>
+            </FormModal>
+            <FormModal open={!!catForm} onClose={() => setCatForm(null)} title="Demirbaş kategorisi" pending={act.pending} error={act.error}
+                onSubmit={async () => {
+                    if (!catForm) return;
+                    const r = await act.run(() => api.assets.createCategory({ name: catForm.name, description: catForm.description || undefined,
+                        depreciation_years: catForm.depreciation_years ? Number(catForm.depreciation_years) : undefined }), { invalidate: ["asset-categories"], success: "Kategori eklendi" });
+                    if (r) setCatForm(null);
+                }}>
+                {catForm && (
+                    <Grid>
+                        <Field label="Ad" required><Input required value={catForm.name} onChange={(e) => setCatForm({ ...catForm, name: e.target.value })} placeholder="Bahçe ekipmanı" /></Field>
+                        <Field label="Amortisman süresi (yıl)" hint="Boş bırakılırsa amortisman hesaplanmaz"><Input type="number" min={1} max={50} value={catForm.depreciation_years} onChange={(e) => setCatForm({ ...catForm, depreciation_years: e.target.value })} /></Field>
+                        <Field label="Açıklama"><Input value={catForm.description} onChange={(e) => setCatForm({ ...catForm, description: e.target.value })} /></Field>
+                    </Grid>
+                )}
+            </FormModal>
+            <FormModal open={!!assign} onClose={() => setAssign(null)} title={assign ? `${assign.name} — zimmet` : ""} pending={act.pending} error={act.error}
+                onSubmit={async () => {
+                    if (!assign) return;
+                    const r = await act.run(() => api.assets.assign(assign.id, assign.assigned_to.trim()), { invalidate: ["assets"], success: assign.assigned_to.trim() ? "Zimmet kaydedildi" : "Zimmet kaldırıldı" });
+                    if (r) { setAssign(null); setDetail(null); }
+                }}>
+                {assign && (
+                    <Field label="Zimmetlenen kişi / birim" hint="Boş bırakıp kaydederseniz zimmet kaldırılır">
+                        <Input value={assign.assigned_to} onChange={(e) => setAssign({ ...assign, assigned_to: e.target.value })} placeholder="Ör. Bahçıvan Ali Yılmaz" />
+                    </Field>
+                )}
             </FormModal>
         </Page>
     );

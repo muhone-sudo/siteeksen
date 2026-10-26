@@ -50,6 +50,8 @@ const _groups = <(String, List<_NavItem>)>[
   ('Genel', [
     _NavItem(Icons.dashboard, 'Özet', '/', _all),
     _NavItem(Icons.people, 'Sakinler', '/residents', _all),
+    _NavItem(Icons.apartment, 'Bağımsız bölümler', '/units', _mgmtAudit),
+    _NavItem(Icons.assignment_ind, 'Görevlendirmeler', '/roles', _mgmtAudit),
     _NavItem(Icons.support_agent, 'Talepler', '/requests', [roleManager, roleBoard, roleAuditor, roleStaff]),
     _NavItem(Icons.campaign, 'Duyurular', '/announcements', _all),
   ]),
@@ -59,6 +61,8 @@ const _groups = <(String, List<_NavItem>)>[
     _NavItem(Icons.trending_up, 'Tahsilat riski', '/collection', _mgmtAudit),
     _NavItem(Icons.description, 'Sözleşmeler', '/contracts', _mgmtAudit),
     _NavItem(Icons.gavel, 'Yönetişim (KMK)', '/governance', _mgmtAudit),
+    _NavItem(Icons.folder, 'Belge arşivi', '/documents', _mgmtAudit),
+    _NavItem(Icons.shield, 'Sigorta (DASK)', '/insurance', _mgmtAudit),
     _NavItem(Icons.account_balance, 'Banka', '/banking', _mgmt),
   ]),
   ('Operasyon', [
@@ -70,17 +74,30 @@ const _groups = <(String, List<_NavItem>)>[
     _NavItem(Icons.bolt, 'Tüketim analizi', '/energy', _all),
     _NavItem(Icons.security, 'Devriye', '/patrol', _all),
     _NavItem(Icons.inventory, 'Stok', '/inventory', _all),
+    _NavItem(Icons.sensors, 'Sensörler', '/sensors', _all),
     _NavItem(Icons.chair, 'Demirbaş', '/assets', _all),
     _NavItem(Icons.badge, 'Personel', '/personnel', _all),
   ]),
   ('Topluluk', [
     _NavItem(Icons.poll, 'Anketler', '/surveys', _mgmt),
     _NavItem(Icons.dashboard_customize, 'İlan panosu', '/bulletin', _mgmt),
+    _NavItem(Icons.construction, 'Tadilat izinleri', '/renovations', _mgmtAudit),
+    _NavItem(Icons.report, 'Kural ihlalleri', '/violations', _mgmtAudit),
+    _NavItem(Icons.emergency, 'Acil durum', '/emergency', _mgmtAudit),
+    _NavItem(Icons.privacy_tip, 'KVKK başvuruları', '/kvkk', _mgmtAudit),
+    _NavItem(Icons.send, 'Bildirim merkezi', '/notification-center', _mgmt),
+  ]),
+  ('Analiz', [
+    _NavItem(Icons.sentiment_satisfied_alt, 'Memnuniyet (NPS)', '/nps', _mgmtAudit),
+    _NavItem(Icons.eco, 'Karbon ayak izi', '/esg', _mgmtAudit),
+    _NavItem(Icons.picture_as_pdf, 'Raporlar', '/reports', _mgmtAudit),
   ]),
   ('Sistem', [
     _NavItem(Icons.notifications, 'Bildirimlerim', '/inbox', _all),
     _NavItem(Icons.history, 'İşlem kayıtları', '/audit', [roleManager, roleAuditor]),
+    _NavItem(Icons.settings, 'Ayarlar', '/site-settings', _mgmt),
     _NavItem(Icons.key, 'Entegrasyon durumu', '/api-settings', _mgmt),
+    _NavItem(Icons.account_circle, 'Hesabım', '/account', _all),
   ]),
 ];
 

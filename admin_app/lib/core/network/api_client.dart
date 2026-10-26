@@ -142,6 +142,20 @@ class ApiClient {
     }
   }
 
+  /// JWT'deki kullanıcı kimliği ("sub").
+  Future<String> getCurrentUserId() async {
+    final token = await _storage.read(key: 'access_token');
+    if (token == null) return '';
+    try {
+      final parts = token.split('.');
+      if (parts.length != 3) return '';
+      final payload = jsonDecode(utf8.decode(base64Url.decode(base64Url.normalize(parts[1])))) as Map<String, dynamic>;
+      return '${payload['sub'] ?? ''}';
+    } catch (_) {
+      return '';
+    }
+  }
+
   /// KVKK açık rıza onayını kaydeder (zorunlu onay ekranı sonrası çağrılır).
   Future<void> acceptKvkkConsent() async {
     await _dio.post('/users/me/kvkk-consent');
@@ -167,6 +181,9 @@ class ApiClient {
 
   /// Biyometrik onay sonrası kayıtlı refresh token ile oturumu yeniler.
   Future<bool> loginWithStoredSession() => _refreshToken();
+
+  /// Aktif site değişince yeni siteye ait jetonu alır (site rolleri jetonda).
+  Future<bool> refreshSession() => _refreshToken();
 
   // ============ OTURUM ============
 

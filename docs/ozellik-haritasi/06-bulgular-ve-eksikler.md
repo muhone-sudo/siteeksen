@@ -10,17 +10,22 @@ Bir özellik "eksik" sayıldıysa backend'de çalışıyor ama ilgili kullanıc�
 
 | # | Bulgu | Kanıt |
 |---|---|---|
-| A1 | Giriş sayfasındaki "Yöneticinize başvurun" bağlantısı hiçbir yere gitmiyor (`href="#"`). | `admin/src/app/login/page.tsx:154` |
+| A1 | **ÇÖZÜLDÜ (H.8).** Eski bulgu: Giriş sayfasındaki "Yöneticinize başvurun" bağlantısı hiçbir yere gitmiyor (`href="#"`). | `admin/src/app/login/page.tsx:154` |
 | A2 | **Yönetim için kişisel bildirim kutusu yok.** Kişinin kendi bildirimlerini okuyan uç (`GET /notifications`) yalnız sakin uygulamasında kullanılıyor. Yönetime giden bildirimler (KVKK başvurusu, tadilat, ihlal, düşük stok, devriye sorunu, 11 zamanlanmış işin 9'u) panelde sadece Bildirimler sayfasındaki giden kutusunda (sitenin tüm bildirimleri) görülebiliyor. Yönetici mobil uygulamasında ise hiç görünmüyor. Panel zil simgesi kişisel kutuya değil toplu gönderim sayfasına gidiyor. | `backend/services/notification/main.go:64`, `admin/src/components/layout/header.tsx:85`, 4.1 |
 | A3 | **ÇÖZÜLDÜ (2026-10-26, FAZ H.1.2):** sayfa "Entegrasyon durumu" oldu, gerçek durumu gateway `GET /integrations/status`'tan okuyor; `/credentials*` stub uçları kaldırıldı. Eski bulgu: Panel *Entegrasyon Anahtarları* sayfası backend'i çağırmıyor, yalnız bilgi notu gösteriyor. `settings` servisindeki 7 `/credentials*` ucu hiçbir istemcide kullanılmıyor. | `admin/src/app/(dashboard)/dashboard/credentials/page.tsx` |
 | A4 | Sakin uygulamasının API istemcisinde `getVisitors` (`GET /visitors`) ve `reportClientError` (`POST /client-errors`) yöntemleri tanımlı ama hiçbir ekrandan çağrılmıyor. | `mobile/lib/core/network/api_client.dart` |
-| A5 | IoT sensör ve alarm uçları (6 uç) hiçbir istemcide yok. Bu bilinçli: CLAUDE.md'de "gerçek değil" olarak geçiyor. | 5.1 |
+| A5 | **ÇÖZÜLDÜ (FAZ H.4, 074):** sensörler PostgreSQL ile gerçek; panel ve yönetici uygulamasında ekranı var. Eski bulgu: IoT sensör ve alarm uçları (6 uç) hiçbir istemcide yok. Bu bilinçli: CLAUDE.md'de "gerçek değil" olarak geçiyor. | 5.1 |
 | A6 | **KISMEN ÇÖZÜLDÜ (FAZ H.1.1):** `meeting_wizard` servisi kaldırıldı (governance tek kaynak); `banking` S-07 gereği duruyor. Eski bulgu: `banking` ve `meeting_wizard` servislerinin 33 ucu 501 döner (kullanıcı kararı S-07 / governance ile tekrar). | 5.2 |
 | A7 | CLAUDE.md'de koda uymayan ifadeler vardı ve düzeltildi: panelde çıkış düğmesi ve rol denetimi "yok" deniyordu; `iot`/`notification` satırlarında MongoDB/Firebase/Kafka geçiyordu; bildirim üreten modül sayısı "altı" yazıyordu (gerçekte 14 servis, 54 uç); `intl` "kullanılmıyor" deniyordu; ortam tablosu WSL yolunu gösteriyordu. | CLAUDE.md |
 
 ## B. Yapılan özellik ↔ harita: eksikler
 
-### B1. Sakin mobil uygulaması
+### B1. Sakin mobil uygulaması — **ÇÖZÜLDÜ (2026-10-26, FAZ H.6)**
+
+> B1.1–B1.11'in hepsinin sakin uygulamasında ekranı var: Ödeme geçmişi, Araçlarım, Ziyaretçilerim (iptal, kod yenileme),
+> Sayaçlarım, kargo kanıtı, tadilat geri çekme, Memnuniyet anketi, ilan yorumları (yazma/okuma/kendi yorumunu kaldırma),
+> anket yorumları, tüm cihazlardan çıkış, okundu bilgisi, İşletme projesi (bölüm payı + görüş/itiraz; site ayarı
+> `OWNER_PLAN_OBJECTIONS` kapalıysa gönderim 409 ve ekran bunu söyler). Aşağıdaki tablo eski bulgudur.
 
 | # | Yapılan özellik (changelog) | Backend | Sakin uygulamasında | Etki |
 |---|---|---|---|---|
@@ -36,13 +41,18 @@ Bir özellik "eksik" sayıldıysa backend'de çalışıyor ama ilgili kullanıc�
 | B1.10 | **Tüm cihazlardan çıkış** (`tasks/changelog.md:1503`) | `POST /users/me/logout-all` | **Yok** (hiçbir istemcide) | Telefonunu kaybeden kullanıcı diğer oturumları kapatamıyor; tek yol şifre değiştirmek. |
 | B1.11 | İşletme projesine itiraz (KMK m.37/2; 7579 sonrası "genel kurulda görüşülecek görüş") | `POST /governance/budgets/:id/objections` | **Yok** (hiçbir istemcide). Panel itirazları listeleyip sonuçlandırıyor. | Malik itiraz/görüş giremiyor; panelde sonuçlandırılacak itiraz oluşamıyor. **Karar gerekir:** 7579 sonrası bu akış ekranda olmalı mı? |
 
-### B2. Devriye — saha tarafı hiç yok
+### B2. Devriye — saha tarafı hiç yok — **ÇÖZÜLDÜ (FAZ H.5, 075): QR + GPS zorunluluğu, iz, rapor ve harita**
 
 | Yapılan | Backend | İstemci | Etki |
 |---|---|---|---|
 | "Zaman sunucudan; durum okutmalardan hesaplanır; çok hızlı tur işaretlenir" | `POST /patrols` (başlat), `POST /patrols/:id/scan` (nokta okut), `POST /patrols/:id/issues` (sorun bildir), `POST /patrols/:id/complete` | **Dördü de hiçbir istemcide yok.** Panel ve yönetici mobil yalnız rota/nokta tanımlıyor ve listeliyor. | Devriye başlatılamıyor, okutulamıyor. Bu yüzden `patrol.issue` bildirimi ve zamanlayıcının `patrol.overdue` hatırlatması pratikte tetiklenemez. Güvenlik görevlisi için bir ekran gerekiyor. |
 
-### B3. Panelde eksik yönetim işlemleri (backend var, ekran yok)
+### B3. Panelde eksik yönetim işlemleri (backend var, ekran yok) — **ÇÖZÜLDÜ (2026-10-26, FAZ H.8)**
+
+> Hepsinin panelde karşılığı var: demirbaş kategori ve zimmet, stok kategorisi / gerekçeli pasife alma / kalem hareket
+> geçmişi, sayaç pasife alma (okuma geçmişi korunur), kamera kaydı düzenleme, yıllık personel maliyeti, plaka sorgu,
+> kargo imza/fotoğraf indirme, ilan yorumlarını görme ve gizleme, anket yorumları. `GET /esg/sustainability-score`
+> H.1'de kaldırıldı (dayanaksız puandı). Ziyaretçi kodu yenileme (P10) de eklendi (yönetim ve görevli; eski kod hemen geçersiz).
 
 | Uç | İşlev | Kanıt |
 |---|---|---|
@@ -58,7 +68,15 @@ Bir özellik "eksik" sayıldıysa backend'de çalışıyor ama ilgili kullanıc�
 | `GET /packages/:id/proof/:kind` | Teslim kanıtını görüntüleme | B1.5 |
 | `GET /surveys/:id/comments` | Anket yorumlarını görme | B1.9 |
 
-### B4. Yönetici mobil uygulaması — panelde olup mobilde olmayan yazma işlemleri
+### B4. Yönetici mobil uygulaması — panelde olup mobilde olmayan yazma işlemleri — **ÇÖZÜLDÜ (2026-10-26, FAZ H.7, kullanıcı kararı K4)**
+
+> Harita aracıyla ölçüldü: panelin çağırdığı **her** uç (okuma ve yazma) yönetici uygulamasında da çağrılıyor — fark **0**.
+> Yeni ekranlar: bağımsız bölümler, görevlendirmeler, KVKK, tadilat, kural ihlali, acil durum, sigorta, belge arşivi,
+> bildirim merkezi, NPS, karbon ayak izi, site ayarları, hesabım (site değiştir / yeni site); yönetişim tam yetkili;
+> finansa defter, alacak dekontu, banka ekstresi, devir bakiyesi, gecikme tazminatı; personele bordro ve SGK takvimi.
+> Ortak altyapı `admin_app/lib/core/widgets/forms.dart` (alan tanımından form, dosya seçme, indirme/açma, satır menüsü).
+> Bilinçli fark: personelin TCKN/IBAN'ı mobilde yalnız maskeli görünür (maskesiz görüntüleme `PII_REVEAL` kaydıyla panelde).
+> Aşağıdaki tablo eski bulgudur.
 
 Toplam 117 yazma ucu panelde kullanılıyor ama yönetici mobilde kullanılmıyor. Modül bazında:
 
@@ -85,4 +103,4 @@ Tam uç listesi 3. bölümde ekran ekran, 1. bölümde sayfa sayfa yer alıyor.
 3. **B1.1 ödeme geçmişi, B1.3 ziyaretçi listesi/iptal/kod, B1.2 araç:** changelog'da sakin için yapıldığı yazan ama ekranı olmayan işler.
 4. **B1.5 kargo kanıtı görüntüleme**, **B1.10 tüm cihazlardan çıkış**, **B1.6 tadilat geri çekme**, **B1.8 ilan yorumları**.
 5. B3 panel eksikleri; B4 yönetici mobil kapsamı (kullanıcı kararı: mobilde hangi modüller olmalı?).
-6. A1 ölü bağlantı.
+6. ~~A1 ölü bağlantı~~ — **ÇÖZÜLDÜ (H.8):** giriş sayfası `/activate` bağlantısı verir.

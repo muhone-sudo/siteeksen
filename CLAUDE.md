@@ -110,7 +110,7 @@ Next.js admin paneli, iki Flutter mobil uygulaması (sakin + yönetici) içerir.
 
 > Aşağıdaki notlar **çalıştırılarak** doğrulanmıştır. Bu bölümdeki hiçbir ifade "olması gerekeni"
 > değil, **bugün gerçekte olanı** anlatır.
-> Toplu kanıt: `bash backend/scripts/verify-stack.sh` → **1383/1383** (2026-10-26),
+> Toplu kanıt: `bash backend/scripts/verify-stack.sh` → **1423/1423** (2026-10-26),
 > `bash backend/scripts/verify-mobile.sh` → **10/10**.
 > Tarihçe ve `dosya:satır` kanıtı: `tasks/audit-raporu.md`, `tasks/changelog.md`.
 
@@ -136,7 +136,7 @@ cd admin && npm run dev            # http://localhost:3001
   `banking` (S-07 kullanıcı kararıyla sonraki sürüme bırakıldı).
   `meeting_wizard` servisi, `settings` kimlik bilgisi uçları ve ESG sürdürülebilirlik
   skoru 2026-10-26'da kaldırıldı (FAZ H.1; özellikleri başka yerde var). `iot`
-  sensör uçları hâlâ 501 — FAZ H.4'te tamamlanacak. Sağlayıcı durumu:
+  sensörleri 074 ile gerçek (FAZ H.4). Sağlayıcı durumu:
   `GET /api/v1/integrations/status` (gateway).
 - **Uygulama veritabanına SÜPER KULLANICIYLA BAĞLANMIYOR — dev-up, doğrulama,
   docker compose ve k8s'in dördünde de.** İki rol vardır:
@@ -145,7 +145,7 @@ cd admin && npm run dev            # http://localhost:3001
   dizin tablolarını yalnızca okur, `users.password_hash`/TCKN sütunlarını
   göremez, denetim izini ve jeton iptalini silemez). Parolaları `cmd/migrate`
   `APP_DB_PASSWORD` / `IDENTITY_DB_PASSWORD` ile atar; depoya yazılmaz.
-  RLS **124 tabloda** açık; dışarıda kalan 10 tablonun her biri gerekçelidir ve
+  RLS **129 tabloda** açık; dışarıda kalan 10 tablonun her biri gerekçelidir ve
   doğrulama listeyi birebir denetler. Tüm görünümler `security_invoker`
   (aksi hâlde görünüm sahibinin yetkisiyle RLS'i atlıyordu).
 - **Dağıtım dosyaları tek kaynaktan üretilir:** `backend/scripts/gen-deploy.py`
@@ -154,8 +154,8 @@ cd admin && npm run dev            # http://localhost:3001
   Compose zorunlu gizli değerler (`.env`, şablon `.env.example`) yoksa açılmaz.
 - **Modüller artık gerçekten bildirim gönderiyor.** 14 servis (54 uç) ve zamanlayıcı (11 iş) `pkg/notify`
   üzerinden bildirim üretir; tam katalog `docs/ozellik-haritasi/04-bildirim-zamanlayici-tetikleyici.md`.
-  Kişisel bildirim kutusu (`GET /notifications`) YALNIZ sakin uygulamasında var; panelde ve yönetici
-  mobilde yok (yönetime gidenler panelde yalnız giden kutusunda görünür). Alıcı kümesi (sakinler / daire
+  Kişisel bildirim kutusu (`GET /notifications`, okundu bilgisiyle — 073) panelde (zil + `/dashboard/inbox`) ve
+  iki mobil uygulamada var. Alıcı kümesi (sakinler / daire
   sakinleri / yönetim) `pkg/notify/audience.go`'da tek yerde tanımlıdır:
   beş modül aynı sorguyu ayrı yazsaydı, birinde `is_active` filtresi
   unutulduğunda siteden taşınmış birine bildirim giderdi. Yanıtlar
@@ -183,6 +183,9 @@ cd admin && npm run dev            # http://localhost:3001
 - **İşlem kaydı ve bildirim kutusu (073, 2026-10-26):** `audit_logs` tek kayıt yeri (API/CLIENT/SYSTEM); düzey site ayarı
   `ACTIVITY_LOG_LEVEL` (KAPALI'da da zorunlu çekirdek yazılır), okuma yalnız `audit_log_list` işleviyle; kişisel kutu
   `notification_reads` ile panelde (zil + `/dashboard/inbox`), iki mobil uygulamada. Kayıt istekten bağımsız bağlamla yazılır.
+- **Devriye QR + GPS (075, 2026-10-26):** okutma konumu sunucuda noktanın konumuyla karşılaştırılır; red denemeleri kanıt,
+  şüpheli hız işaretli, konum izi yalnız açık turda (1 yıl). Yönetici uygulaması `mobile_scanner`/`geolocator`/`flutter_map`,
+  panel `qrcode`/`leaflet`. İki mobil uygulamanın debug APK'sı derleniyor (2026-10-26; öncesinde yönetici uygulaması derlenmiyordu).
 - **Migration'lar `cmd/migrate` ile uygulanır** (sürüm tablosu, advisory lock, SHA-256
   sağlama, transaction). `docker-entrypoint-initdb.d` kullanılmaz. Uygulanmış bir
   migration dosyası **düzenlenmez** — çalıştırıcı sağlama uyuşmazlığında durur.
@@ -342,7 +345,7 @@ Active services and their ports:
 | identity | 8081 | Auth, JWT, users |
 | finance | 8082 | Dues, payments (Iyzico) |
 | community | 8083 | Requests, bulletin |
-| iot | 8084 | Sayaç, okuma, ısı payı, tüketim pusulası (**gerçek DB**; sensör uçları gerçek değil, MongoDB yok) |
+| iot | 8084 | Sayaç, okuma, ısı payı, tüketim pusulası ve **sensörler/alarmlar (074)** (**gerçek DB**; MongoDB yok) |
 | notification | 8085 | Kişisel bildirimler, tercihler, toplu gönderim, giden kutusu (**gerçek DB**; Firebase/Kafka yok, push sağlayıcısı yok) |
 | expense | 8086 | Gider ve kalem bazlı dağıtım (**gerçek DB**) |
 | asset | 8087 | Demirbaş, bakım, amortisman (**gerçek DB**) |
@@ -365,7 +368,7 @@ Active services and their ports:
 | banking | 8106 | **Yazılmadı** — S-07 kullanıcı kararı (501) |
 | governance | 8107 | KMK yönetişim: işletme projesi, genel kurul, defterler, icra (**gerçek DB**) |
 | gateway | 8888 | Custom dev gateway (`cmd/gateway/`) — kimlik doğrulama kapısı |
-| scheduler | 8110 | `cmd/scheduler` — zamana bağlı bildirimler (gecikmiş aidat, sözleşme ihbarı, açık devriye, demirbaş bakımı, KVKK süresi, işletme projesi genel kurul süresi, tatbikat, SGK/MUHSGK süreleri, KVKK periyodik imha, DASK yenileme); yalnızca `/health`, gateway'e bağlı değil |
+| scheduler | 8110 | `cmd/scheduler` — zamana bağlı bildirimler (gecikmiş aidat, sözleşme ihbarı, açık devriye, demirbaş bakımı, KVKK süresi, işletme projesi genel kurul süresi, tatbikat, SGK/MUHSGK süreleri, KVKK periyodik imha, DASK yenileme; 2026-10-26: istemci etkinliği, sensör okuması ve devriye izi saklama süresi silmeleri); yalnızca `/health`, gateway'e bağlı değil |
 
 All 25 services are in docker-compose, k8s and the CI image matrix (generated by `backend/scripts/gen-deploy.py`).
 
@@ -413,6 +416,10 @@ Bildirilen ortak yığın: Riverpod, go_router, Dio, flutter_secure_storage.
 - **`intl` kullanılıyor** (`core/utils/formatters.dart`: `NumberFormat.currency`, `tr_TR`).
 - Sakin uygulamasında 13/22, yönetici uygulamasında 16 bağımlılık hiç import edilmemiş.
 - ~~Test sayısı: sakin 1 (derlenmiyor), yönetici 0~~ → **2026-09-27:** sakin 27, yönetici 27 test; **2026-10-10:** sakin 38+, yönetici 32 test.
+- **Yönetici uygulaması panelle eşit (2026-10-26, FAZ H.7, kullanıcı kararı K4):** panelin çağırdığı her uç
+  yönetici uygulamasında da çağrılıyor (harita aracıyla ölçüldü, fark 0). Ortak form/dosya/indirme altyapısı
+  `admin_app/lib/core/widgets/forms.dart`; menü-rota tutarlılığı `admin_app/test/parity_test.dart` ile sınanır.
+  Bilinçli fark: personel TCKN/IBAN'ı mobilde yalnız maskeli.
 - **İki uygulama da gerçek API sözleşmesine bağlı (2026-09-27).** Alan yöntemleri yerine
   genel `getList/getMap/post…` + yol sözleşmeden (`tasks/api-sozlesmesi.md`); yönetici
   uygulamasında yükleme/hata/boş/işlem davranışı `core/widgets/api_views.dart`'ta tek yerde.
@@ -425,7 +432,7 @@ Bildirilen ortak yığın: Riverpod, go_router, Dio, flutter_secure_storage.
 ### Multi-Tenancy (site izolasyonu) — **çalışıyor, iki katmanlı**
 - **Uygulama katmanı:** JWT `property_id` (site seçiminde sahiplik doğrulanır), site bazlı roller
   (`property_roles`), her sorguda `property_id` filtresi.
-- **Veritabanı katmanı:** 124 tabloda RLS; kapsam `pkg/dbscope` ile verilir. Kapsam yoksa sorgu
+- **Veritabanı katmanı:** 129 tabloda RLS; kapsam `pkg/dbscope` ile verilir. Kapsam yoksa sorgu
   hiç satır döndürmez (fail-closed). Alt tablolar ebeveyn üzerinden `EXISTS` ile korunur.
 - Yeni tablo eklerken: RLS + politika + (alt tabloysa) ebeveyn anahtarına indeks; doğrulama
   RLS dışında kalan tablo listesini birebir denetler, eklenen tablo unutulursa yakalanır.
@@ -448,7 +455,7 @@ Bildirilen ortak yığın: Riverpod, go_router, Dio, flutter_secure_storage.
 | Giriş şifresi loglanması | **Kaldırıldı** — yalnızca maskelenmiş telefon ve HTTP durumu loglanıyor |
 | İstemci kimlik başlıkları | Gateway `X-User-*` / `X-Property-Id` / `X-Tenant-Id` başlıklarını **siler** |
 | TCKN/IBAN şifreleme | **VAR** — AES-256-GCM; arama için HMAC blind index (düz SHA-256 değil). Anahtar yoksa personel servisi açılmaz. Anahtar halkası + döndürme (`cmd/rotate-pii`, `docs/runbook-anahtar-dondurme.md`); şifreleme ve arama anahtarı HKDF ile ayrı. Varsayılan MASKELİ; maskesiz erişim ayrı `PII_REVEAL` denetim kaydı üretir |
-| Tenant izolasyonu (RLS) | **124 TABLODA AÇIK** (migration 020-026, 029 ve sonraki modül göçleri). 25 servisin tamamı `pkg/dbscope` kullanır. RLS dışında kalan 10 tablo gerekçeli: `audit_logs` (yalnızca ekleme), `revoked_tokens`/`user_token_invalidation` (salt-okur), `tenants`/`invoices`/`usage_metrics`/`schema_migrations`/`user_activation_codes`/`phone_change_requests`/`email_change_requests` (uygulama rolüne kapalı; son üçü yalnızca kimlik servisi) |
+| Tenant izolasyonu (RLS) | **129 TABLODA AÇIK** (migration 020-026, 029 ve sonraki modül göçleri). 25 servisin tamamı `pkg/dbscope` kullanır. RLS dışında kalan 10 tablo gerekçeli: `audit_logs` (yalnızca ekleme), `revoked_tokens`/`user_token_invalidation` (salt-okur), `tenants`/`invoices`/`usage_metrics`/`schema_migrations`/`user_activation_codes`/`phone_change_requests`/`email_change_requests` (uygulama rolüne kapalı; son üçü yalnızca kimlik servisi) |
 | Hesap etkinleştirme / şifre | **VAR (027)** — yönetici sakin ekleyince tek kullanımlık kod bir kez gösterilir (SMS yapılandırılmışsa sakine de gider); kod özeti saklanır, 7 gün, 5 denemede kilit. Şifre değiştirme/sıfırlama bütün oturumları kapatır. Girişte kademeli kilit: 5. hata 30 sn, 6. hata 2 dk, 7.+ 15 dk (B6). Sakin kodu kendisi de isteyebilir (`/auth/password-reset/request`, SMS/e-posta, 15 dk; yanıt numara ifşa etmez — B3). Jeton `iat` milisaniye hassasiyetinde (`pkg/revocation.Precision`) |
 | Veritabanı rolleri | **En az yetki** — kimlik servisi ayrı rol (site verisine erişemez); uygulama rolü parola özetini/TCKN'yi göremez, dizin tablolarına yazamaz, denetim izini ve jeton iptalini silemez |
 | Dağıtım | compose/k8s/CI tek kaynaktan; kaplar root değil; compose varsayılan parolayla açılmaz; k8s'te tek giriş kapısı gateway |

@@ -93,6 +93,24 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
     }
   }
 
+  Future<void> _readStats(Map item) async {
+    try {
+      final r = await apiClient.getMap('/announcements/${item['id']}/read-stats');
+      final st = (r['stats'] as Map?) ?? const {};
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Okunma durumu'),
+          content: Text('Okuyan ${st['read_count'] ?? 0} / ${st['total_residents'] ?? 0} sakin · okumayan ${st['unread_count'] ?? 0}\n\n${r['note'] ?? ''}'),
+          actions: [FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('Tamam'))],
+        ),
+      );
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(toUserMessage(e))));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -176,6 +194,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                         icon: const Icon(Icons.more_vert),
                         onSelected: (value) {
                           if (value == 'pin') _togglePin(item);
+                          if (value == 'stats') _readStats(item);
                         },
                         itemBuilder: (context) => [
                           PopupMenuItem(
@@ -184,6 +203,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
                                 ? 'Sabitlemeyi kaldır'
                                 : 'Sabitle'),
                           ),
+                          const PopupMenuItem(value: 'stats', child: Text('Okunma durumu')),
                           // Silme ucu sunucuda yok: yayımlanmış duyuru kayıttır;
                           // süresi dolan duyuru `expires_at` ile listeden düşer.
                         ],

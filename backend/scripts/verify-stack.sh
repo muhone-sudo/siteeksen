@@ -3160,13 +3160,12 @@ if [ "$OUP" = "1" ] && [ -n "${MGR:-}" ] && [ -n "${TEN:-}" ]; then
 
   # Sağlık ucu kapsam sınırını dürüstçe bildirmeli
   H=$(curl -s "http://127.0.0.1:${IOTPORT}/health")
-  echo "$H" | grep -q 'Sensör ve uyarı' && ok "sağlık ucu kapsam sınırını dürüstçe bildiriyor" \
+  echo "$H" | grep -q 'sensörler (074) gerçektir' && ok "sağlık ucu kapsamı doğru bildiriyor (sensörler gerçek)" \
     || bad "kapsam notu yok: $H"
 
-  # Sensör uçları hâlâ gerçek değil → 501 dönmeli
+  # Sensör uçları artık gerçek (074): liste 200
   SC=$(curl -s -o /dev/null -w '%{http_code}' "$OURL/sensors" -H "$OA")
-  [ "$SC" = "501" ] && ok "sensör ucu dürüstçe 501 dönüyor (zaman serisi deposu yok)" \
-    || bad "sensör ucu → $SC (501 bekleniyordu)"
+  [ "$SC" = "200" ] && ok "sensör listesi gerçek veriyle dönüyor (074)" || bad "sensör ucu → $SC (200 bekleniyordu)"
 
   # Isı paylaştırması sabit payı kullanım alanına göre dağıtır; demo alanı (049, brüt×0,85)
   # yoksa tanımlanır. Net alan brütü aşamaz (049 kısıtı).
@@ -3689,6 +3688,8 @@ if [ "$PUP" = "1" ] && [ -n "${MGR:-}" ] && [ -n "${TEN:-}" ]; then
     -d '{"name":"Yabanci","checkpoints":[{"checkpoint_id":"00000000-0000-0000-0000-000000000001","order":1}]}')
   [ "$SC" = "422" ] && ok "başka siteye ait nokta güzergâha eklenemiyor → 422" || bad "yabancı nokta → $SC"
 
+  # 075: okutma konum ister; noktalara konum verilir, okutmalar noktanın yanından yapılır.
+  $PSQL -c "UPDATE patrol_checkpoints SET latitude=41.0, longitude=29.0 WHERE id IN ('$CP1','$CP2','$CP3');" >/dev/null
   if [ -n "$RTID" ]; then
     # 3) Tur başlat — başlangıç zamanı SUNUCUDAN
     P1=$(curl -s -X POST "$PURL2/patrols" -H "$RA" -H "$RJ2" -d "{\"route_id\":\"$RTID\"}")
@@ -3705,20 +3706,21 @@ if [ "$PUP" = "1" ] && [ -n "${MGR:-}" ] && [ -n "${TEN:-}" ]; then
 
     # 4) Nokta okutma
     S1=$(curl -s -X POST "$PURL2/patrols/$P1ID/scan" -H "$RA" -H "$RJ2" \
-      -d "{\"checkpoint_id\":\"$CP1\",\"note\":\"Kapi kilitli\"}")
+      -d "{\"checkpoint_id\":\"$CP1\",\"latitude\":41.0,\"longitude\":29.0,\"accuracy_m\":5,\"note\":\"Kapi kilitli\"}")
     echo "$S1" | grep -q '"checkpoints_visited":1' && ok "nokta okutuldu (1/3)" || bad "okutma: $S1"
 
     # Aynı nokta iki kez okutulamaz
     SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$PURL2/patrols/$P1ID/scan" -H "$RA" -H "$RJ2" \
-      -d "{\"checkpoint_id\":\"$CP1\"}")
+      -d "{\"checkpoint_id\":\"$CP1\",\"latitude\":41.0,\"longitude\":29.0,\"accuracy_m\":5}")
     [ "$SC" = "409" ] && ok "aynı nokta iki kez okutulamıyor → 409" || bad "çift okutma → $SC"
 
     # Güzergâhta olmayan nokta okutulamaz
     CPX=$(curl -s -X POST "$PURL2/patrol-checkpoints" -H "$RA" -H "$RJ2" \
       -d '{"name":"Guzergah disi","nfc_tag_id":"NFC-X-01"}' \
       | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
+    $PSQL -c "UPDATE patrol_checkpoints SET latitude=41.0, longitude=29.0 WHERE id='$CPX';" >/dev/null
     SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$PURL2/patrols/$P1ID/scan" -H "$RA" -H "$RJ2" \
-      -d "{\"checkpoint_id\":\"$CPX\"}")
+      -d "{\"checkpoint_id\":\"$CPX\",\"latitude\":41.0,\"longitude\":29.0,\"accuracy_m\":5}")
     [ "$SC" = "422" ] && ok "güzergâh dışı nokta okutulamıyor → 422" || bad "güzergâh dışı → $SC"
 
     # 5) Sorun bildirimi
@@ -3750,14 +3752,14 @@ if [ "$PUP" = "1" ] && [ -n "${MGR:-}" ] && [ -n "${TEN:-}" ]; then
 
     # Kapanmış tura okutma yapılamaz
     SC=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$PURL2/patrols/$P1ID/scan" -H "$RA" -H "$RJ2" \
-      -d "{\"checkpoint_id\":\"$CP2\"}")
+      -d "{\"checkpoint_id\":\"$CP2\",\"latitude\":41.0,\"longitude\":29.0,\"accuracy_m\":5}")
     [ "$SC" = "409" ] && ok "kapanmış tura okutma yapılamıyor → 409" || bad "kapalı tura okutma → $SC"
 
     # 7) TAM TUR — zorunlu noktaların hepsi okutulursa COMPLETED
     P2ID=$(curl -s -X POST "$PURL2/patrols" -H "$RA" -H "$RJ2" -d "{\"route_id\":\"$RTID\"}" \
       | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
-    curl -s -o /dev/null -X POST "$PURL2/patrols/$P2ID/scan" -H "$RA" -H "$RJ2" -d "{\"checkpoint_id\":\"$CP1\"}"
-    curl -s -o /dev/null -X POST "$PURL2/patrols/$P2ID/scan" -H "$RA" -H "$RJ2" -d "{\"checkpoint_id\":\"$CP2\"}"
+    curl -s -o /dev/null -X POST "$PURL2/patrols/$P2ID/scan" -H "$RA" -H "$RJ2" -d "{\"checkpoint_id\":\"$CP1\",\"latitude\":41.0,\"longitude\":29.0,\"accuracy_m\":5}"
+    curl -s -o /dev/null -X POST "$PURL2/patrols/$P2ID/scan" -H "$RA" -H "$RJ2" -d "{\"checkpoint_id\":\"$CP2\",\"latitude\":41.0,\"longitude\":29.0,\"accuracy_m\":5}"
     C2=$(curl -s -X POST "$PURL2/patrols/$P2ID/complete" -H "$RA" -H "$RJ2" -d '{}')
     echo "$C2" | grep -q '"status":"COMPLETED"' \
       && ok "zorunlu noktalar tamamlanınca tur COMPLETED (isteğe bağlı nokta aranmıyor)" \
@@ -5863,8 +5865,8 @@ ok "kullanılmayan 13 site tablosu RLS ile korunuyor"
 
 # 9) Toplam durum — RLS DIŞINDA KALAN her tablo bilinçli ve gerekçeli olmalı
 RLSCOUNT=$($PSQL -t -A -c "SELECT count(*) FROM rls_enabled_tables;")
-[ "$RLSCOUNT" = "124" ] && ok "RLS toplam 124 tabloda açık (069 kiracılık bitişi, 071 görünürlük politikası, 073 okundu bilgisi)" \
-  || bad "beklenmedik RLS tablo sayısı: $RLSCOUNT (beklenen 124)"
+[ "$RLSCOUNT" = "129" ] && ok "RLS toplam 129 tabloda açık (069, 071, 073 okundu bilgisi, 074 sensörler, 075 devriye izi)" \
+  || bad "beklenmedik RLS tablo sayısı: $RLSCOUNT (beklenen 129)"
 NOTRLS=$($PSQL -t -A -c "SELECT string_agg(t.table_name, ' ' ORDER BY t.table_name)
   FROM information_schema.tables t
   WHERE t.table_schema='public' AND t.table_type='BASE TABLE'
@@ -8916,6 +8918,208 @@ BADD=$(appq "BEGIN; SET LOCAL app.property_id='$DEMO_PROPERTY'; SELECT audit_log
 [ "$BADD" -ge 1 ] && ok "30 günden kısa saklama reddedildi" || bad "kısa saklama kabul edildi"
 $PSQL -c "DELETE FROM audit_logs WHERE entity_type='verify'; DELETE FROM notification_reads WHERE notification_id IN ('$NID','$MID'); DELETE FROM notifications WHERE id IN ('$NID','$MID');" >/dev/null 2>&1
 kill_tree "$S64I"; kill_tree "$S64N"; kill_tree "$S64S"
+
+step "65) IoT sensörleri: tanım, cihaz okuması, eşik/tetik alarmı, bildirim, onay, kapatma, sinyal kesilmesi (074, FAZ H.4)"
+startsvc65() { DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=$3 DB_PASSWORD="$4" DB_NAME=siteeksen \
+  DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=$1 SENSOR_WATCH_INTERVAL=2s \
+  go run ./services/$2 >/tmp/verify-h4-$2.log 2>&1 & }
+startsvc65 19821 identity siteeksen_identity "$IDPW"; S65I=$!
+startsvc65 19822 iot siteeksen_app "$APPPW"; S65T=$!
+for _ in $(seq 1 90); do
+  ALL=1; for P in 19821 19822; do curl -fsS http://127.0.0.1:$P/health >/dev/null 2>&1 || ALL=0; done
+  [ "$ALL" = "1" ] && break; sleep 1
+done
+login65() { curl -s -X POST "http://127.0.0.1:19821/api/v1/auth/login" -H "$J" -d "{\"phone\":\"$1\",\"password\":\"$2\"}" | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p'; }
+M65="Authorization: Bearer $(login65 5551234567 'Demo123!')"
+T65="Authorization: Bearer $(login65 5559876543 'Demo123!')"
+I65=http://127.0.0.1:19822/api/v1
+SE1=$(curl -s -X POST "$I65/sensors" -H "$M65" -H "$J" -d '{"name":"Kazan dairesi sıcaklık","sensor_type":"TEMPERATURE","location":"B blok bodrum","unit_label":"°C","min_threshold":5,"max_threshold":80,"offline_after_minutes":2}')
+SID1=$(python3 -c "import json,sys; print(json.loads(sys.argv[1]).get('id',''))" "$SE1"); KEY1=$(python3 -c "import json,sys; print(json.loads(sys.argv[1]).get('device_key',''))" "$SE1")
+[ -n "$SID1" ] && [ "${KEY1#sen_}" != "$KEY1" ] && ok "yönetim sensör tanımladı; cihaz anahtarı bir kez gösterildi" || bad "sensör tanımı: $SE1"
+KH=$($PSQL -t -A -c "SELECT key_hash = encode(sha256('$KEY1'::bytea),'hex') FROM sensors WHERE id='$SID1';")
+KP=$($PSQL -t -A -c "SELECT count(*) FROM sensors WHERE key_hash = '$KEY1';")
+[ "$KH" = "t" ] && [ "$KP" = "0" ] && ok "anahtarın yalnız özeti saklanıyor" || bad "anahtar saklama: özet=$KH düz=$KP"
+NE=$(code -X POST "$I65/sensors" -H "$M65" -H "$J" -d '{"name":"Eşiksiz","sensor_type":"TEMPERATURE"}')
+TE=$(code -X POST "$I65/sensors" -H "$T65" -H "$J" -d '{"name":"x","sensor_type":"SMOKE"}')
+[ "$NE" = "422" ] && [ "$TE" = "403" ] && ok "eşiksiz sayısal sensör reddedildi (422); sakin sensör tanımlayamıyor (403)" || bad "doğrulama: eşiksiz=$NE sakin=$TE"
+push65() { curl -s -X POST "$I65/public/sensors/data" -H "X-Device-Key: $1" -H "$J" -d "{\"value\":$2}"; }
+P1=$(push65 "$KEY1" 21.5); P2=$(push65 "sen_yanlis" 21.5)
+grep -q '"alert_opened":false' <<<"$P1" && grep -q 'tanınmadı' <<<"$P2" && ok "cihaz okuması kabul edildi; yanlış anahtar reddedildi" || bad "okuma: $P1 / $P2"
+N0=$($PSQL -t -A -c "SELECT count(*) FROM notifications WHERE topic='iot.alert' AND payload->>'sensor_id'='$SID1';")
+P3=$(push65 "$KEY1" 95); P4=$(push65 "$KEY1" 97)
+AC=$($PSQL -t -A -c "SELECT count(*)||'|'||max(value) FROM sensor_alerts WHERE sensor_id='$SID1' AND kind='HIGH' AND status='OPEN';")
+N1=$($PSQL -t -A -c "SELECT count(*) FROM notifications WHERE topic='iot.alert' AND payload->>'sensor_id'='$SID1';")
+grep -q '"alert_opened":true' <<<"$P3" && grep -q '"alert_opened":false' <<<"$P4" && [ "$AC" = "1|97.000" ] && [ "$N1" -gt "$N0" ] \
+  && ok "üst eşik aşımı tek alarm açtı (ikinci okuma yeni alarm açmadı, değer güncellendi) ve işletme ekibine bildirildi" \
+  || bad "eşik alarmı: $P3 / $P4 / alarm=$AC bildirim $N0→$N1"
+NOP=$($PSQL -t -A -c "SELECT count(*) FROM notifications WHERE topic='iot.alert' AND payload->>'sensor_id'='$SID1' AND recipient_user_id=(SELECT id FROM users WHERE phone='+905559876543');")
+[ "$NOP" = "0" ] && ok "sensör alarmı sakine gitmedi (yalnız işletme ekibi)" || bad "sakine alarm gitti: $NOP"
+P5=$(push65 "$KEY1" 40)
+NM=$($PSQL -t -A -c "SELECT (normalized_at IS NOT NULL)||'|'||status FROM sensor_alerts WHERE sensor_id='$SID1' AND kind='HIGH';")
+grep -q '"normalized":true' <<<"$P5" && [ "$NM" = "true|OPEN" ] && ok "değer normale dönünce alarm 'normale döndü' işaretlendi ama açık kaldı (kapatma insan işi)" || bad "normalleşme: $P5 / $NM"
+AID=$($PSQL -t -A -c "SELECT id FROM sensor_alerts WHERE sensor_id='$SID1' AND kind='HIGH';")
+AK1=$(code -X POST "$I65/iot/alerts/$AID/acknowledge" -H "$T65"); AK2=$(code -X POST "$I65/iot/alerts/$AID/acknowledge" -H "$M65"); AK3=$(code -X POST "$I65/iot/alerts/$AID/acknowledge" -H "$M65")
+CL1=$(code -X POST "$I65/iot/alerts/$AID/close" -H "$M65" -H "$J" -d '{"note":""}'); CL2=$(code -X POST "$I65/iot/alerts/$AID/close" -H "$M65" -H "$J" -d '{"note":"Kazan termostatı değiştirildi"}')
+[ "$AK1" = "403" ] && [ "$AK2" = "200" ] && [ "$AK3" = "409" ] && [ "$CL1" = "400" ] && [ "$CL2" = "200" ] \
+  && ok "alarm: sakin onaylayamıyor (403); yönetim onayladı, ikinci onay 409; notsuz kapatma 400, notla kapatıldı" \
+  || bad "alarm akışı: sakin=$AK1 onay=$AK2 tekrar=$AK3 notsuz=$CL1 kapat=$CL2"
+DEL=$(appq "BEGIN; SET LOCAL app.property_id='$DEMO_PROPERTY'; DELETE FROM sensor_alerts WHERE id='$AID'; COMMIT;" >/dev/null 2>&1 && echo sildi || echo engel)
+[ "$DEL" = "engel" ] && ok "alarm kaydı silinemiyor" || bad "alarm silinebildi"
+# İkili sensör: tetik
+SE2=$(curl -s -X POST "$I65/sensors" -H "$M65" -H "$J" -d '{"name":"Otopark su kaçağı","sensor_type":"WATER_LEAK","location":"-2. kat"}')
+KEY2=$(python3 -c "import json,sys; print(json.loads(sys.argv[1]).get('device_key',''))" "$SE2"); SID2=$(python3 -c "import json,sys; print(json.loads(sys.argv[1]).get('id',''))" "$SE2")
+push65 "$KEY2" 0 >/dev/null; P6=$(push65 "$KEY2" 1)
+TR=$($PSQL -t -A -c "SELECT count(*) FROM sensor_alerts WHERE sensor_id='$SID2' AND kind='TRIGGERED' AND status='OPEN';")
+grep -q '"alert_opened":true' <<<"$P6" && [ "$TR" = "1" ] && ok "su kaçağı sensörü tetiklenince alarm açtı" || bad "tetik alarmı: $P6 / $TR"
+# Sinyal kesilmesi: bekçi OFFLINE alarmı açar
+$PSQL -c "UPDATE sensors SET last_seen_at = now() - interval '10 minutes' WHERE id='$SID1';" >/dev/null
+OFF=0; for _ in $(seq 1 15); do OFF=$($PSQL -t -A -c "SELECT count(*) FROM sensor_alerts WHERE sensor_id='$SID1' AND kind='OFFLINE' AND status='OPEN';"); [ "$OFF" = "1" ] && break; sleep 1; done
+NO=$($PSQL -t -A -c "SELECT count(*) FROM notifications WHERE topic='iot.offline' AND payload->>'sensor_id'='$SID1';")
+[ "$OFF" = "1" ] && [ "$NO" -ge 1 ] && ok "sinyali kesilen sensör için bekçi alarm açtı ve bildirdi" || bad "sinyal kesilmesi: alarm=$OFF bildirim=$NO"
+sleep 3
+OFF2=$($PSQL -t -A -c "SELECT count(*) FROM sensor_alerts WHERE sensor_id='$SID1' AND kind='OFFLINE';")
+[ "$OFF2" = "1" ] && ok "bekçi aynı kesinti için ikinci alarm açmadı" || bad "tekrar alarm: $OFF2"
+push65 "$KEY1" 22 >/dev/null
+ON=$($PSQL -t -A -c "SELECT normalized_at IS NOT NULL FROM sensor_alerts WHERE sensor_id='$SID1' AND kind='OFFLINE';")
+[ "$ON" = "t" ] && ok "sinyal gelince kesinti alarmı normale döndü" || bad "kesinti normalleşmesi: $ON"
+# Anahtar yenileme: eski anahtar geçersiz
+RK=$(curl -s -X POST "$I65/sensors/$SID1/rotate-key" -H "$M65"); KEY1B=$(python3 -c "import json,sys; print(json.loads(sys.argv[1]).get('device_key',''))" "$RK")
+O1=$(push65 "$KEY1" 22); O2=$(push65 "$KEY1B" 22)
+grep -q 'tanınmadı' <<<"$O1" && grep -q '"status":"ok"' <<<"$O2" && ok "anahtar yenilenince eski anahtar reddedildi, yenisi çalıştı" || bad "anahtar yenileme: $O1 / $O2"
+# Liste ve geçmiş; başka site göremez
+L65=$(curl -s "$I65/sensors" -H "$M65" | python3 -c "import json,sys; d=json.load(sys.stdin)['data']; print(len([x for x in d if x['id'] in ('$SID1','$SID2')]))")
+H65=$(curl -s "$I65/sensors/$SID1/data?hours=1" -H "$M65" | python3 -c "import json,sys; print(len(json.load(sys.stdin)['data']))")
+X65=$(appq "BEGIN; SET LOCAL app.property_id='22222222-2222-2222-2222-222222222222'; SELECT count(*) FROM sensors WHERE id IN ('$SID1','$SID2'); COMMIT;" | grep -E '^[0-9]+$' | head -1)
+[ "$L65" = "2" ] && [ "$H65" -ge 5 ] && [ "${X65:-0}" = "0" ] && ok "sensör listesi ve okuma geçmişi geliyor; başka site göremiyor" || bad "liste=$L65 geçmiş=$H65 çapraz=$X65"
+$PSQL -c "DELETE FROM sensor_alerts WHERE sensor_id IN ('$SID1','$SID2'); DELETE FROM sensor_readings WHERE sensor_id IN ('$SID1','$SID2'); DELETE FROM sensors WHERE id IN ('$SID1','$SID2');" >/dev/null 2>&1
+kill_tree "$S65I"; kill_tree "$S65T"
+
+step "66) Devriye: QR + GPS zorunluluğu, red kanıtı, şüpheli hız, konum muafiyeti, iz, rapor (075, FAZ H.5)"
+startsvc66() { DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=$3 DB_PASSWORD="$4" DB_NAME=siteeksen \
+  DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=$1 \
+  go run ./services/$2 >/tmp/verify-h5-$2.log 2>&1 & }
+startsvc66 19831 identity siteeksen_identity "$IDPW"; S66I=$!
+startsvc66 19832 patrol siteeksen_app "$APPPW"; S66P=$!
+for _ in $(seq 1 90); do
+  ALL=1; for P in 19831 19832; do curl -fsS http://127.0.0.1:$P/health >/dev/null 2>&1 || ALL=0; done
+  [ "$ALL" = "1" ] && break; sleep 1
+done
+login66() { curl -s -X POST "http://127.0.0.1:19831/api/v1/auth/login" -H "$J" -d "{\"phone\":\"$1\",\"password\":\"$2\"}" | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p'; }
+M66="Authorization: Bearer $(login66 5551234567 'Demo123!')"
+T66="Authorization: Bearer $(login66 5559876543 'Demo123!')"
+P66=http://127.0.0.1:19832/api/v1
+jget() { python3 -c "import json,sys; d=json.loads(sys.argv[1]); exec(sys.argv[2])" "$1" "$2"; }
+mkcp66() { curl -s -X POST "$P66/patrol-checkpoints" -H "$M66" -H "$J" -d "{\"name\":\"$1\"}" | sed -n 's/.*"id":"\([^"]*\)".*/\1/p' | head -1; }
+CA=$(mkcp66 "GPS A girisi"); CB=$(mkcp66 "GPS B otopark"); CC=$(mkcp66 "GPS kazan dairesi")
+L1=$(code -X POST "$P66/patrol-checkpoints/$CA/location" -H "$M66" -H "$J" -d '{"latitude":41.0100,"longitude":29.0100,"accuracy_m":35}')
+L2=$(code -X POST "$P66/patrol-checkpoints/$CA/location" -H "$M66" -H "$J" -d '{"latitude":41.0100,"longitude":29.0100,"accuracy_m":6}')
+L3=$(code -X POST "$P66/patrol-checkpoints/$CB/location" -H "$M66" -H "$J" -d '{"latitude":41.0145,"longitude":29.0100,"accuracy_m":6,"is_mocked":true}')
+code -X POST "$P66/patrol-checkpoints/$CB/location" -H "$M66" -H "$J" -d '{"latitude":41.0145,"longitude":29.0100,"accuracy_m":6}' >/dev/null
+[ "$L1" = "422" ] && [ "$L2" = "200" ] && [ "$L3" = "422" ] && ok "nokta konumu yalnız ≤20 m hassasiyetle ve gerçek konumla kaydediliyor (35 m → 422, sahte → 422)" \
+  || bad "nokta konumu: düşük=$L1 iyi=$L2 sahte=$L3"
+E1=$(code -X PATCH "$P66/patrol-checkpoints/$CC" -H "$M66" -H "$J" -d '{"location_check":"EXEMPT"}')
+E2=$(code -X PATCH "$P66/patrol-checkpoints/$CC" -H "$M66" -H "$J" -d '{"location_check":"EXEMPT","exempt_reason":"Bodrum, GPS çekmiyor"}')
+E3=$(code -X PATCH "$P66/patrol-checkpoints/$CA" -H "$T66" -H "$J" -d '{"radius_m":200}')
+[ "$E1" = "422" ] && [ "$E2" = "200" ] && [ "$E3" = "403" ] && ok "konum muafiyeti gerekçe istiyor (422 → 200); sakin nokta değiştiremiyor (403)" \
+  || bad "muafiyet: gerekçesiz=$E1 gerekçeli=$E2 sakin=$E3"
+CPL=$(curl -s "$P66/patrol-checkpoints" -H "$M66")
+QA=$(jget "$CPL" "print([x['qr_value'] for x in d['data'] if x['id']=='$CA'][0])"); QB=$(jget "$CPL" "print([x['qr_value'] for x in d['data'] if x['id']=='$CB'][0])"); QC=$(jget "$CPL" "print([x['qr_value'] for x in d['data'] if x['id']=='$CC'][0])")
+[ "${QA#SITEEKSEN-PATROL:}" != "$QA" ] && ok "yönetim QR değerini görüyor (yazdırma için)" || bad "QR değeri: $QA"
+RT66=$(curl -s -X POST "$P66/patrol-routes" -H "$M66" -H "$J" -d "{\"name\":\"GPS turu\",\"expected_duration_minutes\":20,\"checkpoints\":[{\"checkpoint_id\":\"$CA\",\"order\":1},{\"checkpoint_id\":\"$CB\",\"order\":2},{\"checkpoint_id\":\"$CC\",\"order\":3}]}" | sed -n 's/.*"id":"\([^"]*\)".*/\1/p' | head -1)
+$PSQL -c "UPDATE patrol_logs SET status='COMPLETED', completed_at=now() WHERE guard_id=(SELECT id FROM users WHERE phone='+905551234567') AND status='IN_PROGRESS';" >/dev/null
+PT66=$(curl -s -X POST "$P66/patrols" -H "$M66" -H "$J" -d "{\"route_id\":\"$RT66\"}" | sed -n 's/.*"id":"\([^"]*\)".*/\1/p' | head -1)
+[ -n "$PT66" ] && ok "GPS turu başladı" || bad "GPS turu başlamadı (güzergâh=$RT66)"
+# Tur 10 dk önce başlamış sayılır: başlangıç ile ilk iz noktası arasındaki boşluk kesinti olarak görünmeli.
+$PSQL -c "UPDATE patrol_logs SET started_at = now() - interval '10 minutes' WHERE id='$PT66';" >/dev/null
+scan66() { curl -s -w '|%{http_code}' -X POST "$P66/patrols/$PT66/scan" -H "$M66" -H "$J" -d "$1"; }
+R1=$(scan66 "{\"qr\":\"$QA\",\"latitude\":41.0145,\"longitude\":29.0100,\"accuracy_m\":5}")
+R2=$(scan66 "{\"qr\":\"$QA\",\"latitude\":41.0100,\"longitude\":29.0100,\"accuracy_m\":5,\"is_mocked\":true}")
+R3=$(scan66 "{\"qr\":\"$QA\",\"latitude\":41.0100,\"longitude\":29.0100,\"accuracy_m\":80}")
+R4=$(scan66 "{\"qr\":\"$QA\"}")
+R5=$(scan66 "{\"qr\":\"SITEEKSEN-PATROL:sahte\",\"latitude\":41.0100,\"longitude\":29.0100,\"accuracy_m\":5}")
+grep -q '"reason":"TOO_FAR"' <<<"$R1" && grep -q 'uzaklığınız 50' <<<"$R1" && ok "QR fotoğrafıyla uzaktan okutma reddedildi (~500 m, TOO_FAR)" || bad "uzaktan okutma: $R1"
+grep -q '"reason":"MOCKED"' <<<"$R2" && grep -q '"reason":"LOW_ACCURACY"' <<<"$R3" && grep -q '"reason":"NO_LOCATION"' <<<"$R4" && grep -q '"reason":"QR_UNKNOWN"' <<<"$R5" \
+  && ok "sahte konum, düşük doğruluk, konumsuz ve tanınmayan QR reddedildi" || bad "red nedenleri: $R2 / $R3 / $R4 / $R5"
+R6=$(scan66 "{\"qr\":\"$QA\",\"latitude\":41.01012,\"longitude\":29.01003,\"accuracy_m\":6}")
+grep -q '"checkpoints_visited":1' <<<"$R6" && grep -q '"suspicious":false' <<<"$R6" && ok "noktanın yanında QR okutması kabul edildi" || bad "yakın okutma: $R6"
+R7=$(scan66 "{\"qr\":\"$QB\",\"latitude\":41.0145,\"longitude\":29.0100,\"accuracy_m\":5}")
+grep -q '"suspicious":true' <<<"$R7" && ok "500 m'yi saniyeler içinde geçen okutma kabul edildi ama şüpheli işaretlendi" || bad "şüpheli hız: $R7"
+R8=$(scan66 "{\"checkpoint_id\":\"$CC\"}"); R9=$(scan66 "{\"qr\":\"$QC\"}")
+grep -q 'EXEMPT_NEEDS_QR' <<<"$R8" && grep -q '"location_exempt":true' <<<"$R9" && ok "muaf noktada elle seçme reddedildi; QR ile konumsuz okutma kabul edildi ve işaretlendi" || bad "muaf nokta: $R8 / $R9"
+ROT=$(curl -s -X POST "$P66/patrol-checkpoints/$CA/rotate-qr" -H "$M66"); NQA=$(jget "$ROT" "print(d.get('qr_value',''))")
+R10=$(scan66 "{\"qr\":\"$QA\",\"latitude\":41.0100,\"longitude\":29.0100,\"accuracy_m\":5}")
+[ -n "$NQA" ] && [ "$NQA" != "$QA" ] && grep -q 'QR_UNKNOWN' <<<"$R10" && ok "QR yenilenince eski baskı geçersiz oldu" || bad "QR yenileme: $NQA / $R10"
+NA66=$($PSQL -t -A -c "SELECT count(*) FILTER (WHERE NOT accepted)||'|'||count(*) FILTER (WHERE accepted) FROM patrol_scan_attempts WHERE patrol_log_id='$PT66';")
+[ "$NA66" = "7|3" ] && ok "her deneme kanıt olarak yazıldı (7 red, 3 kabul)" || bad "deneme kayıtları: $NA66 (7|3 bekleniyordu)"
+UPA=$(appq "BEGIN; SET LOCAL app.property_id='$DEMO_PROPERTY'; UPDATE patrol_scan_attempts SET accepted=true WHERE patrol_log_id='$PT66'; COMMIT;" >/dev/null 2>&1 && echo yazdi || echo engel)
+[ "$UPA" = "engel" ] && ok "okutma kanıtı değiştirilemiyor" || bad "okutma kanıtı değiştirilebildi"
+NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ); OLD=$(date -u -d '-5 minutes' +%Y-%m-%dT%H:%M:%SZ)
+TR1=$(curl -s -X POST "$P66/patrols/$PT66/track" -H "$M66" -H "$J" -d "{\"points\":[{\"latitude\":41.0100,\"longitude\":29.0100,\"accuracy_m\":5,\"recorded_at\":\"$OLD\"},{\"latitude\":41.0120,\"longitude\":29.0100,\"accuracy_m\":5,\"recorded_at\":\"$NOW\"},{\"latitude\":41.0145,\"longitude\":29.0100,\"accuracy_m\":5,\"is_mocked\":true,\"recorded_at\":\"$NOW\"}]}")
+BIG66=$(python3 -c "import json; print(json.dumps({'points':[{'latitude':41.01,'longitude':29.01,'accuracy_m':5}]*101}))")
+TR2=$(code -X POST "$P66/patrols/$PT66/track" -H "$M66" -H "$J" -d "$BIG66")
+grep -q '"accepted":3' <<<"$TR1" && grep -q 'Sahte konum' <<<"$TR1" && [ "$TR2" = "413" ] && ok "konum izi alındı (sahte nokta uyarısıyla); 100'den fazla nokta 413" || bad "iz: $TR1 / $TR2"
+RP=$(curl -s "$P66/patrols/$PT66/report" -H "$M66")
+RS=$(jget "$RP" "s=d['stats']; print(s['rejected_attempts'], s['suspicious_scans'], s['exempt_scans'], s['track_points'], s['mocked_track_points'], len(d['checkpoints']), int(s['track_distance_m'])>400)")
+[ "$RS" = "7 1 1 3 1 3 True" ] && ok "tur raporu: 7 red, 1 şüpheli, 1 muaf, 3 iz noktası (1 sahte), 3 nokta, iz mesafesi hesaplandı" || bad "rapor: $RS"
+GAP=$(jget "$RP" "print(len(d['gaps']) >= 1)")
+[ "$GAP" = "True" ] && ok "takip kesintisi raporda gösteriliyor" || bad "kesinti: $GAP"
+RT=$(code "$P66/patrols/$PT66/report" -H "$T66")
+[ "$RT" = "403" ] && ok "sakin tur raporunu göremiyor (403)" || bad "sakin rapor → $RT"
+curl -s -o /dev/null -X POST "$P66/patrols/$PT66/complete" -H "$M66" -H "$J" -d '{}'
+TR3=$(code -X POST "$P66/patrols/$PT66/track" -H "$M66" -H "$J" -d '{"points":[{"latitude":41.01,"longitude":29.01,"accuracy_m":5}]}')
+[ "$TR3" = "409" ] && ok "kapanmış turda konum alınmıyor (409, KVKK ölçülülük)" || bad "kapalı tur izi → $TR3"
+PR66=$(curl -s "$P66/patrol-reports?from=$(date +%Y-%m-%d)" -H "$M66")
+PRS=$(jget "$PR66" "s=d['summary']; print(s['total']>=1, s['rejected_attempts']>=7, len(s['top_rejections'])>=1)")
+[ "$PRS" = "True True True" ] && ok "dönem raporu: tur sayısı, red toplamı ve en çok reddedilen noktalar" || bad "dönem raporu: $PRS"
+X66=$(appq "BEGIN; SET LOCAL app.property_id='22222222-2222-2222-2222-222222222222'; SELECT count(*) FROM patrol_scan_attempts WHERE patrol_log_id='$PT66'; COMMIT;" | grep -E '^[0-9]+$' | head -1)
+[ "${X66:-0}" = "0" ] && ok "başka site devriye kanıtlarını göremiyor" || bad "çapraz site: $X66"
+kill_tree "$S66I"; kill_tree "$S66P"
+
+step "67) Malikin işletme projesi görünümü ve seçenekli görüş/itiraz (FAZ H.6 S12, kullanıcı kararı K3)"
+startsvc67() { DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=$3 DB_PASSWORD="$4" DB_NAME=siteeksen \
+  DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=$1 \
+  go run ./services/$2 >/tmp/verify-h6-$2.log 2>&1 & }
+startsvc67 19841 identity siteeksen_identity "$IDPW"; S67I=$!
+startsvc67 19842 governance siteeksen_app "$APPPW"; S67G=$!
+startsvc67 19843 settings siteeksen_app "$APPPW"; S67S=$!
+for _ in $(seq 1 90); do
+  ALL=1; for P in 19841 19842 19843; do curl -fsS http://127.0.0.1:$P/health >/dev/null 2>&1 || ALL=0; done
+  [ "$ALL" = "1" ] && break; sleep 1
+done
+login67() { curl -s -X POST "http://127.0.0.1:19841/api/v1/auth/login" -H "$J" -d "{\"phone\":\"$1\",\"password\":\"$2\"}" | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p'; }
+M67="Authorization: Bearer $(login67 5551234567 'Demo123!')"
+T67="Authorization: Bearer $(login67 5559876543 'Demo123!')"
+G67=http://127.0.0.1:19842/api/v1/governance; ST67=http://127.0.0.1:19843/api/v1
+MU67=$($PSQL -t -A -c "SELECT id FROM users WHERE phone='+905551234567';")
+BID67=$($PSQL -t -A -c "SELECT id FROM operating_budgets WHERE property_id='$DEMO_PROPERTY' AND status <> 'DRAFT' ORDER BY period_year DESC LIMIT 1;")
+OWNU67=$($PSQL -t -A -c "SELECT ru.unit_id FROM resident_units ru JOIN units u ON u.id=ru.unit_id WHERE u.property_id='$DEMO_PROPERTY' AND ru.resident_id='$MU67' AND ru.role IN ('OWNER','PROXY') AND ru.is_active LIMIT 1;")
+# Önceki adımlar bu hesabı bazı bölümlere vekil yapıyor; yalnız kiracı kalması için o kayıtlar sınama süresince kapatılır.
+TPX67=$($PSQL -t -A -c "SELECT string_agg(ru.id::text, ',') FROM resident_units ru JOIN users us ON us.id=ru.resident_id WHERE us.phone='+905559876543' AND ru.role IN ('OWNER','PROXY') AND ru.is_active;")
+[ -n "$TPX67" ] && $PSQL -q -c "UPDATE resident_units SET is_active=false WHERE id = ANY(string_to_array('$TPX67', ',')::uuid[]);"
+TB=$(code "$G67/my-budgets" -H "$T67")
+[ -n "$TPX67" ] && $PSQL -q -c "UPDATE resident_units SET is_active=true WHERE id = ANY(string_to_array('$TPX67', ',')::uuid[]);"
+[ "$TB" = "403" ] && ok "kiracı işletme projesi malik görünümünü göremiyor (403, hak malikindir)" || bad "kiracı → $TB"
+if [ -n "$BID67" ] && [ -n "$OWNU67" ]; then
+  MB=$(curl -s "$G67/my-budgets" -H "$M67")
+  MBO=$(python3 -c "import json,sys; d=json.loads(sys.argv[1]); print(any(x['id']=='$BID67' for x in d['data']), all(x['status']!='DRAFT' for x in d['data']), d['objections_enabled'])" "$MB")
+  [ "$MBO" = "True True True" ] && ok "malik tebliğ edilmiş projeleri görüyor (taslaklar gizli), itiraz alımı varsayılan açık" || bad "malik listesi: $MBO / $MB"
+  MD=$(curl -s "$G67/my-budgets/$BID67" -H "$M67")
+  OWNC=$($PSQL -t -A -c "SELECT count(DISTINCT ru.unit_id) FROM resident_units ru JOIN units u ON u.id=ru.unit_id WHERE u.property_id='$DEMO_PROPERTY' AND ru.resident_id='$MU67' AND ru.role IN ('OWNER','PROXY') AND ru.is_active AND (ru.end_date IS NULL OR ru.end_date >= CURRENT_DATE);")
+  MDS=$(python3 -c "import json,sys; d=json.loads(sys.argv[1]); u={x['id'] for x in d['my_units']}; print(all(s['unit_id'] in u for s in d['my_shares']), len(d['my_units']))" "$MD")
+  [ "$MDS" = "True $OWNC" ] && ok "proje ayrıntısında yalnız kendi bölümlerinin payı var ($OWNC bölüm)" || bad "pay süzgeci: $MDS (bölüm $OWNC)"
+  curl -s -o /dev/null -X PUT "$ST67/settings/OWNER_PLAN_OBJECTIONS" -H "$M67" -H "$J" -d '{"value":false}'
+  OB1=$(curl -s -w '|%{http_code}' -X POST "$G67/budgets/$BID67/objections" -H "$M67" -H "$J" -d "{\"unit_id\":\"$OWNU67\",\"reason\":\"Asansör bakım kalemi yüksek\"}")
+  EN=$(curl -s "$G67/my-budgets" -H "$M67" | python3 -c "import json,sys; print(json.load(sys.stdin)['objections_enabled'])")
+  curl -s -o /dev/null -X DELETE "$ST67/settings/OWNER_PLAN_OBJECTIONS" -H "$M67"
+  OB2=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$G67/budgets/$BID67/objections" -H "$M67" -H "$J" -d "{\"unit_id\":\"$OWNU67\",\"reason\":\"Asansör bakım kalemi yüksek\"}")
+  [ "${OB1##*|}" = "409" ] && grep -q 'kapattı' <<<"$OB1" && [ "$EN" = "False" ] && [ "$OB2" != "409" ] \
+    && ok "ayar kapalıyken görüş/itiraz reddedildi (409) ve ekran kapalı olduğunu biliyor; ayar açılınca kabul ediliyor ($OB2)" \
+    || bad "seçenekli itiraz: kapalı=${OB1##*|} bayrak=$EN açık=$OB2"
+  $PSQL -c "DELETE FROM budget_objections WHERE budget_id='$BID67' AND user_id='$MU67' AND reason='Asansör bakım kalemi yüksek';" >/dev/null 2>&1
+else
+  bad "doğrulama için tebliğ edilmiş işletme projesi ya da malik bölümü yok (bütçe=$BID67 bölüm=$OWNU67)"
+fi
+kill_tree "$S67I"; kill_tree "$S67G"; kill_tree "$S67S"
 
 step "SONUÇ"
 echo "  Geçen: $PASS   Başarısız: $FAIL"

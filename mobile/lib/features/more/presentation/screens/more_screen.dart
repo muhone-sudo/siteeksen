@@ -86,6 +86,36 @@ class _MoreScreenState extends State<MoreScreen> {
             onTap: () => context.pushNamed('announcements'),
           ),
           _MenuItem(
+            icon: Icons.receipt_long_outlined,
+            title: 'Ödeme Geçmişi',
+            onTap: () => context.pushNamed('paymentHistory'),
+          ),
+          _MenuItem(
+            icon: Icons.people_outline,
+            title: 'Ziyaretçilerim',
+            onTap: () => context.pushNamed('myVisitors'),
+          ),
+          _MenuItem(
+            icon: Icons.directions_car_outlined,
+            title: 'Araçlarım',
+            onTap: () => context.pushNamed('vehicles'),
+          ),
+          _MenuItem(
+            icon: Icons.speed_outlined,
+            title: 'Sayaçlarım',
+            onTap: () => context.pushNamed('myMeters'),
+          ),
+          _MenuItem(
+            icon: Icons.sentiment_satisfied_alt_outlined,
+            title: 'Memnuniyet Anketi',
+            onTap: () => context.pushNamed('nps'),
+          ),
+          _MenuItem(
+            icon: Icons.account_balance_outlined,
+            title: 'İşletme Projesi',
+            onTap: () => context.pushNamed('myBudgets'),
+          ),
+          _MenuItem(
             icon: Icons.poll_outlined,
             title: 'Anketler',
             onTap: () => context.pushNamed('surveys'),

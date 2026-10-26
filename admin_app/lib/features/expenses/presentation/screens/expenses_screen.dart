@@ -17,6 +17,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/utils/formatters.dart';
+import '../../../../core/widgets/api_views.dart';
 import '../../../../core/widgets/data_state.dart';
 
 class ExpensesScreen extends StatefulWidget {
@@ -92,12 +93,26 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
         title: const Text('Gider Yönetimi'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.download),
-            tooltip: 'Dışa aktar',
-            // Dışa aktarma için doğrulanmış bir uç yok; sahte başarı mesajı verilmez.
-            onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Dışa aktarma henüz hazır değil.')),
-            ),
+            icon: const Icon(Icons.pie_chart_outline),
+            tooltip: 'Yıllık özet',
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => Scaffold(
+                appBar: AppBar(title: Text('${DateTime.now().year} gider özeti')),
+                body: ApiObject(
+                  load: () => apiClient.getMap('/expenses/summary', query: {'year': DateTime.now().year}),
+                  builder: (context, d, _) => ListView(children: [
+                    StatRow([
+                      ('Toplam', formatTry(toNum(d['total_amount']))),
+                      ('Faturalı', formatTry(toNum(d['invoiced_amount']))),
+                      ('Faturasız', formatTry(toNum(d['non_invoiced_amount']))),
+                      ('Onay bekleyen', '${d['pending_count'] ?? 0}'),
+                    ]),
+                    for (final c in ApiClient.listOf(d['by_category']).whereType<Map>())
+                      ListTile(dense: true, title: Text('${c['category_name']}'), subtitle: Text('${c['count']} kayıt'), trailing: Text(formatTry(toNum(c['amount'])))),
+                  ]),
+                ),
+              ),
+            )),
           ),
         ],
       ),

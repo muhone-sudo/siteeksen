@@ -728,3 +728,17 @@ ve doğru env tek yerde: `docs/yerel-calistirma.md`; oradan oku, kafadan yazma.
 bitti, hiçbir ajan çıktı yazamadı. **Kural:** Kullanıcı açıkça istemedikçe alt ajan açma. Büyük envanter işlerini
 tek başına, parça parça yap: tüm dosyayı okumak yerine `grep` ile düğme/uç/bildirim satırlarını çıkar, her bölümü
 bitirince diske yaz.
+
+### Ders 57 — Yetki sınırını özetten değil, el yordamından değil, KODDAN oku
+
+2026-10-26'da panelde ziyaretçi kodu yenileme (P10) "backend yalnız kaydı açana izin veriyor" diye yazılmadı ve
+06 dosyasına bu gerekçe yazıldı. `services/visitor/pass.go:211` okununca `hasSecurityScope` (yönetim + görevli)
+da yenileyebildiği görüldü; özellik eklendi. **Kural:** Bir işlemi "yetki yok" diye atlamadan önce ilgili handler'ı
+ve kullandığı kapsam işlevini oku; bağlam özetindeki iddiaya dayanma.
+
+### Ders 58 — Harita aracı dinamik yolu göremez; eşitlik ölçümünde yolu çağrıda açık yaz
+
+`apiClient.post('/visitors/$id/$action')` gibi değişkenli yollar ve `openDownload(context, '/x')` gibi yardımcılar
+çağrı grafiğinde görünmüyordu; "eksik" listesine 20 yanlış alarm düştü. **Kural:** İstemcide yol, çağrının içinde
+düz metin olsun (`switch (action) { 'x' => apiClient.post('/a/x'), … }`); yeni bir indirme/yükleme yardımcısı
+yazılırsa `docs/ozellik-haritasi/arac/{consumers,dart_outline}.py` içindeki `GEN` desenine eklenir.

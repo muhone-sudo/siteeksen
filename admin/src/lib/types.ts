@@ -318,7 +318,35 @@ export interface PublishedAllocation {
 }
 
 // ---------------------------------------------------------------- patrol
-export interface Checkpoint { id: Id; name: string; location?: string; building?: string; floor?: string; nfc_tag_id?: string; qr_code?: string; is_active: boolean }
+export interface Checkpoint {
+    id: Id; name: string; location?: string; building?: string; floor?: string; nfc_tag_id?: string; qr_code?: string; is_active: boolean;
+    latitude?: number | null; longitude?: number | null; radius_m: number; location_accuracy_m?: number | null; location_set_at?: string | null;
+    location_check: "REQUIRED" | "EXEMPT"; exempt_reason?: string; qr_value?: string;
+}
+export interface PatrolReportRow {
+    id: Id; route_name: string; guard_name: string; status: string; started_at: string; completed_at?: string | null;
+    checkpoints_expected: number; checkpoints_visited: number; actual_duration_minutes?: number | null; expected_duration_minutes?: number | null;
+    rejected_attempts: number; suspicious_scans: number; exempt_scans: number; track_points: number; issues_reported: number;
+}
+export interface PatrolReports {
+    data: PatrolReportRow[]; from: string; to: string;
+    summary: { total: number; completed: number; incomplete: number; rejected_attempts: number; suspicious_scans: number; avg_duration_minutes: number;
+        top_rejections: { checkpoint: string; reason: string; reason_text: string; count: number }[] | null };
+}
+export interface PatrolAttempt {
+    at: string; checkpoint: string; checkpoint_id?: string | null; method: string; latitude?: number | null; longitude?: number | null; accuracy_m?: number | null;
+    is_mocked: boolean; distance_m?: number | null; accepted: boolean; reason: string; reason_text?: string; location_exempt: boolean; suspicious: boolean; note: string;
+}
+export interface PatrolReport {
+    patrol: { id: Id; route_name: string; guard_name: string; status: string; notes: string; started_at: string; completed_at?: string | null;
+        checkpoints_expected?: number; checkpoints_visited?: number; expected_duration_minutes?: number; actual_duration_minutes?: number };
+    checkpoints: { id: Id; name: string; location: string; latitude?: number | null; longitude?: number | null; radius_m: number; location_check: string; optional: boolean; order: number }[];
+    attempts: PatrolAttempt[];
+    track: { recorded_at: string; latitude: number; longitude: number; accuracy_m?: number; speed_mps?: number; is_mocked: boolean }[];
+    gaps: { from: string; to: string; minutes: number }[];
+    issues: { checkpoint_id?: string; severity: string; description: string; reported_at: string }[] | null;
+    stats: { rejected_attempts: number; suspicious_scans: number; exempt_scans: number; track_points: number; mocked_track_points: number; track_gaps: number; track_distance_m: number };
+}
 export interface PatrolRoute {
     id: Id; name: string; description?: string; checkpoints: { checkpoint_id: Id; name?: string; order: number; optional: boolean }[];
     expected_duration_minutes: number; tolerance_minutes: number; is_active: boolean;
@@ -475,6 +503,12 @@ export interface PayrollRow {
     gross_salary?: number; sgk_employee?: number; sgk_employer?: number; income_tax?: number; stamp_tax?: number; source_ref: string;
     payment_status: "PENDING" | "PAID" | "CANCELLED"; payment_date?: string; payment_reference?: string; cancel_reason?: string; notes?: string;
 }
+export interface BulletinComment { id: Id; author_name?: string; content: string; is_mine: boolean; created_at: string }
+export interface SurveyComment { voter_name?: string; comment: string; voted_at: string }
+export interface PayrollCosts {
+    year: string; employer_cost_total: number; note: string;
+    data: { period: string; employees: number; net: number; employer_cost: number }[];
+}
 export interface PayrollList {
     period: string; data: PayrollRow[]; missing: string[]; note: string;
     totals: { net: number; employer_cost: number; unpaid_net: number; paid_count: number; pending_count: number };
@@ -507,3 +541,18 @@ export interface StatementObjection {
 
 /** Havale bildirimine eklenen dekont dosyası (064, B9). */
 export interface PaymentReceipt { id: Id; payment_id: Id; file_name: string; content_type: string; size_bytes: number; sha256: string; created_at: string }
+
+export interface SensorInput {
+    name: string; sensor_type: string; location?: string; unit_label?: string;
+    min_threshold?: number | null; max_threshold?: number | null; offline_after_minutes?: number;
+}
+export interface Sensor extends SensorInput {
+    id: Id; type_label: string; last_value?: number | null; last_seen_at?: string | null; is_active: boolean;
+    created_at: string; open_alerts: number; state: "OK" | "ALERT" | "OFFLINE" | "NO_DATA" | "PASSIVE"; binary: boolean;
+}
+export interface SensorAlert {
+    id: Id; sensor_id: Id; sensor_name: string; sensor_type: string; type_label: string; location: string;
+    kind: string; kind_label: string; value?: number | null; threshold?: number | null; status: "OPEN" | "ACKNOWLEDGED" | "CLOSED";
+    opened_at: string; normalized_at?: string | null; acknowledged_at?: string | null; acknowledged_by?: string;
+    closed_at?: string | null; closed_by?: string; close_note?: string;
+}

@@ -64,6 +64,11 @@ export default function VisitorsPage() {
                                                 success: (r) => `Giriş kaydedildi${r.notification ? ` — sakinlere bildirim: ${r.notification.sent} gönderildi` : ""}`,
                                             })}>Giriş</Button>
                                             <Button size="sm" variant="ghost" disabled={act.pending} onClick={() => act.run(() => api.visitors.cancel(v.id), { invalidate: ["visitors"], success: "Kayıt iptal edildi" })}>İptal</Button>
+                                            <Button size="sm" variant="ghost" disabled={act.pending} onClick={async () => {
+                                                if (!window.confirm("Yeni kod üretilecek; eski kod hemen geçersiz olur. Devam edilsin mi?")) return;
+                                                const r = await act.run(() => api.visitors.reissuePass(v.id), { invalidate: ["visitors"], success: "Yeni geçiş kodu üretildi" });
+                                                if (r) setPass({ name: v.visitor_name, pass: r.pass, note: r.note });
+                                            }}>Kodu yenile</Button>
                                         </>
                                     )}
                                     {v.status === "CHECKED_IN" && (

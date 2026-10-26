@@ -9,7 +9,7 @@ import { date, num, tl, today } from "@/lib/format";
 import { LEAVE_STATUS } from "@/lib/labels";
 import type { Employee, Leave } from "@/lib/types";
 import { ComplianceCard } from "@/components/personnel/compliance-card";
-import { PayrollCard } from "@/components/personnel/payroll-card";
+import { PayrollCard, PayrollCostsCard } from "@/components/personnel/payroll-card";
 
 const CONTRACT_TYPES = [
     { value: "FULL_TIME", label: "Tam zamanlı" }, { value: "PART_TIME", label: "Yarı zamanlı" },
@@ -92,7 +92,7 @@ export default function PersonnelPage() {
                     </QueryView>
                 </Card>
             )}
-            {tab === "payroll" && <PayrollCard canWrite={canWrite} employees={list.data?.data ?? []} />}
+            {tab === "payroll" && <div className="space-y-4"><PayrollCard canWrite={canWrite} employees={list.data?.data ?? []} /><PayrollCostsCard /></div>}
             {tab === "leaves" && (
                 <Card padded={false} title="İzin talepleri">
                     <QueryView q={leaves} empty="İzin kaydı yok">

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Plus } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAction, useApi, useRoles } from "@/lib/use-api";
-import { ActionFeedback, Badge, Button, Card, Field, FormModal, Grid, Input, Notice, Page, QueryView, Select, Stats, Table, Tabs } from "@/components/ui/kit";
+import { ActionFeedback, Badge, Button, Card, Field, FormModal, Grid, Input, Modal, Notice, Page, QueryView, Select, Stats, Table, Tabs } from "@/components/ui/kit";
 import { dateTime, num, tl } from "@/lib/format";
 import type { InventoryItem } from "@/lib/types";
 
@@ -35,11 +35,22 @@ export default function InventoryPage() {
     const [form, setForm] = useState(blank);
     const [moving, setMoving] = useState<InventoryItem | null>(null);
     const [mv, setMv] = useState({ movement_type: "IN", quantity: "", unit_price: "", reference_type: "", notes: "" });
+    const [catOpen, setCatOpen] = useState(false);
+    const [cat, setCat] = useState({ name: "", description: "" });
+    const [history, setHistory] = useState<InventoryItem | null>(null);
+    const itemMoves = useApi(["inventory", "item-movements", history?.id], () => api.inventory.itemMovements(history!.id), !!history);
+    const [removing, setRemoving] = useState<InventoryItem | null>(null);
+    const [reason, setReason] = useState("");
     const s = summary.data;
 
     return (
         <Page title="Stok" description="Temizlik, bakım ve sarf malzemesi stoğu."
-            actions={canWrite && <Button onClick={() => { setForm(blank); setOpen(true); }}><Plus className="h-4 w-4" /> Kalem ekle</Button>}>
+            actions={canWrite && (
+                <div className="flex gap-2">
+                    <Button variant="secondary" onClick={() => { setCat({ name: "", description: "" }); setCatOpen(true); }}><Plus className="h-4 w-4" /> Kategori</Button>
+                    <Button onClick={() => { setForm(blank); setOpen(true); }}><Plus className="h-4 w-4" /> Kalem ekle</Button>
+                </div>
+            )}>
             <ActionFeedback action={act} />
             <Stats items={[
                 { label: "Kalem", value: num(s?.item_count) },
@@ -67,6 +78,8 @@ export default function InventoryPage() {
                                     <div className="flex items-center gap-1">
                                         {i.below_minimum && <Badge tone="red">Asgari altı</Badge>}
                                         {canMove && <Button size="sm" onClick={() => { setMv({ movement_type: "IN", quantity: "", unit_price: "", reference_type: "", notes: "" }); setMoving(i); }}>Hareket</Button>}
+                                        <Button size="sm" variant="ghost" onClick={() => setHistory(i)}>Geçmiş</Button>
+                                        {canWrite && <Button size="sm" variant="ghost" onClick={() => { setReason(""); setRemoving(i); }}>Pasife al</Button>}
                                     </div>
                                 ) },
                             ]} />
@@ -133,6 +146,37 @@ export default function InventoryPage() {
                 <Field label={mv.movement_type === "ADJUST" ? "Gerekçe (zorunlu)" : "Not"}><Input required={mv.movement_type === "ADJUST"} value={mv.notes} onChange={(e) => setMv({ ...mv, notes: e.target.value })} /></Field>
                 {mv.movement_type === "ADJUST" && <Notice tone="amber">Sayım düzeltmesi stoğu tek kalemde değiştirir; gerekçesi denetim için saklanır.</Notice>}
             </FormModal>
+            <FormModal open={catOpen} onClose={() => setCatOpen(false)} title="Stok kategorisi ekle" pending={act.pending} error={act.error}
+                onSubmit={async () => {
+                    const r = await act.run(() => api.inventory.createCategory({ name: cat.name.trim(), description: cat.description.trim() || undefined }), { invalidate: ["inventory-categories"], success: "Kategori eklendi" });
+                    if (r) setCatOpen(false);
+                }}>
+                <Field label="Ad" required><Input required value={cat.name} onChange={(e) => setCat({ ...cat, name: e.target.value })} /></Field>
+                <Field label="Açıklama"><Input value={cat.description} onChange={(e) => setCat({ ...cat, description: e.target.value })} /></Field>
+                {(cats.data?.data.length ?? 0) > 0 && <p className="text-xs text-gray-500">Mevcut: {cats.data!.data.map((c) => `${c.name} (${c.item_count})`).join(", ")}</p>}
+            </FormModal>
+            <FormModal open={!!removing} onClose={() => setRemoving(null)} title={removing ? `Pasife al — ${removing.name}` : ""} submitLabel="Pasife al" pending={act.pending} error={act.error}
+                onSubmit={async () => {
+                    if (!removing) return;
+                    const r = await act.run(() => api.inventory.deactivate(removing.id, reason.trim()), { invalidate: ["inventory"], success: "Kalem pasife alındı; hareket geçmişi korunur" });
+                    if (r) setRemoving(null);
+                }}>
+                <Field label="Gerekçe" required><Input required value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
+            </FormModal>
+            <Modal open={!!history} onClose={() => setHistory(null)} title={history ? `Hareket geçmişi — ${history.name}` : ""} wide>
+                <QueryView q={itemMoves} empty="Bu kalemde hareket yok">
+                    {(d) => (
+                        <Table rows={d.data} rowKey={(m) => m.id} columns={[
+                            { header: "Zaman", cell: (m) => dateTime(m.created_at) },
+                            { header: "Tür", cell: (m) => ({ IN: "Giriş", OUT: "Çıkış", ADJUST: "Sayım" }[m.movement_type] ?? m.movement_type) },
+                            { header: "Miktar", cell: (m) => num(m.quantity) },
+                            { header: "Stok", cell: (m) => `${num(m.previous_stock)} → ${num(m.new_stock)}` },
+                            { header: "Giren", cell: (m) => m.created_by_name ?? "—" },
+                            { header: "Not", cell: (m) => m.notes ?? "" },
+                        ]} />
+                    )}
+                </QueryView>
+            </Modal>
         </Page>
     );
 }

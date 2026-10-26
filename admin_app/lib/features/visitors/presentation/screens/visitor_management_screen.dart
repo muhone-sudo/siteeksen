@@ -39,8 +39,38 @@ class _VisitorManagementScreenState extends State<VisitorManagementScreen> {
   Future<List<dynamic>> _load() => apiClient.getList('/visitors', query: {'status': _status});
 
   Future<void> _act(Map v, String action) async {
-    final ok = await runAction(context, () => apiClient.post('/visitors/${v['id']}/$action'));
+    if (action == 'pass') return _reissue(v);
+    final ok = await runAction(
+        context,
+        () => switch (action) {
+              'check-in' => apiClient.post('/visitors/${v['id']}/check-in'),
+              'check-out' => apiClient.post('/visitors/${v['id']}/check-out'),
+              _ => apiClient.post('/visitors/${v['id']}/cancel'),
+            });
     if (ok) await _listKey.currentState?.reload();
+  }
+
+  Future<void> _reissue(Map v) async {
+    if (!await confirm(context, 'Kodu yenile', 'Yeni kod üretilecek; eski kod hemen geçersiz olur.', ok: 'Yenile')) return;
+    try {
+      final r = await apiClient.post('/visitors/${v['id']}/pass');
+      final p = (r['pass'] as Map?) ?? {};
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text('${v['visitor_name'] ?? ''} — geçiş kodu'),
+          content: Column(mainAxisSize: MainAxisSize.min, children: [
+            SelectableText('${p['pin'] ?? ''}', style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w700, letterSpacing: 6)),
+            if (p['expires_at'] != null) Text('Geçerlilik: ${formatDateTime(p['expires_at'])}'),
+            if (r['note'] != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text('${r['note']}', style: const TextStyle(fontSize: 12))),
+          ]),
+          actions: [FilledButton(onPressed: () => Navigator.pop(ctx), child: const Text('Tamam'))],
+        ),
+      );
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(errorText(e))));
+    }
   }
 
   @override
@@ -113,6 +143,7 @@ class _VisitorManagementScreenState extends State<VisitorManagementScreen> {
                       itemBuilder: (_) => [
                         if (v['status'] == 'EXPECTED') const PopupMenuItem(value: 'check-in', child: Text('Giriş yaptı')),
                         if (v['status'] == 'CHECKED_IN') const PopupMenuItem(value: 'check-out', child: Text('Çıkış yaptı')),
+                        if (v['status'] == 'EXPECTED') const PopupMenuItem(value: 'pass', child: Text('Kodu yenile')),
                         if (v['status'] == 'EXPECTED') const PopupMenuItem(value: 'cancel', child: Text('İptal et')),
                       ],
                     ),

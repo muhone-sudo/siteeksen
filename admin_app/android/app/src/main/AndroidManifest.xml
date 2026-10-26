@@ -3,6 +3,10 @@
          yalnızca debug/profile manifestlerine koyar; ana manifestte olmadığında
          mağaza sürümü API'ye hiç bağlanamaz (2026-10-03). -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Devriye (FAZ H.5): QR okutma kamerası ve nokta yanında olma denetimi için konum. -->
+    <uses-permission android:name="android.permission.CAMERA"/>
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
     <application
         android:label="siteeksen_admin"
         android:name="${applicationName}"

@@ -78,7 +78,31 @@ class _AuditScreenState extends State<AuditScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('İşlem Kayıtları'),
-        actions: [IconButton(tooltip: 'Ara', icon: const Icon(Icons.search), onPressed: _search)],
+        actions: [
+          IconButton(tooltip: 'Ara', icon: const Icon(Icons.search), onPressed: _search),
+          IconButton(
+            tooltip: 'Kayıt istatistiği',
+            icon: const Icon(Icons.bar_chart),
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => Scaffold(
+                appBar: AppBar(title: const Text('Kayıt istatistiği')),
+                body: ApiObject(
+                  load: () => apiClient.getMap('/audit-logs/stats'),
+                  builder: (context, d, _) => ListView(children: [
+                    Padding(padding: const EdgeInsets.all(16), child: Text('Son ${d['period_days'] ?? '—'} gün')),
+                    for (final x in ApiClient.listOf(d['data']).whereType<Map>())
+                      ListTile(
+                        dense: true,
+                        title: Text('${_sources[x['source']] ?? x['source']} · ${_actions[x['action']] ?? x['action']}'),
+                        subtitle: x['oldest'] != null ? Text('En eski ${formatDateTime(x['oldest'])}') : null,
+                        trailing: Text('${x['total']}'),
+                      ),
+                  ]),
+                ),
+              ),
+            )),
+          ),
+        ],
       ),
       body: Column(children: [
         Padding(

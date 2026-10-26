@@ -125,6 +125,34 @@ class _SurveyDetailScreenState extends State<SurveyDetailScreen> {
     super.dispose();
   }
 
+  Future<void> _showComments(BuildContext context) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => SizedBox(
+        height: MediaQuery.of(ctx).size.height * 0.6,
+        child: FutureBuilder<List<dynamic>>(
+          future: apiClient.getSurveyComments(widget.surveyId),
+          builder: (context, snap) {
+            if (snap.connectionState != ConnectionState.done) return const LoadingView();
+            if (snap.hasError) return ErrorStateView(message: toUserMessage(snap.error!));
+            final list = snap.data!.whereType<Map>().toList();
+            if (list.isEmpty) return const EmptyStateView(message: 'Yorum yok', icon: Icons.chat_bubble_outline);
+            return ListView(children: [
+              const ListTile(title: Text('Yorumlar', style: TextStyle(fontWeight: FontWeight.w600))),
+              for (final c in list)
+                ListTile(
+                  dense: true,
+                  title: Text('${c['comment']}'),
+                  subtitle: Text('${(c['voter_name'] ?? '').toString().isEmpty ? 'Anonim' : c['voter_name']} · ${formatDateTime(c['voted_at'])}'),
+                ),
+            ]);
+          },
+        ),
+      ),
+    );
+  }
+
   Future<void> _vote() async {
     if (_selected == null) return;
     setState(() => _voting = true);
@@ -220,6 +248,16 @@ class _SurveyDetailScreenState extends State<SurveyDetailScreen> {
                 )
               else if (survey['has_voted'] == true)
                 const Padding(padding: EdgeInsets.only(top: 16), child: Text('Bu ankette oy kullandınız.')),
+              // Yorumlar (FAZ H.6 S9): taslak olmayan ankette okunur.
+              if (survey['allow_comments'] == true && survey['status'] != 'DRAFT')
+                Padding(
+                  padding: const EdgeInsets.only(top: 16),
+                  child: OutlinedButton.icon(
+                    onPressed: () => _showComments(context),
+                    icon: const Icon(Icons.chat_bubble_outline),
+                    label: const Text('Yorumları gör'),
+                  ),
+                ),
               if (res['anonymity_note'] is String)
                 Padding(padding: const EdgeInsets.only(top: 16), child: Text('${res['anonymity_note']}', style: Theme.of(context).textTheme.bodySmall)),
               if (res['legal_notice'] is String)

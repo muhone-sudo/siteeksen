@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { api } from "@/lib/api";
 import { useAction, useApi } from "@/lib/use-api";
-import { ActionFeedback, Button, Card, Field, FormModal, Page, QueryView, Select, Stats, StatusBadge, Table, Textarea } from "@/components/ui/kit";
+import { ActionFeedback, Button, Card, Field, FormModal, Modal, Page, QueryView, Select, Stats, StatusBadge, Table, Textarea } from "@/components/ui/kit";
 import { dateTime, num, tl } from "@/lib/format";
 import { BULLETIN_STATUS, opts } from "@/lib/labels";
 import type { BulletinPost } from "@/lib/types";
@@ -21,6 +21,8 @@ export default function BulletinsPage() {
     const act = useAction();
     const [rejecting, setRejecting] = useState<BulletinPost | null>(null);
     const [reason, setReason] = useState("");
+    const [viewing, setViewing] = useState<BulletinPost | null>(null);
+    const comments = useApi(["bulletins", "comments", viewing?.id], () => api.bulletins.comments(viewing!.id), !!viewing);
     const s = summary.data;
 
     return (
@@ -45,6 +47,7 @@ export default function BulletinsPage() {
                             { header: "Durum", cell: (p) => <StatusBadge value={p.status} map={BULLETIN_STATUS} /> },
                             { header: "", cell: (p) => (
                                 <div className="flex gap-1">
+                                    <Button size="sm" variant="ghost" onClick={() => setViewing(p)}>Yorumlar</Button>
                                     {p.status === "PENDING" && (
                                         <>
                                             <Button size="sm" disabled={act.pending} onClick={() => act.run(() => api.bulletins.approve(p.id), { invalidate: ["bulletins"], success: "İlan yayımlandı" })}>Onayla</Button>
@@ -66,6 +69,21 @@ export default function BulletinsPage() {
                 }}>
                 <Field label="Gerekçe" required hint="Sakin ilanı bu gerekçeye göre düzeltebilir."><Textarea required value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
             </FormModal>
+            <Modal open={!!viewing} onClose={() => setViewing(null)} title={viewing ? `Yorumlar — ${viewing.title}` : ""} wide>
+                <QueryView q={comments} empty="Yorum yok">
+                    {(d) => (
+                        <Table rows={d.data} rowKey={(c) => c.id} columns={[
+                            { header: "Zaman", cell: (c) => dateTime(c.created_at) },
+                            { header: "Yazan", cell: (c) => c.author_name ?? "Anonim" },
+                            { header: "Yorum", cell: (c) => <span className="whitespace-pre-wrap">{c.content}</span> },
+                            { header: "", cell: (c) => <Button size="sm" variant="ghost" disabled={act.pending} onClick={() => {
+                                if (!window.confirm("Yorum gizlensin mi? Kayıt denetim için korunur.")) return;
+                                void act.run(() => api.bulletins.hideComment(c.id), { invalidate: ["bulletins"], success: "Yorum gizlendi" });
+                            }}>Gizle</Button> },
+                        ]} />
+                    )}
+                </QueryView>
+            </Modal>
         </Page>
     );
 }

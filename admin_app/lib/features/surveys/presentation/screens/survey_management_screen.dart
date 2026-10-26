@@ -125,7 +125,15 @@ class _SurveyDetail extends StatelessWidget {
         final (label, color) = surveyStatus(status);
 
         Future<void> act(String action, [Map<String, dynamic>? body]) async {
-          if (await runAction(context, () => apiClient.post('/surveys/$id/$action', body))) await reload();
+          if (await runAction(
+              context,
+              () => switch (action) {
+                    'cancel' => apiClient.post('/surveys/$id/cancel', body),
+                    'close' => apiClient.post('/surveys/$id/close', body),
+                    _ => apiClient.post('/surveys/$id/publish', body),
+                  })) {
+            await reload();
+          }
         }
 
         return ListView(padding: const EdgeInsets.all(16), children: [
@@ -135,6 +143,26 @@ class _SurveyDetail extends StatelessWidget {
           ]),
           if ((s['description'] ?? '').toString().isNotEmpty) Padding(padding: const EdgeInsets.only(top: 8), child: Text('${s['description']}')),
           const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              icon: const Icon(Icons.comment_outlined),
+              label: const Text('Yorumlar'),
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => Scaffold(
+                  appBar: AppBar(title: const Text('Anket yorumları')),
+                  body: ApiList(
+                    load: () => apiClient.getList('/surveys/$id/comments'),
+                    empty: 'Yorum yok',
+                    itemBuilder: (context, c, _) => ListTile(
+                      title: Text('${c['comment'] ?? ''}'),
+                      subtitle: Text('${c['voter_name'] ?? 'Anonim'} · ${formatDateTime(c['voted_at'])}'),
+                    ),
+                  ),
+                ),
+              )),
+            ),
+          ),
           StatRow([
             ('Oy', '${s['total_votes'] ?? 0}'),
             ('Oy hakkı olan', '${s['eligible_voters'] ?? 0}'),

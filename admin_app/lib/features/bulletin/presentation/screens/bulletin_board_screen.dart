@@ -169,6 +169,23 @@ class _BulletinBoardScreenState extends State<BulletinBoardScreen> {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('İlan Panosu'),
+          actions: [
+            if (_canWrite)
+              IconButton(
+                tooltip: 'Süresi dolanları kapat',
+                icon: const Icon(Icons.event_busy),
+                onPressed: () async {
+                  if (!await confirm(context, 'Süresi dolanları kapat', 'Bitiş tarihi geçmiş yayındaki ilanlar kapatılsın mı?')) return;
+                  if (!context.mounted) return;
+                  if (await runAction(context, () async {
+                    final r = await apiClient.post('/bulletins/expire-due');
+                    return {...r, 'message': '${r['expired_count'] ?? 0} ilan kapatıldı'};
+                  })) {
+                    _changed();
+                  }
+                },
+              ),
+          ],
           bottom: const TabBar(tabs: [Tab(text: 'Onay bekleyen'), Tab(text: 'Yayında'), Tab(text: 'Tümü')]),
         ),
         body: TabBarView(children: [

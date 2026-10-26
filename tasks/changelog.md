@@ -12,6 +12,84 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-26 — FAZ H.6 / H.7 / H.8: SAKİN UYGULAMASI, PANEL EKLEMELERİ VE YÖNETİCİ MOBİLİN PANELLE TAM EŞİTLİĞİ (kullanıcı kararları K3, K4) (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **1423/1423** (adım 67: kiracının işletme projesi malik görünümüne 403 alması — önceki
+> adımların bu hesaba verdiği vekillik sınama süresince kapatılarak deterministik yapıldı —, malikin yalnız tebliğ
+> edilmiş projeleri ve kendi bölüm payını görmesi, `OWNER_PLAN_OBJECTIONS` kapalıyken görüşün 409, açıkken 201);
+> `verify-mobile.sh` 10/10 (yönetici uygulaması 35 test: yeni `parity_test.dart` form çıktısı, toplu bölüm ayrıştırma ve
+> menüdeki her yolun yönlendiricide karşılığı); iki uygulamanın **debug APK'sı derlendi**; panel `tsc`/`lint`/`build`
+> temiz; harita aracı: **panelin çağırdığı her uç yönetici uygulamasında da çağrılıyor (fark 0, okuma dahil)**.
+> Gerçek cihazda elle denenmedi.
+
+- **H.6 sakin uygulaması:** ödeme geçmişi, araçlarım, ziyaretçilerim (iptal, kod yenileme), sayaçlarım, kargo kanıtı,
+  tadilat geri çekme, memnuniyet anketi, ilan ve anket yorumları, tüm cihazlardan çıkış, okundu bilgisi, işletme projesi
+  (bölüm payı + seçenekli görüş/itiraz; yeni `GET /governance/my-budgets[/:id]`). Sayaç türü etiketleri backend
+  türlerine (`HEAT`, `WATER_COLD`, …) düzeltildi — önceki etiketler hiç eşleşmiyordu.
+- **H.8 panel:** demirbaş kategori/zimmet, stok kategorisi + gerekçeli pasife alma + kalem hareket geçmişi, sayaç pasife
+  alma, kamera düzenleme, yıllık personel maliyeti, plaka sorgu, kargo imza/fotoğraf, ilan yorumu görme/gizleme, anket
+  yorumları, ziyaretçi kodu yenileme (yönetim + görevli — backend `hasSecurityScope`; önceki "yalnız kaydı açan" notu
+  yanlıştı, Ders 57), giriş sayfasındaki ölü bağlantı `/activate`'e çevrildi.
+- **H.7 yönetici uygulaması:** ortak altyapı `core/widgets/forms.dart` (alan tanımından form: metin, şifre, sayı, tarih,
+  tarih-saat, saat, seçim, çoklu seçim, anahtar, dosya; boş isteğe bağlı alan gönderilmez; indir-aç; satır menüsü;
+  `file_picker` — sakin uygulamasında zaten kullanılan paket). 13 yeni ekran (bağımsız bölümler, görevlendirmeler, KVKK,
+  tadilat, kural ihlali, acil durum, sigorta, belge arşivi, bildirim merkezi, NPS, karbon ayak izi, site ayarları,
+  hesabım) ve mevcut ekranlara panelin bütün işlemleri: yönetişim (proje hazırla/bildir/kesinleştir/tahakkuk, itiraz,
+  toplantı/çağrı/hazirun/oy/karar, hazirun cetveli, defter kaydı/kapatma, dava, ortak alan kirası), finans (ters kayıt,
+  dekontlar, tahsilat defteri ve zincir doğrulama, alacak dekontu, banka ekstresi yükle/eşleştir/daireye işle/yok say,
+  devir bakiyesi, gecikme tazminatı), sakinler (davet, toplu ekleme, kiracılık bitişi yönetim yolu, telefon, kilit,
+  sıfat/ayrılış), personel (ilişik kesme, izin, bordro gir/öde/iptal, yıllık maliyet, SGK/MUHSGK takvimi, personel
+  kartı — TCKN/IBAN maskeli), operasyon (araç, plaka, geçiş cihazları, tesis ekle/düzenle, devriye noktası/rotası,
+  demirbaş ve stok tam yönetim, sayaç ekle/değiştir/pasife al, paylaştırma, pusula ve itiraz), süresi dolanları kapat
+  (ilan, sözleşme). Site değişince yeni jeton alınır (`ApiClient.refreshSession`).
+- **Harita aracı:** `openDownload`/`optionsFrom` çağrıları tanınıyor; istemcideki dinamik yollar açık yazıldı (Ders 58).
+
+### 2026-10-26 — FAZ H.5: DEVRİYE — QR + GPS ZORUNLULUĞU, KONUM İZİ, RAPOR VE HARİTA (migration 075, kullanıcı kararı K2) (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **1419/1419** (adım 66: nokta konumu ≤20 m hassasiyet ve sahte konum reddi, muafiyet gerekçesi,
+> sakinin nokta değiştirememesi, yönetimin QR değerini görmesi, ~500 m uzaktan QR okutmanın TOO_FAR ile reddi, sahte konum /
+> düşük doğruluk / konumsuz / tanınmayan QR reddi, yanında kabul, 500 m'yi saniyeler içinde geçen okutmanın şüpheli işaretlenmesi,
+> muaf noktada elle seçme reddi ve QR'la kabul, QR yenilenince eski baskının geçersizliği, 7 red + 3 kabul kanıtı, kanıtın
+> değiştirilememesi, iz kaydı ve 101 nokta → 413, tur raporu istatistikleri ve kesinti, sakine rapor 403, kapanmış turda iz 409,
+> dönem raporu, çapraz site boş; eski devriye adımı konumla güncellendi); `verify-mobile.sh` 10/10; yönetici ve sakin uygulaması
+> **debug APK derlendi**; panel `tsc`/`lint`/`build` temiz. Gerçek telefonla sahada denenmedi.
+
+- **Sorun:** QR'ın fotoğrafını çeken görevli noktaya gitmeden okutabiliyordu. **Çözüm (sunucuda):** okutma anındaki konum noktanın
+  konumuyla karşılaştırılır (yarıçap + ölçüm doğruluğu); sahte konum (`isMocked`), 50 m'den kötü doğruluk, konumsuz istek ve
+  güncel olmayan QR reddedilir; her deneme (red dahil) `patrol_scan_attempts`'e kanıt olarak yazılır; fiziksel olarak imkânsız
+  hız şüpheli işaretlenir. GPS çekmeyen kapalı alan için gerekçeli "konum muaf" nokta (yalnız QR, raporda ayrıca gösterilir).
+- **075:** `patrol_checkpoints` + `radius_m`, `location_check`, `exempt_reason`, `qr_token` (yeniden üretilebilir), ölçüm bilgisi;
+  `patrol_track_points` (yalnız açık tur boyunca; 1 yıl saklama, zamanlayıcı `patrol.track.purge`); `patrol_scan_attempts`.
+- **Uçlar:** `POST /patrols/:id/scan` (QR ya da nokta + konum), `POST /patrols/:id/track`, `GET /patrols/:id/report`,
+  `GET /patrol-reports`, `PATCH /patrol-checkpoints/:id`, `POST /patrol-checkpoints/:id/location`, `/rotate-qr`.
+- **Yönetici uygulaması** (`mobile_scanner`, `geolocator`, `flutter_map` — kullanıcı onaylı): "Devriye yürüt" (rota seç, başlat,
+  QR okut, listeden seç, sorun bildir, bitir; ekran açıkken 30 sn'de bir iz), "Nokta kurulumu" (konumu buradan al ≤20 m,
+  yarıçap, muafiyet, QR yenile), "Raporlar" (dönem özeti, tur haritası: iz, nokta yarıçapları, kabul/red/şüpheli işaretleri).
+  Kamera ve konum izinleri manifestte.
+- **Panel** (`qrcode`, `leaflet`/`react-leaflet` — kullanıcı onaylı): nokta konum/yarıçap/muafiyet, QR yazdır (tek/tümü),
+  QR yenile; `/dashboard/patrol/reports` dönem özeti, tur ayrıntısı ve haritası.
+- **APK derlemesi düzeltildi:** yönetici uygulaması hiç derlenmiyordu — kullanılmayan `open_file` ile `open_filex` aynı sınıfı
+  iki kez getiriyordu (`open_file` kaldırıldı) ve `flutter_local_notifications` core library desugaring istiyordu (açıldı).
+  Kullanılmayan `package_info_plus` 5 → 8 (yeni paketlerle uyum).
+- KVKK aydınlatma metnine görevli konum verisi (2.7), işlem kaydı ve saklama süreleri eklendi.
+
+### 2026-10-26 — FAZ H.4: IoT SENSÖRLERİ TAMAMLANDI (migration 074, kullanıcı kararı K1) (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` adım 65 (1419/1419 içinde): sensör tanımı ve anahtarın bir kez gösterilip yalnız özetinin
+> saklanması, eşiksiz sayısal sensör reddi, sakine 403, cihaz okuması ve yanlış anahtar reddi, üst eşik aşımında TEK alarm ve
+> işletme ekibine bildirim (sakine gitmez), normale dönüş işareti (alarm açık kalır), onay/çift onay 409/notsuz kapatma 400,
+> alarmın silinememesi, su kaçağı tetiği, sinyal kesilince bekçinin alarmı ve bildirimi (tek), sinyal gelince normalleşme,
+> anahtar yenileme, çapraz site boş. Gerçek donanımla denenmedi (sahte cihaz `curl`).
+
+- **Neden yarım kalmıştı:** ilk sürüm (2026-02-01) MongoDB varsayımıyla mock'tu; MongoDB kurulmadığı için 2026-09-14'te 501'e
+  çevrilmişti. PostgreSQL ile tamamlandı: `sensors`, `sensor_readings`, `sensor_alerts` (RLS'li), `sensor_ingest`,
+  `sensor_watch_property_ids`.
+- Türler: su kaçağı, sıcaklık, nem, duman, gaz, elektrik kesintisi, depo seviyesi, asansör arızası, kapı açık, diğer. Cihaz
+  `POST /api/v1/public/sensors/data` (`X-Device-Key`). Alarm: üst/alt eşik, tetik, sinyal kesilmesi (bekçi, `SENSOR_WATCH_INTERVAL`);
+  `iot.alert` / `iot.offline` → Operations. Okumalar 365 gün (zamanlayıcı `sensor.purge`).
+- Panel `/dashboard/sensors` ve yönetici uygulaması "Sensörler": liste, durum, 24 saat geçmişi, tanım/düzenleme, anahtar yenileme,
+  alarm onayı/kapatma (not zorunlu).
+
 ### 2026-10-26 — FAZ H.2/H.3: BİLDİRİM OKUNDU BİLGİSİ VE İŞLEM KAYDI (migration 073, kullanıcı kararı K5) (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **1383/1383** (yeni adım 64: şema ve yetkiler, kapsamsız listenin boş dönmesi, başarısız/başarılı

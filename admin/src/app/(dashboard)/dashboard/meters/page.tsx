@@ -61,6 +61,10 @@ export default function MetersPage() {
                                     <div className="flex gap-1">
                                         <Button size="sm" onClick={() => { act.clear(); setReading({ meter: m, current_value: "", reading_date: today(), reading_type: "MANUAL", confirm_anomaly: false }); }}>Okuma gir</Button>
                                         <Button size="sm" variant="secondary" onClick={() => { act.clear(); setReplace({ meter: m, removal_value: "", replaced_on: today(), new_serial_number: "", new_initial_value: "0", reason: "" }); }}>Sayaç değiştir</Button>
+                                        {canWrite && <Button size="sm" variant="ghost" disabled={act.pending} onClick={() => {
+                                            if (!window.confirm(`${m.serial_number} pasife alınsın mı? Okuma geçmişi korunur.`)) return;
+                                            void act.run(() => api.meters.deactivate(m.id), { invalidate: ["meters"], success: "Sayaç pasife alındı; okuma geçmişi korunur" });
+                                        }}>Pasife al</Button>}
                                     </div>
                                 ) : null },
                             ]} />

@@ -16,6 +16,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"log"
@@ -31,7 +32,6 @@ import (
 	"github.com/siteeksen/backend/pkg/middleware"
 	"github.com/siteeksen/backend/pkg/money"
 	"github.com/siteeksen/backend/pkg/notify"
-	"github.com/siteeksen/backend/pkg/stub"
 	"github.com/siteeksen/backend/services/iot/repository"
 	iotsvc "github.com/siteeksen/backend/services/iot/service"
 )
@@ -55,9 +55,8 @@ func main() {
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
 			"status": "healthy", "service": "iot", "persistent": true,
-			"scope_note": "Sayaç ve tüketim paylaştırma GERÇEKTİR. Sensör ve uyarı " +
-				"uçları gerçek değildir ve 501 döner (zaman serisi deposu ve cihaz " +
-				"entegrasyonu yoktur).",
+			"scope_note": "Sayaç, tüketim paylaştırma ve sensörler (074) gerçektir. Sensör okumaları " +
+				"cihaz anahtarıyla POST /api/v1/public/sensors/data ucuna gelir.",
 		})
 	})
 
@@ -474,21 +473,9 @@ func main() {
 	api.POST("/consumption/objections/:id/respond", middleware.RequireRole(middleware.RoleManager, middleware.RoleBoardMember),
 		respondObjection(repo, notifier, pool))
 
-	// --- Gerçek OLMAYAN uçlar: bilerek 501 ---
-	// Zaman serisi deposu ve cihaz entegrasyonu yoktur; "çalışıyor" göstermek
-	// yangın/su baskını sensörünün izlendiği izlenimi verirdi.
-	sensors := api.Group("/sensors")
-	{
-		sensors.GET("", stub.Handler("iot-sensors"))
-		sensors.GET("/:id", stub.Handler("iot-sensors"))
-		sensors.GET("/:id/data", stub.Handler("iot-sensors"))
-		sensors.POST("/:id/data", stub.Handler("iot-sensors"))
-	}
-	alerts := api.Group("/iot/alerts")
-	{
-		alerts.GET("", stub.Handler("iot-alerts"))
-		alerts.POST("/:id/acknowledge", stub.Handler("iot-alerts"))
-	}
+	// --- Sensörler ve alarmlar (074, FAZ H.4) ---
+	registerSensors(r, pool, notifier)
+	startSensorWatch(context.Background(), pool, notifier)
 
 	port := os.Getenv("PORT")
 	if port == "" {

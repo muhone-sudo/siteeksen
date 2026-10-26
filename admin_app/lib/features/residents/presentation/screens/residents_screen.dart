@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/theme/app_theme.dart';
+import 'resident_tools_screen.dart';
 
 const Map<String, String> _roleLabels = {
   'OWNER': 'Ev Sahibi',
@@ -57,6 +58,11 @@ class _ResidentsScreenState extends State<ResidentsScreen> {
       appBar: AppBar(
         title: const Text('Sakinler'),
         actions: [
+          IconButton(
+            tooltip: 'Davet, toplu ekleme, kiracılık bitişi',
+            icon: const Icon(Icons.manage_accounts),
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ResidentToolsScreen())),
+          ),
           IconButton(
             icon: const Icon(Icons.filter_list),
             onPressed: _showFilterSheet,

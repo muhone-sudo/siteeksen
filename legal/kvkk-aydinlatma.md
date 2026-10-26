@@ -64,8 +64,15 @@ SiteEksen Yazılım Teknolojileri A.Ş. ("Şirket") olarak, 6698 sayılı Kişis
 ### 2.6 Dijital Kullanım Verileri
 - IP adresi
 - Cihaz bilgileri
-- Uygulama kullanım logları
-- Konum bilgisi (isteğe bağlı)
+- İşlem kayıtları: giriş/çıkış (telefon numarası maskeli), yapılan işlemler, görüntülenen kayıtlar; site yönetimi
+  "Tam" düzeyi seçerse uygulamada açılan ekranlar ve menüler de kaydedilir (2026-10-26). Parola hiçbir kayda yazılmaz.
+- Bildirimlerin okunma zamanı
+
+### 2.7 Görevli Konum Verisi (yalnız güvenlik/devriye görevlileri)
+- Devriye turu **açıkken** ve uygulama ekranı açıkken 30 saniyede bir konum; kontrol noktası okutulurken konum,
+  ölçüm hassasiyeti ve konum taklidi işareti. Tur dışında konum alınmaz.
+- Amaç: turun fiilen yapıldığının (noktanın yanında bulunulduğunun) doğrulanması ve devriye raporu.
+  Hukuki sebep: KVKK m.5/2-c (iş sözleşmesinin ifası) ve m.5/2-f (veri sorumlusunun meşru menfaati — site güvenliği).
 
 ---
 
@@ -160,7 +167,10 @@ Kişisel verileriniz aşağıdaki taraflara aktarılabilir:
 | Kimlik bilgileri | Üyelik süresince + 10 yıl |
 | Finansal veriler | İşlem tarihi + 10 yıl |
 | Tüketim verileri | 5 yıl |
-| Log kayıtları | 2 yıl |
+| Log kayıtları (zorunlu işlem kaydı: giriş/çıkış, yazma işlemleri, yetki reddi, kişisel veri okuma) | 2 yıl |
+| Uygulama içi etkinlik kayıtları (yalnız "Tam" düzeyde) | Site ayarındaki süre (varsayılan 180 gün, 30-730) |
+| Devriye konum izi | 1 yıl (okutma kanıtları tur kaydıyla birlikte saklanır) |
+| Sensör okumaları | 1 yıl |
 | İletişim verileri | Üyelik süresince + 1 yıl |
 
 Saklama süreleri sonunda veriler güvenli şekilde silinir veya anonim hale getirilir.
@@ -185,7 +195,11 @@ Saklama süreleri sonunda veriler güvenli şekilde silinir veya anonim hale get
   rollerine açıktır.
 - **Erişim kaydı (denetim izi):** Kimlik doğrulaması gerektiren isteklerde
   kullanıcı, IP, işlem türü, kaynak ve HTTP durum kodu `audit_logs` tablosuna
-  yazılır; yetkisiz erişim denemeleri `DENIED` olarak ayrıca izlenir.
+  yazılır; yetkisiz erişim denemeleri `DENIED` olarak ayrıca izlenir. Giriş
+  başarılı/başarısız (maskeli telefon) ve çıkış da kaydedilir. Kayıt düzeyi site
+  ayarıyla azaltılsa bile yazma işlemleri, yetki reddi, kişisel veri okumaları ve
+  giriş/çıkış kaydı kapatılamaz. Kayıtları yalnız site yöneticisi ve denetçi görür;
+  görüntüleme de kayda geçer.
 - **Parola saklama:** Parolalar bcrypt (cost 12) ile saklanır; düz metin
   tutulmaz ve loglanmaz.
 - **Aktarım güvenliği:** Üretim dağıtımında HTTPS kullanılır (sürüm, dağıtımı

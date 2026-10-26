@@ -144,9 +144,19 @@ class _BulletinBoardMobileScreenState extends State<BulletinBoardMobileScreen> {
         ],
       ),
       isThreeLine: true,
+      // Yayındaki ilanın yorumları (FAZ H.6 S8): okuma ve yazma; gizlenen yorum listelenmez.
+      onTap: status == 'APPROVED' ? () => _comments(b) : null,
       trailing: mine && (status == 'PENDING' || status == 'APPROVED')
           ? TextButton(onPressed: () => _close(b), child: const Text('Kapat'))
           : null,
+    );
+  }
+
+  Future<void> _comments(Map b) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => _BulletinComments(id: '${b['id']}', title: '${b['title'] ?? ''}'),
     );
   }
 
@@ -260,5 +270,82 @@ class _BulletinBoardMobileScreenState extends State<BulletinBoardMobileScreen> {
       content: Text(created.isNotEmpty ? created : 'İlanınız alındı; yönetim onayından sonra yayınlanacak.'),
     ));
     await _reload();
+  }
+}
+
+class _BulletinComments extends StatefulWidget {
+  final String id;
+  final String title;
+  const _BulletinComments({required this.id, required this.title});
+
+  @override
+  State<_BulletinComments> createState() => _BulletinCommentsState();
+}
+
+class _BulletinCommentsState extends State<_BulletinComments> {
+  late Future<List<dynamic>> _future = apiClient.getBulletinComments(widget.id);
+  final _text = TextEditingController();
+  bool _anon = false;
+  bool _sending = false;
+
+  @override
+  void dispose() {
+    _text.dispose();
+    super.dispose();
+  }
+
+  Future<void> _send() async {
+    final t = _text.text.trim();
+    if (t.isEmpty || _sending) return;
+    setState(() => _sending = true);
+    try {
+      await apiClient.addBulletinComment(widget.id, t, _anon);
+      _text.clear();
+      setState(() => _future = apiClient.getBulletinComments(widget.id));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(toUserMessage(e))));
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: SizedBox(
+        height: MediaQuery.of(context).size.height * 0.7,
+        child: Column(children: [
+          ListTile(title: Text(widget.title, style: const TextStyle(fontWeight: FontWeight.w600)), subtitle: const Text('Yorumlar')),
+          Expanded(
+            child: FutureBuilder<List<dynamic>>(
+              future: _future,
+              builder: (context, snap) {
+                if (snap.connectionState != ConnectionState.done) return const LoadingView();
+                if (snap.hasError) return ErrorStateView(message: toUserMessage(snap.error!));
+                final list = snap.data!.whereType<Map>().toList();
+                if (list.isEmpty) return const EmptyStateView(message: 'Henüz yorum yok', icon: Icons.chat_bubble_outline);
+                return ListView(children: [
+                  for (final c in list)
+                    ListTile(
+                      dense: true,
+                      title: Text('${c['content']}'),
+                      subtitle: Text('${(c['author_name'] ?? '').toString().isEmpty ? 'Anonim' : c['author_name']} · ${formatDateTime(c['created_at'])}'),
+                    ),
+                ]);
+              },
+            ),
+          ),
+          SwitchListTile(dense: true, value: _anon, onChanged: (v) => setState(() => _anon = v), title: const Text('Adım gösterilmesin')),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 8, 16),
+            child: Row(children: [
+              Expanded(child: TextField(controller: _text, decoration: const InputDecoration(hintText: 'Yorum yazın'))),
+              IconButton(onPressed: _sending ? null : _send, icon: const Icon(Icons.send)),
+            ]),
+          ),
+        ]),
+      ),
+    );
   }
 }

@@ -111,3 +111,28 @@ export function PayrollCard({ canWrite, employees }: { canWrite: boolean; employ
         </Card>
     );
 }
+
+export function PayrollCostsCard() {
+    const [year, setYear] = useState(today().slice(0, 4));
+    const q = useApi(["payroll", "costs", year], () => api.personnel.payrollCosts(year));
+    return (
+        <Card title="Yıllık personel maliyeti" padded={false}
+            actions={<Select value={year} onChange={(e) => setYear(e.target.value)} aria-label="Yıl"
+                options={Array.from({ length: 6 }, (_, i) => String(Number(today().slice(0, 4)) - i)).map((y) => ({ value: y, label: y }))} />}>
+            <QueryView q={q}>
+                {(d) => (
+                    <>
+                        <p className="px-4 py-3 text-sm">Yıllık işveren maliyeti: <b>{tl(d.employer_cost_total)}</b></p>
+                        {d.data.length === 0 ? <p className="px-4 pb-3 text-sm text-gray-500">Bu yıl için bordro kaydı yok.</p> : <Table rows={d.data} rowKey={(m) => m.period} columns={[
+                            { header: "Dönem", cell: (m) => m.period },
+                            { header: "Personel", cell: (m) => m.employees },
+                            { header: "Net", cell: (m) => tl(m.net) },
+                            { header: "İşveren maliyeti", cell: (m) => tl(m.employer_cost) },
+                        ]} />}
+                        <p className="px-4 py-3 text-xs text-gray-500">{d.note}</p>
+                    </>
+                )}
+            </QueryView>
+        </Card>
+    );
+}

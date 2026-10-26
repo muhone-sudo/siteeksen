@@ -53,12 +53,13 @@
 | `POST /residents/:id/activation-code` | identity · `services/identity/main.go:148` | `identity.activation` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
 | `POST /residents/:id/phone` | identity · `services/identity/main.go:151` | `identity.activation`, `identity.phone_changed` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
 | `POST /inventory/:id/movements` | inventory · `services/inventory/main.go:142` | `inventory.low_stock` | Managers |
-| `POST /consumption/statements/:id/objections` | iot · `services/iot/main.go:472` | `statement.objection` | Approvers |
-| `POST /consumption/objections/:id/respond` | iot · `services/iot/main.go:474` | `statement.objection.answer` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /consumption/statements/:id/objections` | iot · `services/iot/main.go:471` | `statement.objection` | Approvers |
+| `POST /consumption/objections/:id/respond` | iot · `services/iot/main.go:473` | `statement.objection.answer` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /public/sensors/data` | iot · `services/iot/sensors.go:127` | `{topic}` | Operations |
 | `POST /notifications` | notification · `services/notification/main.go:158` | `{{in}.Topic}` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
 | `POST /packages` | package · `services/package/main.go:133` | `package.received` | UnitUsers |
 | `POST /public/devices/heartbeat` | parking · `services/parking/devices.go:37` | — | Operations |
-| `POST /patrols/:id/complete` | patrol · `services/patrol/main.go:187` | `patrol.issue` | Managers |
+| `POST /patrols/:id/complete` | patrol · `services/patrol/main.go:179` | `patrol.issue` | Managers |
 | `POST /reservations/:id/approve` | reservation · `services/reservation/main.go:283` | `reservation.decision` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
 | `POST /reservations/:id/reject` | reservation · `services/reservation/main.go:296` | `reservation.decision` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
 | `POST /settings/owner-visibility/:id/approve` | settings · `services/settings/main.go:146` | `visibility.policy` | Tenants |
@@ -67,7 +68,7 @@
 | `POST /visitors/verify-pass` | visitor · `services/visitor/main.go:174` | `visitor.checkin` | UnitUsers |
 | `POST /visitors/:id/check-in` | visitor · `services/visitor/main.go:175` | `visitor.checkin` | UnitUsers |
 
-## 4.3 Zamanlanmış işler (`backend/cmd/scheduler`, varsayılan 15 dk'da bir, `SCHEDULER_INTERVAL`)
+## 4.3 Zamanlanmış işler (`backend/cmd/scheduler`, varsayılan 15 dk'da bir, `SCHEDULER_INTERVAL`) — 14 iş
 
 | İş | Ne yapar | Konu | Alıcı | Kod |
 |---|---|---|---|---|
@@ -82,6 +83,9 @@
 | compliance.employer | SGK işe giriş/çıkış, MUHSGK/prim son günü | `compliance.*` | Managers | `jobs.go:670` |
 | kvkk.destruction | Saklama süresi dolan ziyaretçi/otopark/kargo kayıtlarını anonimleştirir (≤6 ayda bir); süre tanımsızsa hatırlatır | `kvkk.destruction.done`, `kvkk.destruction.undefined` | Managers | `jobs.go:721` |
 | dask.renewal | 30 gün içinde biten/bitmiş DASK poliçesi | `dask.*` | UnitResidents (malik) | `jobs.go:775` |
+| activity.purge | Saklama süresi dolan uygulama içi etkinlik kayıtlarını siler (ACTIVITY_LOG_RETENTION_DAYS) | — | — | `jobs.go` purgeClientActivity |
+| sensor.purge | 365 günden eski sensör okumalarını siler | — | — | `jobs.go` purgeSensorReadings |
+| patrol.track.purge | 1 yıldan eski devriye konum izini siler | — | — | `jobs.go` purgePatrolTracks |
 
 Mükerrer gönderim `DedupeKey` ile engellenir (ör. `dues.overdue:<daire>:<ay>`, `jobs.go:209`).
 
@@ -91,6 +95,7 @@ Mükerrer gönderim `DedupeKey` ile engellenir (ör. `dues.overdue:<daire>:<ay>`
 |---|---|---|---|
 | Kart ödemesi uzlaştırma | 1 dk (`CARD_RECONCILE_INTERVAL`), 20 dk'dan eski askıdaki ödemeler (`CARD_RECONCILE_AGE`) | Sonucu iyzico'dan yeniden sorgular, askıda ödeme bırakmaz | `backend/services/finance/card.go:85` |
 | Geçiş cihazı canlılığı | 30 sn (`DEVICE_WATCH_INTERVAL`) | Sinyal kesilen cihaz için olay açar; `device.offline`/`device.recovered` bildirimi → Operations | `backend/services/parking/devices.go:144` |
+| Sensör sinyal bekçisi | 60 sn (`SENSOR_WATCH_INTERVAL`) | Sinyali kesilen sensör için OFFLINE alarmı açar; `iot.offline` → Operations (074) | `backend/services/iot/sensors.go` startSensorWatch |
 | Kargo teslim kanıtı imhası | 15 dk (`PACKAGE_PURGE_INTERVAL`) | Silme kuyruğundaki kanıt dosyalarını depodan siler | `backend/services/package/proof.go:296` |
 
 ## 4.5 Veritabanı tetikleyicileri (son tanım geçerli)

@@ -3,9 +3,10 @@
 // DÜZELTME (2026-09-26): ekran var olmayan `/patrol-sessions` yoluna gidiyordu
 // ve iki çağrı tek try bloğunda olduğu için BÜTÜN ekran hata veriyordu;
 // güzergâhta `checkpoint_count`, turda `completed_checkpoints` alanları yoktu.
-// Tur başlatma ve okutma görevlinin cihazından yapılır (NFC/QR); burada izlenir.
+// Tur başlatma ve okutma "Devriye yürüt" ekranındadır (075: QR + konum); nokta kurulumu ve raporlar ayrı ekranlarda.
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/network/api_client.dart';
 import '../../../../core/utils/formatters.dart';
@@ -27,6 +28,11 @@ class PatrolControlScreen extends StatelessWidget {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Devriye'),
+          actions: [
+            IconButton(tooltip: 'Devriye yürüt', icon: const Icon(Icons.directions_walk), onPressed: () => context.push('/patrol/run')),
+            IconButton(tooltip: 'Raporlar', icon: const Icon(Icons.map_outlined), onPressed: () => context.push('/patrol/reports')),
+            IconButton(tooltip: 'Nokta kurulumu', icon: const Icon(Icons.edit_location_alt), onPressed: () => context.push('/patrol/points')),
+          ],
           bottom: const TabBar(tabs: [Tab(text: 'Turlar'), Tab(text: 'Güzergâhlar')]),
         ),
         body: TabBarView(children: [

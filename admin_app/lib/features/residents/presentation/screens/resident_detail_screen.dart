@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/theme/app_theme.dart';
 import '../../../../core/widgets/api_views.dart';
+import '../../../../core/widgets/forms.dart';
+import 'resident_tools_screen.dart' show residentRoles;
 import '../widgets/activation_code_dialog.dart';
 
 const Map<String, String> _roleLabels = {
@@ -65,6 +67,35 @@ class _ResidentDetailScreenState extends State<ResidentDetailScreen> {
     }
   }
 
+  Future<void> _changePhone() async {
+    final phone = await askText(context, 'Telefon değiştir', 'Yeni telefon (05xx xxx xx xx)');
+    if (phone == null || !mounted) return;
+    try {
+      final r = await apiClient.post('/residents/${widget.residentId}/phone', {'phone': phone});
+      if (!mounted) return;
+      final name = '${_resident?['first_name'] ?? ''} ${_resident?['last_name'] ?? ''}'.trim();
+      if (r['activation'] is Map) {
+        await showActivationCodeDialog(context, who: '$name (${r['phone'] ?? phone})', activation: Map<String, dynamic>.from(r['activation'] as Map));
+      }
+      await _load();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(errorText(e))));
+    }
+  }
+
+  Future<void> _edit() async {
+    final r = _resident;
+    if (r == null) return;
+    if (await formAction(context, 'Sakin kaydı', [
+      FSpec('role', 'Sıfat', type: FType.select, options: residentRoles, initial: r['role'], required: true),
+      FSpec('is_active', 'Aktif', type: FType.toggle, initial: r['is_active'] == true, hint: 'Ayrılan sakinin kaydı silinmez'),
+      FSpec('end_date', 'Ayrılış (ilişik kesme) tarihi', type: FType.date, visible: (v) => v['is_active'] != true,
+          hint: 'Boşsa bugün yazılır; ileri tarih olamaz. Yeni borç ayrılan kişiye yansımaz'),
+    ], (v) => apiClient.patch('/residents/${widget.residentId}', v), success: 'Sakin kaydı güncellendi')) {
+      await _load();
+    }
+  }
+
   Future<void> _setActive(bool active) async {
     setState(() => _isUpdating = true);
     try {
@@ -105,9 +136,17 @@ class _ResidentDetailScreenState extends State<ResidentDetailScreen> {
               onSelected: (value) {
                 if (value == 'toggle') _setActive(!isActive);
                 if (value == 'code') _issueCode();
+                if (value == 'phone') _changePhone();
+                if (value == 'edit') _edit();
+                if (value == 'unlock') {
+                  runAction(context, () => apiClient.post('/residents/${widget.residentId}/unlock'));
+                }
               },
               itemBuilder: (context) => [
                 const PopupMenuItem(value: 'code', child: Text('Etkinleştirme / şifre sıfırlama kodu üret')),
+                const PopupMenuItem(value: 'phone', child: Text('Telefon değiştir (oturumlar kapanır)')),
+                const PopupMenuItem(value: 'unlock', child: Text('Giriş kilidini aç')),
+                const PopupMenuItem(value: 'edit', child: Text('Sıfat / ayrılış')),
                 PopupMenuItem(
                   value: 'toggle',
                   child: Text(

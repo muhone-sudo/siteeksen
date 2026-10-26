@@ -130,7 +130,7 @@ Kullanıcı kararları (2026-10-26):
 
 **Neden yarım kaldı:** İlk commit (2026-02-01) sensörleri MongoDB varsayımıyla mock olarak yazdı. MongoDB hiç kurulmadığı için 2026-09-14'te dürüstçe 501'e çevrildi (`tasks/todo.md:570`). Özellik faydalı, PostgreSQL ile yapılabilir.
 
-- [ ] **Migration 074:**
+- [x] `[D3]` **Migration 074:**
   - `sensors`: tür (SU_KACAGI, SICAKLIK, NEM, DUMAN, GAZ, ELEKTRIK_KESINTISI, DEPO_SEVIYESI, ASANSOR_ARIZA, KAPI_ACIK, DIGER), konum, birim, alt/üst eşik, cihaz anahtar özeti, son değer ve zaman.
   - `sensor_readings`: zaman serisi; `(sensor_id, recorded_at)` indeksi; saklama kuralı.
   - `sensor_alerts`: AÇIK / ONAYLANDI / KAPANDI.
@@ -155,7 +155,7 @@ Kullanıcı kararları (2026-10-26):
 
 **Mevcut şema:** `patrol_checkpoints.latitude/longitude` ve `qr_code` var ama kullanılmıyor. `patrol_logs.gps_track` JSONB var.
 
-- [ ] **Migration 075:**
+- [x] `[D3]` **Migration 075:**
   - `patrol_checkpoints`'e eklenecekler:
     - `radius_m` (varsayılan 30),
     - `location_accuracy_m` (konum kaydedilirken ölçülen doğruluk),
@@ -194,7 +194,7 @@ Kullanıcı kararları (2026-10-26):
   - Dönem özeti: planlanan/yapılan/kaçırılan tur, ortalama süre, en çok reddedilen nokta.
 - [ ] **Etki:** `patrol.issue` bildirimi ve zamanlayıcının `patrol.overdue` hatırlatması gerçek turlarla tetiklenir. verify-stack senaryosu: yanında olmadan okutma reddedilir, yanında kabul edilir, sahte konum reddedilir.
 
-## H.6 Sakin uygulaması (önceki S1–S11; S12 K3'e bağlı)
+## H.6 Sakin uygulaması (önceki S1–S11; S12 K3'e bağlı) — TAMAMLANDI (2026-10-26; verify-stack adım 67, verify-mobile 10/10, APK)
 
 | # | Ekran | Uçlar |
 |---|---|---|
@@ -213,7 +213,7 @@ Kullanıcı kararları (2026-10-26):
 
 Ek olarak sakin uygulaması TAM düzeyde ekran/menü olaylarını gönderir (H.3).
 
-## H.7 Yönetici mobil — panelle tam eşitlik (K4)
+## H.7 Yönetici mobil — panelle tam eşitlik (K4) — TAMAMLANDI (2026-10-26; harita aracı: panelin çağırdığı her uç yönetici uygulamasında da var, fark 0; analyze temiz, 35 test, APK)
 
 **İlke:** Paneldeki her sayfa ve her işlem yönetici uygulamasında da olur. Rol kuralları paneldeki `rbac.ts` ile birebir aynıdır: STAFF yalnız operasyonu görür, AUDITOR salt okur.
 
@@ -232,7 +232,7 @@ Ek olarak sakin uygulaması TAM düzeyde ekran/menü olaylarını gönderir (H.3
 | Analiz | Enerji, ★NPS, ★ESG, Raporlar | NPS aç/kapat/detay/yorumlar; karbon ayak izi hesabı |
 | Sistem | ★Ayarlar, ★Entegrasyon durumu, ★İşlem kayıtları (H.3), ★Hesabım | Site ayarları, işlem kaydı düzeyi, saklama kuralları ve imha, malik görünürlük politikası, kamera/biyometrik envanteri, site pasifleştirme; kendi telefon/e-posta değişikliği; site değiştirme / yeni site |
 
-## H.8 Panel eklemeleri
+## H.8 Panel eklemeleri — TAMAMLANDI (2026-10-26; P1–P15 hepsi; tsc/lint/build temiz)
 
 | # | Eklenecek |
 |---|---|
@@ -256,11 +256,11 @@ Ek olarak sakin uygulaması TAM düzeyde ekran/menü olaylarını gönderir (H.3
 
 ## H.9 Harita aracı ve belgeler
 
-- [ ] Yanlış alarmlar tanınır.
-- [ ] Her aşama sonunda harita yeniden üretilir ve 06 güncellenir.
-- [ ] Changelog kanıtla yazılır.
-- [ ] CLAUDE.md gerçek duruma göre güncellenir.
-- [ ] `legal/kvkk-aydinlatma.md`'ye işlem kaydı ve personel konum maddeleri eklenir.
+- [x] Yanlış alarmlar tanınır (dinamik yollar açık yazıldı; `openDownload`/`optionsFrom` araca öğretildi — Ders 58).
+- [x] Her aşama sonunda harita yeniden üretilir ve 06 güncellenir.
+- [x] Changelog kanıtla yazılır.
+- [x] CLAUDE.md gerçek duruma göre güncellenir.
+- [x] `legal/kvkk-aydinlatma.md`'ye işlem kaydı ve personel konum maddeleri eklenir (H.5'te).
 
 ## H.10 Planın zihinde çalıştırılması — bulunan sorunlar ve çözümleri
 

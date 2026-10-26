@@ -5,13 +5,19 @@
 // hesaplanan sahte "toplam değer / garantisi biten" sayaçları gösteriyordu.
 // Demirbaş listesi KMK m.39 kapsamında hesap verme belgelerinin parçasıdır;
 // uydurma kayıt, yıllık hesabın yanlış çıkmasına yol açar.
+// FAZ H.7: kayıt, kategori, amortisman, bakım, zimmet ve hurdaya ayırma panelle eşit.
 
 import 'package:flutter/material.dart';
 
 import '../../../../core/network/api_client.dart';
-import '../../../../core/theme/apple_theme.dart';
 import '../../../../core/utils/formatters.dart';
-import '../../../../core/widgets/data_state.dart';
+import '../../../../core/widgets/api_views.dart';
+import '../../../../core/widgets/forms.dart';
+
+const _conditions = [('NEW', 'Yeni'), ('GOOD', 'İyi'), ('FAIR', 'Orta'), ('POOR', 'Kötü'), ('LOST', 'Kayıp')];
+const _mtypes = [('PREVENTIVE', 'Periyodik (önleyici)'), ('CORRECTIVE', 'Arıza (düzeltici)'), ('INSPECTION', 'Muayene / kontrol')];
+
+String _condition(Object? v) => v == 'DISPOSED' ? 'Hurdaya ayrıldı' : _conditions.firstWhere((e) => e.$1 == v, orElse: () => ('', '$v')).$2;
 
 class AssetManagementScreen extends StatefulWidget {
   const AssetManagementScreen({super.key});
@@ -21,161 +27,205 @@ class AssetManagementScreen extends StatefulWidget {
 }
 
 class _AssetManagementScreenState extends State<AssetManagementScreen> {
-  bool _loading = true;
-  String? _error;
-  bool _notImplemented = false;
-  List<Map<String, dynamic>> _assets = const [];
+  final _list = GlobalKey<ApiListState>();
+  bool _due = false;
+  bool _canWrite = false;
+  bool _canMaintain = false;
 
   @override
   void initState() {
     super.initState();
-    _load();
+    apiClient.getCurrentUserRoles().then((r) {
+      if (mounted) {
+        setState(() {
+          _canWrite = r.any(writeRoles.contains);
+          _canMaintain = _canWrite || r.contains('STAFF');
+        });
+      }
+    });
   }
 
-  Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-      _notImplemented = false;
-    });
-    try {
-      final list = await apiClient.getList('/assets');
-      if (!mounted) return;
-      setState(() {
-        _assets = list.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList();
-        _loading = false;
-      });
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _notImplemented = isNotImplemented(e);
-        _error = toUserMessage(e);
-        _loading = false;
-      });
+  Future<void> _addCategory() async {
+    await formAction(context, 'Demirbaş kategorisi', const [
+      FSpec('name', 'Ad', required: true, hint: 'Bahçe ekipmanı'),
+      FSpec('depreciation_years', 'Amortisman süresi (yıl)', type: FType.integer, hint: 'Boşsa amortisman hesaplanmaz'),
+      FSpec('description', 'Açıklama'),
+    ], (v) => apiClient.post('/asset-categories', v), success: 'Kategori eklendi');
+  }
+
+  Future<void> _add() async {
+    final cats = await optionsFrom('/asset-categories', (c) => '${c['name']}').catchError((_) => <(String, String)>[]);
+    if (!mounted) return;
+    if (await formAction(context, 'Demirbaş ekle', [
+      const FSpec('name', 'Ad', required: true),
+      FSpec('category_id', 'Kategori', type: FType.select, options: cats),
+      const FSpec('asset_code', 'Demirbaş kodu'),
+      const FSpec('serial_number', 'Seri no'),
+      const FSpec('location', 'Konum'),
+      const FSpec('condition', 'Durum', type: FType.select, options: _conditions, initial: 'GOOD'),
+      const FSpec('purchase_date', 'Alış tarihi', type: FType.date),
+      const FSpec('purchase_price', 'Alış bedeli (TL)', type: FType.decimal),
+      const FSpec('vendor', 'Tedarikçi'),
+      const FSpec('warranty_end', 'Garanti bitişi', type: FType.date),
+      const FSpec('depreciation_years', 'Amortisman (yıl)', type: FType.integer, hint: 'Boşsa kategori varsayılanı'),
+      const FSpec('maintenance_interval_days', 'Bakım aralığı (gün)', type: FType.integer),
+    ], (v) => apiClient.post('/assets', v), success: 'Demirbaş kaydedildi')) {
+      await _list.currentState?.reload();
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppleTheme.background,
       appBar: AppBar(
         title: const Text('Demirbaşlar'),
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.transparent,
         actions: [
-          IconButton(icon: const Icon(Icons.refresh_rounded), onPressed: _load, tooltip: 'Yenile'),
+          FilterChip(label: const Text('Bakımı gelen'), selected: _due, onSelected: (v) => setState(() => _due = v)),
+          if (_canWrite) IconButton(tooltip: 'Kategori ekle', icon: const Icon(Icons.create_new_folder_outlined), onPressed: _addCategory),
         ],
       ),
-      body: _buildBody(),
-    );
-  }
-
-  Widget _buildBody() {
-    if (_loading) return const LoadingView();
-    if (_notImplemented) {
-      return const SingleChildScrollView(
-        child: NotImplementedNotice(
-          title: 'Demirbaş modülü henüz hazır değil',
-          detail: 'Demirbaş kayıtları, garanti ve amortisman takibi sunucu tarafında '
-              'gerçek veriye bağlanmadı.',
+      floatingActionButton: _canWrite ? FloatingActionButton.extended(onPressed: _add, icon: const Icon(Icons.add), label: const Text('Demirbaş')) : null,
+      body: ApiList(
+        key: _list,
+        token: _due,
+        load: () => apiClient.getList('/assets', query: {if (_due) 'maintenance_due': 'true'}),
+        empty: 'Kayıtlı demirbaş yok',
+        emptyIcon: Icons.chair_outlined,
+        header: (_) => FutureBuilder<Map<String, dynamic>>(
+          future: apiClient.getMap('/assets-summary'),
+          builder: (context, snap) {
+            final s = snap.data;
+            if (s == null) return const SizedBox.shrink();
+            return StatRow([
+              ('Aktif', '${s['active'] ?? 0}'),
+              ('Bakımı gecikmiş', '${s['maintenance_overdue'] ?? 0}'),
+              ('Garantisi 30 günde biten', '${s['warranty_expiring_30_days'] ?? 0}'),
+              ('Bu yıl bakım gideri', formatTry(toNum(s['maintenance_cost_ytd_try']))),
+            ]);
+          },
         ),
-      );
-    }
-    if (_error != null) return ErrorStateView(message: _error!, onRetry: _load);
-    if (_assets.isEmpty) {
-      return const EmptyStateView(
-        message: 'Kayıtlı demirbaş yok.',
-        icon: Icons.chair_outlined,
-      );
-    }
+        itemBuilder: (context, a, reload) => ListTile(
+          leading: Icon(toNum(a['maintenance_overdue_days']) > 0 ? Icons.build_circle : Icons.chair,
+              color: toNum(a['maintenance_overdue_days']) > 0 ? Colors.red : null),
+          title: Text('${a['name'] ?? ''}'),
+          subtitle: Text([
+            [a['asset_code'], a['category_name'], a['location']].where((x) => x != null && '$x'.isNotEmpty).join(' · '),
+            'Defter değeri ${formatTry(toNum(a['book_value']))} · ${_condition(a['condition'])}',
+            toNum(a['maintenance_overdue_days']) > 0
+                ? 'Bakım ${a['maintenance_overdue_days']} gün gecikti'
+                : 'Sonraki bakım ${formatDate(a['next_maintenance_date'])}',
+          ].where((s) => s.isNotEmpty).join('\n')),
+          isThreeLine: true,
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () async {
+            await Navigator.of(context).push(MaterialPageRoute(
+                builder: (_) => _AssetDetail(asset: a, canWrite: _canWrite, canMaintain: _canMaintain)));
+            await reload();
+          },
+        ),
+      ),
+    );
+  }
+}
 
-    // Özet YALNIZCA sunucudan gelen kayıtlardan hesaplanır.
-    num totalValue = 0;
-    var valued = 0;
-    for (final a in _assets) {
-      final v = a['purchase_price'] ?? a['value'];
-      if (v is num) {
-        totalValue += v;
-        valued++;
-      }
-    }
+class _AssetDetail extends StatefulWidget {
+  final Map<String, dynamic> asset;
+  final bool canWrite;
+  final bool canMaintain;
+  const _AssetDetail({required this.asset, required this.canWrite, required this.canMaintain});
 
-    return RefreshIndicator(
-      onRefresh: _load,
-      child: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Row(
-            children: [
-              Expanded(child: _metric('Kayıt', '${_assets.length}', AppleTheme.systemBlue)),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _metric(
-                  'Toplam değer',
-                  valued == 0 ? '—' : formatTry(totalValue),
-                  AppleTheme.systemGreen,
+  @override
+  State<_AssetDetail> createState() => _AssetDetailState();
+}
+
+class _AssetDetailState extends State<_AssetDetail> {
+  int _token = 0;
+  String get _id => '${widget.asset['id']}';
+
+  void _changed() => setState(() => _token++);
+
+  @override
+  Widget build(BuildContext context) {
+    final a = widget.asset;
+    final active = a['status'] != 'DISPOSED';
+    return Scaffold(
+      appBar: AppBar(title: Text('${a['name'] ?? ''}'), actions: [
+        if (active)
+          RowMenu([
+            if (widget.canMaintain)
+              ('Bakım kaydı', () async {
+                if (await formAction(context, 'Bakım kaydı', [
+                  const FSpec('maintenance_type', 'Tür', type: FType.select, options: _mtypes, initial: 'PREVENTIVE', required: true),
+                  FSpec('performed_at', 'Tarih', type: FType.date, initial: DateTime.now()),
+                  const FSpec('labor_cost', 'İşçilik (TL)', type: FType.decimal),
+                  const FSpec('parts_cost', 'Parça (TL)', type: FType.decimal),
+                  const FSpec('performed_by', 'Yapan'),
+                  const FSpec('new_condition', 'Yeni durum', type: FType.select, options: _conditions, hint: 'Değişmedi'),
+                  const FSpec('description', 'Açıklama', type: FType.multiline, required: true),
+                ], (v) async {
+                  final r = await apiClient.post('/assets/$_id/maintenance', {'labor_cost': 0, 'parts_cost': 0, ...v});
+                  return {...r, 'message': 'Bakım kaydedildi (toplam ${formatTry(toNum(r['total_cost']))})'};
+                })) {
+                  _changed();
+                }
+              }),
+            if (widget.canWrite)
+              ('Zimmet', () async {
+                final who = await askText(context, 'Zimmet', 'Zimmetlenen kişi / birim (boşsa zimmet kaldırılır)',
+                    required: false, initial: '${a['assigned_to'] ?? ''}');
+                if (who == null || !context.mounted) return;
+                if (await runAction(context, () => apiClient.post('/assets/$_id/assign', {'assigned_to': who}),
+                    success: who.isEmpty ? 'Zimmet kaldırıldı' : 'Zimmet kaydedildi')) {
+                  a['assigned_to'] = who;
+                  _changed();
+                }
+              }),
+            if (widget.canWrite)
+              ('Hurdaya ayır', () async {
+                if (await formAction(context, 'Hurdaya ayır', const [
+                  FSpec('reason', 'Gerekçe', type: FType.multiline, required: true),
+                  FSpec('decision_ref', 'Karar referansı', required: true, hint: 'Yönetim/kurul kararının tarih ve numarası'),
+                ], (v) => apiClient.post('/assets/$_id/dispose', v), submit: 'Hurdaya ayır', success: 'Demirbaş hurdaya ayrıldı')) {
+                  if (context.mounted) Navigator.pop(context);
+                }
+              }),
+          ]),
+      ]),
+      body: ApiList(
+        token: _token,
+        load: () => apiClient.getList('/assets/$_id/maintenance'),
+        empty: 'Bakım kaydı yok',
+        header: (_) => FutureBuilder<Map<String, dynamic>>(
+          key: ValueKey(_token),
+          future: apiClient.getMap('/assets/$_id'),
+          builder: (context, snap) {
+            final d = snap.data;
+            final dep = d?['depreciation'] as Map?;
+            return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              ListTile(
+                title: Text([a['asset_code'], a['category_name'], a['location']].where((x) => x != null && '$x'.isNotEmpty).join(' · ')),
+                subtitle: Text([
+                  'Durum: ${_condition(a['condition'])}',
+                  if (a['purchase_price'] != null) 'Alış ${formatTry(toNum(a['purchase_price']))} (${formatDate(a['purchase_date'])})',
+                  if (a['warranty_end'] != null) 'Garanti ${formatDate(a['warranty_end'])}',
+                  if ((a['assigned_to'] ?? '').toString().isNotEmpty) 'Zimmet: ${a['assigned_to']}',
+                ].join('\n')),
+              ),
+              if (d != null)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Text(dep != null
+                      ? 'Birikmiş amortisman ${formatTry(toNum(dep['accumulated']))} · defter değeri ${formatTry(toNum(dep['book_value']))} · yıllık ${formatTry(toNum(dep['annual_amount']))}${dep['fully_depreciated'] == true ? ' · tamamen amorti edildi' : ''}'
+                      : '${d['depreciation_note'] ?? 'Amortisman hesaplanamadı (alış tarihi/bedeli yok).'}'),
                 ),
-              ),
-            ],
-          ),
-          if (valued > 0 && valued < _assets.length)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Text(
-                '${_assets.length - valued} kaydın değeri girilmemiş; toplam eksik olabilir.',
-                style: const TextStyle(fontSize: 12, color: AppleTheme.systemOrange),
-              ),
-            ),
-          const SizedBox(height: 16),
-          for (final a in _assets) _assetCard(a),
-        ],
-      ),
-    );
-  }
-
-  Widget _metric(String label, String value, Color color) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: AppleTheme.cardDecoration,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: const TextStyle(fontSize: 12, color: AppleTheme.secondaryLabel)),
-          const SizedBox(height: 6),
-          Text(value, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700, color: color)),
-        ],
-      ),
-    );
-  }
-
-  Widget _assetCard(Map<String, dynamic> a) {
-    final warranty = a['warranty_end'] ?? a['warranty_until'];
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: AppleTheme.cardDecoration,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text((a['name'] ?? 'Demirbaş').toString(),
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-          if (a['location'] != null)
-            Text(a['location'].toString(),
-                style: const TextStyle(fontSize: 13, color: AppleTheme.secondaryLabel)),
-          const SizedBox(height: 6),
-          Row(
-            children: [
-              if (a['purchase_price'] is num)
-                Text(formatTry(a['purchase_price'] as num),
-                    style: const TextStyle(fontWeight: FontWeight.w600)),
-              const Spacer(),
-              if (warranty != null)
-                Text('Garanti: ${formatDate(warranty)}',
-                    style: const TextStyle(fontSize: 12, color: AppleTheme.tertiaryLabel)),
-            ],
-          ),
-        ],
+              const ListTile(title: Text('Bakım geçmişi', style: TextStyle(fontWeight: FontWeight.w600))),
+            ]);
+          },
+        ),
+        itemBuilder: (context, m, _) => ListTile(
+          title: Text('${_mtypes.firstWhere((t) => t.$1 == m['maintenance_type'], orElse: () => ('', '${m['maintenance_type']}')).$2} · ${formatTry(toNum(m['total_cost']))}'),
+          subtitle: Text([formatDate(m['performed_at']), '${m['description'] ?? ''}', if (m['performed_by'] != null) '${m['performed_by']}'].join(' · ')),
+        ),
       ),
     );
   }

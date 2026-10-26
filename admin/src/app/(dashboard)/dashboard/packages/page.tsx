@@ -66,6 +66,12 @@ export default function PackagesPage() {
                                     <Button size="sm" onClick={() => { setToName(p.recipient_name); setSignature(null); setPhoto(null); setDelivering(p); }}>Teslim et</Button>
                                     <Button size="sm" variant="ghost" onClick={() => { setReason(""); setReturning(p); }}>İade</Button>
                                 </div>
+                            ) : p.status === "DELIVERED" ? (
+                                <div className="flex items-center gap-1">
+                                    {p.delivered_to_name && <span className="text-xs text-gray-500">Teslim alan: {p.delivered_to_name}</span>}
+                                    <Button size="sm" variant="ghost" disabled={act.pending} onClick={() => act.run(() => api.packages.proof(p.id, "signature"), { fallbackError: "Bu teslimde imza yok" })}>İmza</Button>
+                                    <Button size="sm" variant="ghost" disabled={act.pending} onClick={() => act.run(() => api.packages.proof(p.id, "photo"), { fallbackError: "Bu teslimde fotoğraf yok" })}>Fotoğraf</Button>
+                                </div>
                             ) : p.delivered_to_name ? <span className="text-xs text-gray-500">Teslim alan: {p.delivered_to_name}</span> : null },
                         ]} />
                     )}

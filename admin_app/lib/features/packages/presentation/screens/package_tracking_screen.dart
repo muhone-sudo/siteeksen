@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../../core/widgets/api_views.dart';
+import '../../../../core/widgets/forms.dart';
 import '../../../../core/widgets/signature_pad.dart';
 
 const packageStatus = {
@@ -80,6 +81,11 @@ class _PackageTrackingScreenState extends State<PackageTrackingScreen> {
                 isThreeLine: true,
                 trailing: Row(mainAxisSize: MainAxisSize.min, children: [
                   if (st != null) StatusChip(st.$1, color: st.$2),
+                  if (p['status'] == 'DELIVERED')
+                    RowMenu([
+                      ('İmzayı gör', () => openDownload(context, '/packages/${p['id']}/proof/signature', 'kargo-imza.png')),
+                      ('Fotoğrafı gör', () => openDownload(context, '/packages/${p['id']}/proof/photo', 'kargo-foto.jpg')),
+                    ]),
                   if (waiting)
                     PopupMenuButton<String>(
                       onSelected: (a) async {
@@ -104,7 +110,15 @@ class _PackageTrackingScreenState extends State<PackageTrackingScreen> {
                           body = {'reason': r};
                         }
                         if (!context.mounted) return;
-                        if (await runAction(context, () => apiClient.post('/packages/${p['id']}/$a', body))) await reload();
+                        if (await runAction(
+                            context,
+                            () => switch (a) {
+                                  'deliver' => apiClient.post('/packages/${p['id']}/deliver', body),
+                                  'return' => apiClient.post('/packages/${p['id']}/return', body),
+                                  _ => apiClient.post('/packages/${p['id']}/notify', body),
+                                })) {
+                          await reload();
+                        }
                       },
                       itemBuilder: (_) => const [
                         PopupMenuItem(value: 'notify', child: Text('Sakine haber verildi (kaydet)')),

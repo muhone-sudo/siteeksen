@@ -65,6 +65,28 @@ class _RenovationsScreenState extends State<RenovationsScreen> {
     _future = apiClient.getRenovations();
   }
 
+  Future<void> _cancel(Map<String, dynamic> p) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Başvuruyu geri çek'),
+        content: const Text('Tadilat izni başvurunuz geri çekilsin mi? Gerekirse yeniden başvurabilirsiniz.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Vazgeç')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Geri çek')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await apiClient.cancelRenovation('${p['id']}');
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Başvuru geri çekildi')));
+      await _reload();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(toUserMessage(e))));
+    }
+  }
+
   Future<void> _reload() async {
     setState(() => _future = apiClient.getRenovations());
     await _future;
@@ -201,6 +223,10 @@ class _RenovationsScreenState extends State<RenovationsScreen> {
                     title: Text('${p['unit']} · ${renovationScopeLabels['${p['scope']}'] ?? p['scope']}'),
                     subtitle: Text('${formatDate(p['start_date'])} – ${formatDate(p['end_date'])}\n${renovationStatusText(p)}'),
                     isThreeLine: true,
+                    // Bekleyen başvuruyu yalnız başvuran geri çekebilir (sunucu denetler; FAZ H.6 S6).
+                    trailing: p['status'] == 'PENDING'
+                        ? TextButton(onPressed: () => _cancel(Map<String, dynamic>.from(p)), child: const Text('Geri çek'))
+                        : null,
                   ),
               ],
             ),

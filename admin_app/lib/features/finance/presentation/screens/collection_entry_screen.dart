@@ -3,7 +3,9 @@
 // Sakin uygulamadan bildirim yapmadan havale gönderdiğinde ya da yönetime elden
 // ödediğinde yönetici tahsilatı buradan girer: `POST /finance/collections`.
 // Ödeme aynı anda onaylanır, borç düşer ve tahsilat defterine yazılır; kayıt
-// silinemez (düzeltme web panelinde ters kayıtla yapılır).
+// silinemez (düzeltme gerekçeli ters kayıtla yapılır).
+// [bankLine] verilirse (FAZ H.7) eşleşmeyen banka ekstresi satırı seçilen borçlara işlenir:
+// `POST /finance/bank-statements/lines/:id/collect`; tarih ve tutar ekstreden gelir.
 
 import 'package:flutter/material.dart';
 
@@ -12,7 +14,8 @@ import '../../../../core/utils/formatters.dart';
 import '../../../../core/widgets/api_views.dart';
 
 class CollectionEntryScreen extends StatefulWidget {
-  const CollectionEntryScreen({super.key});
+  final Map<String, dynamic>? bankLine;
+  const CollectionEntryScreen({super.key, this.bankLine});
 
   @override
   State<CollectionEntryScreen> createState() => _CollectionEntryScreenState();
@@ -77,13 +80,18 @@ class _CollectionEntryScreenState extends State<CollectionEntryScreen> {
   Future<void> _save() async {
     if (_unitId == null || _selected.isEmpty) return;
     setState(() => _saving = true);
-    final ok = await runAction(context, () => apiClient.post('/finance/collections', {
-          'unit_id': _unitId,
-          'assessment_ids': _selected.toList(),
-          'payment_method': _method,
-          'value_date': apiDate(_day),
-          'reference': _reference.text.trim(),
-        }));
+    final line = widget.bankLine;
+    final ok = await runAction(
+        context,
+        () => line != null
+            ? apiClient.post('/finance/bank-statements/lines/${line['id']}/collect', {'unit_id': _unitId, 'assessment_ids': _selected.toList()})
+            : apiClient.post('/finance/collections', {
+                'unit_id': _unitId,
+                'assessment_ids': _selected.toList(),
+                'payment_method': _method,
+                'value_date': apiDate(_day),
+                'reference': _reference.text.trim(),
+              }));
     if (!mounted) return;
     setState(() => _saving = false);
     if (ok) Navigator.of(context).pop(true);
@@ -92,10 +100,12 @@ class _CollectionEntryScreenState extends State<CollectionEntryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Tahsilat gir')),
+      appBar: AppBar(title: Text(widget.bankLine == null ? 'Tahsilat gir' : 'Ekstre satırını daireye işle')),
       body: ListView(padding: const EdgeInsets.all(16), children: [
-        const Text('Sakinin bildirim yapmadığı havale/EFT ya da elden ödeme içindir. Kayıt silinemez; '
-            'hata web panelinde gerekçeli ters kayıtla düzeltilir.'),
+        Text(widget.bankLine == null
+            ? 'Sakinin bildirim yapmadığı havale/EFT ya da elden ödeme içindir. Kayıt silinemez; hata gerekçeli ters kayıtla düzeltilir.'
+            : 'Hareket: ${formatDate(widget.bankLine!['date'])} · ${formatTry(toNum(widget.bankLine!['amount_kurus']) / 100)} · ${widget.bankLine!['description'] ?? ''}. '
+                'Tarih ve tutar ekstreden alınır.'),
         const SizedBox(height: 12),
         if (_error != null)
           Padding(
@@ -128,6 +138,7 @@ class _CollectionEntryScreenState extends State<CollectionEntryScreen> {
             padding: const EdgeInsets.symmetric(vertical: 8),
             child: Text('Seçilen toplam: ${formatTry(_selectedKurus / 100)}', style: const TextStyle(fontWeight: FontWeight.w700)),
           ),
+        if (widget.bankLine == null) ...[
         const SizedBox(height: 8),
         SegmentedButton<String>(
           segments: const [
@@ -150,6 +161,7 @@ class _CollectionEntryScreenState extends State<CollectionEntryScreen> {
           maxLength: 140,
           decoration: const InputDecoration(labelText: 'Açıklama / makbuz no', border: OutlineInputBorder()),
         ),
+        ],
         const SizedBox(height: 12),
         FilledButton(
           onPressed: _saving || _unitId == null || _selected.isEmpty ? null : _save,

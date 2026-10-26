@@ -128,6 +128,7 @@ export const ROUTE_ROLES: { prefix: string; roles: Role[]; reason: string }[] = 
     { prefix: "/dashboard/assets", roles: [...MANAGEMENT_AND_AUDIT, Roles.Staff], reason: "Demirbaş ve bakım" },
     { prefix: "/dashboard/inventory", roles: [...MANAGEMENT_AND_AUDIT, Roles.Staff], reason: "Stok" },
     { prefix: "/dashboard/patrol", roles: [...MANAGEMENT_AND_AUDIT, Roles.Staff], reason: "Devriye" },
+    { prefix: "/dashboard/sensors", roles: [...MANAGEMENT_AND_AUDIT, Roles.Staff], reason: "Sensörler ve alarmlar" },
     { prefix: "/dashboard/energy", roles: [...MANAGEMENT_AND_AUDIT, Roles.Staff], reason: "Enerji analizi" },
     { prefix: "/dashboard/surveys", roles: MANAGEMENT, reason: "Anket yönetimi" },
     { prefix: "/dashboard/bulletins", roles: MANAGEMENT, reason: "İlan panosu onayı" },

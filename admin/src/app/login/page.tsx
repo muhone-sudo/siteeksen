@@ -150,10 +150,10 @@ export default function LoginPage() {
                     </form>
 
                     <p className="mt-6 text-center text-sm text-gray-500 dark:text-gray-400">
-                        Hesabınız yok mu?{" "}
-                        <a href="#" className="text-primary hover:underline">
-                            Yöneticinize başvurun
-                        </a>
+                        Hesabınız yok mu? Site yönetiminize başvurun.{" "}
+                        <Link href="/activate" className="text-primary hover:underline">
+                            Etkinleştirme kodum var
+                        </Link>
                     </p>
                 </div>
 

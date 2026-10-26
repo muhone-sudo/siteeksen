@@ -13,7 +13,9 @@ import 'package:flutter/material.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../../core/widgets/api_views.dart';
+import '../../../../core/widgets/forms.dart';
 import 'collection_entry_screen.dart';
+import 'finance_tools_screen.dart';
 
 /// Ödeme durumu → (etiket, renk).
 (String, Color) paymentStatus(Object? status) {
@@ -80,6 +82,30 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
     if (done && mounted) setState(() => _token++);
   }
 
+  Future<void> _reverse(Map<String, dynamic> p) async {
+    if (await reasonAction(context, 'Ödemenin ters kaydı', (r) => apiClient.post('/finance/payments/${p['id']}/reverse', {'reason': r}), success: 'Ters kayıt yapıldı')) {
+      if (mounted) setState(() => _token++);
+    }
+  }
+
+  Future<void> _receipts(Map<String, dynamic> p) async {
+    await Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => Scaffold(
+        appBar: AppBar(title: Text('Dekontlar — ${p['name'] ?? ''}')),
+        body: ApiList(
+          load: () => apiClient.getList('/finance/payments/${p['id']}/receipts'),
+          empty: 'Dekont yok',
+          itemBuilder: (context, r, _) => ListTile(
+            leading: const Icon(Icons.attach_file),
+            title: Text('${r['file_name']}'),
+            subtitle: Text('${(toNum(r['size_bytes']) / 1024).ceil()} KB · ${formatDateTime(r['created_at'])}'),
+            onTap: () => openDownload(context, '/finance/payments/${p['id']}/receipts/${r['id']}/download', '${r['file_name']}'),
+          ),
+        ),
+      ),
+    ));
+  }
+
   Widget _tile(Map<String, dynamic> p, {bool actions = false}) {
     final (label, color) = paymentStatus(p['status']);
     return Card(
@@ -102,12 +128,15 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
             const SizedBox(width: 8),
             Expanded(child: Text('${paymentMethodLabel(p['payment_method'])} · ${formatDateTime(p['created_at'])}')),
           ]),
-          if (actions && _canWrite)
-            Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+          Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+            if (toNum(p['receipt_count']) > 0) TextButton(onPressed: () => _receipts(p), child: Text('${p['receipt_count']} dekont')),
+            if (_canWrite && p['status'] == 'COMPLETED') TextButton(onPressed: () => _reverse(p), child: const Text('Ters kayıt')),
+            if (actions && _canWrite && p['status'] == 'PENDING') ...[
               TextButton(onPressed: () => _reject(p), child: const Text('Reddet')),
               const SizedBox(width: 8),
               FilledButton(onPressed: () => _confirm(p), child: const Text('Onayla')),
-            ]),
+            ],
+          ]),
         ]),
       ),
     );
@@ -120,6 +149,13 @@ class _PaymentsScreenState extends State<PaymentsScreen> {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Ödemeler'),
+          actions: [
+            RowMenu([
+              ('Tahsilat defteri', () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LedgerScreen()))),
+              ('Alacak dekontları', () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const CreditNotesScreen()))),
+              ('Banka ekstresi', () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const BankStatementsScreen()))),
+            ]),
+          ],
           bottom: const TabBar(tabs: [Tab(text: 'Onay bekleyen'), Tab(text: 'Tümü')]),
         ),
         floatingActionButton: _canWrite

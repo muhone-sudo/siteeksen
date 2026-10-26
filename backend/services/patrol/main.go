@@ -57,6 +57,8 @@ func main() {
 		})
 	})
 
+	registerGPS(r, repo, pool)
+
 	api := r.Group("/api/v1")
 	api.Use(middleware.AuthMiddleware(pool), middleware.AuditLog(pool, "patrol"))
 
@@ -72,6 +74,12 @@ func main() {
 			if err != nil {
 				fail(c, err, "nokta listeleme")
 				return
+			}
+			// QR değeri yalnız yönetime gösterilir (yazdırma için); görevli QR'ı noktadan okutur.
+			if !isManagement(c) {
+				for i := range list {
+					list[i].QRValue = ""
+				}
 			}
 			c.JSON(http.StatusOK, gin.H{"data": list})
 		})
@@ -142,23 +150,7 @@ func main() {
 			})
 		})
 
-		ops.POST("/patrols/:id/scan", func(c *gin.Context) {
-			var in struct {
-				CheckpointID string `json:"checkpoint_id" binding:"required"`
-				Note         string `json:"note"`
-			}
-			if err := c.ShouldBindJSON(&in); err != nil {
-				c.JSON(http.StatusBadRequest, gin.H{"error": "checkpoint_id zorunludur"})
-				return
-			}
-			res, err := repo.ScanCheckpoint(c.Request.Context(), c.GetString("property_id"),
-				c.Param("id"), in.CheckpointID, c.GetString("user_id"), in.Note)
-			if err != nil {
-				fail(c, err, "nokta okutma")
-				return
-			}
-			c.JSON(http.StatusOK, gin.H{"scan": res})
-		})
+		// Okutma: QR + konum doğrulaması gps.go'da (075, FAZ H.5).
 
 		ops.POST("/patrols/:id/issues", func(c *gin.Context) {
 			var in struct {

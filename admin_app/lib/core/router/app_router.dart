@@ -42,6 +42,23 @@ import '../../features/banking/presentation/screens/bank_integration_screen.dart
 import '../../features/settings/presentation/screens/api_settings_screen.dart';
 import '../../features/notifications/presentation/screens/inbox_screen.dart';
 import '../../features/audit/presentation/screens/audit_screen.dart';
+import '../../features/sensors/presentation/screens/sensors_screen.dart';
+import '../../features/patrol/presentation/screens/patrol_run_screen.dart';
+import '../../features/patrol/presentation/screens/checkpoint_setup_screen.dart';
+import '../../features/patrol/presentation/screens/patrol_report_screen.dart';
+import '../../features/notifications/presentation/screens/notification_center_screen.dart';
+import '../../features/nps/presentation/screens/nps_screen.dart';
+import '../../features/esg/presentation/screens/esg_screen.dart';
+import '../../features/units/presentation/screens/units_screen.dart';
+import '../../features/roles/presentation/screens/roles_screen.dart';
+import '../../features/kvkk/presentation/screens/kvkk_requests_screen.dart';
+import '../../features/renovations/presentation/screens/renovations_screen.dart';
+import '../../features/violations/presentation/screens/violations_screen.dart';
+import '../../features/emergency/presentation/screens/emergency_screen.dart';
+import '../../features/insurance/presentation/screens/insurance_screen.dart';
+import '../../features/documents/presentation/screens/documents_screen.dart';
+import '../../features/settings/presentation/screens/site_settings_screen.dart';
+import '../../features/account/presentation/screens/account_screen.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
@@ -263,6 +280,21 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             name: 'patrol',
             builder: (context, state) => const PatrolControlScreen(),
           ),
+          GoRoute(
+            path: '/patrol/run',
+            name: 'patrolRun',
+            builder: (context, state) => const PatrolRunScreen(),
+          ),
+          GoRoute(
+            path: '/patrol/points',
+            name: 'patrolPoints',
+            builder: (context, state) => const CheckpointSetupScreen(),
+          ),
+          GoRoute(
+            path: '/patrol/reports',
+            name: 'patrolReports',
+            builder: (context, state) => const PatrolReportScreen(),
+          ),
 
           // AI Akıllı Tahsilat
           GoRoute(
@@ -299,9 +331,81 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             builder: (context, state) => const InboxScreen(),
           ),
           GoRoute(
+            path: '/sensors',
+            name: 'sensors',
+            builder: (context, state) => const SensorsScreen(),
+          ),
+          GoRoute(
             path: '/audit',
             name: 'audit',
             builder: (context, state) => const AuditScreen(),
+          ),
+
+          // FAZ H.7: panelle eşitlik ekranları
+          GoRoute(
+            path: '/notification-center',
+            name: 'notificationCenter',
+            builder: (context, state) => const NotificationCenterScreen(),
+          ),
+          GoRoute(
+            path: '/nps',
+            name: 'nps',
+            builder: (context, state) => const NpsScreen(),
+          ),
+          GoRoute(
+            path: '/esg',
+            name: 'esg',
+            builder: (context, state) => const EsgScreen(),
+          ),
+          GoRoute(
+            path: '/units',
+            name: 'units',
+            builder: (context, state) => const UnitsScreen(),
+          ),
+          GoRoute(
+            path: '/roles',
+            name: 'roles',
+            builder: (context, state) => const RolesScreen(),
+          ),
+          GoRoute(
+            path: '/kvkk',
+            name: 'kvkk',
+            builder: (context, state) => const KvkkRequestsScreen(),
+          ),
+          GoRoute(
+            path: '/renovations',
+            name: 'renovations',
+            builder: (context, state) => const RenovationsScreen(),
+          ),
+          GoRoute(
+            path: '/violations',
+            name: 'violations',
+            builder: (context, state) => const ViolationsScreen(),
+          ),
+          GoRoute(
+            path: '/emergency',
+            name: 'emergency',
+            builder: (context, state) => const EmergencyScreen(),
+          ),
+          GoRoute(
+            path: '/insurance',
+            name: 'insurance',
+            builder: (context, state) => const InsuranceScreen(),
+          ),
+          GoRoute(
+            path: '/documents',
+            name: 'documents',
+            builder: (context, state) => const DocumentsScreen(),
+          ),
+          GoRoute(
+            path: '/site-settings',
+            name: 'siteSettings',
+            builder: (context, state) => const SiteSettingsScreen(),
+          ),
+          GoRoute(
+            path: '/account',
+            name: 'account',
+            builder: (context, state) => const AccountScreen(),
           ),
 
           // API Ayarları

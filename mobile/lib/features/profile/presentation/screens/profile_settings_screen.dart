@@ -265,6 +265,13 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
             title: 'Şifre Değiştir',
             iconColor: AppleTheme.systemOrange,
             onTap: () => showChangePasswordDialog(context, phone: _user?['phone'] as String?),
+          ),
+          // Tüm cihazlardan çıkış (FAZ H.6 S10): telefon kaybolursa diğer oturumlar kapatılır.
+          ListItem(
+            icon: Icons.devices_other_rounded,
+            title: 'Tüm Cihazlardan Çıkış',
+            iconColor: AppleTheme.systemRed,
+            onTap: _logoutAll,
             showDivider: false,
           ),
         ],
@@ -366,6 +373,29 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
     );
   }
 
+
+  Future<void> _logoutAll() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Tüm cihazlardan çıkış'),
+        content: const Text('Bu hesapla açık olan bütün oturumlar (bu cihaz dahil) kapatılacak. Devam edilsin mi?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Vazgeç')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Hepsini kapat')),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    try {
+      await apiClient.logoutAllDevices();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(toUserMessage(e))));
+      return;
+    }
+    if (!mounted) return;
+    await performLogout(context);
+  }
 
   Future<void> _confirmLogout() async {
     final confirmed = await showDialog<bool>(

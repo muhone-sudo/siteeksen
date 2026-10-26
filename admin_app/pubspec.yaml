@@ -46,7 +46,6 @@ dependencies:
   intl: any
   
   # File handling
-  open_file: ^3.3.2
   path_provider: ^2.1.2
   
   # Notifications
@@ -56,9 +55,14 @@ dependencies:
   
   # Utils
   url_launcher: ^6.2.4
-  package_info_plus: ^5.0.1
+  package_info_plus: ^8.0.0
   connectivity_plus: ^5.0.2
   open_filex: ^4.7.0
+  file_picker: ^11.0.3
+  mobile_scanner: ^7.4.2
+  geolocator: ^13.0.0
+  flutter_map: ^8.3.2
+  latlong2: ^0.10.1
 
 dev_dependencies:
   flutter_test:

@@ -4,8 +4,8 @@ import re, sys, json
 named = json.load(open(sys.argv[1]))
 app = sys.argv[2]
 NAMED = named[app]
-GEN = re.compile(r"(?<![\w])(?:\w+\.)?(getList|getMap|post|put|patch|delete|postMultipart|downloadBytes)\(\s*(['\"])(/(?:[^'\"$]|\$\{[^}]*\}|\$\w)+)\2")
-VERB = {"getList": "GET", "getMap": "GET", "post": "POST", "put": "PUT", "patch": "PATCH", "delete": "DELETE", "postMultipart": "POST", "downloadBytes": "GET"}
+GEN = re.compile(r"(?<![\w])(?:\w+\.)?(getList|getMap|post|put|patch|delete|postMultipart|downloadBytes|openDownload|optionsFrom|_open)\(\s*(?:context,\s*)?(['\"])(/(?:[^'\"$]|\$\{[^}]*\}|\$\w)+)\2")
+VERB = {"getList": "GET", "getMap": "GET", "post": "POST", "put": "PUT", "patch": "PATCH", "delete": "DELETE", "postMultipart": "POST", "downloadBytes": "GET", "openDownload": "GET", "optionsFrom": "GET", "_open": "GET"}
 WIDGETS = r"(ElevatedButton|FilledButton|TextButton|OutlinedButton|IconButton|FloatingActionButton|ListTile|SwitchListTile|CheckboxListTile|InkWell|GestureDetector|PopupMenuItem|ActionChip|ChoiceChip|FilterChip|SegmentedButton|DropdownButtonFormField|DropdownButton)(?:\.\w+)?\("
 
 

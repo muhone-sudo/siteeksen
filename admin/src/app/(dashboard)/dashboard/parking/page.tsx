@@ -7,6 +7,7 @@ import { useAction, useApi } from "@/lib/use-api";
 import { ActionFeedback, Badge, Button, Card, Field, FormModal, Grid, Input, Page, QueryView, Select, Stats, Table, Tabs } from "@/components/ui/kit";
 import { dateTime, num, tl } from "@/lib/format";
 import { DevicesCard } from "@/components/parking/devices-card";
+import type { Vehicle } from "@/lib/types";
 
 const OWNER_TYPES = [
     { value: "RESIDENT", label: "Sakin" },
@@ -29,6 +30,8 @@ export default function ParkingPage() {
     const act = useAction();
     const [entry, setEntry] = useState<null | { plate: string; parking_zone_id: string; entry_gate: string }>(null);
     const [vehicle, setVehicle] = useState<null | Record<string, string>>(null);
+    const [plateQ, setPlateQ] = useState("");
+    const [found, setFound] = useState<Vehicle | null>(null);
 
     const zoneOptions = (zones.data?.data ?? []).map((z) => ({ value: z.id, label: `${z.name} (${z.available_spots}/${z.capacity} boş)` }));
     const totalCap = (zones.data?.data ?? []).reduce((a, z) => a + z.capacity, 0);
@@ -51,6 +54,23 @@ export default function ParkingPage() {
                 { label: "Dolu", value: num(occupied), tone: "amber" },
                 { label: "Bölge", value: num(zones.data?.data.length) },
             ]} />
+            <Card title="Plaka sorgula">
+                <form className="flex flex-wrap items-center gap-2" onSubmit={async (e) => {
+                    e.preventDefault();
+                    setFound(null);
+                    const v = await act.run(() => api.parking.byPlate(plateQ.trim()), { fallbackError: "Plaka sorgulanamadı" });
+                    if (v) setFound(v);
+                }}>
+                    <Input value={plateQ} onChange={(e) => setPlateQ(e.target.value.toUpperCase())} placeholder="34 ABC 123" className="w-48" required />
+                    <Button type="submit" size="sm" disabled={act.pending || plateQ.trim().length < 3}>Sorgula</Button>
+                    {found && (
+                        <p className="text-sm">
+                            <b>{found.plate}</b> · {[found.unit_name, found.owner_name, found.brand, found.model, found.color, found.parking_spot && `Yer ${found.parking_spot}`].filter(Boolean).join(" · ")}
+                            {" "}<Badge tone={found.owner_type === "RESIDENT" ? "green" : "gray"}>{OWNER_TYPES.find((o) => o.value === found.owner_type)?.label ?? found.owner_type}</Badge>
+                        </p>
+                    )}
+                </form>
+            </Card>
             <Tabs tabs={[{ id: "inside", label: "İçeridekiler" }, { id: "vehicles", label: "Kayıtlı araçlar" }, { id: "zones", label: "Bölgeler" }, { id: "devices", label: "Cihazlar" }]} value={tab} onChange={setTab} />
             {tab === "devices" && <DevicesCard />}
             {tab !== "devices" && <Card padded={false}>

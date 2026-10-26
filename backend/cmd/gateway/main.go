@@ -185,8 +185,10 @@ func isPublicPath(p string) bool {
 	// Borcu yoktur belgesinin kimliksiz doğrulaması (055): yalnızca site adı, bölüm ve tarih döner.
 	// Geçiş cihazı canlılık sinyali (057): cihaz kendi anahtarıyla (X-Device-Key) doğrulanır.
 	// Kart ödemesi geri dönüşü (060): iyzico tarayıcıyı jetonla gönderir; sonuç sağlayıcıdan yeniden sorgulanır.
+	// Sensör okuması (074): sensör kendi anahtarıyla (X-Device-Key) doğrulanır.
 	return strings.HasPrefix(p, "/api/v1/auth/") || strings.HasPrefix(p, "/api/v1/public/clearance/") ||
-		p == "/api/v1/public/devices/heartbeat" || p == "/api/v1/public/payments/iyzico/callback"
+		p == "/api/v1/public/devices/heartbeat" || p == "/api/v1/public/payments/iyzico/callback" ||
+		p == "/api/v1/public/sensors/data"
 }
 
 // authMiddleware — gateway'in kimlik kapısı.
@@ -317,7 +319,7 @@ func main() {
 		{financeURL, []string{"/api/v1/finance", "/api/v1/public/clearance", "/api/v1/public/payments"}},
 		{communityURL, []string{"/api/v1/announcements", "/api/v1/requests", "/api/v1/kvkk-requests", "/api/v1/renovations", "/api/v1/violations", "/api/v1/site-rules", "/api/v1/emergency", "/api/v1/client-errors"}},
 		{iotURL, []string{"/api/v1/meters", "/api/v1/meter-readings", "/api/v1/consumption",
-			"/api/v1/sensors", "/api/v1/iot"}},
+			"/api/v1/sensors", "/api/v1/iot", "/api/v1/public/sensors"}},
 		{notificationURL, []string{"/api/v1/notifications", "/api/v1/notification-preferences"}},
 		{expenseURL, []string{"/api/v1/expenses", "/api/v1/expense-categories"}},
 		{assetURL, []string{"/api/v1/assets", "/api/v1/assets-summary", "/api/v1/asset-categories"}},
@@ -332,7 +334,7 @@ func main() {
 		{packageURL, []string{"/api/v1/packages", "/api/v1/packages-summary"}},
 		{parkingURL, []string{"/api/v1/vehicles", "/api/v1/parking-zones", "/api/v1/parking-logs", "/api/v1/access-devices", "/api/v1/public/devices"}},
 		{patrolURL, []string{"/api/v1/patrols", "/api/v1/patrols-summary", "/api/v1/patrol-routes",
-			"/api/v1/patrol-checkpoints"}},
+			"/api/v1/patrol-checkpoints", "/api/v1/patrol-reports"}},
 		{personnelURL, []string{"/api/v1/employees", "/api/v1/leaves", "/api/v1/compliance-calendar", "/api/v1/payroll"}},
 		{reservationURL, []string{"/api/v1/reservations", "/api/v1/facilities"}},
 		{settingsURL, []string{"/api/v1/settings", "/api/v1/settings-history", "/api/v1/retention-rules", "/api/v1/privacy",
