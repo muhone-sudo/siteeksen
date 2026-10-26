@@ -108,7 +108,21 @@ export interface Announcement {
 export interface Notification {
     id: Id; recipient_name?: string; recipient_masked: string; channel: string; category: string; topic: string;
     subject?: string; body: string; status: string; suppress_reason?: string; attempts: number; created_at: string; sent_at?: string;
+    read_at?: string;
 }
+export interface ClientEvent { event: string; screen?: string; details?: Record<string, unknown>; client_at?: string; client?: string }
+export interface AuditQuery { from?: string; to?: string; user_id?: string; action?: string; entity?: string; source?: string; q?: string; limit?: number; offset?: number }
+export interface AuditLog {
+    id: Id; created_at: string; user_id?: string; user_name?: string; ip?: string; action: string; entity_type: string;
+    entity_id?: string; status_code?: number; source: string; event?: string; screen?: string;
+    details?: Record<string, unknown>; request_id?: string;
+}
+export interface IntegrationStatus {
+    delivery?: { providers: string[]; channels_without_provider: string[]; note?: string };
+    card_payment?: { provider: string; ready: boolean };
+    storage?: Record<string, string>;
+}
+
 export interface NotificationSummary {
     total: number; pending: number; sent: number; failed: number; suppressed: number;
     by_channel: Record<string, number>; pending_note?: string;

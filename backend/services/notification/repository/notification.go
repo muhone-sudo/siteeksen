@@ -45,6 +45,8 @@ type Notification struct {
 	LastError      string     `json:"last_error,omitempty"`
 	CreatedAt      time.Time  `json:"created_at"`
 	SentAt         *time.Time `json:"sent_at,omitempty"`
+	// ReadAt yalnız kişinin kendi kutusunda doludur (073 notification_reads).
+	ReadAt *time.Time `json:"read_at,omitempty"`
 }
 
 // Preference, bir alıcı tercihidir.
@@ -102,18 +104,82 @@ func clampLimit(limit int) int {
 	return limit
 }
 
-// ListForUser, kullanıcının kendi bildirimlerini döner.
-func (r *Repository) ListForUser(ctx context.Context, propertyID, userID, status string, limit int) ([]Notification, error) {
-	rows, err := r.scope(propertyID).Query(ctx, notificationSelect+`
-		WHERE n.property_id = $1 AND n.recipient_user_id = $2
-		  AND ($3 = '' OR n.status = $3)
-		ORDER BY n.created_at DESC
-		LIMIT $4`, propertyID, userID, strings.ToUpper(status), clampLimit(limit))
+// ListForUser, kullanıcının kendi bildirimlerini okundu bilgisiyle döner.
+// channel boşsa bütün kanallar; kutu görünümü IN_APP ister. unreadOnly okunmamışları süzer.
+func (r *Repository) ListForUser(ctx context.Context, propertyID, userID, status, channel string, unreadOnly bool, limit int) ([]Notification, error) {
+	rows, err := r.scope(propertyID).Query(ctx, `
+SELECT n.id, n.recipient_address, n.channel, n.category, n.topic,
+       COALESCE(n.subject,''), n.body, n.status, n.created_at, n.sent_at, nr.read_at
+FROM notifications n
+LEFT JOIN notification_reads nr ON nr.notification_id = n.id AND nr.user_id = $2
+WHERE n.property_id = $1 AND n.recipient_user_id = $2
+  AND ($3 = '' OR n.status = $3)
+  AND ($4 = '' OR n.channel = $4)
+  AND (NOT $5 OR nr.read_at IS NULL)
+ORDER BY n.created_at DESC
+LIMIT $6`, propertyID, userID, strings.ToUpper(status), strings.ToUpper(channel), unreadOnly, clampLimit(limit))
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	return collect(rows)
+	out := []Notification{}
+	for rows.Next() {
+		var n Notification
+		if err := rows.Scan(&n.ID, &n.Recipient, &n.Channel, &n.Category, &n.Topic, &n.Subject,
+			&n.Body, &n.Status, &n.CreatedAt, &n.SentAt, &n.ReadAt); err != nil {
+			return nil, err
+		}
+		n.Recipient = MaskAddress(n.Recipient)
+		out = append(out, n)
+	}
+	return out, rows.Err()
+}
+
+// UnreadCount, kişinin okunmamış uygulama içi bildirim sayısı.
+func (r *Repository) UnreadCount(ctx context.Context, propertyID, userID string) (int, error) {
+	var n int
+	err := r.scope(propertyID).QueryRow(ctx, `
+SELECT count(*) FROM notifications n
+WHERE n.property_id = $1 AND n.recipient_user_id = $2 AND n.channel = 'IN_APP'
+  AND NOT EXISTS (SELECT 1 FROM notification_reads nr WHERE nr.notification_id = n.id AND nr.user_id = $2)`,
+		propertyID, userID).Scan(&n)
+	return n, err
+}
+
+// MarkRead, kişinin KENDİ bildirimini okundu yapar. Daha önce okunduysa ilk okuma anı korunur.
+func (r *Repository) MarkRead(ctx context.Context, propertyID, userID, id string) (time.Time, error) {
+	var at time.Time
+	err := r.scope(propertyID).QueryRow(ctx, `
+WITH own AS (
+    SELECT n.id FROM notifications n
+    WHERE n.id = $3 AND n.property_id = $1 AND n.recipient_user_id = $2
+), ins AS (
+    INSERT INTO notification_reads (notification_id, user_id)
+    SELECT id, $2 FROM own
+    ON CONFLICT (notification_id, user_id) DO NOTHING
+    RETURNING read_at
+)
+SELECT read_at FROM ins
+UNION ALL
+SELECT nr.read_at FROM notification_reads nr JOIN own ON own.id = nr.notification_id WHERE nr.user_id = $2
+LIMIT 1`, propertyID, userID, id).Scan(&at)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return at, ErrNotFound
+	}
+	return at, err
+}
+
+// MarkAllRead, kişinin okunmamış bütün uygulama içi bildirimlerini okundu yapar.
+func (r *Repository) MarkAllRead(ctx context.Context, propertyID, userID string) (int64, error) {
+	tag, err := r.scope(propertyID).Exec(ctx, `
+INSERT INTO notification_reads (notification_id, user_id)
+SELECT n.id, $2 FROM notifications n
+WHERE n.property_id = $1 AND n.recipient_user_id = $2 AND n.channel = 'IN_APP'
+ON CONFLICT (notification_id, user_id) DO NOTHING`, propertyID, userID)
+	if err != nil {
+		return 0, err
+	}
+	return tag.RowsAffected(), nil
 }
 
 // ListAll, site genelindeki giden kutusunu döner (yalnızca yönetim).

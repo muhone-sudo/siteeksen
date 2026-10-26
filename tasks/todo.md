@@ -51,6 +51,262 @@ Backend'e dokunan her değişiklikten sonra çalıştırılır.
 
 ---
 
+# FAZ H — Harita bulgularının giderilmesi (2026-10-26) — PLAN `[D0]`, sürüm 2
+
+Kaynak: `docs/ozellik-haritasi/06-bulgular-ve-eksikler.md`, `05-arayuzsuz-uclar.md`.
+
+Kullanıcı kararları (2026-10-26):
+- **K1:** IoT sensör kaldırılmaz, tamamlanır.
+- **K2:** QR + GPS zorunluluğu + devriye raporu.
+- **K3:** sakin uygulamasına işletme projesi görüntüleme + görüş/itiraz eklenir; **seçenekli** — site ayarı `OWNER_PLAN_OBJECTIONS` (varsayılan açık) kapatılırsa proje görünür, yeni itiraz alınmaz.
+- **K4:** yönetici mobil uygulaması paneldeki her işi yapar.
+- **K5:** okundu bilgisi + tüm işlemlerin kaydı + ayarlardan aç/kapa ve düzey.
+
+## H.0 Sınıflandırma — 51 arayüzsüz uç (inceleme sonucu)
+
+| Sınıf | Uçlar | Karar |
+|---|---|---|
+| Yanlış alarm (kullanılıyor) | `/auth/refresh`, iyzico dönüşü, cihaz canlılık sinyali, `/public/clearance/:code`, davet/kiracılık `decline` (değişken yol), `/finance/assessments/overview` (gateway göstergesi) | Dokunulmaz; harita aracı tanıyacak (H.9) |
+| Detay uçları (8) | `GET /x/:id` | Dokunulmaz; yeni ekranlarda kullanılacak |
+| Bilerek 501, özellik başka yerde var | `meeting_wizard` (17), `/credentials*` (7), `/esg/sustainability-score` | **Kontrollü kaldırma (H.1)** |
+| Bilerek 501, özellik yok | IoT sensör/alarm (6), banka (16) | Sensör **tamamlanır (H.4)**; banka kalır (S-07) |
+| Arka plan hazır, ön yüz yok | 21 uç + yönetici mobilde olmayan 117 yazma işlemi | **Tamamlanır (H.5–H.7)** |
+
+## H.1 Kontrollü kaldırma (etki taraması → kaldırma → sıfır referans → bütün doğrulamalar)
+
+- [x] `[D3]` **H.1.1 `meeting_wizard`** (governance'ta var). Etkilenenler: servis dizini ve Dockerfile, gateway önekleri, `gen-deploy.py` (compose/k8s/CI yeniden üretilir), `.gitignore`, verify-stack 501 kontrolleri, `check-gateway-routes.py`, yönetici mobil `meeting_wizard_screen` + `/meetings` rotası, CLAUDE.md, `api-sozlesmesi.md`.
+- [x] `[D3]` **H.1.2 `/credentials*` 8 uç.** Panel sayfası yanlış bilgi veriyor: "iyzico/SMS/e-posta bağlı değil" yazıyor, üçü de ortam değişkeniyle bağlı. Sayfa "Entegrasyon durumu"na dönüşür ve gerçek durumu gösterir:
+  - bildirim kanalları (`/notifications/summary` → `delivery`),
+  - kart sağlayıcısı (finans `/health`'e `card_provider_ready`),
+  - dosya deposu (`document /health` → `storage`).
+
+  Yönetici mobil `api_settings_screen` de aynı içeriğe döner.
+- [x] `[D3]` **H.1.3 `GET /esg/sustainability-score`** kaldırılır.
+
+## H.2 Bildirim kutusu ve okundu bilgisi (K5 — birinci kısım)
+
+- [x] `[D3]` **Migration 073 `notification_reads`:** `(notification_id, user_id, read_at)`. RLS'li, yalnız ekleme yapılır, ebeveyn anahtarına indeks var. `notifications` tablosu değişmez; gönderilmiş kayıt zaten güncellenemiyor.
+- [ ] **Uçlar:** `GET /notifications` (her kayıtta `read_at`; `?unread=1`), `GET /notifications/unread-count`, `POST /notifications/:id/read`, `POST /notifications/read-all`. Başkasının bildirimi okundu sayılamaz.
+- [ ] **Ekranlar:**
+  - Panel: zil rozeti, açılır son 10 bildirim, `/dashboard/inbox` sayfası. Mevcut `/dashboard/notifications` sayfasının adı "Toplu bildirim ve giden kutusu" olur.
+  - Yönetici mobil: bildirim kutusu.
+  - Sakin: okunmamış rozeti ve okundu işareti.
+- [ ] Her okuma işlem kaydına da düşer (H.3).
+
+## H.3 İşlem kaydı (K5 — ikinci kısım): "her şey tek yerde"
+
+**Tasarım:** Mevcut `audit_logs` genişletilir; ikinci bir log tablosu açılmaz.
+- Migration 073'e eklenecek sütunlar:
+  - `source`: `API` / `CLIENT` / `SYSTEM`
+  - `event`: ör. `auth.login`, `menu.open`, `notification.read`
+  - `details JSONB`
+  - `screen`
+- Uygulama rolü bugün `audit_logs`'u okuyamıyor (`025:88`). Bu korunur. Okuma, yalnız aktif sitenin kayıtlarını döndüren `SECURITY DEFINER` işlevlerle yapılır:
+  - `audit_log_list(filtreler)`
+  - `audit_log_stats()`
+
+**Kaydedilenler:**
+
+| Olay | Kaynak | Düzey |
+|---|---|---|
+| Her yazma isteği, 403 (`DENIED`), kişisel veri içeren okumalar (sakin, personel, KVKK, belge, acil kart, kişi bazlı finans) | sunucu ara katmanı | **Zorunlu** |
+| Giriş başarılı/başarısız (maskeli telefon), çıkış, şifre/telefon/e-posta değişikliği, kilit | kimlik servisi | **Zorunlu** |
+| Diğer bütün okuma istekleri (bugünkü davranış) | sunucu ara katmanı | Standart |
+| Bildirim/duyuru okundu | ilgili servis | Standart |
+| Ekran açma, menü tıklama, sekme değişimi, arama, filtre, dışa aktarma, oturum süresi | istemciler (panel, sakin, yönetici mobil) → toplu `POST /activity` | Tam |
+
+**Ayar:** Ayarlar → "İşlem kaydı". Seçenek: `KAPALI / STANDART / TAM`. Varsayılan STANDART (bugünkü davranış). Yalnız MANAGER değiştirebilir; değişiklik ayar geçmişine yazılır.
+- Sunucu ara katmanı düzeyi site başına 60 sn önbellekle okur.
+- İstemciler düzeyi girişte alır; TAM değilse etkinlik göndermez.
+
+**Ekran:** Panel `/dashboard/audit` ve yönetici mobil "İşlem kayıtları".
+- Görebilen: MANAGER ve AUDITOR.
+- Filtre: kullanıcı, tarih, olay, modül, sonuç.
+- Satır detayı gösterilir; CSV dışa aktarılır (dışa aktarma da kayda düşer).
+
+**Saklama:** TAM düzey istemci etkinliği varsayılan 180 gün. Saklama kurallarına "işlem kaydı (istemci etkinliği)" kategorisi eklenir; mevcut periyodik imha işi uygular. Zorunlu kayıtlar imha kapsamı dışındadır.
+
+## H.4 IoT sensörleri — tamamlanır (K1)
+
+**Neden yarım kaldı:** İlk commit (2026-02-01) sensörleri MongoDB varsayımıyla mock olarak yazdı. MongoDB hiç kurulmadığı için 2026-09-14'te dürüstçe 501'e çevrildi (`tasks/todo.md:570`). Özellik faydalı, PostgreSQL ile yapılabilir.
+
+- [ ] **Migration 074:**
+  - `sensors`: tür (SU_KACAGI, SICAKLIK, NEM, DUMAN, GAZ, ELEKTRIK_KESINTISI, DEPO_SEVIYESI, ASANSOR_ARIZA, KAPI_ACIK, DIGER), konum, birim, alt/üst eşik, cihaz anahtar özeti, son değer ve zaman.
+  - `sensor_readings`: zaman serisi; `(sensor_id, recorded_at)` indeksi; saklama kuralı.
+  - `sensor_alerts`: AÇIK / ONAYLANDI / KAPANDI.
+
+  Hepsi RLS'li.
+- [ ] **Uçlar:** mevcut stub yollar gerçeğe döner (`/sensors`, `/sensors/:id`, `/sensors/:id/data`, `/iot/alerts`, `/iot/alerts/:id/acknowledge`). Bunlara ek olarak:
+  - `POST /sensors` (yönetim tanımlar, anahtar bir kez gösterilir),
+  - `PATCH /sensors/:id`,
+  - `POST /iot/alerts/:id/close`,
+  - cihazın veri gönderdiği kimliksiz uç `POST /public/sensors/data` (`X-Device-Key`, 057 geçiş cihazı modeli).
+- [ ] **Kurallar:**
+  - Eşik aşımında alarm açılır ve `iot.alert` bildirimi Operations kümesine gider.
+  - Aynı sensörde açık alarm varken yeni alarm açılmaz (`DedupeKey`).
+  - Değer normale dönünce "düzeldi" kaydı yazılır.
+  - Sinyali kesilen sensör için bekçi `iot.offline` olayı açar (parking cihaz bekçisi deseni).
+- [ ] **Ekranlar:**
+  - Panel "Sensörler": liste, son değer, grafik yerine son 24 saat tablosu, tanımlama, anahtar yenileme, alarmlar (onayla/kapat).
+  - Yönetici mobil: aynısı.
+- [ ] **Doğrulama:** sahte cihaz `curl` ile veri gönderir → alarm → bildirim → onay → kapanış.
+
+## H.5 Devriye — QR + GPS + rapor (K2)
+
+**Mevcut şema:** `patrol_checkpoints.latitude/longitude` ve `qr_code` var ama kullanılmıyor. `patrol_logs.gps_track` JSONB var.
+
+- [ ] **Migration 075:**
+  - `patrol_checkpoints`'e eklenecekler:
+    - `radius_m` (varsayılan 30),
+    - `location_accuracy_m` (konum kaydedilirken ölçülen doğruluk),
+    - `location_check` (`REQUIRED` / `EXEMPT`; muafiyet gerekçesi ve muafiyeti veren kişi zorunlu),
+    - `qr_token` (rastgele; yeniden üretilince eski baskı geçersiz olur).
+  - `patrol_track_points`: tur başına konum noktaları (zaman, enlem, boylam, doğruluk, hız, `is_mocked`).
+  - `patrol_scan_attempts`: kabul ve **red** dahil her okutma denemesi; mesafe, doğruluk ve red nedeniyle kanıt olarak saklanır.
+
+  Hepsi RLS'li.
+- [ ] **Nokta kurulumu:**
+  - Yönetici mobilde noktanın yanında "Konumu buradan al": ölçülen doğruluk ≤ 20 m olmalı, değilse kaydetmez.
+  - Panelde konum haritadan değil sayısal girilir.
+  - Panelde ve mobilde "QR yazdır / yenile" (A4 baskı, nokta adı + QR).
+- [ ] **Okutma kuralları (sunucuda — istemciye güvenilmez):**
+  1. Tur açık ve görevliye ait olmalı.
+  2. QR, turun rotasındaki aktif noktanın güncel `qr_token`'ı olmalı.
+  3. İstek konum taşımalı. `is_mocked` → **red** (sahte konum).
+  4. Doğruluk > 50 m → **red** ("konum yeterince hassas değil, açık alana çıkın").
+  5. Mesafe > `radius_m` + doğruluk → **red** ("noktanın yanında değilsiniz: 84 m"). Noktada `EXEMPT` varsa yalnız 1-2-3 uygulanır ve okutma raporda "konum muaf" olarak işaretlenir.
+  6. Aynı nokta aynı turda bir kez sayılır. Zaman sunucudan alınır. Önceki okutmaya göre fiziksel olarak imkânsız hız (> 15 m/s) varsa "şüpheli" işaretlenir.
+- [ ] **Takip:**
+  - Devriye ekranı açıkken 30 sn ya da 20 m'de bir konum `POST /patrols/:id/track`'e gönderilir.
+  - Uygulama arka plana düşerse takip durur. Boşluk raporda "takip kesintisi (hh:mm–hh:mm)" diye görünür.
+  - Arka plan servisi kullanılmaz; ek izin ve pil yükü yaratırdı.
+  - Konum yalnız açık tur boyunca toplanır (KVKK m.4 ölçülülük). Saklama kuralı 1 yıl. Aydınlatma metnine personel konum maddesi eklenir.
+- [ ] **Yönetici mobil (STAFF ve yönetim) "Devriye yürüt" akışı:**
+  1. Rota seç → konum izni → "Turu başlat".
+  2. Nokta listesi (okutulan/bekleyen, mesafe göstergesi).
+  3. "QR okut" → kamera açılır; okuma anındaki konumla gönderilir; red nedeni ekranda gösterilir.
+  4. "Sorun bildir" (nokta, önem, açıklama).
+  5. "Turu bitir" (not).
+- [ ] **Devriye raporu** (panel `/dashboard/patrol/reports` + yönetici mobil):
+  - Dönem/görevli/rota filtresi.
+  - Her tur: başlangıç–bitiş, süre/beklenen, okutulan/beklenen nokta, reddedilen denemeler ve nedenleri, muaf okutmalar, şüpheli hızlar, takip kesintileri, sorunlar.
+  - Konum izi: harita (bağımlılık kararı **B-3**) ya da onaylanmazsa nokta tablosu + her satırda harita bağlantısı.
+  - Dönem özeti: planlanan/yapılan/kaçırılan tur, ortalama süre, en çok reddedilen nokta.
+- [ ] **Etki:** `patrol.issue` bildirimi ve zamanlayıcının `patrol.overdue` hatırlatması gerçek turlarla tetiklenir. verify-stack senaryosu: yanında olmadan okutma reddedilir, yanında kabul edilir, sahte konum reddedilir.
+
+## H.6 Sakin uygulaması (önceki S1–S11; S12 K3'e bağlı)
+
+| # | Ekran | Uçlar |
+|---|---|---|
+| S1 | Ödeme geçmişi | `GET /finance/my-payments` |
+| S2 | Araçlarım | `GET/POST /vehicles`, `DELETE /vehicles/:id` |
+| S3 | Ziyaretçilerim (iptal, kod yenile) | `GET /visitors`, `/visitors/:id/cancel`, `/visitors/:id/pass` |
+| S4 | Sayaçlarım | `GET /meters`, `/meter-readings` |
+| S5 | Kargo teslim kanıtı | `GET /packages/:id/proof/:kind` |
+| S6 | Tadilat başvurusunu geri çek | `POST /renovations/:id/cancel` |
+| S7 | NPS yanıtı | `GET /nps`, `POST /nps/:id/respond` |
+| S8 | İlan yorumları | `GET/POST /bulletins/:id/comments` |
+| S9 | Anket yorumları | `GET /surveys/:id/comments` |
+| S10 | Tüm cihazlardan çıkış | `POST /users/me/logout-all` |
+| S11 | Bildirim okundu | H.2 |
+| S12 | (K3) İşletme projesi görüşü | yeni okuma ucu + `POST /governance/budgets/:id/objections` |
+
+Ek olarak sakin uygulaması TAM düzeyde ekran/menü olaylarını gönderir (H.3).
+
+## H.7 Yönetici mobil — panelle tam eşitlik (K4)
+
+**İlke:** Paneldeki her sayfa ve her işlem yönetici uygulamasında da olur. Rol kuralları paneldeki `rbac.ts` ile birebir aynıdır: STAFF yalnız operasyonu görür, AUDITOR salt okur.
+
+**Ortak altyapı (önce yapılır, ekran başına iş azalır):**
+- `api_views.dart` genişletilir: form alanı tanımından form üretme, satır eylemi menüsü, onay/gerekçe penceresi, dosya seçme ve yükleme, PDF/Excel indirme ve açma.
+- `rbac.dart`: paneldeki rota-rol tablosunun karşılığı. Menü gruplanır: Sakinler ve İletişim / Mali / Yönetişim / Operasyon / Analiz / Sistem.
+
+**Modül → ekran planı** (her satırdaki bütün işlemler 1. bölümdeki panel tablolarıyla birebir):
+
+| Grup | Ekranlar (yeni = ★) | Eklenecek işlemler |
+|---|---|---|
+| Sakinler ve iletişim | Sakinler, ★Bağımsız bölümler, ★Görevlendirmeler, ★KVKK, Talepler, ★Tadilat, ★Kural ihlali, ★Acil durum, ★Sigorta (DASK), Duyurular, İlan panosu, Anketler, Bildirimler | Toplu aktarım (CSV), davet, kiracılık yönetim yolu (belge+şifre), telefon değiştirme, kilit açma; bölüm ekle/düzenle; görevlendir/bitir; KVKK yanıt; tadilat onay/ret/durdur/tamamla/rıza; kural ve ihlal süreci; nokta/iletişim/tatbikat, durum çağrısı ve yanıtları, acil kartlar; DASK ve hasar; anket yayınla/kapat/iptal; toplu bildirim, tercih, giden kutusu |
+| Mali | Tahakkuk, Tahsilat ve borçlar, Giderler, Sayaç ve ısı payı, Tahsilat riski | Borcu yoktur belgesi; ödeme ters kaydı; gecikme tazminatı işletme; açılış bakiyesi; alacak dekontu ve ters kaydı; banka ekstresi yükleme/eşleştirme/yok sayma/daireye işleme; dekont indirme; defter doğrulama; sayaç ekle/değiştir/sil; paylaştırma; pusula itirazı yanıtı |
+| Yönetişim | ★İşletme projesi, ★Genel kurul, ★Defterler, ★İcra ve dava, ★Ortak alan geliri, Sözleşmeler, ★Belge arşivi | Proje oluştur/bildir/kesinleştir/tahakkuk; itiraz sonuçlandırma; toplantı oluştur/çağrı/hazirun/toplantı yap/oy/gündem kapat; defter kaydı/kapat/doğrula/dışa aktar; dava; kira ve gelir; sözleşme süresi dolanları kapat; belge yükle/arşivle/erişim kaydı |
+| Operasyon | Ziyaretçi, Kargo, Otopark, Rezervasyon, Devriye (H.5), Personel, Demirbaş, Stok, ★Sensörler (H.4) | Kod yenile; kanıt görüntüle; araç ekle/sil, plaka sorgu, cihaz ekle/sil ve olaylar; tesis ekle/düzenle, onay/ret; personel işten çıkış, SGK, izin gir/ret, uyum takvimi, bordro oluştur/öde/iptal, maliyet özeti; demirbaş ekle/bakım/elden çıkar/zimmet/kategori; stok kalem/kategori/sil/hareket geçmişi |
+| Analiz | Enerji, ★NPS, ★ESG, Raporlar | NPS aç/kapat/detay/yorumlar; karbon ayak izi hesabı |
+| Sistem | ★Ayarlar, ★Entegrasyon durumu, ★İşlem kayıtları (H.3), ★Hesabım | Site ayarları, işlem kaydı düzeyi, saklama kuralları ve imha, malik görünürlük politikası, kamera/biyometrik envanteri, site pasifleştirme; kendi telefon/e-posta değişikliği; site değiştirme / yeni site |
+
+## H.8 Panel eklemeleri
+
+| # | Eklenecek |
+|---|---|
+| P1 | Bildirim kutusu (H.2) |
+| P2 | Demirbaş kategorisi ve zimmet |
+| P3 | Stok kategorisi, kalem silme, hareket geçmişi |
+| P4 | Sayaç silme |
+| P5 | Kamera kaydı düzenleme |
+| P6 | Bordro maliyet özeti |
+| P7 | Plaka sorgu |
+| P8 | Kargo teslim kanıtı |
+| P9 | İlan ve anket yorumları (görme/gizleme) |
+| P10 | Ziyaretçi kodu yenileme |
+| P11 | Entegrasyon durumu (H.1.2) |
+| P12 | Giriş sayfası ölü bağlantı |
+| P13 | İşlem kayıtları sayfası ve ayarı (H.3) |
+| P14 | Sensörler (H.4) |
+| P15 | Devriye QR yazdırma, nokta konumu/yarıçap/muafiyet, rapor sayfası (H.5) |
+
+**Silme davranışı (H.2.4) önce incelenir:** hareketi/okuması olan kayıtta geçmişi silen bir davranış varsa düğme yazılmaz, raporlanır.
+
+## H.9 Harita aracı ve belgeler
+
+- [ ] Yanlış alarmlar tanınır.
+- [ ] Her aşama sonunda harita yeniden üretilir ve 06 güncellenir.
+- [ ] Changelog kanıtla yazılır.
+- [ ] CLAUDE.md gerçek duruma göre güncellenir.
+- [ ] `legal/kvkk-aydinlatma.md`'ye işlem kaydı ve personel konum maddeleri eklenir.
+
+## H.10 Planın zihinde çalıştırılması — bulunan sorunlar ve çözümleri
+
+| # | Sorun | Çözüm (plana işlendi) |
+|---|---|---|
+| Z1 | "Loglamayı kapat" seçeneği KVKK m.12 (veri güvenliği) ve mali kayıt değiştirilemezliğiyle çelişiyor: giriş, yetki reddi, kişisel veri erişimi ve yazma işlemleri kaydı kapatılırsa ihlal tespit edilemez | KAPALI = yalnız **zorunlu çekirdek**. Ayar ekranı bunu açıkça yazar. Zorunlu kayıt hiçbir düzeyde kapanmaz. |
+| Z2 | Uygulama rolü `audit_logs`'u okuyamıyor (bilinçli: kayıtlar değiştirilemesin, toplu okunamasın) | Okuma yalnız site kapsamlı `SECURITY DEFINER` işlevlerle; doğrudan `SELECT` yetkisi verilmez |
+| Z3 | TAM düzeyde her tıklama veritabanını şişirir; istemci sahte olay basabilir | İstemci 20 olaylık ya da 15 sn'lik toplu gönderim; sunucu tarafında kişi başı dakikada en çok 300 olay, bilinmeyen olay türü reddi, zamanı ve kullanıcıyı sunucu yazar; 180 gün saklama; `(property_id, created_at)` indeksi |
+| Z4 | Her istekte düzey için veritabanı sorgusu yavaşlatır | Site başına 60 sn önbellek; ayar değişince önbellek geçersizleşir (en geç 60 sn) |
+| Z5 | GPS kapalı alanda (otopark, kazan dairesi) zayıf → görevli okutamaz | Nokta başına yarıçap; konum sahada ölçülerek kaydedilir; doğruluk sınırı; zorunlu hâllerde gerekçeli `EXEMPT` ve raporda ayrı gösterim |
+| Z6 | Sahte konum uygulaması | Android `isMocked` reddi; imkânsız hız tespiti; red denemeleri kanıt olarak saklanır |
+| Z7 | QR fotoğrafla okutma | Konum zorunluluğu; ayrıca QR yeniden üretilebilir (eski baskı geçersiz) |
+| Z8 | Arka planda konum takibi ek izin ve pil yükü getirir; personel konumu kişisel veridir | Yalnız ekran açıkken ve yalnız açık tur boyunca; kesintiler raporda; 1 yıl saklama; aydınlatma metni |
+| Z9 | Sensör donanımı yok, gerçek sınama yapılamaz | Sahte cihaz ile uçtan uca sınama; bu açıkça "gerçek donanımla denenmedi" diye yazılır (iyzico ile aynı ilke) |
+| Z10 | Yönetici mobilde 117 işlemi tek tek yazmak tutarsızlık doğurur | Önce ortak form/eylem/dosya altyapısı, sonra modüller; panel tablosu kontrol listesi olarak kullanılır; harita aracı mobil kapsamı ölçer (hedef: panelde olup mobilde olmayan yazma işlemi = 0) |
+| Z11 | Mobil QR okuma, konum ve panel QR üretimi için paket yok | Yeni bağımlılık kararı **B-1, B-2** (aşağıda) |
+| Z12 | Finans migration dondurması | Bu planın hiçbir migration'ı finans tablosuna dokunmaz (073 bildirim+denetim, 074 sensör, 075 devriye) |
+
+## H.11 Uygulama sırası (her aşama ayrı commit; mesaj onaya sunulur)
+
+| Aşama | Kapsam |
+|---|---|
+| 1 | H.1 kaldırmalar |
+| 2 | H.2 + H.3 (073, okundu, işlem kaydı, ayar, ekranlar) |
+| 3 | H.4 sensörler (074) |
+| 4 | H.5 devriye (075) — B-1/B-2/B-3 kararından sonra |
+| 5 | H.6 sakin uygulaması |
+| 6 | H.8 panel eklemeleri |
+| 7 | H.7 yönetici mobil eşitliği (ortak altyapı → modüller) |
+| 8 | Harita + 06 + CLAUDE.md + aydınlatma metni |
+
+Her aşamanın doğrulaması: `go build/vet`, verify-stack (yeni kontrollerle), verify-mobile (yeni widget testleriyle), panel `tsc`/`lint`/`build`/`verify-endpoints`, `dev-up` ile D4 senaryoları.
+
+## Kararlar (2026-10-26, kullanıcı)
+
+- K3 evet (seçenekli), B-1 `mobile_scanner` + `geolocator` evet, B-2 `qrcode` evet, B-3 harita (leaflet / flutter_map, OpenStreetMap) evet.
+
+## Önceki onay listesi (kapandı)
+
+- **K3:** İşletme projesi görüşü (açıklama kullanıcıya verildi).
+- **B-1:** Yönetici mobil `mobile_scanner` (QR okuma) + `geolocator` (konum, `isMocked`).
+- **B-2:** Panel `qrcode` (yazdırılabilir QR üretimi).
+- **B-3 (isteğe bağlı):** Harita gösterimi. Panel `leaflet` + `react-leaflet`, mobil `flutter_map` + `latlong2` (OpenStreetMap). Onaylanmazsa rapor tablo + harita bağlantısıyla yapılır.
+
+---
+
 # FAZ 0 — Dürüstlük Onarımı (aktif)
 
 **İlke:** Sistemin kullanıcıya yalan söylemesini durdur. Yeni özellik yok.
@@ -570,6 +826,19 @@ içinde kendi adımı. Bir modül baştan sona bitmeden diğerine geçilmez (dik
 | IoT sensör uçları | Zaman serisi deposu (MongoDB) kurulu değil, `go.mod`'da bile yok |
 | Entegrasyon kimlik bilgisi kasası | Alan düzeyinde şifreleme (2.8) olmadan sağlayıcı anahtarı saklanmaz |
 | Bileşik "sürdürülebilirlik skoru" | Kabul görmüş formülü yok; uydurma ağırlıkla üretilen sayı bir şey ölçmez |
+
+---
+
+# Fikir havuzu — üzerinde düşünülecek (kullanıcı, 2026-10-26) `[D0]`
+
+Henüz tasarlanmadı; geliştirmeden önce kapsam ve kararlar birlikte belirlenecek.
+
+| # | Fikir | Bugün koddaki ilgili parça | Düşünülecek sorular |
+|---|---|---|---|
+| F1 | **Tedarik talebi** (malzeme/hizmet ihtiyacının talep → onay → sipariş akışı) | Stok hareketinde serbest metin `vendor` alanı (`inventory/repository/inventory.go:83`); gider onay akışı (`expense`); ayrı talep/sipariş tablosu yok | Kim talep açar (görevli, yönetim)? Onay kademesi ve tutar sınırı? Gidere ve stok girişine nasıl bağlanır? |
+| F2 | **Taşınma bildirimi** (sakinin taşınma/giriş-çıkış bildirmesi) | İlişik kesme tarihi `resident_units.end_date` (B7), kiracılık bitiş akışı (069), davet ve kayıt (068), daire oturum durumu (`unit_occupancy`) | Sakinin kendisi mi bildirir? Tarih, asansör/eşya taşıma rezervasyonu, borç kontrolü (borcu yoktur belgesi) ve yönetim onayı nasıl bağlanır? |
+| F3 | **Tedarikçi başvuru ve kayıt ekranı** | Tedarikçi varlığı yok; sözleşmelerde karşı taraf alanı (`contract`) | Herkese açık başvuru formu mu? Doğrulama (vergi no, belge), site bazlı mı platform genelinde mi, onay ve puanlama? |
+| F4 | **SiteSen üzerinden ödeme ve komisyon alma** | Kartla ödeme var (iyzico Ödeme Formu, 060); komisyon kodu yok (ölü `pkg/integrations/bank` hariç) | Pazaryeri/alt üye işyeri modeli (iyzico pazaryeri) mi? Komisyonu kim öder, nasıl gösterilir? Aidat tahsilatında komisyon hukuken ve muhasebe açısından nasıl kaydedilir? Finans migration dondurmasıyla birlikte ele alınmalı. |
 
 ---
 

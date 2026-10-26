@@ -92,7 +92,8 @@ Giriş kilidi: art arda 5 hatalı girişte hesap 15 dk kilitlenir (kilitliyken d
 | `GET /finance/debt-status` | herkes | — | `{has_debt,current_balance,overdue_amount,overdue_months,next_due_date,next_due_amount}` — yalnız kişinin sorumlusu olduğu borç (070) |
 | `GET /finance/assessments` | herkes (kendi daireleri) | `year` | `{data:[{id,period,base_amount,late_fee,total_amount,paid_amount,status,liability,responsible}]}` — `liability`: USAGE (kullanım/oturan) · OWNER (malik) (066). Yalnız kişinin sorumlusu olduğu borç döner (070): kiracı kendi kiracılığının kullanım borcunu; malik/vekil malik sınıfını, kiracısız dönemi ve kiracılığı bitmiş borcu; hane üyesi hiçbirini. `responsible`: TENANT/OWNER |
 | `GET /finance/assessments/:id` | sakin: yalnız kendi dairesi; M/B/A: tümü | — | `{id,property_id,unit_id,period_year,period_month,base_amount,late_fee,total_amount,paid_amount,due_date,status,created_at,details:[{category,amount,calculation_basis}]}` |
-| `POST /finance/payments` | herkes | `assessment_ids`*[],`payment_method`*,`card_token`,`save_card` | `{payment_id,amount,status:"PENDING",payment_gateway_ready:false}` (tahsilat YAPILMAZ) | · yalnız kişinin sorumlusu olduğu tahakkuk ödenir (070; aksi 400) |
+| `POST /finance/payments` | herkes | `assessment_ids`*[],`payment_method`*,`card_token`,`save_card` | `{payment_id,amount,status:"PENDING",payment_gateway_ready:false}` (tahsilat YAPILMAZ) |
+ · yalnız kişinin sorumlusu olduğu tahakkuk ödenir (070; aksi 400) |
 | `GET /finance/my-payments` | herkes | `limit`(≤500, vars. 50),`offset` | `{data:[…kendi ödemeleri],total,limit,offset}` |
 | `GET /finance/consumption/summary` | herkes | `meter_type` | `{meter_type,unit,data:[{period,consumption,amount,status}]}` |
 | `GET /finance/debtors` | M,B,A | — | `{data:[{unit_id,resident_id,name,unit,amount,responsible,owner_missing}]}` — borcun sorumlusuna göre satır (070): aktif kiracılığa bağlı kullanım borcu kiracının (`responsible:TENANT`, ad "(kiracı)"), kalanı malik(ler)in; maliksiz dairenin malik borcu "Malik kaydı yok" (`owner_missing`, V3) |
@@ -314,7 +315,8 @@ Kalem: `{id,category_id,category_name,name,description,sku,unit,current_stock(st
 | `GET /consumption/statements/:id` · `/:id/pdf` | herkes (sakin: kendi satırı) | — | `{…,lines:[{unit_id,unit_name,first_date,first_value,last_date,last_value,meter_replaced,consumption,usable_area,consumption_kurus,area_kurus,total_kurus}]}` · PDF |
 | `POST /meters` | M,B | `unit_id`*,`meter_type`*,`serial_number`*,`brand`,`model`,`installation_date` | 201 `{id}` |
 | `DELETE /meters/:id` | M,B | — | `{message,note}` |
-| `POST /consumption/allocate` | M,B | `meter_type`*,`from`*,`to`*,`total_amount_try`*>0,`publish` | `{allocation:{total_kurus,consumption_part_kurus,area_part_kurus,…,units:[{unit_id,unit_name,consumption,usable_area,consumption_share_kurus,area_share_kurus,total_kurus,total_try,first_date,first_value,last_date,last_value,meter_replaced}]},basis_note,note,allocation_id?,…}` · yayımda 422 okuma eksik, 409 dönem zaten yayımlanmış | · B8: yanıtta `outliers[]` (kullanım alanı başına tüketimi site medyanının 3 katını aşan bölümler) ve `outlier_warning`; sapma varken `publish` için `confirm_outliers:true` zorunlu, yoksa 422 `OUTLIERS_UNCONFIRMED`
+| `POST /consumption/allocate` | M,B | `meter_type`*,`from`*,`to`*,`total_amount_try`*>0,`publish` | `{allocation:{total_kurus,consumption_part_kurus,area_part_kurus,…,units:[{unit_id,unit_name,consumption,usable_area,consumption_share_kurus,area_share_kurus,total_kurus,total_try,first_date,first_value,last_date,last_value,meter_replaced}]},basis_note,note,allocation_id?,…}` · yayımda 422 okuma eksik, 409 dönem zaten yayımlanmış |
+ · B8: yanıtta `outliers[]` (kullanım alanı başına tüketimi site medyanının 3 katını aşan bölümler) ve `outlier_warning`; sapma varken `publish` için `confirm_outliers:true` zorunlu, yoksa 422 `OUTLIERS_UNCONFIRMED`
 | `POST /consumption/statements/:id/objections` | bölümün aktif sakini | `unit_id`*,`reason`*(10-2000) | 201 `{objection,message,notification}` — yönetime bildirim; açık itiraz varken 409, sakin değilse 403 (B8) |
 | `GET /consumption/objections` | herkes (yönetim tümü, sakin kendi bölümleri) | `status` (OPEN\|ACCEPTED\|REJECTED) | `{data:[{id,allocation_id,meter_type,period_from,period_to,unit_id,unit,user_name,total_kurus,reason,status,response,responded_at,responded_by_name,created_at}]}` (B8) |
 | `POST /consumption/objections/:id/respond` | M,B | `decision`*(ACCEPTED\|REJECTED),`response`*(≥5) | 200 `{objection,message,notification}` — itiraz edene bildirim; yanıtlanmış itiraz 409; pusula değişmez (B8) || `/sensors/*`, `/iot/alerts/*` | — | — | **501** (sensör altyapısı yok) |
@@ -410,8 +412,9 @@ Roller: okuma M,B,A · yazma M,B. İtiraz: kat maliki/vekil ya da yönetim.
 
 ## Bilerek yazılmamış (501)
 
-`banking` (S-07), `meeting_wizard` (governance ile tekrar), `iot` sensör uçları, `settings.credentials`,
-`esg/sustainability-score`, `reports`.
+`banking` (S-07), `iot` sensör uçları (FAZ H.4'te tamamlanacak), `reports`.
+2026-10-26'da kaldırıldı (FAZ H.1): `meeting_wizard` (governance ile tekrar), `settings.credentials`
+(yerine gateway `GET /integrations/status`), `esg/sustainability-score`.
 
 ### KVKK ilgili kişi başvuruları (community, 2026-10-04, migration 035)
 

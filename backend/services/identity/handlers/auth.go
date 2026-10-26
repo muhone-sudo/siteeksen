@@ -47,6 +47,8 @@ func Login(svc *service.AuthService) gin.HandlerFunc {
 
 		tokens, user, err := svc.Login(c.Request.Context(), normalizePhone(req.Phone), req.Password)
 		if errors.Is(err, service.ErrInvalidCredentials) {
+			c.Set("audit_event", "auth.login_failed")
+			c.Set("audit_details", gin.H{"phone": maskPhone(normalizePhone(req.Phone))})
 			// Kilit durumu yanıtta söylenmez (hesap varlığı ve kilit sızmasın); kademeler sabit metinle anlatılır (B6).
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Geçersiz telefon veya şifre",
 				"note": "Art arda hatalı denemede giriş kısa süreli kilitlenir (5. denemede 30 sn, 6.'da 2 dk, sonra 15 dk). Şifrenizi unuttuysanız 'Şifremi unuttum' ile kod isteyin."})
@@ -61,6 +63,9 @@ func Login(svc *service.AuthService) gin.HandlerFunc {
 			return
 		}
 
+		c.Set("audit_event", "auth.login")
+		c.Set("audit_user_id", user.ID)
+		c.Set("audit_property_id", user.ActivePropertyID)
 		c.JSON(http.StatusOK, gin.H{
 			"access_token":  tokens.AccessToken,
 			"refresh_token": tokens.RefreshToken,
@@ -227,6 +232,8 @@ func Activate(svc *service.AuthService) gin.HandlerFunc {
 			return
 		}
 		join, err := svc.Activate(c.Request.Context(), normalizePhone(in.Phone), in.Code, in.NewPassword)
+		c.Set("audit_event", "auth.activate")
+		c.Set("audit_details", gin.H{"phone": maskPhone(normalizePhone(in.Phone)), "ok": err == nil})
 		switch {
 		case errors.Is(err, service.ErrWeakPassword):
 			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})

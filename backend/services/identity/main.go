@@ -72,6 +72,8 @@ func main() {
 	api := r.Group("/api/v1")
 	{
 		auth := api.Group("/auth")
+		// Giriş/çıkış ve hesap kurtarma olayları zorunlu işlem kaydıdır (073); başarısız giriş (401) de yazılır.
+		auth.Use(middleware.AuditLog(pool, "auth"))
 		{
 			auth.POST("/login", handlers.Login(authService))
 			auth.POST("/refresh", handlers.RefreshToken(authService))

@@ -41,10 +41,32 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     return Icons.notifications_outlined;
   }
 
+  Future<void> _markRead(Map n) async {
+    if (n['read_at'] != null) return;
+    try {
+      await apiClient.markNotificationRead('${n['id']}');
+      await _reload();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(toUserMessage(e))));
+    }
+  }
+
+  Future<void> _markAll() async {
+    try {
+      final n = await apiClient.markAllNotificationsRead();
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(n > 0 ? '$n bildirim okundu sayıldı' : 'Okunmamış bildirim yok')));
+      await _reload();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(toUserMessage(e))));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Bildirimlerim')),
+      appBar: AppBar(title: const Text('Bildirimlerim'), actions: [
+        IconButton(tooltip: 'Tümünü okundu say', icon: const Icon(Icons.done_all), onPressed: _markAll),
+      ]),
       body: FutureBuilder<List<dynamic>>(
         future: _future,
         builder: (context, snap) {
@@ -62,9 +84,16 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               itemBuilder: (context, i) {
                 final n = items[i];
                 final subject = (n['subject'] as String?)?.trim();
+                final read = n['read_at'] != null;
                 return ListTile(
-                  leading: Icon(iconFor('${n['topic'] ?? ''}')),
-                  title: Text(subject == null || subject.isEmpty ? 'Bildirim' : subject),
+                  leading: Badge(
+                    isLabelVisible: !read,
+                    smallSize: 8,
+                    child: Icon(iconFor('${n['topic'] ?? ''}'), color: read ? Colors.grey : null),
+                  ),
+                  title: Text(subject == null || subject.isEmpty ? 'Bildirim' : subject,
+                      style: TextStyle(fontWeight: read ? FontWeight.normal : FontWeight.w600)),
+                  onTap: () => _markRead(n),
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [

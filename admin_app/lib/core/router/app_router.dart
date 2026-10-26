@@ -36,11 +36,12 @@ import '../../features/packages/presentation/screens/package_tracking_screen.dar
 import '../../features/assets/presentation/screens/asset_management_screen.dart';
 import '../../features/contracts/presentation/screens/contract_management_screen.dart';
 import '../../features/patrol/presentation/screens/patrol_control_screen.dart';
-import '../../features/meetings/presentation/screens/meeting_wizard_screen.dart';
 import '../../features/collection/presentation/screens/smart_collection_screen.dart';
 import '../../features/bulletin/presentation/screens/bulletin_board_screen.dart';
 import '../../features/banking/presentation/screens/bank_integration_screen.dart';
 import '../../features/settings/presentation/screens/api_settings_screen.dart';
+import '../../features/notifications/presentation/screens/inbox_screen.dart';
+import '../../features/audit/presentation/screens/audit_screen.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
@@ -263,13 +264,6 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             builder: (context, state) => const PatrolControlScreen(),
           ),
 
-          // AI Toplantı Sihirbazı
-          GoRoute(
-            path: '/meetings',
-            name: 'meetings',
-            builder: (context, state) => const MeetingWizardScreen(),
-          ),
-
           // AI Akıllı Tahsilat
           GoRoute(
             path: '/collection',
@@ -296,6 +290,18 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             path: '/governance',
             name: 'governance',
             builder: (context, state) => const GovernanceScreen(),
+          ),
+
+          // Bildirimlerim ve işlem kayıtları (073)
+          GoRoute(
+            path: '/inbox',
+            name: 'inbox',
+            builder: (context, state) => const InboxScreen(),
+          ),
+          GoRoute(
+            path: '/audit',
+            name: 'audit',
+            builder: (context, state) => const AuditScreen(),
           ),
 
           // API Ayarları

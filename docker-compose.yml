@@ -253,16 +253,6 @@ services:
     depends_on: *after-migrate
     restart: unless-stopped
 
-  # Yazılmadı — 501 ile governance'a yönlendirir
-  meeting-service:
-    build:
-      context: ./backend
-      dockerfile: services/meeting_wizard/Dockerfile
-    environment:
-      <<: *app-env
-    depends_on: *after-migrate
-    restart: unless-stopped
-
   # Memnuniyet (NPS)
   nps-service:
     build:
@@ -427,7 +417,6 @@ services:
       ENERGY_SERVICE_URL: http://energy-service:8092
       ESG_SERVICE_URL: http://esg-service:8093
       INVENTORY_SERVICE_URL: http://inventory-service:8094
-      MEETING_SERVICE_URL: http://meeting-service:8095
       NPS_SERVICE_URL: http://nps-service:8096
       PACKAGE_SERVICE_URL: http://package-service:8097
       PARKING_SERVICE_URL: http://parking-service:8098
@@ -459,7 +448,6 @@ services:
       - energy-service
       - esg-service
       - inventory-service
-      - meeting-service
       - nps-service
       - package-service
       - parking-service

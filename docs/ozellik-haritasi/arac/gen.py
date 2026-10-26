@@ -425,6 +425,8 @@ def write_unused():
     o += ["", "## 5.2 Yazılmamış modüller (501)", ""]
     for s in ("banking", "meeting_wizard"):
         rs = SVC_OF.get(s, [])
+        if not rs:
+            continue
         o.append("- **%s** — %d uç, hepsi 501: %s" % (s, len(rs), ", ".join("`%s %s`" % (r["Method"], r["Path"]) for r in rs)))
     o += ["", "Bulunan tutarsızlıklar ve eksikler: [6. Bulgular ve eksikler](06-bulgular-ve-eksikler.md).", ""]
     open(os.path.join(OUT, "05-arayuzsuz-uclar.md"), "w").write("\n".join(o))

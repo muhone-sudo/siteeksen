@@ -4,9 +4,9 @@
 
 | Bölüm | Kapsam |
 |---|---|
-| [1. Yönetim paneli](01-panel.md) | 48 sayfa, 289 eylem (düğme, form, seçim) — kenar çubuğu gruplarına göre |
-| [2. Sakin mobil uygulaması](02-sakin-mobil.md) | 33 ekran/bileşen, 168 eylem |
-| [3. Yönetici mobil uygulaması](03-yonetici-mobil.md) | 45 ekran/bileşen, 173 eylem |
+| [1. Yönetim paneli](01-panel.md) | 50 sayfa, 297 eylem (düğme, form, seçim) — kenar çubuğu gruplarına göre |
+| [2. Sakin mobil uygulaması](02-sakin-mobil.md) | 33 ekran/bileşen, 170 eylem |
+| [3. Yönetici mobil uygulaması](03-yonetici-mobil.md) | 46 ekran/bileşen, 178 eylem |
 | [4. Bildirimler, zamanlanmış işler, tetikleyiciler](04-bildirim-zamanlayici-tetikleyici.md) | 54 bildirim üreten uç, 11 zamanlanmış iş, 3 bekçi, 23 tetikleyici, denetim izi |
 | [5. Arayüzsüz uçlar](05-arayuzsuz-uclar.md) | Backend'de olup hiçbir ekranda düğmesi olmayan uçlar, 501 modüller |
 | [6. Bulgular ve eksikler](06-bulgular-ve-eksikler.md) | Haritadan çıkan hatalar; yapılan özellikler ile haritanın karşılaştırması, eksikler ve öncelik sırası |

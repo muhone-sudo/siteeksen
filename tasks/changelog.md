@@ -12,6 +12,52 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-26 — FAZ H.2/H.3: BİLDİRİM OKUNDU BİLGİSİ VE İŞLEM KAYDI (migration 073, kullanıcı kararı K5) (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **1383/1383** (yeni adım 64: şema ve yetkiler, kapsamsız listenin boş dönmesi, başarısız/başarılı
+> giriş kaydı ve şifrenin hiçbir kayda yazılmaması, okundu/başkasının bildirimi 404/tümünü okundu say, okundu kaydının
+> değiştirilememesi, varsayılan STANDART, STANDART'ta etkinlik alınmaması, sakinin düzeyi değiştirememesi (403), TAM'da
+> kabul ve bilinmeyen olay reddi, 51 olay → 413, KAPALI'da sıradan okumanın yazılmayıp hassas okuma ve yazmanın yazılması,
+> görüntüleme yetkisi, kaynak süzgeci, CSV ve dışa aktarma kaydı, çapraz site boş, saklamanın yalnız CLIENT silmesi ve
+> 30 gün altı reddi); `verify-mobile.sh` 10/10; panel `tsc`/`lint`/`build` temiz.
+
+- **073:** `notification_reads` (RLS'li, yalnız ekleme); `audit_logs`'a `source` (API/CLIENT/SYSTEM), `event`, `screen`,
+  `details`. Uygulama rolü `audit_logs`'u yine doğrudan okuyamaz: okuma aktif siteyle sınırlı `audit_log_list` /
+  `audit_log_stats`, silme yalnız istemci etkinliği için `audit_log_purge_client(30-730 gün)` işlevleriyle.
+- **Bildirim kutusu:** `GET /notifications` okundu zamanı, `channel`, `unread` süzgeci; `GET /notifications/unread-count`,
+  `POST /notifications/:id/read` (başkasınınki 404), `POST /notifications/read-all`. Panel üst bar zili (okunmamış sayısı,
+  son 10, tümünü gör) + `/dashboard/inbox`; yönetici mobil "Bildirimlerim" (yan menü rozeti); sakin uygulaması okundu
+  işareti, "tümünü okundu say", alt menü rozeti; kutu artık yalnız uygulama içi kopyayı listeler.
+- **İşlem kaydı düzeyi** (`ACTIVITY_LOG_LEVEL`: KAPALI / STANDART / TAM, yalnız MANAGER değiştirir): KAPALI'da da yazma
+  işlemleri, 403, kişisel veri okumaları ve giriş/çıkış tutulur (KVKK m.12). Kimlik servisi giriş başarılı/başarısız
+  (maskeli telefon, 401 dahil), çıkış, etkinleştirme ve şifre sıfırlama isteğini yazar. TAM düzeyde panel, sakin ve
+  yönetici uygulamaları ekran/menü olaylarını toplu `POST /activity` ile gönderir (olay türü listesi, istek başına 50,
+  kişi başı dakikada 300). Saklama `ACTIVITY_LOG_RETENTION_DAYS` (varsayılan 180), zamanlayıcı `activity.purge`.
+- **Görüntüleme:** `GET /audit-logs` (süzgeçler, sayfalama), `/audit-logs/stats`, `/audit-logs/export` (CSV); panel
+  `/dashboard/audit`, yönetici mobil "İşlem kayıtları" — MANAGER ve AUDITOR; görüntüleme ve dışa aktarma da kayda geçer.
+- **Düzeltilen hata:** denetim kaydı istek bağlamıyla yazılıyordu; istemci bağlantıyı erken kapatınca (indirme yarıda
+  kesilince) kayıt `context canceled` ile düşüyordu. Artık istekten bağımsız bağlamla (5 sn) yazılıyor.
+- `OWNER_PLAN_OBJECTIONS` ayarı eklendi (K3; uygulaması FAZ H.6 S12'de).
+
+### 2026-10-26 — FAZ H.1: KULLANILMAYAN 501 MODÜLLERİN KONTROLLÜ KALDIRILMASI (DOĞRULANMIŞ)
+
+> **Kanıt:** `verify-stack.sh` → **1352/1352** (kaldırılan modüllerin kontrolleri çıktı; yerine "dizin yok", "gateway öneki yok",
+> credentials ve skor → 404 kontrolleri eklendi); `verify-mobile.sh` 10/10; panel `tsc`, `lint`, `build` temiz;
+> `gen-deploy.py --check` 25 servis; `check-gateway-routes.py` tutarlı.
+
+- `meeting_wizard` servisi kaldırıldı (governance'ta aynı iş var; karar defterinin tekliği, KMK m.32). Gateway öneki,
+  `gen-deploy.py` (compose/k8s/CI yeniden üretildi, 25 servis), dev-up metni, `.gitignore`, verify-stack adım 29,
+  yönetici mobil ekranı ve rotası birlikte çıkarıldı. `meetings` tablosu (005) uygulanmış migration olduğu için duruyor.
+- `settings /credentials*` (7) ve `/credentials-available-services` 501 uçları kaldırıldı. Panel sayfası yanlış bilgi
+  veriyordu ("iyzico/SMS/e-posta bağlı değil"); yerine **Entegrasyon durumu** (`/dashboard/integrations`): gateway
+  `GET /api/v1/integrations/status` bildirim kanallarını (`/notifications/summary`, yetki ve jeton iptali orada denetlenir),
+  kart sağlayıcısını (finans `/health` → `card_payment`) ve dosya deposunu (`document /health`) birleştirir.
+  Yönetici mobil ekranı aynı içeriğe döndü.
+- `GET /esg/sustainability-score` kaldırıldı (uydurma bileşik skor üretilmez; verify-stack artık 404 bekliyor).
+- verify-stack: panel doğrulamasındaki servis sayısı sabit 26 yerine `gen-deploy.py`'den okunuyor.
+- `db-restore.sh`: canlı tablo listesi veritabanı harmanlamasıyla değil `sort` ile sıralanıyor (iki taraf farklı yerel
+  ayarla sıralandığında `comm` "not in sorted order" diyip kontrolü düşürüyordu).
+
 ### 2026-10-26 — ÖZELLİK VE YETENEK HARİTASI (docs/ozellik-haritasi/, yalnız doküman)
 
 > **Kanıt:** Rota listesi depodaki `check-gateway-routes.py` ile birebir (415/415). Çağrı → tablo/bildirim/yetki zinciri

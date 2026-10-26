@@ -40,7 +40,6 @@ SERVICES = [
     ("energy_analytics", 8092, "energy-service",           "app", "Enerji analizi"),
     ("esg",              8093, "esg-service",              "app", "Karbon ayak izi"),
     ("inventory",        8094, "inventory-service",        "app", "Stok"),
-    ("meeting_wizard",   8095, "meeting-service",          "app", "Yazılmadı — 501 ile governance'a yönlendirir"),
     ("nps",              8096, "nps-service",              "app", "Memnuniyet (NPS)"),
     ("package",          8097, "package-service",          "app", "Kargo"),
     ("parking",          8098, "parking-service",          "app", "Otopark"),
@@ -68,7 +67,7 @@ GATEWAY_ENV = {
     "asset": "ASSET_SERVICE_URL", "bulletin": "BULLETIN_SERVICE_URL",
     "contract": "CONTRACT_SERVICE_URL", "document": "DOCUMENT_SERVICE_URL",
     "energy_analytics": "ENERGY_SERVICE_URL", "esg": "ESG_SERVICE_URL",
-    "inventory": "INVENTORY_SERVICE_URL", "meeting_wizard": "MEETING_SERVICE_URL",
+    "inventory": "INVENTORY_SERVICE_URL",
     "nps": "NPS_SERVICE_URL", "package": "PACKAGE_SERVICE_URL",
     "parking": "PARKING_SERVICE_URL", "patrol": "PATROL_SERVICE_URL",
     "personnel": "PERSONNEL_SERVICE_URL", "reservation": "RESERVATION_SERVICE_URL",
@@ -499,7 +498,7 @@ def k8s():
             env += k8s_env_secret("S3_BUCKET", "storage", "bucket")
             env += k8s_env_secret("S3_ACCESS_KEY_ID", "storage", "access-key-id")
             env += k8s_env_secret("S3_SECRET_ACCESS_KEY", "storage", "secret-access-key")
-        replicas = 1 if directory in ("banking", "meeting_wizard") else 2
+        replicas = 1 if directory in ("banking",) else 2
         out += k8s_deployment(name, f"{img}/{name}:latest", port, env, replicas, note)
 
     senv = []

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"strconv"
 	"strings"
 	"time"
@@ -62,6 +63,7 @@ func jobs() []job {
 		{name: "kvkk.destruction", what: "Saklama süresi dolan ziyaretçi, otopark ve kargo kayıtlarını en geç 6 ayda bir anonimleştirir (İmha Yönetmeliği m.11); süre tanımlı değilse yönetime hatırlatır", run: periodicDestruction},
 		{name: "dask.renewal", what: "DASK poliçesi 30 gün içinde biten ya da bitmiş bağımsız bölümün malikine hatırlatma (6305 m.10/3)", run: daskRenewal},
 		{name: "emergency.drill", what: "Son tatbikatın üzerinden yasal süre (yılda bir) geçmiş ya da personel çalıştırdığı hâlde hiç tatbikat kaydı olmayan site → yönetim", run: drillDue},
+		{name: "activity.purge", what: "Saklama süresi (ACTIVITY_LOG_RETENTION_DAYS, varsayılan 180 gün) dolan uygulama içi etkinlik kayıtlarını siler; zorunlu kayıtlara dokunmaz (073)", run: purgeClientActivity},
 		{name: "budget.approval", what: "Genel kurulda karara bağlanma süresi (KMK m.37, 3 ay) yaklaşan ya da geçen geçici işletme projesi → yönetim", run: budgetApprovalDue},
 	}
 }
@@ -833,4 +835,29 @@ func daskRenewal(ctx context.Context, pool *pgxpool.Pool, propertyID string) ([]
 		}})
 	}
 	return out, nil
+}
+
+// purgeClientActivity, TAM düzeyde toplanan istemci etkinliğini saklama süresi dolunca siler (073).
+// Silme veritabanı işleviyle yapılır; işlev yalnız CLIENT kaynaklı kayıtlara dokunur.
+// Bildirim üretmez.
+func purgeClientActivity(ctx context.Context, pool *pgxpool.Pool, propertyID string) ([]notice, error) {
+	days := 180
+	var v *int
+	err := dbscope.For(pool, propertyID).QueryRow(ctx,
+		`SELECT value_int FROM property_settings WHERE property_id = $1 AND setting_key = 'ACTIVITY_LOG_RETENTION_DAYS'`,
+		propertyID).Scan(&v)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		return nil, err
+	}
+	if v != nil {
+		days = *v
+	}
+	var n int64
+	if err := dbscope.For(pool, propertyID).QueryRow(ctx, `SELECT audit_log_purge_client($1)`, days).Scan(&n); err != nil {
+		return nil, err
+	}
+	if n > 0 {
+		log.Printf("[scheduler] %s: %d istemci etkinliği kaydı silindi (saklama %d gün)", propertyID, n, days)
+	}
+	return nil, nil
 }

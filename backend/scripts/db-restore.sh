@@ -52,7 +52,9 @@ echo "geri yüklendi: $DB, şema sürümü: $VER"
 # oluşturduğu) --clean ile kaldırılmaz. Kendiliğinden silmek, bilinmeyen bir
 # tabloyu yok etmek olurdu; operatöre gösterilir ve çıkış kodu 3 olur.
 DUMPED=$(pg_restore --list "$IN" | awk '$4=="TABLE" && $5=="public" {print $6}' | sort -u)
-LIVE=$(psql "$DATABASE_URL" -tAc "SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY 1")
+# Sıralama veritabanı harmanlamasına değil, DUMPED ile aynı `sort`'a bırakılır: ikisi
+# farklı yerel ayarla sıralanırsa `comm` "not in sorted order" der ve kontrol düşer.
+LIVE=$(psql "$DATABASE_URL" -tAc "SELECT tablename FROM pg_tables WHERE schemaname='public'" | sort -u)
 EXTRA=$(comm -13 <(echo "$DUMPED") <(echo "$LIVE") | tr '\n' ' ')
 if [ -n "${EXTRA// /}" ]; then
   echo "UYARI: yedekte olmayan tablolar kaldı: $EXTRA" >&2

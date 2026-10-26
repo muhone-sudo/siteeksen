@@ -41,6 +41,8 @@ func RequestPasswordReset(auth *service.AuthService) gin.HandlerFunc {
 				"error": "Bu kurulumda SMS ve e-posta gönderimi yapılandırılmamış; şifre sıfırlama kodunu site yönetiminden isteyin."})
 			return
 		}
+		c.Set("audit_event", "auth.password_reset_request")
+		c.Set("audit_details", gin.H{"phone": maskPhone(phone)})
 		issue, err := auth.IssueSelfReset(c.Request.Context(), phone, time.Now())
 		if err != nil {
 			log.Printf("[identity] şifre sıfırlama isteği (%s): %v", maskPhone(phone), err)

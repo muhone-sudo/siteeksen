@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"errors"
 	"log"
 	"net/http"
@@ -162,28 +163,39 @@ func RequireRole(requiredRoles ...string) gin.HandlerFunc {
 func AuditLog(pool *pgxpool.Pool, entityType string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Next()
-
 		status := c.Writer.Status()
-
+		// İşleyici açık bir olay bildirdiyse (ör. giriş başarısız, bildirim okundu) her durumda
+		// yazılır — 401 dahil: başarısız giriş güvenlik olayıdır (073).
+		event := c.GetString("audit_event")
+		explicit := event != ""
 		// Kimlik doğrulanamadığı için reddedilen istekler (401) denetim izine yazılmaz:
 		// kullanıcı bilinmiyor ve bu kayıtlar tabloyu gürültüyle doldurur.
 		// Yetkisi olmadığı için reddedilenler (403) ise güvenlik açısından değerlidir, yazılır.
-		if status == http.StatusUnauthorized {
+		if status == http.StatusUnauthorized && !explicit {
 			return
 		}
-
-		userIDValue, _ := c.Get("user_id")
-		userID, _ := userIDValue.(string)
-
-		propertyIDValue, _ := c.Get("property_id")
-		propertyID, _ := propertyIDValue.(string)
-
+		userID := c.GetString("user_id")
+		if v := c.GetString("audit_user_id"); v != "" {
+			userID = v
+		}
+		propertyID := c.GetString("property_id")
+		if v := c.GetString("audit_property_id"); v != "" {
+			propertyID = v
+		}
+		// Kayıt istekten BAĞIMSIZ bağlamla yazılır: istemci bağlantıyı erken kapatırsa (ör. indirmeyi
+		// yarıda kesmek) istek bağlamı iptal olur ve kayıt sessizce düşerdi (073 doğrulamasında görüldü).
+		ctx, cancel := context.WithTimeout(context.WithoutCancel(c.Request.Context()), 5*time.Second)
+		defer cancel()
+		level := ActivityLogLevel(ctx, pool, propertyID)
+		if !shouldAudit(level, c.Request.Method, entityType, status, explicit) {
+			return
+		}
 		action := auditActionFromMethod(c.Request.Method)
 		if status == http.StatusForbidden {
 			action = "DENIED"
 		}
-
-		err := audit.Log(c.Request.Context(), pool, audit.Entry{
+		details, _ := c.Get("audit_details")
+		err := audit.Log(ctx, pool, audit.Entry{
 			UserID:     userID,
 			PropertyID: propertyID,
 			IPAddress:  c.ClientIP(),
@@ -193,6 +205,9 @@ func AuditLog(pool *pgxpool.Pool, entityType string) gin.HandlerFunc {
 			EntityID:   c.Param("id"),
 			RequestID:  c.GetHeader("X-Request-Id"),
 			StatusCode: status,
+			Event:      event,
+			Screen:     c.FullPath(),
+			Details:    details,
 		})
 		if err != nil {
 			// Denetim izi yazılamadı: isteği başarısız saymıyoruz (kullanıcı işlemi tamamlandı),

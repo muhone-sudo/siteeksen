@@ -110,7 +110,7 @@ Next.js admin paneli, iki Flutter mobil uygulaması (sakin + yönetici) içerir.
 
 > Aşağıdaki notlar **çalıştırılarak** doğrulanmıştır. Bu bölümdeki hiçbir ifade "olması gerekeni"
 > değil, **bugün gerçekte olanı** anlatır.
-> Toplu kanıt: `bash backend/scripts/verify-stack.sh` → **1359/1359**,
+> Toplu kanıt: `bash backend/scripts/verify-stack.sh` → **1383/1383** (2026-10-26),
 > `bash backend/scripts/verify-mobile.sh` → **10/10**.
 > Tarihçe ve `dosya:satır` kanıtı: `tasks/audit-raporu.md`, `tasks/changelog.md`.
 
@@ -132,23 +132,24 @@ cd admin && npm run dev            # http://localhost:3001
   `survey` (anket), `iot` (sayaç + ısı payı), `notification` (bildirim),
   `patrol` (devriye), `bulletin` (ilan panosu), `settings`,
   `energy_analytics`, `smart_collection`, `nps`, `esg`.
-  **İki modül bilinçli olarak yazılmadı ve nedenini söyleyerek 501 döner:**
-  `banking` (S-07 kullanıcı kararıyla sonraki sürüme bırakıldı) ve
-  `meeting_wizard` (governance ile tekrar olurdu; oraya yönlendirir).
-  Ayrıca `iot`'un sensör uçları ve `settings`'in kimlik bilgisi modülü gerçek
-  değildir ve bunu açıkça bildirir.
+  **Bir modül bilinçli olarak yazılmadı ve nedenini söyleyerek 501 döner:**
+  `banking` (S-07 kullanıcı kararıyla sonraki sürüme bırakıldı).
+  `meeting_wizard` servisi, `settings` kimlik bilgisi uçları ve ESG sürdürülebilirlik
+  skoru 2026-10-26'da kaldırıldı (FAZ H.1; özellikleri başka yerde var). `iot`
+  sensör uçları hâlâ 501 — FAZ H.4'te tamamlanacak. Sağlayıcı durumu:
+  `GET /api/v1/integrations/status` (gateway).
 - **Uygulama veritabanına SÜPER KULLANICIYLA BAĞLANMIYOR — dev-up, doğrulama,
   docker compose ve k8s'in dördünde de.** İki rol vardır:
   `siteeksen_identity` (yalnızca kimlik servisi: dizin + jeton iptal tabloları,
-  site verisine erişim YOK) ve `siteeksen_app` (diğer 25 servis: RLS'e tabi,
+  site verisine erişim YOK) ve `siteeksen_app` (diğer 24 servis ve zamanlayıcı: RLS'e tabi,
   dizin tablolarını yalnızca okur, `users.password_hash`/TCKN sütunlarını
   göremez, denetim izini ve jeton iptalini silemez). Parolaları `cmd/migrate`
   `APP_DB_PASSWORD` / `IDENTITY_DB_PASSWORD` ile atar; depoya yazılmaz.
-  RLS **123 tabloda** açık; dışarıda kalan 10 tablonun her biri gerekçelidir ve
+  RLS **124 tabloda** açık; dışarıda kalan 10 tablonun her biri gerekçelidir ve
   doğrulama listeyi birebir denetler. Tüm görünümler `security_invoker`
   (aksi hâlde görünüm sahibinin yetkisiyle RLS'i atlıyordu).
 - **Dağıtım dosyaları tek kaynaktan üretilir:** `backend/scripts/gen-deploy.py`
-  → 27 Dockerfile (root değil, uid 10001), `docker-compose.yml`, `k8s/*.yaml`,
+  → 28 Dockerfile (root değil, uid 10001), `docker-compose.yml`, `k8s/*.yaml`,
   CI imaj matrisi. Elle düzenlenmez; `--check` kipi doğrulamada sapmayı yakalar.
   Compose zorunlu gizli değerler (`.env`, şablon `.env.example`) yoksa açılmaz.
 - **Modüller artık gerçekten bildirim gönderiyor.** 14 servis (54 uç) ve zamanlayıcı (11 iş) `pkg/notify`
@@ -179,6 +180,9 @@ cd admin && npm run dev            # http://localhost:3001
   `property_roles`, sakinlik rolleri (yalnızca OWNER/TENANT/PROXY — CHECK, migration 031) `resident_units` tablosundadır. Jeton rolleri aktif
   siteye göre üretilir.
 - **Geri alma = yedekten geri yükleme** (`backend/scripts/db-backup.sh` / `db-restore.sh`, `docs/runbook-veritabani-geri-alma.md`); "down" betiği bilerek yok — denetim izini ve defterleri silerdi. verify-stack adım 41 sınar.
+- **İşlem kaydı ve bildirim kutusu (073, 2026-10-26):** `audit_logs` tek kayıt yeri (API/CLIENT/SYSTEM); düzey site ayarı
+  `ACTIVITY_LOG_LEVEL` (KAPALI'da da zorunlu çekirdek yazılır), okuma yalnız `audit_log_list` işleviyle; kişisel kutu
+  `notification_reads` ile panelde (zil + `/dashboard/inbox`), iki mobil uygulamada. Kayıt istekten bağımsız bağlamla yazılır.
 - **Migration'lar `cmd/migrate` ile uygulanır** (sürüm tablosu, advisory lock, SHA-256
   sağlama, transaction). `docker-entrypoint-initdb.d` kullanılmaz. Uygulanmış bir
   migration dosyası **düzenlenmez** — çalıştırıcı sağlama uyuşmazlığında durur.
@@ -255,11 +259,14 @@ cd admin && npm run dev            # http://localhost:3001
 |---|---|---|
 | Go 1.27.3 | Kurulu | `/snap/bin/go` (betikler `/usr/local/go/bin`'i de PATH'e ekler) |
 | Docker 29.9 (Docker Desktop) | Kurulu | Kapalıysa: `systemctl --user start docker-desktop` |
-| PostgreSQL istemcisi | **Kurulu değil** | `psql` yok; veritabanı Docker kabında (`siteeksen-dev-db`, port 55432) |
+| PostgreSQL istemcisi | Ana makinede yok (sudo yok) | Docker'daki `postgres:16-alpine` istemcisi: `export PATH=$PWD/backend/scripts/tools/pg-docker:$PATH` (psql/pg_dump/pg_restore). Sunucu zaten Docker kabında çalışır. |
 | Node 22 / npm | Kurulu | `admin/node_modules` kurulu |
-| Flutter 3.38.9 | Kurulu | `/snap/bin/flutter` |
+| Flutter 3.47.8 | `~/flutter` | `export PATH=$HOME/flutter/bin:$PATH` (snap'teki 3.38.9 projeye eski; kullanılmaz) |
 
 Repo yolu: `/home/muhone/projeler/sitesen`
+
+`verify-stack.sh` PDF kontrolleri için Python'da `pypdf` gerekir: `python3 -m venv ~/.venv-siteeksen && ~/.venv-siteeksen/bin/pip install pypdf`
+ve doğrulamadan önce `export PATH=$HOME/.venv-siteeksen/bin:$PATH`.
 
 **Doğrulama betikleri**
 
@@ -279,7 +286,7 @@ Kural: Bir madde ancak çalıştığı **kanıtlandıktan** sonra tamamlandı i�
 ### Full Stack (Docker)
 ```bash
 cp .env.example .env                          # gizli değerleri doldur (boşsa compose açılmaz)
-docker compose up -d --build                  # postgres → migrate → 26 servis → gateway → panel
+docker compose up -d --build                  # postgres → migrate → 25 servis → gateway → panel
 docker compose logs -f identity-service       # tek servisin günlüğü
 python3 backend/scripts/gen-deploy.py         # servis listesi değişince dağıtım dosyalarını üret
 ```
@@ -345,7 +352,6 @@ Active services and their ports:
 | energy_analytics | 8092 | Tüketim eğilimi, olağandışı tüketim (**gerçek DB, YZ yok**) |
 | esg | 8093 | Karbon ayak izi (**gerçek DB**; katsayı kullanıcıdan) |
 | inventory | 8094 | Sarf malzeme stoğu ve hareketleri (**gerçek DB**) |
-| meeting_wizard | 8095 | **Yazılmadı** — governance'a yönlendirir (501) |
 | nps | 8096 | Memnuniyet ölçümü (**gerçek DB**, anket altyapısı üzerinde) |
 | package | 8097 | Kargo/paket takibi (**gerçek DB**) |
 | parking | 8098 | Araç ve otopark hareketleri (**gerçek DB**) |
@@ -361,7 +367,7 @@ Active services and their ports:
 | gateway | 8888 | Custom dev gateway (`cmd/gateway/`) — kimlik doğrulama kapısı |
 | scheduler | 8110 | `cmd/scheduler` — zamana bağlı bildirimler (gecikmiş aidat, sözleşme ihbarı, açık devriye, demirbaş bakımı, KVKK süresi, işletme projesi genel kurul süresi, tatbikat, SGK/MUHSGK süreleri, KVKK periyodik imha, DASK yenileme); yalnızca `/health`, gateway'e bağlı değil |
 
-All 26 services are in docker-compose, k8s and the CI image matrix (generated by `backend/scripts/gen-deploy.py`).
+All 25 services are in docker-compose, k8s and the CI image matrix (generated by `backend/scripts/gen-deploy.py`).
 
 ### Shared Packages (`backend/pkg/`)
 - `database/` — pgx connection pool, config from env (`DB_USER` is `siteeksen_app` or `siteeksen_identity`, never the superuser)
@@ -419,7 +425,7 @@ Bildirilen ortak yığın: Riverpod, go_router, Dio, flutter_secure_storage.
 ### Multi-Tenancy (site izolasyonu) — **çalışıyor, iki katmanlı**
 - **Uygulama katmanı:** JWT `property_id` (site seçiminde sahiplik doğrulanır), site bazlı roller
   (`property_roles`), her sorguda `property_id` filtresi.
-- **Veritabanı katmanı:** 123 tabloda RLS; kapsam `pkg/dbscope` ile verilir. Kapsam yoksa sorgu
+- **Veritabanı katmanı:** 124 tabloda RLS; kapsam `pkg/dbscope` ile verilir. Kapsam yoksa sorgu
   hiç satır döndürmez (fail-closed). Alt tablolar ebeveyn üzerinden `EXISTS` ile korunur.
 - Yeni tablo eklerken: RLS + politika + (alt tabloysa) ebeveyn anahtarına indeks; doğrulama
   RLS dışında kalan tablo listesini birebir denetler, eklenen tablo unutulursa yakalanır.
@@ -442,7 +448,7 @@ Bildirilen ortak yığın: Riverpod, go_router, Dio, flutter_secure_storage.
 | Giriş şifresi loglanması | **Kaldırıldı** — yalnızca maskelenmiş telefon ve HTTP durumu loglanıyor |
 | İstemci kimlik başlıkları | Gateway `X-User-*` / `X-Property-Id` / `X-Tenant-Id` başlıklarını **siler** |
 | TCKN/IBAN şifreleme | **VAR** — AES-256-GCM; arama için HMAC blind index (düz SHA-256 değil). Anahtar yoksa personel servisi açılmaz. Anahtar halkası + döndürme (`cmd/rotate-pii`, `docs/runbook-anahtar-dondurme.md`); şifreleme ve arama anahtarı HKDF ile ayrı. Varsayılan MASKELİ; maskesiz erişim ayrı `PII_REVEAL` denetim kaydı üretir |
-| Tenant izolasyonu (RLS) | **123 TABLODA AÇIK** (migration 020-026, 029 ve sonraki modül göçleri). 26 servisin tamamı `pkg/dbscope` kullanır. RLS dışında kalan 10 tablo gerekçeli: `audit_logs` (yalnızca ekleme), `revoked_tokens`/`user_token_invalidation` (salt-okur), `tenants`/`invoices`/`usage_metrics`/`schema_migrations`/`user_activation_codes`/`phone_change_requests`/`email_change_requests` (uygulama rolüne kapalı; son üçü yalnızca kimlik servisi) |
+| Tenant izolasyonu (RLS) | **124 TABLODA AÇIK** (migration 020-026, 029 ve sonraki modül göçleri). 25 servisin tamamı `pkg/dbscope` kullanır. RLS dışında kalan 10 tablo gerekçeli: `audit_logs` (yalnızca ekleme), `revoked_tokens`/`user_token_invalidation` (salt-okur), `tenants`/`invoices`/`usage_metrics`/`schema_migrations`/`user_activation_codes`/`phone_change_requests`/`email_change_requests` (uygulama rolüne kapalı; son üçü yalnızca kimlik servisi) |
 | Hesap etkinleştirme / şifre | **VAR (027)** — yönetici sakin ekleyince tek kullanımlık kod bir kez gösterilir (SMS yapılandırılmışsa sakine de gider); kod özeti saklanır, 7 gün, 5 denemede kilit. Şifre değiştirme/sıfırlama bütün oturumları kapatır. Girişte kademeli kilit: 5. hata 30 sn, 6. hata 2 dk, 7.+ 15 dk (B6). Sakin kodu kendisi de isteyebilir (`/auth/password-reset/request`, SMS/e-posta, 15 dk; yanıt numara ifşa etmez — B3). Jeton `iat` milisaniye hassasiyetinde (`pkg/revocation.Precision`) |
 | Veritabanı rolleri | **En az yetki** — kimlik servisi ayrı rol (site verisine erişemez); uygulama rolü parola özetini/TCKN'yi göremez, dizin tablolarına yazamaz, denetim izini ve jeton iptalini silemez |
 | Dağıtım | compose/k8s/CI tek kaynaktan; kaplar root değil; compose varsayılan parolayla açılmaz; k8s'te tek giriş kapısı gateway |

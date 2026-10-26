@@ -36,6 +36,9 @@ func Logout(checker *revocation.Checker) gin.HandlerFunc {
 		}
 
 		userID := claims.Subject()
+		c.Set("audit_event", "auth.logout")
+		c.Set("audit_user_id", userID)
+		c.Set("audit_property_id", claims.PropertyID)
 		revokedAccess := false
 		if claims.ExpiresAt != nil {
 			if rerr := checker.Revoke(c.Request.Context(), claims.ID, userID,

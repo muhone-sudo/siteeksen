@@ -263,7 +263,6 @@ func main() {
 	energyURL := getEnv("ENERGY_SERVICE_URL", "http://localhost:8092")
 	esgURL := getEnv("ESG_SERVICE_URL", "http://localhost:8093")
 	inventoryURL := getEnv("INVENTORY_SERVICE_URL", "http://localhost:8094")
-	meetingURL := getEnv("MEETING_SERVICE_URL", "http://localhost:8095")
 	npsURL := getEnv("NPS_SERVICE_URL", "http://localhost:8096")
 	packageURL := getEnv("PACKAGE_SERVICE_URL", "http://localhost:8097")
 	parkingURL := getEnv("PARKING_SERVICE_URL", "http://localhost:8098")
@@ -329,7 +328,6 @@ func main() {
 		{esgURL, []string{"/api/v1/esg"}},
 		{inventoryURL, []string{"/api/v1/inventory", "/api/v1/inventory-categories",
 			"/api/v1/inventory-movements", "/api/v1/inventory-summary"}},
-		{meetingURL, []string{"/api/v1/meetings", "/api/v1/action-items"}},
 		{npsURL, []string{"/api/v1/nps"}},
 		{packageURL, []string{"/api/v1/packages", "/api/v1/packages-summary"}},
 		{parkingURL, []string{"/api/v1/vehicles", "/api/v1/parking-zones", "/api/v1/parking-logs", "/api/v1/access-devices", "/api/v1/public/devices"}},
@@ -337,8 +335,8 @@ func main() {
 			"/api/v1/patrol-checkpoints"}},
 		{personnelURL, []string{"/api/v1/employees", "/api/v1/leaves", "/api/v1/compliance-calendar", "/api/v1/payroll"}},
 		{reservationURL, []string{"/api/v1/reservations", "/api/v1/facilities"}},
-		{settingsURL, []string{"/api/v1/settings", "/api/v1/settings-history", "/api/v1/retention-rules", "/api/v1/privacy", "/api/v1/credentials",
-			"/api/v1/credentials-available-services"}},
+		{settingsURL, []string{"/api/v1/settings", "/api/v1/settings-history", "/api/v1/retention-rules", "/api/v1/privacy",
+			"/api/v1/activity", "/api/v1/activity-level", "/api/v1/audit-logs"}},
 		{smartCollectionURL, []string{"/api/v1/collection"}},
 		{surveyURL, []string{"/api/v1/surveys"}},
 		{visitorURL, []string{"/api/v1/visitors"}},
@@ -354,6 +352,7 @@ func main() {
 	// UYDURMA DEĞER ÜRETİLMEZ; ilgili alan yanıtta yer almaz ve `unavailable`
 	// listesinde nedeniyle birlikte bildirilir.
 	registerDashboard(mux, identityURL, communityURL, financeURL)
+	registerIntegrations(mux, notificationURL, financeURL, documentURL)
 
 	// Rapor üretimi: gateway'de uydurma mali rapor üretiliyordu (sabit daire, sakin
 	// adı ve tutarlarla indirilebilir PDF/Excel). Kaldırıldı. Gerçek rapor üretimi
@@ -476,6 +475,68 @@ func registerDashboard(mux *http.ServeMux, identityURL, communityURL, financeURL
 	mux.Handle("/api/v1/dashboard/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusNotFound, Response{Success: false, Error: "Bilinmeyen dashboard ucu"})
 	}))
+}
+
+// registerIntegrations, dış sağlayıcıların GERÇEK bağlantı durumunu tek yerde
+// verir (FAZ H.1.2). Sağlayıcılar ortam değişkeniyle bağlanır; anahtar ekranda
+// girilmez ve hiçbir yerde döndürülmez. Yetki ve jeton iptali, aşağı akıştaki
+// yönetim ucu (/notifications/summary) üzerinden denetlenir: o uç 401/403
+// dönerse burası da aynı kodla döner.
+func registerIntegrations(mux *http.ServeMux, notificationURL, financeURL, documentURL string) {
+	mux.Handle("/api/v1/integrations/status", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			writeJSON(w, http.StatusMethodNotAllowed, Response{Success: false, Error: "Yalnızca GET"})
+			return
+		}
+		summary, code, err := fetchJSON(notificationURL+"/api/v1/notifications/summary", r.Header.Get("Authorization"))
+		if code == http.StatusUnauthorized || code == http.StatusForbidden {
+			writeJSON(w, code, Response{Success: false, Error: "Bu bilgiyi görme yetkiniz yok"})
+			return
+		}
+		out := map[string]interface{}{}
+		var missing []unavailable
+		if err == nil {
+			out["delivery"] = summary["delivery"]
+		} else {
+			missing = append(missing, unavailable{"notification", err.Error()})
+		}
+		if h, _, err := fetchJSON(financeURL+"/health", ""); err == nil {
+			out["card_payment"] = h["card_payment"]
+		} else {
+			missing = append(missing, unavailable{"finance", err.Error()})
+		}
+		if h, _, err := fetchJSON(documentURL+"/health", ""); err == nil {
+			out["storage"] = h["storage"]
+		} else {
+			missing = append(missing, unavailable{"document", err.Error()})
+		}
+		writeJSON(w, http.StatusOK, map[string]interface{}{"success": true, "data": out, "unavailable": missing})
+	}))
+}
+
+// fetchJSON, bir servis ucunu çağırır ve JSON nesnesini döner; durum kodunu da verir.
+func fetchJSON(url, authHeader string) (map[string]interface{}, int, error) {
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, 0, err
+	}
+	if authHeader != "" {
+		req.Header.Set("Authorization", authHeader)
+	}
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, resp.StatusCode, fmt.Errorf("beklenmeyen durum kodu: %d", resp.StatusCode)
+	}
+	var body map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		return nil, resp.StatusCode, err
+	}
+	return body, resp.StatusCode, nil
 }
 
 // fetchList, bir servisin liste ucunu çağırır ve {"data": [...]} sarmalayıcısını

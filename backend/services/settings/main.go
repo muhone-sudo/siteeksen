@@ -24,12 +24,12 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/siteeksen/backend/pkg/database"
 	"github.com/siteeksen/backend/pkg/middleware"
 	"github.com/siteeksen/backend/pkg/notify"
-	"github.com/siteeksen/backend/pkg/stub"
 	"github.com/siteeksen/backend/services/settings/repository"
 )
 
@@ -52,15 +52,16 @@ func main() {
 		c.JSON(http.StatusOK, gin.H{
 			"status": "healthy", "service": "settings", "persistent": true,
 			"modules": gin.H{
-				"settings":    "persistent",
-				"credentials": "not_implemented",
+				"settings": "persistent",
 			},
 			"scope_note": "Mevzuata bağlı oranlar ve nisaplar BURADA DEĞİLDİR; " +
 				"legal_parameters tablosundadır ve site bazında değiştirilemez. " +
-				"Entegrasyon kimlik bilgileri modülü gerçek DEĞİLDİR (501): " +
-				"alan düzeyinde şifreleme yazılmadan sağlayıcı anahtarı saklanmaz.",
+				"Sağlayıcı anahtarları burada saklanmaz; ortam değişkeniyle verilir " +
+				"(durum: GET /api/v1/integrations/status).",
 		})
 	})
+
+	registerActivity(r, pool)
 
 	api := r.Group("/api/v1")
 	api.Use(middleware.AuthMiddleware(pool), middleware.AuditLog(pool, "settings"))
@@ -102,6 +103,9 @@ func main() {
 	write.Use(middleware.RequireRole(middleware.RoleManager, middleware.RoleBoardMember))
 	{
 		write.PUT("/settings/:key", func(c *gin.Context) {
+			if !canChangeKey(c, c.Param("key")) {
+				return
+			}
 			var in struct {
 				Value any `json:"value"`
 			}
@@ -115,10 +119,15 @@ func main() {
 				fail(c, err, "kaydetme")
 				return
 			}
+			middleware.ForgetActivityLogLevel(c.GetString("property_id"))
 			c.JSON(http.StatusOK, gin.H{"setting": s})
 		})
 
 		write.DELETE("/settings/:key", func(c *gin.Context) {
+			if !canChangeKey(c, c.Param("key")) {
+				return
+			}
+			middleware.ForgetActivityLogLevel(c.GetString("property_id"))
 			if err := repo.Reset(c.Request.Context(), c.GetString("property_id"),
 				c.GetString("user_id"), c.Param("key")); err != nil {
 				fail(c, err, "varsayılana döndürme")
@@ -153,25 +162,6 @@ func main() {
 			c.JSON(http.StatusOK, gin.H{"data": list})
 		})
 	}
-
-	// --- Entegrasyon kimlik bilgileri: bilerek 501 ---
-	//
-	// Bu uçlar daha önce UYDURMA API ANAHTARLARI döndürüyordu ve denetimde
-	// "kimlik doğrulaması olmadan API anahtarı servis ediliyor" bulgusuyla
-	// işaretlenmişti. Gerçek bir kimlik bilgisi kasası yazmak için önce alan
-	// düzeyinde şifreleme (todo 2.8) gerekir: sağlayıcı anahtarını veritabanına
-	// DÜZ METİN yazmak, tek bir yedek sızıntısında sitenin tüm entegrasyonlarını
-	// ele verir. O yüzden bu modül GERÇEK DEĞİLDİR ve öyle olduğunu söyler.
-	creds := api.Group("/credentials")
-	{
-		creds.GET("", stub.Handler("settings.credentials"))
-		creds.POST("", stub.Handler("settings.credentials"))
-		creds.PUT("/:id", stub.Handler("settings.credentials"))
-		creds.DELETE("/:id", stub.Handler("settings.credentials"))
-		creds.POST("/:id/test", stub.Handler("settings.credentials"))
-		creds.GET("/:id/audit-log", stub.Handler("settings.credentials"))
-	}
-	api.GET("/credentials-available-services", stub.Handler("settings.credentials"))
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -210,4 +200,16 @@ func fail(c *gin.Context, err error, op string) {
 		log.Printf("[settings] %s başarısız: %v", op, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "İşlem tamamlanamadı"})
 	}
+}
+
+// managerOnlyKeys: işlem kaydını azaltan ayarlar yalnız site yöneticisi tarafından değiştirilir
+// (kurul üyesi kendi işlemlerinin kaydını kapatamasın).
+var managerOnlyKeys = map[string]bool{"ACTIVITY_LOG_LEVEL": true, "ACTIVITY_LOG_RETENTION_DAYS": true}
+
+func canChangeKey(c *gin.Context, key string) bool {
+	if managerOnlyKeys[strings.ToUpper(strings.TrimSpace(key))] && !hasRole(c, middleware.RoleManager) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Bu ayarı yalnız site yöneticisi değiştirebilir"})
+		return false
+	}
+	return true
 }

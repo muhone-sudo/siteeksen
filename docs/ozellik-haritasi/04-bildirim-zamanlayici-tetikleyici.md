@@ -29,40 +29,40 @@
 | `POST /violations/:id/respond` | community · `services/community/violation.go:173` | `violation.response` | Approvers |
 | `POST /violations/:id/dismiss` | community · `services/community/violation.go:221` | `violation.dismissed` | işlemin muhatabı (v.ReportedBy) |
 | `POST /violations/:id/escalate` | community · `services/community/violation.go:240` | `violation.{{{strings}.ToLower}(…)}` | UnitResidents |
-| `POST /finance/assessments` | finance · `services/finance/main.go:134` | `dues.created` | AssessmentPayers, NotifyCharges |
-| `POST /finance/opening-balances` | finance · `services/finance/main.go:144` | `dues.created` | AssessmentPayers, NotifyCharges |
-| `POST /finance/collections` | finance · `services/finance/main.go:154` | `payment.recorded` | AssessmentPayers |
-| `POST /finance/bank-statements/lines/:id/collect` | finance · `services/finance/main.go:155` | `payment.recorded` | AssessmentPayers |
+| `POST /finance/assessments` | finance · `services/finance/main.go:135` | `dues.created` | AssessmentPayers, NotifyCharges |
+| `POST /finance/opening-balances` | finance · `services/finance/main.go:145` | `dues.created` | AssessmentPayers, NotifyCharges |
+| `POST /finance/collections` | finance · `services/finance/main.go:155` | `payment.recorded` | AssessmentPayers |
+| `POST /finance/bank-statements/lines/:id/collect` | finance · `services/finance/main.go:156` | `payment.recorded` | AssessmentPayers |
 | `POST /governance/budgets/:id/assessments` | governance · `services/governance/main.go:92` | `dues.created` | AssessmentPayers, NotifyCharges |
-| `POST /auth/password-reset/request` | identity · `services/identity/main.go:81` | `identity.self_reset` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
-| `POST /users/me/phone/request` | identity · `services/identity/main.go:102` | `identity.phone_change` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
-| `POST /users/me/phone/confirm` | identity · `services/identity/main.go:103` | `identity.phone_changed` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
-| `POST /users/me/email` | identity · `services/identity/main.go:104` | `identity.email_change` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
-| `POST /users/me/email/confirm` | identity · `services/identity/main.go:105` | `identity.email_changed` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
-| `POST /users/me/units/:id/invitations` | identity · `services/identity/main.go:109` | `identity.invitation` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
-| `POST /users/me/units/:id/tenancy-end` | identity · `services/identity/main.go:112` | `identity.tenancy` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
-| `POST /users/me/units/:id/tenancy-exit` | identity · `services/identity/main.go:113` | `identity.tenancy` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
-| `POST /users/me/tenancy-requests/:id/approve` | identity · `services/identity/main.go:115` | `identity.tenancy` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
-| `POST /users/me/tenancy-requests/:id/decline` | identity · `services/identity/main.go:116` | `identity.tenancy` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
-| `POST /residents` | identity · `services/identity/main.go:131` | `identity.activation` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
-| `POST /residents/invitations` | identity · `services/identity/main.go:134` | `identity.invitation` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
-| `POST /residents/tenancy-requests` | identity · `services/identity/main.go:138` | `identity.tenancy` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
-| `POST /residents/tenancy-requests/:id/documents` | identity · `services/identity/main.go:139` | `identity.tenancy` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
-| `POST /residents/tenancy-requests/:id/complete` | identity · `services/identity/main.go:140` | `identity.tenancy` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
-| `POST /residents/tenancy-requests/:id/reverse` | identity · `services/identity/main.go:142` | `identity.tenancy` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
-| `POST /residents/:id/activation-code` | identity · `services/identity/main.go:146` | `identity.activation` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
-| `POST /residents/:id/phone` | identity · `services/identity/main.go:149` | `identity.activation`, `identity.phone_changed` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /auth/password-reset/request` | identity · `services/identity/main.go:83` | `identity.self_reset` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /users/me/phone/request` | identity · `services/identity/main.go:104` | `identity.phone_change` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /users/me/phone/confirm` | identity · `services/identity/main.go:105` | `identity.phone_changed` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /users/me/email` | identity · `services/identity/main.go:106` | `identity.email_change` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /users/me/email/confirm` | identity · `services/identity/main.go:107` | `identity.email_changed` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /users/me/units/:id/invitations` | identity · `services/identity/main.go:111` | `identity.invitation` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /users/me/units/:id/tenancy-end` | identity · `services/identity/main.go:114` | `identity.tenancy` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /users/me/units/:id/tenancy-exit` | identity · `services/identity/main.go:115` | `identity.tenancy` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /users/me/tenancy-requests/:id/approve` | identity · `services/identity/main.go:117` | `identity.tenancy` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /users/me/tenancy-requests/:id/decline` | identity · `services/identity/main.go:118` | `identity.tenancy` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /residents` | identity · `services/identity/main.go:133` | `identity.activation` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /residents/invitations` | identity · `services/identity/main.go:136` | `identity.invitation` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /residents/tenancy-requests` | identity · `services/identity/main.go:140` | `identity.tenancy` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /residents/tenancy-requests/:id/documents` | identity · `services/identity/main.go:141` | `identity.tenancy` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /residents/tenancy-requests/:id/complete` | identity · `services/identity/main.go:142` | `identity.tenancy` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /residents/tenancy-requests/:id/reverse` | identity · `services/identity/main.go:144` | `identity.tenancy` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /residents/:id/activation-code` | identity · `services/identity/main.go:148` | `identity.activation` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /residents/:id/phone` | identity · `services/identity/main.go:151` | `identity.activation`, `identity.phone_changed` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
 | `POST /inventory/:id/movements` | inventory · `services/inventory/main.go:142` | `inventory.low_stock` | Managers |
 | `POST /consumption/statements/:id/objections` | iot · `services/iot/main.go:472` | `statement.objection` | Approvers |
 | `POST /consumption/objections/:id/respond` | iot · `services/iot/main.go:474` | `statement.objection.answer` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
-| `POST /notifications` | notification · `services/notification/main.go:126` | `{{in}.Topic}` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /notifications` | notification · `services/notification/main.go:158` | `{{in}.Topic}` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
 | `POST /packages` | package · `services/package/main.go:133` | `package.received` | UnitUsers |
 | `POST /public/devices/heartbeat` | parking · `services/parking/devices.go:37` | — | Operations |
 | `POST /patrols/:id/complete` | patrol · `services/patrol/main.go:187` | `patrol.issue` | Managers |
 | `POST /reservations/:id/approve` | reservation · `services/reservation/main.go:283` | `reservation.decision` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
 | `POST /reservations/:id/reject` | reservation · `services/reservation/main.go:296` | `reservation.decision` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
-| `POST /settings/owner-visibility/:id/approve` | settings · `services/settings/main.go:137` | `visibility.policy` | Tenants |
-| `POST /settings/owner-visibility/:id/reject` | settings · `services/settings/main.go:138` | `visibility.policy` | Tenants |
+| `POST /settings/owner-visibility/:id/approve` | settings · `services/settings/main.go:146` | `visibility.policy` | Tenants |
+| `POST /settings/owner-visibility/:id/reject` | settings · `services/settings/main.go:147` | `visibility.policy` | Tenants |
 | `POST /surveys/:id/publish` | survey · `services/survey/main.go:195` | `survey.published` | Residents |
 | `POST /visitors/verify-pass` | visitor · `services/visitor/main.go:174` | `visitor.checkin` | UnitUsers |
 | `POST /visitors/:id/check-in` | visitor · `services/visitor/main.go:175` | `visitor.checkin` | UnitUsers |

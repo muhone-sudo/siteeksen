@@ -246,9 +246,6 @@ jobs:
           - name: inventory-service
             context: ./backend
             dockerfile: services/inventory/Dockerfile
-          - name: meeting-service
-            context: ./backend
-            dockerfile: services/meeting_wizard/Dockerfile
           - name: nps-service
             context: ./backend
             dockerfile: services/nps/Dockerfile
@@ -393,7 +390,6 @@ jobs:
           kubectl rollout status deployment/energy-service --timeout=300s
           kubectl rollout status deployment/esg-service --timeout=300s
           kubectl rollout status deployment/inventory-service --timeout=300s
-          kubectl rollout status deployment/meeting-service --timeout=300s
           kubectl rollout status deployment/nps-service --timeout=300s
           kubectl rollout status deployment/package-service --timeout=300s
           kubectl rollout status deployment/parking-service --timeout=300s

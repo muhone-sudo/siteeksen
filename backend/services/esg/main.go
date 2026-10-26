@@ -196,17 +196,6 @@ func main() {
 			}
 			c.JSON(http.StatusOK, resp)
 		})
-
-		// Bileşik skor bilerek üretilmez.
-		read.GET("/sustainability-score", func(c *gin.Context) {
-			c.JSON(http.StatusNotImplemented, gin.H{
-				"error": "Bileşik sürdürülebilirlik skoru ÜRETİLMEZ",
-				"note": "Kabul görmüş tek bir formülü yoktur. Ağırlıkları biz " +
-					"belirlersek çıkan sayı bir şey ölçmez, yalnızca ölçüyormuş gibi " +
-					"görünür. Bunun yerine ölçülebilir veriyi kullanın: " +
-					"GET /esg/consumption ve POST /esg/carbon-footprint.",
-			})
-		})
 	}
 
 	port := os.Getenv("PORT")

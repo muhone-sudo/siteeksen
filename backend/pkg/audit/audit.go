@@ -37,6 +37,11 @@ type Entry struct {
 	// OldValues / NewValues değişiklik öncesi ve sonrası değerler (JSONB olarak saklanır)
 	OldValues interface{}
 	NewValues interface{}
+	// 073: kaynak (API / CLIENT / SYSTEM; boşsa API), olay adı, ekran ve serbest ayrıntı.
+	Source  string
+	Event   string
+	Screen  string
+	Details interface{}
 }
 
 // Log verilen denetim kaydını `audit_logs` tablosuna ekler.
@@ -56,16 +61,28 @@ func Log(ctx context.Context, pool *pgxpool.Pool, e Entry) error {
 	if err != nil {
 		return fmt.Errorf("audit: new_values serileştirilemedi: %w", err)
 	}
+	detailsJSON, err := marshalOrNil(e.Details)
+	if err != nil {
+		return fmt.Errorf("audit: details serileştirilemedi: %w", err)
+	}
+	if len(e.Event) > 80 {
+		e.Event = e.Event[:80]
+	}
+	if len(e.Screen) > 160 {
+		e.Screen = e.Screen[:160]
+	}
 
 	const query = `
 		INSERT INTO audit_logs (
 			user_id, property_id, ip_address, user_agent,
 			action, entity_type, entity_id,
-			request_id, status_code, old_values, new_values
+			request_id, status_code, old_values, new_values,
+			source, event, screen, details
 		) VALUES (
 			NULLIF($1, '')::uuid, NULLIF($2, '')::uuid, NULLIF($3, '')::inet, NULLIF($4, ''),
 			$5, $6, NULLIF($7, '')::uuid,
-			NULLIF($8, ''), NULLIF($9, 0), $10, $11
+			NULLIF($8, ''), NULLIF($9, 0), $10, $11,
+			COALESCE(NULLIF($12, ''), 'API'), NULLIF($13, ''), NULLIF($14, ''), $15
 		)
 	`
 
@@ -86,6 +103,7 @@ func Log(ctx context.Context, pool *pgxpool.Pool, e Entry) error {
 		e.UserID, e.PropertyID, e.IPAddress, e.UserAgent,
 		e.Action, e.EntityType, e.EntityID,
 		e.RequestID, e.StatusCode, oldJSON, newJSON,
+		e.Source, e.Event, e.Screen, detailsJSON,
 	); err != nil {
 		return fmt.Errorf("audit: kayıt eklenemedi (action=%s entity=%s): %w", e.Action, e.EntityType, err)
 	}

@@ -3,7 +3,9 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
-import { Bell, ChevronDown, KeyRound, LogOut, Menu, User } from "lucide-react";
+import { ChevronDown, KeyRound, LogOut, Menu, User } from "lucide-react";
+import { NotificationBell } from "@/components/layout/notification-bell";
+import { resetActivity, flush } from "@/lib/activity";
 import apiClient from "@/lib/api-client";
 
 /**
@@ -67,6 +69,8 @@ export function Header({ onMenu }: { onMenu?: () => void }) {
                 "Başka bir cihazda açık oturumunuz varsa güvenlik için şifrenizi değiştirin."
             );
         }
+        await flush();
+        resetActivity();
         await signOut({ callbackUrl: "/login" });
     }
 
@@ -81,14 +85,7 @@ export function Header({ onMenu }: { onMenu?: () => void }) {
 
             {/* Right side */}
             <div className="flex items-center gap-4">
-                <button
-                    onClick={() => router.push("/dashboard/notifications")}
-                    className="rounded-lg p-2 hover:bg-gray-100 dark:hover:bg-gray-700"
-                    title="Bildirim yönetimi"
-                    aria-label="Bildirim yönetimi"
-                >
-                    <Bell className="h-5 w-5 text-gray-600 dark:text-gray-300" />
-                </button>
+                <NotificationBell />
 
                 {/* Profile + logout */}
                 <div className="relative">

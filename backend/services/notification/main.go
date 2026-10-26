@@ -65,12 +65,44 @@ func main() {
 		limit, _ := strconv.Atoi(c.Query("limit"))
 		list, err := repo.ListForUser(c.Request.Context(),
 			c.GetString("property_id"), c.GetString("user_id"),
-			c.Query("status"), limit)
+			c.Query("status"), c.Query("channel"), c.Query("unread") == "1", limit)
 		if err != nil {
 			fail(c, err, "listeleme")
 			return
 		}
 		c.JSON(http.StatusOK, gin.H{"data": list})
+	})
+	// --- Okundu bilgisi (073) ---
+	api.GET("/notifications/unread-count", func(c *gin.Context) {
+		n, err := repo.UnreadCount(c.Request.Context(), c.GetString("property_id"), c.GetString("user_id"))
+		if err != nil {
+			fail(c, err, "okunmamış sayısı")
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"unread": n})
+	})
+	api.POST("/notifications/:id/read", func(c *gin.Context) {
+		c.Set("audit_event", "notification.read")
+		at, err := repo.MarkRead(c.Request.Context(), c.GetString("property_id"), c.GetString("user_id"), c.Param("id"))
+		if errors.Is(err, repository.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Bildirim bulunamadı"})
+			return
+		}
+		if err != nil {
+			fail(c, err, "okundu işareti")
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"read_at": at})
+	})
+	api.POST("/notifications/read-all", func(c *gin.Context) {
+		c.Set("audit_event", "notification.read_all")
+		n, err := repo.MarkAllRead(c.Request.Context(), c.GetString("property_id"), c.GetString("user_id"))
+		if err != nil {
+			fail(c, err, "tümünü okundu say")
+			return
+		}
+		c.Set("audit_details", gin.H{"count": n})
+		c.JSON(http.StatusOK, gin.H{"marked": n})
 	})
 
 	// --- Alıcı tercihleri ---

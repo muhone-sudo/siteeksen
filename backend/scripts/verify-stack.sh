@@ -63,7 +63,6 @@ ENE_PID=""
 NPS_PID=""
 ESG_PID=""
 BNK_PID=""
-MTG_PID=""
 SMC_PID=""
 COM_PID=""
 
@@ -146,7 +145,6 @@ cleanup() {
   kill_tree "$NPS_PID"
   kill_tree "$ESG_PID"
   kill_tree "$BNK_PID"
-  kill_tree "$MTG_PID"
   kill_tree "$SMC_PID"
   kill_tree "$COM_PID"
   kill_tree "${GW2_PID:-}"; kill_tree "${STUB2_PID:-}"
@@ -4052,8 +4050,6 @@ if [ "$SUP2" = "1" ] && [ -n "${MGR:-}" ] && [ -n "${TEN:-}" ]; then
 
   SH=$(curl -s "http://127.0.0.1:${SETPORT}/health")
   echo "$SH" | grep -q 'legal_parameters' && ok "sağlık ucu mevzuat sınırını açıklıyor" || bad "kapsam notu yok"
-  echo "$SH" | grep -q '"credentials":"not_implemented"' \
-    && ok "kimlik bilgisi modülünün gerçek olmadığı bildiriliyor" || bad "credentials durumu yok"
 
   # 1) Kaydedilmemiş ayarlar varsayılanla dönmeli
   L=$(curl -s "$TURL/settings" -H "$TA")
@@ -4211,9 +4207,9 @@ print(d['default'], len(d['options']), 'site yönetimine' in d['description'])" 
   SC=$(curl -s -o /dev/null -w '%{http_code}' "$TURL/settings")
   [ "$SC" = "401" ] && ok "kimliksiz ayar erişimi engellendi → 401" || bad "kimliksiz erişim → $SC"
 
-  # 8) Kimlik bilgisi modülü dürüstçe 501
+  # 8) Kimlik bilgisi kasası uçları kaldırıldı (H.1.2): sağlayıcılar ortam değişkeniyle bağlı
   SC=$(curl -s -o /dev/null -w '%{http_code}' "$TURL/credentials" -H "$TA")
-  [ "$SC" = "501" ] && ok "kimlik bilgisi modülü dürüstçe 501 dönüyor (uydurma anahtar yok)" \
+  [ "$SC" = "404" ] && ok "kimlik bilgisi uçları yok → 404 (anahtar ekranda saklanmaz)" \
     || bad "credentials → $SC"
 else
   bad "settings-service başlamadı"; tail -15 /tmp/verify-settings.log
@@ -4361,14 +4357,13 @@ fi
 kill_tree "$ENE_PID"
 kill_tree "$SMC_PID"
 
-step "29) NPS, ESG, banka ve toplantı sihirbazı (FAZ 5, 19-22/22)"
-# NPS ve ESG gerçeğe çevrildi. Banka (S-07 kullanıcı kararı) ve toplantı
-# sihirbazı (governance ile tekrar olurdu) bilinçli olarak 501 döndürür —
-# ama artık NEDEN olduğunu söyleyerek.
+step "29) NPS, ESG ve banka (FAZ 5)"
+# NPS ve ESG gerçeğe çevrildi. Banka (S-07 kullanıcı kararı) bilinçli olarak
+# 501 döndürür — NEDEN olduğunu söyleyerek. Toplantı sihirbazı servisi
+# 2026-10-26'da kaldırıldı (governance ile tekrardı, FAZ H.1.1).
 NPSPORT=${VERIFY_NPS_PORT:-18096}
 ESGPORT=${VERIFY_ESG_PORT:-18093}
 BNKPORT=${VERIFY_BNK_PORT:-18106}
-MTGPORT=${VERIFY_MTG_PORT:-18095}
 COMMON_ENV="DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen DB_NAME=siteeksen DB_SSLMODE=disable"
 
 DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_app DB_PASSWORD="$APPPW" DB_NAME=siteeksen \
@@ -4383,13 +4378,9 @@ DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_app DB_PASSWORD="$APPPW" D
 DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${BNKPORT} \
   go run ./services/banking >/tmp/verify-bnk.log 2>&1 &
 BNK_PID=$!
-DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=siteeksen_app DB_PASSWORD="$APPPW" DB_NAME=siteeksen \
-DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=${MTGPORT} \
-  go run ./services/meeting_wizard >/tmp/verify-mtg.log 2>&1 &
-MTG_PID=$!
 
 ALLUP=1
-for PORTX in ${NPSPORT} ${ESGPORT} ${BNKPORT} ${MTGPORT}; do
+for PORTX in ${NPSPORT} ${ESGPORT} ${BNKPORT}; do
   UPX=0
   for _ in $(seq 1 45); do
     curl -fsS "http://127.0.0.1:${PORTX}/health" >/dev/null 2>&1 && { UPX=1; break; }
@@ -4399,7 +4390,7 @@ for PORTX in ${NPSPORT} ${ESGPORT} ${BNKPORT} ${MTGPORT}; do
 done
 
 if [ "$ALLUP" = "1" ] && [ -n "${MGR:-}" ] && [ -n "${TEN:-}" ]; then
-  ok "nps, esg, banking ve meeting_wizard servisleri ayağa kalktı"
+  ok "nps, esg ve banking servisleri ayağa kalktı"
   NA2="Authorization: Bearer $MGR"
   NT2="Authorization: Bearer $TEN"
   NJ2='Content-Type: application/json'
@@ -4471,11 +4462,9 @@ if [ "$ALLUP" = "1" ] && [ -n "${MGR:-}" ] && [ -n "${TEN:-}" ]; then
   echo "$CF1" | grep -q 'toplam karbon ayak izi değildir' \
     && ok "hesabın kapsam sınırı dürüstçe bildiriliyor" || bad "kapsam notu yok"
 
-  # Bileşik skor üretilmemeli
-  SS=$(curl -s -w '\n%{http_code}' "$EURL2/sustainability-score" -H "$NA2")
-  SSCODE=$(echo "$SS" | tail -1)
-  [ "$SSCODE" = "501" ] && ok "uydurma sürdürülebilirlik skoru üretilmiyor → 501" || bad "skor → $SSCODE"
-  echo "$SS" | grep -q 'ölçüyormuş gibi' && ok "skorun neden üretilmediği açıklanıyor" || bad "açıklama yok"
+  # Bileşik skor ucu kaldırıldı (H.1.3): uydurma skor hiçbir yolla üretilmez
+  SSCODE=$(curl -s -o /dev/null -w '%{http_code}' "$EURL2/sustainability-score" -H "$NA2")
+  [ "$SSCODE" = "404" ] && ok "sürdürülebilirlik skoru ucu yok → 404" || bad "skor ucu → $SSCODE"
 
   # --- BANKA: S-07 kararıyla ertelenmiş ---
   BURL2="http://127.0.0.1:${BNKPORT}/api/v1"
@@ -4489,41 +4478,25 @@ if [ "$ALLUP" = "1" ] && [ -n "${MGR:-}" ] && [ -n "${TEN:-}" ]; then
   echo "$BA2" | grep -q 'blockers' && ok "neyin eksik olduğu tek tek yazılıyor" || bad "engel listesi yok"
   echo "$BA2" | grep -q '"balance"' && bad "uydurma bakiye döndürülüyor" || ok "bakiye uydurulmuyor"
 
-  # --- TOPLANTI SİHİRBAZI: governance'a yönlendirme ---
-  MURL2="http://127.0.0.1:${MTGPORT}/api/v1"
-  MH2=$(curl -s "http://127.0.0.1:${MTGPORT}/health")
-  echo "$MH2" | grep -q 'redirected' && ok "toplantı sihirbazı 'yönlendirildi' olarak bildiriliyor" \
-    || bad "sihirbaz durumu: $MH2"
-  MG=$(curl -s -w '\n%{http_code}' "$MURL2/meetings" -H "$NA2")
-  MGCODE=$(echo "$MG" | tail -1)
-  [ "$MGCODE" = "501" ] && ok "toplantı uçları 501 dönüyor" || bad "toplantı → $MGCODE"
-  echo "$MG" | grep -q 'governance-service' && ok "doğru servise yönlendiriliyor" || bad "yönlendirme yok"
-  echo "$MG" | grep -q 'KMK m.29-32' && ok "hukuki dayanak belirtiliyor" || bad "dayanak yok"
-
-  # Ses kaydı/özet: altyapı yok, var gibi gösterilmiyor
-  TS=$(curl -s -w '\n%{http_code}' "$MURL2/meetings/00000000-0000-0000-0000-000000000001/transcript" -H "$NA2")
-  TSCODE=$(echo "$TS" | tail -1)
-  [ "$TSCODE" = "501" ] && ok "transkript ucu 501 dönüyor" || bad "transkript → $TSCODE"
-  echo "$TS" | grep -q 'KVKK' && ok "ses kaydının KVKK sorunu olduğu belirtiliyor" || bad "KVKK notu yok"
-  echo "$TS" | grep -q 'transcript_text\|summary' && bad "uydurma transkript/özet döndürülüyor" \
-    || ok "uydurma transkript/özet yok"
+  # Toplantı sihirbazı kaldırıldı (H.1.1): servis dizini ve gateway öneki olmamalı
+  [ ! -d services/meeting_wizard ] && ok "meeting_wizard servisi yok (governance tek kaynak)" || bad "meeting_wizard dizini duruyor"
+  grep -q '/api/v1/meetings' cmd/gateway/main.go && bad "gateway hâlâ /meetings yönlendiriyor" || ok "gateway'de /meetings öneki yok"
 
   # Kimliksiz erişim hepsinde engelli
   for U in "http://127.0.0.1:${NPSPORT}/api/v1/nps" "http://127.0.0.1:${ESGPORT}/api/v1/esg/consumption" \
-           "${BURL2}/bank-accounts" "${MURL2}/meetings"; do
+           "${BURL2}/bank-accounts"; do
     SC=$(curl -s -o /dev/null -w '%{http_code}' "$U")
     [ "$SC" = "401" ] || bad "kimliksiz erişim açık: $U → $SC"
   done
-  ok "dört servisin tamamında kimliksiz erişim engelli → 401"
+  ok "üç servisin tamamında kimliksiz erişim engelli → 401"
 else
   bad "son grup servisler başlamadı"
   tail -8 /tmp/verify-nps-svc.log; tail -8 /tmp/verify-esg.log
-  tail -8 /tmp/verify-bnk.log; tail -8 /tmp/verify-mtg.log
+  tail -8 /tmp/verify-bnk.log
 fi
 kill_tree "$NPS_PID"
 kill_tree "$ESG_PID"
 kill_tree "$BNK_PID"
-kill_tree "$MTG_PID"
 
 step "30) Jeton iptali — çıkış artık gerçekten çıkış (FAZ 2.7)"
 # Önceki davranış: "çıkış yap" yalnızca 'Çıkış başarılı' yazıyordu. Jeton süresi
@@ -5890,8 +5863,8 @@ ok "kullanılmayan 13 site tablosu RLS ile korunuyor"
 
 # 9) Toplam durum — RLS DIŞINDA KALAN her tablo bilinçli ve gerekçeli olmalı
 RLSCOUNT=$($PSQL -t -A -c "SELECT count(*) FROM rls_enabled_tables;")
-[ "$RLSCOUNT" = "123" ] && ok "RLS toplam 123 tabloda açık (069 kiracılık bitişi, 071 görünürlük politikası)" \
-  || bad "beklenmedik RLS tablo sayısı: $RLSCOUNT (beklenen 123)"
+[ "$RLSCOUNT" = "124" ] && ok "RLS toplam 124 tabloda açık (069 kiracılık bitişi, 071 görünürlük politikası, 073 okundu bilgisi)" \
+  || bad "beklenmedik RLS tablo sayısı: $RLSCOUNT (beklenen 124)"
 NOTRLS=$($PSQL -t -A -c "SELECT string_agg(t.table_name, ' ' ORDER BY t.table_name)
   FROM information_schema.tables t
   WHERE t.table_schema='public' AND t.table_type='BASE TABLE'
@@ -6341,14 +6314,16 @@ PYEOF
     go run ./cmd/gateway >/tmp/verify-p38-gateway.log 2>&1 &
   P38_PIDS+=($!)
   P38UP=0
+  # Servis sayısı gen-deploy.py'den gelir (servis eklenip çıkarılınca burada sabit sayı kaymaz).
+  P38N=$((${#GWENV[@]}))
   for _ in $(seq 1 120); do
     N=0
-    for p in $(seq 18400 18425); do curl -fsS -o /dev/null "http://127.0.0.1:$p/health" 2>/dev/null && N=$((N+1)); done
-    curl -fsS -o /dev/null http://127.0.0.1:18499/health 2>/dev/null && [ "$N" -ge 26 ] && { P38UP=1; break; }
+    for p in $(seq 18400 $((18400 + P38N - 1))); do curl -fsS -o /dev/null "http://127.0.0.1:$p/health" 2>/dev/null && N=$((N+1)); done
+    curl -fsS -o /dev/null http://127.0.0.1:18499/health 2>/dev/null && [ "$N" -ge "$P38N" ] && { P38UP=1; break; }
     sleep 2
   done
-  [ "$P38UP" = "1" ] && ok "26 servis ve gateway ayağa kalktı (panel doğrulaması için)" \
-    || bad "panel doğrulaması için servisler açılmadı ($N/26)"
+  [ "$P38UP" = "1" ] && ok "$P38N servis ve gateway ayağa kalktı (panel doğrulaması için)" \
+    || bad "panel doğrulaması için servisler açılmadı ($N/$P38N)"
   if (cd "$SCRIPT_DIR/../../admin" && GATEWAY=http://127.0.0.1:18499/api/v1 \
       node --experimental-strip-types --no-warnings scripts/verify-endpoints.ts) >/tmp/verify-p38.log 2>&1; then
     ok "panel: $(tail -1 /tmp/verify-p38.log)"
@@ -8829,6 +8804,118 @@ $PSQL -c "DELETE FROM packages WHERE unit_id IN ('$UA3','$UB3'); DELETE FROM veh
   DELETE FROM visitors WHERE unit_id IN ('$UA3','$UB3'); DELETE FROM requests WHERE unit_id IN ('$UA3','$UB3');
   DELETE FROM resident_units WHERE unit_id IN ('$UA3','$UB3'); DELETE FROM units WHERE id IN ('$UA3','$UB3');" >/dev/null 2>&1
 kill_tree "$S63C"; kill_tree "$S63V"; kill_tree "$S63P"; kill_tree "$S63K"; kill_tree "$S63I"
+
+step "64) Bildirim okundu bilgisi ve işlem kaydı: düzeyler, istemci etkinliği, görüntüleme, saklama (073, FAZ H.2/H.3)"
+startsvc64() { DB_HOST=127.0.0.1 DB_PORT=${DBPORT} DB_USER=$3 DB_PASSWORD="$4" DB_NAME=siteeksen \
+  DB_SSLMODE=disable JWT_SECRET=verify-secret-key-at-least-32-chars PORT=$1 ACTIVITY_LEVEL_CACHE_TTL=0s \
+  go run ./services/$2 >/tmp/verify-h2-$2.log 2>&1 & }
+startsvc64 19811 identity siteeksen_identity "$IDPW"; S64I=$!
+startsvc64 19812 notification siteeksen_app "$APPPW"; S64N=$!
+startsvc64 19813 settings siteeksen_app "$APPPW"; S64S=$!
+for _ in $(seq 1 90); do
+  ALL=1; for P in 19811 19812 19813; do curl -fsS http://127.0.0.1:$P/health >/dev/null 2>&1 || ALL=0; done
+  [ "$ALL" = "1" ] && break; sleep 1
+done
+login64() { curl -s -X POST "http://127.0.0.1:19811/api/v1/auth/login" -H "$J" -d "{\"phone\":\"$1\",\"password\":\"$2\"}" | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p'; }
+M64="Authorization: Bearer $(login64 5551234567 'Demo123!')"
+T64="Authorization: Bearer $(login64 5559876543 'Demo123!')"
+N64=http://127.0.0.1:19812/api/v1; S64=http://127.0.0.1:19813/api/v1
+appq() { PGPASSWORD="$APPPW" psql -h 127.0.0.1 -p "${DBPORT}" -U siteeksen_app -d siteeksen -q -t -A -v ON_ERROR_STOP=1 -c "$1"; }
+MUID=$($PSQL -t -A -c "SELECT id FROM users WHERE phone='+905551234567';")
+# 1) Şema ve yetkiler
+COLS=$($PSQL -t -A -c "SELECT count(*) FROM information_schema.columns WHERE table_name='audit_logs' AND column_name IN ('source','event','screen','details');")
+[ "$COLS" = "4" ] && ok "audit_logs genişletildi (source, event, screen, details)" || bad "audit_logs kolonları: $COLS/4"
+RL=$($PSQL -t -A -c "SELECT rls_enabled||'/'||rls_forced FROM rls_enabled_tables WHERE table_name='notification_reads';")
+{ [ "$RL" = "t/t" ] || [ "$RL" = "true/true" ]; } && ok "notification_reads RLS açık ve zorlanmış" || bad "notification_reads RLS: $RL"
+appq "SELECT count(*) FROM audit_logs" >/dev/null 2>&1 && bad "uygulama rolü audit_logs'u doğrudan okuyabiliyor" \
+  || ok "uygulama rolü audit_logs'u doğrudan okuyamıyor (yalnız işlevle)"
+NS=$(appq "SELECT count(*) FROM audit_log_list(NULL,NULL,NULL,NULL,NULL,NULL,NULL,10,0)")
+[ "$NS" = "0" ] && ok "kapsamsız audit_log_list hiç satır döndürmüyor (fail-closed)" || bad "kapsamsız liste: $NS"
+# 2) Giriş olayları zorunlu kayıt
+curl -s -o /dev/null -X POST "http://127.0.0.1:19811/api/v1/auth/login" -H "$J" -d '{"phone":"5551234567","password":"yanlis-sifre"}'
+LF=$($PSQL -t -A -c "SELECT count(*)||'|'||COALESCE(max(details->>'phone'),'') FROM audit_logs WHERE event='auth.login_failed' AND created_at > now() - interval '5 minutes';")
+[ "${LF%%|*}" -ge 1 ] && ! grep -q '5551234567' <<<"$LF" && ok "başarısız giriş kaydedildi (401 dahil), telefon maskeli: ${LF#*|}" || bad "başarısız giriş kaydı: $LF"
+LS=$($PSQL -t -A -c "SELECT count(*) FROM audit_logs WHERE event='auth.login' AND user_id='$MUID' AND property_id='$DEMO_PROPERTY';")
+[ "$LS" -ge 1 ] && ok "başarılı giriş kullanıcı ve siteyle kaydedildi" || bad "başarılı giriş kaydı: $LS"
+LP=$($PSQL -t -A -c "SELECT count(*) FROM audit_logs WHERE details::text LIKE '%Demo123%' OR details::text LIKE '%yanlis-sifre%';")
+[ "$LP" = "0" ] && ok "şifre hiçbir kayda yazılmadı" || bad "şifre kayda yazılmış: $LP"
+# 3) Okundu bilgisi
+TUID64=$($PSQL -t -A -c "SELECT id FROM users WHERE phone='+905559876543';")
+NID=$($PSQL -t -A -c "INSERT INTO notifications (property_id, recipient_user_id, recipient_address, channel, topic, subject, body, status, provider, sent_at)
+  VALUES ('$DEMO_PROPERTY','$TUID64','in-app','IN_APP','verify.h2','Okundu denemesi','Govde','SENT','in_app',now()) RETURNING id;" | head -1)
+MID=$($PSQL -t -A -c "INSERT INTO notifications (property_id, recipient_user_id, recipient_address, channel, topic, subject, body, status, provider, sent_at)
+  VALUES ('$DEMO_PROPERTY','$MUID','in-app','IN_APP','verify.h2','Yonetim','Govde','SENT','in_app',now()) RETURNING id;" | head -1)
+[ -n "$NID" ] && [ -n "$MID" ] && ok "deneme bildirimleri oluşturuldu" || bad "deneme bildirimi oluşturulamadı"
+U1=$(curl -s "$N64/notifications/unread-count" -H "$T64" | python3 -c "import json,sys; print(json.load(sys.stdin)['unread'])")
+R1=$(code -X POST "$N64/notifications/$NID/read" -H "$T64")
+U2=$(curl -s "$N64/notifications/unread-count" -H "$T64" | python3 -c "import json,sys; print(json.load(sys.stdin)['unread'])")
+[ "$R1" = "200" ] && [ "$U2" -eq $((U1-1)) ] && ok "okundu işareti okunmamış sayısını düşürdü ($U1 → $U2)" || bad "okundu: $R1, $U1 → $U2"
+R2=$(code -X POST "$N64/notifications/$MID/read" -H "$T64")
+[ "$R2" = "404" ] && ok "başkasının bildirimi okundu sayılamıyor → 404" || bad "başkasının bildirimi → $R2"
+RA=$(curl -s "$N64/notifications?channel=IN_APP" -H "$T64" | python3 -c "import json,sys; d=json.load(sys.stdin)['data']; print(sum(1 for x in d if x['id']=='$NID' and x.get('read_at')))")
+[ "$RA" = "1" ] && ok "liste okundu zamanını döndürüyor" || bad "liste read_at: $RA"
+code -X POST "$N64/notifications/read-all" -H "$M64" >/dev/null
+UM=$(curl -s "$N64/notifications/unread-count" -H "$M64" | python3 -c "import json,sys; print(json.load(sys.stdin)['unread'])")
+[ "$UM" = "0" ] && ok "tümünü okundu say → okunmamış 0" || bad "tümünü okundu say sonrası: $UM"
+RE=$($PSQL -t -A -c "SELECT count(*) FROM audit_logs WHERE event='notification.read' AND user_id='$TUID64';")
+[ "$RE" -ge 1 ] && ok "okuma işlem kaydına düştü" || bad "okuma kaydı: $RE"
+UPD=$(appq "UPDATE notification_reads SET read_at = now()" >/dev/null 2>&1 && echo yazdi || echo engel)
+[ "$UPD" = "engel" ] && ok "okundu kaydı uygulama rolüyle değiştirilemiyor" || bad "okundu kaydı değiştirilebildi"
+# 4) Düzey ayarı ve istemci etkinliği
+LV=$(curl -s "$S64/activity-level" -H "$T64" | python3 -c "import json,sys; print(json.load(sys.stdin)['level'])")
+[ "$LV" = "STANDARD" ] && ok "varsayılan düzey STANDART" || bad "varsayılan düzey: $LV"
+EV='{"events":[{"event":"screen.view","screen":"/finance","client":"mobile"},{"event":"rm -rf","screen":"x"}]}'
+A0=$(curl -s -X POST "$S64/activity" -H "$T64" -H "$J" -d "$EV" | python3 -c "import json,sys; print(json.load(sys.stdin)['accepted'])")
+[ "$A0" = "0" ] && ok "STANDART düzeyde istemci etkinliği alınmıyor" || bad "STANDART'ta kabul: $A0"
+CT=$(code -X PUT "$S64/settings/ACTIVITY_LOG_LEVEL" -H "$T64" -H "$J" -d '{"value":"FULL"}')
+[ "$CT" = "403" ] && ok "sakin işlem kaydı düzeyini değiştiremiyor → 403" || bad "sakin düzey değişimi → $CT"
+CM=$(code -X PUT "$S64/settings/ACTIVITY_LOG_LEVEL" -H "$M64" -H "$J" -d '{"value":"FULL"}')
+CB=$(code -X PUT "$S64/settings/ACTIVITY_LOG_LEVEL" -H "$M64" -H "$J" -d '{"value":"HEPSI"}')
+[ "$CM" = "200" ] && [ "$CB" = "422" ] && ok "yönetici düzeyi TAM yaptı; geçersiz değer reddedildi (422)" || bad "düzey: TAM=$CM geçersiz=$CB"
+A1=$(curl -s -X POST "$S64/activity" -H "$T64" -H "$J" -d "$EV")
+grep -q '"accepted":1' <<<"$A1" && grep -q '"rejected":1' <<<"$A1" && ok "TAM düzeyde etkinlik alındı; bilinmeyen olay türü reddedildi" || bad "TAM etkinlik: $A1"
+CL=$($PSQL -t -A -c "SELECT count(*) FROM audit_logs WHERE source='CLIENT' AND event='screen.view' AND user_id='$TUID64' AND details->>'client'='mobile';")
+[ "$CL" -ge 1 ] && ok "istemci etkinliği kullanıcı ve sunucu zamanıyla yazıldı" || bad "istemci kaydı: $CL"
+BIG=$(python3 -c "import json; print(json.dumps({'events':[{'event':'screen.view','screen':'/x'}]*51}))")
+B51=$(code -X POST "$S64/activity" -H "$T64" -H "$J" -d "$BIG")
+[ "$B51" = "413" ] && ok "tek istekte 50'den fazla olay reddedildi → 413" || bad "51 olay → $B51"
+# 5) KAPALI düzey: sıradan okuma yazılmaz, kişisel veri okuması ve yazma işlemi yazılır
+code -X PUT "$S64/settings/ACTIVITY_LOG_LEVEL" -H "$M64" -H "$J" -d '{"value":"OFF"}' >/dev/null
+B0=$($PSQL -t -A -c "SELECT count(*) FROM audit_logs WHERE entity_type='notification' AND action='VIEW';")
+curl -s -o /dev/null "$N64/notifications" -H "$T64"
+B1=$($PSQL -t -A -c "SELECT count(*) FROM audit_logs WHERE entity_type='notification' AND action='VIEW';")
+A0B=$($PSQL -t -A -c "SELECT count(*) FROM audit_logs WHERE entity_type='audit';")
+curl -s -o /dev/null "$S64/audit-logs" -H "$M64"
+A1B=$($PSQL -t -A -c "SELECT count(*) FROM audit_logs WHERE entity_type='audit';")
+[ "$B1" = "$B0" ] && [ "$A1B" -gt "$A0B" ] && ok "KAPALI: sıradan okuma yazılmadı, işlem kaydı görüntüleme (kişisel veri) yazıldı" \
+  || bad "KAPALI: sıradan okuma $B0→$B1, hassas okuma $A0B→$A1B"
+W0=$($PSQL -t -A -c "SELECT count(*) FROM audit_logs WHERE entity_type='notification' AND action='CREATE';")
+code -X POST "$N64/notifications/read-all" -H "$T64" >/dev/null
+W1=$($PSQL -t -A -c "SELECT count(*) FROM audit_logs WHERE entity_type='notification' AND action='CREATE';")
+[ "$W1" -gt "$W0" ] && ok "KAPALI: yazma işlemi yine kaydedildi (zorunlu çekirdek)" || bad "KAPALI yazma kaydı: $W0→$W1"
+code -X DELETE "$S64/settings/ACTIVITY_LOG_LEVEL" -H "$M64" >/dev/null
+# 6) Görüntüleme yetkisi ve dışa aktarma
+V1=$(code "$S64/audit-logs" -H "$T64"); V2=$(code "$S64/audit-logs?source=CLIENT" -H "$M64"); V3=$(code "$S64/audit-logs?from=dun" -H "$M64")
+[ "$V1" = "403" ] && [ "$V2" = "200" ] && [ "$V3" = "400" ] && ok "kayıtları sakin göremiyor (403); yönetici süzerek görüyor; hatalı tarih 400" || bad "görüntüleme: sakin=$V1 yönetici=$V2 hatalı=$V3"
+VR=$(curl -s "$S64/audit-logs?source=CLIENT" -H "$M64" | python3 -c "import json,sys; d=json.load(sys.stdin)['data']; print(len(d), all(x['source']=='CLIENT' for x in d))")
+[ "${VR#* }" = "True" ] && [ "${VR%% *}" -ge 1 ] && ok "kaynak süzgeci çalışıyor ($VR)" || bad "süzgeç: $VR"
+CSV=$(curl -s "$S64/audit-logs/export" -H "$M64" | head -2)
+sleep 1
+grep -q 'Zaman;Kullanıcı' <<<"$CSV" && ok "CSV dışa aktarma çalışıyor" || bad "CSV: $CSV"
+EX=$($PSQL -t -A -c "SELECT count(*) FROM audit_logs WHERE event='audit.export';")
+[ "$EX" -ge 1 ] && ok "dışa aktarma da işlem kaydına düştü" || bad "dışa aktarma kaydı: $EX"
+OTHER=$(appq "BEGIN; SET LOCAL app.property_id='22222222-2222-2222-2222-222222222222'; SELECT count(*) FROM audit_log_list(NULL,NULL,NULL,NULL,NULL,'CLIENT',NULL,100,0); COMMIT;" | grep -E '^[0-9]+$' | head -1)
+[ "${OTHER:-0}" = "0" ] && ok "başka sitenin kapsamında bu sitenin kayıtları görünmüyor" || bad "çapraz site kayıt: $OTHER"
+# 7) Saklama
+$PSQL -c "UPDATE audit_logs SET created_at = now() - interval '400 days' WHERE source='CLIENT' AND user_id='$TUID64';" >/dev/null
+$PSQL -c "INSERT INTO audit_logs (property_id, action, entity_type, source, created_at) VALUES ('$DEMO_PROPERTY','CREATE','verify','API', now() - interval '400 days');" >/dev/null
+PR=$(appq "BEGIN; SET LOCAL app.property_id='$DEMO_PROPERTY'; SELECT audit_log_purge_client(180); COMMIT;" | grep -E '^[0-9]+$' | head -1)
+LEFT=$($PSQL -t -A -c "SELECT count(*) FROM audit_logs WHERE entity_type='verify' AND source='API' AND created_at < now() - interval '399 days';")
+[ "${PR:-0}" -ge 1 ] && [ "$LEFT" = "1" ] && ok "saklama: süresi dolan istemci etkinliği silindi ($PR), zorunlu kayıt kaldı" || bad "saklama: silinen=$PR zorunlu kalan=$LEFT"
+BADD=$(appq "BEGIN; SET LOCAL app.property_id='$DEMO_PROPERTY'; SELECT audit_log_purge_client(5); COMMIT;" 2>&1 | grep -c '30-730')
+[ "$BADD" -ge 1 ] && ok "30 günden kısa saklama reddedildi" || bad "kısa saklama kabul edildi"
+$PSQL -c "DELETE FROM audit_logs WHERE entity_type='verify'; DELETE FROM notification_reads WHERE notification_id IN ('$NID','$MID'); DELETE FROM notifications WHERE id IN ('$NID','$MID');" >/dev/null 2>&1
+kill_tree "$S64I"; kill_tree "$S64N"; kill_tree "$S64S"
 
 step "SONUÇ"
 echo "  Geçen: $PASS   Başarısız: $FAIL"

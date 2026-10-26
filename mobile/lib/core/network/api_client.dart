@@ -606,10 +606,36 @@ class ApiClient {
     return Map<String, dynamic>.from(response.data as Map);
   }
 
-  // Notifications (uygulama içi gelen kutusu)
-  Future<List<dynamic>> getNotifications({int limit = 50}) async {
-    final response = await _dio.get('/notifications', queryParameters: {'limit': limit});
+  // Notifications (uygulama içi gelen kutusu; aynı bildirimin SMS/e-posta kopyası listelenmez)
+  Future<List<dynamic>> getNotifications({int limit = 50, bool unreadOnly = false}) async {
+    final response = await _dio.get('/notifications',
+        queryParameters: {'limit': limit, 'channel': 'IN_APP', if (unreadOnly) 'unread': '1'});
     return _list(response.data);
+  }
+
+  // Okundu bilgisi (073)
+  Future<int> getUnreadNotificationCount() async {
+    final response = await _dio.get('/notifications/unread-count');
+    return ((response.data as Map)['unread'] as num?)?.toInt() ?? 0;
+  }
+
+  Future<void> markNotificationRead(String id) async {
+    await _dio.post('/notifications/$id/read');
+  }
+
+  Future<int> markAllNotificationsRead() async {
+    final response = await _dio.post('/notifications/read-all');
+    return ((response.data as Map)['marked'] as num?)?.toInt() ?? 0;
+  }
+
+  // İşlem kaydı (073): düzey ve uygulama içi etkinlik
+  Future<String> getActivityLevel() async {
+    final response = await _dio.get('/activity-level');
+    return '${(response.data as Map)['level'] ?? ''}';
+  }
+
+  Future<void> sendActivity(List<Map<String, dynamic>> events) async {
+    await _dio.post('/activity', data: {'events': events});
   }
 
   /// `{data:[{channel,category,enabled,consent_at?,consent_source?}], note}`

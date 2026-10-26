@@ -78,8 +78,10 @@ export function isRbacExempt(pathname: string): boolean {
 export const ROUTE_ROLES: { prefix: string; roles: Role[]; reason: string }[] = [
     // Sistem API anahtarları: yalnızca yönetici. Kurul üyesi bile göremez —
     // anahtar sızması tüm entegrasyonları etkiler.
-    { prefix: "/dashboard/credentials", roles: [Roles.Manager],
-      reason: "Sistem entegrasyon anahtarları" },
+    { prefix: "/dashboard/audit", roles: [Roles.Manager, Roles.Auditor],
+      reason: "İşlem kayıtları (kişisel veri içerir; KMK m.41 denetçi)" },
+    { prefix: "/dashboard/integrations", roles: MANAGEMENT,
+      reason: "Dış sağlayıcıların bağlantı durumu" },
 
     // Personel: maaş, TCKN, SGK bilgisi içerir (KVKK özel önem).
     { prefix: "/dashboard/personnel", roles: MANAGEMENT,

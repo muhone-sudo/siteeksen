@@ -81,7 +81,6 @@ temp/
 /backend/expense
 /backend/gateway
 /backend/inventory
-/backend/meeting_wizard
 /backend/nps
 /backend/package
 /backend/parking

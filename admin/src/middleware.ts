@@ -8,7 +8,7 @@ import { canAccess, requiredRolesFor } from "@/lib/rbac";
  *
  * GÜVENLİK (2026-09-13, todo 0.A.10): Önceki sürüm yalnızca "giriş yapılmış mı?"
  * sorusunu soruyordu. Giriş yapan HERKES adres çubuğuna `/dashboard/personnel`
- * ya da `/dashboard/credentials` yazarak maaş bordrosuna ve sistem API
+ * ya da `/dashboard/integrations` yazarak maaş bordrosuna ve sistem API
  * anahtarlarına erişebiliyordu. Artık yol bazlı rol kontrolü de yapılır.
  *
  * NOT: Bu kontrol bir güvenlik SINIRI değildir — asıl yetki denetimi sunucudadır

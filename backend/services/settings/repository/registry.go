@@ -99,6 +99,21 @@ var Definitions = []Definition{
 			{"EXEMPT", "Kurul kararıyla muaf"}, {"UNDER_REVIEW", "Hukuk danışmanıyla değerlendiriliyor"}}},
 	{Key: "VERBIS_REGISTRY_NO", Type: TypeText, Default: "",
 		Description: "VERBİS sicil numarası (kayıtlıysa; isteğe bağlı)"},
+
+	// İşlem kaydı (073, kullanıcı kararı K5). Yalnız MANAGER değiştirir (main.go managerOnlyKeys).
+	{Key: "ACTIVITY_LOG_LEVEL", Type: TypeText, Default: "STANDARD",
+		Description: "İşlem kaydı düzeyi. KAPALI'da da zorunlu kayıtlar (yazma işlemleri, yetki reddi, kişisel veri " +
+			"okumaları, giriş/çıkış) tutulur — KVKK m.12 gereği kapatılamaz. STANDART bütün sunucu isteklerini, " +
+			"TAM ayrıca uygulamadaki ekran, menü, sekme, arama ve dışa aktarma olaylarını kaydeder.",
+		Options: []Option{{"OFF", "Kapalı (yalnız zorunlu kayıtlar)"}, {"STANDARD", "Standart"},
+			{"FULL", "Tam (uygulama içi etkinlik dahil)"}}},
+	{Key: "ACTIVITY_LOG_RETENTION_DAYS", Type: TypeInt, Default: 180, Min: 30, Max: 730,
+		Description: "Uygulama içi etkinlik kayıtlarının (TAM düzey) saklama süresi, gün. Zorunlu kayıtlar bu süreyle silinmez."},
+
+	// İşletme projesine malik görüşü/itirazı (FAZ H.6 S12, kullanıcı kararı K3: seçenekli).
+	{Key: "OWNER_PLAN_OBJECTIONS", Type: TypeBool, Default: true,
+		Description: "Malikler sakin uygulamasında işletme projesini görüp görüş/itiraz bildirebilir " +
+			"(KMK m.37/2). Kapatılırsa proje yine görüntülenir, yeni itiraz alınmaz."},
 }
 
 // byKey, hızlı arama için.

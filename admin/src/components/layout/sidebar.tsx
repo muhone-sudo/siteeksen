@@ -8,12 +8,13 @@ import {
     LayoutDashboard, Users, Receipt, Gauge, Bell, MessageSquare, FileText, Settings, Building2,
     Calculator, BellRing, KeyRound, TrendingDown, Car, UserCog, CalendarCheck, UserCheck, MapPin, X,
     Landmark, Package, FileSignature, FolderArchive, Wrench, Boxes, Vote, ShieldCheck, Megaphone,
-    Zap, AlertTriangle, Smile, Leaf,
+    Zap, AlertTriangle, Smile, Leaf, History,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import apiClient from "@/lib/api-client";
 import { api } from "@/lib/api";
 import { canAccess } from "@/lib/rbac";
+import { track } from "@/lib/activity";
 
 type NavItem = { name: string; href: string; icon: React.ElementType };
 
@@ -35,7 +36,7 @@ const sections: { title: string; items: NavItem[] }[] = [
             { name: "Duyurular", href: "/dashboard/announcements", icon: Bell },
             { name: "İlan Panosu", href: "/dashboard/bulletins", icon: Megaphone },
             { name: "Anketler", href: "/dashboard/surveys", icon: Vote },
-            { name: "Bildirimler", href: "/dashboard/notifications", icon: BellRing },
+            { name: "Toplu Bildirim", href: "/dashboard/notifications", icon: BellRing },
         ],
     },
     {
@@ -82,7 +83,11 @@ const sections: { title: string; items: NavItem[] }[] = [
             { name: "Raporlar", href: "/dashboard/reports", icon: FileText },
         ],
     },
-    { title: "Sistem", items: [{ name: "Entegrasyon Anahtarları", href: "/dashboard/credentials", icon: KeyRound }] },
+    { title: "Sistem", items: [
+        { name: "Bildirimlerim", href: "/dashboard/inbox", icon: Bell },
+        { name: "İşlem Kayıtları", href: "/dashboard/audit", icon: History },
+        { name: "Entegrasyon Durumu", href: "/dashboard/integrations", icon: KeyRound },
+    ] },
 ];
 
 interface SiteOption {
@@ -216,6 +221,7 @@ export function Sidebar({ mobileOpen = false, onClose }: { mobileOpen?: boolean;
                                             <Link
                                                 key={item.href}
                                                 href={item.href}
+                                                onClick={() => track("menu.open", item.href, { name: item.name })}
                                                 className={cn(
                                                     "flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
                                                     active ? "bg-primary text-white" : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"

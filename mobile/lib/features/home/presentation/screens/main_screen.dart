@@ -1,6 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
+
+import '../../../../core/network/api_client.dart';
+import '../../../../core/utils/activity.dart';
 
 class MainScreen extends StatefulWidget {
   final Widget child;
@@ -13,6 +18,47 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   int _currentIndex = 0;
+  int _unread = 0;
+  Timer? _unreadTimer;
+  GoRouterDelegate? _delegate;
+  String _lastLocation = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUnread();
+    _unreadTimer = Timer.periodic(const Duration(seconds: 60), (_) => _loadUnread());
+    Activity.init().then((_) => Activity.track('session.start'));
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _delegate = GoRouter.of(context).routerDelegate;
+      _delegate!.addListener(_onRoute);
+      _onRoute();
+    });
+  }
+
+  @override
+  void dispose() {
+    _unreadTimer?.cancel();
+    _delegate?.removeListener(_onRoute);
+    super.dispose();
+  }
+
+  // Ekran geçişi: TAM düzeyde işlem kaydına gider; bildirim ekranından dönünce rozet tazelenir.
+  void _onRoute() {
+    final loc = _delegate?.currentConfiguration.uri.path ?? '';
+    if (loc.isEmpty || loc == _lastLocation) return;
+    if (_lastLocation.contains('notifications')) _loadUnread();
+    _lastLocation = loc;
+    Activity.track('screen.view', screen: loc);
+  }
+
+  Future<void> _loadUnread() async {
+    try {
+      final n = await apiClient.getUnreadNotificationCount();
+      if (mounted && n != _unread) setState(() => _unread = n);
+    } catch (_) {}
+  }
 
   Future<void> _confirmExit() async {
     final shouldExit = await showDialog<bool>(
@@ -71,25 +117,29 @@ class _MainScreenState extends State<MainScreen> {
               break;
           }
         },
-        destinations: const [
-          NavigationDestination(
+        destinations: [
+          const NavigationDestination(
             icon: Icon(Icons.home_outlined),
             selectedIcon: Icon(Icons.home),
             label: 'Ana Sayfa',
           ),
-          NavigationDestination(
+          const NavigationDestination(
             icon: Icon(Icons.account_balance_wallet_outlined),
             selectedIcon: Icon(Icons.account_balance_wallet),
             label: 'Finans',
           ),
-          NavigationDestination(
+          const NavigationDestination(
             icon: Icon(Icons.support_agent_outlined),
             selectedIcon: Icon(Icons.support_agent),
             label: 'Talepler',
           ),
           NavigationDestination(
-            icon: Icon(Icons.more_horiz_outlined),
-            selectedIcon: Icon(Icons.more_horiz),
+            icon: Badge(
+              isLabelVisible: _unread > 0,
+              label: Text(_unread > 99 ? '99+' : '$_unread'),
+              child: const Icon(Icons.more_horiz_outlined),
+            ),
+            selectedIcon: const Icon(Icons.more_horiz),
             label: 'Daha Fazla',
           ),
         ],

@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../network/api_client.dart';
+import '../utils/activity.dart';
 import '../utils/formatters.dart';
 import '../utils/validators.dart';
 import '../widgets/data_state.dart';
@@ -16,6 +17,8 @@ import '../widgets/data_state.dart';
 /// Sunucuda oturumu kapatır, cihazı temizler ve girişe döner. Sunucu iptali
 /// yapılamadıysa bunu kullanıcıya söyler (sessizce "çıkıldı" demez).
 Future<void> performLogout(BuildContext context) async {
+  await Activity.flush();
+  Activity.reset();
   final revoked = await apiClient.logout();
   if (!context.mounted) return;
   if (!revoked) {
