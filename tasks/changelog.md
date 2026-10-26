@@ -12,6 +12,18 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-26 — ÖZELLİK VE YETENEK HARİTASI (docs/ozellik-haritasi/, yalnız doküman)
+
+> **Kanıt:** Rota listesi depodaki `check-gateway-routes.py` ile birebir (415/415). Çağrı → tablo/bildirim/yetki zinciri
+> `go/types` ile çözüldü (isim tahmini yok). Mobil düğme sayımı ham `onPressed/onTap` sayısına eşit (sakin 154/154,
+> yönetici 143/143). İstemci çağrılarından backend'de karşılığı olmayan kalmadı.
+
+- Panel 48 sayfa / 289 eylem, sakin mobil 33 ekran / 167 eylem, yönetici mobil 45 ekran / 159 eylem; her eylem için uç,
+  yetki, değişen tablolar + tetikleyiciler, bildirim (konu → alıcı), etkinin görüldüğü ekranlar.
+- Bildirim kataloğu (54 uç), 11 zamanlanmış iş, 3 servis içi bekçi, 23 tetikleyici, arayüzsüz uçlar listesi.
+- Bulgular (`05-arayuzsuz-uclar.md` 5.3): giriş sayfasında ölü bağlantı (`login/page.tsx:154`), yönetim için kişisel
+  bildirim kutusu yok, CLAUDE.md'deki "panelde çıkış/rol denetimi yok" ifadeleri eskimiş.
+
 ### 2026-10-11 — KULLANIM HAKKI: KİRACILI DAİREDE KULLANIM İŞLEMLERİNİ KİRACI YAPAR (migration 072, altıncı tur D7) (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **1359/1359** (adım 63: kural tek işlevde — kiracılı dairede malik hayır, kiracı ve hane üyesi

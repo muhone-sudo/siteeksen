@@ -714,3 +714,17 @@ D7 testinde malik, kiracı ve hane üyesi tek `INSERT … VALUES (…), (…), (
 (068, AFTER INSERT FOR EACH ROW) deyim SONUNDA çalıştığı için aynı deyimdeki hane kaydını "önceki hane" sanıp bitirdi.
 Kod doğruydu; kurgu yanlıştı. **Kural:** Sırası anlam taşıyan kayıtları (kiracı → hanesi) ayrı deyimlerle ekle. Rol
 içeren jetonlar girişte hesaplanır: test kurgusunu bitirdikten SONRA giriş yap.
+### Ders 55 — "Çalışıyor" demeden önce kullanıcının gireceği yolu dene
+
+2026-10-25'te proje çalıştırıldı ve giriş gateway'e doğrudan `curl` ile denenip "çalışıyor" denildi. Panel ise
+`admin/.env.local`'daki `NEXT_PUBLIC_API_URL=…/api` (doğrusu `/api/v1`) yüzünden `/api/auth/login`'e gidiyordu;
+gateway 401 döndü, kullanıcı "şifre hatalı" gördü. **Kural:** Paneli çalıştırdım demeden önce girişi panelin kendi
+NextAuth akışından dene (`/api/auth/csrf` → `/api/auth/callback/credentials` → `/api/auth/session`). Giriş bilgileri
+ve doğru env tek yerde: `docs/yerel-calistirma.md`; oradan oku, kafadan yazma.
+
+### Ders 56 — Paralel alt ajan açma; oturum token limitini bir anda tüketir
+
+2026-10-25'te özellik haritası için 7 alt ajan paralel başlatıldı; Claude'un 5 saatlik oturum limiti ~10 dakikada
+bitti, hiçbir ajan çıktı yazamadı. **Kural:** Kullanıcı açıkça istemedikçe alt ajan açma. Büyük envanter işlerini
+tek başına, parça parça yap: tüm dosyayı okumak yerine `grep` ile düğme/uç/bildirim satırlarını çıkar, her bölümü
+bitirince diske yaz.

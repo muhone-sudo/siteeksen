@@ -29,7 +29,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Write detailed specs upfront to reduce ambiguity
 
 ### 2. Subagent Strategy
-- Use subagents liberally to keep main context window clean
+- Alt ajan KULLANMA (kullanıcı kararı 2026-10-26, Ders 56): token limitini tüketiyor. Yalnız kullanıcı açıkça isterse.
 - Offload research, exploration, and parallel analysis to subagents
 - For complex problems, throw more compute at it via subagents
 - One task per subagent for focused execution
@@ -119,6 +119,7 @@ Next.js admin paneli, iki Flutter mobil uygulaması (sakin + yönetici) içerir.
 bash backend/scripts/dev-up.sh     # PostgreSQL + 24 servis + gateway (RLS'li app rolüyle)
 cd admin && npm run dev            # http://localhost:3001
 # Demo: 5551234567 / Demo123! (yönetici) · 5559876543 / Demo123! (kiracı)
+# Giriş bilgileri, admin/.env.local içeriği ve sorun giderme: docs/yerel-calistirma.md
 ```
 
 - **FAZ 5 TAMAMLANDI (2026-09-14): 22 mock servisin tamamı ele alındı.**
