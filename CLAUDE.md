@@ -4,6 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Çalışma Disiplini (Token ve Bağlam Yönetimi)
 
+- **Ara açıklama yok (kullanıcı talimatı 2026-10-26):** Çalışırken araç çağrıları arasında açıklama/ilerleme metni yazma. Kullanıcı okumuyor. Yalnız iş bitince kısa rapor yaz; soru gerekiyorsa sor.
 - **Token Tasarrufu:** Bu projeyi token tasarrufu yaparak yürüt. Uzun açıklamalar yapma. Özellikle istenmedikçe yaptıklarını detaylıca yazma. Sadece çok kısa ve net ne yaptığını ya da ne yapılacağını yaz.
 - **Her Oturumda ve Her Promttan Sonra Oku:** Oluşturulan `.md`, `walkthrough.md` (geçmişte yapılan değişiklikleri, testleri ve doğrulamaları anlamak için) ve aşağıdaki dosyaların içlerindeki en son tamamlanan konuyu ya da maddeyi oku:
   - `tasks/roadmap.md`
@@ -120,6 +121,7 @@ bash backend/scripts/dev-up.sh     # PostgreSQL + 24 servis + gateway (RLS'li ap
 cd admin && npm run dev            # http://localhost:3001
 # Demo: 5551234567 / Demo123! (yönetici) · 5559876543 / Demo123! (kiracı)
 # Giriş bilgileri, admin/.env.local içeriği ve sorun giderme: docs/yerel-calistirma.md
+# Özellik/yetenek haritası (her sayfa, düğme, uç, bildirim, etki): docs/ozellik-haritasi/README.md
 ```
 
 - **FAZ 5 TAMAMLANDI (2026-09-14): 22 mock servisin tamamı ele alındı.**
@@ -149,8 +151,10 @@ cd admin && npm run dev            # http://localhost:3001
   → 27 Dockerfile (root değil, uid 10001), `docker-compose.yml`, `k8s/*.yaml`,
   CI imaj matrisi. Elle düzenlenmez; `--check` kipi doğrulamada sapmayı yakalar.
   Compose zorunlu gizli değerler (`.env`, şablon `.env.example`) yoksa açılmaz.
-- **Modüller artık gerçekten bildirim gönderiyor.** Altı modül `pkg/notify`
-  üzerinden uygulama içi bildirim üretir. Alıcı kümesi (sakinler / daire
+- **Modüller artık gerçekten bildirim gönderiyor.** 14 servis (54 uç) ve zamanlayıcı (11 iş) `pkg/notify`
+  üzerinden bildirim üretir; tam katalog `docs/ozellik-haritasi/04-bildirim-zamanlayici-tetikleyici.md`.
+  Kişisel bildirim kutusu (`GET /notifications`) YALNIZ sakin uygulamasında var; panelde ve yönetici
+  mobilde yok (yönetime gidenler panelde yalnız giden kutusunda görünür). Alıcı kümesi (sakinler / daire
   sakinleri / yönetim) `pkg/notify/audience.go`'da tek yerde tanımlıdır:
   beş modül aynı sorguyu ayrı yazsaydı, birinde `is_active` filtresi
   unutulduğunda siteden taşınmış birine bildirim giderdi. Yanıtlar
@@ -242,22 +246,20 @@ cd admin && npm run dev            # http://localhost:3001
   `--dart-define=API_BASE_URL` ile yapılandırılabilir; varsayılan Android emülatöründen
   local gateway'e gider. Release manifestlerinde INTERNET izni var (2026-10-03; verify-mobile denetler). **Kalan:** `ios/` klasörü yok (todo FAZ 8).
 
-### Doğrulama ortamı — WSL kullan
+### Doğrulama ortamı
 
-**Local çalışma ve doğrulama WSL (Ubuntu 24.04) üzerinden yapılır.** Kullanıcı talimatı (2026-09-12).
-
-Windows tarafında kurumsal AppLocker politikası, kullanıcı yazılabilir dizinlerden çalıştırılabilir
-dosya açılmasını engeller; bu yüzden Windows'ta Go/Docker kurulamaz. **WSL'de bu kısıtlama yoktur.**
+**2026-10-26 itibarıyla çalışma doğrudan Linux'ta (Ubuntu 24.04.5) yapılır.** Eski WSL/Windows
+(AppLocker) düzeni artık kullanılmıyor.
 
 | Araç | Durum | Not |
 |---|---|---|
-| Go 1.24.7 | WSL'de kurulu | `/usr/local/go/bin` — PATH'e eklenmeli |
-| Docker 27.5 | WSL'de çalışıyor | `docker info` OK |
-| PostgreSQL istemcisi 16 | WSL'de kurulu | `psql` |
-| Node 22 / npm | Hem Windows hem WSL | `admin/node_modules` Windows'ta kurulu |
-| Flutter 3.47.4 | **WSL'de kurulu** (`~/flutter`) | `export PATH=$PATH:$HOME/flutter/bin` |
+| Go 1.27.3 | Kurulu | `/snap/bin/go` (betikler `/usr/local/go/bin`'i de PATH'e ekler) |
+| Docker 29.9 (Docker Desktop) | Kurulu | Kapalıysa: `systemctl --user start docker-desktop` |
+| PostgreSQL istemcisi | **Kurulu değil** | `psql` yok; veritabanı Docker kabında (`siteeksen-dev-db`, port 55432) |
+| Node 22 / npm | Kurulu | `admin/node_modules` kurulu |
+| Flutter 3.38.9 | Kurulu | `/snap/bin/flutter` |
 
-Repo yolu WSL'de: `/mnt/c/Users/md064615/Documents/Projeler/proje99`
+Repo yolu: `/home/muhone/projeler/sitesen`
 
 **Doğrulama betikleri**
 
@@ -333,8 +335,8 @@ Active services and their ports:
 | identity | 8081 | Auth, JWT, users |
 | finance | 8082 | Dues, payments (Iyzico) |
 | community | 8083 | Requests, bulletin |
-| iot | 8084 | Sensors (also uses MongoDB) |
-| notification | 8085 | Firebase push, Kafka consumer |
+| iot | 8084 | Sayaç, okuma, ısı payı, tüketim pusulası (**gerçek DB**; sensör uçları gerçek değil, MongoDB yok) |
+| notification | 8085 | Kişisel bildirimler, tercihler, toplu gönderim, giden kutusu (**gerçek DB**; Firebase/Kafka yok, push sağlayıcısı yok) |
 | expense | 8086 | Gider ve kalem bazlı dağıtım (**gerçek DB**) |
 | asset | 8087 | Demirbaş, bakım, amortisman (**gerçek DB**) |
 | bulletin | 8089 | Sakin ilan panosu, onay akışı (**gerçek DB**) |
@@ -376,15 +378,17 @@ The custom gateway at `cmd/gateway/` (port 8888) is the **single ingress** every
 
 ### Admin Panel (Next.js 14)
 - App router under `admin/src/app/(dashboard)/dashboard/`
-- Pages: residents, assessments, accounting, requests, announcements, meters, notifications, credentials, reports, settings
+- 48 sayfa; sayfa sayfa düğmeler, uçlar ve etkiler: `docs/ozellik-haritasi/01-panel.md`
 - Auth via NextAuth.js (`next-auth`)
 - API client in `src/lib/api-client.ts`
 - UI: Tailwind CSS + lucide-react icons
-- **Denetim notu:** `zod`, `react-hook-form`, `recharts`, `date-fns` ve 7 Radix UI paketi `package.json`'da
-  kurulu ama `src/` altında **hiç kullanılmıyor**. `src/lib/hooks.ts`'teki 17 hook'un 13'ü ölü kod.
-  TanStack Query kurulu; yeni kod yazarken bu paketleri ya gerçekten kullan ya da bağımlılıktan çıkar.
-  Ayrıca panelde **rol bazlı erişim kontrolü yok** (`session.user.roles` hiçbir sayfada okunmuyor) ve
-  **çıkış (logout) düğmesi yok**.
+- Veri okuma `src/lib/use-api.ts` (`useApi`/`useAction`, TanStack Query üzerinde), uçlar `src/lib/endpoints.ts`.
+  `src/lib/hooks.ts` boş bırakılmış eski dosyadır.
+- **Denetim notu (2026-10-26 doğrulandı):** `zod`, `react-hook-form`, `recharts`, `date-fns` ve 7 Radix UI paketi
+  `package.json`'da kurulu ama `src/` altında **hiç kullanılmıyor**; ya kullan ya bağımlılıktan çıkar.
+- **Rol bazlı erişim VAR:** `src/lib/rbac.ts` (sayfa × rol) + `src/middleware.ts` + kenar çubuğu süzmesi;
+  düğmelerde `canWrite` = MANAGER/BOARD_MEMBER (`src/lib/use-api.ts:78`). **Çıkış düğmesi VAR:** üst bar
+  kullanıcı menüsü, sunucuda jetonları iptal eder (`src/components/layout/header.tsx:148`).
 
 ### Mobile Apps (Flutter)
 Two separate Flutter apps sharing the same technology choices:
@@ -400,7 +404,7 @@ Bildirilen ortak yığın: Riverpod, go_router, Dio, flutter_secure_storage.
   → tip güvenliği yok (anket ekranı, API veri döndürdüğü an var olmayan alanı okuyup çöküyor).
 - **Firebase Messaging hiç kullanılmıyor** — mobilde tek satır Firebase kodu yok, `google-services.json` yok.
   Push bildirim akışı hiç kurulmamıştır.
-- **`intl` kullanılmıyor** → para/tarih biçimlendirme elle yapılıyor ve hatalı (örn. `12.450.00`).
+- **`intl` kullanılıyor** (`core/utils/formatters.dart`: `NumberFormat.currency`, `tr_TR`).
 - Sakin uygulamasında 13/22, yönetici uygulamasında 16 bağımlılık hiç import edilmemiş.
 - ~~Test sayısı: sakin 1 (derlenmiyor), yönetici 0~~ → **2026-09-27:** sakin 27, yönetici 27 test; **2026-10-10:** sakin 38+, yönetici 32 test.
 - **İki uygulama da gerçek API sözleşmesine bağlı (2026-09-27).** Alan yöntemleri yerine

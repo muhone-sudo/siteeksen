@@ -47,6 +47,20 @@ def match(verb, path):
     return None
 
 
+for _fn, _tag in (("mobile_outline.txt", "Sakin "), ("adminapp_outline.txt", "Yönetici-mobil ")):
+    _cur = None
+    for _l in open(os.path.join(S, _fn), encoding="utf-8"):
+        if _l.startswith("## "):
+            _cur = _tag + os.path.basename(_l[3:].strip()).replace(".dart", "")
+            continue
+        for _v, _p in re.findall(r"(GET|POST|PUT|PATCH|DELETE) (/\S+?)(?:,|$)", _l.strip()):
+            _r = match(_v, _p)
+            if _r and _cur:
+                _k = _r["Method"] + " " + _r["Path"]
+                cons.setdefault(_k, [])
+                if _cur not in cons[_k]:
+                    cons[_k].append(_cur)
+
 readers = {}
 for r in cg:
     if r["Method"] == "GET":
@@ -78,6 +92,8 @@ def roles_of(r):
     for f in r["SQLFuncs"] or []:
         if f in ("resident_can_use", "assessment_visible_to"):
             parts.append("`%s`" % f)
+    if not parts and r.get("RoleRefs"):
+        parts.append("serviste rol karşılaştırması: " + "/".join(r["RoleRefs"]))
     return "; ".join(parts) or "oturum açmış herkes (site kapsamı)"
 
 
@@ -410,11 +426,7 @@ def write_unused():
     for s in ("banking", "meeting_wizard"):
         rs = SVC_OF.get(s, [])
         o.append("- **%s** — %d uç, hepsi 501: %s" % (s, len(rs), ", ".join("`%s %s`" % (r["Method"], r["Path"]) for r in rs)))
-    o += ["", "## 5.3 Kodda bulunan tutarsızlıklar", "",
-          "- Giriş sayfası: \"Yöneticinize başvurun\" bağlantısı `href=\"#\"` — hiçbir yere gitmiyor (`admin/src/app/login/page.tsx:154`).",
-          "- CLAUDE.md'deki \"panelde çıkış (logout) düğmesi yok\" ve \"rol bazlı erişim kontrolü yok\" ifadeleri eskimiş: çıkış `components/layout/header.tsx:148`, rol denetimi `admin/src/lib/rbac.ts` + `middleware.ts`.",
-          "- Yönetime giden uygulama içi bildirimler için panelde ve yönetici mobil uygulamasında kişisel bildirim kutusu yok (bkz. 4.1).",
-          "- Panel *Entegrasyon Anahtarları* sayfası backend'i çağırmaz, yalnız bilgi notu gösterir; `settings` servisindeki `/credentials*` uçları hiçbir istemcide kullanılmıyor.", ""]
+    o += ["", "Bulunan tutarsızlıklar ve eksikler: [6. Bulgular ve eksikler](06-bulgular-ve-eksikler.md).", ""]
     open(os.path.join(OUT, "05-arayuzsuz-uclar.md"), "w").write("\n".join(o))
 
 

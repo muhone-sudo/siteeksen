@@ -20,8 +20,14 @@ def read(p):
     return open(p, encoding="utf-8").read().split("\n")
 
 
+SLICES = {}
+
+
 def roles_in(text):
-    return sorted(set(ROLE.findall(text)))
+    rs = set(ROLE.findall(text))
+    for v in re.findall(r"RequireRole\((\w+)\.\.\.\)", text):
+        rs |= set(SLICES.get(v, []))
+    return sorted(rs)
 
 
 def balanced_end(lines, i):
@@ -99,6 +105,10 @@ def service_routes(name):
         if "\npackage main" not in "\n" + src:
             continue
         prefix, groles, rvars = {"r": ""}, {"r": []}, {}
+        SLICES.clear()
+        for sm in re.finditer(r"(\w+)\s*:?=\s*\[\]string\{([^}]*)\}", src):
+            if "Role" in sm.group(2):
+                SLICES[sm.group(1)] = ROLE.findall(sm.group(2))
         for i, l in enumerate(L):
             m = ROLEVAR.search(l)
             if m:

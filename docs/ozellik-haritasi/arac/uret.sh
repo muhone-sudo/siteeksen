@@ -3,8 +3,8 @@
 set -euo pipefail
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)
 A="$ROOT/docs/ozellik-haritasi/arac"
-W=$(mktemp -d)
-trap 'rm -rf "$W"' EXIT
+# HARITA_WORK verilirse ara dosyalar (rota, çağrı grafiği, özetler) orada kalır.
+if [ -n "${HARITA_WORK:-}" ]; then W="$HARITA_WORK"; mkdir -p "$W"; else W=$(mktemp -d); trap 'rm -rf "$W"' EXIT; fi
 export PATH=$PATH:/usr/local/go/bin
 cd "$ROOT"
 

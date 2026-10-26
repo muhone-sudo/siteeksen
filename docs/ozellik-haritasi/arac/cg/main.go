@@ -119,6 +119,7 @@ func main() {
 		route
 		Writes, Reads, SQLFuncs, Topics, Audience, Checks []string
 		Storage                                           bool
+		RoleRefs                                          []string
 	}
 	var res []out
 	for _, r := range routes {
@@ -144,11 +145,11 @@ func main() {
 			}
 			return true
 		})
-		w := &walker{seen: map[ast.Node]bool{}, writes: map[string]bool{}, reads: map[string]bool{}, sqlf: map[string]bool{}, topics: map[string]bool{}, aud: map[string]bool{}, checks: map[string]bool{}}
+		w := &walker{roleRefs: map[string]bool{}, seen: map[ast.Node]bool{}, writes: map[string]bool{}, reads: map[string]bool{}, sqlf: map[string]bool{}, topics: map[string]bool{}, aud: map[string]bool{}, checks: map[string]bool{}}
 		for _, s := range start {
 			w.walk(s, info, 0)
 		}
-		res = append(res, out{route: r, Writes: keys(w.writes), Reads: keys(w.reads), SQLFuncs: keys(w.sqlf), Topics: keys(w.topics), Audience: keys(w.aud), Checks: keys(w.checks), Storage: w.storage})
+		res = append(res, out{route: r, Writes: keys(w.writes), Reads: keys(w.reads), SQLFuncs: keys(w.sqlf), Topics: keys(w.topics), Audience: keys(w.aud), Checks: keys(w.checks), Storage: w.storage, RoleRefs: keys(w.roleRefs)})
 	}
 	enc := json.NewEncoder(bufio.NewWriter(os.Stdout))
 	bw := bufio.NewWriter(os.Stdout)
@@ -184,8 +185,10 @@ func keys(m map[string]bool) []string {
 }
 
 type walker struct {
+	roleRefs                                 map[string]bool
 	seen                                     map[ast.Node]bool
 	writes, reads, sqlf, topics, aud, checks map[string]bool
+	roles                                    map[string]bool
 	storage                                  bool
 }
 
@@ -205,6 +208,8 @@ func (w *walker) sql(s string) {
 	}
 }
 
+var roleLit = map[string]bool{"MANAGER": true, "BOARD_MEMBER": true, "AUDITOR": true, "STAFF": true, "SUPER_ADMIN": true, "OWNER": true, "TENANT": true, "PROXY": true}
+
 var checkNames = map[string]bool{"isManagement": true, "isFinanceManager": true, "hasRole": true, "hasAnyRole": true, "isManager": true, "isManagementRole": true, "canManage": true, "residentScope": true, "reportRoles": true}
 
 func (w *walker) walk(n ast.Node, info *types.Info, depth int) {
@@ -217,6 +222,9 @@ func (w *walker) walk(n ast.Node, info *types.Info, depth int) {
 		case *ast.BasicLit:
 			if v.Kind == token.STRING {
 				w.sql(v.Value)
+				if rv := strings.Trim(v.Value, "\"`"); roleLit[rv] {
+					w.roleRefs[rv] = true
+				}
 			}
 		case *ast.CallExpr:
 			var callee *types.Func
@@ -251,7 +259,11 @@ func (w *walker) walk(n ast.Node, info *types.Info, depth int) {
 			switch o := obj.(type) {
 			case *types.Const:
 				if o.Val().Kind() == constant.String {
-					w.sql(constant.StringVal(o.Val()))
+					sv := constant.StringVal(o.Val())
+					w.sql(sv)
+					if roleLit[sv] && strings.HasPrefix(o.Name(), "Role") {
+						w.roleRefs[sv] = true
+					}
 				}
 			case *types.Var:
 				if o.Pkg() != nil && strings.HasPrefix(o.Pkg().Path(), modPath) && o.Parent() == o.Pkg().Scope() {

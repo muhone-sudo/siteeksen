@@ -5,10 +5,11 @@
 | Bölüm | Kapsam |
 |---|---|
 | [1. Yönetim paneli](01-panel.md) | 48 sayfa, 289 eylem (düğme, form, seçim) — kenar çubuğu gruplarına göre |
-| [2. Sakin mobil uygulaması](02-sakin-mobil.md) | 33 ekran/bileşen, 167 eylem |
-| [3. Yönetici mobil uygulaması](03-yonetici-mobil.md) | 45 ekran/bileşen, 159 eylem |
+| [2. Sakin mobil uygulaması](02-sakin-mobil.md) | 33 ekran/bileşen, 168 eylem |
+| [3. Yönetici mobil uygulaması](03-yonetici-mobil.md) | 45 ekran/bileşen, 173 eylem |
 | [4. Bildirimler, zamanlanmış işler, tetikleyiciler](04-bildirim-zamanlayici-tetikleyici.md) | 54 bildirim üreten uç, 11 zamanlanmış iş, 3 bekçi, 23 tetikleyici, denetim izi |
-| [5. Arayüzsüz uçlar ve tutarsızlıklar](05-arayuzsuz-uclar.md) | Backend'de olup hiçbir ekranda düğmesi olmayan uçlar, 501 modüller, bulunan hatalar |
+| [5. Arayüzsüz uçlar](05-arayuzsuz-uclar.md) | Backend'de olup hiçbir ekranda düğmesi olmayan uçlar, 501 modüller |
+| [6. Bulgular ve eksikler](06-bulgular-ve-eksikler.md) | Haritadan çıkan hatalar; yapılan özellikler ile haritanın karşılaştırması, eksikler ve öncelik sırası |
 
 ## Tablolar nasıl okunur
 
@@ -33,3 +34,12 @@
 - Mobilde etiketi yalnız simge olan düğmeler `?` olarak görünür; satır numarasından bulunur.
 - Bir düğme dinamik bir yol çağırıyorsa (ör. `/surveys/$id/$action`) çağıran sabit değerden çözülür; çözülemeyenler en yakın rotaya eşlenmiştir.
 - Push bildirimi altyapısı yoktur; `PUSH` kanalı kuyrukta kalır.
+
+## Yeniden üretme
+
+```bash
+bash docs/ozellik-haritasi/arac/uret.sh          # 1-5. bölümleri koddan yeniden yazar
+HARITA_WORK=/tmp/harita bash docs/ozellik-haritasi/arac/uret.sh   # ara dosyaları saklar
+```
+
+Gereken: Go, Python 3. 6. bölüm (bulgular) elle yazılır; harita yenilenince gözden geçirilmelidir.

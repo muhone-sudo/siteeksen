@@ -20,8 +20,8 @@
 | `POST /governance/budgets/:id/objections` | governance · `services/governance/main.go:114` | oturum açmış herkes (site kapsamı) | budget_objections(+) | yok |
 | `POST /auth/refresh` — istemcilerin jeton yenilemesi | identity · `services/identity/main.go:77` | oturum açmış herkes (site kapsamı) | revoked_tokens(+), user_token_invalidation(+), users(±) | yok |
 | `POST /users/me/logout-all` | identity · `services/identity/main.go:99` | oturum açmış herkes (site kapsamı) | user_token_invalidation(+) | yok |
-| `POST /users/me/tenancy-requests/:id/decline` | identity · `services/identity/main.go:116` | oturum açmış herkes (site kapsamı) | tenancy_end_events(+), resident_units(±), tenancy_end_requests(±), units(±) · tetikleyici: trg_resident_units_tenancy_guard, trg_resident_units_tenant_arrival, trg_resident_units_tenant_departure | `identity.tenancy` → işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
-| `POST /users/me/invitations/:id/decline` | identity · `services/identity/main.go:123` | oturum açmış herkes (site kapsamı) | resident_units(+), resident_invitations(±) · tetikleyici: trg_resident_units_tenancy_guard, trg_resident_units_tenant_arrival, trg_resident_units_tenant_departure | yok |
+| `POST /users/me/tenancy-requests/:id/decline` | identity · `services/identity/main.go:116` | serviste rol karşılaştırması: OWNER/PROXY | tenancy_end_events(+), resident_units(±), tenancy_end_requests(±), units(±) · tetikleyici: trg_resident_units_tenancy_guard, trg_resident_units_tenant_arrival, trg_resident_units_tenant_departure | `identity.tenancy` → işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /users/me/invitations/:id/decline` | identity · `services/identity/main.go:123` | serviste rol karşılaştırması: OWNER/TENANT | resident_units(+), resident_invitations(±) · tetikleyici: trg_resident_units_tenancy_guard, trg_resident_units_tenant_arrival, trg_resident_units_tenant_departure | yok |
 | `GET /inventory/:id` | inventory · `services/inventory/main.go:88` | AUDITOR/BOARD_MEMBER/MANAGER/STAFF | — | yok |
 | `GET /inventory/:id/movements` | inventory · `services/inventory/main.go:97` | AUDITOR/BOARD_MEMBER/MANAGER/STAFF | — | yok |
 | `POST /inventory-categories` | inventory · `services/inventory/main.go:179` | BOARD_MEMBER/MANAGER | inventory_categories(+) | yok |
@@ -38,7 +38,7 @@
 | `GET /packages/:id` | package · `services/package/main.go:99` | `resident_can_use` | — | yok |
 | `GET /packages/:id/proof/:kind` | package · `services/package/main.go:185` | `resident_can_use` | — · dosya deposu | yok |
 | `POST /public/devices/heartbeat` — geçiş cihazı (X-Device-Key) | parking · `services/parking/devices.go:37` | oturum açmış herkes (site kapsamı) | — | `?` → Operations |
-| `GET /vehicles/plate/:plate` | parking · `services/parking/main.go:106` | oturum açmış herkes (site kapsamı) | — | yok |
+| `GET /vehicles/plate/:plate` | parking · `services/parking/main.go:106` | serviste rol karşılaştırması: BOARD_MEMBER/MANAGER/STAFF | — | yok |
 | `POST /patrols` | patrol · `services/patrol/main.go:125` | BOARD_MEMBER/MANAGER/STAFF | patrol_logs(+) | yok |
 | `POST /patrols/:id/scan` | patrol · `services/patrol/main.go:145` | BOARD_MEMBER/MANAGER/STAFF | patrol_logs(±) | yok |
 | `POST /patrols/:id/issues` | patrol · `services/patrol/main.go:163` | BOARD_MEMBER/MANAGER/STAFF | patrol_logs(±) | yok |
@@ -61,9 +61,4 @@
 - **banking** — 16 uç, hepsi 501: `GET /bank-accounts`, `GET /bank-accounts/banks`, `GET /bank-accounts/stats`, `GET /bank-accounts/:id`, `POST /bank-accounts`, `POST /bank-accounts/:id/sync`, `GET /bank-accounts/:id/balance`, `GET /bank-accounts/:id/transactions`, `GET /bank-transactions`, `GET /bank-transactions/unmatched`, `GET /bank-transactions/suggestions`, `GET /bank-transactions/:id`, `POST /bank-transactions/:id/match`, `POST /bank-transactions/:id/unmatch`, `POST /bank-transactions/auto-match`, `GET /banking/report`
 - **meeting_wizard** — 17 uç, hepsi 501: `GET /meetings`, `GET /meetings/stats`, `GET /meetings/:id`, `POST /meetings`, `POST /meetings/:id/start`, `POST /meetings/:id/end`, `GET /meetings/:id/attendees`, `POST /meetings/:id/attendees`, `POST /meetings/:id/attendance`, `GET /meetings/:id/decisions`, `GET /meetings/:id/action-items`, `POST /meetings/:id/generate-minutes`, `POST /meetings/:id/transcribe`, `GET /meetings/:id/transcript`, `POST /meetings/:id/summarize`, `GET /meetings/:id/summary`, `GET /action-items`
 
-## 5.3 Kodda bulunan tutarsızlıklar
-
-- Giriş sayfası: "Yöneticinize başvurun" bağlantısı `href="#"` — hiçbir yere gitmiyor (`admin/src/app/login/page.tsx:154`).
-- CLAUDE.md'deki "panelde çıkış (logout) düğmesi yok" ve "rol bazlı erişim kontrolü yok" ifadeleri eskimiş: çıkış `components/layout/header.tsx:148`, rol denetimi `admin/src/lib/rbac.ts` + `middleware.ts`.
-- Yönetime giden uygulama içi bildirimler için panelde ve yönetici mobil uygulamasında kişisel bildirim kutusu yok (bkz. 4.1).
-- Panel *Entegrasyon Anahtarları* sayfası backend'i çağırmaz, yalnız bilgi notu gösterir; `settings` servisindeki `/credentials*` uçları hiçbir istemcide kullanılmıyor.
+Bulunan tutarsızlıklar ve eksikler: [6. Bulgular ve eksikler](06-bulgular-ve-eksikler.md).

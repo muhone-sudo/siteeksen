@@ -128,6 +128,29 @@ for _dp, _, _fns in _os.walk(_os.path.join(app, "lib")):
                 GLOBAL[_m.group(1)] = _src[_m.end() - 1:close(_src, _m.end() - 1) + 1]
 
 
+def split_args(t):
+    out, depth, q, cur = [], 0, None, ""
+    for ch in t:
+        if q:
+            cur += ch
+            if ch == q:
+                q = None
+            continue
+        if ch in "'\"":
+            q = ch
+        elif ch in "([{":
+            depth += 1
+        elif ch in ")]}":
+            depth -= 1
+        if ch == "," and depth == 0:
+            out.append(cur); cur = ""
+            continue
+        cur += ch
+    if cur.strip():
+        out.append(cur)
+    return out
+
+
 def follow(src, body, depth=0):
     extra = ""
     if depth > 2:
@@ -141,11 +164,17 @@ def follow(src, body, depth=0):
         if m:
             b = src[m.end() - 1:close(src, m.end() - 1) + 1]
             params = [x.strip().split()[-1] for x in m.group(1).replace("{", "").replace("}", "").split(",") if x.strip()]
-            lits = re.findall(r"(?<![\w.])%s\(\s*'([^']*)'" % re.escape(fn), body)
-            if params and lits:
-                for lit in set(lits):
-                    extra += follow(src, re.sub(r"\$%s\b|\$\{%s\}" % (re.escape(params[0]), re.escape(params[0])), lit, b), depth + 1)
-            else:
+            done = False
+            for cm in re.finditer(r"(?<![\w.])%s\(" % re.escape(fn), body):
+                args = split_args(body[cm.end() - 1:close(body, cm.end() - 1) + 1][1:-1])
+                bb = b
+                for i, a in enumerate(args):
+                    lm = re.fullmatch(r"\s*'([^']*)'\s*", a)
+                    if lm and i < len(params):
+                        bb = re.sub(r"\$%s\b|\$\{%s\}" % (re.escape(params[i]), re.escape(params[i])), lm.group(1), bb)
+                        done = True
+                extra += follow(src, bb, depth + 1)
+            if not done:
                 extra += follow(src, b, depth + 1)
     m = re.match(r"^(_\w+)$", body.strip())
     return body + extra
@@ -232,6 +261,26 @@ def outline(path):
         loads.append((0, gets))
     for pos, calls in loads:
         ev.append((pos, "OKUR", "", calls))
+    for pm in re.finditer(r"PopupMenuButton(?:<[^>(]*>)?\(", src):
+        blk = src[pm.start():close(src, pm.end() - 1) + 1]
+        hm = re.search(r"onSelected:\s*\((\w+)\)\s*(?:async\s*)?(?:=>\s*)?", blk)
+        if not hm:
+            continue
+        rest = blk[hm.end():]
+        if rest[:1] in "({":
+            hbody = rest[:close(rest, 0) + 1]
+        else:
+            nm = re.match(r"[\w.!]+(?:<[^>(]*>)?\(", rest)
+            hbody = rest[:close(rest, nm.end() - 1) + 1] if nm else rest.split(",")[0]
+        var = hm.group(1)
+        for it in re.finditer(r"PopupMenuItem(?:<[^>(]*>)?\(\s*value:\s*'([^']+)'", blk):
+            iblk = blk[it.start():close(blk, it.end() - 1 - len(it.group(0)) + it.group(0).index("(")) + 1] if False else blk[it.start():it.start() + 300]
+            label = first_text(iblk) or it.group(1)
+            sub = re.sub(r"(?<![\w$'])%s(?![\w'])" % re.escape(var), "'%s'" % it.group(1), hbody)
+            sub = re.sub(r"\$%s\b|\$\{%s\}" % (re.escape(var), re.escape(var)), it.group(1), sub)
+            calls = api_calls(follow(src, sub))
+            writes = [c for c in calls if not c.startswith("GET ")]
+            ev.append((pm.start() + it.start(), "DÜĞME", "Menü: %s" % label, writes or calls))
     ev.sort(key=lambda x: x[0])
     seen, out = set(), []
     for pos, kind, desc, calls in ev:
