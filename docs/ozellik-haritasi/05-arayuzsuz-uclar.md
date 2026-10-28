@@ -10,18 +10,15 @@
 | `GET /documents/:id` | document · `services/document/main.go:110` | işleyicide `hasRole` (backend/services/settings/visibility.go:74); işleyicide `isManagement` (backend/services/community/main.go:257) | document_access_logs(+) · tetikleyici: document_access_logs_no_update | yok |
 | `GET /public/clearance/:code` — Panel /dogrula/[code] (fetch) | finance · `services/finance/main.go:82` | oturum açmış herkes (site kapsamı) | — | yok |
 | `POST /public/payments/iyzico/callback` — iyzico tarayıcı dönüşü | finance · `services/finance/main.go:84` | oturum açmış herkes (site kapsamı) | finance_ledger(+), monthly_assessments(±), payments(±) · tetikleyici: monthly_assessments_active_property, monthly_assessments_active_property_increase, monthly_assessments_guard, trg_monthly_assessments_tenant_link, payments_guard | yok |
-| `GET /finance/assessments/overview` | finance · `services/finance/main.go:118` | AUDITOR/BOARD_MEMBER/MANAGER | — | yok |
+| `GET /finance/assessments/:id` | finance · `services/finance/main.go:92` | `assessment_visible_to` | — | yok |
 | `POST /auth/refresh` — istemcilerin jeton yenilemesi | identity · `services/identity/main.go:79` | oturum açmış herkes (site kapsamı) | revoked_tokens(+), user_token_invalidation(+), users(±) | yok |
-| `POST /users/me/tenancy-requests/:id/decline` | identity · `services/identity/main.go:118` | serviste rol karşılaştırması: OWNER/PROXY | tenancy_end_events(+), resident_units(±), tenancy_end_requests(±), units(±) · tetikleyici: trg_resident_units_tenancy_guard, trg_resident_units_tenant_arrival, trg_resident_units_tenant_departure | `identity.tenancy` → işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
-| `POST /users/me/invitations/:id/decline` | identity · `services/identity/main.go:125` | serviste rol karşılaştırması: OWNER/TENANT | resident_units(+), resident_invitations(±) · tetikleyici: trg_resident_units_tenancy_guard, trg_resident_units_tenant_arrival, trg_resident_units_tenant_departure | yok |
 | `GET /inventory/:id` | inventory · `services/inventory/main.go:88` | AUDITOR/BOARD_MEMBER/MANAGER/STAFF | — | yok |
 | `GET /consumption/statements/:id` | iot · `services/iot/main.go:448` | `resident_can_use` | — | yok |
-| `POST /public/sensors/data` | iot · `services/iot/sensors.go:127` | oturum açmış herkes (site kapsamı) | sensor_alerts(+), sensor_alerts(±) | `{topic}` → Operations |
+| `POST /public/sensors/data` — IoT sensörü (X-Device-Key, 074) | iot · `services/iot/sensors.go:127` | oturum açmış herkes (site kapsamı) | sensor_alerts(+), sensor_alerts(±) | `{topic}` → Operations |
 | `GET /sensors/:id` | iot · `services/iot/sensors.go:191` | AUDITOR/BOARD_MEMBER/MANAGER/STAFF | — | yok |
 | `GET /packages/:id` | package · `services/package/main.go:99` | `resident_can_use` | — | yok |
 | `POST /public/devices/heartbeat` — geçiş cihazı (X-Device-Key) | parking · `services/parking/devices.go:37` | oturum açmış herkes (site kapsamı) | — | `?` → Operations |
 | `GET /facilities/:id` | reservation · `services/reservation/main.go:91` | oturum açmış herkes (site kapsamı) | — | yok |
-| `GET /audit-logs/export` | settings · `services/settings/activity.go:175` | AUDITOR/MANAGER | — | yok |
 
 ## 5.2 Yazılmamış modüller (501)
 

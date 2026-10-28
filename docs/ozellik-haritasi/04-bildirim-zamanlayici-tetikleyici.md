@@ -4,7 +4,7 @@
 
 - Kanallar: `IN_APP`, `PUSH`, `SMS` (Netgsm), `EMAIL` (SMTP) — `backend/pkg/notify/notify.go`. Sağlayıcısı yapılandırılmamış kanal "kuyrukta bekliyor" kalır; PUSH için sağlayıcı yok.
 - Kategori: `TRANSACTIONAL` (onay gerekmez) / `COMMERCIAL` (6563 m.6 — önceden onay şart).
-- **Kişinin kendi bildirim kutusu yalnız sakin uygulamasında var:** `GET /notifications` → Sakin `notifications_screen`. Panelde ve yönetici mobil uygulamasında kişisel kutu YOK; yönetime giden bildirimler panelde yalnız *Bildirimler* sayfasındaki giden kutusunda (`GET /notifications/outbox`, sitenin tüm bildirimleri) görülür.
+- **Kişisel bildirim kutusu üç istemcide de var (073):** `GET /notifications` (okundu bilgisiyle, `notification_reads`), `GET /notifications/unread-count`, `POST /notifications/:id/read`, `POST /notifications/read-all` → Panel üst bar zili + `/dashboard/inbox`, Sakin `notifications_screen`, Yön.mobil `inbox_screen` (ana ekranda okunmamış sayısı). Sitenin bütün bildirimleri (giden kutusu, `GET /notifications/outbox`) panelde *Bildirimler* sayfasında ve Yön.mobil `notification_center` ekranındadır.
 - Gönderilmiş bildirim silinemez/değiştirilemez (tetikleyici `notifications_sent_final`); pasif sitede yeni bildirim yazılamaz (`notifications_active_property`).
 - Alıcı kümeleri (`backend/pkg/notify/audience.go`): Residents (aktif sakinler, kişi başı tek), UnitResidents (dairenin aktif sakinleri), UnitUsers (daireyi kullananlar), AssessmentPayers (tahakkukun sorumlusu), BlockNeighbors (aynı blok), Tenants (kiracılar), UnitOwners (malikler), Managers (MANAGER/BOARD_MEMBER/AUDITOR), Approvers (MANAGER/BOARD_MEMBER), Operations (MANAGER/BOARD_MEMBER/STAFF).
 
@@ -72,31 +72,31 @@
 
 | İş | Ne yapar | Konu | Alıcı | Kod |
 |---|---|---|---|---|
-| dues.overdue | Vadesi geçmiş aidat: daireye ayda en fazla bir hatırlatma; kiracı sorumluluğundaysa malike de | `dues.overdue`, `dues.overdue.tenant` | AssessmentPayers; UnitOwners | `backend/cmd/scheduler/jobs.go:93` |
-| contract.notice | İhbar son günü yaklaşan/geçen sözleşme | `contract.notice` | Managers | `jobs.go:221` |
-| contract.expired | Süresi dolduğu hâlde ACTIVE sözleşme | `contract.expired` | Managers | `jobs.go:302` |
-| patrol.overdue | Beklenen süre + tolerans aşılmış açık devriye | `patrol.overdue` | Managers | `jobs.go:361` |
-| asset.maintenance | Bakım/periyodik kontrol tarihi yaklaşan/geçen demirbaş | `asset.maintenance.*` | Managers | `jobs.go:431` |
-| kvkk.due | KVKK m.13 yanıt süresi dolmak üzere/dolmuş başvuru | `kvkk.due.*` | Managers | `jobs.go:495` |
-| budget.approval | Geçici işletme projesinin genel kurul süresi (KMK m.37, 3 ay) | `budget.approval.*` | Managers | `jobs.go:555` |
-| emergency.drill | Yıllık tatbikat süresi geçmiş / hiç tatbikat yok | `emergency.drill` | Managers | `jobs.go:618` |
-| compliance.employer | SGK işe giriş/çıkış, MUHSGK/prim son günü | `compliance.*` | Managers | `jobs.go:670` |
-| kvkk.destruction | Saklama süresi dolan ziyaretçi/otopark/kargo kayıtlarını anonimleştirir (≤6 ayda bir); süre tanımsızsa hatırlatır | `kvkk.destruction.done`, `kvkk.destruction.undefined` | Managers | `jobs.go:721` |
-| dask.renewal | 30 gün içinde biten/bitmiş DASK poliçesi | `dask.*` | UnitResidents (malik) | `jobs.go:775` |
-| activity.purge | Saklama süresi dolan uygulama içi etkinlik kayıtlarını siler (ACTIVITY_LOG_RETENTION_DAYS) | — | — | `jobs.go` purgeClientActivity |
-| sensor.purge | 365 günden eski sensör okumalarını siler | — | — | `jobs.go` purgeSensorReadings |
-| patrol.track.purge | 1 yıldan eski devriye konum izini siler | — | — | `jobs.go` purgePatrolTracks |
+| dues.overdue | Vadesi geçmiş aidat: daireye ayda en fazla bir hatırlatma; kiracı sorumluluğundaysa malike de | `dues.overdue`, `dues.overdue.tenant` | AssessmentPayers; UnitOwners | `backend/cmd/scheduler/jobs.go:97` |
+| contract.notice | İhbar son günü yaklaşan/geçen sözleşme | `contract.notice` | Managers | `jobs.go:225` |
+| contract.expired | Süresi dolduğu hâlde ACTIVE sözleşme | `contract.expired` | Managers | `jobs.go:306` |
+| patrol.overdue | Beklenen süre + tolerans aşılmış açık devriye | `patrol.overdue` | Managers | `jobs.go:365` |
+| asset.maintenance | Bakım/periyodik kontrol tarihi yaklaşan/geçen demirbaş | `asset.maintenance.*` | Managers | `jobs.go:435` |
+| kvkk.due | KVKK m.13 yanıt süresi dolmak üzere/dolmuş başvuru | `kvkk.due.*` | Managers | `jobs.go:499` |
+| budget.approval | Geçici işletme projesinin genel kurul süresi (KMK m.37, 3 ay) | `budget.approval.*` | Managers | `jobs.go:559` |
+| emergency.drill | Yıllık tatbikat süresi geçmiş / hiç tatbikat yok | `emergency.drill` | Managers | `jobs.go:622` |
+| compliance.employer | SGK işe giriş/çıkış, MUHSGK/prim son günü | `compliance.*` | Managers | `jobs.go:674` |
+| kvkk.destruction | Saklama süresi dolan ziyaretçi/otopark/kargo kayıtlarını anonimleştirir (≤6 ayda bir); süre tanımsızsa hatırlatır | `kvkk.destruction.done`, `kvkk.destruction.undefined` | Managers | `jobs.go:725` |
+| dask.renewal | 30 gün içinde biten/bitmiş DASK poliçesi | `dask.*` | UnitResidents (malik) | `jobs.go:779` |
+| activity.purge | Saklama süresi dolan uygulama içi etkinlik kayıtlarını siler (ACTIVITY_LOG_RETENTION_DAYS) | — | — | `jobs.go:845` |
+| sensor.purge | 365 günden eski sensör okumalarını siler | — | — | `jobs.go:868` |
+| patrol.track.purge | 1 yıldan eski devriye konum izini siler | — | — | `jobs.go:882` |
 
-Mükerrer gönderim `DedupeKey` ile engellenir (ör. `dues.overdue:<daire>:<ay>`, `jobs.go:209`).
+Mükerrer gönderim `DedupeKey` ile engellenir (ör. `dues.overdue:<daire>:<ay>`, `jobs.go:213`).
 
 ## 4.4 Servis içi bekçiler
 
 | Bekçi | Aralık | Ne yapar | Kod |
 |---|---|---|---|
-| Kart ödemesi uzlaştırma | 1 dk (`CARD_RECONCILE_INTERVAL`), 20 dk'dan eski askıdaki ödemeler (`CARD_RECONCILE_AGE`) | Sonucu iyzico'dan yeniden sorgular, askıda ödeme bırakmaz | `backend/services/finance/card.go:85` |
-| Geçiş cihazı canlılığı | 30 sn (`DEVICE_WATCH_INTERVAL`) | Sinyal kesilen cihaz için olay açar; `device.offline`/`device.recovered` bildirimi → Operations | `backend/services/parking/devices.go:144` |
-| Sensör sinyal bekçisi | 60 sn (`SENSOR_WATCH_INTERVAL`) | Sinyali kesilen sensör için OFFLINE alarmı açar; `iot.offline` → Operations (074) | `backend/services/iot/sensors.go` startSensorWatch |
-| Kargo teslim kanıtı imhası | 15 dk (`PACKAGE_PURGE_INTERVAL`) | Silme kuyruğundaki kanıt dosyalarını depodan siler | `backend/services/package/proof.go:296` |
+| Kart ödemesi uzlaştırma | 1 dk (`CARD_RECONCILE_INTERVAL`), 20 dk'dan eski askıdaki ödemeler (`CARD_RECONCILE_AGE`) | Sonucu iyzico'dan yeniden sorgular, askıda ödeme bırakmaz | `backend/services/finance/card.go:66` |
+| Geçiş cihazı canlılığı | 30 sn (`DEVICE_WATCH_INTERVAL`) | Sinyal kesilen cihaz için olay açar; `device.offline`/`device.recovered` bildirimi → Operations | `backend/services/parking/devices.go:145` |
+| Sensör sinyal bekçisi | 60 sn (`SENSOR_WATCH_INTERVAL`) | Sinyali kesilen sensör için OFFLINE alarmı açar; `iot.offline` → Operations (074) | `backend/services/iot/sensors.go:465` |
+| Kargo teslim kanıtı imhası | 15 dk (`PACKAGE_PURGE_INTERVAL`) | Silme kuyruğundaki kanıt dosyalarını depodan siler | `backend/services/package/proof.go:298` |
 
 ## 4.5 Veritabanı tetikleyicileri (son tanım geçerli)
 

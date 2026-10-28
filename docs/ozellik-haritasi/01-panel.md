@@ -426,7 +426,7 @@ Kaynak: `admin/src/app/**/page.tsx` ve içe aktardığı `admin/src/components/*
 - **Dosya:** `admin/src/app/(dashboard)/dashboard/assessments/page.tsx`
 - **Panel erişimi:** MANAGER/BOARD_MEMBER/AUDITOR — Tahakkuk kayıtları
 - **Ekranda:**
-  - Veri (satır 20): `GET /finance/assessments/:id` (finance)
+  - Veri (satır 20): `GET /finance/assessments/overview` (finance)
   - Veri (satır 21): `GET /finance/expense-categories` (finance)
   - Kart (satır 48): Dönemler
   - Tablo (satır 51): Dönem \| Vade \| Tahakkuk \| Tahsil edilen \| Oran \| Durum
@@ -1062,7 +1062,7 @@ Kaynak: `admin/src/app/**/page.tsx` ve içe aktardığı `admin/src/components/*
 
 | # | Öğe | Uç · servis · kayıt | Yetki | Değişen tablolar | Bildirim (konu → alıcı) | Etkisinin görüldüğü yerler |
 |---|---|---|---|---|---|---|
-| 1 | Düğme **CSV indir (başarı: Dışa aktarıldı)** (satır 31) | — | | | | |
+| 1 | Düğme **CSV indir (başarı: Dışa aktarıldı)** (satır 31) | `GET /audit-logs/export` · settings · `services/settings/activity.go:175` | AUDITOR/MANAGER | — | yok | — |
 | 2 | Düğme **Uygula — yalnız arayüz (pencere/gezinme), sunucu çağrısı yok** (satır 59) | — | | | | |
 | 3 | Düğme **Temizle (pencere/form açar)** (satır 60) | — | | | | |
 | 4 | Düğme **Ayrıntı (pencere/form açar)** (satır 77) | — | | | | |

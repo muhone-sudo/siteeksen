@@ -1,6 +1,6 @@
 # SiteEksen özellik ve yetenek haritası
 
-Üretim tarihi: 2026-10-26 · Kaynak: `main` (8e5e9a1). Her satır koddan çıkarıldı ve `dosya:satır` kanıtı taşır; elle tahmin yoktur.
+Üretim tarihi: 2026-10-26 · Son güncelleme: 2026-10-28 · Kaynak: `main` (4254fff, FAZ H sonrası). Her satır koddan çıkarıldı ve `dosya:satır` kanıtı taşır; elle tahmin yoktur.
 
 | Bölüm | Kapsam |
 |---|---|
@@ -8,7 +8,7 @@
 | [2. Sakin mobil uygulaması](02-sakin-mobil.md) | 40 ekran/bileşen, 207 eylem |
 | [3. Yönetici mobil uygulaması](03-yonetici-mobil.md) | 66 ekran/bileşen, 333 eylem — panelde kullanılan her uç burada da kullanılıyor (FAZ H.7) |
 | [4. Bildirimler, zamanlanmış işler, tetikleyiciler](04-bildirim-zamanlayici-tetikleyici.md) | 55 bildirim üreten uç, 14 zamanlanmış iş, 4 bekçi, 23 tetikleyici, denetim izi |
-| [5. Arayüzsüz uçlar](05-arayuzsuz-uclar.md) | Backend'de olup hiçbir ekranda düğmesi olmayan uçlar, 501 modüller |
+| [5. Arayüzsüz uçlar](05-arayuzsuz-uclar.md) | Backend'de olup hiçbir ekranda düğmesi olmayan 15 uç (4'ü istemci dışı: cihaz, iyzico, jeton yenileme, belge doğrulama), 501 modül (`banking`, 16 uç) |
 | [6. Bulgular ve eksikler](06-bulgular-ve-eksikler.md) | Haritadan çıkan hatalar; yapılan özellikler ile haritanın karşılaştırması, eksikler ve öncelik sırası |
 
 ## Tablolar nasıl okunur
@@ -26,13 +26,15 @@
 
 - **Denetim izi:** her istek (GET dahil) `audit_logs`'a yazılır; 403 → `DENIED` (`backend/pkg/middleware/auth.go:162`).
 - **Site izolasyonu:** her sorgu `pkg/dbscope` ile aktif siteye bağlanır, RLS dışına çıkamaz.
-- **Gateway:** `/api/v1/auth/*`, `/public/clearance/*`, `/public/devices/heartbeat`, `/public/payments/iyzico/callback` dışında her uç jeton ister (`backend/cmd/gateway/main.go:188`). `/dashboard/*` gösterge sayıları gateway'de dört servisten toplanır (`main.go:389`).
+- **Gateway:** `/api/v1/auth/*`, `/public/clearance/*`, `/public/devices/heartbeat`, `/public/sensors/data` (cihaz anahtarıyla), `/public/payments/iyzico/callback` dışında her uç jeton ister (`backend/cmd/gateway/main.go:189`). `/dashboard/*` gösterge sayıları gateway'de dört servisten toplanır (`main.go:390`).
 - **Panel sayfa erişimi** `admin/src/lib/rbac.ts`; düğmelerdeki "yalnız yazma yetkisi" = MANAGER veya BOARD_MEMBER (`admin/src/lib/use-api.ts:78`). Asıl yetki backend'dedir.
 
 ## Sınırlar
 
 - Mobilde etiketi yalnız simge olan düğmeler `?` olarak görünür; satır numarasından bulunur.
-- Bir düğme dinamik bir yol çağırıyorsa (ör. `/surveys/$id/$action`) çağıran sabit değerden çözülür; çözülemeyenler en yakın rotaya eşlenmiştir.
+- Bir düğme dinamik bir yol çağırıyorsa (ör. `/surveys/$id/$action`) çağıran sabit değerden çözülür; çözülemeyenler en yakın rotaya eşlenmiştir. Statik bölüm `:id`'den önce gelir (`/assessments/overview` ≠ `/assessments/:id`).
+- Yolda üçlü ifade varsa (`${accept ? 'accept' : 'decline'}`) iki rota da yazılır; aynı yöntemi çağıran iki düğmenin (Kabul / Reddet) satırında ikisi birden görünür.
+- Açılır menüde (`PopupMenuButton`) her seçenek yalnız kendi dalının (`if (v == '…')`) çağrısıyla eşlenir.
 - Push bildirimi altyapısı yoktur; `PUSH` kanalı kuyrukta kalır.
 
 ## Yeniden üretme

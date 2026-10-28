@@ -1,6 +1,6 @@
 # 6. Bulgular ve eksikler
 
-Tarih: 2026-10-26. İki kaynak karşılaştırıldı:
+Tarih: 2026-10-26 · Son güncelleme: 2026-10-28 (FAZ H sonrası, `4254fff`). İki kaynak karşılaştırıldı:
 - **Yapılan özellikler:** `tasks/changelog.md` (her girdi kanıtlı) ve CLAUDE.md'deki "gerçek durum" notları.
 - **Harita:** bu klasördeki 1-5. bölümler (koddan üretildi, `arac/uret.sh`).
 
@@ -11,12 +11,12 @@ Bir özellik "eksik" sayıldıysa backend'de çalışıyor ama ilgili kullanıc�
 | # | Bulgu | Kanıt |
 |---|---|---|
 | A1 | **ÇÖZÜLDÜ (H.8).** Eski bulgu: Giriş sayfasındaki "Yöneticinize başvurun" bağlantısı hiçbir yere gitmiyor (`href="#"`). | `admin/src/app/login/page.tsx:154` |
-| A2 | **Yönetim için kişisel bildirim kutusu yok.** Kişinin kendi bildirimlerini okuyan uç (`GET /notifications`) yalnız sakin uygulamasında kullanılıyor. Yönetime giden bildirimler (KVKK başvurusu, tadilat, ihlal, düşük stok, devriye sorunu, 11 zamanlanmış işin 9'u) panelde sadece Bildirimler sayfasındaki giden kutusunda (sitenin tüm bildirimleri) görülebiliyor. Yönetici mobil uygulamasında ise hiç görünmüyor. Panel zil simgesi kişisel kutuya değil toplu gönderim sayfasına gidiyor. | `backend/services/notification/main.go:64`, `admin/src/components/layout/header.tsx:85`, 4.1 |
+| A2 | **ÇÖZÜLDÜ (FAZ H.2, 073):** panelde üst bar zili + `/dashboard/inbox`, yönetici uygulamasında `inbox_screen` (ana ekranda okunmamış sayısı); okundu bilgisi `notification_reads`. Eski bulgu: **Yönetim için kişisel bildirim kutusu yok.** Kişinin kendi bildirimlerini okuyan uç (`GET /notifications`) yalnız sakin uygulamasında kullanılıyor. Yönetime giden bildirimler (KVKK başvurusu, tadilat, ihlal, düşük stok, devriye sorunu, 11 zamanlanmış işin 9'u) panelde sadece Bildirimler sayfasındaki giden kutusunda (sitenin tüm bildirimleri) görülebiliyor. Yönetici mobil uygulamasında ise hiç görünmüyor. Panel zil simgesi kişisel kutuya değil toplu gönderim sayfasına gidiyor. | `backend/services/notification/main.go:64`, `admin/src/components/layout/header.tsx:85`, 4.1 |
 | A3 | **ÇÖZÜLDÜ (2026-10-26, FAZ H.1.2):** sayfa "Entegrasyon durumu" oldu, gerçek durumu gateway `GET /integrations/status`'tan okuyor; `/credentials*` stub uçları kaldırıldı. Eski bulgu: Panel *Entegrasyon Anahtarları* sayfası backend'i çağırmıyor, yalnız bilgi notu gösteriyor. `settings` servisindeki 7 `/credentials*` ucu hiçbir istemcide kullanılmıyor. | `admin/src/app/(dashboard)/dashboard/credentials/page.tsx` |
-| A4 | Sakin uygulamasının API istemcisinde `getVisitors` (`GET /visitors`) ve `reportClientError` (`POST /client-errors`) yöntemleri tanımlı ama hiçbir ekrandan çağrılmıyor. | `mobile/lib/core/network/api_client.dart` |
+| A4 | **ÇÖZÜLDÜ (FAZ H.6):** `getVisitors` Ziyaretçilerim ekranında, `reportClientError` `main.dart`'taki hata bildiriminde kullanılıyor. Eski bulgu: Sakin uygulamasının API istemcisinde `getVisitors` (`GET /visitors`) ve `reportClientError` (`POST /client-errors`) yöntemleri tanımlı ama hiçbir ekrandan çağrılmıyor. | `mobile/lib/core/network/api_client.dart` |
 | A5 | **ÇÖZÜLDÜ (FAZ H.4, 074):** sensörler PostgreSQL ile gerçek; panel ve yönetici uygulamasında ekranı var. Eski bulgu: IoT sensör ve alarm uçları (6 uç) hiçbir istemcide yok. Bu bilinçli: CLAUDE.md'de "gerçek değil" olarak geçiyor. | 5.1 |
 | A6 | **KISMEN ÇÖZÜLDÜ (FAZ H.1.1):** `meeting_wizard` servisi kaldırıldı (governance tek kaynak); `banking` S-07 gereği duruyor. Eski bulgu: `banking` ve `meeting_wizard` servislerinin 33 ucu 501 döner (kullanıcı kararı S-07 / governance ile tekrar). | 5.2 |
-| A7 | CLAUDE.md'de koda uymayan ifadeler vardı ve düzeltildi: panelde çıkış düğmesi ve rol denetimi "yok" deniyordu; `iot`/`notification` satırlarında MongoDB/Firebase/Kafka geçiyordu; bildirim üreten modül sayısı "altı" yazıyordu (gerçekte 14 servis, 54 uç); `intl` "kullanılmıyor" deniyordu; ortam tablosu WSL yolunu gösteriyordu. | CLAUDE.md |
+| A7 | CLAUDE.md'de koda uymayan ifadeler vardı ve düzeltildi: panelde çıkış düğmesi ve rol denetimi "yok" deniyordu; `iot`/`notification` satırlarında MongoDB/Firebase/Kafka geçiyordu; bildirim üreten modül sayısı "altı" yazıyordu (o gün 14 servis, 54 uç; FAZ H sonrası 55 uç, 14 zamanlanmış iş, 4 bekçi); `intl` "kullanılmıyor" deniyordu; ortam tablosu WSL yolunu gösteriyordu. | CLAUDE.md |
 
 ## B. Yapılan özellik ↔ harita: eksikler
 
@@ -98,9 +98,26 @@ Tam uç listesi 3. bölümde ekran ekran, 1. bölümde sayfa sayfa yer alıyor.
 
 ## C. Öneri sırası (etkiye göre)
 
-1. **B1.7 NPS yanıtı** ve **B2 devriye saha ekranı:** iki modül uçtan uca kullanılamıyor.
-2. **A2 yönetim bildirim kutusu:** yönetime giden bütün bildirimler ve hatırlatmalar fiilen görünmüyor.
-3. **B1.1 ödeme geçmişi, B1.3 ziyaretçi listesi/iptal/kod, B1.2 araç:** changelog'da sakin için yapıldığı yazan ama ekranı olmayan işler.
-4. **B1.5 kargo kanıtı görüntüleme**, **B1.10 tüm cihazlardan çıkış**, **B1.6 tadilat geri çekme**, **B1.8 ilan yorumları**.
-5. B3 panel eksikleri; B4 yönetici mobil kapsamı (kullanıcı kararı: mobilde hangi modüller olmalı?).
+> 2026-10-28: 1-6'nın hepsi FAZ H'de yapıldı (H.2, H.5, H.6, H.7, H.8). Sıradaki açık maddeler D bölümündedir.
+
+1. ~~**B1.7 NPS yanıtı** ve **B2 devriye saha ekranı**~~ — **ÇÖZÜLDÜ (H.6, H.5).**
+2. ~~**A2 yönetim bildirim kutusu**~~ — **ÇÖZÜLDÜ (H.2).**
+3. ~~**B1.1 ödeme geçmişi, B1.3 ziyaretçi listesi/iptal/kod, B1.2 araç**~~ — **ÇÖZÜLDÜ (H.6).**
+4. ~~**B1.5 kargo kanıtı**, **B1.10 tüm cihazlardan çıkış**, **B1.6 tadilat geri çekme**, **B1.8 ilan yorumları**~~ — **ÇÖZÜLDÜ (H.6, H.8).**
+5. ~~B3 panel eksikleri; B4 yönetici mobil kapsamı~~ — **ÇÖZÜLDÜ (H.8, H.7; K4: tam eşitlik).**
 6. ~~A1 ölü bağlantı~~ — **ÇÖZÜLDÜ (H.8):** giriş sayfası `/activate` bağlantısı verir.
+
+## D. 2026-10-28 güncellemesinde bulunanlar
+
+Harita FAZ H sonrası koda göre yeniden üretildi. Önce harita aracındaki üç eşleme hatası düzeltildi (README "Sınırlar"):
+açılır menüde her seçeneğe menünün bütün çağrıları yazılıyordu (ör. devriye noktasında "Yarıçap" → QR yenileme de görünüyordu);
+statik yol `:id` rotasına eşleniyordu (`/finance/assessments/overview` → `/finance/assessments/:id`); üçlü ifadeli yollar
+(`…/${accept ? 'accept' : 'decline'}`) tek rotaya düşüyordu. Bu yüzden 5.1'de yanlışlıkla "kullanılmıyor" görünen
+4 uç (`GET /finance/assessments/overview`, `GET /audit-logs/export`, davet ve kiracılık talebi reddi) artık doğru yerde.
+
+| # | Bulgu | Kanıt |
+|---|---|---|
+| D1 | `GET /finance/assessments/:id` (tahakkuk ayrıntısı, `assessment_visible_to` kuralıyla) hiçbir istemcide çağrılmıyor; ekranlar borç ayrıntısını listeden gösteriyor. Ya bir ekrana bağlanmalı ya kaldırılmalı. | 5.1, `services/finance/main.go:92` |
+| D2 | Tekil kayıt okuyan `GET /…/:id` uçları (ilan, duyuru, sözleşme, belge, stok, sensör, kargo, tesis, tüketim pusulası) istemcilerde kullanılmıyor; ekranlar listeden açıyor. Hata değil. Not: `GET /documents/:id` `VIEW` erişim kaydı yazar ama çağrılmadığı için belge bilgileri listeden görüldüğünde `VIEW` kaydı oluşmuyor; dosyanın kendisi yalnız indirmeyle açılır ve `DOWNLOAD` kaydı yazılır (`services/document/main.go:143`). | 5.1 |
+| D3 | Sakin uygulamasında kiracılık talebini reddetme ve daveti reddetme düğmeleri var; önceki harita bunları "arayüzsüz" gösteriyordu (araç hatası, düzeltildi). | 2. bölüm, `mobile/lib/core/network/api_client.dart:254` |
+| D4 | Açık kalan ve kullanıcı kararı bekleyenler: destek talebi (B10), push bildirimi (B11, `PUSH` kanalı kuyrukta kalır), `banking` (S-07), iOS klasörü yok; fikir havuzu F1-F4 (`tasks/todo.md`). | CLAUDE.md, `tasks/todo.md` |

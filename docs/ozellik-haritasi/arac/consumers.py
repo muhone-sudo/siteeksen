@@ -6,10 +6,21 @@ routes = json.load(open(os.path.join(S, "cg.json")))
 panel = json.load(open(os.path.join(S, "panel_ep.json")))
 
 
-def match(verb, path):
+TERN = re.compile(r"\$\{[^}?]*\?\s*[\"']([^\"']*)[\"']\s*:\s*[\"']([^\"']*)[\"']\s*\}")
+
+
+def variants(path):
+    m = TERN.search(path)
+    if not m:
+        return [path]
+    return [v for alt in (m.group(1), m.group(2)) for v in variants(path[:m.start()] + alt + path[m.end():])]
+
+
+def match_one(verb, path):
     path = re.sub(r"\$\{[^}]+\}|\$\w+", ":p", path).split("?")[0]
     segs = [x for x in path.strip("/").split("/") if x]
     for strict in (True, False):
+        best, score = None, -1
         for r in routes:
             if r["Method"] not in (verb, "Any"):
                 continue
@@ -17,16 +28,24 @@ def match(verb, path):
             if len(rs) != len(segs):
                 continue
             if all(a == b or a.startswith(":") or a.startswith("*") or (not strict and ":p" in b) for a, b in zip(rs, segs)):
-                return r["Method"] + " " + r["Path"]
+                sc = sum(a == b for a, b in zip(rs, segs))
+                if sc > score:
+                    best, score = r["Method"] + " " + r["Path"], sc
+        if best:
+            return best
     return None
+
+
+def match(verb, path):
+    return [m for m in (match_one(verb, v) for v in variants(path)) if m]
 
 
 uses = {}
 
 
 def add(route, who):
-    if route:
-        uses.setdefault(route, set()).add(who)
+    for r in route or []:
+        uses.setdefault(r, set()).add(who)
 
 
 # --- panel: sayfa -> api yöntemleri (bileşenler dahil) ---
@@ -57,7 +76,7 @@ for c, (path, calls) in comp_api.items():
 for page, calls in page_api.items():
     for m in calls:
         for c in panel.get(m, []):
-            add(c["backend"] and (c["verb"] if c["verb"] != "GET" else "GET") and match(c["verb"], c["path"]), "Panel " + page)
+            add(c["backend"] and match(c["verb"], c["path"]), "Panel " + page)
 
 # --- mobil ---
 VERB = {"get": "GET", "getList": "GET", "getMap": "GET", "post": "POST", "postMultipart": "POST", "put": "PUT",

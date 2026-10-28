@@ -152,7 +152,7 @@ cd admin && npm run dev            # http://localhost:3001
   → 28 Dockerfile (root değil, uid 10001), `docker-compose.yml`, `k8s/*.yaml`,
   CI imaj matrisi. Elle düzenlenmez; `--check` kipi doğrulamada sapmayı yakalar.
   Compose zorunlu gizli değerler (`.env`, şablon `.env.example`) yoksa açılmaz.
-- **Modüller artık gerçekten bildirim gönderiyor.** 14 servis (54 uç) ve zamanlayıcı (11 iş) `pkg/notify`
+- **Modüller artık gerçekten bildirim gönderiyor.** 15 servis (55 uç) ve zamanlayıcı (14 iş; 11'i bildirim üretir) `pkg/notify`
   üzerinden bildirim üretir; tam katalog `docs/ozellik-haritasi/04-bildirim-zamanlayici-tetikleyici.md`.
   Kişisel bildirim kutusu (`GET /notifications`, okundu bilgisiyle — 073) panelde (zil + `/dashboard/inbox`) ve
   iki mobil uygulamada var. Alıcı kümesi (sakinler / daire
@@ -387,7 +387,7 @@ The custom gateway at `cmd/gateway/` (port 8888) is the **single ingress** every
 
 ### Admin Panel (Next.js 14)
 - App router under `admin/src/app/(dashboard)/dashboard/`
-- 48 sayfa; sayfa sayfa düğmeler, uçlar ve etkiler: `docs/ozellik-haritasi/01-panel.md`
+- 52 sayfa; sayfa sayfa düğmeler, uçlar ve etkiler: `docs/ozellik-haritasi/01-panel.md`
 - Auth via NextAuth.js (`next-auth`)
 - API client in `src/lib/api-client.ts`
 - UI: Tailwind CSS + lucide-react icons

@@ -50,7 +50,66 @@ def first_text(s):
     return m.group(1)[:70] if m else None
 
 
+LIT_IF = re.compile(r"if\s*\(\s*'([^']*)'\s*(==|!=)\s*'([^']*)'\s*\)\s*")
+ANY_IF = re.compile(r"if\s*\(")
+
+
+def prune_branches(s):
+    def stmt_end(j):
+        return close(s, j) + 1 if s[j:j + 1] == "{" else (s.find(";", j) + 1 or len(s))
+
+    def chain(p):
+        m = LIT_IF.match(s, p)
+        if m:
+            taken = (m.group(1) == m.group(3)) == (m.group(2) == "==")
+            j = m.end()
+        else:
+            c = close(s, ANY_IF.match(s, p).end() - 1)
+            taken, j = None, c + 1
+            while s[j:j + 1].isspace():
+                j += 1
+        end = stmt_end(j)
+        body = s[j:end]
+        em = re.match(r"\s*else\s*", s[end:])
+        if not em:
+            return (body if taken else "") if taken is not None else s[p:end], end
+        k = end + em.end()
+        if ANY_IF.match(s, k):
+            alt, aend = chain(k)
+        else:
+            aend = stmt_end(k)
+            alt = s[k:aend]
+        if taken is None:
+            return s[p:k] + alt, aend
+        return (body if taken else alt), aend
+
+    out, i = [], 0
+    for m in LIT_IF.finditer(s):
+        if m.start() < i:
+            continue
+        kept, i2 = chain(m.start())
+        out.append(s[i:m.start()])
+        out.append(kept)
+        i = i2
+    out.append(s[i:])
+    return "".join(out)
+
+
+TERN = re.compile(r"\$\{[^}?]*\?\s*'([^']*)'\s*:\s*'([^']*)'\s*\}")
+
+
+def variants(path):
+    m = TERN.search(path)
+    if not m:
+        return [path]
+    return [v for alt in (m.group(1), m.group(2)) for v in variants(path[:m.start()] + alt + path[m.end():])]
+
+
 def api_calls(s):
+    return list(dict.fromkeys(v.split(" ", 1)[0] + " " + p for v in _api_calls(s) for p in variants(v.split(" ", 1)[1])))
+
+
+def _api_calls(s):
     out = []
     for p in re.findall(r"\b(?:_open\w*|_download\w*|_export\w*|_share\w*|openReport|download\w*)\(\s*(?:context\s*,\s*)?'(/[^']+)'", s):
         out.append("GET %s" % p)
@@ -274,10 +333,12 @@ def outline(path):
             hbody = rest[:close(rest, nm.end() - 1) + 1] if nm else rest.split(",")[0]
         var = hm.group(1)
         for it in re.finditer(r"PopupMenuItem(?:<[^>(]*>)?\(\s*value:\s*'([^']+)'", blk):
-            iblk = blk[it.start():close(blk, it.end() - 1 - len(it.group(0)) + it.group(0).index("(")) + 1] if False else blk[it.start():it.start() + 300]
+            po = it.start() + it.group(0).index("(")
+            iblk = blk[it.start():close(blk, po) + 1]
             label = first_text(iblk) or it.group(1)
             sub = re.sub(r"(?<![\w$'])%s(?![\w'])" % re.escape(var), "'%s'" % it.group(1), hbody)
             sub = re.sub(r"\$%s\b|\$\{%s\}" % (re.escape(var), re.escape(var)), it.group(1), sub)
+            sub = prune_branches(sub)
             calls = api_calls(follow(src, sub))
             writes = [c for c in calls if not c.startswith("GET ")]
             ev.append((pm.start() + it.start(), "DÜĞME", "Menü: %s" % label, writes or calls))

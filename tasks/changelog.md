@@ -12,6 +12,16 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-28 — Özellik haritası FAZ H sonrası koda göre güncellendi (DOĞRULANMIŞ)
+
+- `docs/ozellik-haritasi/` 1-5. bölümler `arac/uret.sh` ile yeniden üretildi; README ve 6. bölüm (bulgular) elle güncellendi:
+  A2 (yönetim bildirim kutusu) ve A4 çözüldü işaretlendi, öneri sırası (C) kapatıldı, yeni D bölümü (D1-D4) eklendi.
+- 4. bölüm: "kişisel kutu yalnız sakinde" ifadesi düzeltildi (üç istemcide var); zamanlanmış iş ve bekçi satır numaraları artık koddan bulunuyor (`floc`).
+- Harita aracındaki eşleme hataları: açılır menü seçenekleri yalnız kendi dalının çağrısıyla eşleniyor; statik yol `:id`'den önce;
+  üçlü ifadeli yollar iki rotaya açılıyor. Yanlışlıkla "arayüzsüz" görünen 4 uç düzeldi; gerçek arayüzsüz uç `GET /finance/assessments/:id` (D1).
+- **Kanıt:** `bash docs/ozellik-haritasi/arac/uret.sh` → 410 rota, 379 kullanılıyor, 31 kullanılmıyor (16'sı `banking` 501); panel 52/330, sakin 40/207, yönetici 66/333.
+  Ardışık iki üretim aynı çıktıyı verdi.
+
 ### 2026-10-26 — FAZ H.6 / H.7 / H.8: SAKİN UYGULAMASI, PANEL EKLEMELERİ VE YÖNETİCİ MOBİLİN PANELLE TAM EŞİTLİĞİ (kullanıcı kararları K3, K4) (DOĞRULANMIŞ)
 
 > **Kanıt:** `verify-stack.sh` → **1423/1423** (adım 67: kiracının işletme projesi malik görünümüne 403 alması — önceki

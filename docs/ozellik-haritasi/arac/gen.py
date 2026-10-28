@@ -36,6 +36,7 @@ def match(verb, path):
     path = re.sub(r"\$\{[^}]+\}|\$\w+", ":p", path).split("?")[0]
     segs = [x for x in path.strip("/").split("/") if x]
     for strict in (True, False):
+        best, score = None, -1
         for r in cg:
             if r["Method"] not in (verb, "Any"):
                 continue
@@ -43,7 +44,11 @@ def match(verb, path):
             if len(rs) != len(segs):
                 continue
             if all(a == b or a.startswith(":") or (not strict and ":p" in b) for a, b in zip(rs, segs)):
-                return r
+                sc = sum(a == b for a, b in zip(rs, segs))
+                if sc > score:
+                    best, score = r, sc
+        if best:
+            return best
     return None
 
 
@@ -369,13 +374,21 @@ def write_mobile(app, fn, title, outfile):
     return total, screens
 
 
+def floc(rel, needle, short=None):
+    path = os.path.join(REPO, rel)
+    for i, line in enumerate(open(path), 1):
+        if needle in line:
+            return "`%s:%d`" % (short or rel, i)
+    raise SystemExit("floc: %s içinde %r yok" % (rel, needle))
+
+
 # ---------------- ORTAK ----------------
 def write_common():
     o = ["# 4. Bildirimler, zamanlanmış işler, bekçiler, tetikleyiciler", ""]
     o += ["## 4.1 Bildirim kanalları ve nerede görüldükleri", "",
           "- Kanallar: `IN_APP`, `PUSH`, `SMS` (Netgsm), `EMAIL` (SMTP) — `backend/pkg/notify/notify.go`. Sağlayıcısı yapılandırılmamış kanal \"kuyrukta bekliyor\" kalır; PUSH için sağlayıcı yok.",
           "- Kategori: `TRANSACTIONAL` (onay gerekmez) / `COMMERCIAL` (6563 m.6 — önceden onay şart).",
-          "- **Kişinin kendi bildirim kutusu yalnız sakin uygulamasında var:** `GET /notifications` → Sakin `notifications_screen`. Panelde ve yönetici mobil uygulamasında kişisel kutu YOK; yönetime giden bildirimler panelde yalnız *Bildirimler* sayfasındaki giden kutusunda (`GET /notifications/outbox`, sitenin tüm bildirimleri) görülür.",
+          "- **Kişisel bildirim kutusu üç istemcide de var (073):** `GET /notifications` (okundu bilgisiyle, `notification_reads`), `GET /notifications/unread-count`, `POST /notifications/:id/read`, `POST /notifications/read-all` → Panel üst bar zili + `/dashboard/inbox`, Sakin `notifications_screen`, Yön.mobil `inbox_screen` (ana ekranda okunmamış sayısı). Sitenin bütün bildirimleri (giden kutusu, `GET /notifications/outbox`) panelde *Bildirimler* sayfasında ve Yön.mobil `notification_center` ekranındadır.",
           "- Gönderilmiş bildirim silinemez/değiştirilemez (tetikleyici `notifications_sent_final`); pasif sitede yeni bildirim yazılamaz (`notifications_active_property`).",
           "- Alıcı kümeleri (`backend/pkg/notify/audience.go`): Residents (aktif sakinler, kişi başı tek), UnitResidents (dairenin aktif sakinleri), UnitUsers (daireyi kullananlar), AssessmentPayers (tahakkukun sorumlusu), BlockNeighbors (aynı blok), Tenants (kiracılar), UnitOwners (malikler), Managers (MANAGER/BOARD_MEMBER/AUDITOR), Approvers (MANAGER/BOARD_MEMBER), Operations (MANAGER/BOARD_MEMBER/STAFF).", ""]
     o += ["## 4.2 İstek üzerine üretilen bildirimler (uç → konu → alıcı)", "", "| Uç | Servis · kayıt | Konu | Alıcı |", "|---|---|---|---|"]
@@ -384,27 +397,27 @@ def write_common():
             o.append("| `%s %s` | %s · `%s` | %s | %s |" % (r["Method"], r["Path"], r["Svc"], r["Where"], ", ".join("`%s`" % t for t in r["Topics"] or []) or "—", ", ".join(r["Audience"] or []) or "işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta"))
     o += ["", "## 4.3 Zamanlanmış işler (`backend/cmd/scheduler`, varsayılan 15 dk'da bir, `SCHEDULER_INTERVAL`) — 14 iş", "",
           "| İş | Ne yapar | Konu | Alıcı | Kod |", "|---|---|---|---|---|",
-          "| dues.overdue | Vadesi geçmiş aidat: daireye ayda en fazla bir hatırlatma; kiracı sorumluluğundaysa malike de | `dues.overdue`, `dues.overdue.tenant` | AssessmentPayers; UnitOwners | `backend/cmd/scheduler/jobs.go:93` |",
-          "| contract.notice | İhbar son günü yaklaşan/geçen sözleşme | `contract.notice` | Managers | `jobs.go:221` |",
-          "| contract.expired | Süresi dolduğu hâlde ACTIVE sözleşme | `contract.expired` | Managers | `jobs.go:302` |",
-          "| patrol.overdue | Beklenen süre + tolerans aşılmış açık devriye | `patrol.overdue` | Managers | `jobs.go:361` |",
-          "| asset.maintenance | Bakım/periyodik kontrol tarihi yaklaşan/geçen demirbaş | `asset.maintenance.*` | Managers | `jobs.go:431` |",
-          "| kvkk.due | KVKK m.13 yanıt süresi dolmak üzere/dolmuş başvuru | `kvkk.due.*` | Managers | `jobs.go:495` |",
-          "| budget.approval | Geçici işletme projesinin genel kurul süresi (KMK m.37, 3 ay) | `budget.approval.*` | Managers | `jobs.go:555` |",
-          "| emergency.drill | Yıllık tatbikat süresi geçmiş / hiç tatbikat yok | `emergency.drill` | Managers | `jobs.go:618` |",
-          "| compliance.employer | SGK işe giriş/çıkış, MUHSGK/prim son günü | `compliance.*` | Managers | `jobs.go:670` |",
-          "| kvkk.destruction | Saklama süresi dolan ziyaretçi/otopark/kargo kayıtlarını anonimleştirir (≤6 ayda bir); süre tanımsızsa hatırlatır | `kvkk.destruction.done`, `kvkk.destruction.undefined` | Managers | `jobs.go:721` |",
-          "| dask.renewal | 30 gün içinde biten/bitmiş DASK poliçesi | `dask.*` | UnitResidents (malik) | `jobs.go:775` |",
-          "| activity.purge | Saklama süresi dolan uygulama içi etkinlik kayıtlarını siler (ACTIVITY_LOG_RETENTION_DAYS) | — | — | `jobs.go` purgeClientActivity |",
-          "| sensor.purge | 365 günden eski sensör okumalarını siler | — | — | `jobs.go` purgeSensorReadings |",
-          "| patrol.track.purge | 1 yıldan eski devriye konum izini siler | — | — | `jobs.go` purgePatrolTracks |",
-          "", "Mükerrer gönderim `DedupeKey` ile engellenir (ör. `dues.overdue:<daire>:<ay>`, `jobs.go:209`).", "",
+          "| dues.overdue | Vadesi geçmiş aidat: daireye ayda en fazla bir hatırlatma; kiracı sorumluluğundaysa malike de | `dues.overdue`, `dues.overdue.tenant` | AssessmentPayers; UnitOwners | %s |" % floc('backend/cmd/scheduler/jobs.go', 'func overdueDues(', 'backend/cmd/scheduler/jobs.go'),
+          "| contract.notice | İhbar son günü yaklaşan/geçen sözleşme | `contract.notice` | Managers | %s |" % floc('backend/cmd/scheduler/jobs.go', 'func contractNotices(', 'jobs.go'),
+          "| contract.expired | Süresi dolduğu hâlde ACTIVE sözleşme | `contract.expired` | Managers | %s |" % floc('backend/cmd/scheduler/jobs.go', 'func expiredContracts(', 'jobs.go'),
+          "| patrol.overdue | Beklenen süre + tolerans aşılmış açık devriye | `patrol.overdue` | Managers | %s |" % floc('backend/cmd/scheduler/jobs.go', 'func overduePatrols(', 'jobs.go'),
+          "| asset.maintenance | Bakım/periyodik kontrol tarihi yaklaşan/geçen demirbaş | `asset.maintenance.*` | Managers | %s |" % floc('backend/cmd/scheduler/jobs.go', 'func maintenanceDue(', 'jobs.go'),
+          "| kvkk.due | KVKK m.13 yanıt süresi dolmak üzere/dolmuş başvuru | `kvkk.due.*` | Managers | %s |" % floc('backend/cmd/scheduler/jobs.go', 'func kvkkDue(', 'jobs.go'),
+          "| budget.approval | Geçici işletme projesinin genel kurul süresi (KMK m.37, 3 ay) | `budget.approval.*` | Managers | %s |" % floc('backend/cmd/scheduler/jobs.go', 'func budgetApprovalDue(', 'jobs.go'),
+          "| emergency.drill | Yıllık tatbikat süresi geçmiş / hiç tatbikat yok | `emergency.drill` | Managers | %s |" % floc('backend/cmd/scheduler/jobs.go', 'func drillDue(', 'jobs.go'),
+          "| compliance.employer | SGK işe giriş/çıkış, MUHSGK/prim son günü | `compliance.*` | Managers | %s |" % floc('backend/cmd/scheduler/jobs.go', 'func employerCompliance(', 'jobs.go'),
+          "| kvkk.destruction | Saklama süresi dolan ziyaretçi/otopark/kargo kayıtlarını anonimleştirir (≤6 ayda bir); süre tanımsızsa hatırlatır | `kvkk.destruction.done`, `kvkk.destruction.undefined` | Managers | %s |" % floc('backend/cmd/scheduler/jobs.go', 'func periodicDestruction(', 'jobs.go'),
+          "| dask.renewal | 30 gün içinde biten/bitmiş DASK poliçesi | `dask.*` | UnitResidents (malik) | %s |" % floc('backend/cmd/scheduler/jobs.go', 'func daskRenewal(', 'jobs.go'),
+          "| activity.purge | Saklama süresi dolan uygulama içi etkinlik kayıtlarını siler (ACTIVITY_LOG_RETENTION_DAYS) | — | — | %s |" % floc('backend/cmd/scheduler/jobs.go', 'func purgeClientActivity(', 'jobs.go'),
+          "| sensor.purge | 365 günden eski sensör okumalarını siler | — | — | %s |" % floc('backend/cmd/scheduler/jobs.go', 'func purgeSensorReadings(', 'jobs.go'),
+          "| patrol.track.purge | 1 yıldan eski devriye konum izini siler | — | — | %s |" % floc('backend/cmd/scheduler/jobs.go', 'func purgePatrolTracks(', 'jobs.go'),
+          "", "Mükerrer gönderim `DedupeKey` ile engellenir (ör. `dues.overdue:<daire>:<ay>`, %s)." % floc("backend/cmd/scheduler/jobs.go", 'DedupeKey: "dues.overdue:"', "jobs.go"), "",
           "## 4.4 Servis içi bekçiler", "",
           "| Bekçi | Aralık | Ne yapar | Kod |", "|---|---|---|---|",
-          "| Kart ödemesi uzlaştırma | 1 dk (`CARD_RECONCILE_INTERVAL`), 20 dk'dan eski askıdaki ödemeler (`CARD_RECONCILE_AGE`) | Sonucu iyzico'dan yeniden sorgular, askıda ödeme bırakmaz | `backend/services/finance/card.go:85` |",
-          "| Geçiş cihazı canlılığı | 30 sn (`DEVICE_WATCH_INTERVAL`) | Sinyal kesilen cihaz için olay açar; `device.offline`/`device.recovered` bildirimi → Operations | `backend/services/parking/devices.go:144` |",
-          "| Sensör sinyal bekçisi | 60 sn (`SENSOR_WATCH_INTERVAL`) | Sinyali kesilen sensör için OFFLINE alarmı açar; `iot.offline` → Operations (074) | `backend/services/iot/sensors.go` startSensorWatch |",
-          "| Kargo teslim kanıtı imhası | 15 dk (`PACKAGE_PURGE_INTERVAL`) | Silme kuyruğundaki kanıt dosyalarını depodan siler | `backend/services/package/proof.go:296` |", ""]
+          "| Kart ödemesi uzlaştırma | 1 dk (`CARD_RECONCILE_INTERVAL`), 20 dk'dan eski askıdaki ödemeler (`CARD_RECONCILE_AGE`) | Sonucu iyzico'dan yeniden sorgular, askıda ödeme bırakmaz | %s |" % floc("backend/services/finance/card.go", "func startCardReconcile("),
+          "| Geçiş cihazı canlılığı | 30 sn (`DEVICE_WATCH_INTERVAL`) | Sinyal kesilen cihaz için olay açar; `device.offline`/`device.recovered` bildirimi → Operations | %s |" % floc("backend/services/parking/devices.go", "func startDeviceWatch("),
+          "| Sensör sinyal bekçisi | 60 sn (`SENSOR_WATCH_INTERVAL`) | Sinyali kesilen sensör için OFFLINE alarmı açar; `iot.offline` → Operations (074) | %s |" % floc("backend/services/iot/sensors.go", "func startSensorWatch("),
+          "| Kargo teslim kanıtı imhası | 15 dk (`PACKAGE_PURGE_INTERVAL`) | Silme kuyruğundaki kanıt dosyalarını depodan siler | %s |" % floc("backend/services/package/proof.go", "func startDeletionWorker("), ""]
     o += ["## 4.5 Veritabanı tetikleyicileri (son tanım geçerli)", "", "| Tablo | Tetikleyici | Ne zaman | Etki / engel | Migration |", "|---|---|---|---|---|"]
     for t in trig:
         eff = ", ".join(t["writes"]) if t["writes"] else ""
@@ -419,7 +432,7 @@ def write_common():
 def write_unused():
     o = ["# 5. Arayüzsüz uçlar ve tutarsızlıklar", "", "## 5.1 Backend'de olup hiçbir istemcide (panel, sakin, yönetici mobil) çağrılmayan uçlar", "",
          "| Uç | Servis · kayıt | Yetki | Değişen tablolar | Bildirim |", "|---|---|---|---|---|"]
-    manual_used = {"GET /public/clearance/:code": "Panel /dogrula/[code] (fetch)", "POST /auth/refresh": "istemcilerin jeton yenilemesi", "POST /public/payments/iyzico/callback": "iyzico tarayıcı dönüşü", "POST /public/devices/heartbeat": "geçiş cihazı (X-Device-Key)"}
+    manual_used = {"GET /public/clearance/:code": "Panel /dogrula/[code] (fetch)", "POST /auth/refresh": "istemcilerin jeton yenilemesi", "POST /public/payments/iyzico/callback": "iyzico tarayıcı dönüşü", "POST /public/devices/heartbeat": "geçiş cihazı (X-Device-Key)", "POST /public/sensors/data": "IoT sensörü (X-Device-Key, 074)"}
     for r in cg:
         k = "%s %s" % (r["Method"], r["Path"])
         if k in cons or r["Svc"] in ("banking", "meeting_wizard"):
