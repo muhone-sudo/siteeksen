@@ -1,0 +1,29 @@
+# Güvenlik: beyan ile gerçek durum
+
+> `CLAUDE.md`'den taşındı (2026-10-29). İçerik değiştirilmedi.
+
+### Security — **beyan ile gerçek arasındaki fark**
+| Konu | Durum (2026-09-13) |
+|---|---|
+| JWT 15 dk / 7 gün | **Doğru** |
+| `JWT_SECRET` boşsa davranış | **Fail-closed** — istek reddedilir; boş anahtarla doğrulama yapılmaz |
+| Gateway / Kong kimlik doğrulama | **Var** — gateway'de `/auth/*` dışı her yol JWT ister (iptal kontrolüyle). Kong yalnızca gateway'in önünde kenar katmanı (IP hız sınırı, gövde sınırı); servislere doğrudan rotası yok (2026-09-27) |
+| CORS | **Allowlist** (`CORS_ALLOWED_ORIGINS`); joker `*` kalmadı |
+| KVKK denetim izi | **Çalışıyor** — kullanıcı, IP, işlem, kaynak, durum kodu yazılıyor; 403'ler `DENIED` |
+| Rol bazlı yetkilendirme | **Site bazlı roller** + gerçek servislerin hepsinde `RequireRole` + panelde `middleware.ts` ve menü süzme. Roller giriş yanıtında da döner (2026-09-13 düzeltmesi; yoksa panel herkesi yetkisiz sayıyordu). |
+| Belge erişim kaydı | **Var** — `document_access_logs`, salt-ekleme (tetikleyici korumalı), KVKK m.12 |
+| Ticari elektronik ileti | **Onaysız gönderilmez** — 6563 s. Kanun m.6; onay zamanı ve kaynağı saklanır |
+| Modül bildirimleri | **Bağlı (2026-09-14)** — duyuru, rezervasyon kararı, kargo, anket, ziyaretçi girişi ve düşük stok uygulama içi bildirim üretir. Alıcı kümesi `pkg/notify/audience.go`'da TEK yerde. Kargo bildirimi takip numarası taşımaz; stok uyarısı sakinlere gitmez; anket bildirimi genel kurul çağrısı olarak işaretlenmez (KMK m.29) |
+| Ayarların mevzuatı ezmesi | **Engellendi** — uygulama + veritabanı CHECK kısıtı (migration 017) |
+| Aktif site seçimi | **Sahiplik doğrulanıyor** — başkasının sitesine geçiş 403 |
+| Giriş şifresi loglanması | **Kaldırıldı** — yalnızca maskelenmiş telefon ve HTTP durumu loglanıyor |
+| İstemci kimlik başlıkları | Gateway `X-User-*` / `X-Property-Id` / `X-Tenant-Id` başlıklarını **siler** |
+| TCKN/IBAN şifreleme | **VAR** — AES-256-GCM; arama için HMAC blind index (düz SHA-256 değil). Anahtar yoksa personel servisi açılmaz. Anahtar halkası + döndürme (`cmd/rotate-pii`, `docs/runbook-anahtar-dondurme.md`); şifreleme ve arama anahtarı HKDF ile ayrı. Varsayılan MASKELİ; maskesiz erişim ayrı `PII_REVEAL` denetim kaydı üretir |
+| Tenant izolasyonu (RLS) | **129 TABLODA AÇIK** (migration 020-026, 029 ve sonraki modül göçleri). 25 servisin tamamı `pkg/dbscope` kullanır. RLS dışında kalan 10 tablo gerekçeli: `audit_logs` (yalnızca ekleme), `revoked_tokens`/`user_token_invalidation` (salt-okur), `tenants`/`invoices`/`usage_metrics`/`schema_migrations`/`user_activation_codes`/`phone_change_requests`/`email_change_requests` (uygulama rolüne kapalı; son üçü yalnızca kimlik servisi) |
+| Hesap etkinleştirme / şifre | **VAR (027)** — yönetici sakin ekleyince tek kullanımlık kod bir kez gösterilir (SMS yapılandırılmışsa sakine de gider); kod özeti saklanır, 7 gün, 5 denemede kilit. Şifre değiştirme/sıfırlama bütün oturumları kapatır. Girişte kademeli kilit: 5. hata 30 sn, 6. hata 2 dk, 7.+ 15 dk (B6). Sakin kodu kendisi de isteyebilir (`/auth/password-reset/request`, SMS/e-posta, 15 dk; yanıt numara ifşa etmez — B3). Jeton `iat` milisaniye hassasiyetinde (`pkg/revocation.Precision`) |
+| Veritabanı rolleri | **En az yetki** — kimlik servisi ayrı rol (site verisine erişemez); uygulama rolü parola özetini/TCKN'yi göremez, dizin tablolarına yazamaz, denetim izini ve jeton iptalini silemez |
+| Dağıtım | compose/k8s/CI tek kaynaktan; kaplar root değil; compose varsayılan parolayla açılmaz; k8s'te tek giriş kapısı gateway |
+| Çıkışta jeton iptali | **VAR** — `revoked_tokens` + toplu iptal. Çıkışta erişim VE yenileme jetonu iptal edilir; iptal tüm servislerde geçerlidir. Yenileme jetonu **tek kullanımlık**; tükenmiş jetonun 30 sn sonra yeniden kullanımı bütün oturumları kapatır |
+
+`legal/kvkk-aydinlatma.md` 2026-09-13'te **gerçek duruma göre** düzeltildi: uygulanan ve
+uygulanmayan tedbirler ayrı listelenmiştir; karşılığı olmayan taahhüt kalmamıştır.
