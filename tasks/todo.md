@@ -69,7 +69,8 @@ Kullanıcı kararları (2026-10-26):
 - [x] Test planı `docs/test-plani/` (1152 test; üretici `arac/test_plani.py`)
 - [ ] Planın tarayıcı ajanıyla yürütülmesi (kullanıcı) → sonuçlar `~/.siteeksen-test/sonuclar.jsonl`
 - [ ] KALDI/KISMEN sonuçlarının düzeltilmesi
-- [ ] Karar: bildirim üretmeyen akışlar (06 E7), yönetici uygulaması küçük arayüz (06 E8)
+- [ ] **Kullanıcı kararı (2026-10-29): yapılacak** — bildirim üretmeyen akışlara bildirim eklenecek (06 E7: talep açma/durum, havale onay/ret, yeni rezervasyon talebi, işletme projesi bildirimi, genel kurul çağrısı, NPS ölçümü)
+- [ ] Yönetici uygulaması küçük arayüz (06 E8)
 
 ## H.0 Sınıflandırma — 51 arayüzsüz uç (inceleme sonucu)
 

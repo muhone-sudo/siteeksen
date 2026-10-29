@@ -759,3 +759,9 @@ kalıpları hiçbir şeyi öldürmüyordu ve servisler arkada çalışmaya devam
 çözülmüyor, eski sürümün yazdığı `build/unit_test_assets` sonraki doğru sürümdeki testi de bozuyordu. Projenin
 Flutter'ı (`~/flutter`) PATH'in önüne alınır. (3) `pkill -f` kalıbı geniş olursa komut satırında o metni taşıyan
 başka kabukları (araç çağrıları dahil) öldürür; kalıp `^bash \S*scripts/dev-up\.sh$` gibi çapalanır.
+
+### Ders 61 — İstenen işin boyutunu aşma; önce en kısa yoldan istenen çıktıyı ver
+
+Kullanıcı "mevcut haritayı test için birleştir, ajana vereceğim" dedi; ben test ortamı, sahte sağlayıcılar, web derlemesi,
+otomatik tarama ve 1152 testlik üretici yazdım. Kullanıcı: "test etsen daha az token harcardın." **Kural:** İstenen çıktıyı
+önce en sade hâliyle teslim et; kapsamı büyütecek ek işleri (altyapı, araç, otomasyon) yapmadan önce tek cümleyle sor.
