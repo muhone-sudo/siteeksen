@@ -4,15 +4,12 @@
 // döner: tarih YYYY-MM-DD, tarih-saat RFC3339 (UTC), sayı num, boş isteğe
 // bağlı alan hiç gönderilmez. Dosya alanı (baytlar, dosya adı) döner.
 
-import 'dart:io';
-
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:open_filex/open_filex.dart';
-import 'package:path_provider/path_provider.dart';
 
 import '../network/api_client.dart';
 import '../utils/formatters.dart';
+import '../utils/file_opener.dart';
 import 'api_views.dart';
 
 enum FType {
@@ -386,13 +383,8 @@ Future<void> openDownload(
     BuildContext context, String path, String fallback) async {
   await runAction(context, () async {
     final (bytes, name) = await apiClient.downloadBytes(path, fallback);
-    final dir = await getTemporaryDirectory();
-    final file = File('${dir.path}/$name');
-    await file.writeAsBytes(bytes, flush: true);
-    final r = await OpenFilex.open(file.path);
-    if (r.type != ResultType.done) {
-      throw StateError('Dosya indirildi ama açılamadı: ${r.message}');
-    }
+    final err = await openBytes(bytes, name);
+    if (err != null) throw StateError(err);
     return <String, dynamic>{};
   }, success: 'Dosya açıldı');
 }

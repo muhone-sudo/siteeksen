@@ -12,6 +12,25 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-29 — Tarayıcı test planı ve test ortamı; web derlemeleri; bulunan hataların düzeltmesi (DOĞRULANMIŞ)
+
+- **Test planı** `docs/test-plani/`: özellik haritasından üretilen 1152 test (panel 330 eylem + 52 sayfa açılışı, sakin 207,
+  yönetici 333, 55 bildirim ucu, 14 zamanlanmış iş, 5 bekçi, 23 tetikleyici, rol matrisi, izolasyon) + elle yazılan başlangıç,
+  oturum/hesap ve 30 uçtan uca senaryo; tek dosya `TEST-PLANI-TAMAMI.md`. Her testte hesap, adım, beklenen, uç ve yetki,
+  Adminer sorgusu, işlem kaydı sorgusu, bildirim alıcıları ve olumsuz yetki denemesi. Üretici `docs/ozellik-haritasi/arac/test_plani.py`
+  (`uret.sh` çalıştırır); ID'ler tekil.
+- **Test ortamı** `backend/scripts/test-ortami.sh`: dev-up + sahte Netgsm/iyzico (ödeme sayfasıyla) + Mailpit + Adminer
+  (`test_okuyucu`, salt okunur, RLS'i aşar) + iki uygulamanın web derlemesi + panel + test hesapları (`test-hesaplari.sh`:
+  9 kişi, 2 site; gerçek kayıt/etkinleştirme akışıyla) + sonuç kaydı sayfası (`~/.siteeksen-test/sonuclar.jsonl`).
+- **Web derlemesi:** iki uygulamaya `web/`; dosya açma `core/utils/file_opener*.dart` (mobilde dosya, web'de indirme);
+  web'de biyometrik atlanır; kullanılmayan Firebase paketleri kaldırıldı (web'i kırıyordu).
+- **Düzeltmeler:** yönetici uygulaması tarih yerel verisi (her tarih ekranı hata veriyordu); etkinleştirme notu SMS gönderilmişken
+  "SMS bağlı değil" diyordu; `dev-up.sh --stop` servisleri öldürmüyordu (Go 1.24+ ikili yolu); panel tablosunda yinelenen React
+  anahtarı; `verify-mobile.sh` eski Flutter'ı seçebiliyordu. Harita: panel zil satırı güncellendi; harita aracı yapılandırılmış veri (`harita.json`) üretir.
+- **Kanıt:** test ortamı sıfırdan açıldı, hesaplar oluşturuldu ve hepsiyle giriş denendi; SMS/e-posta sahte sağlayıcılara düştü;
+  `test_okuyucu` ile INSERT reddedildi. Headless Chrome: sakin 29 rota, yönetici 49 rota, panel 47 sayfa — API 4xx/5xx yok
+  (kiracının işletme projesi 403'ü hariç, doğru), istemci hata raporu yok. `verify-mobile` 10/10; panel tsc/lint/build temiz; iki debug APK derlendi; `verify-stack` 1423/1423.
+
 ### 2026-10-28 — Özellik haritası FAZ H sonrası koda göre güncellendi (DOĞRULANMIŞ)
 
 - `docs/ozellik-haritasi/` 1-5. bölümler `arac/uret.sh` ile yeniden üretildi; README ve 6. bölüm (bulgular) elle güncellendi:

@@ -4,13 +4,10 @@
 // (SHA-256 doğrulama kodu) yazar. Uygulama dosyayı indirip geçici dizine yazar ve
 // cihazdaki görüntüleyiciyle açar.
 
-import 'dart:io';
-
 import 'package:flutter/material.dart';
-import 'package:open_filex/open_filex.dart';
-import 'package:path_provider/path_provider.dart';
 
 import '../../../../core/network/api_client.dart';
+import '../../../../core/utils/file_opener.dart';
 import '../../../../core/widgets/api_views.dart';
 
 class ReportsScreen extends StatelessWidget {
@@ -19,13 +16,8 @@ class ReportsScreen extends StatelessWidget {
   Future<void> _open(BuildContext context, String path, String fallback) async {
     await runAction(context, () async {
       final (bytes, name) = await apiClient.downloadBytes(path, fallback);
-      final dir = await getTemporaryDirectory();
-      final file = File('${dir.path}/$name');
-      await file.writeAsBytes(bytes, flush: true);
-      final r = await OpenFilex.open(file.path);
-      if (r.type != ResultType.done) {
-        throw StateError('Dosya indirildi ama açılamadı: ${r.message}');
-      }
+      final err = await openBytes(bytes, name);
+      if (err != null) throw StateError(err);
       return <String, dynamic>{};
     });
   }

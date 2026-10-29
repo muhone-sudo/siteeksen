@@ -51,3 +51,14 @@ curl -s localhost:8888/health
 curl -s -X POST localhost:8888/api/v1/auth/login -H 'Content-Type: application/json' \
   -d '{"phone":"5551234567","password":"Demo123!"}'      # access_token dönmeli
 ```
+
+## Tarayıcı testi ortamı
+
+```bash
+bash backend/scripts/test-ortami.sh          # her şey + test hesapları + sahte SMS/e-posta/iyzico + Adminer
+bash backend/scripts/test-ortami.sh --stop
+```
+
+Panel :3001, sakin uygulaması (web) :3002, yönetici uygulaması (web) :3003, araçlar :18000 (SMS kutusu, sahte ödeme
+sayfası, cihaz simülatörü, günlükler, test sonuçları), Adminer :18080 (`test_okuyucu`, salt okunur), Mailpit :18025.
+Hesaplar (9 kişi, 2 site, hepsi `Demo123!`) ve test planı: `docs/test-plani/README.md`.

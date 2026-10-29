@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:local_auth/local_auth.dart';
@@ -28,6 +29,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _checkBiometricAvailability() async {
+    if (kIsWeb) return;
     try {
       final canCheck = await _localAuth.canCheckBiometrics;
       final hasSession = await apiClient.hasStoredSession();
@@ -242,6 +244,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _maybeOfferBiometricEnable() async {
+    if (kIsWeb) return;
     final alreadyEnabled = await apiClient.isBiometricEnabled();
     if (alreadyEnabled) return;
     final canCheck = await _localAuth.canCheckBiometrics;

@@ -209,8 +209,8 @@ export function Table<T>({ rows, columns, rowKey }: { rows: T[]; columns: Column
             <table className="w-full text-sm">
                 <thead>
                     <tr className="border-b border-gray-200 dark:border-gray-700">
-                        {columns.map((c) => (
-                            <th key={c.header} className={cn("px-4 py-2.5 text-left text-xs font-medium uppercase text-gray-500", c.className)}>
+                        {columns.map((c, i) => (
+                            <th key={`${i}-${c.header}`} className={cn("px-4 py-2.5 text-left text-xs font-medium uppercase text-gray-500", c.className)}>
                                 {c.header}
                             </th>
                         ))}
@@ -219,8 +219,8 @@ export function Table<T>({ rows, columns, rowKey }: { rows: T[]; columns: Column
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                     {rows.map((r) => (
                         <tr key={rowKey(r)} className="hover:bg-gray-50 dark:hover:bg-gray-700/40">
-                            {columns.map((c) => (
-                                <td key={c.header} className={cn("px-4 py-2.5 align-top text-gray-700 dark:text-gray-200", c.className)}>
+                            {columns.map((c, i) => (
+                                <td key={`${i}-${c.header}`} className={cn("px-4 py-2.5 align-top text-gray-700 dark:text-gray-200", c.className)}>
                                     {c.cell(r)}
                                 </td>
                             ))}

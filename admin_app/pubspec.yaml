@@ -49,8 +49,6 @@ dependencies:
   path_provider: ^2.1.2
   
   # Notifications
-  firebase_core: ^2.24.2
-  firebase_messaging: ^14.7.10
   flutter_local_notifications: ^17.2.4
   
   # Utils
@@ -59,6 +57,7 @@ dependencies:
   connectivity_plus: ^5.0.2
   open_filex: ^4.7.0
   file_picker: ^11.0.3
+  web: ^1.1.1
   mobile_scanner: ^7.4.2
   geolocator: ^13.0.0
   flutter_map: ^8.3.2

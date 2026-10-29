@@ -25,12 +25,12 @@ ok()   { echo "  [GEÇTİ]    $1"; PASS=$((PASS+1)); }
 bad()  { echo "  [BAŞARISIZ] $1"; FAIL=$((FAIL+1)); }
 step() { echo ""; echo "=== $1 ==="; }
 
-if ! command -v flutter >/dev/null 2>&1; then
-  if [ -x "$HOME/flutter/bin/flutter" ]; then
-    export PATH="$PATH:$HOME/flutter/bin"
-  else
-    echo "flutter bulunamadı (PATH ya da ~/flutter/bin)"; exit 1
-  fi
+# ~/flutter projenin sürümüdür ve PATH'teki (ör. snap) eski sürümün ÖNÜNE alınır: eski sürüm
+# bağımlılıkları çözemez ve build/unit_test_assets'i uyumsuz biçimde yazıp sonraki testleri bozar.
+if [ -x "$HOME/flutter/bin/flutter" ]; then
+  export PATH="$HOME/flutter/bin:$PATH"
+elif ! command -v flutter >/dev/null 2>&1; then
+  echo "flutter bulunamadı (PATH ya da ~/flutter/bin)"; exit 1
 fi
 
 step "0) Araç sürümü"

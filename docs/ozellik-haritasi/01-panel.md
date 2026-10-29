@@ -1266,6 +1266,6 @@ Kaynak: `admin/src/app/**/page.tsx` ve içe aktardığı `admin/src/components/*
 | Menü öğeleri | Aktif sitedeki rollere göre süzülür (`canAccess`) | — |
 | Ayarlar bağlantısı | Yalnız MANAGER/BOARD_MEMBER görür | — |
 | Menü düğmesi (mobil genişlik) | Kenar çubuğunu çekmece olarak açar/kapatır | — |
-| Zil simgesi (`header.tsx:85`) | `/dashboard/notifications` sayfasına gider (kişisel bildirim kutusu DEĞİL) | — |
+| Zil simgesi (`notification-bell.tsx`) | Okunmamış sayısını gösterir (60 sn'de bir yenilenir); açılınca son 10 bildirim; bildirime tıklamak okundu sayar; "Tümünü okundu say"; "Tümünü gör" → `/dashboard/inbox` | `GET /notifications/unread-count`, `GET /notifications?channel=IN_APP&limit=10`, `POST /notifications/:id/read`, `POST /notifications/read-all` |
 | Kullanıcı menüsü → Şifre değiştir | `/dashboard/account` | — |
 | Kullanıcı menüsü → Çıkış Yap (`header.tsx:148`) | Sunucuda jetonları iptal eder, iptal edilemezse uyarır, oturumu kapatır | `POST /auth/logout` |

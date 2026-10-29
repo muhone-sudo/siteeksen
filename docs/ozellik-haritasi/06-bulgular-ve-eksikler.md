@@ -121,3 +121,19 @@ statik yol `:id` rotasına eşleniyordu (`/finance/assessments/overview` → `/f
 | D2 | Tekil kayıt okuyan `GET /…/:id` uçları (ilan, duyuru, sözleşme, belge, stok, sensör, kargo, tesis, tüketim pusulası) istemcilerde kullanılmıyor; ekranlar listeden açıyor. Hata değil. Not: `GET /documents/:id` `VIEW` erişim kaydı yazar ama çağrılmadığı için belge bilgileri listeden görüldüğünde `VIEW` kaydı oluşmuyor; dosyanın kendisi yalnız indirmeyle açılır ve `DOWNLOAD` kaydı yazılır (`services/document/main.go:143`). | 5.1 |
 | D3 | Sakin uygulamasında kiracılık talebini reddetme ve daveti reddetme düğmeleri var; önceki harita bunları "arayüzsüz" gösteriyordu (araç hatası, düzeltildi). | 2. bölüm, `mobile/lib/core/network/api_client.dart:254` |
 | D4 | Açık kalan ve kullanıcı kararı bekleyenler: destek talebi (B10), push bildirimi (B11, `PUSH` kanalı kuyrukta kalır), `banking` (S-07), iOS klasörü yok; fikir havuzu F1-F4 (`tasks/todo.md`). | CLAUDE.md, `tasks/todo.md` |
+
+## E. 2026-10-29 tarayıcı testi ortamı kurulurken bulunanlar
+
+İki mobil uygulamanın web derlemesi headless Chrome ile her rotada gezildi (sakin 29, yönetici 49 rota), panelin 47 sayfası tarandı.
+
+| # | Bulgu | Durum |
+|---|---|---|
+| E1 | Yönetici uygulaması `initializeDateFormatting('tr_TR')` çağırmıyordu: tarih gösteren her ekran `LocaleDataException` atıyordu (Android'de de; analiz ve testler yakalamadı). | **DÜZELTİLDİ** — `admin_app/lib/main.dart` |
+| E2 | Sakin eklenince dönen not, SMS gerçekten gönderilmiş olsa bile "SMS sağlayıcısı bağlı olmadığı için kodu siz iletin" diyordu. | **DÜZELTİLDİ** — not artık gönderim durumuna yönlendirir (`services/identity/service/resident.go`) |
+| E3 | `dev-up.sh --stop` servisleri durdurmuyordu (Go 1.24+ ikili yolu `exe/` içermiyor); portlar dolu kalıyordu. | **DÜZELTİLDİ** — port üzerinden durdurma |
+| E4 | Panel tablosunda başlığı boş iki sütun aynı React anahtarını alıyordu (Bölümler, Ayarlar sayfalarında konsol uyarısı). | **DÜZELTİLDİ** — `components/ui/kit.tsx` |
+| E5 | Kullanılmayan `firebase_core`/`firebase_messaging` web derlemesini kırıyordu; yönetici uygulaması her açılışta başarısız `Firebase.initializeApp()` deniyordu. | **KALDIRILDI** (push zaten yok, B11 kararı bekliyor) |
+| E6 | `verify-mobile.sh` PATH'teki eski (snap) Flutter'ı kullanabiliyordu. | **DÜZELTİLDİ** — `~/flutter` önceliklidir |
+| E7 | Bildirim üretmeyen akışlar (kodda konu yok): talep açma ve durum değişikliği, havale ödemesinin onayı/reddi, yeni rezervasyon talebi (yönetime), geçici işletme projesinin bildirilmesi, genel kurul çağrısı, NPS ölçümü. Sakin sonucu ancak ekrana bakınca öğreniyor. | **Karar gerekir** — test planında "bildirim beklenmez, gözleme yaz" olarak işaretli |
+| E8 | Yönetici uygulaması ana ekran başlığı İngilizce ("Dashboard"); giriş ekranında logo kutusu tam genişliğe uzuyor. | Küçük arayüz düzeltmesi — açık |
+| E9 | Yönetici uygulamasına web'den girişte biyometrik ve dosya açma web'e uyarlandı (indirme tarayıcıya düşer); QR ve konum tarayıcı iznine bağlı. | Bilgi |

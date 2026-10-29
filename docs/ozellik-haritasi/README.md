@@ -40,8 +40,10 @@
 ## Yeniden üretme
 
 ```bash
-bash docs/ozellik-haritasi/arac/uret.sh          # 1-5. bölümleri koddan yeniden yazar
+bash docs/ozellik-haritasi/arac/uret.sh          # 1-5. bölümleri ve docs/test-plani/'nin üretilen bölümlerini yeniden yazar
 HARITA_WORK=/tmp/harita bash docs/ozellik-haritasi/arac/uret.sh   # ara dosyaları saklar
 ```
 
 Gereken: Go, Python 3. 6. bölüm (bulgular) elle yazılır; harita yenilenince gözden geçirilmelidir.
+
+Bu haritadan üretilen tarayıcı test planı: [`docs/test-plani/`](../test-plani/README.md) (`arac/test_plani.py`; ara veri `harita.json`).

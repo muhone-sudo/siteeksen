@@ -10,14 +10,11 @@
 // Her yeni indirmede önceki indirilenler silinir: kişisel veri içerebilecek
 // belgeler cihazda birikmesin. Belge yükleme yalnızca yönetimindir (M/B).
 
-import 'dart:io';
-
 import 'package:flutter/material.dart';
-import 'package:open_filex/open_filex.dart';
-import 'package:path_provider/path_provider.dart';
 
 import '../../../../core/network/api_client.dart';
 import '../../../../core/utils/formatters.dart';
+import '../../../../core/utils/file_opener.dart';
 import '../../../../core/widgets/data_state.dart';
 import '../../domain/document_file.dart';
 
@@ -83,23 +80,9 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
         return;
       }
 
-      final dir = Directory('${(await getTemporaryDirectory()).path}/belgeler');
-      if (await dir.exists()) await dir.delete(recursive: true);
-      await dir.create(recursive: true);
-      final file = File('${dir.path}/${safeFileName('${d['file_name'] ?? d['title'] ?? ''}')}');
-      await file.writeAsBytes(doc.bytes, flush: true);
-
-      final result = await OpenFilex.open(file.path, type: doc.contentType);
-      switch (result.type) {
-        case ResultType.done:
-          break;
-        case ResultType.noAppToOpen:
-          _say('Bu dosya türünü açabilecek bir uygulama cihazda yok.');
-        case ResultType.permissionDenied:
-          _say('Dosyayı açmak için izin verilmedi.');
-        default:
-          _say('Belge açılamadı: ${result.message}');
-      }
+      final err = await openBytes(doc.bytes, safeFileName('${d['file_name'] ?? d['title'] ?? ''}'),
+          type: doc.contentType, subdir: 'belgeler');
+      if (err != null) _say(err);
     } catch (e) {
       _say(toUserMessage(e));
     } finally {

@@ -14,18 +14,15 @@
 //     (ödeme sağlayıcısı entegrasyonu yok — bkz. questions.md S-06) kullanıcıya ödemenin
 //     ALINMADIĞI açıkça söylenir; "başarılı" denmez.
 
-import 'dart:io';
-
 import 'package:dio/dio.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:open_filex/open_filex.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/network/api_client.dart';
 import '../../../../core/theme/apple_theme.dart';
 import '../../../../core/utils/formatters.dart';
+import '../../../../core/utils/file_opener.dart';
 import '../../../../core/widgets/apple_widgets.dart';
 import '../../../../core/widgets/data_state.dart';
 
@@ -359,10 +356,7 @@ class _DuesPaymentScreenState extends State<DuesPaymentScreen> {
       } else {
         final cert = await apiClient.createClearance(unit);
         final bytes = await apiClient.clearancePdf('${cert['id']}');
-        final file = File('${(await getTemporaryDirectory()).path}/borcu-yoktur-belgesi.pdf');
-        await file.writeAsBytes(bytes, flush: true);
-        final r = await OpenFilex.open(file.path, type: 'application/pdf');
-        if (r.type != ResultType.done) message = 'Belge indirildi ama açılamadı: ${r.message}';
+        message = await openBytes(bytes, 'borcu-yoktur-belgesi.pdf', type: 'application/pdf');
       }
     } catch (e) {
       message = toUserMessage(e);
@@ -426,9 +420,8 @@ class _DuesPaymentScreenState extends State<DuesPaymentScreen> {
   Future<void> _openCreditNotePdf(String id, String no) async {
     try {
       final bytes = await apiClient.creditNotePdf(id);
-      final file = File('${(await getTemporaryDirectory()).path}/alacak-dekontu-$no.pdf');
-      await file.writeAsBytes(bytes, flush: true);
-      await OpenFilex.open(file.path, type: 'application/pdf');
+      final err = await openBytes(bytes, 'alacak-dekontu-$no.pdf', type: 'application/pdf');
+      if (err != null && mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(toUserMessage(e))));

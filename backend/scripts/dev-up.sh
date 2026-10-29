@@ -45,6 +45,11 @@ stop_all() {
   pkill -f 'exe/iot|exe/asset|exe/bulletin|exe/inventory|exe/survey' 2>/dev/null
   pkill -f 'exe/patrol|exe/settings|exe/nps|exe/esg' 2>/dev/null
   pkill -f 'exe/energy_analytics|exe/smart_collection|exe/scheduler' 2>/dev/null
+  # Go 1.24+ `go run` ikilisini önbellekte `<özet>-d/<ad>` olarak tutar ("exe/" yok);
+  # yukarıdaki kalıplar onu yakalamaz. Portu tutan süreç her durumda sonlandırılır.
+  fuser -k 8081/tcp 8082/tcp 8083/tcp 8084/tcp 8085/tcp 8086/tcp 8087/tcp 8089/tcp 8090/tcp 8091/tcp \
+    8092/tcp 8093/tcp 8094/tcp 8096/tcp 8097/tcp 8098/tcp 8099/tcp 8100/tcp 8101/tcp 8102/tcp 8103/tcp \
+    8104/tcp 8105/tcp 8107/tcp 8110/tcp 8888/tcp >/dev/null 2>&1
   docker rm -f "$CNAME" >/dev/null 2>&1
   echo "Durduruldu."
 }
@@ -162,7 +167,7 @@ SMART_COLLECTION_SERVICE_URL=http://127.0.0.1:8103 \
 SURVEY_SERVICE_URL=http://127.0.0.1:8104 \
 VISITOR_SERVICE_URL=http://127.0.0.1:8105 \
 GOVERNANCE_SERVICE_URL=http://127.0.0.1:8107 \
-CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:3001 \
+CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:3001} \
 PORT=8888 go run ./cmd/gateway >/tmp/dev-gateway.log 2>&1 &
 PIDS+=($!)
 echo "  gateway → :8888"

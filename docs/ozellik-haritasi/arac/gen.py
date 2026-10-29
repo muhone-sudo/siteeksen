@@ -152,6 +152,17 @@ def row(n, label, calls):
 HEAD = "| # | Öğe | Uç · servis · kayıt | Yetki | Değişen tablolar | Bildirim (konu → alıcı) | Etkisinin görüldüğü yerler |\n|---|---|---|---|---|---|---|"
 
 
+def route_info(r):
+    if not isinstance(r, dict):
+        return {"key": r, "missing": True}
+    key = "%s %s" % (r["Method"], r["Path"])
+    return {"key": key, "method": r["Method"], "path": r["Path"], "svc": r["Svc"], "where": r["Where"], "roles": roles_of(r),
+            "role_list": [ROLE_TR.get(x, x) for x in r.get("Roles") or []], "writes": [w for w in (r.get("Writes") or []) if "audit_logs" not in w],
+            "writes_text": writes_of(r), "topics": r.get("Topics") or [], "audience": r.get("Audience") or [], "notif": notif_of(r),
+            "seen": seen_in(r) if r["Method"] != "GET" else [], "reads": r.get("Reads") or [], "storage": bool(r.get("Storage")), "dead": r["Svc"] in ("banking", "meeting_wizard"),
+            "triggers": sorted(set(tr["name"] for w in (r.get("Writes") or []) for tr in trig_by_table.get(w.split(" ", 1)[1], [])))}
+
+
 def parse_outline(fn):
     blocks, cur = {}, None
     for l in open(os.path.join(S, fn), encoding="utf-8"):
@@ -224,8 +235,13 @@ def panel_calls(names):
     return out
 
 
+STRUCT = {"panel": [], "mobile": [], "admin_app": []}
+LAST = []
+
+
 def render_items(lines, callres):
     view, acts = [], []
+    del LAST[:]
     n = 0
     comp = ""
     for l in lines:
@@ -247,7 +263,9 @@ def render_items(lines, callres):
             desc = re.sub(r"açar: [\w,]+", "pencere/form açar", desc)
             desc = desc.replace("; pencere/form açar) — yalnız arayüz (pencere/gezinme), sunucu çağrısı yok", "; pencere/form açar)").replace("(pencere/form açar) — yalnız arayüz (pencere/gezinme), sunucu çağrısı yok", "(pencere/form açar)")
             label = "%s **%s** (%ssatır %s)" % ({"DÜĞME": "Düğme", "FORM": "Form", "DEĞİŞİMDE": "Seçim", "SEÇİM": "Seçim"}[kind], esc(desc) or "—", (comp + " ") if comp else "", line)
-            acts.append(row(n, label, callres(names)))
+            rs = callres(names)
+            acts.append(row(n, label, rs))
+            LAST.append({"n": n, "kind": kind, "desc": desc, "line": int(line), "comp": comp, "calls": [route_info(r) for r in rs]})
         elif kind == "OKUR":
             rs = [r for r in callres(names)]
             view.append("- Veri (satır %s): %s" % (line, "; ".join("`%s %s` (%s)" % (r["Method"], r["Path"], r["Svc"]) if isinstance(r, dict) else "`%s` (karşılığı yok)" % r for r in rs)))
@@ -298,6 +316,8 @@ def write_panel():
             if ck in pol and not ci.startswith("ui/"):
                 lines += ["0 CARD [bileşen `%s`]" % ck] + pol[ck]
         view, acts = render_items(lines, panel_calls)
+        STRUCT["panel"].append({"section": sec, "title": menu.get(url, ("", url))[1] or url, "url": url, "file": "admin/src/" + k,
+                                "access": pr[1] if pr else None, "access_reason": pr[2] if pr else "", "view": view, "actions": list(LAST)})
         if view:
             o.append("- **Ekranda:**")
             o += ["  " + v for v in view]
@@ -315,7 +335,7 @@ def write_panel():
           "| Menü öğeleri | Aktif sitedeki rollere göre süzülür (`canAccess`) | — |",
           "| Ayarlar bağlantısı | Yalnız MANAGER/BOARD_MEMBER görür | — |",
           "| Menü düğmesi (mobil genişlik) | Kenar çubuğunu çekmece olarak açar/kapatır | — |",
-          "| Zil simgesi (`header.tsx:85`) | `/dashboard/notifications` sayfasına gider (kişisel bildirim kutusu DEĞİL) | — |",
+          "| Zil simgesi (`notification-bell.tsx`) | Okunmamış sayısını gösterir (60 sn'de bir yenilenir); açılınca son 10 bildirim; bildirime tıklamak okundu sayar; \"Tümünü okundu say\"; \"Tümünü gör\" → `/dashboard/inbox` | `GET /notifications/unread-count`, `GET /notifications?channel=IN_APP&limit=10`, `POST /notifications/:id/read`, `POST /notifications/read-all` |",
           "| Kullanıcı menüsü → Şifre değiştir | `/dashboard/account` | — |",
           "| Kullanıcı menüsü → Çıkış Yap (`header.tsx:148`) | Sunucuda jetonları iptal eder, iptal edilemezse uyarır, oturumu kapatır | `POST /auth/logout` |",
           ""]
@@ -363,6 +383,7 @@ def write_mobile(app, fn, title, outfile):
         if rts:
             o.append("- **Rota:** %s" % ", ".join("`%s`" % r for r in rts))
         view, acts = render_items(lines, mobile_calls)
+        STRUCT[app].append({"title": rel.split("/")[-1].replace(".dart", ""), "file": k, "routes": rts, "view": view, "actions": list(LAST)})
         if view:
             o.append("- **Ekranda:**")
             o += ["  " + v for v in view]
@@ -455,4 +476,6 @@ ma, ms = write_mobile("mobile", "mobile_outline.txt", "2. Sakin mobil uygulamas�
 aa, as_ = write_mobile("admin_app", "adminapp_outline.txt", "3. Yönetici mobil uygulaması — ekran ekran", "03-yonetici-mobil.md")
 write_common()
 write_unused()
+json.dump({"pages": STRUCT, "routes": [route_info(r) for r in cg], "rules": rules, "consumers": cons},
+          open(os.path.join(S, "harita.json"), "w"), ensure_ascii=False, indent=0)
 print(json.dumps({"panel_sayfa": pp, "panel_eylem": pa, "sakin_ekran": ms, "sakin_eylem": ma, "yon_ekran": as_, "yon_eylem": aa}))

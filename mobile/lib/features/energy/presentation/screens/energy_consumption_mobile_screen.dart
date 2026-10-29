@@ -25,16 +25,13 @@
 // 2026-10-10 (Apsiyon BUG-07): yayımlanmış tüketim pusulaları eklendi — sakin kendi
 // bölümünün ilk/son endeksini, net tüketimini, tüketim ve alan payını görür ve PDF indirir.
 
-import 'dart:io';
-
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:open_filex/open_filex.dart';
-import 'package:path_provider/path_provider.dart';
 
 import '../../../../core/network/api_client.dart';
 import '../../../../core/theme/apple_theme.dart';
 import '../../../../core/utils/formatters.dart';
+import '../../../../core/utils/file_opener.dart';
 import '../../../../core/widgets/data_state.dart';
 
 /// Ekranda gösterilecek bir sayaç türünün sunucudan gelen durumu.
@@ -432,10 +429,7 @@ class _EnergyConsumptionMobileScreenState
     String? message;
     try {
       final bytes = await apiClient.consumptionStatementPdf(id);
-      final file = File('${(await getTemporaryDirectory()).path}/tuketim-pusulasi.pdf');
-      await file.writeAsBytes(bytes, flush: true);
-      final r = await OpenFilex.open(file.path, type: 'application/pdf');
-      if (r.type != ResultType.done) message = 'Pusula indirildi ama açılamadı: ${r.message}';
+      message = await openBytes(bytes, 'tuketim-pusulasi.pdf', type: 'application/pdf');
     } catch (e) {
       message = toUserMessage(e);
     }

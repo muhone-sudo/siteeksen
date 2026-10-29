@@ -4,15 +4,12 @@
 // görür ve 7 gün içinde itiraz eder (işlem askıya alınır), isterse onaylayarak bitirir.
 // Malik: açtığı isteğin durumunu görür ve geri çekebilir. Belge yalnız kiracıya ve yönetime açıktır.
 
-import 'dart:io';
-
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:open_filex/open_filex.dart';
-import 'package:path_provider/path_provider.dart';
 
 import '../../../../core/network/api_client.dart';
 import '../../../../core/utils/formatters.dart';
+import '../../../../core/utils/file_opener.dart';
 import '../../../../core/widgets/data_state.dart';
 import '../../../documents/domain/document_file.dart';
 
@@ -131,11 +128,9 @@ class _TenancyRequestsScreenState extends State<TenancyRequestsScreen> {
   Future<void> _openDocument(String requestId, Map<String, dynamic> d) async {
     try {
       final bytes = await apiClient.tenancyDocument(requestId, '${d['id']}');
-      final file = File('${(await getTemporaryDirectory()).path}/${safeFileName('${d['file_name'] ?? 'belge'}')}');
-      await file.writeAsBytes(bytes, flush: true);
-      final r = await OpenFilex.open(file.path, type: '${d['content_type'] ?? ''}');
-      if (r.type != ResultType.done && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Belge indirildi ama açılamadı: ${r.message}')));
+      final err = await openBytes(bytes, safeFileName('${d['file_name'] ?? 'belge'}'), type: '${d['content_type'] ?? ''}');
+      if (err != null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(err)));
       }
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(_err(e))));

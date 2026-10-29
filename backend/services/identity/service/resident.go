@@ -47,8 +47,8 @@ func (s *ResidentService) WithActivation(auth *AuthService, users *repository.Us
 	return s
 }
 
-const activationNote = "Bu kod YALNIZCA BİR KEZ gösterilir. SMS sağlayıcısı bağlı olmadığı için " +
-	"kodu sakine siz iletin (elden ya da telefonla). Sakin uygulamada 'Hesabımı etkinleştir' " +
+const activationNote = "Bu kod YALNIZCA BİR KEZ gösterilir. SMS ya da e-postayla ulaşmadıysa (gönderim " +
+	"durumu yanıtta ayrıca yazar) kodu sakine siz iletin (elden ya da telefonla). Sakin uygulamada 'Hesabımı etkinleştir' " +
 	"ekranında telefonu, bu kodu ve yeni şifresini girer. Kod 7 gün geçerlidir; 5 hatalı " +
 	"denemede kilitlenir."
 

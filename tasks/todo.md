@@ -62,6 +62,15 @@ Kullanıcı kararları (2026-10-26):
 - **K4:** yönetici mobil uygulaması paneldeki her işi yapar.
 - **K5:** okundu bilgisi + tüm işlemlerin kaydı + ayarlardan aç/kapa ve düzey.
 
+## T. Tarayıcı testi (2026-10-29) — HAZIR, YÜRÜTÜLMEDİ
+
+- [x] Test ortamı (`backend/scripts/test-ortami.sh`), hesaplar, sahte sağlayıcılar, Adminer, sonuç sayfası
+- [x] İki uygulamanın web derlemesi; headless gezintide hata yok
+- [x] Test planı `docs/test-plani/` (1152 test; üretici `arac/test_plani.py`)
+- [ ] Planın tarayıcı ajanıyla yürütülmesi (kullanıcı) → sonuçlar `~/.siteeksen-test/sonuclar.jsonl`
+- [ ] KALDI/KISMEN sonuçlarının düzeltilmesi
+- [ ] Karar: bildirim üretmeyen akışlar (06 E7), yönetici uygulaması küçük arayüz (06 E8)
+
 ## H.0 Sınıflandırma — 51 arayüzsüz uç (inceleme sonucu)
 
 | Sınıf | Uçlar | Karar |

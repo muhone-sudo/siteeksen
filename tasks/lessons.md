@@ -742,3 +742,20 @@ ve kullandığı kapsam işlevini oku; bağlam özetindeki iddiaya dayanma.
 çağrı grafiğinde görünmüyordu; "eksik" listesine 20 yanlış alarm düştü. **Kural:** İstemcide yol, çağrının içinde
 düz metin olsun (`switch (action) { 'x' => apiClient.post('/a/x'), … }`); yeni bir indirme/yükleme yardımcısı
 yazılırsa `docs/ozellik-haritasi/arac/{consumers,dart_outline}.py` içindeki `GEN` desenine eklenir.
+
+### Ders 59 — "Çalışıyor" demeden önce gerçek tarayıcıda gez; birim testi ve analiz yerel veri hatasını görmez
+
+Yönetici uygulamasında `DateFormat(..., 'tr_TR')` kullanılıyordu ama `initializeDateFormatting('tr_TR')` hiç
+çağrılmıyordu: tarih gösteren her ekran `LocaleDataException` atıyordu. `flutter analyze` temiz, 35 test geçiyordu,
+APK derleniyordu — hiçbiri yakalamadı. Web derlemesini headless Chrome ile her rotada gezince `client_error_reports`'ta
+çıktı. **Kural:** Yeni ekran/biçimleyici eklendikten sonra uygulama gerçekten açılıp gezilir; istemci hata tablosu
+(`client_error_reports`) boş olmalı.
+
+### Ders 60 — Araç sürümü ve süreç adı varsayımları sessizce bozulur
+
+(1) Go 1.24+ `go run` ikilisini önbellekte `<özet>-d/<ad>` olarak tutuyor; `dev-up.sh --stop`'taki `pkill -f exe/<ad>`
+kalıpları hiçbir şeyi öldürmüyordu ve servisler arkada çalışmaya devam ediyordu. Süreç, tuttuğu portla
+(`fuser -k`) durdurulur. (2) `verify-mobile.sh` PATH'te önce bulduğu Flutter'ı (snap 3.38) kullanıyordu: bağımlılıklar
+çözülmüyor, eski sürümün yazdığı `build/unit_test_assets` sonraki doğru sürümdeki testi de bozuyordu. Projenin
+Flutter'ı (`~/flutter`) PATH'in önüne alınır. (3) `pkill -f` kalıbı geniş olursa komut satırında o metni taşıyan
+başka kabukları (araç çağrıları dahil) öldürür; kalıp `^bash \S*scripts/dev-up\.sh$` gibi çapalanır.

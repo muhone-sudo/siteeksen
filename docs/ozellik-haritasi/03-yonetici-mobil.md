@@ -38,17 +38,17 @@ Kaynak: `admin_app/lib/`. Rotalar: `admin_app/lib/core/router/app_router.dart`. 
 - **Dosya:** `admin_app/lib/core/widgets/forms.dart`
 - **Ekranda:**
   - Veri (satır 1): `GET /units` (identity)
-  - Dosya seçme (satır 9)
-  - Dosya seçme (satır 9)
-  - Dosya seçme (satır 139)
+  - Dosya seçme (satır 7)
+  - Dosya seçme (satır 7)
+  - Dosya seçme (satır 136)
 
 | # | Öğe | Uç · servis · kayıt | Yetki | Değişen tablolar | Bildirim (konu → alıcı) | Etkisinin görüldüğü yerler |
 |---|---|---|---|---|---|---|
-| 1 | Seçim **? — yalnız arayüz (pencere/gezinme), sunucu çağrısı yok** (satır 184) | — | | | | |
-| 2 | Düğme **? — yalnız arayüz (pencere/gezinme), sunucu çağrısı yok** (satır 208) | — | | | | |
-| 3 | Düğme **? — yalnız arayüz (pencere/gezinme), sunucu çağrısı yok** (satır 250) | — | | | | |
-| 4 | Düğme **? — yalnız arayüz (pencere/gezinme), sunucu çağrısı yok** (satır 270) | — | | | | |
-| 5 | Düğme **? — yalnız arayüz (pencere/gezinme), sunucu çağrısı yok** (satır 341) | — | | | | |
+| 1 | Seçim **? — yalnız arayüz (pencere/gezinme), sunucu çağrısı yok** (satır 181) | — | | | | |
+| 2 | Düğme **? — yalnız arayüz (pencere/gezinme), sunucu çağrısı yok** (satır 205) | — | | | | |
+| 3 | Düğme **? — yalnız arayüz (pencere/gezinme), sunucu çağrısı yok** (satır 247) | — | | | | |
+| 4 | Düğme **? — yalnız arayüz (pencere/gezinme), sunucu çağrısı yok** (satır 267) | — | | | | |
+| 5 | Düğme **? — yalnız arayüz (pencere/gezinme), sunucu çağrısı yok** (satır 338) | — | | | | |
 
 ### signature_pad
 - **Dosya:** `admin_app/lib/core/widgets/signature_pad.dart`
@@ -177,19 +177,19 @@ Kaynak: `admin_app/lib/`. Rotalar: `admin_app/lib/core/router/app_router.dart`. 
 - **Dosya:** `admin_app/lib/features/auth/presentation/screens/login_screen.dart`
 - **Rota:** `/login`
 - **Ekranda:**
-  - Pencere (satır 92): Biyometrik Giriş
-  - Alan (satır 222): Telefon Numarası
-  - Alan (satır 223): +90 555 123 4567
-  - Alan (satır 240): Şifre
+  - Pencere (satır 95): Biyometrik Giriş
+  - Alan (satır 225): Telefon Numarası
+  - Alan (satır 226): +90 555 123 4567
+  - Alan (satır 243): Şifre
 
 | # | Öğe | Uç · servis · kayıt | Yetki | Değişen tablolar | Bildirim (konu → alıcı) | Etkisinin görüldüğü yerler |
 |---|---|---|---|---|---|---|
-| 1 | Düğme **Hayır — yalnız arayüz (pencere/gezinme), sunucu çağrısı yok** (satır 98) | — | | | | |
-| 2 | Düğme **Etkinleştir — yalnız arayüz (pencere/gezinme), sunucu çağrısı yok** (satır 102) | — | | | | |
-| 3 | Düğme **? — yalnız arayüz (pencere/gezinme), sunucu çağrısı yok** (satır 242) | — | | | | |
-| 4 | Düğme **Giriş Yap (gider: /kvkk-consent, /; pencere açar)** (satır 261) | `POST /auth/login` · identity · `services/identity/main.go:78` | oturum açmış herkes (site kapsamı) | users(±) | yok | Panel/accounting, Panel/announcements, Panel/bulletins, Panel/documents, Panel/emergency, Panel/governance/assemblies, Panel/governance/common-area, Panel/inventory, Panel/kvkk, Panel/meters, Panel/notifications, Panel/packages, Panel/patrol, Panel/patrol/reports, Panel/renovations, Panel/reports, Panel/reservations, Panel/residents, Panel/roles, Panel/sensors, Panel/settings, Panel/surveys, Panel/units, Panel/violations, Sakin announcements, Sakin bulletin_board_mobile, Sakin common_income, Sakin create_reservation, Sakin documents, Sakin dues_payment, Sakin emergency, Sakin energy_consumption_mobile, Sakin kvkk_requests, Sakin more, Sakin my_meters, Sakin my_reservations, Sakin owner_visibility, Sakin package_tracking_mobile, Sakin profile_settings, Sakin renovations, Sakin resident_home, Sakin surveys_mobile, Sakin tenancy_requests, Sakin unit_residents, Sakin violations, Yön.mobil announcements, Yön.mobil bulletin_board, Yön.mobil dashboard, Yön.mobil documents, Yön.mobil emergency, Yön.mobil finance, Yön.mobil finance_tools, Yön.mobil governance, Yön.mobil inventory_management, Yön.mobil kvkk_requests, Yön.mobil meters, Yön.mobil notification_center, Yön.mobil package_tracking, Yön.mobil patrol_control, Yön.mobil patrol_report, Yön.mobil patrol_run, Yön.mobil payments, Yön.mobil renovations, Yön.mobil reports, Yön.mobil reservation_management, Yön.mobil resident_detail, Yön.mobil resident_tools, Yön.mobil residents, Yön.mobil roles, Yön.mobil sensors, Yön.mobil site_settings, Yön.mobil survey_management, Yön.mobil units, Yön.mobil violations |
-| 5 | Düğme **Biyometrik Giriş (gider: /) — yalnız arayüz (pencere/gezinme), sunucu çağrısı yok** (satır 275) | — | | | | |
-| 6 | Düğme **Şifremi Unuttum / Hesabı Etkinleştir (gider: /activate) — yalnız arayüz (pencere/gezinme), sunucu çağrısı yok** (satır 287) | — | | | | |
+| 1 | Düğme **Hayır — yalnız arayüz (pencere/gezinme), sunucu çağrısı yok** (satır 101) | — | | | | |
+| 2 | Düğme **Etkinleştir — yalnız arayüz (pencere/gezinme), sunucu çağrısı yok** (satır 105) | — | | | | |
+| 3 | Düğme **? — yalnız arayüz (pencere/gezinme), sunucu çağrısı yok** (satır 245) | — | | | | |
+| 4 | Düğme **Giriş Yap (gider: /kvkk-consent, /; pencere açar)** (satır 264) | `POST /auth/login` · identity · `services/identity/main.go:78` | oturum açmış herkes (site kapsamı) | users(±) | yok | Panel/accounting, Panel/announcements, Panel/bulletins, Panel/documents, Panel/emergency, Panel/governance/assemblies, Panel/governance/common-area, Panel/inventory, Panel/kvkk, Panel/meters, Panel/notifications, Panel/packages, Panel/patrol, Panel/patrol/reports, Panel/renovations, Panel/reports, Panel/reservations, Panel/residents, Panel/roles, Panel/sensors, Panel/settings, Panel/surveys, Panel/units, Panel/violations, Sakin announcements, Sakin bulletin_board_mobile, Sakin common_income, Sakin create_reservation, Sakin documents, Sakin dues_payment, Sakin emergency, Sakin energy_consumption_mobile, Sakin kvkk_requests, Sakin more, Sakin my_meters, Sakin my_reservations, Sakin owner_visibility, Sakin package_tracking_mobile, Sakin profile_settings, Sakin renovations, Sakin resident_home, Sakin surveys_mobile, Sakin tenancy_requests, Sakin unit_residents, Sakin violations, Yön.mobil announcements, Yön.mobil bulletin_board, Yön.mobil dashboard, Yön.mobil documents, Yön.mobil emergency, Yön.mobil finance, Yön.mobil finance_tools, Yön.mobil governance, Yön.mobil inventory_management, Yön.mobil kvkk_requests, Yön.mobil meters, Yön.mobil notification_center, Yön.mobil package_tracking, Yön.mobil patrol_control, Yön.mobil patrol_report, Yön.mobil patrol_run, Yön.mobil payments, Yön.mobil renovations, Yön.mobil reports, Yön.mobil reservation_management, Yön.mobil resident_detail, Yön.mobil resident_tools, Yön.mobil residents, Yön.mobil roles, Yön.mobil sensors, Yön.mobil site_settings, Yön.mobil survey_management, Yön.mobil units, Yön.mobil violations |
+| 5 | Düğme **Biyometrik Giriş (gider: /) — yalnız arayüz (pencere/gezinme), sunucu çağrısı yok** (satır 278) | — | | | | |
+| 6 | Düğme **Şifremi Unuttum / Hesabı Etkinleştir (gider: /activate) — yalnız arayüz (pencere/gezinme), sunucu çağrısı yok** (satır 290) | — | | | | |
 
 ### bank_integration_screen
 - **Dosya:** `admin_app/lib/features/banking/presentation/screens/bank_integration_screen.dart`
@@ -862,14 +862,14 @@ Kaynak: `admin_app/lib/`. Rotalar: `admin_app/lib/core/router/app_router.dart`. 
 - **Rota:** `/reports`
 - **Ekranda:**
   - Veri (satır 1): `GET /finance/reports/debtors` (finance); `GET /finance/reports/debtors` (finance); `GET /finance/reports/collections` (finance); `GET /finance/reports/collections` (finance)
-  - Başlık (satır 37): Raporlar
+  - Başlık (satır 29): Raporlar
 
 | # | Öğe | Uç · servis · kayıt | Yetki | Değişen tablolar | Bildirim (konu → alıcı) | Etkisinin görüldüğü yerler |
 |---|---|---|---|---|---|---|
-| 1 | Düğme **PDF** (satır 45) | `GET /finance/reports/debtors` · finance · `services/finance/main.go:123` | AUDITOR/BOARD_MEMBER/MANAGER; işleyicide `reportRoles` (backend/services/finance/reports.go:23) | — | yok | — |
-| 2 | Düğme **Excel** (satır 46) | `GET /finance/reports/debtors` · finance · `services/finance/main.go:123` | AUDITOR/BOARD_MEMBER/MANAGER; işleyicide `reportRoles` (backend/services/finance/reports.go:23) | — | yok | — |
-| 3 | Düğme **PDF** (satır 51) | `GET /finance/reports/collections` · finance · `services/finance/main.go:125` | AUDITOR/BOARD_MEMBER/MANAGER; işleyicide `reportRoles` (backend/services/finance/reports.go:23) | — | yok | — |
-| 4 | Düğme **Excel** (satır 52) | `GET /finance/reports/collections` · finance · `services/finance/main.go:125` | AUDITOR/BOARD_MEMBER/MANAGER; işleyicide `reportRoles` (backend/services/finance/reports.go:23) | — | yok | — |
+| 1 | Düğme **PDF** (satır 37) | `GET /finance/reports/debtors` · finance · `services/finance/main.go:123` | AUDITOR/BOARD_MEMBER/MANAGER; işleyicide `reportRoles` (backend/services/finance/reports.go:23) | — | yok | — |
+| 2 | Düğme **Excel** (satır 38) | `GET /finance/reports/debtors` · finance · `services/finance/main.go:123` | AUDITOR/BOARD_MEMBER/MANAGER; işleyicide `reportRoles` (backend/services/finance/reports.go:23) | — | yok | — |
+| 3 | Düğme **PDF** (satır 43) | `GET /finance/reports/collections` · finance · `services/finance/main.go:125` | AUDITOR/BOARD_MEMBER/MANAGER; işleyicide `reportRoles` (backend/services/finance/reports.go:23) | — | yok | — |
+| 4 | Düğme **Excel** (satır 44) | `GET /finance/reports/collections` · finance · `services/finance/main.go:125` | AUDITOR/BOARD_MEMBER/MANAGER; işleyicide `reportRoles` (backend/services/finance/reports.go:23) | — | yok | — |
 
 ### request_detail_screen
 - **Dosya:** `admin_app/lib/features/requests/presentation/screens/request_detail_screen.dart`
