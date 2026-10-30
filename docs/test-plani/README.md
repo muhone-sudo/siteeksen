@@ -38,7 +38,12 @@ Sayfa/ekran bölümlerindeki her test şunları içerir: hangi hesapla, nerede, 
 **Adminer'de çalıştırılacak sorgu** (değişen her tablo için), işlem kaydı sorgusu, **bildirim konusu ve alıcıları** (hangi hesabın hangi kutuda görmesi gerektiği),
 etkisinin görülmesi gereken diğer ekranlar ve yetkisiz hesapla olumsuz deneme.
 
-## 3. Ajana verilecek komut (örnek)
+## 3. Ajana verilecek komut
+
+**Kendi kendine ilerleyen yol:** ajana her oturumda yalnız *"docs/test-plani/AJAN-GOREVI.md dosyasını oku ve uygula."* yazın.
+Ajan sırayı ve kaldığı yeri [ilerleme.md](ilerleme.md)'den bulur, bölüm bitince sonrakine kendisi geçer.
+
+Tek bölüm vermek için örnek:
 
 > Sen bir test uzmanısın. Ekteki `00-baslangic.md` dosyasındaki kuralları uygula ve `<bölüm dosyası>` içindeki testleri sırayla yürüt.
 > Her testin sonucunu http://localhost:18000/sonuc sayfasına ID, durum (GEÇTİ/KALDI/KISMEN/ATLANDI/ENGELLENDİ), kullandığın hesap ve
