@@ -230,21 +230,31 @@ Koda başlanmadı. Sıra: M1 → M12; M0 kullanıcıda (kodu bekletmez, yayını
   → **Kapı (2026-10-31):** verify-stack 1517/1517 (2026-10-31); panel tsc/lint/build temiz; tarayıcı `~/.siteeksen-test/kanit/M6/` 4/4; changelog + roadmap güncel; para tutarlılığı fark 0. Yeni kontroller önce bozuk kodla kırmızı gösterildi (iki çalıştırma). Ek: tedarikçi web "Talepler" ekranı (liste, kabul, ayrıntı/iletişim); verify adım 1'deki pg_isready yarışı düzeltildi.
 
 ### M7 — Teklif, mesaj, iş, puan, iade, denetim
-- [ ] M7.1 Teklif ver/düzenle/geri çek (kuruş, geçerlilik); yalnız kabul etmiş hesap — **Kanıt:** verify-stack: kabul etmemiş hesap 403
-- [ ] M7.2 Alıcı teklif seçer → iş oluşur, diğerlerine `market.offer.declined`; ya da talebi teklif seçmeden kapatır (ücret iadesi yok)
+- [x] M7.1 Teklif ver/düzenle/geri çek (kuruş, geçerlilik); yalnız kabul etmiş hesap — **Kanıt:** verify-stack: kabul etmemiş hesap 403
+  → **Sonuç:** `[D4]` verify-stack 1530/1530 (2026-10-31) §74: kabul etmemiş hesap teklif 403 `NOT_ACCEPTED`; tutarsız 422; etkin teklif güncellenir (aynı kayıt); geri çekilen alıcıya görünmez; alıcıya `market.offer.new`. Tarayıcı `~/.siteeksen-test/kanit/M7/` 1.
+- [x] M7.2 Alıcı teklif seçer → iş oluşur, diğerlerine `market.offer.declined`; ya da talebi teklif seçmeden kapatır (ücret iadesi yok)
   — **Kanıt:** verify-stack: tek iş satırı; diğer hesaplara bildirim; kapatmada ledger değişmez
-- [ ] M7.3 Mesajlaşma yalnız taraflar arasında; sayfalı; `market.message` — **Kanıt:** verify-stack: üçüncü kişi okuyamaz/yazamaz (403/404)
-- [ ] M7.4 Tamamlama: tedarikçi bildirir → alıcı onaylar ya da itiraz eder; yanıtsızsa 7 gün sonra otomatik; itirazdaki iş otomatik tamamlanmaz
+  → **Sonuç:** `[D4]` verify-stack 1530/1530 (2026-10-31) §74: seçimde tek iş satırı, talep CLOSED, diğer teklif DECLINED + `market.offer.declined`, sonra teklif 409; komşu seçemez 404; teklif seçmeden kapatmada (CANCELLED) etkin teklif reddedildi, defter değişmedi. Alıcı teklifleri işletme telefonu ve puanıyla yan yana görür (`GET /market/requests/:id/offers`). Tarayıcı `~/.siteeksen-test/kanit/M7/` 2 (seçim API'den; alıcı arayüzü M8/M10).
+- [x] M7.3 Mesajlaşma yalnız taraflar arasında; sayfalı; `market.message` — **Kanıt:** verify-stack: üçüncü kişi okuyamaz/yazamaz (403/404)
+  → **Sonuç:** `[D4]` verify-stack 1530/1530 (2026-10-31) §74: alıcı ile kabul eden tedarikçi yazışır (sayfalı, iki yöne `market.message`); komşu 404, kabul etmemiş tedarikçi okuyamaz/yazamaz 403, gönderilmemiş 404. Tarayıcı `~/.siteeksen-test/kanit/M7/` 1–2.
+- [x] M7.4 Tamamlama: tedarikçi bildirir → alıcı onaylar ya da itiraz eder; yanıtsızsa 7 gün sonra otomatik; itirazdaki iş otomatik tamamlanmaz
   — **Kanıt:** verify-stack: onay, itiraz ve otomatik yollar (tarih ileri alınarak)
-- [ ] M7.5 Puan/yorum işletmeye, yalnız tamamlanan işe, işe bir kez; tedarikçi yanıtı; işletme puan özeti güncellenir
+  → **Sonuç:** `[D4]` verify-stack 1530/1530 (2026-10-31) §74: bildirim öncesi onay 409, başkasının işi 404; tedarikçi "tamamlandı" (alıcıya bildirim); gerekçesiz itiraz 422; itirazdaki iş süresi geçse de kendiliğinden tamamlanmadı; alıcı onayıyla COMPLETED (BUYER); yanıtsız iş ayardaki gün sonunda COMPLETED (AUTO), iki tarafa bildirildi. Tarayıcı `~/.siteeksen-test/kanit/M7/` 3.
+- [x] M7.5 Puan/yorum işletmeye, yalnız tamamlanan işe, işe bir kez; tedarikçi yanıtı; işletme puan özeti güncellenir
   — **Kanıt:** verify-stack: tamamlanmamışa 409, ikinciye 409, özet doğru
-- [ ] M7.6 Geçersiz talep / şikâyet bildirimi → platform kuyruğu (`/platform`) → onayda bakiyeye iade (dahil talepse hak geri), retde gerekçe; `market.dispute.resolved`
+  → **Sonuç:** `[D4]` verify-stack 1530/1530 (2026-10-31) §74: tamamlanmamışa 409, ikinciye 409, komşu 404; işletme özeti 4/1 ve 1 tamamlanan iş; tedarikçi bir kez yanıtlar (ikinci 409, başkası 404). Tarayıcı `~/.siteeksen-test/kanit/M7/` 4 (Puanlar ekranından yanıt).
+- [x] M7.6 Geçersiz talep / şikâyet bildirimi → platform kuyruğu (`/platform`) → onayda bakiyeye iade (dahil talepse hak geri), retde gerekçe; `market.dispute.resolved`
   — **Kanıt:** verify-stack: onay/ret yolları, ledger tutarlı, aynı kabul için ikinci iade yok; tarayıcı D4
-- [ ] M7.7 Yorum denetimi: platform gerekçeyle gizler (silinmez) — **Kanıt:** gizlenen yorum vitrinde yok, veritabanında var; işlem kaydı
-- [ ] M7.8 Gelir raporu (dönem: aidat, talep ücreti, iade, net) ledger'dan — **Kanıt:** verify-stack: bilinen işlemlerden sonra rapor toplamı = ledger toplamı
-- [ ] M7.9 Saklama: kapanan taleplerin iletişim satırları ve mesajları saklama süresi sonunda anonimleştirilir (mevcut `kvkk.destruction` işine eklenir)
+  → **Sonuç:** `[D4]` verify-stack 1530/1530 (2026-10-31) §74: kabul etmeyen bildiremez 403, ikinci bildirim 409, kuyruk yalnız platformda; gerekçesiz karar 422; onayda 100 TL tek REFUND, ikinci onay 409; dahil hakla kabulde hak geri (defter satırı yok); ret iade etmez; `market.dispute.resolved`; para tutarlılığı fark 0. Tarayıcı `~/.siteeksen-test/kanit/M7/` 5–8: tedarikçi bildirir, platform onaylar, tedarikçi kararı görür.
+- [x] M7.7 Yorum denetimi: platform gerekçeyle gizler (silinmez) — **Kanıt:** gizlenen yorum vitrinde yok, veritabanında var; işlem kaydı
+  → **Sonuç:** `[D4]` verify-stack 1530/1530 (2026-10-31) §74: gerekçesiz 422, tedarikçi 403; gizlenen yorum vitrin görünümünde yok, veritabanında gerekçesiyle var, puan özetinden çıktı; işlem kaydı `market.review.hidden`. Tarayıcı `~/.siteeksen-test/kanit/M7/` 9.
+- [x] M7.8 Gelir raporu (dönem: aidat, talep ücreti, iade, net) ledger'dan — **Kanıt:** verify-stack: bilinen işlemlerden sonra rapor toplamı = ledger toplamı
+  → **Sonuç:** `[D4]` verify-stack 1530/1530 (2026-10-31) §74: rapor (aidat + talep ücreti − iade) ve dönem defter toplamı doğrudan SQL ile birebir; ters dönem 422; tedarikçi 403. Tarayıcı `~/.siteeksen-test/kanit/M7/` 10. Yüklemeler gelir değil, ayrı gösterilir.
+- [x] M7.9 Saklama: kapanan taleplerin iletişim satırları ve mesajları saklama süresi sonunda anonimleştirilir (mevcut `kvkk.destruction` işine eklenir)
   — **Kanıt:** verify-stack: süre ileri alınınca telefon/ad boş, talep ve ledger kayıtları duruyor
-- [ ] **M7 kapısı** (+ para tutarlılık sorgusu)
+  → **Sonuç:** `[D4]` verify-stack 1530/1530 (2026-10-31) §74: site `MARKET_REQUEST` saklama süresi tanımladı (079 kategori); süresi dolan kapanmış (seçilmiş/iptal) taleplerin ad/telefonu ve mesajları anonimleşti, yeni talep korundu, talep ve defter kayıtları duruyor, imha kaydı yazıldı (pkg/retention). Not: plandaki "saklama süresi" sitenin KVKK saklama kuralıdır (koda gömülü süre yok); site adresi kişisel veri olmadığından korunur.
+- [x] **M7 kapısı** (+ para tutarlılık sorgusu)
+  → **Kapı (2026-10-31):** verify-stack 1530/1530 (2026-10-31); panel tsc/lint/build temiz; tarayıcı `~/.siteeksen-test/kanit/M7/` 10/10; changelog + roadmap güncel; para tutarlılığı fark 0. Yeni 12 kontrol önce bozuk kodla kırmızı gösterildi. Ek: verify adım 1'e port serbest kalma yeniden denemesi.
 
 ### M8 — Sakin uygulaması "Usta & Hizmet"
 - [ ] M8.1 Sekme; havuz: yakındaki yayındaki işletmeler, hizmet kalemleri ve fiyat aralıkları, mesafe, puan; telefon yalnız ücretli pakette

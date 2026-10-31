@@ -58,6 +58,18 @@ var Categories = []Category{
 				tracking_number = NULL, photo_url = NULL, delivery_signature_url = NULL, delivery_photo_url = NULL,
 				delivery_signature_sha256 = NULL, delivery_photo_sha256 = NULL
 			FROM due WHERE p.id = due.id`},
+	{Code: "MARKET_REQUEST", Method: "ANONYMIZE", Title: "Usta & Hizmet talep iletişimleri ve yazışmaları",
+		Fields:    "talep sahibinin adı ve telefonu; alıcı ile tedarikçi arasındaki mesajlar",
+		Condition: "talep kapanmış (seçim, iptal ya da süre dolumu), varsa işi tamamlanmış ve kapanış zamanı saklama süresinden eski; talep ve bakiye defteri kalır",
+		updateQuery: `WITH due AS (
+				SELECT r.id FROM mp_requests r
+				WHERE r.property_id = $1 AND r.status IN ('CLOSED','CANCELLED','EXPIRED') AND r.closed_at < $2
+				  AND NOT EXISTS (SELECT 1 FROM mp_jobs j WHERE j.request_id = r.id AND j.status <> 'COMPLETED')),
+			msgs AS (
+				UPDATE mp_messages SET body = '` + Anonymized + `', anonymized_at = now()
+				WHERE request_id IN (SELECT id FROM due) AND anonymized_at IS NULL)
+			UPDATE mp_request_contacts SET contact_name = '` + Anonymized + `', contact_phone = NULL, anonymized_at = now()
+			WHERE request_id IN (SELECT id FROM due) AND anonymized_at IS NULL`},
 	{Code: "CLIENT_ERROR", Method: "DELETE", Title: "Uygulama hata raporları", Fields: "hata metni, yığın izi, kullanıcı kimliği",
 		Condition:   "rapor zamanı saklama süresinden eski (kayıt silinir)",
 		updateQuery: `DELETE FROM client_error_reports WHERE property_id = $1 AND created_at < $2`},

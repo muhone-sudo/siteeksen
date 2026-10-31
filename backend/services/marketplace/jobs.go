@@ -1,7 +1,7 @@
 package main
 
 // Pazaryerinin zamanlı işleri (FAZ M5–M7): paket aidatı yenileme, yarıda kalan bakiye yüklemelerinin uzlaştırılması,
-// öncelik penceresi bildirimi, talep süresi ve (M7) otomatik tamamlama. Servisin içinde düzenli
+// öncelik penceresi bildirimi, talep süresi ve işin otomatik tamamlanması. Servisin içinde düzenli
 // aralıkla çalışır; birden çok kopya varsa veritabanı danışma kilidi turu tek kopyaya bırakır.
 //
 //	MARKET_JOBS_INTERVAL      (vars. 1m)  — tur aralığı
@@ -66,6 +66,7 @@ func (a *App) runJobs(ctx context.Context, topupAge time.Duration) {
 	}
 	// Öncelik penceresi biten gönderimler (ücretsiz paket) bildirilir; süresi dolan talepler kapanır (M6).
 	a.notifyDueDispatches(ctx, "")
+	a.autoComplete(ctx)
 	if list, err := a.store.ExpireRequests(ctx); err != nil {
 		log.Printf("[marketplace] talep süresi: %v", err)
 	} else {

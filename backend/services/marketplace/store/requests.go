@@ -99,6 +99,8 @@ type SupplierRequest struct {
 	UsesIncluded  bool            `json:"uses_included"`
 	CanAfford     bool            `json:"can_afford"`
 	Contact       *RequestContact `json:"contact,omitempty"`
+	OfferStatus   *string         `json:"offer_status"`
+	JobStatus     *string         `json:"job_status"`
 	CreatedAt     time.Time       `json:"created_at"`
 }
 
@@ -461,7 +463,9 @@ func derefKey(k *string) string {
 const supplierRequestSelect = `SELECT r.id, r.buyer_type, c.name, r.city, r.district, d.distance_m, b.id, b.name, r.description,
 	r.preferred_time, r.phone_hidden, jsonb_array_length(r.photo_keys), r.target_business_id IS NOT NULL, r.status,
 	r.accepted_count, r.max_accepts, r.expires_at, d.visible_at, d.accepted_at, d.fee_kurus, d.used_included,
-	c.request_fee_kurus, r.created_at
+	c.request_fee_kurus, r.created_at,
+	(SELECT o.status FROM mp_offers o WHERE o.dispatch_id = d.id ORDER BY o.created_at DESC LIMIT 1),
+	(SELECT j.status FROM mp_jobs j WHERE j.request_id = r.id AND j.account_id = d.account_id)
 	FROM mp_request_dispatch d
 	JOIN mp_requests r ON r.id = d.request_id
 	JOIN mp_categories c ON c.id = r.category_id
@@ -488,7 +492,7 @@ func scanSupplierRequest(r pgx.Row, w *walletView) (*SupplierRequest, error) {
 	var catFee int64
 	err := r.Scan(&x.ID, &x.BuyerType, &x.CategoryName, &x.City, &x.District, &x.DistanceM, &x.BusinessID, &x.BusinessName,
 		&x.Description, &x.PreferredTime, &x.PhoneHidden, &x.PhotoCount, &x.Direct, &x.Status, &x.AcceptedCount, &x.MaxAccepts,
-		&x.ExpiresAt, &x.VisibleAt, &x.AcceptedAt, &fee, &x.UsesIncluded, &catFee, &x.CreatedAt)
+		&x.ExpiresAt, &x.VisibleAt, &x.AcceptedAt, &fee, &x.UsesIncluded, &catFee, &x.CreatedAt, &x.OfferStatus, &x.JobStatus)
 	if err != nil {
 		return nil, err
 	}

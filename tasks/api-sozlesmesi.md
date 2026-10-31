@@ -485,7 +485,7 @@ Kullanım işlemleri (`POST /requests` daireli talep, `POST /visitors` sakin ön
 listesi, acil durum kartı/yanıtı, sayaç/pusula/itiraz, tüketim verisi) `resident_can_use` kuralına bağlıdır: kiracı ve hane
 üyesi; malik/vekil yalnız dairede aktif kiracı yokken. Kiracılı dairede malik: talep 422, ziyaretçi/araç 403 — yanıt nedeni söyler.
 `POST /visitors` sakin için artık daire ilişkisini denetler (başka dairenin ziyaretçisi 403); yönetim ve görevli her daireye kaydeder.
-## marketplace (8111) — Usta & Hizmet pazaryeri (FAZ M, 076–078) — önek `/market`
+## marketplace (8111) — Usta & Hizmet pazaryeri (FAZ M, 076–079) — önek `/market`
 
 Roller: **SUP** tedarikçi (`SUPPLIER`, platform rolü, sitesiz), **PA** platform yöneticisi (`PLATFORM_ADMIN`, yalnız
 `cmd/platform-admin` ile verilir), **SAKİN** aktif sitede bölümü olan kişi (kendi dairesi için), **YÖN** site yöneticisi
@@ -541,3 +541,23 @@ vermez. Tutarlar kuruş tam sayı (`*_kurus`).
 | `GET /market/supplier/requests/:id` | SUP (gönderilen) | — | önizleme; kabul ettiyse `contact:{name,phone(gizliyse null),site_name,site_address}` · 404 |
 | `POST /market/supplier/requests/:id/accept` | SUP (gönderilen) | — | 200 `{request,message}` — dahil talep hakkı varsa o, yoksa kabul ücreti (paket indirimiyle) bakiyeden aynı işlemde düşer; iletişim açılır; işlem kaydı `market.request.accepted` · 409 `ALREADY_ACCEPTED`/`FULL`/`CLOSED`/`INSUFFICIENT_BALANCE`/`ACCOUNT_STATE` · 404 |
 | `GET /market/supplier/requests/:id/photos/:n` | SUP (gönderilen) | — | görsel · 404 |
+| `GET /market/supplier/requests/:id/deal` | SUP (kabul eden) | — | `{offers:[teklif],job,dispute}` teklif: `{id,request_id,dispatch_id,business_id,business_name,amount_kurus,description,valid_until,status(ACTIVE/WITHDRAWN/ACCEPTED/DECLINED),created_at,updated_at}` |
+| `POST /market/supplier/requests/:id/offers` | SUP (kabul eden) | `amount_kurus`*(>0),`description`*(≤2000),`valid_until`*(YYYY-AA-GG, bugün ya da sonrası) | 200 teklif — etkin teklif varsa güncellenir; alıcıya `market.offer.new` · 403 `NOT_ACCEPTED` · 409 `REQUEST_CLOSED` · 422 |
+| `POST /market/supplier/offers/:id/withdraw` | SUP (sahibi) | — | 200 · 409 `OFFER_STATE` |
+| `GET /market/supplier/requests/:id/messages` · `POST /market/supplier/requests/:id/messages` | SUP (kabul eden) | GET: `before`(RFC3339),`limit`(≤200); POST: `body`*(≤2000) | `{data:[{id,sender_side(BUYER/SUPPLIER),body,created_at,anonymized}]}` yeni→eski · 201 mesaj, alıcıya `market.message` · 403 `NOT_ACCEPTED` · 404 |
+| `POST /market/supplier/jobs/:id/done` | SUP (işin sahibi) | — | 200 iş (DONE_CLAIMED); alıcıya `market.job.completed` · 409 `JOB_STATE` · 404 |
+| `POST /market/supplier/requests/:id/dispute` | SUP (kabul eden) | `reason_code`*(FAKE/WRONG_CATEGORY/UNREACHABLE/OTHER),`note`*(10–2000) | 201 bildirim · 409 `ALREADY_DISPUTED` · 403 · 422 |
+| `GET /market/supplier/reviews` | SUP | — | `{data:[{id,business_id,business_name,rating,comment,reply,replied_at,hidden_at,hidden_reason,created_at}]}` |
+| `POST /market/supplier/reviews/:id/reply` | SUP (işletmenin sahibi) | `reply`*(≤1000) | 200 · 409 `ALREADY_REPLIED` (bir kez) · 404 |
+| `GET /market/requests/:id/offers` | SAKİN (sahibi) · GÖZ | — | `{data:[teklif + business_phone,rating_sum,rating_count,completed_jobs]}` — geri çekilenler hariç, tutara göre |
+| `POST /market/requests/:id/offers/:offerId/select` | SAKİN (sahibi) · YÖN | — | 200 `{job,declined}` — iş oluşur, talep CLOSED, diğer etkin teklifler DECLINED (`market.offer.accepted`/`declined`) · 409 `REQUEST_CLOSED`/`OFFER_STATE`/`OFFER_EXPIRED` · 404 |
+| `POST /market/requests/:id/close` | SAKİN (sahibi) · YÖN | — | 200 — teklif seçmeden kapatma (CANCELLED); kabul ücretleri iade edilmez · 409 |
+| `GET /market/requests/:id/messages/:dispatchId` · `POST /market/requests/:id/messages/:dispatchId` | SAKİN (sahibi) · YÖN (yazma) · GÖZ (okuma) | tedarikçi tarafıyla aynı | yalnız kabul edilmiş gönderimde; tedarikçiye `market.message` · 404 |
+| `GET /market/requests/:id/job` | SAKİN (sahibi) · GÖZ | — | iş `{id,request_id,offer_id,business_id,business_name,amount_kurus,status(ACTIVE/DONE_CLAIMED/COMPLETED/DISPUTED),supplier_done_at,completed_at,completion_source(BUYER/AUTO),dispute_note,created_at,review}` · 404 |
+| `POST /market/requests/:id/job/confirm` · `POST /market/requests/:id/job/dispute` | SAKİN (sahibi) · YÖN | dispute: `note`*(≥5) | 200 iş — onay DONE_CLAIMED ya da DISPUTED → COMPLETED (BUYER); itiraz DONE_CLAIMED → DISPUTED (otomatik tamamlanmaz) · 409 `JOB_STATE` · 422 |
+| `POST /market/requests/:id/review` | SAKİN (sahibi) · YÖN | `rating`*(1–5),`comment`(≤1000) | 201 puan (işletmeye; özet tetikleyiciyle) · 409 `JOB_NOT_COMPLETED`/`ALREADY_REVIEWED` |
+| `GET /market/platform/disputes` | PA | `status`(OPEN/APPROVED/REJECTED) | `{data:[{id,request_id,account_id,trade_name,category,reason_code,note,status,fee_kurus,used_included,decided_at,decision_note,created_at}]}` |
+| `POST /market/platform/disputes/:id/approve` · `POST /market/platform/disputes/:id/reject` | PA | `note`*(≥5) | 200 `{dispute,notification}` — onayda ücret bakiyeye REFUND (dahil hakla kabulde hak geri), tek kez; `market.dispute.resolved` · 409 `DECIDED`/`ALREADY_REFUNDED` |
+| `GET /market/platform/reviews` | PA | `hidden`(1/0) | `{data:[yorum]}` |
+| `POST /market/platform/reviews/:id/hide` | PA | `reason`*(≥5) | 200 — silinmez, gizlenir, puan özetinden çıkar; işlem kaydı `market.review.hidden` · 409 `ALREADY_HIDDEN` |
+| `GET /market/platform/revenue` | PA | `from`*,`to`*(YYYY-AA-GG) | `{from,to,package_fees_kurus,request_fees_kurus,refunds_kurus,net_kurus,topups_kurus,closure_refunds_kurus,included_requests,ledger_total_kurus,balance_liability_kurus}` · 422 `PERIOD` |

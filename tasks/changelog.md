@@ -12,6 +12,22 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-31 — Usta & Hizmet M7: teklif, yazışma, iş, puan, geçersiz talep iadesi, denetim, gelir, saklama (DOĞRULANMIŞ)
+
+- **Teklif:** yalnız kabul edip ödemiş tedarikçi teklif verir/günceller/geri çeker; alıcı teklifleri işletme telefonu ve puanıyla yan
+  yana görür, birini seçince iş oluşur, diğerleri reddedilir; teklif seçmeden kapatmada kabul ücreti iade edilmez.
+- **Yazışma:** alıcı ile kabul eden tedarikçi arasında (iki yöne bildirim); komşu ve kabul etmemiş tedarikçi göremez.
+- **İş ve puan:** tedarikçi "tamamlandı" der; alıcı onaylar ya da gerekçeyle itiraz eder; yanıtsız iş ayardaki gün sonunda kendiliğinden
+  tamamlanır (itirazdaki hariç). Puan yalnız tamamlanan işe bir kez; tedarikçi bir kez yanıtlar.
+- **Geçersiz talep:** tedarikçi bildirir, platform gerekçeyle karar verir; onayda ücret bakiyeye tek kez iade (dahil hakla kabulde hak geri).
+- **Platform:** yorum denetimi (gizler, silmez), gelir raporu (aidat + talep ücreti − iade; yükleme gelir sayılmaz).
+- **Saklama (079):** `MARKET_REQUEST` imha kategorisi — site saklama süresi tanımlar; kapanmış talebin ad/telefonu ve mesajları anonimleşir.
+- **Panel:** tedarikçi talep ayrıntısında teklif, iş, yazışma, geçersiz talep bildirimi; "Puanlar"; platformda "Geçersiz talepler",
+  "Yorum denetimi", "Gelir".
+- **Doğrulama altyapısı:** adım 1'de önceki konteynerin portu geç serbest kalınca (`failed to bind`) yeniden deneme.
+- **Kanıt:** `bash backend/scripts/verify-stack.sh` → 1530/1530 (yeni adım §74, 12 kontrol; hepsi önce bozuk kodla kırmızı); panel
+  tsc/lint/build temiz; tarayıcı D4 `~/.siteeksen-test/kanit/M7/` 10/10; para tutarlılığı fark 0.
+
 ### 2026-10-31 — Usta & Hizmet M6: talep, eşleşme, öncelik penceresi, kabul (DOĞRULANMIŞ)
 
 - **Talep (078):** sakin kendi dairesi için (KVKK rızası, günlük sınır), yönetici site adına talep açar; açıklamadaki telefon/e-posta

@@ -259,8 +259,12 @@ fi
 
 step "1) Temiz PostgreSQL 16"
 docker rm -f "$CNAME" >/dev/null 2>&1
-DBRUN=$(docker run --rm -d --name "$CNAME" -e POSTGRES_PASSWORD="$PW" -e POSTGRES_DB=siteeksen \
-  -e POSTGRES_USER=siteeksen -p ${DBPORT}:5432 postgres:16 -c max_connections=300 2>&1)
+# Kaldırılan önceki konteynerin portu birkaç saniye geç serbest kalabilir ("failed to bind"): kısa aralıkla yeniden denenir.
+for _ in 1 2 3 4 5 6 7 8 9 10; do
+  DBRUN=$(docker run --rm -d --name "$CNAME" -e POSTGRES_PASSWORD="$PW" -e POSTGRES_DB=siteeksen \
+    -e POSTGRES_USER=siteeksen -p ${DBPORT}:5432 postgres:16 -c max_connections=300 2>&1) && break
+  docker rm -f "$CNAME" >/dev/null 2>&1; sleep 2
+done
 # TCP'den sorulur: imaj ilk kurulumda geçici bir sunucuyu yalnız unix soketinde açıp kapatır; soketten sorulursa o
 # geçici sunucu "hazır" görünür ve yeniden başlatma boşluğundaki ikinci kontrol yanlışlıkla başarısız olur.
 for _ in $(seq 1 60); do
@@ -4107,13 +4111,13 @@ if [ "$SUP2" = "1" ] && [ -n "${MGR:-}" ] && [ -n "${TEN:-}" ]; then
 
   # KVKK saklama ve periyodik imha (FAZ 7.8, 043)
   RR=$(curl -s "$TURL/retention-rules" -H "$TA")
-  echo "$RR" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["periodic_months"]==6 and [r["category"] for r in d["data"]]==["VISITOR","PARKING_LOG","PACKAGE","CLIENT_ERROR"]' 2>/dev/null; PY=$?
+  echo "$RR" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["periodic_months"]==6 and [r["category"] for r in d["data"]]==["VISITOR","PARKING_LOG","PACKAGE","MARKET_REQUEST","CLIENT_ERROR"]' 2>/dev/null; PY=$?
   SC1=$(curl -s -o /dev/null -w '%{http_code}' -X PUT "$TURL/retention-rules/VISITOR" -H "$TA" -H "$TJ" -d '{"retention_months":0,"justification":"x"}')
   SC2=$(curl -s -o /dev/null -w '%{http_code}' -X PUT "$TURL/retention-rules/VISITOR" -H "$TA" -H "$TJ" -d '{"retention_months":12}')
   SC3=$(curl -s -o /dev/null -w '%{http_code}' -X PUT "$TURL/retention-rules/VISITOR" -H "$TA" -H "$TJ" -d '{"retention_months":12,"justification":"Güvenlik amacıyla bir yıl; olay incelemesi için yeterli"}')
   SC4=$(curl -s -o /dev/null -w '%{http_code}' "$TURL/retention-rules" -H "Authorization: Bearer $TEN")
   [ "$PY" = "0" ] && [ "$SC1" = "422" ] && [ "$SC2" = "422" ] && [ "$SC3" = "200" ] && [ "$SC4" = "403" ] \
-    && ok "saklama süresi: 4 kategori, periyodik imha 6 ay (İmha Yön. m.11); süre/gerekçe doğrulaması; sakin göremez" || bad "saklama kuralları: py $PY / $SC1 / $SC2 / $SC3 / $SC4"
+    && ok "saklama süresi: 5 kategori (079: Usta & Hizmet talep iletişimi), periyodik imha 6 ay (İmha Yön. m.11); süre/gerekçe doğrulaması; sakin göremez" || bad "saklama kuralları: py $PY / $SC1 / $SC2 / $SC3 / $SC4"
   DP='11111111-1111-1111-1111-111111111111'
   VO=$($PSQL -t -A -c "INSERT INTO visitors (property_id, visitor_name, visitor_phone, visitor_id_number, vehicle_plate, status, checked_in_at)
     VALUES ('$DP','Eski Ziyaretci','5550001111','12345678901','34ABC123','CHECKED_OUT', now() - interval '400 days') RETURNING id;" | head -1)
@@ -4123,7 +4127,7 @@ if [ "$SUP2" = "1" ] && [ -n "${MGR:-}" ] && [ -n "${TEN:-}" ]; then
   ROW=$($PSQL -t -A -c "SELECT visitor_name || '|' || COALESCE(visitor_phone,'-') || '|' || COALESCE(visitor_id_number,'-') || '|' || COALESCE(vehicle_plate,'-') FROM visitors WHERE id='$VO';")
   KEEP=$($PSQL -t -A -c "SELECT count(*) FROM visitors WHERE id IN ('$VN','$VI') AND visitor_name <> '[imha edildi]';")
   LG=$($PSQL -t -A -c "SELECT count(*) FROM data_destruction_log WHERE property_id='$DP' AND category='VISITOR' AND record_count >= 1;")
-  NOR=$($PSQL -t -A -c "SELECT count(*) FROM data_destruction_log WHERE property_id='$DP' AND category IN ('PARKING_LOG','PACKAGE','CLIENT_ERROR');")
+  NOR=$($PSQL -t -A -c "SELECT count(*) FROM data_destruction_log WHERE property_id='$DP' AND category IN ('PARKING_LOG','PACKAGE','MARKET_REQUEST','CLIENT_ERROR');")
   [ "$ROW" = "[imha edildi]|-|-|-" ] && [ "$KEEP" = "2" ] && [ "${LG:-0}" -ge 1 ] && [ "$NOR" = "0" ] \
     && ok "süresi dolan ziyaretçi kaydı anonimleştirildi; yeni ve hâlâ içerideki kayıt korundu; imha kaydı yazıldı; süresi tanımsız kategori imha edilmedi" \
     || bad "periyodik imha: '$ROW' / korunan $KEEP / kayıt $LG / tanımsız $NOR — $RUN"
