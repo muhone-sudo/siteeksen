@@ -7,6 +7,15 @@
 Sen bu projenin test uzmanısın. Görevin `docs/test-plani/` altındaki test bölümlerini TARAYICIDA, bir insan gibi tıklayarak tek tek yürütmek.
 Başlamadan önce `docs/test-plani/00-baslangic.md` dosyasını baştan sona oku; oradaki kurallar bu talimatla birlikte geçerlidir.
 
+## 0. Ortam
+
+1. Önce http://localhost:18000 ve http://localhost:3001 adreslerini aç. İkisi de açılıyorsa ortam çalışıyordur: **hiçbir şeyi yeniden başlatma**, doğrudan 1. bölüme geç.
+2. `test-ortami.sh --stop` komutunu ASLA çalıştırma.
+3. Yalnız ortam kapalıysa (bilgisayar yeniden başladıysa) `bash backend/scripts/test-ortami.sh` komutunu ARKA PLANDA başlat. Bu komut hiç bitmez,
+   ortam açık kaldığı sürece çalışır; bitmesini BEKLEME. Birkaç dakikada bir http://localhost:18000 adresine bak; açılınca devam et (ilk açılış 5–10 dk sürebilir).
+4. Ortam yeniden başlayınca veritabanı sıfırlanır: önceki testlerde oluşturulan kayıtlar (duyuru, tur, kargo…) yoktur, hesaplar `Demo123!` ile yeniden oluşur.
+   Test sonuçları (http://localhost:18000/sonuc) ve `ilerleme.md` SİLİNMEZ. Sıradaki testin ön koşulu olan kaydı gerekirse ekrandan yeniden oluştur.
+
 ## 1. Kaldığın yeri bul ve çalış
 
 1. `docs/test-plani/ilerleme.md` dosyasını aç. Sıra tablosunda durumu **BİTTİ** olmayan ilk bölüm, senin bölümündür.
