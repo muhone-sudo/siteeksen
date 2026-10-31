@@ -12,6 +12,11 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-31 — Platform özellik envanteri README'ye yazıldı
+
+- **[D1]** `README.md`, yönetim web paneli, sakin mobil, yönetici mobil, backend servisleri, ortak güvenlik/mimari, bildirim-zamanlayıcı davranışları, bilinçli olarak uygulanmayan modüller, kurulum ve doğrulama komutlarını kapsayacak şekilde yeniden yazıldı.
+- Kaynak karşılaştırması: `docs/ozellik-haritasi/` ve `docs/claude/servisler.md`, `docs/claude/mimari-durum.md`.
+
 ### 2026-10-31 — Usta & Hizmet M7: teklif, yazışma, iş, puan, geçersiz talep iadesi, denetim, gelir, saklama (DOĞRULANMIŞ)
 
 - **Teklif:** yalnız kabul edip ödemiş tedarikçi teklif verir/günceller/geri çeker; alıcı teklifleri işletme telefonu ve puanıyla yan

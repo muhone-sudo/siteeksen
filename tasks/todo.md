@@ -26,6 +26,15 @@ Demo giriş: `5551234567` / `Demo123!` (yönetici) · `5559876543` / `Demo123!` 
 
 ## Bu oturumun kapsamı
 
+### README özellik envanteri — `[D1]`
+
+- [x] Backend servisleri, API sözleşmesi ve mevcut özellik haritalarını karşılaştırarak kanonik özellik listesini çıkarmak
+- [x] Sakin mobil, yönetici mobil ve yönetim web panelini ayrı başlıklarda; platform, modül, temel akış ve bilinen sınırlarıyla README'ye yazmak
+- [x] Mimari, kurulum, güvenlik, bildirim, doğrulama durumu ve bilinçli olarak uygulanmayan modülleri README'de doğru statüyle belirtmek
+- [x] README bağlantılarını ve Markdown yapısını kontrol etmek; ilgili takip dosyalarına kanıtlı kayıt eklemek
+
+**Kanıt:** `README.md` yeniden yazıldı; kaynaklar `docs/ozellik-haritasi/README.md`, `docs/ozellik-haritasi/01-panel.md`, `02-sakin-mobil.md`, `03-yonetici-mobil.md`, `04-bildirim-zamanlayici-tetikleyici.md`, `05-arayuzsuz-uclar.md`, `docs/claude/servisler.md` ve `docs/claude/mimari-durum.md` olarak karşılaştırıldı (2026-10-31). Otomatik derleme çalıştırılmadı; değişiklik dokümantasyondur.
+
 | Aşama | Durum |
 |---|---|
 | A. Denetim (iddia vs gerçek) | **Bitti** — `tasks/audit-raporu.md` + `tasks/audit/` (5 kanıt dosyası) |
