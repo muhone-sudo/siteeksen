@@ -1,6 +1,9 @@
 package rules
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func f(v float64) *float64 { return &v }
 
@@ -88,5 +91,54 @@ func TestValidTaxNumber(t *testing.T) {
 		if ValidTaxNumber(bad) {
 			t.Errorf("%s geçersiz olmalı", bad)
 		}
+	}
+}
+
+func TestMatch(t *testing.T) {
+	site := Site{Lat: f(40.9909), Lng: f(29.0233), City: "İstanbul", District: "Kadıköy"}
+	km := func(lat float64, r int) Area {
+		return Area{Kind: "KM", RadiusKm: r, Lat: lat, Lng: 29.0233, City: "İstanbul", District: "Kadıköy"}
+	}
+	cands := []Candidate{
+		{BusinessID: "a-uzak", AccountID: "A", Area: km(41.0350, 10)},                                          // ~4,9 km
+		{BusinessID: "a-yakin", AccountID: "A", Area: km(41.0000, 10)},                                         // ~1 km — A'nın en yakını
+		{BusinessID: "b-dar", AccountID: "B", Area: km(41.0350, 3)},                                            // yarıçap dışı
+		{BusinessID: "c-il", AccountID: "C", Area: Area{Kind: "CITY", Lat: 39.9, Lng: 32.8, City: "istanbul"}}, // aynı il
+		{BusinessID: "d-baska-il", AccountID: "D", Area: Area{Kind: "CITY", Lat: 39.9, Lng: 32.8, City: "Ankara"}},
+		{BusinessID: "e-turkiye", AccountID: "E", Area: Area{Kind: "COUNTRY", Lat: 39.9, Lng: 32.8}, Priority: true},
+	}
+	got := Match(cands, site, nil, "")
+	ids := []string{}
+	for _, d := range got {
+		ids = append(ids, d.BusinessID)
+	}
+	want := "a-yakin c-il e-turkiye"
+	if strings.Join(ids, " ") != want {
+		t.Fatalf("eşleşme %v, beklenen %s (A en yakın şubesiyle, B yarıçap dışı, D başka il)", ids, want)
+	}
+	if len(got) != 3 || got[0].DistanceM == nil || *got[0].DistanceM > 1500 {
+		t.Fatalf("A tek kez ve en yakın şubesiyle gelmeli: %+v", got)
+	}
+	if g := Match(cands, site, map[string]bool{"A": true}, ""); len(g) != 2 {
+		t.Fatalf("çatışan hesap dışarıda kalmalı: %+v", g)
+	}
+	if g := Match(cands, site, nil, "a-uzak"); len(g) != 1 || g[0].BusinessID != "a-uzak" {
+		t.Fatalf("doğrudan talep yalnız hedef işletmeye: %+v", g)
+	}
+	if g := Match(cands, site, nil, "b-dar"); len(g) != 0 {
+		t.Fatalf("hedef işletme alanı kapsamıyorsa gönderilmez: %+v", g)
+	}
+	// Site koordinatsız: km işletmesi ilçeyle eşleşir (yedek), uzaklık bilinmez.
+	noCoord := Site{City: "İstanbul", District: "KADIKÖY"}
+	g := Match([]Candidate{{BusinessID: "x", AccountID: "X", Area: km(41.5, 1)}, {BusinessID: "y", AccountID: "Y",
+		Area: Area{Kind: "KM", RadiusKm: 50, Lat: 41, Lng: 29, City: "İstanbul", District: "Üsküdar"}}}, noCoord, nil, "")
+	if len(g) != 1 || g[0].BusinessID != "x" || g[0].DistanceM != nil {
+		t.Fatalf("ilçe yedeği: %+v", g)
+	}
+	// Koordinatsız sitede iki şubeli hesap: tüm il şubesi önce gelse de aynı ilçedeki şube seçilir.
+	g = Match([]Candidate{{BusinessID: "il", AccountID: "Z", Area: Area{Kind: "CITY", Lat: 41, Lng: 29.1, City: "İstanbul", District: "Ataşehir"}},
+		{BusinessID: "ilce", AccountID: "Z", Area: km(41.5, 1)}}, noCoord, nil, "")
+	if len(g) != 1 || g[0].BusinessID != "ilce" {
+		t.Fatalf("koordinatsız sitede aynı ilçedeki şube seçilmeli: %+v", g)
 	}
 }

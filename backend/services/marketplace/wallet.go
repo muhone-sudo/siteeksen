@@ -243,7 +243,7 @@ func (a *App) closeAccount(c *gin.Context) {
 		return
 	}
 	c.Set("audit_details", gin.H{"account_id": acc.ID, "refund_reference": in.RefundReference, "refund_date": in.RefundDate})
-	res := a.notifySupplier(c, admin, acc.ID, "market.supplier.closed", "Usta & Hizmet üyeliğiniz", "Usta & Hizmet üyeliğiniz kapatıldı. "+
+	res := a.notifySupplier(c.Request.Context(), admin, acc.ID, "market.supplier.closed", "Usta & Hizmet üyeliğiniz", "Usta & Hizmet üyeliğiniz kapatıldı. "+
 		"Gerekçe: "+in.Reason, map[string]any{"account_id": acc.ID}, "")
 	c.JSON(http.StatusOK, gin.H{"account": acc, "notification": res})
 }

@@ -197,27 +197,37 @@ Koda başlanmadı. Sıra: M1 → M12; M0 kullanıcıda (kodu bekletmez, yayını
   → **Kapı (2026-10-31):** verify-stack 1495/1495 (son çalıştırma, CORS düzeltmesi dahil), panel tsc/lint/build temiz, changelog + roadmap güncel. **Kalan:** M5.7 test ortamı açılış çıktısı.
 
 ### M6 — Talep, eşleşme, kabul (çekirdek)
-- [ ] M6.1 Talep açma (sakin ve yönetim): sakin için KVKK açık rıza; günlük sınır; metindeki telefon/e-posta maskelenir; fotoğraf `pkg/storage`;
+- [x] M6.1 Talep açma (sakin ve yönetim): sakin için KVKK açık rıza; günlük sınır; metindeki telefon/e-posta maskelenir; fotoğraf `pkg/storage`;
   pasif kategoride, alıcı tipine kapalı kategoride ve pasif sitede açılamaz
   — **Kanıt:** verify-stack: rızasız 422; sınır aşımı 429; maskeli kayıt; pasif site 409
-- [ ] M6.2 Sakin yalnız kendi taleplerini görür; yönetim talepleri yalnız yönetim rollerine — **Kanıt:** verify-stack: aynı sitedeki başka sakin talebi kimlikle istese 404
-- [ ] M6.3 "Yakındaki uygun işletme sayısı" ucu; 0 ise talep açılmaz — **Kanıt:** verify-stack: alan dışı işletmeyle 0 ve talep 422; "Türkiye geneli" işletmeyle 1
-- [ ] M6.4 Eşleşme ve dispatch: hesap başına en yakın uygun işletme; kategori + hesap ONAYLI + işletme YAYINDA + hizmet alanı (km/il/Türkiye; site koordinatı yoksa ilçe)
+  → **Sonuç:** `[D4]` verify-stack 1517/1517 (2026-10-31) §73: rızasız 422 `CONSENT`, yönetim kategorisinde sakin 422, sakin site adına 403, kapalı kategori 422; açıklamadaki telefon kayıtta gizli; günlük sınırda dördüncü 429; pasif site 409 `PROPERTY_INACTIVE`; fotoğraf `pkg/storage` (sahibi ekler, en çok 3). Not: yönetim talebinde rıza alanı istenmez (plan: rıza sakin için).
+- [x] M6.2 Sakin yalnız kendi taleplerini görür; yönetim talepleri yalnız yönetim rollerine — **Kanıt:** verify-stack: aynı sitedeki başka sakin talebi kimlikle istese 404
+  → **Sonuç:** `[D4]` verify-stack 1517/1517 (2026-10-31) §73: aynı sitedeki komşu talebi kimlikle isteyince 404, listesinde yok; site talepleri (`scope=management`) yönetici/kurul/denetçide, sakine 403.
+- [x] M6.3 "Yakındaki uygun işletme sayısı" ucu; 0 ise talep açılmaz — **Kanıt:** verify-stack: alan dışı işletmeyle 0 ve talep 422; "Türkiye geneli" işletmeyle 1
+  → **Sonuç:** `[D4]` verify-stack 1517/1517 (2026-10-31) §73: `GET /market/requests/match-count` — 8 uygun hesap (alan dışı hariç); yalnız alan dışı işletmeyle 0 ve talep 422 `NO_SUPPLIER` (kayıt yok); Türkiye geneli işletme eklenince 1.
+- [x] M6.4 Eşleşme ve dispatch: hesap başına en yakın uygun işletme; kategori + hesap ONAYLI + işletme YAYINDA + hizmet alanı (km/il/Türkiye; site koordinatı yoksa ilçe)
   + çıkar çatışması yok; ücretli paket hemen, ücretsiz pencere sonunda görünür
   — **Kanıt:** `go test` eşleşme birim testleri (yarıçap sınırı, il, Türkiye geneli, ilçe yedeği, iki şubeden en yakını); verify-stack: ücretsiz tedarikçi pencerede
   listede yok ve doğrudan kimlikle 404, pencere sonrası görür; ayarda pencere değişince görünürlük zamanı değişir; yönetici-tedarikçi kendi sitesinin yönetim talebini görmez
-- [ ] M6.5 Maskeli önizleme: kategori, ilçe, mesafe, açıklama, fotoğraf, telefon gizli mi, kabul ücreti (paket indirimi uygulanmış); bakiyesi yetmeyen de görür
+  → **Sonuç:** `[D4]` `go test ./services/marketplace/...` (rules.Match: yarıçap sınırı, il, Türkiye geneli, ilçe yedeği, iki şubeden en yakını, koordinatsız sitede aynı ilçedeki şube, çatışma, doğrudan talep) — verify §73'te çalışır (önceden pazaryeri birim testleri verify'da hiç çalışmıyordu); verify-stack 1517/1517 (2026-10-31) §73: iki şubeli hesaba tek gönderim en yakın şubeyle; ücretsiz hesap pencerede listede yok/kimlikle 404/kabul 404, ücretli hemen görür; pencere 30→45 dk yapılınca görünürlük +45 dk; yönetim talebi sitede görevli kişinin hesabına gitmedi (078 `mp_conflicted_accounts`), sakin talebine gitti.
+- [x] M6.5 Maskeli önizleme: kategori, ilçe, mesafe, açıklama, fotoğraf, telefon gizli mi, kabul ücreti (paket indirimi uygulanmış); bakiyesi yetmeyen de görür
   — **Kanıt:** verify-stack: önizleme JSON'unda ad/telefon/adres anahtarı yok; bakiyesi 0 olan hesap talebi listede görür
-- [ ] M6.6 Kabul: tek transaction'da dahil talep hakkı ya da bakiye düşer + kabul sayısı artar + iletişim açılır + işlem kaydı (iletişim görüntüleme);
+  → **Sonuç:** `[D4]` verify-stack 1517/1517 (2026-10-31) §73: önizlemede `contact`/ad/telefon/adres yok; ilçe ve paket indirimli ücret (100→50 TL), dahil hak kullanılacağı belli; bakiyesi 0 hesap talebi görüyor (`can_afford:false`). Tarayıcı `~/.siteeksen-test/kanit/M6/` 1, 4: Kemal önizlemede ad/telefon görmüyor; Selin "Bakiye yetersiz — bakiye yükle".
+- [x] M6.6 Kabul: tek transaction'da dahil talep hakkı ya da bakiye düşer + kabul sayısı artar + iletişim açılır + işlem kaydı (iletişim görüntüleme);
   4 sınırı satır kilidiyle; hesap başına bir kabul
   — **Kanıt:** verify-stack: 5 hesap paralel kabul → tam 4 başarı, 1 red (409); ledger'da tam 4 kayıt; aynı hesap ikinci kez 409; bakiyesi yetmeyen 409 ve bakiye değişmez;
   dahil talep hakkı olan hesapta bakiye değişmez, hak 1 azalır; para tutarlılık sorgusu fark 0
-- [ ] M6.7 Doğrudan talep ("bu işletmeye gönder"): yalnız o işletmeye gider, öncelik penceresi ve 4 kotası yok, kabul ücreti aynı
+  → **Sonuç:** `[D4]` verify-stack 1517/1517 (2026-10-31) §73: 5 hesap eşzamanlı kabul → tam 4 × 200, 1 × 409; defterde tam 4 ücret satırı; talep DOLU, sonra gelen 409 `FULL`; aynı hesap ikinci kez 409 `ALREADY_ACCEPTED`; bakiyesiz 409 ve bakiye/defter değişmedi; dahil hakla kabulde bakiye değişmedi, hak 1→0, 0 TL defter satırı; kabul işlem kaydında `market.request.accepted`; para tutarlılığı fark 0. Tarayıcı `~/.siteeksen-test/kanit/M6/` 2–3: kabul onayı → ayrıntıda alıcının adı, telefonu, site adresi.
+- [x] M6.7 Doğrudan talep ("bu işletmeye gönder"): yalnız o işletmeye gider, öncelik penceresi ve 4 kotası yok, kabul ücreti aynı
   — **Kanıt:** verify-stack: başka hesaplara dispatch yok; hedef işletme kabul eder, ücret düşer
-- [ ] M6.8 Bildirim: `market.request.new` — ücretliye anında (uygulama içi + e-posta + SMS hakkı varsa), ücretsize pencere bitince zamanlayıcıyla (uygulama içi + e-posta); alıcı kümeleri `audience.go`'da
+  → **Sonuç:** `[D4]` verify-stack 1517/1517 (2026-10-31) §73: doğrudan talep yalnız hedef hesaba (1 gönderim), ücretsiz pakette de hemen görünür ve bildirildi, `max_accepts` 1; kabulde 100 TL düştü, talep DOLU.
+- [x] M6.8 Bildirim: `market.request.new` — ücretliye anında (uygulama içi + e-posta + SMS hakkı varsa), ücretsize pencere bitince zamanlayıcıyla (uygulama içi + e-posta); alıcı kümeleri `audience.go`'da
   — **Kanıt:** verify-stack: ücretsiz hesaba pencere içinde kayıt yok, sonra var ve SMS yok; SMS hakkı biten ücretliye SMS yok; uygun olmayan hesaba kayıt yok
-- [ ] M6.9 Talep süresi dolumu → KAPANDI + `market.request.expired` — **Kanıt:** verify-stack: süre ileri alınınca durum ve bildirim; kapanan talep kabul edilemez (409)
-- [ ] **M6 kapısı** (+ para tutarlılık sorgusu)
+  → **Sonuç:** `[D4]` verify-stack 1517/1517 (2026-10-31) §73: ücretli hesaba hemen uygulama içi + SMS (sahte Netgsm, hak 1→0); ücretsize pencere içinde kayıt yok, pencere bitince zamanlayıcı uygulama içi (SMS yok); SMS hakkı biten ücretliye ikinci SMS yok; gönderilmeyen (alan dışı) hesaba gönderim ve bildirim yok. E-posta, hesabın e-postası varsa aynı yoldan (`notifySupplier`). **Not:** alıcı kümesi eşleşmenin (gönderim tablosunun) sonucudur, `audience.go`'da tanımlı bir küme değildir; tedarikçi alıcısı M4'ten beri `store.AccountContact`.
+- [x] M6.9 Talep süresi dolumu → KAPANDI + `market.request.expired` — **Kanıt:** verify-stack: süre ileri alınınca durum ve bildirim; kapanan talep kabul edilemez (409)
+  → **Sonuç:** `[D4]` verify-stack 1517/1517 (2026-10-31) §73: süresi geçen açık talep zamanlayıcıyla EXPIRED, sahibine `market.request.expired`; kapanan talebe kabul 409 `CLOSED`. Not: plandaki "KAPANDI" durum adı şemada `EXPIRED`.
+- [x] **M6 kapısı** (+ para tutarlılık sorgusu)
+  → **Kapı (2026-10-31):** verify-stack 1517/1517 (2026-10-31); panel tsc/lint/build temiz; tarayıcı `~/.siteeksen-test/kanit/M6/` 4/4; changelog + roadmap güncel; para tutarlılığı fark 0. Yeni kontroller önce bozuk kodla kırmızı gösterildi (iki çalıştırma). Ek: tedarikçi web "Talepler" ekranı (liste, kabul, ayrıntı/iletişim); verify adım 1'deki pg_isready yarışı düzeltildi.
 
 ### M7 — Teklif, mesaj, iş, puan, iade, denetim
 - [ ] M7.1 Teklif ver/düzenle/geri çek (kuruş, geçerlilik); yalnız kabul etmiş hesap — **Kanıt:** verify-stack: kabul etmemiş hesap 403

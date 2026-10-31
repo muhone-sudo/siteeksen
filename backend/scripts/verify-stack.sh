@@ -261,11 +261,13 @@ step "1) Temiz PostgreSQL 16"
 docker rm -f "$CNAME" >/dev/null 2>&1
 DBRUN=$(docker run --rm -d --name "$CNAME" -e POSTGRES_PASSWORD="$PW" -e POSTGRES_DB=siteeksen \
   -e POSTGRES_USER=siteeksen -p ${DBPORT}:5432 postgres:16 -c max_connections=300 2>&1)
+# TCP'den sorulur: imaj ilk kurulumda geçici bir sunucuyu yalnız unix soketinde açıp kapatır; soketten sorulursa o
+# geçici sunucu "hazır" görünür ve yeniden başlatma boşluğundaki ikinci kontrol yanlışlıkla başarısız olur.
 for _ in $(seq 1 60); do
-  docker exec "$CNAME" pg_isready -U siteeksen -d siteeksen >/dev/null 2>&1 && break
+  docker exec "$CNAME" pg_isready -h 127.0.0.1 -U siteeksen -d siteeksen >/dev/null 2>&1 && break
   sleep 1
 done
-docker exec "$CNAME" pg_isready -U siteeksen -d siteeksen >/dev/null 2>&1 \
+docker exec "$CNAME" pg_isready -h 127.0.0.1 -U siteeksen -d siteeksen >/dev/null 2>&1 \
   && ok "veritabanı hazır" || { bad "veritabanı başlamadı: ${DBRUN:0:300} $(docker logs "$CNAME" 2>&1 | tail -3)"; exit 1; }
 
 export PGPASSWORD="$PW"

@@ -3,7 +3,9 @@ import { MarketShell } from "@/components/market/market-shell";
 /** Tedarikçi paneli sekmeleri; her aşamada gerçek ekranı olanlar eklenir (FAZ M). */
 const SUPPLIER_NAV = [
     { href: "/tedarikci", label: "Hesabım" },
+    { href: "/tedarikci/talepler", label: "Talepler" },
     { href: "/tedarikci/isletmeler", label: "İşletmelerim" },
+    { href: "/tedarikci/puanlar", label: "Puanlar" },
     { href: "/tedarikci/bakiye", label: "Bakiye ve paket" },
     { href: "/tedarikci/bildirimler", label: "Bildirimler" },
 ];

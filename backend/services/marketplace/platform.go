@@ -66,7 +66,7 @@ func (a *App) reviewAccount(action string) gin.HandlerFunc {
 		if strings.Contains(body, "%s") {
 			body = fmt.Sprintf(body, in.Reason)
 		}
-		res := a.notifySupplier(c, admin, acc.ID, t[0], "Usta & Hizmet hesabınız", body,
+		res := a.notifySupplier(c.Request.Context(), admin, acc.ID, t[0], "Usta & Hizmet hesabınız", body,
 			map[string]any{"account_id": acc.ID, "status": acc.Status}, "")
 		c.JSON(http.StatusOK, gin.H{"account": acc, "notification": res})
 	}
@@ -97,7 +97,7 @@ func (a *App) reviewBusiness(action string) gin.HandlerFunc {
 		if action == "reject" {
 			topic, body = "market.business.rejected", "\""+b.Name+"\" işletmeniz yayına alınmadı. Gerekçe: "+in.Reason
 		}
-		res := a.notifySupplier(c, admin, b.AccountID, topic, "Usta & Hizmet işletmeniz", body,
+		res := a.notifySupplier(c.Request.Context(), admin, b.AccountID, topic, "Usta & Hizmet işletmeniz", body,
 			map[string]any{"business_id": b.ID, "status": b.Status}, "")
 		c.JSON(http.StatusOK, gin.H{"business": b, "notification": res})
 	}

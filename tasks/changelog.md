@@ -12,6 +12,22 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-31 — Usta & Hizmet M6: talep, eşleşme, öncelik penceresi, kabul (DOĞRULANMIŞ)
+
+- **Talep (078):** sakin kendi dairesi için (KVKK rızası, günlük sınır), yönetici site adına talep açar; açıklamadaki telefon/e-posta
+  gizlenir; en çok 3 fotoğraf. Göndermeden önce uygun işletme sayısı; 0 ise talep açılmaz.
+- **Eşleşme:** kategori + onaylı hesap + yayındaki işletme + hizmet alanı (km/il/Türkiye; site koordinatsızsa ilçe); hesap başına en
+  yakın şube (koordinatsızda aynı ilçedeki); yönetim talebi sitede görevli kişinin tedarikçi hesabına gitmez (`mp_conflicted_accounts`).
+- **Öncelik penceresi:** ücretli paket hemen görür ve bildirilir (uygulama içi + e-posta + SMS hakkı varsa); ücretsiz paket pencere
+  sonunda zamanlayıcıyla. Doğrudan talep yalnız hedef işletmeye, pencere ve kota olmadan.
+- **Kabul:** tek işlemde dahil talep hakkı ya da bakiyeden ücret (paket indirimiyle), en çok 4 kabul (satır kilidi), hesap başına bir
+  kabul; iletişim yalnız kabulde açılır; işlem kaydında `market.request.accepted`. Süresi dolan talep kapanır ve sahibine bildirilir.
+- **Tedarikçi web:** "Talepler" ekranı (maskeli önizleme, kabul onayı, ayrıntıda iletişim ve fotoğraflar).
+- **Doğrulama altyapısı:** pazaryeri birim testleri artık verify'da çalışıyor; adım 1'deki `pg_isready` yarışı (postgres imajının kurulum
+  sunucusu yalnız soketten dinler) TCP denetimiyle giderildi.
+- **Kanıt:** `bash backend/scripts/verify-stack.sh` → 1517/1517 (yeni adım §73, 21 kontrol; hepsi önce bozuk kodla kırmızı gösterildi);
+  panel tsc/lint/build temiz; tarayıcı D4 `~/.siteeksen-test/kanit/M6/` 4/4; para tutarlılığı fark 0.
+
 ### 2026-10-31 — Usta & Hizmet M1–M5: tedarikçi kimliği, pazaryeri servisi, hesap/işletme, platform paneli, bakiye ve paket (DOĞRULANMIŞ)
 
 - **Kimlik (076, M1):** tedarikçi kendi kaydı — SMS kodu (kayıtlı/kayıtsız numaraya aynı yanıt, sıklık sınırı, 5 yanlışta kilit), sonra

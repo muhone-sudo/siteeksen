@@ -281,7 +281,7 @@ Plan `docs/usta-hizmet/plan.md`; maddeler ve kanıtları `tasks/todo.md` "FAZ M"
 | M3 | Tedarikçi hesabı, belgeler, işletmeler (çok şube), hizmet kalemleri — API + `/tedarikci` | `[D4]` 2026-10-31 (verify §70) |
 | M4 | Platform paneli `/platform`: hesap/işletme incelemesi, kategori, paket, ayar | `[D4]` 2026-10-31 (verify §71) |
 | M5 | Bakiye (iyzico) ve paket: idempotency, uzlaştırma, aidat, ücretsize iniş, kapanış iadesi | `[D4]` 2026-10-31 (verify §72) |
-| M6 | Talep, eşleşme, öncelik penceresi, kabul (4 sınırı) | `[D0]` |
+| M6 | Talep, eşleşme, öncelik penceresi, kabul (4 sınırı) | `[D4]` 2026-10-31 (078; verify §73) |
 | M7 | Teklif, mesaj, iş, puan, itiraz/iade, yorum denetimi, gelir raporu, saklama | `[D0]` |
 | M8 | Sakin uygulaması "Usta & Hizmet" sekmesi | `[D0]` |
 | M9 | SiteEksen Tedarikçi uygulaması (`supplier_app/`) | `[D0]` |

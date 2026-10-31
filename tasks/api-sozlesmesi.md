@@ -485,10 +485,12 @@ Kullanım işlemleri (`POST /requests` daireli talep, `POST /visitors` sakin ön
 listesi, acil durum kartı/yanıtı, sayaç/pusula/itiraz, tüketim verisi) `resident_can_use` kuralına bağlıdır: kiracı ve hane
 üyesi; malik/vekil yalnız dairede aktif kiracı yokken. Kiracılı dairede malik: talep 422, ziyaretçi/araç 403 — yanıt nedeni söyler.
 `POST /visitors` sakin için artık daire ilişkisini denetler (başka dairenin ziyaretçisi 403); yönetim ve görevli her daireye kaydeder.
-## marketplace (8111) — Usta & Hizmet pazaryeri (FAZ M, 076–077) — önek `/market`
+## marketplace (8111) — Usta & Hizmet pazaryeri (FAZ M, 076–078) — önek `/market`
 
 Roller: **SUP** tedarikçi (`SUPPLIER`, platform rolü, sitesiz), **PA** platform yöneticisi (`PLATFORM_ADMIN`, yalnız
-`cmd/platform-admin` ile verilir). Platform rolleri site verisine yetki vermez. Tutarlar kuruş tam sayı (`*_kurus`).
+`cmd/platform-admin` ile verilir), **SAKİN** aktif sitede bölümü olan kişi (kendi dairesi için), **YÖN** site yöneticisi
+(`MANAGER`, site adına), **GÖZ** yönetici/kurul üyesi/denetçi (site taleplerini okur). Platform rolleri site verisine yetki
+vermez. Tutarlar kuruş tam sayı (`*_kurus`).
 
 | Uç | Kim | Gövde / Sorgu | Yanıt |
 |---|---|---|---|
@@ -529,3 +531,13 @@ Roller: **SUP** tedarikçi (`SUPPLIER`, platform rolü, sitesiz), **PA** platfor
 | `POST /public/market/topups/iyzico/callback` | iyzico (kimliksiz) | form `token` | sonuç sağlayıcıdan yeniden sorgulanır; tutar ve sepet doğrulanır; tek kez işlenir · tarayıcıya 303 `MARKET_TOPUP_RESULT_URL?topup_id&status&message` (JSON isteyene `{topup_id,status,message}`) · bilinmeyen jeton 404 |
 | `POST /market/supplier/package` | SUP | `package_id`* | 200 `{account,message}` — daha pahalı/eşit pakete hemen geçilir (ilk ay aidatı bakiyeden, haklar tanımlanır); ucuza geçiş dönem sonunda; mevcut paketi seçmek bekleyen değişikliği iptal eder · 409 bakiye yetersiz / askı-kapalı hesap · 422 paket yok/satışta değil |
 | `POST /market/platform/accounts/:id/close` | PA | `reason`*(≥5); bakiye varsa `refund_reference`*,`refund_date`*(YYYY-AA-GG) | 200 `{account,notification}` — kalan bakiye havaleyle iade edildi kaydı (`CLOSURE_REFUND`), bakiye 0, işletmeler kapanır · 422 dekont/gerekçe · 409 zaten kapalı |
+| `GET /market/requests/match-count` | SAKİN · YÖN | `category_id`*,`buyer_type`(RESIDENT/MANAGEMENT),`target_business_id` | `{count}` — talebi alacak onaylı hesap sayısı (hizmet alanı siteyi kapsayan; yönetim talebinde sitede görevli kişinin hesabı hariç) · 422 kategori |
+| `POST /market/requests` | SAKİN · YÖN | `category_id`*,`buyer_type`*,`description`*(≤2000; telefon/e-posta gizlenir),`preferred_time`,`phone_hidden`,`unit_id`(birden çok bölümde zorunlu),`target_business_id`(doğrudan talep),`consent`*(sakinde true) | 201 `{request,dispatched}` · 422 `CONSENT`/`CATEGORY`/`CATEGORY_SCOPE`/`UNIT`/`NO_SUPPLIER`/`TARGET` · 403 `ROLE`/`NOT_RESIDENT`/`NO_PROPERTY` · 429 `DAILY_LIMIT` · 409 `PROPERTY_INACTIVE` |
+| `GET /market/requests` | SAKİN · GÖZ | `scope=management` (site adına açılanlar; yalnız GÖZ) | `{data:[talep]}` talep: `{id,buyer_type,unit_id,category_id,category_name,target_business_id,description,preferred_time,phone_hidden,photo_count,status(OPEN/FULL/EXPIRED/CLOSED/CANCELLED),accepted_count,max_accepts,dispatch_count,expires_at,closed_at,created_at,masked}` — sakin yalnız kendi talepleri |
+| `GET /market/requests/:id` | SAKİN (sahibi) · GÖZ (site talebi) | — | talep + `accepted:[{business_id,business_name,accepted_at}]` · başkasının talebi 404 |
+| `POST /market/requests/:id/photos` | SAKİN (sahibi) | çok parçalı `file`*(JPEG/PNG/WebP ≤5 MB) | 200 · 409 `PHOTOS` (en çok 3; kapanmış talep) · 404 |
+| `GET /market/requests/:id/photos/:n` | SAKİN (sahibi) · GÖZ | — | görsel · 404 |
+| `GET /market/supplier/requests` | SUP | — | `{data:[önizleme],balance_kurus,period_included_left,account_status}` önizleme: `{id,buyer_type,category_name,city,district,distance_m,business_id,business_name,description,preferred_time,phone_hidden,photo_count,direct,status,accepted_count,max_accepts,expires_at,visible_at,accepted_at,fee_kurus,uses_included,can_afford,created_at}` — ad, telefon, adres YOK; öncelik penceresindeki talep görünmez |
+| `GET /market/supplier/requests/:id` | SUP (gönderilen) | — | önizleme; kabul ettiyse `contact:{name,phone(gizliyse null),site_name,site_address}` · 404 |
+| `POST /market/supplier/requests/:id/accept` | SUP (gönderilen) | — | 200 `{request,message}` — dahil talep hakkı varsa o, yoksa kabul ücreti (paket indirimiyle) bakiyeden aynı işlemde düşer; iletişim açılır; işlem kaydı `market.request.accepted` · 409 `ALREADY_ACCEPTED`/`FULL`/`CLOSED`/`INSUFFICIENT_BALANCE`/`ACCOUNT_STATE` · 404 |
+| `GET /market/supplier/requests/:id/photos/:n` | SUP (gönderilen) | — | görsel · 404 |

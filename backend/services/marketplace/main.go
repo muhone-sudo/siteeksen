@@ -75,6 +75,14 @@ func main() {
 	api.GET("/meta", app.meta)
 	api.GET("/services/:id/photo", app.servicePhoto)
 
+	// Talep (M6): sakin kendi dairesi için, yönetici site adına açar; site oturumu gerekir.
+	api.GET("/requests/match-count", app.matchCount)
+	api.GET("/requests", app.buyerRequests)
+	api.POST("/requests", app.createRequest)
+	api.GET("/requests/:id", app.buyerRequest)
+	api.POST("/requests/:id/photos", app.addRequestPhoto)
+	api.GET("/requests/:id/photos/:n", app.requestPhoto(false))
+
 	supplier := api.Group("/supplier")
 	supplier.Use(middleware.RequireRole(middleware.RoleSupplier))
 	supplier.GET("/me", app.supplierMe)
@@ -98,6 +106,10 @@ func main() {
 	supplier.POST("/services/:id/photo", app.uploadServicePhoto)
 	supplier.GET("/notifications", app.supplierNotifications)
 	supplier.POST("/notifications/read", app.readSupplierNotifications)
+	supplier.GET("/requests", app.supplierRequests)
+	supplier.GET("/requests/:id", app.supplierRequest)
+	supplier.POST("/requests/:id/accept", app.acceptRequest)
+	supplier.GET("/requests/:id/photos/:n", app.requestPhoto(true))
 	supplier.GET("/wallet", app.wallet)
 	supplier.POST("/topups", app.startTopup)
 	supplier.GET("/topups/:id", app.topupStatus)

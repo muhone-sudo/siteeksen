@@ -596,4 +596,39 @@ export interface MpWallet {
     balance_kurus: number; package: MpPackage; next_package_id?: Id | null; package_renews_at?: string | null;
     period_included_left: number; period_sms_left: number; data: MpLedgerEntry[]; total: number; limit: number; offset: number; card_ready: boolean;
 }
+export interface MpRequestContact { name: string; phone?: string | null; site_name: string; site_address: string }
+export type MpRequestStatus = "OPEN" | "FULL" | "EXPIRED" | "CLOSED" | "CANCELLED";
+export interface MpSupplierRequest {
+    id: Id; buyer_type: "RESIDENT" | "MANAGEMENT"; category_name: string; city: string; district: string; distance_m?: number | null;
+    business_id: Id; business_name: string; description: string; preferred_time: string; phone_hidden: boolean; photo_count: number;
+    direct: boolean; status: MpRequestStatus; accepted_count: number; max_accepts: number; expires_at: string; visible_at: string;
+    accepted_at?: string | null; fee_kurus: number; uses_included: boolean; can_afford: boolean; contact?: MpRequestContact; created_at: string;
+    offer_status?: MpOffer["status"] | null; job_status?: MpJob["status"] | null;
+}
+export interface MpOffer {
+    id: Id; request_id: Id; dispatch_id: Id; business_id: Id; business_name: string; amount_kurus: number; description: string;
+    valid_until: string; status: "ACTIVE" | "WITHDRAWN" | "ACCEPTED" | "DECLINED"; created_at: string; updated_at: string;
+    business_phone?: string | null; rating_sum?: number; rating_count?: number; completed_jobs?: number;
+}
+export interface MpReview {
+    id: Id; business_id: Id; business_name?: string; rating: number; comment: string; reply?: string | null; replied_at?: string | null;
+    hidden_at?: string | null; hidden_reason?: string | null; created_at: string;
+}
+export interface MpJob {
+    id: Id; request_id: Id; offer_id: Id; business_id: Id; business_name: string; amount_kurus: number;
+    status: "ACTIVE" | "DONE_CLAIMED" | "COMPLETED" | "DISPUTED"; supplier_done_at?: string | null; completed_at?: string | null;
+    completion_source?: "BUYER" | "AUTO" | null; dispute_note?: string | null; created_at: string; review?: MpReview;
+}
+export interface MpDispute {
+    id: Id; request_id: Id; account_id: Id; trade_name?: string; category: string; reason_code: "FAKE" | "WRONG_CATEGORY" | "UNREACHABLE" | "OTHER";
+    note: string; status: "OPEN" | "APPROVED" | "REJECTED"; fee_kurus: number; used_included: boolean; decided_at?: string | null;
+    decision_note?: string | null; created_at: string;
+}
+export interface MpDeal { offers: MpOffer[]; job?: MpJob | null; dispute?: MpDispute | null }
+export interface MpMessage { id: Id; sender_side: "BUYER" | "SUPPLIER"; body: string; created_at: string; anonymized: boolean }
+export interface MpRevenue {
+    from: string; to: string; package_fees_kurus: number; request_fees_kurus: number; refunds_kurus: number; net_kurus: number;
+    topups_kurus: number; closure_refunds_kurus: number; included_requests: number; ledger_total_kurus: number; balance_liability_kurus: number;
+}
+export interface MpSupplierRequests { data: MpSupplierRequest[]; balance_kurus: number; period_included_left: number; account_status: string }
 export interface MpTopup { id: Id; amount_kurus: number; status: "PENDING" | "SUCCEEDED" | "FAILED"; error_message?: string | null; created_at: string; completed_at?: string | null }

@@ -5,6 +5,7 @@ package rules
 import (
 	"math"
 	"regexp"
+	"sort"
 	"strings"
 )
 
@@ -54,6 +55,59 @@ func Covers(a Area, s Site) (bool, *int) {
 		return SamePlace(a.City, s.City) && SamePlace(a.District, s.District), nil
 	}
 	return false, dist
+}
+
+// Candidate, talebin kategorisinde yayında olan, hesabı onaylı bir işletmedir.
+type Candidate struct {
+	BusinessID, AccountID string
+	Area                  Area
+	Priority              bool
+}
+
+// Dispatch, talebin gideceği tedarikçi hesabıdır: hesabın kapsayan işletmelerinden en yakını.
+type Dispatch struct {
+	BusinessID, AccountID string
+	DistanceM             *int
+	Priority              bool
+	local                 bool
+}
+
+// Match, talebin gönderileceği hesapları seçer (FAZ M6, K9/K16): hizmet alanı siteyi kapsamalı, çatışan hesap
+// (sitede yönetim görevi olan kişinin hesabı, yalnız yönetim taleplerinde verilir) dışarıda kalır, doğrudan talepte
+// (target) yalnız o işletme. Bir hesap birden çok şubesiyle uygunsa tek kez, en yakın şubesiyle gelir; uzaklık
+// bilinmiyorsa (site koordinatsız) sitenin ilçesindeki şube, o da yoksa ilk uygun şube. Sonuç uzaklığa göre sıralıdır (bilinmeyen en sonda).
+func Match(cands []Candidate, site Site, excluded map[string]bool, target string) []Dispatch {
+	best := map[string]*Dispatch{}
+	for _, c := range cands {
+		if excluded[c.AccountID] || (target != "" && c.BusinessID != target) {
+			continue
+		}
+		ok, dist := Covers(c.Area, site)
+		if !ok {
+			continue
+		}
+		cur := best[c.AccountID]
+		local := dist == nil && SamePlace(c.Area.District, site.District) && SamePlace(c.Area.City, site.City)
+		closer := cur == nil || (dist != nil && (cur.DistanceM == nil || *dist < *cur.DistanceM)) || (local && !cur.local)
+		if closer {
+			best[c.AccountID] = &Dispatch{BusinessID: c.BusinessID, AccountID: c.AccountID, DistanceM: dist, Priority: c.Priority, local: local}
+		}
+	}
+	out := make([]Dispatch, 0, len(best))
+	for _, d := range best {
+		out = append(out, *d)
+	}
+	sort.Slice(out, func(i, j int) bool {
+		a, b := out[i].DistanceM, out[j].DistanceM
+		if (a == nil) != (b == nil) {
+			return a != nil
+		}
+		if a != nil && *a != *b {
+			return *a < *b
+		}
+		return out[i].AccountID < out[j].AccountID
+	})
+	return out
 }
 
 // SamePlace, il/ilçe adlarını Türkçe büyük-küçük harf ve boşluk farkı gözetmeden karşılaştırır.

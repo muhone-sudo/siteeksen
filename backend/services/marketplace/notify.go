@@ -4,9 +4,9 @@ package main
 // SMS yalnız çağıran istediğinde (ücretli paketin SMS hakkı — FAZ M6).
 
 import (
+	"context"
 	"log"
 
-	"github.com/gin-gonic/gin"
 	"github.com/siteeksen/backend/pkg/notify"
 )
 
@@ -18,13 +18,12 @@ type notifyResult struct {
 }
 
 // notifySupplier, tedarikçi hesabının sahibine bildirim kuyruğa alır. adminID boşsa tedarikçi kapsamında çalışır.
-func (a *App) notifySupplier(c *gin.Context, adminID, accountID, topic, subject, body string, payload map[string]any, dedupe string, extra ...string) *notifyResult {
+func (a *App) notifySupplier(ctx context.Context, adminID, accountID, topic, subject, body string, payload map[string]any, dedupe string, extra ...string) *notifyResult {
 	res := &notifyResult{}
 	if a.notifier == nil {
 		res.InApp = "bildirim altyapısı yapılandırılmamış; GÖNDERİLMEDİ"
 		return res
 	}
-	ctx := c.Request.Context()
 	contact, err := a.store.AccountContact(ctx, adminID, accountID)
 	if err != nil {
 		log.Printf("[marketplace] bildirim alıcısı okunamadı (%s): %v", topic, err)

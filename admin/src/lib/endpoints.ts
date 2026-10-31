@@ -386,10 +386,30 @@ export function endpoints(http: Http) {
                 http.post<{ topup: T.MpTopup; checkout_url?: string; note?: string }>("/market/supplier/topups", { amount_kurus }, { "Idempotency-Key": idempotencyKey }),
             topup: (id: string) => g<T.MpTopup>(`/market/supplier/topups/${id}`),
             changePackage: (package_id: string) => http.post<{ account: T.MpAccount; message: string }>("/market/supplier/package", { package_id }),
+            // Gelen talepler ve kabul (FAZ M6).
+            requests: () => g<T.MpSupplierRequests>("/market/supplier/requests"),
+            request: (id: string) => g<T.MpSupplierRequest>(`/market/supplier/requests/${id}`),
+            acceptRequest: (id: string) => http.post<{ request: T.MpSupplierRequest; message: string }>(`/market/supplier/requests/${id}/accept`, {}),
+            // Teklif, mesaj, iş, puan, geçersiz talep bildirimi (FAZ M7).
+            deal: (id: string) => g<T.MpDeal>(`/market/supplier/requests/${id}/deal`),
+            saveOffer: (id: string, b: { amount_kurus: number; description: string; valid_until: string }) => http.post<T.MpOffer>(`/market/supplier/requests/${id}/offers`, b),
+            withdrawOffer: (offerId: string) => http.post<Msg>(`/market/supplier/offers/${offerId}/withdraw`, {}),
+            messages: (id: string) => g<T.List<T.MpMessage>>(`/market/supplier/requests/${id}/messages`, { limit: 200 }),
+            sendMessage: (id: string, body: string) => http.post<T.MpMessage>(`/market/supplier/requests/${id}/messages`, { body }),
+            jobDone: (jobId: string) => http.post<T.MpJob>(`/market/supplier/jobs/${jobId}/done`, {}),
+            openDispute: (id: string, b: { reason_code: string; note: string }) => http.post<T.MpDispute>(`/market/supplier/requests/${id}/dispute`, b),
+            reviews: () => g<T.List<T.MpReview>>("/market/supplier/reviews"),
+            replyReview: (id: string, reply: string) => http.post<Msg>(`/market/supplier/reviews/${id}/reply`, { reply }),
             notifications: () => g<T.List<T.MpSupplierNotification> & { unread: number }>("/market/supplier/notifications"),
             readNotifications: (ids: string[] = []) => http.post<{ marked: number }>("/market/supplier/notifications/read", { ids }),
             // Platform yönetimi (FAZ M4) — yalnız PLATFORM_ADMIN.
             platform: {
+                disputes: (status = "") => g<T.List<T.MpDispute>>("/market/platform/disputes", { status }),
+                decideDispute: (id: string, approve: boolean, note: string) =>
+                    http.post<{ dispute: T.MpDispute; notification: T.MpNotifyResult }>(`/market/platform/disputes/${id}/${approve ? "approve" : "reject"}`, { note }),
+                reviews: (hidden = "") => g<T.List<T.MpReview>>("/market/platform/reviews", { hidden }),
+                hideReview: (id: string, reason: string) => http.post<Msg>(`/market/platform/reviews/${id}/hide`, { reason }),
+                revenue: (from: string, to: string) => g<T.MpRevenue>("/market/platform/revenue", { from, to }),
                 accounts: (status = "") => g<T.List<T.MpAccountReview>>("/market/platform/accounts", status ? { status } : undefined),
                 account: (id: string) => g<{ account: T.MpAccountReview; documents: T.MpDocument[]; businesses: T.MpBusiness[] }>(`/market/platform/accounts/${id}`),
                 reviewAccount: (id: string, action: "approve" | "reject" | "suspend" | "reinstate", b: { reason?: string; reject_document_ids?: string[] } = {}) =>
