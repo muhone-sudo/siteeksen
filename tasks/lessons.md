@@ -765,3 +765,11 @@ başka kabukları (araç çağrıları dahil) öldürür; kalıp `^bash \S*scrip
 Kullanıcı "mevcut haritayı test için birleştir, ajana vereceğim" dedi; ben test ortamı, sahte sağlayıcılar, web derlemesi,
 otomatik tarama ve 1152 testlik üretici yazdım. Kullanıcı: "test etsen daha az token harcardın." **Kural:** İstenen çıktıyı
 önce en sade hâliyle teslim et; kapsamı büyütecek ek işleri (altyapı, araç, otomasyon) yapmadan önce tek cümleyle sor.
+
+### Ders 62 — Bir hatayı düzeltirken kullanıcının kararı olmayan yeni mekanizma ekleme
+
+Pazaryeri planını gözden geçirirken bulduğum sorunları kendi icat ettiğim kurallarla "düzelttim": öncelik penceresi (kullanıcı
+"SMS ücretli pakette" demişti), ücreti alıcı tipine göre bölme ("kategoriye göre sabit" denmişti), 72 saatte otomatik iade, kart iadesi
+altyapısı. Kullanıcı "sırf bir yanlışı düzeltmek için istenmeyen bir şey yaptın mı" diye sordu; dördü de istenmemişti. **Kural:** Bulunan
+sorunun düzeltmesi kullanıcının verdiği bir kararı değiştiriyor ya da yeni bir kural/mekanizma ekliyorsa uygulamadan önce sor; önce
+kullanıcının kendi kararları içinde kalan en sade düzeltmeyi ara (ör. ayrı ücret boyutu yerine ayrı kategori).

@@ -51,6 +51,189 @@ Backend'e dokunan her değişiklikten sonra çalıştırılır.
 
 ---
 
+# FAZ M — Usta & Hizmet (tedarikçi pazaryeri) (2026-10-31) — PLAN `[D0]`
+
+Tasarım ve kararlar (K1–K17): [docs/usta-hizmet/plan.md](../docs/usta-hizmet/plan.md). Kullanıcı onayı 2026-10-31.
+Koda başlanmadı. Sıra: M1 → M12; M0 kullanıcıda (kodu bekletmez, yayını bekletir).
+
+**Kapatma kuralı (her madde için):**
+- `[ ]` → `[x]` ancak altındaki **Kanıt** satırı gerçek sonuçla doldurulunca yapılır: çalıştırılan komut + sonucu (ör. `verify-stack 1460/1460`),
+  istek/yanıt örneği, veritabanı satırı ya da gözlenen ekran metni + tarih. Kanıt seviyesi `tasks/dogrulama-politikasi.md` D0–D4 ile yazılır.
+- Arayüz maddeleri D4 olmadan kapanmaz: test ortamında headless tarayıcıyla tıklanır; ekran görüntüleri `~/.siteeksen-test/kanit/<madde>/`
+  altına konur (depo dışı, ortam yeniden başlasa da kalır).
+- Kısmen çalışan madde kapanmaz, altına "Kalan:" yazılır.
+- Bir doğrulama kontrolü eklenince önce kodu **geçici olarak bozup** kontrolün kırmızıya döndüğü gösterilir, bozma geri alınır (commit'e girmez), sonra yeşil.
+- Her aşamanın **kapısı** geçmeden sonraki aşamaya başlanmaz. Kapı: verify-stack tamamı yeşil + (değiştiyse) verify-mobile ve panel
+  tsc/lint/build temiz + `tasks/changelog.md` kanıtlı satır + `tasks/roadmap.md` FAZ M satırı güncel.
+- Para ile ilgili her aşamada tutarlılık sorgusu: her hesap için ekranda/API'de görünen bakiye = `mp_wallet_ledger` toplamı (fark 0).
+
+### M0 — İşletme ve hukuk (kullanıcı; kodu bekletmez, yayını bekletir)
+- [ ] M0.1 Şirket/vergi bilgileri ve ETBİS kaydı (6563 aracı hizmet sağlayıcı) — **Kanıt:** ETBİS kayıt no `tasks/questions.md`'de
+- [ ] M0.2 E-fatura/e-arşiv entegratörü; bakiye yükleme faturasının yüklemede mi kullanımda mı kesileceği (mali müşavir) — **Kanıt:** karar `questions.md`'de
+- [ ] M0.3 iyzico: bakiye yükleme tahsilatının mevcut üye işyeri sözleşmesine uygunluğu — **Kanıt:** iyzico'nun yazılı yanıtı
+- [ ] M0.4 Tedarikçi üyelik sözleşmesi, sakin KVKK aydınlatma + açık rıza metni, tedarikçi KVKK metni — **Kanıt:** metinler `docs/hukuk/` altında
+- [ ] M0.5 Paket fiyatları, kategori listesi (sakin ve site kategorileri ayrı) ve kategori talep ücretleri — **Kanıt:** tablo `docs/usta-hizmet/fiyatlar.md`
+- [ ] M0.6 Yayın için harita karo sağlayıcısı — **Kanıt:** seçilen sağlayıcı ve anahtar ortam değişkeni adı `questions.md`'de
+- [ ] M0.7 (İsteğe bağlı) Apple geliştirici hesabı (iOS), Firebase projesi (push, B11) — **Kanıt:** kullanıcıdan hesap/proje bilgisi
+
+### M1 — Kimlik ve roller
+- [ ] M1.0 `tasks/roadmap.md`'ye FAZ M bölümü — **Kanıt:** dosya farkı
+- [ ] M1.1 Site rolü olmayan kullanıcı girişi: yalnız platform rolü olan hesap giriş yapar, jetonda site kapsamı yok, `/users/me` çalışır; site gerektiren uçlar
+  açık bir hata verir (çökmez). Önce bugünkü davranış ölçülür — **Kanıt:** verify-stack: sitesiz hesapla `/auth/login` 200, `/users/me` 200, `/residents` 403 (500 değil)
+- [ ] M1.2 `SUPPLIER` ve `PLATFORM_ADMIN` platform rolleri; site rolleriyle birlikte var olabilir
+  — **Kanıt:** verify-stack: hem sakin hem tedarikçi olan hesabın jetonunda iki tür rol; bu hesapla sakin uçları eskisi gibi 200
+- [ ] M1.3 Tedarikçi kaydı 1. adım: telefon → SMS kodu; kayıtlı/kayıtsız her numaraya aynı yanıt; numara + IP başına hız sınırı
+  — **Kanıt:** verify-stack: iki yanıt gövdesi birebir aynı; kod sahte Netgsm kutusuna düşer; sınır aşımında 429
+- [ ] M1.4 2. adım (kod doğrulandıktan sonra): yeni numara → şifre, hesap + SUPPLIER; kayıtlı etkin hesap → mevcut şifreyle SUPPLIER eklenir (yeni satır yok);
+  kayıtlı ama etkinleştirilmemiş hesap → şifre + SUPPLIER; yanlış kod 400, 5 yanlışta kod kilitlenir
+  — **Kanıt:** verify-stack: üç durum ayrı ayrı (`users` satır sayısı, `roles`); yanlış mevcut şifrede SUPPLIER eklenmez
+- [ ] M1.5 `PLATFORM_ADMIN` yalnız komut aracıyla atanır (`cmd/` altında); istek gövdesindeki `roles` alanı yok sayılır
+  — **Kanıt:** verify-stack: `roles:["PLATFORM_ADMIN"]` gönderilen kayıtta rol yok; araç çıktısı ve `users.roles`
+- [ ] M1.6 `pkg/dbscope` tedarikçi kapsamı (`app.supplier_account_id`) ve platform kapsamı; boş kimlikte iş çalışmaz; değişken transaction dışına taşmaz
+  — **Kanıt:** verify-stack: boş kimlik hatası; aynı bağlantıda sonraki sorguda değişken boş
+- [ ] M1.7 Panel: `rbac.ts` + `middleware.ts`: `/tedarikci/*` SUPPLIER, `/platform/*` PLATFORM_ADMIN; `/tedarikci/giris` ve `/tedarikci/kayit` açık
+  — **Kanıt:** panel tsc/lint/build; tarayıcı D4: KİRACI `/tedarikci` → yönlendirme, SUPPLIER `/platform` → yönlendirme, YÖNETİCİ `/dashboard` eskisi gibi
+- [ ] M1.8 Test ortamı: `test-hesaplari.sh`'a gerçek kayıt akışıyla bir PLATFORM_ADMIN ve iki tedarikçi hesabı — **Kanıt:** betik çıktısı; üç hesapla giriş 200
+- [ ] **M1 kapısı**
+
+### M2 — Veri modeli ve servis iskeleti
+- [ ] M2.1 `services/marketplace` (8111): sağlık ucu, `AuthMiddleware`, yapılandırma, `siteeksen_app` rolüyle bağlantı
+  — **Kanıt:** gateway üzerinden sağlık 200; kimliksiz uç 401; servis bağlantısında `current_user` = siteeksen_app
+- [ ] M2.2 Gateway yönlendirmesi + `gen-deploy.py` ile üretilen dosyalar + `dev-up.sh` + `test-ortami.sh` port listesi
+  — **Kanıt:** verify-stack'in üretilen dosyalar kontrolü yeşil; `dev-up.sh --stop` 8111'i de kapatır
+- [ ] M2.3 Migration `076_marketplace.sql` (bütün tablolar, görünüm, kuruş tam sayı tutarlar, indeksler, bilinçli `ON DELETE`)
+  — **Kanıt:** verify-stack adım 4: çalıştırıcı ikinci çağrıda bir şey uygulamaz ve 076 ham olarak tekrar uygulanır; temiz veritabanında açılış
+- [ ] M2.4 `properties.latitude/longitude` (boş kabul eder) + panel site ayarlarında harita ile giriş
+  — **Kanıt:** mevcut verify-stack kontrolleri değişmeden yeşil; tarayıcı D4: koordinat kaydedilir, geçersiz değer 422
+- [ ] M2.5 RLS: her yeni tabloda RLS + FORCE + politika (hesap kendi satırları; dispatch + görünürlük zamanı; iletişim yalnız kabulde; vitrin yalnız onaylı/yayında)
+  — **Kanıt:** verify-stack: RLS sayımı ve RLS dışı liste birebir güncel; doğrudan SQL'de kapsam = A iken B'nin satırları 0
+- [ ] M2.6 `mp_wallet_ledger` ve `mp_reviews` değiştirilemezlik tetikleyicileri — **Kanıt:** verify-stack: UPDATE ve DELETE hata verir
+- [ ] M2.7 Sitesiz bildirim: tedarikçi alıcılı sitesiz kayıt + RLS + sitesiz tekilleştirme indeksi; `pkg/notify` sitesiz gönderim; site tetikleyicisi yalnız site kayıtlarında
+  — **Kanıt:** verify-stack: sitesiz kayıt yazılır, yalnız alıcısı okur; aynı dedupe anahtarıyla ikinci kayıt atlanır; pasif site koruması (mevcut kontrol) yeşil; `go test ./pkg/notify/...`
+- [ ] M2.8 `api/openapi.yaml`'a marketplace uçları + verify-stack'e kontrol: gateway'de kayıtlı her marketplace yolu belgede var
+  — **Kanıt:** kontrol önce eksik bir yolla kırmızı, sonra yeşil
+- [ ] **M2 kapısı**
+
+### M3 — Tedarikçi hesabı, belgeler, işletmeler (API + `/tedarikci` web)
+- [ ] M3.1 Kayıt ve giriş sayfaları (M1.3–M1.4 akışı arayüzde); yükleniyor/boş/hata durumları — **Kanıt:** tarayıcı D4: yeni, kayıtlı ve etkinleştirilmemiş numara akışları
+- [ ] M3.2 Hesap bilgileri (unvan, vergi no) ve belge yükleme (`pkg/storage`); "incelemeye gönder" (TASLAK → İNCELEMEDE); eksik bilgi/belgede gönderilemez;
+  belgeleri yalnız sahibi ve platform indirir, indirme erişim kaydına yazılır
+  — **Kanıt:** verify-stack: SHA-256 kayıtlı; eksikte 422 ve eksik alan adı; başka tedarikçi indirme 403; erişim kaydı satırı; tarayıcı D4
+- [ ] M3.3 İşletmelerim: birden çok işletme ekle/düzenle/kapat; her birinde ad, telefon, adres, harita iğnesi, hizmet alanı (km / il / Türkiye geneli), kategoriler
+  — **Kanıt:** verify-stack: iki işletmeli hesap; geçersiz koordinat/yarıçap 422; başka hesabın işletmesini değiştirme 403/404; tarayıcı D4
+- [ ] M3.4 Hizmet/ürün kalemleri (ad, açıklama, fiyat aralığı ya da "teklifle", birim, fotoğraf); açıklamada telefon/e-posta kalıbı gizlenir
+  — **Kanıt:** verify-stack: alt fiyat > üst fiyat 422; "0532 ..." içeren açıklama maskeli kaydolur; tarayıcı D4
+- [ ] M3.5 Test ortamı: iki test tedarikçisi (biri iki şubeli) hesap, belge, işletme ve hizmet kalemleriyle betikle doldurulur — **Kanıt:** betik çıktısı; hesaplar İNCELEMEDE
+- [ ] **M3 kapısı**
+
+### M4 — Platform paneli (`/platform`)
+- [ ] M4.1 Hesap belge onay/ret kuyruğu (ret gerekçesi zorunlu), askıya alma; `market.supplier.approved/rejected` (sitesiz bildirim)
+  — **Kanıt:** verify-stack: ret → TASLAK + bildirim; onay → ONAYLI + bildirim; askıya alınan hesabın işletmeleri vitrinden düşer; PLATFORM_ADMIN dışı 403; tarayıcı D4
+- [ ] M4.2 İşletme yayın onayı: onaylı hesabın yeni işletmesi platform kontrolünden sonra YAYINDA; `market.business.approved/rejected`
+  — **Kanıt:** verify-stack: onaysız işletme vitrinde ve eşleşmede yok, onay sonrası var; tarayıcı D4
+- [ ] M4.3 Kategori yönetimi: ekle/düzenle/pasifleştir; talep ücreti; kim açabilir (sakin/yönetim/ikisi); ücret değişikliği işlem kaydına
+  — **Kanıt:** verify-stack: `audit_logs` satırı; pasif kategoride talep açılamaz; sakin "yalnız yönetim" kategorisinde talep açamaz; tarayıcı D4
+- [ ] M4.4 Paket yönetimi (aylık ücret, indirim %, dahil talep, aylık SMS hakkı, öncelik penceresi, vitrinde telefon, sıralama ağırlığı)
+  — **Kanıt:** verify-stack: kayıt/değişiklik ve işlem kaydı; tarayıcı D4 (mevcut abonelere uygulanması M5.4'te doğrulanır)
+- [ ] M4.5 `mp_settings` ekranı (öncelik penceresi, talep süresi, otomatik tamamlama, günlük sınır); serviste bu değerler sabit yazılmaz
+  — **Kanıt:** kaynakta sabit değer araması boş; ayar değişince davranışın değiştiği kontrol M6.4'te
+- [ ] M4.6 Test ortamı: test tedarikçileri ve işletmeleri betikle onaylanır; test kategorileri (sakin + site) ve paketleri (ücretsiz + ücretli) yüklenir
+  — **Kanıt:** betik çıktısı; vitrin görünümünde yayındaki işletmeler
+- [ ] **M4 kapısı**
+
+### M5 — Bakiye ve paket
+- [ ] M5.1 Bakiye yükleme: `pkg/iyzico` Initialize → ödeme sayfası → kimliksiz dönüş ucu → `Retrieve` ile sunucuda doğrulama → ledger; `Idempotency-Key`
+  — **Kanıt:** sahte iyzico ile başarılı, başarısız ve yarıda kalan ödeme; aynı dönüş iki kez gelince tek ledger satırı; tutar istemciden değiştirilemez
+- [ ] M5.2 Uzlaştırma: yarıda kalan yüklemeler zamanlayıcıyla sorgulanır (kart ödemesi bekçisi kalıbı)
+  — **Kanıt:** verify-stack: dönüşü hiç gelmeyen başarılı ödeme sonradan bakiyeye yansır, tek kez
+- [ ] M5.3 Bakiye ve hareketler ekranı (sayfalı ledger) — **Kanıt:** tarayıcı D4; ekrandaki bakiye = ledger toplamı (SQL)
+- [ ] M5.4 Paket seçimi: yükseltme hemen (aidat bakiyeden, haklar yenilenir), düşürme dönem sonunda; bakiye yetmezse 409 ve açık mesaj;
+  paket fiyatı değişirse mevcut aboneye bir sonraki yenilemede uygulanır — **Kanıt:** verify-stack: üç durum + fiyat değişikliği (tarih ileri alınarak)
+- [ ] M5.5 Aidat zamanlayıcısı: yenileme günü bakiyeden düşer, haklar yenilenir; yetmezse ücretsize iner + `market.package.downgraded`; eşik altında `market.wallet.low`
+  — **Kanıt:** verify-stack: iki yol, ledger ve bildirim satırları; aynı gün ikinci çalıştırmada çift aidat yok
+- [ ] M5.6 Üyelik kapanışı: platform kalan bakiyeyi elle (havale) iade eder ve kaydeder (tarih, dekont no, gerekçe); kapanış kaydı bakiyeyi sıfırlar
+  — **Kanıt:** verify-stack: dekont bilgisi olmadan 422; kayıttan sonra bakiye 0, hesap KAPALI; işlem kaydı
+- [ ] M5.7 Test ortamı: test hesaplarına sahte iyzico ile bakiye; biri ücretli pakete geçer — **Kanıt:** betik çıktısı; para tutarlılık sorgusu fark 0
+- [ ] **M5 kapısı** (+ para tutarlılık sorgusu)
+
+### M6 — Talep, eşleşme, kabul (çekirdek)
+- [ ] M6.1 Talep açma (sakin ve yönetim): sakin için KVKK açık rıza; günlük sınır; metindeki telefon/e-posta maskelenir; fotoğraf `pkg/storage`;
+  pasif kategoride, alıcı tipine kapalı kategoride ve pasif sitede açılamaz
+  — **Kanıt:** verify-stack: rızasız 422; sınır aşımı 429; maskeli kayıt; pasif site 409
+- [ ] M6.2 Sakin yalnız kendi taleplerini görür; yönetim talepleri yalnız yönetim rollerine — **Kanıt:** verify-stack: aynı sitedeki başka sakin talebi kimlikle istese 404
+- [ ] M6.3 "Yakındaki uygun işletme sayısı" ucu; 0 ise talep açılmaz — **Kanıt:** verify-stack: alan dışı işletmeyle 0 ve talep 422; "Türkiye geneli" işletmeyle 1
+- [ ] M6.4 Eşleşme ve dispatch: hesap başına en yakın uygun işletme; kategori + hesap ONAYLI + işletme YAYINDA + hizmet alanı (km/il/Türkiye; site koordinatı yoksa ilçe)
+  + çıkar çatışması yok; ücretli paket hemen, ücretsiz pencere sonunda görünür
+  — **Kanıt:** `go test` eşleşme birim testleri (yarıçap sınırı, il, Türkiye geneli, ilçe yedeği, iki şubeden en yakını); verify-stack: ücretsiz tedarikçi pencerede
+  listede yok ve doğrudan kimlikle 404, pencere sonrası görür; ayarda pencere değişince görünürlük zamanı değişir; yönetici-tedarikçi kendi sitesinin yönetim talebini görmez
+- [ ] M6.5 Maskeli önizleme: kategori, ilçe, mesafe, açıklama, fotoğraf, telefon gizli mi, kabul ücreti (paket indirimi uygulanmış); bakiyesi yetmeyen de görür
+  — **Kanıt:** verify-stack: önizleme JSON'unda ad/telefon/adres anahtarı yok; bakiyesi 0 olan hesap talebi listede görür
+- [ ] M6.6 Kabul: tek transaction'da dahil talep hakkı ya da bakiye düşer + kabul sayısı artar + iletişim açılır + işlem kaydı (iletişim görüntüleme);
+  4 sınırı satır kilidiyle; hesap başına bir kabul
+  — **Kanıt:** verify-stack: 5 hesap paralel kabul → tam 4 başarı, 1 red (409); ledger'da tam 4 kayıt; aynı hesap ikinci kez 409; bakiyesi yetmeyen 409 ve bakiye değişmez;
+  dahil talep hakkı olan hesapta bakiye değişmez, hak 1 azalır; para tutarlılık sorgusu fark 0
+- [ ] M6.7 Doğrudan talep ("bu işletmeye gönder"): yalnız o işletmeye gider, öncelik penceresi ve 4 kotası yok, kabul ücreti aynı
+  — **Kanıt:** verify-stack: başka hesaplara dispatch yok; hedef işletme kabul eder, ücret düşer
+- [ ] M6.8 Bildirim: `market.request.new` — ücretliye anında (uygulama içi + e-posta + SMS hakkı varsa), ücretsize pencere bitince zamanlayıcıyla (uygulama içi + e-posta); alıcı kümeleri `audience.go`'da
+  — **Kanıt:** verify-stack: ücretsiz hesaba pencere içinde kayıt yok, sonra var ve SMS yok; SMS hakkı biten ücretliye SMS yok; uygun olmayan hesaba kayıt yok
+- [ ] M6.9 Talep süresi dolumu → KAPANDI + `market.request.expired` — **Kanıt:** verify-stack: süre ileri alınınca durum ve bildirim; kapanan talep kabul edilemez (409)
+- [ ] **M6 kapısı** (+ para tutarlılık sorgusu)
+
+### M7 — Teklif, mesaj, iş, puan, iade, denetim
+- [ ] M7.1 Teklif ver/düzenle/geri çek (kuruş, geçerlilik); yalnız kabul etmiş hesap — **Kanıt:** verify-stack: kabul etmemiş hesap 403
+- [ ] M7.2 Alıcı teklif seçer → iş oluşur, diğerlerine `market.offer.declined`; ya da talebi teklif seçmeden kapatır (ücret iadesi yok)
+  — **Kanıt:** verify-stack: tek iş satırı; diğer hesaplara bildirim; kapatmada ledger değişmez
+- [ ] M7.3 Mesajlaşma yalnız taraflar arasında; sayfalı; `market.message` — **Kanıt:** verify-stack: üçüncü kişi okuyamaz/yazamaz (403/404)
+- [ ] M7.4 Tamamlama: tedarikçi bildirir → alıcı onaylar ya da itiraz eder; yanıtsızsa 7 gün sonra otomatik; itirazdaki iş otomatik tamamlanmaz
+  — **Kanıt:** verify-stack: onay, itiraz ve otomatik yollar (tarih ileri alınarak)
+- [ ] M7.5 Puan/yorum işletmeye, yalnız tamamlanan işe, işe bir kez; tedarikçi yanıtı; işletme puan özeti güncellenir
+  — **Kanıt:** verify-stack: tamamlanmamışa 409, ikinciye 409, özet doğru
+- [ ] M7.6 Geçersiz talep / şikâyet bildirimi → platform kuyruğu (`/platform`) → onayda bakiyeye iade (dahil talepse hak geri), retde gerekçe; `market.dispute.resolved`
+  — **Kanıt:** verify-stack: onay/ret yolları, ledger tutarlı, aynı kabul için ikinci iade yok; tarayıcı D4
+- [ ] M7.7 Yorum denetimi: platform gerekçeyle gizler (silinmez) — **Kanıt:** gizlenen yorum vitrinde yok, veritabanında var; işlem kaydı
+- [ ] M7.8 Gelir raporu (dönem: aidat, talep ücreti, iade, net) ledger'dan — **Kanıt:** verify-stack: bilinen işlemlerden sonra rapor toplamı = ledger toplamı
+- [ ] M7.9 Saklama: kapanan taleplerin iletişim satırları ve mesajları saklama süresi sonunda anonimleştirilir (mevcut `kvkk.destruction` işine eklenir)
+  — **Kanıt:** verify-stack: süre ileri alınınca telefon/ad boş, talep ve ledger kayıtları duruyor
+- [ ] **M7 kapısı** (+ para tutarlılık sorgusu)
+
+### M8 — Sakin uygulaması "Usta & Hizmet"
+- [ ] M8.1 Sekme; havuz: yakındaki yayındaki işletmeler, hizmet kalemleri ve fiyat aralıkları, mesafe, puan; telefon yalnız ücretli pakette
+  — **Kanıt:** verify-mobile; ücretsiz işletmenin telefonu API yanıtında ve ekranda yok; tarayıcı D4 (web derlemesi)
+- [ ] M8.2 Talep formu (kategori, açıklama, fotoğraf, zaman, telefon gizli, KVKK onayı), uygun işletme sayısı; "bu işletmeye gönder" — **Kanıt:** tarayıcı D4 + veritabanı satırları
+- [ ] M8.3 Taleplerim → teklifler yan yana → seç / talebi kapat; mesajlar; tamamlandı onayı / itiraz; puanlama — **Kanıt:** tarayıcı D4 uçtan uca (KİRACI)
+- [ ] M8.4 Bildirimler zilde ve listede (mevcut bildirim ekranı) — **Kanıt:** tarayıcı D4: yeni teklif bildirimi KİRACI'da görünür, komşusunda görünmez
+- [ ] **M8 kapısı** (+ debug APK derlenir)
+
+### M9 — SiteEksen Tedarikçi uygulaması (`supplier_app/`, Android + web)
+- [ ] M9.1 İskelet (`mobile/`/`admin_app/` yapısı, tema, API istemcisi, oturum, `file_opener`, web derlemesi) — **Kanıt:** `flutter analyze` 0, `flutter test` geçer; verify-mobile'a eklendi
+- [ ] M9.2 Kayıt/giriş, hesap ve belgeler, işletmelerim (konum `flutter_map`, hizmet kalemleri), paket, bakiye (ödeme sayfası tarayıcıda açılır, dönüşte uygulama yenilenir)
+  — **Kanıt:** web derlemesinde tarayıcı D4; Android debug APK
+- [ ] M9.3 Gelen talepler (maskeli önizleme), kabul, teklif, mesaj, işler, puanlar; açılışta ve ekrana dönüşte yenileme — **Kanıt:** tarayıcı D4 uçtan uca (M6–M7 akışı uygulamadan)
+- [ ] M9.4 Test ortamı: `test-ortami.sh`'a tedarikçi uygulamasının web derlemesi (:3004) — **Kanıt:** "TEST ORTAMI HAZIR" çıktısında yeni adres
+- [ ] **M9 kapısı** (+ APK)
+
+### M10 — Yönetim alımı
+- [ ] M10.1 Panel `/dashboard/usta-hizmet` + yönetici uygulaması: site talebi açma (MANAGER, yalnız site kategorileri), kurul/denetçi okur
+  — **Kanıt:** verify-stack: DENETÇİ açamaz 403, okur 200; tarayıcı D4
+- [ ] M10.2 Teklif karşılaştırma tablosu — **Kanıt:** tarayıcı D4
+- [ ] M10.3 Seçilen teklif → `services/expense`'te onay bekleyen gider (`PENDING`, `vendor_tax_id` dolu, tedarikçi bağlı); ya da sözleşme formu önceden doldurulmuş açılır
+  — **Kanıt:** verify-stack: gider satırı doğru tutar/vergi no/durumla; mevcut gider onay akışı ve sözleşme kontrolleri değişmeden yeşil; tarayıcı D4
+- [ ] **M10 kapısı**
+
+### M11 — Tarayıcı test planı
+- [ ] M11.1 Test planı üreticisine (`docs/ozellik-haritasi/arac/test_plani.py`) yeni ekranlar/uçlar; elle yazılan uçtan uca senaryolar (talep → 4 kabul → teklif → iş → puan;
+  öncelik penceresi; doğrudan talep; iki şube; platform iadesi; yönetim alımı) — **Kanıt:** `uret.sh` çıktısı; yeni bölüm `docs/test-plani/ilerleme.md` sırasına eklendi
+- [ ] M11.2 Test ajanı bölümü yürütür; KALDI/KISMEN kalmayana kadar düzeltilir — **Kanıt:** `~/.siteeksen-test/sonuclar.jsonl` özeti; her GEÇTİ ekran görüntüsü ve işlem kaydıyla karşılaştırıldı
+- [ ] **M11 kapısı**
+
+### M12 — Yayın öncesi
+- [ ] M12.1 Güvenlik gözden geçirmesi (IDOR, maskeleme, ödeme dönüşü, hız sınırları, belge erişimi) — **Kanıt:** bulgular ve kapanış kanıtları `docs/claude/guvenlik-durumu.md`'de
+- [ ] M12.2 M0 maddelerinin hepsi kapalı — **Kanıt:** M0 kanıt satırları
+- [ ] M12.3 `docs/claude/servisler.md`, `docs/ozellik-haritasi/` ve `tasks/roadmap.md` güncel — **Kanıt:** `uret.sh` sonrası fark yok
+
+
+---
+
 # FAZ H — Harita bulgularının giderilmesi (2026-10-26) — PLAN `[D0]`, sürüm 2
 
 Kaynak: `docs/ozellik-haritasi/06-bulgular-ve-eksikler.md`, `05-arayuzsuz-uclar.md`.
