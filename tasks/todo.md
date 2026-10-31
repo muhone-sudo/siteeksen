@@ -71,6 +71,8 @@ Kullanıcı kararları (2026-10-26):
 - [ ] KALDI/KISMEN sonuçlarının düzeltilmesi
 - [ ] **Kullanıcı kararı (2026-10-29): yapılacak** — bildirim üretmeyen akışlara bildirim eklenecek (06 E7: talep açma/durum, havale onay/ret, yeni rezervasyon talebi, işletme projesi bildirimi, genel kurul çağrısı, NPS ölçümü)
 - [ ] Yönetici uygulaması küçük arayüz (06 E8)
+- [ ] Panel ana sayfa, mali yetkisi olmayan rol (GÖREVLİ): "Son ödemeler" kartı 502 "Ödeme verisi alınamadı… (403)" ve tahsilat uyarısı gösteriyor; yetkisi olmayana bu kartlar gizlenmeli (2026-10-29 test günlüğü)
+- [ ] Belge servisi: var olmayan belgeye reddedilen erişim, `document_access_logs` yabancı anahtarına takılıp kaydedilemiyor (yalnız günlük)
 
 ## H.0 Sınıflandırma — 51 arayüzsüz uç (inceleme sonucu)
 
