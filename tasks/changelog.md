@@ -12,6 +12,27 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-31 — Usta & Hizmet M1–M5: tedarikçi kimliği, pazaryeri servisi, hesap/işletme, platform paneli, bakiye ve paket (DOĞRULANMIŞ)
+
+- **Kimlik (076, M1):** tedarikçi kendi kaydı — SMS kodu (kayıtlı/kayıtsız numaraya aynı yanıt, sıklık sınırı, 5 yanlışta kilit), sonra
+  NEW / EXISTING (mevcut şifreyle rol eklenir, ikinci hesap açılmaz) / INACTIVE; `SUPPLIER`, `PLATFORM_ADMIN` platform rolleri (yalnız
+  `cmd/platform-admin`); sitesiz giriş; `pkg/dbscope` tedarikçi ve platform kapsamı.
+- **Pazaryeri (077, M2):** `services/marketplace` (8111, gateway `/api/v1/market`); 19 tablo RLS + FORCE (site/tedarikçi/platform),
+  değiştirilemez bakiye defteri, yorum koruması, sitesiz tedarikçi bildirimi (`pkg/notify`), site konumu (panel ayarlarında harita).
+- **Tedarikçi web `/tedarikci` (M3):** hesap + belgeler (SHA-256, erişim kaydı), çok şubeli işletmeler (harita, hizmet alanı km/il/Türkiye),
+  hizmet kalemleri (fiyat aralığı/teklifle, fotoğraf; telefon/e-posta maskesi).
+- **Platform `/platform` (M4):** hesap ve işletme incelemesi (gerekçeli ret, askı), kategori, paket, ayarlar.
+- **Bakiye ve paket (M5):** iyzico ile yükleme (Idempotency-Key, dönüşte sağlayıcıdan yeniden sorgu, servis içi uzlaştırma), paket
+  yükseltme/düşürme, aidat yenileme ve ücretsize iniş, düşük bakiye uyarısı, platformun dekontlu kapanış iadesi.
+- **Test ortamı:** platform yöneticisi 5550000030, tedarikçiler 5550000040/41 (gerçek kayıt akışı); `test-araclari/pazaryeri.py` kategori,
+  paket, onaylı işletmeler ve bakiye verisini API üzerinden kurar.
+- **Tarayıcı testinde bulunan hatalar:** gateway CORS `Idempotency-Key`'e izin vermiyordu (bakiye yüklenemiyordu); sahte iyzico isteğin
+  `callbackUrl`'ini yok sayıyordu; hareketi olmayan hesapta bakiye sayfası "Kayıt yok" gösterip yükleme formunu gizliyordu; kayıtta yanlış
+  mevcut şifre (jetonsuz 401) paneli /login'e atıyordu; kapalı hesapta yükleme/paket düğmeleri görünüyordu.
+- **Kanıt:** `bash backend/scripts/verify-stack.sh` → 1495/1495 (yeni adımlar §68–§72; RLS 148 tablo); panel tsc/lint/build temiz (ayrı
+  kopyada); tarayıcı D4 ekran görüntüleri `~/.siteeksen-test/kanit/` M1.7, M2.4, M3, M3.1, M4, M5; para tutarlılığı: her hesapta bakiye =
+  defter toplamı. Kalan: test ortamının yeniden açılışında `pazaryeri.py` çıktısı (çalışan ortam yeniden başlatılmadı).
+
 ### 2026-10-29 — Tarayıcı test planı ve test ortamı; web derlemeleri; bulunan hataların düzeltmesi (DOĞRULANMIŞ)
 
 - **Test planı** `docs/test-plani/`: özellik haritasından üretilen 1152 test (panel 330 eylem + 52 sayfa açılışı, sakin 207,

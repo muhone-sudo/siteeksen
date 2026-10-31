@@ -24,26 +24,42 @@ import (
 // Maliyet: çağrı başına bir ek gidiş-dönüş. Bunun karşılığında, unutulan bir
 // `WHERE property_id` filtresi artık veri sızdırmaz.
 type Scoped struct {
-	pool       *pgxpool.Pool
-	propertyID string
+	pool *pgxpool.Pool
+	// setting/value: hangi oturum değişkenine hangi kimliğin yazılacağı (site, tedarikçi hesabı, platform).
+	setting, value string
+	// emptyErr, kimlik boşken dönen hatadır; boş kapsamla iş HİÇ çalıştırılmaz.
+	emptyErr error
 }
 
 // For, verilen site için kapsamlı erişim üretir.
 func For(pool *pgxpool.Pool, propertyID string) *Scoped {
-	return &Scoped{pool: pool, propertyID: propertyID}
+	return &Scoped{pool: pool, setting: SettingName, value: propertyID, emptyErr: ErrNoProperty}
+}
+
+// ForSupplier, verilen tedarikçi hesabı için kapsamlı erişim üretir (076, FAZ M): pazaryeri tablolarının
+// politikaları tedarikçinin yalnız kendi satırlarını ve kendisine gönderilmiş talepleri görmesini sağlar.
+func ForSupplier(pool *pgxpool.Pool, accountID string) *Scoped {
+	return &Scoped{pool: pool, setting: SupplierSettingName, value: accountID, emptyErr: ErrNoSupplier}
+}
+
+// ForPlatform, platform yöneticisi işleri için kapsamlı erişim üretir (076, FAZ M). Değer işlemi yapan
+// yöneticinin kimliğidir; politikalar yalnızca değişkenin dolu olmasına bakar. Site verisine YETKİ VERMEZ:
+// site tablolarının politikaları bu değişkeni okumaz.
+func ForPlatform(pool *pgxpool.Pool, adminUserID string) *Scoped {
+	return &Scoped{pool: pool, setting: PlatformSettingName, value: adminUserID, emptyErr: ErrNoPlatform}
 }
 
 // begin, kapsamı ayarlanmış bir transaction açar.
 func (s *Scoped) begin(ctx context.Context) (pgx.Tx, error) {
-	if s.propertyID == "" {
-		return nil, ErrNoProperty
+	if s.value == "" {
+		return nil, s.emptyErr
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return nil, err
 	}
 	if _, err := tx.Exec(ctx, `SELECT set_config($1, $2, true)`,
-		SettingName, s.propertyID); err != nil {
+		s.setting, s.value); err != nil {
 		_ = tx.Rollback(ctx)
 		return nil, err
 	}

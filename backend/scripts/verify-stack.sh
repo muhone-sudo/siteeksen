@@ -179,7 +179,7 @@ else
   bad "go test ./pkg/authtoken/..."; tail -15 /tmp/verify-authtoken.log
 fi
 if go test ./cmd/gateway/... -count=1 >/tmp/verify-gwtest.log 2>&1; then
-  ok "go test ./cmd/gateway/... (kimliksiz yol listesi dar: yalnızca giriş, belge doğrulama, cihaz sinyali)"
+  ok "go test ./cmd/gateway/... (kimliksiz yol listesi dar: yalnızca giriş, belge doğrulama, cihaz sinyali; CORS Idempotency-Key)"
 else
   bad "go test ./cmd/gateway/..."; tail -15 /tmp/verify-gwtest.log
 fi
@@ -259,14 +259,14 @@ fi
 
 step "1) Temiz PostgreSQL 16"
 docker rm -f "$CNAME" >/dev/null 2>&1
-docker run --rm -d --name "$CNAME" -e POSTGRES_PASSWORD="$PW" -e POSTGRES_DB=siteeksen \
-  -e POSTGRES_USER=siteeksen -p ${DBPORT}:5432 postgres:16 -c max_connections=300 >/dev/null
+DBRUN=$(docker run --rm -d --name "$CNAME" -e POSTGRES_PASSWORD="$PW" -e POSTGRES_DB=siteeksen \
+  -e POSTGRES_USER=siteeksen -p ${DBPORT}:5432 postgres:16 -c max_connections=300 2>&1)
 for _ in $(seq 1 60); do
   docker exec "$CNAME" pg_isready -U siteeksen -d siteeksen >/dev/null 2>&1 && break
   sleep 1
 done
 docker exec "$CNAME" pg_isready -U siteeksen -d siteeksen >/dev/null 2>&1 \
-  && ok "veritabanı hazır" || { bad "veritabanı başlamadı"; exit 1; }
+  && ok "veritabanı hazır" || { bad "veritabanı başlamadı: ${DBRUN:0:300} $(docker logs "$CNAME" 2>&1 | tail -3)"; exit 1; }
 
 export PGPASSWORD="$PW"
 PSQL="psql -h 127.0.0.1 -p ${DBPORT} -U siteeksen -d siteeksen -v ON_ERROR_STOP=1 -q"
@@ -5772,11 +5772,13 @@ qid() {
 }
 
 # 1) Dizin tablolarında RLS: kapsam politikası + kimlik rolü politikası
+# users: 077 ile üçüncü politika — tedarikçi kendi kaydını, platform tedarikçi kayıtlarını okur (users_supplier_self).
 for T in users properties units blocks resident_units property_roles; do
   ROW=$($PSQL -t -A -c "SELECT rls_enabled || '/' || rls_forced || '/' || policy_count
     FROM rls_enabled_tables WHERE table_name='$T';")
+  WANT=2; [ "$T" = "users" ] && WANT=3
   case "$ROW" in
-    true/true/2|t/t/2) ok "RLS açık: $T (site kapsamı + kimlik rolü politikası)" ;;
+    "true/true/$WANT"|"t/t/$WANT") ok "RLS açık: $T (site kapsamı + kimlik rolü politikası$([ "$WANT" = 3 ] && echo ' + tedarikçi/platform okuma'))" ;;
     *)                 bad "RLS eksik: $T ($ROW)" ;;
   esac
 done
@@ -5838,7 +5840,7 @@ AUD=$($PSQL -t -A -c "SELECT count(*) FROM audit_logs WHERE created_at > now() -
   || bad "denetim izine yazılmamış — INSERT yetkisi de gitmiş olabilir"
 appfails "UPDATE legal_parameters SET value_numeric = 0" \
   && ok "uygulama rolü mevzuat parametresini değiştiremiyor" || bad "uygulama rolü legal_parameters YAZABİLDİ"
-for T in tenants invoices usage_metrics schema_migrations user_activation_codes phone_change_requests email_change_requests; do
+for T in tenants invoices usage_metrics schema_migrations user_activation_codes phone_change_requests email_change_requests phone_verifications; do
   appfails "SELECT count(*) FROM $T" && ok "uygulama rolü platform tablosuna erişemiyor: $T" \
     || bad "uygulama rolü $T okuyabiliyor"
 done
@@ -5865,8 +5867,8 @@ ok "kullanılmayan 13 site tablosu RLS ile korunuyor"
 
 # 9) Toplam durum — RLS DIŞINDA KALAN her tablo bilinçli ve gerekçeli olmalı
 RLSCOUNT=$($PSQL -t -A -c "SELECT count(*) FROM rls_enabled_tables;")
-[ "$RLSCOUNT" = "129" ] && ok "RLS toplam 129 tabloda açık (069, 071, 073 okundu bilgisi, 074 sensörler, 075 devriye izi)" \
-  || bad "beklenmedik RLS tablo sayısı: $RLSCOUNT (beklenen 129)"
+[ "$RLSCOUNT" = "148" ] && ok "RLS toplam 148 tabloda açık (069, 071, 073 okundu bilgisi, 074 sensörler, 075 devriye izi, 077 pazaryeri 19 tablo)" \
+  || bad "beklenmedik RLS tablo sayısı: $RLSCOUNT (beklenen 148)"
 NOTRLS=$($PSQL -t -A -c "SELECT string_agg(t.table_name, ' ' ORDER BY t.table_name)
   FROM information_schema.tables t
   WHERE t.table_schema='public' AND t.table_type='BASE TABLE'
@@ -5874,10 +5876,10 @@ NOTRLS=$($PSQL -t -A -c "SELECT string_agg(t.table_name, ' ' ORDER BY t.table_na
 # audit_logs: yalnızca ekleme
 # revoked_tokens / user_token_invalidation: salt-okur, kişi bazlı (site değil)
 # tenants / invoices / usage_metrics / schema_migrations: uygulama rolüne kapalı
-# user_activation_codes / phone_change_requests / email_change_requests: uygulama rolüne kapalı, yalnızca kimlik servisi (027, 062, 065)
+# user_activation_codes / phone_change_requests / email_change_requests / phone_verifications: uygulama rolüne kapalı, yalnızca kimlik servisi (027, 062, 065, 076)
 # (legal_parameters 029'dan beri RLS altında: site istisnaları yalnızca kendi sitesinde.)
-EXPECTED="audit_logs email_change_requests invoices phone_change_requests revoked_tokens schema_migrations tenants usage_metrics user_activation_codes user_token_invalidation"
-[ "$NOTRLS" = "$EXPECTED" ] && ok "RLS dışındaki 10 tablonun her biri gerekçeli: $NOTRLS" \
+EXPECTED="audit_logs email_change_requests invoices phone_change_requests phone_verifications revoked_tokens schema_migrations tenants usage_metrics user_activation_codes user_token_invalidation"
+[ "$NOTRLS" = "$EXPECTED" ] && ok "RLS dışındaki 11 tablonun her biri gerekçeli: $NOTRLS" \
   || bad "RLS dışında beklenmeyen tablo var: '$NOTRLS' (beklenen: '$EXPECTED')"
 
 step "37) Sertleştirme turu: gateway yönlendirmesi, durum kodları, sahiplik (2026-09-26)"
@@ -9120,6 +9122,11 @@ else
   bad "doğrulama için tebliğ edilmiş işletme projesi ya da malik bölümü yok (bütçe=$BID67 bölüm=$OWNU67)"
 fi
 kill_tree "$S67I"; kill_tree "$S67G"; kill_tree "$S67S"
+
+# Pazaryeri (FAZ M, docs/usta-hizmet/plan.md) adımları ayrı dosyalardadır; sırayla çalışır.
+for VSD in "$SCRIPT_DIR"/verify-stack.d/*.sh; do
+  [ -f "$VSD" ] && source "$VSD"
+done
 
 step "SONUÇ"
 echo "  Geçen: $PASS   Başarısız: $FAIL"

@@ -41,6 +41,10 @@
 | `POST /users/me/logout-all` | herkes | — | `{message,note}` |
 | `POST /auth/activate` | açık | `phone`*,`code`*,`new_password`* | 200 `{message,invitations:{accepted,waiting?}}` · 400 kod/telefon hatalı, kullanılmış ya da süresi dolmuş · 422 zayıf şifre · 429 kod 5 hatalı denemede kilitlendi. Başarılıysa kullanıcının açık bütün oturumları kapanır. Hesabın İLK etkinleştirmesinde bekleyen daire davetleri kabul edilir (kabul edilemeyen bekler, neden `waiting`) — D3 |
 | `POST /auth/password-reset/request` | herkes (oturumsuz) | `phone`* | 200 `{message,retry_after_sec,expires_in_sec}` — numaranın kayıtlı olup olmadığından bağımsız AYNI yanıt; kayıtlı ve etkinse kod SMS + (kayıtlıysa) e-postayla gider (15 dk); aynı hesap için 60 sn / saatte 3 kod; SMS ve e-posta yapılandırılmamışsa 503 `NO_DELIVERY_CHANNEL`; geçersiz numara 422 (B3) |
+| `POST /auth/supplier-signup/request` | herkes (oturumsuz) | `phone`* | 200 `{message,retry_after_sec,expires_in_sec}` — kayıtlı/kayıtsız AYNI yanıt; kod her numaraya SMS ile (15 dk); numara 60 sn / saatte 3, IP saatte 10 → 429; SMS yoksa 503 `NO_DELIVERY_CHANNEL`; geçersiz numara 422 (076, FAZ M1) |
+| `POST /auth/supplier-signup/verify` | herkes | `phone`*,`code`* | 200 `{state(NEW/EXISTING/INACTIVE),signup_token,expires_in_sec,next}` · 400 yanlış kod · 429 5 yanlışta kilit · 403 `BLOCKED` (kapatılmış hesap) |
+| `POST /auth/supplier-signup/complete` | herkes | `phone`*,`signup_token`*,`password`*,`terms_accepted`*(true), NEW'de `first_name`*,`last_name`*,`email` | 200 girişle aynı `{access_token,refresh_token,expires_in,user,state}` — NEW hesap açar (rol yalnız SUPPLIER), EXISTING mevcut şifreyle SUPPLIER ekler (401 yanlış şifre, giriş kilidine sayılır; jeton tüketilmez), INACTIVE şifre belirler · 400 jeton geçersiz/kullanılmış · 422 alan/sözleşme/şifre · gövdedeki `roles` yok sayılır |
+| `PUT /property/location` | M | `latitude`,`longitude` (ikisi birlikte; ikisi null → sil) | 200 `{message,latitude,longitude}` · 400 tek alan · 422 aralık dışı — Usta & Hizmet eşleşmesi için (077). `GET /property` yanıtında `latitude`,`longitude` |
 | `POST /users/me/password` | herkes | `current_password`*,`new_password`* | 200 `{message,note}` · 400 mevcut şifre yanlış · 422 zayıf. Bütün oturumlar kapanır |
 | `POST /users/me/phone/request` | oturum | `password`*,`phone`* | 200 `{message,expires_in_sec,retry_after_sec}` — kod YENİ numaraya SMS (15 dk); yanlış şifre 400, aynı numara 422, başkasının numarası 409, 60 sn / saatte 3 aşımı 429, SMS yapılandırılmamışsa 503 `NO_SMS_CHANNEL` (B4) |
 | `POST /users/me/phone/confirm` | oturum | `code`* | 200 `{message,phone,sessions_revoked,old_phone_notice}` — numara değişir, BÜTÜN oturumlar kapanır, eski numaraya uyarı SMS'i; yanlış kod 400, 5 hatada 429 (B4) |
@@ -481,3 +485,47 @@ Kullanım işlemleri (`POST /requests` daireli talep, `POST /visitors` sakin ön
 listesi, acil durum kartı/yanıtı, sayaç/pusula/itiraz, tüketim verisi) `resident_can_use` kuralına bağlıdır: kiracı ve hane
 üyesi; malik/vekil yalnız dairede aktif kiracı yokken. Kiracılı dairede malik: talep 422, ziyaretçi/araç 403 — yanıt nedeni söyler.
 `POST /visitors` sakin için artık daire ilişkisini denetler (başka dairenin ziyaretçisi 403); yönetim ve görevli her daireye kaydeder.
+## marketplace (8111) — Usta & Hizmet pazaryeri (FAZ M, 076–077) — önek `/market`
+
+Roller: **SUP** tedarikçi (`SUPPLIER`, platform rolü, sitesiz), **PA** platform yöneticisi (`PLATFORM_ADMIN`, yalnız
+`cmd/platform-admin` ile verilir). Platform rolleri site verisine yetki vermez. Tutarlar kuruş tam sayı (`*_kurus`).
+
+| Uç | Kim | Gövde / Sorgu | Yanıt |
+|---|---|---|---|
+| `GET /market/meta` | oturum açmış herkes | — | `{settings:[{key,value,description}],categories:[{id,parent_id,name,request_fee_kurus,buyer_scope,is_active,sort_order}],packages:[{id,name,monthly_fee_kurus,fee_discount_pct,included_requests,monthly_sms,priority_access,phone_in_showcase,rank_weight,is_default,is_active,sort_order}]}` — yalnız etkin kategori/paketler |
+| `GET /market/supplier/me` | SUP | — | hesap `{id,user_id,trade_name,tax_number,tax_office,status,status_reason,reviewed_at,package:{…},next_package_id,package_renews_at,period_included_left,period_sms_left,balance_kurus,terms_accepted_at,created_at}` · hesap yoksa 404 `NO_ACCOUNT` · SUP değilse 403 |
+| `POST /market/supplier/account` | SUP | `trade_name`,`tax_number`(10/11 hane),`tax_office`,`terms_accepted`*(true) | 201 hesap (DRAFT, varsayılan ücretsiz paket) · 422 sözleşme/vergi no · 409 `ACCOUNT_EXISTS` (FAZ M3) |
+| `PUT /market/supplier/account` | SUP | `trade_name`,`tax_number`,`tax_office` | 200 hesap · 409 `NOT_DRAFT` (yalnız taslakta) |
+| `POST /market/supplier/account/submit` | SUP | — | 200 hesap (REVIEW) · 422 `INCOMPLETE` eksikler tek mesajda (unvan, vergi no, vergi dairesi, vergi levhası ya da oda kaydı, kimlik belgesi) · 409 taslak değil |
+| `GET /market/supplier/documents` | SUP | — | `{data:[{id,account_id,doc_type,file_name,content_type,size_bytes,sha256,status,review_note,reviewed_at,uploaded_at}]}` |
+| `POST /market/supplier/documents` | SUP | çok parçalı: `doc_type`*(TAX_PLATE/ID_CARD/CHAMBER_RECORD/OTHER),`file`*(PDF/JPEG/PNG ≤10 MB; tür dosyanın kendisinden) | 201 belge · 422 tür (`valid_types`) · 415 dosya türü · 413 boyut · 409 taslak/inceleme dışı · 503 `NO_STORAGE` |
+| `GET /market/supplier/documents/:id/file` | SUP (sahibi) | — | dosya (indirme); erişim `mp_document_access_logs`'a yazılır · başkasının belgesi 404 |
+| `DELETE /market/supplier/documents/:id` | SUP (sahibi) | — | 200 · 409 `NOT_DELETABLE` (taslak değil, incelenmiş ya da açılmış belge) |
+| `GET /market/supplier/businesses` | SUP | — | `{data:[işletme]}` işletme: `{id,account_id,name,description,phone,address,city,district,latitude,longitude,service_area(KM/CITY/COUNTRY),radius_km,status(DRAFT/REVIEW/PUBLISHED/REJECTED/CLOSED),review_note,reviewed_at,rating_count,rating_sum,completed_jobs,category_ids[],created_at}` |
+| `POST /market/supplier/businesses` · `PUT /market/supplier/businesses/:id` | SUP | `name`*,`phone`*,`address`*,`city`*,`district`*,`latitude`*,`longitude`*,`service_area`*,`radius_km`(KM'de 1–500),`category_ids`*(etkin),`description` (telefon/e-posta gizlenir) | 201/200 işletme · 422 alan/konum/yarıçap/kategori · başkasının işletmesi 404 · kapalı işletme 409 |
+| `GET /market/supplier/businesses/:id` | SUP (sahibi) | — | işletme · 404 |
+| `POST /market/supplier/businesses/:id/submit` · `POST /market/supplier/businesses/:id/close` | SUP (sahibi) | — | 200 işletme (REVIEW / CLOSED) · 409 uygun durumda değil |
+| `GET /market/supplier/businesses/:id/services` | SUP (sahibi) | — | `{data:[{id,business_id,name,description,price_min_kurus,price_max_kurus,unit,has_photo,is_active,sort_order}]}` |
+| `POST /market/supplier/businesses/:id/services` · `PUT /market/supplier/services/:id` | SUP (sahibi) | `name`*,`description`,`price_min_kurus`+`price_max_kurus` (ikisi birlikte; boşsa "teklifle"),`unit`,`is_active`,`sort_order` | 201/200 kalem · 422 fiyat · 404 |
+| `DELETE /market/supplier/services/:id` | SUP (sahibi) | — | 200 · 404 |
+| `POST /market/supplier/services/:id/photo` | SUP (sahibi) | çok parçalı `file`*(JPEG/PNG/WebP ≤5 MB) | 200 · 415 · 404 |
+| `GET /market/services/:id/photo` | oturum açmış herkes | — | görsel — yalnız vitrindeki (onaylı hesap, yayındaki işletme, etkin kalem) ya da tedarikçinin kendi kalemi; aksi 404 |
+| `GET /market/supplier/notifications` | SUP | — | `{data:[{id,topic,subject,body,payload,created_at,read_at}],unread}` — tedarikçinin uygulama içi bildirimleri (sitesiz kayıt, 077) |
+| `POST /market/supplier/notifications/read` | SUP | `ids` (boşsa hepsi) | `{marked}` |
+| `GET /market/platform/accounts` | PA | `status` (DRAFT/REVIEW/APPROVED/SUSPENDED/CLOSED; boşsa hepsi) | `{data:[hesap + owner_name,owner_phone,owner_email,document_count,business_count,updated_at]}` (FAZ M4) |
+| `GET /market/platform/accounts/:id` | PA | — | `{account,documents[],businesses[]}` |
+| `POST /market/platform/accounts/:id/approve` · `POST /market/platform/accounts/:id/reject` · `POST /market/platform/accounts/:id/suspend` · `POST /market/platform/accounts/:id/reinstate` | PA | reject/suspend: `reason`*(≥5), reject: `reject_document_ids` | 200 `{account,notification:{in_app,email?}}` — onayda bekleyen belgeler onaylanır; retde hesap taslağa döner, seçilen belgeler reddedilir; tedarikçiye `market.supplier.*` bildirimi · 422 gerekçe · 409 durum |
+| `GET /market/platform/documents/:id/file` | PA | — | dosya; erişim `PLATFORM` olarak kaydedilir |
+| `GET /market/platform/businesses` | PA | `status` | `{data:[işletme]}` |
+| `POST /market/platform/businesses/:id/approve` · `POST /market/platform/businesses/:id/reject` | PA | reject: `reason`*(≥5) | 200 `{business,notification}` — onayda PUBLISHED (vitrine çıkar); hesap onaylı değilse 409 `ACCOUNT_NOT_APPROVED` · incelemede değilse 409 |
+| `GET /market/platform/categories` | PA | — | `{data:[kategori]}` pasifler dahil |
+| `POST /market/platform/categories` · `PUT /market/platform/categories/:id` | PA | `name`*,`request_fee_kurus`*(≥0),`buyer_scope`*(RESIDENT/MANAGEMENT/BOTH),`parent_id`,`is_active`,`sort_order` | 201/200 kategori — değişiklik işlem kaydına (`details`) · 422 |
+| `GET /market/platform/packages` | PA | — | `{data:[paket]}` |
+| `POST /market/platform/packages` · `PUT /market/platform/packages/:id` | PA | `name`*,`monthly_fee_kurus`,`fee_discount_pct`(0–100),`included_requests`,`monthly_sms`,`priority_access`,`phone_in_showcase`,`rank_weight`,`is_active`,`sort_order` | 201/200 paket · 422 (varsayılan pakete aidat/öncelik/telefon konamaz) |
+| `PUT /market/platform/settings/:key` | PA | `value`*(tam sayı ≥0) | 200 `{key,value,description}` · bilinmeyen anahtar 404 · 422 |
+| `GET /market/supplier/wallet` | SUP | `limit`(1–200),`offset` | `{balance_kurus,package,next_package_id,package_renews_at,period_included_left,period_sms_left,data:[{id,kind(TOPUP/PACKAGE_FEE/REQUEST_FEE/INCLUDED_REQUEST/REFUND/CLOSURE_REFUND),amount_kurus,balance_after,topup_id,dispatch_id,package_id,note,created_at}],total,limit,offset,card_ready}` — bakiye = defter toplamı (FAZ M5) |
+| `POST /market/supplier/topups` | SUP | başlık `Idempotency-Key`*; `amount_kurus`*(>0) | 201 `{topup:{id,amount_kurus,status:PENDING,…},checkout_url,note}` — iyzico ödeme sayfası; aynı anahtarla 200 aynı kayıt · farklı tutar 409 · anahtarsız 400 · iyzico yoksa 503 `NO_PAYMENT` · kapalı hesap 409 · sağlayıcı reddi 502 |
+| `GET /market/supplier/topups/:id` | SUP (sahibi) | — | `{id,amount_kurus,status(PENDING/SUCCEEDED/FAILED),error_message,created_at,completed_at}` |
+| `POST /public/market/topups/iyzico/callback` | iyzico (kimliksiz) | form `token` | sonuç sağlayıcıdan yeniden sorgulanır; tutar ve sepet doğrulanır; tek kez işlenir · tarayıcıya 303 `MARKET_TOPUP_RESULT_URL?topup_id&status&message` (JSON isteyene `{topup_id,status,message}`) · bilinmeyen jeton 404 |
+| `POST /market/supplier/package` | SUP | `package_id`* | 200 `{account,message}` — daha pahalı/eşit pakete hemen geçilir (ilk ay aidatı bakiyeden, haklar tanımlanır); ucuza geçiş dönem sonunda; mevcut paketi seçmek bekleyen değişikliği iptal eder · 409 bakiye yetersiz / askı-kapalı hesap · 422 paket yok/satışta değil |
+| `POST /market/platform/accounts/:id/close` | PA | `reason`*(≥5); bakiye varsa `refund_reference`*,`refund_date`*(YYYY-AA-GG) | 200 `{account,notification}` — kalan bakiye havaleyle iade edildi kaydı (`CLOSURE_REFUND`), bakiye 0, işletmeler kapanır · 422 dekont/gerekçe · 409 zaten kapalı |

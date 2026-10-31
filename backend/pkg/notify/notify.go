@@ -69,11 +69,16 @@ var (
 	ErrInvalidCategory = errors.New("geçersiz bildirim kategorisi")
 	// ErrDuplicate, aynı dedupe_key ile ikinci kayıt denendiğinde döner.
 	ErrDuplicate = errors.New("bu bildirim zaten kuyruğa alınmış")
+	// ErrBothScopes, bildirim hem siteye hem tedarikçiye bağlanmak istendiğinde döner.
+	ErrBothScopes = errors.New("bildirim ya bir siteye ya bir tedarikçi hesabına aittir, ikisine birden değil")
 )
 
 // Message, gönderilecek bildirimdir.
 type Message struct {
 	PropertyID string
+	// SupplierAccountID, tedarikçi alıcılı SİTESİZ bildirimdir (077, FAZ M): PropertyID ile birlikte verilmez.
+	// Kayıt tedarikçi kapsamında yazılır ve yalnız o tedarikçi hesabı (ve platform) okur.
+	SupplierAccountID string
 	// RecipientUserID boş bırakılabilir (site dışı alıcı).
 	RecipientUserID string
 	// Recipient, kanala göre telefon / e-posta / cihaz jetonudur.
@@ -177,7 +182,7 @@ func (n *Notifier) Enqueue(ctx context.Context, m Message) (*Result, error) {
 
 	providerMsgID, sendErr := sender.Send(ctx, m)
 	if sendErr != nil {
-		if _, err := n.scope(m.PropertyID).Exec(ctx, `
+		if _, err := n.scopeFor(m).Exec(ctx, `
 			UPDATE notifications
 			SET status = 'FAILED', attempts = attempts + 1, last_error = $2, provider = $3
 			WHERE id = $1`, id, sendErr.Error(), sender.Name()); err != nil {
@@ -187,7 +192,7 @@ func (n *Notifier) Enqueue(ctx context.Context, m Message) (*Result, error) {
 			Reason: sendErr.Error()}, nil
 	}
 
-	if _, err := n.scope(m.PropertyID).Exec(ctx, `
+	if _, err := n.scopeFor(m).Exec(ctx, `
 		UPDATE notifications
 		SET status = 'SENT', sent_at = now(), attempts = attempts + 1,
 		    provider = $2, provider_message_id = NULLIF($3,'')
@@ -209,6 +214,9 @@ func validate(m *Message) error {
 		m.Topic = "general"
 	}
 
+	if m.PropertyID != "" && m.SupplierAccountID != "" {
+		return ErrBothScopes
+	}
 	switch m.Channel {
 	case ChannelInApp, ChannelPush, ChannelSMS, ChannelEmail:
 	default:
@@ -248,10 +256,11 @@ func (n *Notifier) suppressReason(ctx context.Context, m Message) (string, error
 
 	var enabled *bool
 	var consentAt *time.Time
-	err := n.scope(m.PropertyID).QueryRow(ctx, `
+	// Tedarikçi bildiriminde site yoktur: yalnız kişinin bütün siteler için verdiği tercih okunur.
+	err := n.scopeFor(m).QueryRow(ctx, `
 		SELECT enabled, consent_at FROM notification_preferences
 		WHERE user_id = $1 AND channel = $2 AND category = $3
-		  AND (property_id = $4 OR property_id IS NULL)
+		  AND (property_id = NULLIF($4, '')::uuid OR property_id IS NULL)
 		ORDER BY (property_id IS NOT NULL) DESC
 		LIMIT 1`,
 		m.RecipientUserID, m.Channel, m.Category, m.PropertyID).Scan(&enabled, &consentAt)
@@ -279,16 +288,17 @@ func (n *Notifier) insert(ctx context.Context, m Message, status, reason string)
 		payload = map[string]any{}
 	}
 	var id string
-	err := n.scope(m.PropertyID).QueryRow(ctx, `
+	err := n.scopeFor(m).QueryRow(ctx, `
 		INSERT INTO notifications
-			(property_id, recipient_user_id, recipient_address, channel, category,
+			(property_id, supplier_account_id, recipient_user_id, recipient_address, channel, category,
 			 topic, subject, body, payload, dedupe_key, status, suppress_reason, created_by)
-		VALUES ($1, NULLIF($2,'')::uuid, $3, $4, $5, $6, NULLIF($7,''), $8, $9,
+		VALUES (NULLIF($1,'')::uuid, NULLIF($14,'')::uuid, NULLIF($2,'')::uuid, $3, $4, $5, $6, NULLIF($7,''), $8, $9,
 		        NULLIF($10,''), $11, NULLIF($12,''), NULLIF($13,'')::uuid)
 		RETURNING id`,
 		m.PropertyID, m.RecipientUserID, m.Recipient, m.Channel, m.Category,
-		m.Topic, m.Subject, m.Body, payload, m.DedupeKey, status, reason, m.CreatedBy).Scan(&id)
-	if err != nil && strings.Contains(err.Error(), "uq_notifications_dedupe") {
+		m.Topic, m.Subject, m.Body, payload, m.DedupeKey, status, reason, m.CreatedBy, m.SupplierAccountID).Scan(&id)
+	if err != nil && (strings.Contains(err.Error(), "uq_notifications_dedupe") ||
+		strings.Contains(err.Error(), "uq_notifications_supplier_dedupe")) {
 		return "", ErrDuplicate
 	}
 	return id, err
@@ -311,4 +321,13 @@ func (n *Notifier) senderFor(channel string) Sender {
 // veritabanı düzeyinde engeller.
 func (n *Notifier) scope(propertyID string) *dbscope.Scoped {
 	return dbscope.For(n.pool, propertyID)
+}
+
+// scopeFor, bildirimin kapsamıdır: sitesi varsa site, yoksa tedarikçi hesabı (077). İkisi de yoksa site
+// kapsamı boş kimlikle kurulur ve iş hiç çalışmaz (ErrNoProperty) — alıcısı belirsiz bildirim yazılmaz.
+func (n *Notifier) scopeFor(m Message) *dbscope.Scoped {
+	if m.PropertyID == "" && m.SupplierAccountID != "" {
+		return dbscope.ForSupplier(n.pool, m.SupplierAccountID)
+	}
+	return n.scope(m.PropertyID)
 }

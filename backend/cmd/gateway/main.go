@@ -97,7 +97,7 @@ func corsMiddleware(allowed []string, next http.Handler) http.Handler {
 			w.Header().Set("Vary", "Origin")
 			w.Header().Set("Access-Control-Allow-Credentials", "true")
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Request-Id")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Request-Id, Idempotency-Key")
 		}
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
@@ -186,9 +186,10 @@ func isPublicPath(p string) bool {
 	// Geçiş cihazı canlılık sinyali (057): cihaz kendi anahtarıyla (X-Device-Key) doğrulanır.
 	// Kart ödemesi geri dönüşü (060): iyzico tarayıcıyı jetonla gönderir; sonuç sağlayıcıdan yeniden sorgulanır.
 	// Sensör okuması (074): sensör kendi anahtarıyla (X-Device-Key) doğrulanır.
+	// Pazaryeri bakiye yüklemesi dönüşü (077, FAZ M5): iyzico tarayıcıyı jetonla gönderir; sonuç sağlayıcıdan yeniden sorgulanır.
 	return strings.HasPrefix(p, "/api/v1/auth/") || strings.HasPrefix(p, "/api/v1/public/clearance/") ||
 		p == "/api/v1/public/devices/heartbeat" || p == "/api/v1/public/payments/iyzico/callback" ||
-		p == "/api/v1/public/sensors/data"
+		p == "/api/v1/public/sensors/data" || p == "/api/v1/public/market/topups/iyzico/callback"
 }
 
 // authMiddleware — gateway'in kimlik kapısı.
@@ -277,6 +278,7 @@ func main() {
 	visitorURL := getEnv("VISITOR_SERVICE_URL", "http://localhost:8105")
 	bankingURL := getEnv("BANKING_SERVICE_URL", "http://localhost:8106")
 	governanceURL := getEnv("GOVERNANCE_SERVICE_URL", "http://localhost:8107")
+	marketplaceURL := getEnv("MARKETPLACE_SERVICE_URL", "http://localhost:8111")
 	port := getEnv("PORT", "8888")
 	corsOrigins := strings.Split(getEnv("CORS_ALLOWED_ORIGINS",
 		"http://localhost:3000,http://localhost:3001"), ",")
@@ -344,6 +346,8 @@ func main() {
 		{visitorURL, []string{"/api/v1/visitors"}},
 		{bankingURL, []string{"/api/v1/banking", "/api/v1/bank-accounts", "/api/v1/bank-transactions"}},
 		{governanceURL, []string{"/api/v1/governance"}},
+		// Usta & Hizmet pazaryeri (FAZ M, 077): tedarikçi, platform ve alıcı uçları.
+		{marketplaceURL, []string{"/api/v1/market", "/api/v1/public/market"}},
 	}
 	for _, rt := range routes {
 		proxyPaths(mux, newProxy(rt.url), rt.prefixes...)

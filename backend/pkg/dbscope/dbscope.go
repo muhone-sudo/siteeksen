@@ -30,6 +30,19 @@ var ErrNoProperty = errors.New("site kimliği (property_id) olmadan veritabanı 
 // SettingName, RLS politikalarının okuduğu oturum değişkeninin adı.
 const SettingName = "app.property_id"
 
+// Pazaryeri kapsamları (076, FAZ M). Site kapsamından ayrıdır: tedarikçi bir siteye bağlı değildir.
+const (
+	SupplierSettingName = "app.supplier_account_id"
+	PlatformSettingName = "app.platform_user_id"
+)
+
+var (
+	// ErrNoSupplier, tedarikçi hesabı kimliği verilmediğinde döner.
+	ErrNoSupplier = errors.New("tedarikçi hesabı kimliği olmadan veritabanı işlemi yapılamaz")
+	// ErrNoPlatform, platform yöneticisi kimliği verilmediğinde döner.
+	ErrNoPlatform = errors.New("platform yöneticisi kimliği olmadan veritabanı işlemi yapılamaz")
+)
+
 // WithProperty, verilen işi SİTE KAPSAMLI bir transaction içinde çalıştırır.
 //
 // Akış: BEGIN → SET LOCAL app.property_id → iş → COMMIT (hata olursa ROLLBACK).

@@ -37,6 +37,9 @@ const (
 	RoleStaff       = "STAFF"
 	RoleBoardMember = "BOARD_MEMBER"
 	RoleSuperAdmin  = "SUPER_ADMIN"
+	// Platform rolleri (076, FAZ M): site verisine yetki VERMEZ; yalnız pazaryeri uçlarını açar.
+	RoleSupplier      = "SUPPLIER"
+	RolePlatformAdmin = "PLATFORM_ADMIN"
 )
 
 // Claims, jeton doğrulamasının tek kaynağı olan pkg/authtoken'a takma addır.

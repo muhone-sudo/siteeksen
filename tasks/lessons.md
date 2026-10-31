@@ -773,3 +773,18 @@ Pazaryeri planını gözden geçirirken bulduğum sorunları kendi icat ettiğim
 altyapısı. Kullanıcı "sırf bir yanlışı düzeltmek için istenmeyen bir şey yaptın mı" diye sordu; dördü de istenmemişti. **Kural:** Bulunan
 sorunun düzeltmesi kullanıcının verdiği bir kararı değiştiriyor ya da yeni bir kural/mekanizma ekliyorsa uygulamadan önce sor; önce
 kullanıcının kendi kararları içinde kalan en sade düzeltmeyi ara (ör. ayrı ücret boyutu yerine ayrı kategori).
+
+### Ders 63 — Test ortamı açıkken panelde `npm run build` çalıştırma
+
+FAZ M1'de panel değişikliğini doğrulamak için `admin/` içinde `npm run build` çalıştırdım; test ortamının `next dev -p 3001`
+süreci aynı `.next` klasörünü kullanıyordu ve panel /login'de 500 vermeye başladı (kullanıcının test ajanı o sırada çalışıyordu).
+**Kural:** Test ortamı (`test-ortami.sh`) açıkken panel derlemesi ayrı bir kopyada yapılır (rsync + node_modules bağlantısı);
+çalışan ortamın klasörlerine, veritabanına ve portlarına dokunulmaz. Geliştirme ayrı veritabanında (ayrı port) yapılır.
+
+### Ders 64 — Derleme kopyasına gerçek bağımlılık klasörünü sembolik bağlantıyla bağlama
+
+Ders 63'ten sonra paneli ayrı kopyada derledim ama `node_modules`'u sembolik bağlantıyla bağladım. İkinci derlemede asıl
+`admin/node_modules` boşaldı (Next'in `output: standalone` izleme/kopyalama adımı bağlantının gerçek yolunu izliyor);
+test paneli birkaç dakika yeni sayfa derleyemedi. `npm ci` ile geri yüklendi, test paneli temiz başlatıldı.
+**Kural:** Ayrı kopyada derlerken bağımlılıklar gerçek kopya olarak (rsync) alınır; çalışan ortamın klasörlerine giden
+sembolik bağlantı kullanılmaz.

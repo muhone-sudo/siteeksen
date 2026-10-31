@@ -269,6 +269,26 @@ Bugün tamamen yok. Aidatın yasal dayanağı ve icra gücü buradan doğar.
 | 8.9 | SaaS abonelik/faturalama | `[D0]` |
 | 8.10 | Mobil yayın (Play Store iç test → üretim; iOS için `ios/` oluşturma) | `[D0]` |
 
+## FAZ M — Usta & Hizmet (tedarikçi pazaryeri)
+
+Plan `docs/usta-hizmet/plan.md`; maddeler ve kanıtları `tasks/todo.md` "FAZ M". Gelir: tedarikçi paketi + kabul edilen talep başına ücret, önceden yüklenen bakiyeden.
+
+| # | Dilim | Durum |
+|---|---|---|
+| M0 | İşletme ve hukuk (ETBİS, e-fatura, iyzico uygunluğu, sözleşme/KVKK metinleri, fiyatlar, harita karo sağlayıcısı) — kullanıcı | `[D0]` yayını bekletir |
+| M1 | Kimlik: tedarikçi kendi kaydı (SMS kodu, numara ifşa etmeden), `SUPPLIER`/`PLATFORM_ADMIN`, sitesiz giriş, tedarikçi/platform kapsamı | `[D4]` 2026-10-31 (076; verify §68) |
+| M2 | `services/marketplace` (8111) + 077 veri modeli: RLS (site/tedarikçi/platform), değiştirilemez defter, sitesiz bildirim, site konumu | `[D4]` 2026-10-31 (077; verify §69) |
+| M3 | Tedarikçi hesabı, belgeler, işletmeler (çok şube), hizmet kalemleri — API + `/tedarikci` | `[D4]` 2026-10-31 (verify §70) |
+| M4 | Platform paneli `/platform`: hesap/işletme incelemesi, kategori, paket, ayar | `[D4]` 2026-10-31 (verify §71) |
+| M5 | Bakiye (iyzico) ve paket: idempotency, uzlaştırma, aidat, ücretsize iniş, kapanış iadesi | `[D4]` 2026-10-31 (verify §72) |
+| M6 | Talep, eşleşme, öncelik penceresi, kabul (4 sınırı) | `[D0]` |
+| M7 | Teklif, mesaj, iş, puan, itiraz/iade, yorum denetimi, gelir raporu, saklama | `[D0]` |
+| M8 | Sakin uygulaması "Usta & Hizmet" sekmesi | `[D0]` |
+| M9 | SiteEksen Tedarikçi uygulaması (`supplier_app/`) | `[D0]` |
+| M10 | Yönetim alımı → onay bekleyen gider / sözleşme formu | `[D0]` |
+| M11 | Tarayıcı test planı bölümü | `[D0]` |
+| M12 | Yayın öncesi güvenlik ve belgeler | `[D0]` |
+
 ---
 
 # USTALIK YOL HARİTASI

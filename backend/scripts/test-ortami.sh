@@ -66,6 +66,9 @@ export NETGSM_USERCODE=8501112233 NETGSM_PASSWORD=test-sifre NETGSM_MSGHEADER=SI
 export IYZICO_API_KEY=sandbox-ak IYZICO_SECRET_KEY=sandbox-sk IYZICO_BASE_URL=http://127.0.0.1:$TOOLS_PORT/iyzico
 export IYZICO_CALLBACK_URL=http://localhost:8888/api/v1/public/payments/iyzico/callback
 export PAYMENT_RESULT_URL=http://localhost:3001/odeme-sonuc
+# Usta & Hizmet (FAZ M5): tedarikçi bakiye yüklemesinin dönüşü ve sonuç sayfası.
+export MARKET_IYZICO_CALLBACK_URL=http://localhost:8888/api/v1/public/market/topups/iyzico/callback
+export MARKET_TOPUP_RESULT_URL=http://localhost:3001/tedarikci/bakiye
 export SCHEDULER_INTERVAL=1m
 export CORS_ALLOWED_ORIGINS=http://localhost:3001,http://localhost:3002,http://localhost:3003
 bash "$SCRIPT_DIR/dev-up.sh" >"$DATA/dev-up.log" 2>&1 &
@@ -75,7 +78,7 @@ for _ in $(seq 1 240); do
 done
 curl -fsS http://127.0.0.1:8888/health >/dev/null 2>&1 || { echo "Gateway açılmadı; $DATA/dev-up.log ve /tmp/dev-*.log"; tail -20 "$DATA/dev-up.log"; exit 1; }
 # Bütün servisler: gateway sağlıklı olsa da arkadaki servis geç açılabilir.
-for port in 8081 8082 8083 8084 8085 8086 8087 8089 8090 8091 8092 8093 8094 8096 8097 8098 8099 8100 8101 8102 8103 8104 8105 8107; do
+for port in 8081 8082 8083 8084 8085 8086 8087 8089 8090 8091 8092 8093 8094 8096 8097 8098 8099 8100 8101 8102 8103 8104 8105 8107 8111; do
   for _ in $(seq 1 120); do curl -fsS http://127.0.0.1:$port/health >/dev/null 2>&1 && break; sleep 1; done
   curl -fsS http://127.0.0.1:$port/health >/dev/null 2>&1 || echo "  UYARI: :$port sağlıklı değil (günlük: /tmp/dev-*.log)"
 done
@@ -96,6 +99,16 @@ docker run -d --rm --name siteeksen-test-adminer --link "$DB:db" -p 127.0.0.1:18
 echo "=== Test hesapları ==="
 bash "$SCRIPT_DIR/test-hesaplari.sh" http://127.0.0.1:8888/api/v1 | tee "$DATA/hesaplar.txt" | sed 's/^/  /'
 [ "${PIPESTATUS[0]}" -eq 0 ] || { echo "Test hesapları oluşturulamadı"; exit 1; }
+# Platform yöneticisi (FAZ M1): rol yalnız komutla verilir; kişi şifresini etkinleştirme koduyla belirler.
+PA_OUT=$(cd "$ROOT/backend" && DATABASE_URL="postgres://siteeksen:${DEV_DB_PASSWORD:-devpw}@127.0.0.1:55432/siteeksen?sslmode=disable" \
+  go run ./cmd/platform-admin -phone 5550000030 -create -first Pelin -last Platform 2>&1)
+PA_CODE=$(sed -n 's/.*etkinleştirme kodu \([A-Z0-9]*\).*/\1/p' <<<"$PA_OUT")
+curl -fsS -o /dev/null -X POST http://127.0.0.1:8888/api/v1/auth/activate -H 'Content-Type: application/json' \
+  -d "{\"phone\":\"5550000030\",\"code\":\"$PA_CODE\",\"new_password\":\"Demo123!\"}" \
+  && echo "  PLATFORM   5550000030  Pelin Platform  PLATFORM_ADMIN (Usta & Hizmet platform yönetimi) — /platform" | tee -a "$DATA/hesaplar.txt" \
+  || { echo "Platform yöneticisi oluşturulamadı: $PA_OUT"; exit 1; }
+python3 -I "$SCRIPT_DIR/test-araclari/pazaryeri.py" http://127.0.0.1:8888/api/v1 http://127.0.0.1:$TOOLS_PORT | tee -a "$DATA/hesaplar.txt" | sed 's/^/  /'
+[ "${PIPESTATUS[0]}" -eq 0 ] || { echo "Usta & Hizmet test verisi oluşturulamadı"; exit 1; }
 
 echo "=== Mobil uygulamaların web derlemesi ==="
 for app in mobile admin_app; do

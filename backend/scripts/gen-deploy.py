@@ -52,6 +52,7 @@ SERVICES = [
     ("visitor",          8105, "visitor-service",          "app", "Ziyaretçi"),
     ("banking",          8106, "banking-service",          "app", "Yazılmadı — S-07 kararı, 501"),
     ("governance",       8107, "governance-service",       "app", "KMK yönetişim"),
+    ("marketplace",      8111, "marketplace-service",      "app", "Usta & Hizmet pazaryeri (FAZ M)"),
 ]
 
 # Zamanlanmış bildirim işçisi (cmd/scheduler). Gateway'e bağlı DEĞİLDİR; yalnızca
@@ -74,6 +75,7 @@ GATEWAY_ENV = {
     "settings": "SETTINGS_SERVICE_URL", "smart_collection": "SMART_COLLECTION_SERVICE_URL",
     "survey": "SURVEY_SERVICE_URL", "visitor": "VISITOR_SERVICE_URL",
     "banking": "BANKING_SERVICE_URL", "governance": "GOVERNANCE_SERVICE_URL",
+    "marketplace": "MARKETPLACE_SERVICE_URL",
 }
 
 
@@ -83,7 +85,7 @@ def req(var, why):
 
 
 # Dosya depolama kullanan servisler (pkg/storage): belge arşivi, kargo teslim kanıtı, havale dekontu (064).
-STORAGE_SERVICES = ("document", "package", "finance", "identity")
+STORAGE_SERVICES = ("document", "package", "finance", "identity", "marketplace")
 
 # --------------------------------------------------------------------------- Dockerfile
 def dockerfile(directory, port, name, build_path):

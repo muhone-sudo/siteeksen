@@ -23,7 +23,7 @@ SMS_LOG, IYZ_LOG, DEV_LOG = (os.path.join(DATA, n) for n in ("sms.jsonl", "iyzic
 IYZ_KEY, IYZ_SECRET = "sandbox-ak", b"sandbox-sk"
 CALLBACK = GATEWAY + "/api/v1/public/payments/iyzico/callback"
 LOCK = threading.Lock()
-TOKENS = {}  # jeton → {basketId, price, n, mode}
+TOKENS = {}  # jeton → {basketId, price, n, mode, callback}
 SERVICES = ["gateway", "identity", "finance", "community", "iot", "notification", "expense", "asset", "bulletin",
             "contract", "document", "energy", "esg", "inventory", "nps", "package", "parking", "patrol", "personnel",
             "reservation", "settings", "collection", "survey", "visitor", "governance", "scheduler"]
@@ -178,7 +178,8 @@ class H(BaseHTTPRequestHandler):
             with LOCK:
                 n = len(TOKENS) + 1
                 tok = "test-%d-%d" % (n, int(time.time()))
-                TOKENS[tok] = {"basketId": req.get("basketId"), "price": req.get("paidPrice"), "n": n, "mode": "INIT"}
+                TOKENS[tok] = {"basketId": req.get("basketId"), "price": req.get("paidPrice"), "n": n, "mode": "INIT",
+                               "callback": req.get("callbackUrl") or CALLBACK}
             out = {"status": "success", "token": tok, "paymentPageUrl": "http://localhost:%d/iyzico/pay/%s" % (PORT, tok),
                    "tokenExpireTime": 1800}
         else:
@@ -216,10 +217,10 @@ class H(BaseHTTPRequestHandler):
             return self.send(404, page("Ödeme sayfası", "<p class=bad>Jeton bulunamadı.</p>"))
         mode = urllib.parse.parse_qs(raw.decode()).get("sonuc", ["SUCCESS"])[0]
         t["mode"] = mode
-        body = ("<p>Seçilen sonuç: <b>%s</b>. Tarayıcı iyzico'nun yaptığı gibi finans servisinin geri dönüş adresine gönderiliyor…</p>"
+        body = ("<p>Seçilen sonuç: <b>%s</b>. Tarayıcı iyzico'nun yaptığı gibi ödemeyi başlatan servisin geri dönüş adresine gönderiliyor…</p>"
                 "<form id=f method=post action='%s'><input type=hidden name=token value='%s'>"
                 "<button>Devam et</button></form><script>document.getElementById('f').submit()</script>"
-                % (html.escape(mode), html.escape(CALLBACK), html.escape(tok)))
+                % (html.escape(mode), html.escape(t["callback"]), html.escape(tok)))
         self.send(200, page("Geri dönüş", body))
 
     def device(self, raw):

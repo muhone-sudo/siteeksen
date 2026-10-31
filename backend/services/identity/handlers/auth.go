@@ -50,8 +50,7 @@ func Login(svc *service.AuthService) gin.HandlerFunc {
 			c.Set("audit_event", "auth.login_failed")
 			c.Set("audit_details", gin.H{"phone": maskPhone(normalizePhone(req.Phone))})
 			// Kilit durumu yanıtta söylenmez (hesap varlığı ve kilit sızmasın); kademeler sabit metinle anlatılır (B6).
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Geçersiz telefon veya şifre",
-				"note": "Art arda hatalı denemede giriş kısa süreli kilitlenir (5. denemede 30 sn, 6.'da 2 dk, sonra 15 dk). Şifrenizi unuttuysanız 'Şifremi unuttum' ile kod isteyin."})
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Geçersiz telefon veya şifre", "note": loginLockNote})
 			return
 		}
 		if err != nil {
@@ -74,6 +73,9 @@ func Login(svc *service.AuthService) gin.HandlerFunc {
 		})
 	}
 }
+
+// loginLockNote, giriş kilidi kademelerini anlatan sabit metindir (B6).
+const loginLockNote = "Art arda hatalı denemede giriş kısa süreli kilitlenir (5. denemede 30 sn, 6.'da 2 dk, sonra 15 dk). Şifrenizi unuttuysanız 'Şifremi unuttum' ile kod isteyin."
 
 // RefreshToken token yenileme
 func RefreshToken(svc *service.AuthService) gin.HandlerFunc {

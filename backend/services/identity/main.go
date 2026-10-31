@@ -81,6 +81,10 @@ func main() {
 			auth.POST("/activate", handlers.Activate(authService))
 			// Sakinin kendi "şifremi unuttum" isteği (beşinci tur B3): kod SMS/e-postayla gider.
 			auth.POST("/password-reset/request", handlers.RequestPasswordReset(authService))
+			// Tedarikçinin kendi kaydı (076, FAZ M1): kod → doğrulama → hesap/rol.
+			auth.POST("/supplier-signup/request", handlers.RequestSupplierSignup(authService))
+			auth.POST("/supplier-signup/verify", handlers.VerifySupplierSignup(authService))
+			auth.POST("/supplier-signup/complete", handlers.CompleteSupplierSignup(authService))
 			// Çıkış, kimlik doğrulama middleware'inin ARKASINDA DEĞİLDİR:
 			// süresi dolmuş ya da iptal edilmiş bir jetonla da çıkış denenebilmeli
 			// ve istemci anlamlı bir yanıt almalıdır. Jeton başlıktan elle okunur.
@@ -159,6 +163,8 @@ func main() {
 		site.GET("", handlers.PropertyStatus(pool))
 		site.POST("/deactivate", middleware.RequireRole(middleware.RoleManager), handlers.SetPropertyActive(pool, false))
 		site.POST("/reactivate", middleware.RequireRole(middleware.RoleManager), handlers.SetPropertyActive(pool, true))
+		// Site konumu (077, FAZ M2.4): Usta & Hizmet eşleşmesi için.
+		site.PUT("/location", middleware.RequireRole(middleware.RoleManager), handlers.SetPropertyLocation(pool))
 	}
 
 	// Site görevlendirmeleri: yönetici, kurul üyesi, denetçi, görevli (2026-10-03).

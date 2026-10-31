@@ -18,7 +18,7 @@ type Q = Record<string, unknown>;
 
 export interface Http {
     get<R>(url: string, params?: Q): Promise<R>;
-    post<R>(url: string, body?: unknown): Promise<R>;
+    post<R>(url: string, body?: unknown, headers?: Record<string, string>): Promise<R>;
     put<R>(url: string, body?: unknown): Promise<R>;
     patch<R>(url: string, body?: unknown): Promise<R>;
     del<R>(url: string, body?: unknown): Promise<R>;
@@ -39,6 +39,8 @@ export function endpoints(http: Http) {
         identity: {
             properties: () => g<T.UserProperty[] | null>("/users/me/properties"),
             propertyStatus: () => g<T.PropertyStatus>("/property"),
+            setPropertyLocation: (latitude: number | null, longitude: number | null) =>
+                http.put<Msg>("/property/location", { latitude, longitude }),
             deactivateProperty: (b: { reason: string; confirm_name: string }) => http.post<{ is_active: boolean; message: string; note: string }>("/property/deactivate", b),
             reactivateProperty: (b: { reason: string }) => http.post<{ is_active: boolean; message: string; note: string }>("/property/reactivate", b),
             createProperty: (b: { name: string; type: string; address: string; city: string; district?: string }) =>
@@ -88,6 +90,14 @@ export function endpoints(http: Http) {
             // "Şifremi unuttum" (B3): yanıt numaranın kayıtlı olup olmadığını söylemez.
             requestPasswordReset: (phone: string) =>
                 http.post<{ message: string; retry_after_sec: number; expires_in_sec: number }>("/auth/password-reset/request", { phone }),
+            // Tedarikçinin kendi kaydı (076, FAZ M1): kod → doğrulama (hesap durumu) → hesap/rol.
+            supplierSignupRequest: (phone: string) =>
+                http.post<{ message: string; retry_after_sec: number; expires_in_sec: number }>("/auth/supplier-signup/request", { phone }),
+            supplierSignupVerify: (phone: string, code: string) =>
+                http.post<{ state: "NEW" | "EXISTING" | "INACTIVE"; signup_token: string; next: string; expires_in_sec: number }>(
+                    "/auth/supplier-signup/verify", { phone, code }),
+            supplierSignupComplete: (b: { phone: string; signup_token: string; password: string; first_name?: string; last_name?: string; email?: string; terms_accepted: boolean }) =>
+                http.post<{ state: string; access_token: string }>("/auth/supplier-signup/complete", b),
             units: () => g<T.List<T.Unit>>("/units"),
             createUnits: (units: T.UnitInput[]) => http.post<{ data: T.Unit[]; created: number }>("/units", { units }),
             updateUnit: (id: string, b: T.UnitInput) => http.patch<T.Unit>(`/units/${id}`, b),
@@ -346,6 +356,58 @@ export function endpoints(http: Http) {
             create: (b: Record<string, unknown>) => http.post<{ id: string; note?: string }>("/inventory", b),
             move: (id: string, b: Record<string, unknown>) => http.post<{ movement: { new_stock: string; below_minimum: boolean }; warning?: string }>(`/inventory/${id}/movements`, b),
             deactivate: (id: string, reason: string) => http.del<Msg>(`/inventory/${id}`, { reason }),
+        },
+        // Usta & Hizmet pazaryeri (FAZ M, 077) — tutarlar kuruş.
+        market: {
+            meta: () => g<T.MpMeta>("/market/meta"),
+            supplierMe: () => g<T.MpAccount>("/market/supplier/me"),
+            createAccount: (b: { trade_name: string; tax_number: string; tax_office: string; terms_accepted: boolean }) =>
+                http.post<T.MpAccount>("/market/supplier/account", b),
+            updateAccount: (b: { trade_name: string; tax_number: string; tax_office: string }) => http.put<T.MpAccount>("/market/supplier/account", b),
+            submitAccount: () => http.post<T.MpAccount>("/market/supplier/account/submit"),
+            documents: () => g<T.List<T.MpDocument>>("/market/supplier/documents"),
+            uploadDocument: (form: FormData) => http.upload<T.MpDocument>("/market/supplier/documents", form),
+            downloadDocument: (id: string, name: string) => http.download(`/market/supplier/documents/${id}/file`, name),
+            deleteDocument: (id: string) => http.del<Msg>(`/market/supplier/documents/${id}`),
+            businesses: () => g<T.List<T.MpBusiness>>("/market/supplier/businesses"),
+            business: (id: string) => g<T.MpBusiness>(`/market/supplier/businesses/${id}`),
+            createBusiness: (b: T.MpBusinessInput) => http.post<T.MpBusiness>("/market/supplier/businesses", b),
+            updateBusiness: (id: string, b: T.MpBusinessInput) => http.put<T.MpBusiness>(`/market/supplier/businesses/${id}`, b),
+            submitBusiness: (id: string) => http.post<T.MpBusiness>(`/market/supplier/businesses/${id}/submit`),
+            closeBusiness: (id: string) => http.post<T.MpBusiness>(`/market/supplier/businesses/${id}/close`),
+            services: (businessId: string) => g<T.List<T.MpService>>(`/market/supplier/businesses/${businessId}/services`),
+            createService: (businessId: string, b: T.MpServiceInput) => http.post<T.MpService>(`/market/supplier/businesses/${businessId}/services`, b),
+            updateService: (id: string, b: T.MpServiceInput) => http.put<T.MpService>(`/market/supplier/services/${id}`, b),
+            deleteService: (id: string) => http.del<Msg>(`/market/supplier/services/${id}`),
+            uploadServicePhoto: (id: string, form: FormData) => http.upload<Msg>(`/market/supplier/services/${id}/photo`, form),
+            // Bakiye ve paket (FAZ M5).
+            wallet: (offset = 0) => g<T.MpWallet>("/market/supplier/wallet", { limit: 50, offset }),
+            startTopup: (amount_kurus: number, idempotencyKey: string) =>
+                http.post<{ topup: T.MpTopup; checkout_url?: string; note?: string }>("/market/supplier/topups", { amount_kurus }, { "Idempotency-Key": idempotencyKey }),
+            topup: (id: string) => g<T.MpTopup>(`/market/supplier/topups/${id}`),
+            changePackage: (package_id: string) => http.post<{ account: T.MpAccount; message: string }>("/market/supplier/package", { package_id }),
+            notifications: () => g<T.List<T.MpSupplierNotification> & { unread: number }>("/market/supplier/notifications"),
+            readNotifications: (ids: string[] = []) => http.post<{ marked: number }>("/market/supplier/notifications/read", { ids }),
+            // Platform yönetimi (FAZ M4) — yalnız PLATFORM_ADMIN.
+            platform: {
+                accounts: (status = "") => g<T.List<T.MpAccountReview>>("/market/platform/accounts", status ? { status } : undefined),
+                account: (id: string) => g<{ account: T.MpAccountReview; documents: T.MpDocument[]; businesses: T.MpBusiness[] }>(`/market/platform/accounts/${id}`),
+                reviewAccount: (id: string, action: "approve" | "reject" | "suspend" | "reinstate", b: { reason?: string; reject_document_ids?: string[] } = {}) =>
+                    http.post<{ account: T.MpAccountReview; notification: T.MpNotifyResult }>(`/market/platform/accounts/${id}/${action}`, b),
+                downloadDocument: (id: string, name: string) => http.download(`/market/platform/documents/${id}/file`, name),
+                businesses: (status = "") => g<T.List<T.MpBusiness>>("/market/platform/businesses", status ? { status } : undefined),
+                reviewBusiness: (id: string, action: "approve" | "reject", reason = "") =>
+                    http.post<{ business: T.MpBusiness; notification: T.MpNotifyResult }>(`/market/platform/businesses/${id}/${action}`, { reason }),
+                categories: () => g<T.List<T.MpCategory>>("/market/platform/categories"),
+                saveCategory: (id: string | null, b: Omit<T.MpCategory, "id">) =>
+                    (id ? http.put<T.MpCategory>(`/market/platform/categories/${id}`, b) : http.post<T.MpCategory>("/market/platform/categories", b)),
+                packages: () => g<T.List<T.MpPackage>>("/market/platform/packages"),
+                savePackage: (id: string | null, b: Omit<T.MpPackage, "id" | "is_default">) =>
+                    (id ? http.put<T.MpPackage>(`/market/platform/packages/${id}`, b) : http.post<T.MpPackage>("/market/platform/packages", b)),
+                saveSetting: (key: string, value: number) => http.put<T.MpSetting>(`/market/platform/settings/${key}`, { value }),
+                closeAccount: (id: string, b: { reason: string; refund_reference?: string; refund_date?: string }) =>
+                    http.post<{ account: T.MpAccountReview; notification: T.MpNotifyResult }>(`/market/platform/accounts/${id}/close`, b),
+            },
         },
         surveys: {
             list: (status?: string) => g<T.List<T.Survey> & { legal_notice: string }>("/surveys", { status }),

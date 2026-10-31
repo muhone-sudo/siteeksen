@@ -27,8 +27,9 @@ func PropertyStatus(pool *pgxpool.Pool) gin.HandlerFunc {
 		var active bool
 		var at *time.Time
 		var reason *string
-		err := pool.QueryRow(ctx, `SELECT name, is_active, deactivated_at, deactivation_reason FROM properties WHERE id = $1`, pid).
-			Scan(&name, &active, &at, &reason)
+		var lat, lng *float64
+		err := pool.QueryRow(ctx, `SELECT name, is_active, deactivated_at, deactivation_reason, latitude::float8, longitude::float8
+			FROM properties WHERE id = $1`, pid).Scan(&name, &active, &at, &reason, &lat, &lng)
 		if errors.Is(err, pgx.ErrNoRows) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "Site bulunamadı"})
 			return
@@ -57,7 +58,38 @@ func PropertyStatus(pool *pgxpool.Pool) gin.HandlerFunc {
 			events = append(events, gin.H{"action": action, "reason": why, "at": when})
 		}
 		c.JSON(http.StatusOK, gin.H{"id": pid, "name": name, "is_active": active, "deactivated_at": at,
-			"deactivation_reason": reason, "events": events})
+			"deactivation_reason": reason, "events": events, "latitude": lat, "longitude": lng})
+	}
+}
+
+// SetPropertyLocation, sitenin harita konumunu yazar (077, FAZ M2.4). Usta & Hizmet eşleşmesi tedarikçinin hizmet
+// yarıçapını bu konuma göre ölçer; konum yoksa ilçe eşleşmesi kullanılır. İkisi birlikte boş verilirse konum silinir.
+func SetPropertyLocation(pool *pgxpool.Pool) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var in struct {
+			Latitude  *float64 `json:"latitude"`
+			Longitude *float64 `json:"longitude"`
+		}
+		if err := c.ShouldBindJSON(&in); err != nil || (in.Latitude == nil) != (in.Longitude == nil) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "latitude ve longitude birlikte verilmeli (silmek için ikisi de null)"})
+			return
+		}
+		if in.Latitude != nil && (*in.Latitude < -90 || *in.Latitude > 90 || *in.Longitude < -180 || *in.Longitude > 180) {
+			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": "Konum geçersiz: enlem -90..90, boylam -180..180 olmalı"})
+			return
+		}
+		tag, err := pool.Exec(c.Request.Context(), `UPDATE properties SET latitude = $2, longitude = $3, updated_at = now() WHERE id = $1`,
+			c.GetString("property_id"), in.Latitude, in.Longitude)
+		if err != nil {
+			log.Printf("[identity] site konumu: %v", err)
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Site konumu kaydedilemedi"})
+			return
+		}
+		if tag.RowsAffected() == 0 {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Site bulunamadı"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"message": "Site konumu kaydedildi", "latitude": in.Latitude, "longitude": in.Longitude})
 	}
 }
 

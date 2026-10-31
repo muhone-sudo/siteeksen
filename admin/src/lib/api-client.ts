@@ -19,8 +19,9 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8888/a
  *     tarafında (auth route `jwt` geri çağrısı) yapılır; istemci yalnızca
  *     oturumdaki jetonu kullanır. Jeton localStorage'a YAZILMAZ (XSS ile
  *     çalınabilecek kalıcı bir kopya bırakılmaz).
- *   - 401 gelirse oturum bir kez tazelenir ve istek tekrarlanır; yine 401 ise
- *     kullanıcı giriş ekranına döner.
+ *   - Oturumlu istekte 401 gelirse oturum bir kez tazelenir ve istek tekrarlanır;
+ *     yine 401 ise kullanıcı giriş ekranına döner. Jetonsuz istekteki 401 (ör. kayıtta
+ *     yanlış mevcut şifre) oturum sonu değildir; hata çağırana döner.
  *   - Uçlar `lib/endpoints.ts`'te, arka uç sözleşmesiyle (tasks/api-sozlesmesi.md)
  *     birebir tanımlıdır.
  */
@@ -46,7 +47,8 @@ class ApiClient {
             (response) => response,
             async (error: AxiosError) => {
                 const original = error.config as AxiosRequestConfig & { _retry?: boolean };
-                if (error.response?.status === 401 && original && !original._retry && typeof window !== "undefined") {
+                const hadToken = Boolean(original?.headers?.Authorization);
+                if (error.response?.status === 401 && original && hadToken && !original._retry && typeof window !== "undefined") {
                     original._retry = true;
                     const fresh = await this.refreshFromSession();
                     if (fresh) {
@@ -101,8 +103,8 @@ class ApiClient {
         return (await this.client.get<T>(url, { params: clean(params) })).data;
     }
 
-    async post<T>(url: string, body?: unknown): Promise<T> {
-        return (await this.client.post<T>(url, body ?? {})).data;
+    async post<T>(url: string, body?: unknown, headers?: Record<string, string>): Promise<T> {
+        return (await this.client.post<T>(url, body ?? {}, headers ? { headers } : undefined)).data;
     }
 
     async put<T>(url: string, body?: unknown): Promise<T> {
@@ -119,6 +121,11 @@ class ApiClient {
 
     async upload<T>(url: string, form: FormData): Promise<T> {
         return (await this.client.post<T>(url, form, { headers: { "Content-Type": "multipart/form-data" } })).data;
+    }
+
+    /** İkili içeriği (ör. kimlik gerektiren görsel) blob olarak okur. */
+    async blob(url: string): Promise<Blob> {
+        return (await this.client.get<Blob>(url, { responseType: "blob" })).data;
     }
 
     /** İkili dosyayı indirir; sunucunun verdiği dosya adıyla kaydeder. */

@@ -29,6 +29,9 @@ export const Roles = {
     Resident: "RESIDENT",
     Owner: "OWNER",
     Tenant: "TENANT",
+    // Pazaryeri platform rolleri (076, FAZ M): site verisine yetki VERMEZ; yalnız kendi alanlarını açar.
+    Supplier: "SUPPLIER",
+    PlatformAdmin: "PLATFORM_ADMIN",
 } as const;
 
 export type Role = (typeof Roles)[keyof typeof Roles];
@@ -169,4 +172,36 @@ export function isManagement(roles: string[] | undefined | null): boolean {
 export function isAuditorOnly(roles: string[] | undefined | null): boolean {
     if (!roles) return false;
     return roles.includes(Roles.Auditor) && !isManagement(roles);
+}
+
+/** Panel yönetim ekranlarına (/dashboard) giren roller. */
+export const DASHBOARD_ROLES: Role[] = [...MANAGEMENT_AND_AUDIT, Roles.Staff];
+
+/**
+ * Pazaryeri alanları (FAZ M, docs/usta-hizmet/plan.md): yönetim panelinden ayrıdır.
+ * Giriş ve kayıt sayfaları herkese açıktır; geri kalanı yalnız alanın rolüne.
+ */
+export const AREA_ROLES: { prefix: string; roles: Role[]; reason: string; publicPaths: string[]; login: string }[] = [
+    { prefix: "/tedarikci", roles: [Roles.Supplier], reason: "Tedarikçi paneli (Usta & Hizmet)",
+      publicPaths: ["/tedarikci/giris", "/tedarikci/kayit"], login: "/tedarikci/giris" },
+    { prefix: "/platform", roles: [Roles.PlatformAdmin], reason: "Platform yönetimi (Usta & Hizmet)",
+      publicPaths: [], login: "/login" },
+];
+
+/** Yolun bağlı olduğu pazaryeri alanı (yoksa null). */
+export function areaFor(pathname: string) {
+    return AREA_ROLES.find((a) => pathname === a.prefix || pathname.startsWith(a.prefix + "/")) ?? null;
+}
+
+/**
+ * Girişten sonra gidilecek ana sayfa. Yönetim rolü olan önce panele gider (tedarikçi rolü de olsa);
+ * yalnız tedarikçi olan tedarikçi paneline, yalnız platform yöneticisi platform ekranına.
+ * Hiçbiri yoksa /dashboard (yetkisiz sayfası nedenini söyler).
+ */
+export function homeFor(roles: string[] | undefined | null): string {
+    const r = roles ?? [];
+    if (DASHBOARD_ROLES.some((x) => r.includes(x))) return "/dashboard";
+    if (r.includes(Roles.Supplier)) return "/tedarikci";
+    if (r.includes(Roles.PlatformAdmin)) return "/platform";
+    return "/dashboard";
 }

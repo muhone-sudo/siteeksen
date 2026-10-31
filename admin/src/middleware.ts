@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getToken } from "next-auth/jwt";
 import type { NextRequest } from "next/server";
-import { canAccess, requiredRolesFor } from "@/lib/rbac";
+import { areaFor, canAccess, homeFor, requiredRolesFor } from "@/lib/rbac";
 
 /**
  * Kimlik ve yetki kapısı.
@@ -37,8 +37,31 @@ export async function middleware(request: NextRequest) {
     const isAuthPage = pathname.startsWith("/login");
     const isDashboardPage = pathname.startsWith("/dashboard");
 
+    const roles = token ? (token as { roles?: string[] }).roles : undefined;
+    const area = areaFor(pathname);
+
     if (isAuthPage && token) {
-        return safeRedirect(request, new URL("/dashboard", request.url));
+        return safeRedirect(request, new URL(homeFor(roles), request.url));
+    }
+
+    // Pazaryeri alanları (FAZ M): giriş/kayıt herkese açık; oturum varsa alanın ana sayfasına gider.
+    if (area) {
+        const isPublic = area.publicPaths.includes(pathname);
+        if (isPublic) {
+            return token && area.roles.some((r) => roles?.includes(r))
+                ? safeRedirect(request, new URL(area.prefix, request.url))
+                : NextResponse.next();
+        }
+        if (!token) {
+            return safeRedirect(request, new URL(area.login, request.url));
+        }
+        if (!area.roles.some((r) => roles?.includes(r))) {
+            const url = new URL("/dashboard/forbidden", request.url);
+            url.searchParams.set("from", pathname);
+            url.searchParams.set("reason", area.reason);
+            return safeRedirect(request, url);
+        }
+        return NextResponse.next();
     }
 
     if (isDashboardPage && !token) {
@@ -46,7 +69,11 @@ export async function middleware(request: NextRequest) {
     }
 
     if (isDashboardPage && token) {
-        const roles = (token as { roles?: string[] }).roles;
+        // Yalnız tedarikçi ya da platform yöneticisi olan kişi yönetim paneli yerine kendi alanına gider.
+        const home = homeFor(roles);
+        if (home !== "/dashboard" && !pathname.startsWith("/dashboard/forbidden")) {
+            return safeRedirect(request, new URL(home, request.url));
+        }
         if (!canAccess(pathname, roles)) {
             const rule = requiredRolesFor(pathname);
             const url = new URL("/dashboard/forbidden", request.url);
@@ -60,5 +87,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-    matcher: ["/dashboard/:path*", "/login"],
+    matcher: ["/dashboard/:path*", "/login", "/tedarikci/:path*", "/tedarikci", "/platform/:path*", "/platform"],
 };

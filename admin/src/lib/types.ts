@@ -300,6 +300,8 @@ export interface BankImport { id: Id; file_name: string; row_count: number; crea
 export interface PropertyStatus {
     id: Id; name: string; is_active: boolean; deactivated_at?: string | null; deactivation_reason?: string | null;
     events: { action: "DEACTIVATED" | "REACTIVATED"; reason: string; at: string }[];
+    /** Site konumu (077): Usta & Hizmet eşleşmesi için; yoksa ilçe eşleşmesi kullanılır. */
+    latitude?: number | null; longitude?: number | null;
 }
 /** Geçiş cihazı (057): canlılık sinyaliyle izlenir. */
 export interface AccessDevice {
@@ -556,3 +558,42 @@ export interface SensorAlert {
     opened_at: string; normalized_at?: string | null; acknowledged_at?: string | null; acknowledged_by?: string;
     closed_at?: string | null; closed_by?: string; close_note?: string;
 }
+
+// --- Usta & Hizmet pazaryeri (FAZ M, 077) — tutarlar kuruş ---
+export interface MpSetting { key: string; value: number; description: string }
+export interface MpCategory { id: Id; parent_id?: Id | null; name: string; request_fee_kurus: number; buyer_scope: "RESIDENT" | "MANAGEMENT" | "BOTH"; is_active: boolean; sort_order: number }
+export interface MpPackage {
+    id: Id; name: string; monthly_fee_kurus: number; fee_discount_pct: number; included_requests: number; monthly_sms: number;
+    priority_access: boolean; phone_in_showcase: boolean; rank_weight: number; is_default: boolean; is_active: boolean; sort_order: number;
+}
+export interface MpMeta { settings: MpSetting[]; categories: MpCategory[]; packages: MpPackage[] }
+export type MpAccountStatus = "DRAFT" | "REVIEW" | "APPROVED" | "SUSPENDED" | "CLOSED";
+export interface MpAccount {
+    id: Id; user_id: Id; trade_name: string; tax_number: string; tax_office: string; status: MpAccountStatus; status_reason?: string | null;
+    reviewed_at?: string | null; package: MpPackage; next_package_id?: Id | null; package_renews_at?: string | null;
+    period_included_left: number; period_sms_left: number; balance_kurus: number; terms_accepted_at: string; created_at: string;
+}
+export interface MpDocument {
+    id: Id; account_id: Id; doc_type: "TAX_PLATE" | "ID_CARD" | "CHAMBER_RECORD" | "OTHER"; file_name: string; content_type: string;
+    size_bytes: number; sha256: string; status: "PENDING" | "APPROVED" | "REJECTED"; review_note?: string | null; reviewed_at?: string | null; uploaded_at: string;
+}
+export type MpServiceArea = "KM" | "CITY" | "COUNTRY";
+export interface MpBusinessInput {
+    name: string; description: string; phone: string; address: string; city: string; district: string;
+    latitude: number | null; longitude: number | null; service_area: MpServiceArea; radius_km: number | null; category_ids: Id[];
+}
+export interface MpBusiness extends MpBusinessInput {
+    id: Id; account_id: Id; status: "DRAFT" | "REVIEW" | "PUBLISHED" | "REJECTED" | "CLOSED"; review_note?: string | null; reviewed_at?: string | null;
+    rating_count: number; rating_sum: number; completed_jobs: number; created_at: string;
+}
+export interface MpServiceInput { name: string; description: string; price_min_kurus: number | null; price_max_kurus: number | null; unit: string; is_active: boolean; sort_order: number }
+export interface MpService extends MpServiceInput { id: Id; business_id: Id; has_photo: boolean }
+export interface MpAccountReview extends MpAccount { owner_name: string; owner_phone: string; owner_email: string; document_count: number; business_count: number; updated_at?: string }
+export interface MpNotifyResult { in_app: string; email?: string; sms?: string }
+export interface MpSupplierNotification { id: Id; topic: string; subject?: string | null; body: string; payload: Record<string, unknown>; created_at: string; read_at?: string | null }
+export interface MpLedgerEntry { id: Id; kind: "TOPUP" | "PACKAGE_FEE" | "REQUEST_FEE" | "INCLUDED_REQUEST" | "REFUND" | "CLOSURE_REFUND"; amount_kurus: number; balance_after: number; note: string; created_at: string }
+export interface MpWallet {
+    balance_kurus: number; package: MpPackage; next_package_id?: Id | null; package_renews_at?: string | null;
+    period_included_left: number; period_sms_left: number; data: MpLedgerEntry[]; total: number; limit: number; offset: number; card_ready: boolean;
+}
+export interface MpTopup { id: Id; amount_kurus: number; status: "PENDING" | "SUCCEEDED" | "FAILED"; error_message?: string | null; created_at: string; completed_at?: string | null }

@@ -165,11 +165,11 @@ func (r *UserRepository) ClearActiveProperty(ctx context.Context, userID string)
 // erişim vermeyen, en dar yetki kümesi (fail-closed).
 func (r *UserRepository) GetPropertyRoles(ctx context.Context, userID, propertyID string) ([]string, error) {
 	const query = `
-		-- Platform düzeyi roller (site bağımsız)
+		-- Platform düzeyi roller (site bağımsız; 076: tedarikçi ve platform yöneticisi)
 		SELECT DISTINCT pr.role
 		FROM users u
 		CROSS JOIN LATERAL unnest(u.roles) AS pr(role)
-		WHERE u.id = $1 AND u.deleted = 0 AND pr.role = 'SUPER_ADMIN'
+		WHERE u.id = $1 AND u.deleted = 0 AND pr.role IN ('SUPER_ADMIN', 'SUPPLIER', 'PLATFORM_ADMIN')
 
 		UNION
 

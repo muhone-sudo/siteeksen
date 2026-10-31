@@ -3594,6 +3594,169 @@ spec:
 apiVersion: apps/v1
 kind: Deployment
 metadata:
+  name: marketplace-service
+  labels:
+    app: marketplace-service
+  annotations:
+    siteeksen/not: "Usta & Hizmet pazaryeri (FAZ M)"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: marketplace-service
+  template:
+    metadata:
+      labels:
+        app: marketplace-service
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+      containers:
+        - name: marketplace-service
+          image: ghcr.io/siteeksen/marketplace-service:latest
+          ports:
+            - containerPort: 8111
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          env:
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: db-admin
+                  key: host
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_NAME
+              value: "siteeksen"
+            - name: DB_SSLMODE
+              value: "require"
+            - name: DB_USER
+              value: "siteeksen_app"
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-app
+                  key: password
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: app-secrets
+                  key: jwt-secret
+            - name: NETGSM_USERCODE
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-usercode
+                  optional: true
+            - name: NETGSM_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-password
+                  optional: true
+            - name: NETGSM_MSGHEADER
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: netgsm-msgheader
+                  optional: true
+            - name: SMTP_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-host
+                  optional: true
+            - name: SMTP_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-port
+                  optional: true
+            - name: SMTP_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-username
+                  optional: true
+            - name: SMTP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-password
+                  optional: true
+            - name: SMTP_FROM
+              valueFrom:
+                secretKeyRef:
+                  name: notify
+                  key: smtp-from
+                  optional: true
+            - name: STORAGE_BACKEND
+              value: "s3"
+            - name: S3_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: storage
+                  key: endpoint
+            - name: S3_REGION
+              valueFrom:
+                secretKeyRef:
+                  name: storage
+                  key: region
+            - name: S3_BUCKET
+              valueFrom:
+                secretKeyRef:
+                  name: storage
+                  key: bucket
+            - name: S3_ACCESS_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: storage
+                  key: access-key-id
+            - name: S3_SECRET_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: storage
+                  key: secret-access-key
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8111
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8111
+            initialDelaySeconds: 5
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: marketplace-service
+spec:
+  selector:
+    app: marketplace-service
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8111
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
   name: scheduler
   labels:
     app: scheduler
@@ -3758,6 +3921,8 @@ spec:
               value: "http://banking-service"
             - name: GOVERNANCE_SERVICE_URL
               value: "http://governance-service"
+            - name: MARKETPLACE_SERVICE_URL
+              value: "http://marketplace-service"
             - name: JWT_SECRET
               valueFrom:
                 secretKeyRef:
