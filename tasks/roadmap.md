@@ -283,7 +283,7 @@ Plan `docs/usta-hizmet/plan.md`; maddeler ve kanıtları `tasks/todo.md` "FAZ M"
 | M5 | Bakiye (iyzico) ve paket: idempotency, uzlaştırma, aidat, ücretsize iniş, kapanış iadesi | `[D4]` 2026-10-31 (verify §72) |
 | M6 | Talep, eşleşme, öncelik penceresi, kabul (4 sınırı) | `[D4]` 2026-10-31 (078; verify §73) |
 | M7 | Teklif, mesaj, iş, puan, itiraz/iade, yorum denetimi, gelir raporu, saklama | `[D4]` 2026-10-31 (079; verify §74) |
-| M8 | Sakin uygulaması "Usta & Hizmet" sekmesi | `[D0]` |
+| M8 | Sakin uygulaması "Usta & Hizmet" sekmesi | `[D4]` 2026-10-31 (verify §75, tarayıcı) |
 | M9 | SiteEksen Tedarikçi uygulaması (`supplier_app/`) | `[D0]` |
 | M10 | Yönetim alımı → onay bekleyen gider / sözleşme formu | `[D0]` |
 | M11 | Tarayıcı test planı bölümü | `[D0]` |

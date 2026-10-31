@@ -251,3 +251,30 @@ func (a *App) notifyExpired(ctx context.Context, e store.ExpiredRequest) {
 		log.Printf("[marketplace] talep süresi bildirimi (%s): %v", e.ID, err)
 	}
 }
+
+// showcase, sitenin vitrinidir (sakin ve yönetim): yakındaki yayındaki işletmeler.
+func (a *App) showcase(c *gin.Context) {
+	b, ok := buyer(c)
+	if !ok {
+		return
+	}
+	list, err := a.store.Showcase(c.Request.Context(), b, c.Query("category_id"))
+	if err != nil {
+		fail(c, err, "vitrin")
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": list})
+}
+
+func (a *App) showcaseBusiness(c *gin.Context) {
+	b, ok := buyer(c)
+	if !ok {
+		return
+	}
+	d, err := a.store.ShowcaseBusinessByID(c.Request.Context(), b, c.Param("id"))
+	if err != nil {
+		fail(c, err, "işletme")
+		return
+	}
+	c.JSON(http.StatusOK, d)
+}

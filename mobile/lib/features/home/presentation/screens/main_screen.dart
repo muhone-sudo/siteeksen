@@ -113,6 +113,9 @@ class _MainScreenState extends State<MainScreen> {
               context.go('/requests');
               break;
             case 3:
+              context.go('/usta');
+              break;
+            case 4:
               context.go('/more');
               break;
           }
@@ -132,6 +135,11 @@ class _MainScreenState extends State<MainScreen> {
             icon: Icon(Icons.support_agent_outlined),
             selectedIcon: Icon(Icons.support_agent),
             label: 'Talepler',
+          ),
+          const NavigationDestination(
+            icon: Icon(Icons.handyman_outlined),
+            selectedIcon: Icon(Icons.handyman),
+            label: 'Usta & Hizmet',
           ),
           NavigationDestination(
             icon: Badge(

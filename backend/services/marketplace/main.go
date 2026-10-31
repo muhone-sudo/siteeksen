@@ -76,6 +76,9 @@ func main() {
 	api.GET("/services/:id/photo", app.servicePhoto)
 
 	// Talep (M6): sakin kendi dairesi için, yönetici site adına açar; site oturumu gerekir.
+	// Vitrin (M8): sitenin hizmet alanındaki yayındaki işletmeler; telefon yalnız paketi izin veriyorsa.
+	api.GET("/showcase", app.showcase)
+	api.GET("/showcase/:id", app.showcaseBusiness)
 	api.GET("/requests/match-count", app.matchCount)
 	api.GET("/requests", app.buyerRequests)
 	api.POST("/requests", app.createRequest)

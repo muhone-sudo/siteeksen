@@ -266,12 +266,17 @@ Koda başlanmadı. Sıra: M1 → M12; M0 kullanıcıda (kodu bekletmez, yayını
   → **Kapı (2026-10-31):** verify-stack 1530/1530 (2026-10-31); panel tsc/lint/build temiz; tarayıcı `~/.siteeksen-test/kanit/M7/` 10/10; changelog + roadmap güncel; para tutarlılığı fark 0. Yeni 12 kontrol önce bozuk kodla kırmızı gösterildi. Ek: verify adım 1'e port serbest kalma yeniden denemesi.
 
 ### M8 — Sakin uygulaması "Usta & Hizmet"
-- [ ] M8.1 Sekme; havuz: yakındaki yayındaki işletmeler, hizmet kalemleri ve fiyat aralıkları, mesafe, puan; telefon yalnız ücretli pakette
+- [x] M8.1 Sekme; havuz: yakındaki yayındaki işletmeler, hizmet kalemleri ve fiyat aralıkları, mesafe, puan; telefon yalnız ücretli pakette
   — **Kanıt:** verify-mobile; ücretsiz işletmenin telefonu API yanıtında ve ekranda yok; tarayıcı D4 (web derlemesi)
-- [ ] M8.2 Talep formu (kategori, açıklama, fotoğraf, zaman, telefon gizli, KVKK onayı), uygun işletme sayısı; "bu işletmeye gönder" — **Kanıt:** tarayıcı D4 + veritabanı satırları
-- [ ] M8.3 Taleplerim → teklifler yan yana → seç / talebi kapat; mesajlar; tamamlandı onayı / itiraz; puanlama — **Kanıt:** tarayıcı D4 uçtan uca (KİRACI)
-- [ ] M8.4 Bildirimler zilde ve listede (mevcut bildirim ekranı) — **Kanıt:** tarayıcı D4: yeni teklif bildirimi KİRACI'da görünür, komşusunda görünmez
-- [ ] **M8 kapısı** (+ debug APK derlenir)
+  → **Sonuç:** `[D4]` `bash backend/scripts/verify-mobile.sh` 10/10; verify-stack 1533/1533 (2026-10-31) §75: `GET /market/showcase` siteyi kapsayan işletmeler (alan dışı yok), ücretli paket başta, telefon yalnız vitrinde telefon hakkı olan pakette, vergi no/bakiye/hesap kimliği yok; kategori süzgeci; sitesiz tedarikçi 403; işletme sayfasında gizlenen yorum yok, yayında olmayan 404. Sakin web derlemesinde tarayıcı `~/.siteeksen-test/kanit/M8/` 1–3: vitrin (mesafe, fiyat), ücretsiz işletmede telefon yok, ücretli işletmede telefon ve fiyatlar.
+- [x] M8.2 Talep formu (kategori, açıklama, fotoğraf, zaman, telefon gizli, KVKK onayı), uygun işletme sayısı; "bu işletmeye gönder" — **Kanıt:** tarayıcı D4 + veritabanı satırları
+  → **Sonuç:** `[D4]` tarayıcı `~/.siteeksen-test/kanit/M8/` 4–5, 11–12: kategori seçince "yakınınızda 1 onaylı işletme"; açıklamadaki telefon kayıtta gizli; rıza işaretlenmeden gönderilemez; "Bu işletmeye talep gönder" → yalnız o işletmeye (1 gönderim, en çok 1 kabul); dosya seçiciyle fotoğraf eklendi ve yüklendi (photo_count 1).
+- [x] M8.3 Taleplerim → teklifler yan yana → seç / talebi kapat; mesajlar; tamamlandı onayı / itiraz; puanlama — **Kanıt:** tarayıcı D4 uçtan uca (KİRACI)
+  → **Sonuç:** `[D4]` tarayıcı `~/.siteeksen-test/kanit/M8/` 6–9, 13–14 (KİRACI ve sakin olarak yönetici): teklif işletme telefonu ve tutarla; yazışma iki yönlü; teklif seçimi → iş sürüyor; tamamlandı onayı ve 5/5 puan; teklif seçmeden kapatma (CANCELLED, teklif reddedildi); işe gerekçeli itiraz (DISPUTED).
+- [x] M8.4 Bildirimler zilde ve listede (mevcut bildirim ekranı) — **Kanıt:** tarayıcı D4: yeni teklif bildirimi KİRACI'da görünür, komşusunda görünmez
+  → **Sonuç:** `[D4]` tarayıcı `~/.siteeksen-test/kanit/M8/` 10: sakinin Bildirimlerim ekranında "Talebinize teklif" ve "İş tamamlandı"; aynı sitedeki komşunun bildirim listesinde yok, sahibinde var (API 200/200).
+- [x] **M8 kapısı** (+ debug APK derlenir)
+  → **Kapı (2026-10-31):** verify-stack 1533/1533 (2026-10-31); verify-mobile 10/10; `flutter build apk --debug` → app-debug.apk; tarayıcı `~/.siteeksen-test/kanit/M8/` 17/17; changelog + roadmap güncel. Adım 75'in 3 kontrolü önce bozuk kodla kırmızı gösterildi.
 
 ### M9 — SiteEksen Tedarikçi uygulaması (`supplier_app/`, Android + web)
 - [ ] M9.1 İskelet (`mobile/`/`admin_app/` yapısı, tema, API istemcisi, oturum, `file_opener`, web derlemesi) — **Kanıt:** `flutter analyze` 0, `flutter test` geçer; verify-mobile'a eklendi

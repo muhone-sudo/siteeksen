@@ -1,3 +1,5 @@
+import '../../features/usta_hizmet/presentation/screens/market_request_screens.dart';
+import '../../features/usta_hizmet/presentation/screens/usta_screen.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -88,6 +90,32 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 path: 'create',
                 name: 'createRequest',
                 builder: (context, state) => const CreateRequestScreen(),
+              ),
+            ],
+          ),
+          GoRoute(
+            path: '/usta',
+            name: 'usta',
+            builder: (context, state) => const UstaScreen(),
+            routes: [
+              GoRoute(
+                path: 'talep',
+                builder: (context, state) => CreateMarketRequestScreen(targetBusinessId: state.uri.queryParameters['isletme']),
+              ),
+              GoRoute(path: 'isletme/:id', builder: (context, state) => BusinessScreen(id: state.pathParameters['id']!)),
+              GoRoute(
+                path: 'talepler/:id',
+                builder: (context, state) => MarketRequestScreen(id: state.pathParameters['id']!),
+                routes: [
+                  GoRoute(
+                    path: 'mesaj/:dispatchId',
+                    builder: (context, state) => MarketChatScreen(
+                      id: state.pathParameters['id']!,
+                      dispatchId: state.pathParameters['dispatchId']!,
+                      title: state.uri.queryParameters['ad'] ?? 'Yazışma',
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

@@ -416,6 +416,45 @@ class ApiClient {
     return Map<String, dynamic>.from(response.data as Map);
   }
 
+  // --- Usta & Hizmet (FAZ M8): vitrin, talep, teklif, yazışma, iş, puan ---
+  Map<String, dynamic> _map(Object? d) => Map<String, dynamic>.from(d as Map);
+
+  Future<Map<String, dynamic>> getMarketMeta() async => _map((await _dio.get('/market/meta')).data);
+  Future<List<dynamic>> getShowcase({String? categoryId}) async =>
+      _list((await _dio.get('/market/showcase', queryParameters: {if (categoryId != null) 'category_id': categoryId})).data);
+  Future<Map<String, dynamic>> getShowcaseBusiness(String id) async => _map((await _dio.get('/market/showcase/$id')).data);
+  Future<int> marketMatchCount(String categoryId, {String? targetBusinessId}) async =>
+      (_map((await _dio.get('/market/requests/match-count', queryParameters: {
+        'category_id': categoryId,
+        if (targetBusinessId != null) 'target_business_id': targetBusinessId,
+      })).data)['count'] as num).toInt();
+  Future<Map<String, dynamic>> createMarketRequest(Map<String, dynamic> body) async =>
+      _map((await _dio.post('/market/requests', data: body)).data);
+  Future<void> addMarketRequestPhoto(String id, List<int> bytes, String fileName) async {
+    await _dio.post('/market/requests/$id/photos', data: FormData.fromMap({'file': MultipartFile.fromBytes(bytes, filename: fileName)}));
+  }
+  Future<List<dynamic>> getMyMarketRequests() async => _list((await _dio.get('/market/requests')).data);
+  Future<Map<String, dynamic>> getMarketRequest(String id) async => _map((await _dio.get('/market/requests/$id')).data);
+  Future<List<dynamic>> getMarketOffers(String id) async => _list((await _dio.get('/market/requests/$id/offers')).data);
+  Future<void> selectMarketOffer(String id, String offerId) async => _dio.post('/market/requests/$id/offers/$offerId/select');
+  Future<void> closeMarketRequest(String id) async => _dio.post('/market/requests/$id/close');
+  Future<List<dynamic>> getMarketMessages(String id, String dispatchId) async =>
+      _list((await _dio.get('/market/requests/$id/messages/$dispatchId', queryParameters: {'limit': 200})).data);
+  Future<void> sendMarketMessage(String id, String dispatchId, String body) async =>
+      _dio.post('/market/requests/$id/messages/$dispatchId', data: {'body': body});
+  Future<Map<String, dynamic>?> getMarketJob(String id) async {
+    try {
+      return _map((await _dio.get('/market/requests/$id/job')).data);
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) return null;
+      rethrow;
+    }
+  }
+  Future<void> confirmMarketJob(String id) async => _dio.post('/market/requests/$id/job/confirm');
+  Future<void> disputeMarketJob(String id, String note) async => _dio.post('/market/requests/$id/job/dispute', data: {'note': note});
+  Future<void> reviewMarketJob(String id, int rating, String comment) async =>
+      _dio.post('/market/requests/$id/review', data: {'rating': rating, 'comment': comment});
+
   /// Kendi bölümlerimin pusula itirazları (063, B8).
   Future<List<dynamic>> getMyObjections() async => _list((await _dio.get('/consumption/objections')).data);
 

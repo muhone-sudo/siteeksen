@@ -12,6 +12,16 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-10-31 — Usta & Hizmet M8: sakin uygulamasında "Usta & Hizmet" (DOĞRULANMIŞ)
+
+- **Vitrin (API):** `GET /market/showcase` ve `/showcase/:id` — sitenin hizmet alanındaki onaylı hesapların yayındaki işletmeleri; paket
+  ağırlığı, uzaklık, puan sırası; hizmet kalemleri ve fiyat aralıkları; telefon yalnız paketi izin veriyorsa; gizlenen yorumlar yok.
+- **Sakin uygulaması:** alt menüde "Usta & Hizmet" sekmesi — yakınımdakiler (kategori süzgeci), işletme sayfası ("bu işletmeye talep
+  gönder"), talep formu (uygun işletme sayısı, telefonu gizle, fotoğraf, KVKK açık rızası), taleplerim, teklifleri yan yana karşılaştırma,
+  seçme ya da seçmeden kapatma, işletmeyle yazışma, iş onayı/itirazı, puan.
+- **Kanıt:** `bash backend/scripts/verify-stack.sh` → 1533/1533 (yeni adım §75, 3 kontrol; önce bozuk kodla kırmızı); `verify-mobile.sh`
+  10/10; `flutter build apk --debug` derlendi; sakin web derlemesinde tarayıcı D4 `~/.siteeksen-test/kanit/M8/` 17/17.
+
 ### 2026-10-31 — Platform özellik envanteri README'ye yazıldı
 
 - **[D1]** `README.md`, yönetim web paneli, sakin mobil, yönetici mobil, backend servisleri, ortak güvenlik/mimari, bildirim-zamanlayıcı davranışları, bilinçli olarak uygulanmayan modüller, kurulum ve doğrulama komutlarını kapsayacak şekilde yeniden yazıldı.
