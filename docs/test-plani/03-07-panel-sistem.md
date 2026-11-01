@@ -86,7 +86,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
     - `notification_reads` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM notification_reads ORDER BY xmin::text::bigint DESC LIMIT 5;`
   - **İşlem kaydı:** `SELECT created_at, action, entity_type, status_code, user_id FROM audit_logs WHERE screen = '/api/v1/notifications/read-all' ORDER BY created_at DESC LIMIT 5;` → `CREATE`, 2xx (yetkisiz denemede `DENIED`, 403)
   - **Bildirim:** üretmez — `notifications` tablosuna bu işlemle yeni satır EKLENMEMELİ.
-  - **Etkisi görülmeli:** Panel `/dashboard/inbox`, Sakin `main_screen`, Sakin `notifications_screen`, Yön.mobil `inbox_screen`, Yön.mobil `main_screen`
+  - **Etkisi görülmeli:** Panel `/dashboard/inbox`, Panel `/tedarikci/(panel)/bildirimler`, Sakin `main_screen`, Sakin `notifications_screen`, Yön.mobil `inbox_screen`, Yön.mobil `main_screen`
 - **Sonuç:** http://localhost:18000/sonuc → `P-INBOX-01`
 
 #### P-INBOX-02 · Düğme: Okundu say
@@ -98,7 +98,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
     - `notification_reads` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM notification_reads ORDER BY xmin::text::bigint DESC LIMIT 5;`
   - **İşlem kaydı:** `SELECT created_at, action, entity_type, status_code, user_id FROM audit_logs WHERE screen = '/api/v1/notifications/:id/read' ORDER BY created_at DESC LIMIT 5;` → `CREATE`, 2xx (yetkisiz denemede `DENIED`, 403)
   - **Bildirim:** üretmez — `notifications` tablosuna bu işlemle yeni satır EKLENMEMELİ.
-  - **Etkisi görülmeli:** Panel `/dashboard/inbox`, Sakin `main_screen`, Sakin `notifications_screen`, Yön.mobil `inbox_screen`, Yön.mobil `main_screen`
+  - **Etkisi görülmeli:** Panel `/dashboard/inbox`, Panel `/tedarikci/(panel)/bildirimler`, Sakin `main_screen`, Sakin `notifications_screen`, Yön.mobil `inbox_screen`, Yön.mobil `main_screen`
 - **Sonuç:** http://localhost:18000/sonuc → `P-INBOX-02`
 
 ---

@@ -485,7 +485,7 @@ Kullanım işlemleri (`POST /requests` daireli talep, `POST /visitors` sakin ön
 listesi, acil durum kartı/yanıtı, sayaç/pusula/itiraz, tüketim verisi) `resident_can_use` kuralına bağlıdır: kiracı ve hane
 üyesi; malik/vekil yalnız dairede aktif kiracı yokken. Kiracılı dairede malik: talep 422, ziyaretçi/araç 403 — yanıt nedeni söyler.
 `POST /visitors` sakin için artık daire ilişkisini denetler (başka dairenin ziyaretçisi 403); yönetim ve görevli her daireye kaydeder.
-## marketplace (8111) — Usta & Hizmet pazaryeri (FAZ M, 076–079) — önek `/market`
+## marketplace (8111) — Usta & Hizmet pazaryeri (FAZ M, 076–080) — önek `/market`
 
 Roller: **SUP** tedarikçi (`SUPPLIER`, platform rolü, sitesiz), **PA** platform yöneticisi (`PLATFORM_ADMIN`, yalnız
 `cmd/platform-admin` ile verilir), **SAKİN** aktif sitede bölümü olan kişi (kendi dairesi için), **YÖN** site yöneticisi
@@ -555,7 +555,7 @@ vermez. Tutarlar kuruş tam sayı (`*_kurus`).
 | `POST /market/requests/:id/offers/:offerId/select` | SAKİN (sahibi) · YÖN | — | 200 `{job,declined}` — iş oluşur, talep CLOSED, diğer etkin teklifler DECLINED (`market.offer.accepted`/`declined`) · 409 `REQUEST_CLOSED`/`OFFER_STATE`/`OFFER_EXPIRED` · 404 |
 | `POST /market/requests/:id/close` | SAKİN (sahibi) · YÖN | — | 200 — teklif seçmeden kapatma (CANCELLED); kabul ücretleri iade edilmez · 409 |
 | `GET /market/requests/:id/messages/:dispatchId` · `POST /market/requests/:id/messages/:dispatchId` | SAKİN (sahibi) · YÖN (yazma) · GÖZ (okuma) | tedarikçi tarafıyla aynı | yalnız kabul edilmiş gönderimde; tedarikçiye `market.message` · 404 |
-| `GET /market/requests/:id/job` | SAKİN (sahibi) · GÖZ | — | iş `{id,request_id,offer_id,business_id,business_name,amount_kurus,status(ACTIVE/DONE_CLAIMED/COMPLETED/DISPUTED),supplier_done_at,completed_at,completion_source(BUYER/AUTO),dispute_note,created_at,review}` · 404 |
+| `GET /market/requests/:id/job` | SAKİN (sahibi) · GÖZ | — | iş `{id,request_id,offer_id,business_id,business_name,amount_kurus,status(ACTIVE/DONE_CLAIMED/COMPLETED/DISPUTED),supplier_done_at,completed_at,completion_source(BUYER/AUTO),dispute_note,created_at,review,vendor}` — `vendor:{trade_name,tax_number,tax_office}` yalnız site adına alımda (gider/sözleşme kaydı için, 080) · 404 |
 | `POST /market/requests/:id/job/confirm` · `POST /market/requests/:id/job/dispute` | SAKİN (sahibi) · YÖN | dispute: `note`*(≥5) | 200 iş — onay DONE_CLAIMED ya da DISPUTED → COMPLETED (BUYER); itiraz DONE_CLAIMED → DISPUTED (otomatik tamamlanmaz) · 409 `JOB_STATE` · 422 |
 | `POST /market/requests/:id/review` | SAKİN (sahibi) · YÖN | `rating`*(1–5),`comment`(≤1000) | 201 puan (işletmeye; özet tetikleyiciyle) · 409 `JOB_NOT_COMPLETED`/`ALREADY_REVIEWED` |
 | `GET /market/platform/disputes` | PA | `status`(OPEN/APPROVED/REJECTED) | `{data:[{id,request_id,account_id,trade_name,category,reason_code,note,status,fee_kurus,used_included,decided_at,decision_note,created_at}]}` |

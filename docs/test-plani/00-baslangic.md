@@ -46,6 +46,8 @@ Betik "TEST ORTAMI HAZIR" yazınca başlanır. Her açılış **taze veritabanı
 | Yönetim paneli | http://localhost:3001 | Next.js |
 | Sakin uygulaması (web) | http://localhost:3002 | Flutter web; pencereyi ~400 px genişliğe daraltın |
 | Yönetici uygulaması (web) | http://localhost:3003 | Flutter web |
+| Tedarikçi uygulaması (web) | http://localhost:3004 | SiteEksen Tedarikçi (Usta & Hizmet); ~400 px genişlik |
+| Tedarikçi paneli / Platform paneli | http://localhost:3001/tedarikci · http://localhost:3001/platform | Usta & Hizmet; girişleri ayrı (`/tedarikci/giris`, `/login`) |
 | Veritabanı — Adminer | http://localhost:18080 | Sistem **PostgreSQL**, sunucu **db**, kullanıcı **test_okuyucu**, şifre **test_okuyucu**, veritabanı **siteeksen**. Sorgu: sol üstte **SQL komutu** |
 | E-posta — Mailpit | http://localhost:18025 | Servislerin gönderdiği bütün e-postalar |
 | SMS kutusu | http://localhost:18000/sms | Sahte Netgsm; numara 5XXXXXXXXX biçiminde |
@@ -69,6 +71,9 @@ Betik "TEST ORTAMI HAZIR" yazınca başlanır. Her açılış **taze veritabanı
 | **MALİK_B1** | 5550000011 | Fatma Şahin | B-1 maliki, kendisi oturuyor | Sakin uygulaması |
 | **VEKİL_B1** | 5550000012 | Ali Çelik | B-1 vekili (PROXY) | Sakin uygulaması |
 | **SİTE_B** | 5550000020 | Elif Yurt | Deniz Apartmanı (ikinci site) A-1 maliki | İzolasyon: Güneş Sitesi'nin hiçbir verisini görmemeli |
+| **PLATFORM** | 5550000030 | Pelin Platform | PLATFORM_ADMIN (Usta & Hizmet platform yönetimi) | Panel `/platform` |
+| **TEDARİKÇİ1** | 5550000040 | Kemal Usta | Kemal Tesisat — onaylı, Usta Pro paketi, 2 işletme (Kadıköy 15 km, Ataşehir tüm il), bakiye 650 TL | Panel `/tedarikci`, tedarikçi uygulaması |
+| **TEDARİKÇİ2** | 5550000041 | Selin Temiz | Selin Temizlik — onaylı, ücretsiz paket, 1 işletme (Üsküdar 20 km), bakiye 200 TL | Panel `/tedarikci`, tedarikçi uygulaması |
 
 Siteler: **Güneş Sitesi** `11111111-1111-1111-1111-111111111111` (A ve B blok, 24 bölüm) · **Deniz Apartmanı (Test B)** (2 bölüm).
 Kişilerin e-postası `<telefon>@siteeksen.test` (Mailpit'te bu adreslerle görünür). Kimlikler: `SELECT id, first_name, last_name, phone FROM users ORDER BY phone;`
@@ -89,6 +94,9 @@ Aşağıdaki kısaltmalar test adımlarında geçer.
 | **Q-SON(tablo)** | `SELECT xmin, * FROM <tablo> ORDER BY xmin::text::bigint DESC LIMIT 5;` | Tabloya en son eklenen/güncellenen satırlar (`xmin` son yazan işlemdir; en üstte az önceki işlem olmalı) |
 | **Q-AUDIT** | `SELECT created_at, source, action, entity_type, screen, status_code, user_id FROM audit_logs ORDER BY created_at DESC LIMIT 20;` | Son işlem kayıtları; 403'ler `DENIED` |
 | **Q-BILDIRIM** | `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name \|\| ' ' \|\| u.last_name AS alici, n.subject, n.suppress_reason FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id ORDER BY n.created_at DESC LIMIT 40;` | Son bildirimler, kime, hangi kanal, durum |
+| **Q-TALEP** | `SELECT r.created_at, c.name AS kategori, r.buyer_type, r.status, r.accepted_count, r.max_accepts, r.description FROM mp_requests r JOIN mp_categories c ON c.id = r.category_id ORDER BY r.created_at DESC LIMIT 20;` | Usta & Hizmet talepleri |
+| **Q-GONDERIM** | `SELECT d.request_id, a.trade_name, d.visible_at, d.notified_at, d.accepted_at, d.fee_kurus, d.used_included FROM mp_request_dispatch d JOIN mp_supplier_accounts a ON a.id = d.account_id ORDER BY d.created_at DESC LIMIT 30;` | Talebin gittiği hesaplar, görünürlük (öncelik penceresi), kabul |
+| **Q-DEFTER** | `SELECT l.created_at, a.trade_name, l.kind, l.amount_kurus, l.balance_after, l.note FROM mp_wallet_ledger l JOIN mp_supplier_accounts a ON a.id = l.account_id ORDER BY l.created_at DESC LIMIT 30;` | Tedarikçi bakiye defteri (tutarlar kuruş) |
 | **Q-OKUNDU** | `SELECT r.read_at, u.phone, n.topic FROM notification_reads r JOIN users u ON u.id = r.user_id JOIN notifications n ON n.id = r.notification_id ORDER BY r.read_at DESC LIMIT 20;` | Okundu bilgisi |
 | **Q-KISI** | `SELECT u.phone, u.first_name, u.last_name, ru.role, un.block \|\| '-' \|\| un.door_number AS daire, ru.is_active, ru.end_date FROM resident_units ru JOIN users u ON u.id = ru.resident_id JOIN units un ON un.id = ru.unit_id ORDER BY un.block, un.door_number;` | Kim hangi dairede, hangi sıfatla |
 | **Q-ROL** | `SELECT u.phone, pr.role, pr.valid_from, pr.valid_to, pr.property_id FROM property_roles pr JOIN users u ON u.id = pr.user_id ORDER BY u.phone;` | Site görevleri |
@@ -112,5 +120,5 @@ Sorgu hata verirse (sütun adı farklı olabilir): tabloyu Adminer'in solundaki 
 
 ## 0.7 Bölüm sırası
 
-README.md'deki tabloya bakın. Kısaca: 01 oturum → 02 rol/izolasyon → 03 panel bölümleri → 04 sakin uygulaması → 05 yönetici uygulaması → 06 bildirimler → 07 veritabanı → 08 uçtan uca senaryolar → 09 sınırlar.
+README.md'deki tabloya bakın. Kısaca: 01 oturum → 02 rol/izolasyon → 03 panel bölümleri → 04 sakin uygulaması → 05 yönetici uygulaması → 06 bildirimler → 07 veritabanı → 08 uçtan uca senaryolar → 09 sınırlar → 10 Usta & Hizmet.
 Senaryolar (08) birden çok hesabın birlikte çalıştığı akışlardır; sayfa testlerinde oluşan veriyi kullanabilir ama kendi başına da yürütülebilir.

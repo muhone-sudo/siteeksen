@@ -285,9 +285,9 @@ Plan `docs/usta-hizmet/plan.md`; maddeler ve kanıtları `tasks/todo.md` "FAZ M"
 | M7 | Teklif, mesaj, iş, puan, itiraz/iade, yorum denetimi, gelir raporu, saklama | `[D4]` 2026-10-31 (079; verify §74) |
 | M8 | Sakin uygulaması "Usta & Hizmet" sekmesi | `[D4]` 2026-10-31 (verify §75, tarayıcı) |
 | M9 | SiteEksen Tedarikçi uygulaması (`supplier_app/`) | `[D4]` 2026-11-01 (verify-mobile, tarayıcı) — kalan: test ortamı :3004 açılış çıktısı |
-| M10 | Yönetim alımı → onay bekleyen gider / sözleşme formu | `[D0]` |
-| M11 | Tarayıcı test planı bölümü | `[D0]` |
-| M12 | Yayın öncesi güvenlik ve belgeler | `[D0]` |
+| M10 | Yönetim alımı → onay bekleyen gider / sözleşme formu | `[D4]` 2026-11-01 (080; verify §76, tarayıcı) |
+| M11 | Tarayıcı test planı bölümü | `[D1]` 2026-11-01 — bölüm yazıldı; test ajanının yürütmesi kaldı |
+| M12 | Yayın öncesi güvenlik ve belgeler | `[D1]` 2026-11-01 — gözden geçirme ve belgeler; 4 açık bulgu ve M0 kaldı |
 
 ---
 

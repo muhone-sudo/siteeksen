@@ -33,6 +33,7 @@ Hiçbir şey dışarı gitmez: SMS, e-posta ve kart ödemesi yerel sahte sağlay
 | 7 | [07-veritabani.md](07-veritabani.md) | Tetikleyiciler, bütünlük sorguları | üretilir |
 | 8 | [08-uctan-uca-senaryolar.md](08-uctan-uca-senaryolar.md) | Çok hesaplı iş akışları (aidat, kart ödemesi, kiracılık, genel kurul, devriye, sensör…) | elle |
 | 9 | [09-arayuzsuz-ve-sinirlar.md](09-arayuzsuz-ve-sinirlar.md) | Arayüzü olmayan uçlar, bilinen sınırlar | üretilir |
+| 10 | [10-usta-hizmet.md](10-usta-hizmet.md) | Usta & Hizmet: tedarikçi kaydı, talep, öncelik penceresi, kabul, teklif, iş, puan, iade, bakiye, yönetim alımı | elle |
 
 Sayfa/ekran bölümlerindeki her test şunları içerir: hangi hesapla, nerede, adımlar, beklenen ekran sonucu, çağrılan uç ve sunucu yetkisi,
 **Adminer'de çalıştırılacak sorgu** (değişen her tablo için), işlem kaydı sorgusu, **bildirim konusu ve alıcıları** (hangi hesabın hangi kutuda görmesi gerektiği),

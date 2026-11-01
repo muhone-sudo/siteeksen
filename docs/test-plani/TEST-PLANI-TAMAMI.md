@@ -50,6 +50,8 @@ Betik "TEST ORTAMI HAZIR" yazınca başlanır. Her açılış **taze veritabanı
 | Yönetim paneli | http://localhost:3001 | Next.js |
 | Sakin uygulaması (web) | http://localhost:3002 | Flutter web; pencereyi ~400 px genişliğe daraltın |
 | Yönetici uygulaması (web) | http://localhost:3003 | Flutter web |
+| Tedarikçi uygulaması (web) | http://localhost:3004 | SiteEksen Tedarikçi (Usta & Hizmet); ~400 px genişlik |
+| Tedarikçi paneli / Platform paneli | http://localhost:3001/tedarikci · http://localhost:3001/platform | Usta & Hizmet; girişleri ayrı (`/tedarikci/giris`, `/login`) |
 | Veritabanı — Adminer | http://localhost:18080 | Sistem **PostgreSQL**, sunucu **db**, kullanıcı **test_okuyucu**, şifre **test_okuyucu**, veritabanı **siteeksen**. Sorgu: sol üstte **SQL komutu** |
 | E-posta — Mailpit | http://localhost:18025 | Servislerin gönderdiği bütün e-postalar |
 | SMS kutusu | http://localhost:18000/sms | Sahte Netgsm; numara 5XXXXXXXXX biçiminde |
@@ -73,6 +75,9 @@ Betik "TEST ORTAMI HAZIR" yazınca başlanır. Her açılış **taze veritabanı
 | **MALİK_B1** | 5550000011 | Fatma Şahin | B-1 maliki, kendisi oturuyor | Sakin uygulaması |
 | **VEKİL_B1** | 5550000012 | Ali Çelik | B-1 vekili (PROXY) | Sakin uygulaması |
 | **SİTE_B** | 5550000020 | Elif Yurt | Deniz Apartmanı (ikinci site) A-1 maliki | İzolasyon: Güneş Sitesi'nin hiçbir verisini görmemeli |
+| **PLATFORM** | 5550000030 | Pelin Platform | PLATFORM_ADMIN (Usta & Hizmet platform yönetimi) | Panel `/platform` |
+| **TEDARİKÇİ1** | 5550000040 | Kemal Usta | Kemal Tesisat — onaylı, Usta Pro paketi, 2 işletme (Kadıköy 15 km, Ataşehir tüm il), bakiye 650 TL | Panel `/tedarikci`, tedarikçi uygulaması |
+| **TEDARİKÇİ2** | 5550000041 | Selin Temiz | Selin Temizlik — onaylı, ücretsiz paket, 1 işletme (Üsküdar 20 km), bakiye 200 TL | Panel `/tedarikci`, tedarikçi uygulaması |
 
 Siteler: **Güneş Sitesi** `11111111-1111-1111-1111-111111111111` (A ve B blok, 24 bölüm) · **Deniz Apartmanı (Test B)** (2 bölüm).
 Kişilerin e-postası `<telefon>@siteeksen.test` (Mailpit'te bu adreslerle görünür). Kimlikler: `SELECT id, first_name, last_name, phone FROM users ORDER BY phone;`
@@ -93,6 +98,9 @@ Aşağıdaki kısaltmalar test adımlarında geçer.
 | **Q-SON(tablo)** | `SELECT xmin, * FROM <tablo> ORDER BY xmin::text::bigint DESC LIMIT 5;` | Tabloya en son eklenen/güncellenen satırlar (`xmin` son yazan işlemdir; en üstte az önceki işlem olmalı) |
 | **Q-AUDIT** | `SELECT created_at, source, action, entity_type, screen, status_code, user_id FROM audit_logs ORDER BY created_at DESC LIMIT 20;` | Son işlem kayıtları; 403'ler `DENIED` |
 | **Q-BILDIRIM** | `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name \|\| ' ' \|\| u.last_name AS alici, n.subject, n.suppress_reason FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id ORDER BY n.created_at DESC LIMIT 40;` | Son bildirimler, kime, hangi kanal, durum |
+| **Q-TALEP** | `SELECT r.created_at, c.name AS kategori, r.buyer_type, r.status, r.accepted_count, r.max_accepts, r.description FROM mp_requests r JOIN mp_categories c ON c.id = r.category_id ORDER BY r.created_at DESC LIMIT 20;` | Usta & Hizmet talepleri |
+| **Q-GONDERIM** | `SELECT d.request_id, a.trade_name, d.visible_at, d.notified_at, d.accepted_at, d.fee_kurus, d.used_included FROM mp_request_dispatch d JOIN mp_supplier_accounts a ON a.id = d.account_id ORDER BY d.created_at DESC LIMIT 30;` | Talebin gittiği hesaplar, görünürlük (öncelik penceresi), kabul |
+| **Q-DEFTER** | `SELECT l.created_at, a.trade_name, l.kind, l.amount_kurus, l.balance_after, l.note FROM mp_wallet_ledger l JOIN mp_supplier_accounts a ON a.id = l.account_id ORDER BY l.created_at DESC LIMIT 30;` | Tedarikçi bakiye defteri (tutarlar kuruş) |
 | **Q-OKUNDU** | `SELECT r.read_at, u.phone, n.topic FROM notification_reads r JOIN users u ON u.id = r.user_id JOIN notifications n ON n.id = r.notification_id ORDER BY r.read_at DESC LIMIT 20;` | Okundu bilgisi |
 | **Q-KISI** | `SELECT u.phone, u.first_name, u.last_name, ru.role, un.block \|\| '-' \|\| un.door_number AS daire, ru.is_active, ru.end_date FROM resident_units ru JOIN users u ON u.id = ru.resident_id JOIN units un ON un.id = ru.unit_id ORDER BY un.block, un.door_number;` | Kim hangi dairede, hangi sıfatla |
 | **Q-ROL** | `SELECT u.phone, pr.role, pr.valid_from, pr.valid_to, pr.property_id FROM property_roles pr JOIN users u ON u.id = pr.user_id ORDER BY u.phone;` | Site görevleri |
@@ -116,7 +124,7 @@ Sorgu hata verirse (sütun adı farklı olabilir): tabloyu Adminer'in solundaki 
 
 ## 0.7 Bölüm sırası
 
-README.md'deki tabloya bakın. Kısaca: 01 oturum → 02 rol/izolasyon → 03 panel bölümleri → 04 sakin uygulaması → 05 yönetici uygulaması → 06 bildirimler → 07 veritabanı → 08 uçtan uca senaryolar → 09 sınırlar.
+README.md'deki tabloya bakın. Kısaca: 01 oturum → 02 rol/izolasyon → 03 panel bölümleri → 04 sakin uygulaması → 05 yönetici uygulaması → 06 bildirimler → 07 veritabanı → 08 uçtan uca senaryolar → 09 sınırlar → 10 Usta & Hizmet.
 Senaryolar (08) birden çok hesabın birlikte çalıştığı akışlardır; sayfa testlerinde oluşan veriyi kullanabilir ama kendi başına da yürütülebilir.
 
 ---
@@ -363,6 +371,7 @@ Her hesapla panele girip aşağıdaki her adresi adres çubuğuna yazarak açın
 | R-GOVERNANCE-BUDGETS | `/dashboard/governance/budgets` | MANAGER/BOARD_MEMBER/AUDITOR | Erişir | Erişir | Erişir | Yönlenir | Yönlenir |
 | R-GOVERNANCE-COMMON-AREA | `/dashboard/governance/common-area` | MANAGER/BOARD_MEMBER/AUDITOR | Erişir | Erişir | Erişir | Yönlenir | Yönlenir |
 | R-GOVERNANCE-LEGAL | `/dashboard/governance/legal` | MANAGER/BOARD_MEMBER/AUDITOR | Erişir | Erişir | Erişir | Yönlenir | Yönlenir |
+| R-USTA-HIZMET | `/dashboard/usta-hizmet` | MANAGER/BOARD_MEMBER/AUDITOR/STAFF | Erişir | Erişir | Erişir | Erişir | Yönlenir |
 | R-ASSETS | `/dashboard/assets` | MANAGER/BOARD_MEMBER/AUDITOR/STAFF | Erişir | Erişir | Erişir | Erişir | Yönlenir |
 | R-INVENTORY | `/dashboard/inventory` | MANAGER/BOARD_MEMBER/AUDITOR/STAFF | Erişir | Erişir | Erişir | Erişir | Yönlenir |
 | R-PACKAGES | `/dashboard/packages` | MANAGER/BOARD_MEMBER/STAFF | Erişir | Erişir | Yönlenir | Erişir | Yönlenir |
@@ -388,6 +397,23 @@ Her hesapla panele girip aşağıdaki her adresi adres çubuğuna yazarak açın
 | R-PATROL-REPORTS | `/dashboard/patrol/reports` | MANAGER/BOARD_MEMBER/AUDITOR/STAFF | Erişir | Erişir | Erişir | Erişir | Yönlenir |
 | R-LOGIN | `/login` | — | Erişir | Erişir | Erişir | Erişir | Erişir |
 | R-ODEME-SONUC | `/odeme-sonuc` | — | Erişir | Erişir | Erişir | Erişir | Erişir |
+| R-PLATFORM | `/platform` | PlatformAdmin | Yönlenir | Yönlenir | Yönlenir | Yönlenir | Yönlenir |
+| R-PLATFORM-AYARLAR | `/platform/ayarlar` | PlatformAdmin | Yönlenir | Yönlenir | Yönlenir | Yönlenir | Yönlenir |
+| R-PLATFORM-GELIR | `/platform/gelir` | PlatformAdmin | Yönlenir | Yönlenir | Yönlenir | Yönlenir | Yönlenir |
+| R-PLATFORM-HESAPLAR | `/platform/hesaplar` | PlatformAdmin | Yönlenir | Yönlenir | Yönlenir | Yönlenir | Yönlenir |
+| R-PLATFORM-ISLETMELER | `/platform/isletmeler` | PlatformAdmin | Yönlenir | Yönlenir | Yönlenir | Yönlenir | Yönlenir |
+| R-PLATFORM-ITIRAZLAR | `/platform/itirazlar` | PlatformAdmin | Yönlenir | Yönlenir | Yönlenir | Yönlenir | Yönlenir |
+| R-PLATFORM-KATEGORILER | `/platform/kategoriler` | PlatformAdmin | Yönlenir | Yönlenir | Yönlenir | Yönlenir | Yönlenir |
+| R-PLATFORM-PAKETLER | `/platform/paketler` | PlatformAdmin | Yönlenir | Yönlenir | Yönlenir | Yönlenir | Yönlenir |
+| R-PLATFORM-YORUMLAR | `/platform/yorumlar` | PlatformAdmin | Yönlenir | Yönlenir | Yönlenir | Yönlenir | Yönlenir |
+| R-TEDARIKCI-AUTH-GIRIS | `/tedarikci/(auth)/giris` | Supplier | Yönlenir | Yönlenir | Yönlenir | Yönlenir | Yönlenir |
+| R-TEDARIKCI-AUTH-KAYIT | `/tedarikci/(auth)/kayit` | Supplier | Yönlenir | Yönlenir | Yönlenir | Yönlenir | Yönlenir |
+| R-TEDARIKCI-PANEL | `/tedarikci/(panel)` | Supplier | Yönlenir | Yönlenir | Yönlenir | Yönlenir | Yönlenir |
+| R-TEDARIKCI-PANEL-BAKIYE | `/tedarikci/(panel)/bakiye` | Supplier | Yönlenir | Yönlenir | Yönlenir | Yönlenir | Yönlenir |
+| R-TEDARIKCI-PANEL-BILDIRIMLER | `/tedarikci/(panel)/bildirimler` | Supplier | Yönlenir | Yönlenir | Yönlenir | Yönlenir | Yönlenir |
+| R-TEDARIKCI-PANEL-ISLETMELER | `/tedarikci/(panel)/isletmeler` | Supplier | Yönlenir | Yönlenir | Yönlenir | Yönlenir | Yönlenir |
+| R-TEDARIKCI-PANEL-PUANLAR | `/tedarikci/(panel)/puanlar` | Supplier | Yönlenir | Yönlenir | Yönlenir | Yönlenir | Yönlenir |
+| R-TEDARIKCI-PANEL-TALEPLER | `/tedarikci/(panel)/talepler` | Supplier | Yönlenir | Yönlenir | Yönlenir | Yönlenir | Yönlenir |
 
 Her satır bir test ID'sidir; satırdaki beş hesabın hepsi beklendiği gibiyse GEÇTİ, biri farklıysa KALDI (gözleme hangi hesap).
 
@@ -1252,7 +1278,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 #### P-RESIDENTS-06 · Düğme: Kod üret
 - **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/residents
 - **Adım:** "Kod üret" düğme öğesine bas
-- **Beklenen (yazma):** `POST /residents/:id/activation-code` (identity, `services/identity/main.go:148`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /residents/:id/activation-code` (identity, `services/identity/main.go:152`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: AUDITOR/BOARD_MEMBER/MANAGER/STAFF
   - **Veritabanı (Adminer → SQL komutu):**
     - `user_activation_codes` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM user_activation_codes ORDER BY xmin::text::bigint DESC LIMIT 5;`
@@ -1273,7 +1299,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 #### P-RESIDENTS-08 · Düğme: Kilidi aç
 - **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/residents
 - **Adım:** "Kilidi aç" düğme öğesine bas
-- **Beklenen (yazma):** `POST /residents/:id/unlock` (identity, `services/identity/main.go:152`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /residents/:id/unlock` (identity, `services/identity/main.go:156`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
   - **Veritabanı (Adminer → SQL komutu):**
     - Ortak tablolar da değişir: `users` (aynı sorgu kalıbıyla bakılabilir)
@@ -1291,7 +1317,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 #### P-RESIDENTS-10 · Düğme: İptal et
 - **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/residents
 - **Adım:** "İptal et" düğme öğesine bas (onay penceresi çıkarsa önce Vazgeç → hiçbir şey değişmemeli; sonra tekrar bas ve onayla)
-- **Beklenen (yazma):** `POST /residents/invitations/:id/cancel` (identity, `services/identity/main.go:137`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /residents/invitations/:id/cancel` (identity, `services/identity/main.go:141`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: BOARD_MEMBER/MANAGER
   - **Veritabanı (Adminer → SQL komutu):**
     - `resident_invitations` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM resident_invitations ORDER BY xmin::text::bigint DESC LIMIT 5;`
@@ -1305,7 +1331,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Adım:** Formu aç; alanlar: Ad*, Soyad*, Telefon*, E-posta, Bağımsız bölüm*, Sıfat* (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
-- **Beklenen (yazma):** `POST /residents` (identity, `services/identity/main.go:133`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /residents` (identity, `services/identity/main.go:137`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: BOARD_MEMBER/MANAGER/OWNER/PROXY/TENANT
   - Veritabanı tetikleyicileri çalışır: `trg_resident_units_tenancy_guard`, `trg_resident_units_tenant_arrival`, `trg_resident_units_tenant_departure` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
   - **Veritabanı (Adminer → SQL komutu):**
@@ -1326,7 +1352,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Adım:** Formu aç; alanlar: Ad, Soyad, Telefon*, E-posta, Bağımsız bölüm*, Sıfat* (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
-- **Beklenen (yazma):** `POST /residents/invitations` (identity, `services/identity/main.go:136`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /residents/invitations` (identity, `services/identity/main.go:140`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: BOARD_MEMBER/MANAGER/OWNER/PROXY/TENANT
   - **Veritabanı (Adminer → SQL komutu):**
     - `resident_invitations` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM resident_invitations ORDER BY xmin::text::bigint DESC LIMIT 5;`
@@ -1346,7 +1372,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Adım:** Formu aç; alanlar: Yeni telefon* (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
-- **Beklenen (yazma):** `POST /residents/:id/phone` (identity, `services/identity/main.go:151`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /residents/:id/phone` (identity, `services/identity/main.go:155`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
   - **Veritabanı (Adminer → SQL komutu):**
     - `user_activation_codes` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM user_activation_codes ORDER BY xmin::text::bigint DESC LIMIT 5;`
@@ -1364,7 +1390,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/residents
 - **Adım:** Formu aç; alanlar:  (* zorunlu)
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
-- **Beklenen (yazma):** `POST /residents/bulk` (identity, `services/identity/main.go:134`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /residents/bulk` (identity, `services/identity/main.go:138`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: BOARD_MEMBER/MANAGER/OWNER/PROXY/TENANT
   - Veritabanı tetikleyicileri çalışır: `trg_resident_units_tenancy_guard`, `trg_resident_units_tenant_arrival`, `trg_resident_units_tenant_departure` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
   - **Veritabanı (Adminer → SQL komutu):**
@@ -1389,7 +1415,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Adım:** Formu aç; alanlar: Sıfat, Durum, Ayrılış (ilişik kesme) tarihi (* zorunlu)
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
 - **Adım:** Başarı mesajı tam olarak şu anlamda olmalı: "Sakin kaydı güncellendi"
-- **Beklenen (yazma):** `PATCH /residents/:id` (identity, `services/identity/main.go:147`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `PATCH /residents/:id` (identity, `services/identity/main.go:151`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: BOARD_MEMBER/MANAGER/OWNER/PROXY/TENANT
   - Veritabanı tetikleyicileri çalışır: `trg_resident_units_tenancy_guard`, `trg_resident_units_tenant_arrival`, `trg_resident_units_tenant_departure` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
   - **Veritabanı (Adminer → SQL komutu):**
@@ -1410,7 +1436,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/residents
 - **Adım:** "Tamamla" düğme öğesine bas
 - **Adım:** Öğe `tenancy-ends` bileşenindedir (satır 108)
-- **Beklenen (yazma):** `POST /residents/tenancy-requests/:id/complete` (identity, `services/identity/main.go:142`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /residents/tenancy-requests/:id/complete` (identity, `services/identity/main.go:146`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: BOARD_MEMBER/MANAGER/OWNER/PROXY
   - Veritabanı tetikleyicileri çalışır: `trg_resident_units_tenancy_guard`, `trg_resident_units_tenant_arrival`, `trg_resident_units_tenant_departure` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
   - **Veritabanı (Adminer → SQL komutu):**
@@ -1435,7 +1461,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/residents
 - **Adım:** "İptal" düğme öğesine bas
 - **Adım:** Öğe `tenancy-ends` bileşenindedir (satır 116)
-- **Beklenen (yazma):** `POST /residents/tenancy-requests/:id/cancel` (identity, `services/identity/main.go:143`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /residents/tenancy-requests/:id/cancel` (identity, `services/identity/main.go:147`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: BOARD_MEMBER/MANAGER
   - **Veritabanı (Adminer → SQL komutu):**
     - `tenancy_end_events` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM tenancy_end_events ORDER BY xmin::text::bigint DESC LIMIT 5;`
@@ -1458,7 +1484,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
 - **Adım:** Öğe `tenancy-ends` bileşenindedir (satır 161)
-- **Beklenen (yazma):** `POST /residents/tenancy-requests/:id/reverse` (identity, `services/identity/main.go:144`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /residents/tenancy-requests/:id/reverse` (identity, `services/identity/main.go:148`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: BOARD_MEMBER/MANAGER
   - Veritabanı tetikleyicileri çalışır: `trg_resident_units_tenancy_guard`, `trg_resident_units_tenant_arrival`, `trg_resident_units_tenant_departure` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
   - **Veritabanı (Adminer → SQL komutu):**
@@ -1500,7 +1526,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 #### P-ROLES-02 · Düğme: Sonlandır
 - **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/roles
 - **Adım:** "Sonlandır" düğme öğesine bas
-- **Beklenen (yazma):** `POST /property-roles/:id/end` (identity, `services/identity/main.go:170`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /property-roles/:id/end` (identity, `services/identity/main.go:176`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: MANAGER
   - **Veritabanı (Adminer → SQL komutu):**
     - `user_token_invalidation` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM user_token_invalidation ORDER BY xmin::text::bigint DESC LIMIT 5;`
@@ -1515,7 +1541,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
 - **Adım:** Başarı mesajı tam olarak şu anlamda olmalı: "Görev verildi"
-- **Beklenen (yazma):** `POST /property-roles` (identity, `services/identity/main.go:169`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /property-roles` (identity, `services/identity/main.go:175`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: AUDITOR/BOARD_MEMBER/MANAGER/STAFF
   - **Veritabanı (Adminer → SQL komutu):**
     - `user_activation_codes` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM user_activation_codes ORDER BY xmin::text::bigint DESC LIMIT 5;`
@@ -1710,13 +1736,13 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
 - **Adım:** Başarı mesajı tam olarak şu anlamda olmalı: "Bölüm güncellendi; Bölüm eklendi"
-- **Beklenen (yazma):** `PATCH /units/:id` (identity, `services/identity/main.go:179`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `PATCH /units/:id` (identity, `services/identity/main.go:185`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: BOARD_MEMBER/MANAGER
   - **Veritabanı (Adminer → SQL komutu):**
     - Ortak tablolar da değişir: `units` (aynı sorgu kalıbıyla bakılabilir)
   - **İşlem kaydı:** `SELECT created_at, action, entity_type, status_code, user_id FROM audit_logs WHERE screen = '/api/v1/units/:id' ORDER BY created_at DESC LIMIT 5;` → `UPDATE`, 2xx (yetkisiz denemede `DENIED`, 403)
   - **Bildirim:** üretmez — `notifications` tablosuna bu işlemle yeni satır EKLENMEMELİ.
-- **Beklenen (yazma):** `POST /units` (identity, `services/identity/main.go:178`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /units` (identity, `services/identity/main.go:184`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: BOARD_MEMBER/MANAGER
   - **Veritabanı (Adminer → SQL komutu):**
     - Ortak tablolar da değişir: `units` (aynı sorgu kalıbıyla bakılabilir)
@@ -1728,7 +1754,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/units
 - **Adım:** Formu aç; alanlar:  (* zorunlu)
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
-- **Beklenen (yazma):** `POST /units` (identity, `services/identity/main.go:178`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /units` (identity, `services/identity/main.go:184`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: BOARD_MEMBER/MANAGER
   - **Veritabanı (Adminer → SQL komutu):**
     - Ortak tablolar da değişir: `units` (aynı sorgu kalıbıyla bakılabilir)
@@ -2693,7 +2719,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Adım:** http://localhost:3001/dashboard/contracts adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: `GET /contracts` (contract)
 - **Adım:** Veri yüklenir: `GET /contracts-summary` (contract)
-- **Adım:** Kart (satır 47): Sözleşmeler
+- **Adım:** Kart (satır 55): Sözleşmeler
 - **Adım:** Tablo sütunları görünür ve dolu/boş durumu doğru: Sözleşme \| Dönem \| Kalan \| Yenileme \| Tutar \| Durum
 - **Adım:** Sayfayı yenile (F5): aynı içerik gelir, oturum düşmez
 - **Adım:** Erişimi olmayan hesapla (GÖREVLİ, KİRACI) aynı adresi aç → `/dashboard/forbidden` sayfasına yönlenmeli, kenar çubuğunda bu menü görünmemeli
@@ -3352,6 +3378,39 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
   - **Etkisi görülmeli:** Panel `/dashboard/governance/legal`, Yön.mobil `governance_screen`
 - **Yetki (olumsuz):** DENETÇİ ile aynı ekranda bu işlem yapılamamalı: düğme gizli/pasif olmalı ya da sunucu **403** dönmeli ve ekranda "yetkiniz yok" anlamında mesaj görünmeli; veritabanında değişiklik OLMAMALI (`POST /governance/legal-cases` yalnız BOARD_MEMBER/MANAGER).
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-LEGAL-02`
+
+---
+
+### Usta & Hizmet — `/dashboard/usta-hizmet`
+- Dosya: `admin/src/app/(dashboard)/dashboard/usta-hizmet/page.tsx`
+- Panel erişimi: MANAGER/BOARD_MEMBER/AUDITOR/STAFF — Yönetim paneli
+
+#### P-USTA-HIZMET-00 · Sayfa açılışı ve ekran kontrolleri
+- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ, GÖREVLİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/dashboard/usta-hizmet
+- **Adım:** http://localhost:3001/dashboard/usta-hizmet adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Adım:** Veri yüklenir: 
+- **Adım:** Veri yüklenir: `GET /market/meta` (marketplace)
+- **Adım:** Bilgi notu (satır 30): Site adına talebi yönetici açar ve teklif seçer; kurul üyeleri ve denetçi talepleri ve tek
+- **Adım:** Tablo sütunları görünür ve dolu/boş durumu doğru: Tarih \| Kategori \| Açıklama \| Kabul \| Durum
+- **Adım:** Bağlantı (satır 36): {r.category_name} → `/dashboard/usta-hizmet/${r.id
+- **Adım:** Sayfayı yenile (F5): aynı içerik gelir, oturum düşmez
+- **Adım:** Erişimi olmayan hesapla (KİRACI) aynı adresi aç → `/dashboard/forbidden` sayfasına yönlenmeli, kenar çubuğunda bu menü görünmemeli
+- **Beklenen:** her veri bölümü yüklenir (boşsa anlamlı boş durum mesajı; "undefined", "NaN", "null", ham JSON ya da İngilizce hata metni YOK); sayılar ve tarihler Türkçe biçimde (1.234,56 ₺ · gg.aa.yyyy); uydurma/örnek veri yok; dar ekranda (400 px) yatay kaydırma olmadan okunur.
+- **Sonuç:** http://localhost:18000/sonuc → `P-USTA-HIZMET-00`
+
+#### P-USTA-HIZMET-01 · Düğme: Teklif topla
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/usta-hizmet
+- **Adım:** "Teklif topla" düğme öğesine bas
+- **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
+- **Sonuç:** http://localhost:18000/sonuc → `P-USTA-HIZMET-01`
+
+#### P-USTA-HIZMET-02 · Form: Site adına teklif topla
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/usta-hizmet
+- **Adım:** Formu aç; alanlar: Kategori*, Ne yapılacak?*, Uygun zaman (* zorunlu)
+- **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
+- **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
+- **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
+- **Sonuç:** http://localhost:18000/sonuc → `P-USTA-HIZMET-02`
 
 ---
 
@@ -4838,7 +4897,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
     - `notification_reads` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM notification_reads ORDER BY xmin::text::bigint DESC LIMIT 5;`
   - **İşlem kaydı:** `SELECT created_at, action, entity_type, status_code, user_id FROM audit_logs WHERE screen = '/api/v1/notifications/read-all' ORDER BY created_at DESC LIMIT 5;` → `CREATE`, 2xx (yetkisiz denemede `DENIED`, 403)
   - **Bildirim:** üretmez — `notifications` tablosuna bu işlemle yeni satır EKLENMEMELİ.
-  - **Etkisi görülmeli:** Panel `/dashboard/inbox`, Sakin `main_screen`, Sakin `notifications_screen`, Yön.mobil `inbox_screen`, Yön.mobil `main_screen`
+  - **Etkisi görülmeli:** Panel `/dashboard/inbox`, Panel `/tedarikci/(panel)/bildirimler`, Sakin `main_screen`, Sakin `notifications_screen`, Yön.mobil `inbox_screen`, Yön.mobil `main_screen`
 - **Sonuç:** http://localhost:18000/sonuc → `P-INBOX-01`
 
 #### P-INBOX-02 · Düğme: Okundu say
@@ -4850,7 +4909,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
     - `notification_reads` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM notification_reads ORDER BY xmin::text::bigint DESC LIMIT 5;`
   - **İşlem kaydı:** `SELECT created_at, action, entity_type, status_code, user_id FROM audit_logs WHERE screen = '/api/v1/notifications/:id/read' ORDER BY created_at DESC LIMIT 5;` → `CREATE`, 2xx (yetkisiz denemede `DENIED`, 403)
   - **Bildirim:** üretmez — `notifications` tablosuna bu işlemle yeni satır EKLENMEMELİ.
-  - **Etkisi görülmeli:** Panel `/dashboard/inbox`, Sakin `main_screen`, Sakin `notifications_screen`, Yön.mobil `inbox_screen`, Yön.mobil `main_screen`
+  - **Etkisi görülmeli:** Panel `/dashboard/inbox`, Panel `/tedarikci/(panel)/bildirimler`, Sakin `main_screen`, Sakin `notifications_screen`, Yön.mobil `inbox_screen`, Yön.mobil `main_screen`
 - **Sonuç:** http://localhost:18000/sonuc → `P-INBOX-02`
 
 ---
@@ -4895,8 +4954,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Adım:** Veri yüklenir: 
 - **Adım:** Veri yüklenir: `GET /settings/definitions` (settings)
 - **Adım:** Veri yüklenir: `GET /settings-history` (settings)
-- **Adım:** Bilgi notu (satır 32): Mevzuata bağlı değerler (gecikme tazminatı, ısıtma payları, genel kurul nisapları) burada 
-- **Adım:** Her sekmeye tıkla, içerik hatasız yüklenir: Ayarlar, Saklama ve imha (KVKK), Kamera ve biyometrik envanter, Değişiklik geçmişi, Site durumu, Malik görünürlüğü
+- **Adım:** Bilgi notu (satır 33): Mevzuata bağlı değerler (gecikme tazminatı, ısıtma payları, genel kurul nisapları) burada 
+- **Adım:** Her sekmeye tıkla, içerik hatasız yüklenir: Ayarlar, Saklama ve imha (KVKK), Kamera ve biyometrik envanter, Değişiklik geçmişi, Site durumu, Malik görünürlüğü, Site konumu
 - **Adım:** Tablo sütunları görünür ve dolu/boş durumu doğru: Ayar \| Değer \| Son değişiklik
 - **Adım:** Tablo sütunları görünür ve dolu/boş durumu doğru: Zaman \| Ayar \| Eski \| Yeni \| Değiştiren
 - **Adım:** Veri yüklenir: `GET /retention-rules` (settings)
@@ -4925,6 +4984,9 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Adım:** Kart (satır 75): Geçmiş
 - **Adım:** Tablo sütunları görünür ve dolu/boş durumu doğru: Öneri \| Açılan alanlar \| Gerekçe \| Durum \| Karar
 - **Adım:** Bilgi notu (satır 94): Seçenekleri açmak kiracının kişisel verisini malike gösterir (KVKK m.4 ölçülülük). Değişik
+- **Adım:** Veri yüklenir: `GET /property` (identity)
+- **Adım:** Kart (satır 36): Site konumu
+- **Adım:** Bilgi notu (satır 40): Usta & Hizmet'te sakinlerin talepleri, hizmet alanı bu konumu kapsayan tedarikçilere gider
 - **Adım:** Sayfayı yenile (F5): aynı içerik gelir, oturum düşmez
 - **Adım:** Erişimi olmayan hesapla (DENETÇİ, GÖREVLİ, KİRACI) aynı adresi aç → `/dashboard/forbidden` sayfasına yönlenmeli, kenar çubuğunda bu menü görünmemeli
 - **Beklenen:** her veri bölümü yüklenir (boşsa anlamlı boş durum mesajı; "undefined", "NaN", "null", ham JSON ya da İngilizce hata metni YOK); sayılar ve tarihler Türkçe biçimde (1.234,56 ₺ · gg.aa.yyyy); uydurma/örnek veri yok; dar ekranda (400 px) yatay kaydırma olmadan okunur.
@@ -4976,12 +5038,14 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
     - `client_error_reports` — satır silinmiş olmalı: `SELECT xmin, * FROM client_error_reports ORDER BY xmin::text::bigint DESC LIMIT 5;`
     - `data_destruction_log` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM data_destruction_log ORDER BY xmin::text::bigint DESC LIMIT 5;`
     - `storage_deletion_queue` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM storage_deletion_queue ORDER BY xmin::text::bigint DESC LIMIT 5;`
+    - `mp_messages` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM mp_messages ORDER BY xmin::text::bigint DESC LIMIT 5;`
+    - `mp_request_contacts` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM mp_request_contacts ORDER BY xmin::text::bigint DESC LIMIT 5;`
     - `packages` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM packages ORDER BY xmin::text::bigint DESC LIMIT 5;`
     - `parking_logs` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM parking_logs ORDER BY xmin::text::bigint DESC LIMIT 5;`
     - `visitors` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM visitors ORDER BY xmin::text::bigint DESC LIMIT 5;`
   - **İşlem kaydı:** `SELECT created_at, action, entity_type, status_code, user_id FROM audit_logs WHERE screen = '/api/v1/retention-rules/run' ORDER BY created_at DESC LIMIT 5;` → `CREATE`, 2xx (yetkisiz denemede `DENIED`, 403)
   - **Bildirim:** üretmez — `notifications` tablosuna bu işlemle yeni satır EKLENMEMELİ.
-  - **Etkisi görülmeli:** Panel `/dashboard/packages`, Panel `/dashboard/parking`, Panel `/dashboard/settings`, Panel `/dashboard/visitors`, Sakin `package_tracking_mobile_screen`, Yön.mobil `package_tracking_screen`, Yön.mobil `parking_management_screen`, Yön.mobil `site_settings_screen`, Yön.mobil `visitor_management_screen`
+  - **Etkisi görülmeli:** Panel `/dashboard/packages`, Panel `/dashboard/parking`, Panel `/dashboard/settings`, Panel `/dashboard/visitors`, Panel `/tedarikci/(panel)/talepler/[id]`, Sakin `market_request_screens`, Sakin `package_tracking_mobile_screen`, Yön.mobil `package_tracking_screen`, Yön.mobil `parking_management_screen`, Yön.mobil `site_settings_screen`, Yön.mobil `visitor_management_screen`
 - **Sonuç:** http://localhost:18000/sonuc → `P-SETTINGS-04`
 
 #### P-SETTINGS-05 · Düğme: Düzenle
@@ -5004,12 +5068,14 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
     - `client_error_reports` — satır silinmiş olmalı: `SELECT xmin, * FROM client_error_reports ORDER BY xmin::text::bigint DESC LIMIT 5;`
     - `data_retention_rules` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM data_retention_rules ORDER BY xmin::text::bigint DESC LIMIT 5;`
     - `storage_deletion_queue` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM storage_deletion_queue ORDER BY xmin::text::bigint DESC LIMIT 5;`
+    - `mp_messages` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM mp_messages ORDER BY xmin::text::bigint DESC LIMIT 5;`
+    - `mp_request_contacts` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM mp_request_contacts ORDER BY xmin::text::bigint DESC LIMIT 5;`
     - `packages` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM packages ORDER BY xmin::text::bigint DESC LIMIT 5;`
     - `parking_logs` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM parking_logs ORDER BY xmin::text::bigint DESC LIMIT 5;`
     - `visitors` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM visitors ORDER BY xmin::text::bigint DESC LIMIT 5;`
   - **İşlem kaydı:** `SELECT created_at, action, entity_type, status_code, user_id FROM audit_logs WHERE screen = '/api/v1/retention-rules/:category' ORDER BY created_at DESC LIMIT 5;` → `UPDATE`, 2xx (yetkisiz denemede `DENIED`, 403)
   - **Bildirim:** üretmez — `notifications` tablosuna bu işlemle yeni satır EKLENMEMELİ.
-  - **Etkisi görülmeli:** Panel `/dashboard/packages`, Panel `/dashboard/parking`, Panel `/dashboard/settings`, Panel `/dashboard/visitors`, Sakin `package_tracking_mobile_screen`, Yön.mobil `package_tracking_screen`, Yön.mobil `parking_management_screen`, Yön.mobil `site_settings_screen`, Yön.mobil `visitor_management_screen`
+  - **Etkisi görülmeli:** Panel `/dashboard/packages`, Panel `/dashboard/parking`, Panel `/dashboard/settings`, Panel `/dashboard/visitors`, Panel `/tedarikci/(panel)/talepler/[id]`, Sakin `market_request_screens`, Sakin `package_tracking_mobile_screen`, Yön.mobil `package_tracking_screen`, Yön.mobil `parking_management_screen`, Yön.mobil `site_settings_screen`, Yön.mobil `visitor_management_screen`
 - **Sonuç:** http://localhost:18000/sonuc → `P-SETTINGS-06`
 
 #### P-SETTINGS-07 · Düğme: Kamera ekle
@@ -5085,7 +5151,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
 - **Adım:** Öğe `lifecycle-card` bileşenindedir (satır 52)
-- **Beklenen (yazma):** `POST /property/deactivate` (identity, `services/identity/main.go:160`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /property/deactivate` (identity, `services/identity/main.go:164`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: MANAGER
   - **Veritabanı (Adminer → SQL komutu):**
     - `property_lifecycle_events` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM property_lifecycle_events ORDER BY xmin::text::bigint DESC LIMIT 5;`
@@ -5093,7 +5159,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
   - **İşlem kaydı:** `SELECT created_at, action, entity_type, status_code, user_id FROM audit_logs WHERE screen = '/api/v1/property/deactivate' ORDER BY created_at DESC LIMIT 5;` → `CREATE`, 2xx (yetkisiz denemede `DENIED`, 403)
   - **Bildirim:** üretmez — `notifications` tablosuna bu işlemle yeni satır EKLENMEMELİ.
   - **Etkisi görülmeli:** Panel `/dashboard/settings`, Yön.mobil `site_settings_screen`
-- **Beklenen (yazma):** `POST /property/reactivate` (identity, `services/identity/main.go:161`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /property/reactivate` (identity, `services/identity/main.go:165`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: MANAGER
   - **Veritabanı (Adminer → SQL komutu):**
     - `property_lifecycle_events` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM property_lifecycle_events ORDER BY xmin::text::bigint DESC LIMIT 5;`
@@ -5184,6 +5250,32 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
     - SMS/EMAIL kanalı satırı varsa: SMS kutusu (http://localhost:18000/sms) / Mailpit (http://localhost:18025) içinde metin doğru kişiye gitmiş olmalı. **SİTE_B hesabı bu bildirimi hiçbir yerde görmemeli.**
   - **Etkisi görülmeli:** Panel `/dashboard/settings`, Sakin `owner_visibility_screen`, Yön.mobil `site_settings_screen`
 - **Sonuç:** http://localhost:18000/sonuc → `P-SETTINGS-19`
+
+#### P-SETTINGS-20 · Düğme: Konumu kaydet
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/settings
+- **Adım:** "Konumu kaydet" düğme öğesine bas
+- **Adım:** Öğe `location-card` bileşenindedir (satır 54)
+- **Beklenen (yazma):** `PUT /property/location` (identity, `services/identity/main.go:167`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+  - Sunucu yetkisi: MANAGER
+  - **Veritabanı (Adminer → SQL komutu):**
+    - Ortak tablolar da değişir: `properties` (aynı sorgu kalıbıyla bakılabilir)
+  - **İşlem kaydı:** `SELECT created_at, action, entity_type, status_code, user_id FROM audit_logs WHERE screen = '/api/v1/property/location' ORDER BY created_at DESC LIMIT 5;` → `UPDATE`, 2xx (yetkisiz denemede `DENIED`, 403)
+  - **Bildirim:** üretmez — `notifications` tablosuna bu işlemle yeni satır EKLENMEMELİ.
+- **Yetki (olumsuz):** KURUL ile aynı ekranda bu işlem yapılamamalı: düğme gizli/pasif olmalı ya da sunucu **403** dönmeli ve ekranda "yetkiniz yok" anlamında mesaj görünmeli; veritabanında değişiklik OLMAMALI (`PUT /property/location` yalnız MANAGER).
+- **Sonuç:** http://localhost:18000/sonuc → `P-SETTINGS-20`
+
+#### P-SETTINGS-21 · Düğme: Konumu sil
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/settings
+- **Adım:** "Konumu sil" düğme öğesine bas (onay penceresi çıkarsa önce Vazgeç → hiçbir şey değişmemeli; sonra tekrar bas ve onayla)
+- **Adım:** Öğe `location-card` bileşenindedir (satır 59)
+- **Beklenen (yazma):** `PUT /property/location` (identity, `services/identity/main.go:167`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+  - Sunucu yetkisi: MANAGER
+  - **Veritabanı (Adminer → SQL komutu):**
+    - Ortak tablolar da değişir: `properties` (aynı sorgu kalıbıyla bakılabilir)
+  - **İşlem kaydı:** `SELECT created_at, action, entity_type, status_code, user_id FROM audit_logs WHERE screen = '/api/v1/property/location' ORDER BY created_at DESC LIMIT 5;` → `UPDATE`, 2xx (yetkisiz denemede `DENIED`, 403)
+  - **Bildirim:** üretmez — `notifications` tablosuna bu işlemle yeni satır EKLENMEMELİ.
+- **Yetki (olumsuz):** KURUL ile aynı ekranda bu işlem yapılamamalı: düğme gizli/pasif olmalı ya da sunucu **403** dönmeli ve ekranda "yetkiniz yok" anlamında mesaj görünmeli; veritabanında değişiklik OLMAMALI (`PUT /property/location` yalnız MANAGER).
+- **Sonuç:** http://localhost:18000/sonuc → `P-SETTINGS-21`
 
 ---
 
@@ -5285,7 +5377,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 #### P-FORBIDDEN-00 · Sayfa açılışı ve ekran kontrolleri
 - **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ, GÖREVLİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/dashboard/forbidden
 - **Adım:** http://localhost:3001/dashboard/forbidden adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
-- **Adım:** Bağlantı (satır 76): Panele dön → /dashboard
+- **Adım:** Bağlantı (satır 79): Panele dön → homeFor(myRoles)
 - **Adım:** Sayfayı yenile (F5): aynı içerik gelir, oturum düşmez
 - **Adım:** Erişimi olmayan hesapla (KİRACI) aynı adresi aç → `/dashboard/forbidden` sayfasına yönlenmeli, kenar çubuğunda bu menü görünmemeli
 - **Beklenen:** her veri bölümü yüklenir (boşsa anlamlı boş durum mesajı; "undefined", "NaN", "null", ham JSON ya da İngilizce hata metni YOK); sayılar ve tarihler Türkçe biçimde (1.234,56 ₺ · gg.aa.yyyy); uydurma/örnek veri yok; dar ekranda (400 px) yatay kaydırma olmadan okunur.
@@ -5343,6 +5435,99 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 
 ---
 
+### /dashboard/usta-hizmet/[id] — `/dashboard/usta-hizmet/[id]`
+- Dosya: `admin/src/app/(dashboard)/dashboard/usta-hizmet/[id]/page.tsx`
+- Panel erişimi: MANAGER/BOARD_MEMBER/AUDITOR/STAFF — Yönetim paneli
+
+#### P-USTA-HIZMET-ID-00 · Sayfa açılışı ve ekran kontrolleri
+- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ, GÖREVLİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/dashboard/usta-hizmet/… (listeden bir kayda tıklanarak açılır)
+- **Adım:** http://localhost:3001/dashboard/usta-hizmet/… (listeden bir kayda tıklanarak açılır) adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Adım:** Veri yüklenir: 
+- **Adım:** Veri yüklenir: 
+- **Adım:** Veri yüklenir: 
+- **Adım:** Bağlantı (satır 32): ← Usta & Hizmet → /dashboard/usta-hizmet
+- **Adım:** Kart (satır 34): Talep
+- **Adım:** Kart (satır 41): Teklif karşılaştırma
+- **Adım:** Tablo sütunları görünür ve dolu/boş durumu doğru: İşletme \| Tutar \| Kapsam \| Geçerlilik \| Puan \| Tamamlanan iş \| Telefon
+- **Adım:** Veri yüklenir: `GET /expense-categories` (expense)
+- **Adım:** Kart (satır 95): İş
+- **Adım:** Bağlantı (satır 103): Sözleşme formunu doldur → contractHref
+- **Adım:** Bilgi notu (satır 117): İtiraz: {job.dispute_note}
+- **Adım:** Bilgi notu (satır 139): Faturasız gider onay bekler; kurul onayından sonra hesap verme belgelerine girer. Fatura g
+- **Adım:** Sayfayı yenile (F5): aynı içerik gelir, oturum düşmez
+- **Adım:** Erişimi olmayan hesapla (KİRACI) aynı adresi aç → `/dashboard/forbidden` sayfasına yönlenmeli, kenar çubuğunda bu menü görünmemeli
+- **Beklenen:** her veri bölümü yüklenir (boşsa anlamlı boş durum mesajı; "undefined", "NaN", "null", ham JSON ya da İngilizce hata metni YOK); sayılar ve tarihler Türkçe biçimde (1.234,56 ₺ · gg.aa.yyyy); uydurma/örnek veri yok; dar ekranda (400 px) yatay kaydırma olmadan okunur.
+- **Sonuç:** http://localhost:18000/sonuc → `P-USTA-HIZMET-ID-00`
+
+#### P-USTA-HIZMET-ID-01 · Düğme: Seç
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/usta-hizmet/… (listeden bir kayda tıklanarak açılır)
+- **Adım:** "Seç" düğme öğesine bas
+- **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
+- **Sonuç:** http://localhost:18000/sonuc → `P-USTA-HIZMET-ID-01`
+
+#### P-USTA-HIZMET-ID-02 · Düğme: Teklif seçmeden kapat
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/usta-hizmet/… (listeden bir kayda tıklanarak açılır)
+- **Adım:** "Teklif seçmeden kapat" düğme öğesine bas
+- **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
+- **Sonuç:** http://localhost:18000/sonuc → `P-USTA-HIZMET-ID-02`
+
+#### P-USTA-HIZMET-ID-03 · Form: Teklifi seç
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/usta-hizmet/… (listeden bir kayda tıklanarak açılır)
+- **Adım:** Formu aç; alanlar:  (* zorunlu)
+- **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
+- **Adım:** Başarı mesajı tam olarak şu anlamda olmalı: "Teklif seçildi; işletmeye bildirildi"
+- **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
+- **Sonuç:** http://localhost:18000/sonuc → `P-USTA-HIZMET-ID-03`
+
+#### P-USTA-HIZMET-ID-04 · Düğme: Onay bekleyen gider oluştur
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/usta-hizmet/… (listeden bir kayda tıklanarak açılır)
+- **Adım:** "Onay bekleyen gider oluştur" düğme öğesine bas
+- **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
+- **Sonuç:** http://localhost:18000/sonuc → `P-USTA-HIZMET-ID-04`
+
+#### P-USTA-HIZMET-ID-05 · Düğme: Sözleşme formunu doldur
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/usta-hizmet/… (listeden bir kayda tıklanarak açılır)
+- **Adım:** "Sözleşme formunu doldur" düğme öğesine bas
+- **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
+- **Sonuç:** http://localhost:18000/sonuc → `P-USTA-HIZMET-ID-05`
+
+#### P-USTA-HIZMET-ID-06 · Düğme: İş tamamlandı, onayla
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/usta-hizmet/… (listeden bir kayda tıklanarak açılır)
+- **Adım:** "İş tamamlandı, onayla" düğme öğesine bas
+- **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
+- **Sonuç:** http://localhost:18000/sonuc → `P-USTA-HIZMET-ID-06`
+
+#### P-USTA-HIZMET-ID-07 · Düğme: İtiraz et
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/usta-hizmet/… (listeden bir kayda tıklanarak açılır)
+- **Adım:** "İtiraz et" düğme öğesine bas
+- **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
+- **Sonuç:** http://localhost:18000/sonuc → `P-USTA-HIZMET-ID-07`
+
+#### P-USTA-HIZMET-ID-08 · Düğme: Puanı gönder
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/usta-hizmet/… (listeden bir kayda tıklanarak açılır)
+- **Adım:** "Puanı gönder" düğme öğesine bas
+- **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
+- **Sonuç:** http://localhost:18000/sonuc → `P-USTA-HIZMET-ID-08`
+
+#### P-USTA-HIZMET-ID-09 · Form: Onay bekleyen gider
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/usta-hizmet/… (listeden bir kayda tıklanarak açılır)
+- **Adım:** Formu aç; alanlar: Gider kalemi*, Gider tarihi* (* zorunlu)
+- **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
+- **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
+- **Beklenen (yazma):** `POST /expenses` (expense, `services/expense/main.go:71`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+  - Sunucu yetkisi: BOARD_MEMBER/MANAGER
+  - Veritabanı tetikleyicileri çalışır: `expense_updated_at` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
+  - **Veritabanı (Adminer → SQL komutu):**
+    - `expense_distributions` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM expense_distributions ORDER BY xmin::text::bigint DESC LIMIT 5;`
+    - `expenses` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM expenses ORDER BY xmin::text::bigint DESC LIMIT 5;`
+  - **İşlem kaydı:** `SELECT created_at, action, entity_type, status_code, user_id FROM audit_logs WHERE screen = '/api/v1/expenses' ORDER BY created_at DESC LIMIT 5;` → `CREATE`, 2xx (yetkisiz denemede `DENIED`, 403)
+  - **Bildirim:** üretmez — `notifications` tablosuna bu işlemle yeni satır EKLENMEMELİ.
+  - **Etkisi görülmeli:** Panel `/dashboard/expenses`, Yön.mobil `expense_detail_screen`, Yön.mobil `expenses_screen`, Yön.mobil `resident_expenses_screen`
+- **Yetki (olumsuz):** DENETÇİ, GÖREVLİ ile aynı ekranda bu işlem yapılamamalı: düğme gizli/pasif olmalı ya da sunucu **403** dönmeli ve ekranda "yetkiniz yok" anlamında mesaj görünmeli; veritabanında değişiklik OLMAMALI (`POST /expenses` yalnız BOARD_MEMBER/MANAGER).
+- **Sonuç:** http://localhost:18000/sonuc → `P-USTA-HIZMET-ID-09`
+
+---
+
 ### /dogrula/[code] — `/dogrula/[code]`
 - Dosya: `admin/src/app/dogrula/[code]/page.tsx`
 - Panel erişimi: herkese açık
@@ -5363,8 +5548,9 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 #### P-LOGIN-00 · Sayfa açılışı ve ekran kontrolleri
 - **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ, GÖREVLİ, KİRACI ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/login
 - **Adım:** http://localhost:3001/login adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
-- **Adım:** Bağlantı (satır 116): Şifremi unuttum / hesabımı etkinleştir → /activate
-- **Adım:** Bağlantı (satır 154): Etkinleştirme kodum var → /activate
+- **Adım:** Bağlantı (satır 15): Etkinleştirme kodum var → /activate
+- **Adım:** Bağlantı (satır 21): Usta &amp; Hizmet&apos;e kaydolun → /tedarikci/kayit
+- **Adım:** Bağlantı (satır 122): Şifremi unuttum / hesabımı etkinleştir → /activate
 - **Adım:** Sayfayı yenile (F5): aynı içerik gelir, oturum düşmez
 - **Beklenen:** her veri bölümü yüklenir (boşsa anlamlı boş durum mesajı; "undefined", "NaN", "null", ham JSON ya da İngilizce hata metni YOK); sayılar ve tarihler Türkçe biçimde (1.234,56 ₺ · gg.aa.yyyy); uydurma/örnek veri yok; dar ekranda (400 px) yatay kaydırma olmadan okunur.
 - **Sonuç:** http://localhost:18000/sonuc → `P-LOGIN-00`
@@ -5381,6 +5567,891 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Adım:** Sayfayı yenile (F5): aynı içerik gelir, oturum düşmez
 - **Beklenen:** her veri bölümü yüklenir (boşsa anlamlı boş durum mesajı; "undefined", "NaN", "null", ham JSON ya da İngilizce hata metni YOK); sayılar ve tarihler Türkçe biçimde (1.234,56 ₺ · gg.aa.yyyy); uydurma/örnek veri yok; dar ekranda (400 px) yatay kaydırma olmadan okunur.
 - **Sonuç:** http://localhost:18000/sonuc → `P-ODEME-SONUC-00`
+
+---
+
+### /platform — `/platform`
+- Dosya: `admin/src/app/platform/page.tsx`
+- Panel erişimi: PlatformAdmin — Platform yönetimi (Usta & Hizmet)
+
+#### P-PLATFORM-00 · Sayfa açılışı ve ekran kontrolleri
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform
+- **Adım:** http://localhost:3001/platform adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Adım:** Veri yüklenir: 
+- **Adım:** Veri yüklenir: 
+- **Adım:** Kart (satır 19): Kuyruklar
+- **Adım:** Bağlantı (satır 21): Tedarikçi hesapları ve belgeler → /platform/hesaplar
+- **Adım:** Bağlantı (satır 22): İşletme yayın onayı → /platform/isletmeler
+- **Adım:** Sayfayı yenile (F5): aynı içerik gelir, oturum düşmez
+- **Adım:** Erişimi olmayan hesapla (YÖNETİCİ, KURUL, DENETÇİ, GÖREVLİ, KİRACI) aynı adresi aç → `/dashboard/forbidden` sayfasına yönlenmeli, kenar çubuğunda bu menü görünmemeli
+- **Beklenen:** her veri bölümü yüklenir (boşsa anlamlı boş durum mesajı; "undefined", "NaN", "null", ham JSON ya da İngilizce hata metni YOK); sayılar ve tarihler Türkçe biçimde (1.234,56 ₺ · gg.aa.yyyy); uydurma/örnek veri yok; dar ekranda (400 px) yatay kaydırma olmadan okunur.
+- **Sonuç:** http://localhost:18000/sonuc → `P-PLATFORM-00`
+
+---
+
+### /platform/ayarlar — `/platform/ayarlar`
+- Dosya: `admin/src/app/platform/ayarlar/page.tsx`
+- Panel erişimi: PlatformAdmin — Platform yönetimi (Usta & Hizmet)
+
+#### P-PLATFORM-AYARLAR-00 · Sayfa açılışı ve ekran kontrolleri
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/ayarlar
+- **Adım:** http://localhost:3001/platform/ayarlar adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Adım:** Veri yüklenir: `GET /market/meta` (marketplace)
+- **Adım:** Tablo sütunları görünür ve dolu/boş durumu doğru: Ayar \| Değer
+- **Adım:** Sayfayı yenile (F5): aynı içerik gelir, oturum düşmez
+- **Adım:** Erişimi olmayan hesapla (YÖNETİCİ, KURUL, DENETÇİ, GÖREVLİ, KİRACI) aynı adresi aç → `/dashboard/forbidden` sayfasına yönlenmeli, kenar çubuğunda bu menü görünmemeli
+- **Beklenen:** her veri bölümü yüklenir (boşsa anlamlı boş durum mesajı; "undefined", "NaN", "null", ham JSON ya da İngilizce hata metni YOK); sayılar ve tarihler Türkçe biçimde (1.234,56 ₺ · gg.aa.yyyy); uydurma/örnek veri yok; dar ekranda (400 px) yatay kaydırma olmadan okunur.
+- **Sonuç:** http://localhost:18000/sonuc → `P-PLATFORM-AYARLAR-00`
+
+#### P-PLATFORM-AYARLAR-01 · Düğme: Düzenle
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/ayarlar
+- **Adım:** "Düzenle" düğme öğesine bas
+- **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
+- **Sonuç:** http://localhost:18000/sonuc → `P-PLATFORM-AYARLAR-01`
+
+#### P-PLATFORM-AYARLAR-02 · Form: (başlık dinamik)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/ayarlar
+- **Adım:** Formu aç; alanlar: Değer (tam sayı) (* zorunlu)
+- **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
+- **Adım:** Başarı mesajı tam olarak şu anlamda olmalı: "Ayar kaydedildi"
+- **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
+- **Sonuç:** http://localhost:18000/sonuc → `P-PLATFORM-AYARLAR-02`
+
+---
+
+### /platform/gelir — `/platform/gelir`
+- Dosya: `admin/src/app/platform/gelir/page.tsx`
+- Panel erişimi: PlatformAdmin — Platform yönetimi (Usta & Hizmet)
+
+#### P-PLATFORM-GELIR-00 · Sayfa açılışı ve ekran kontrolleri
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/gelir
+- **Adım:** http://localhost:3001/platform/gelir adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Adım:** Veri yüklenir: 
+- **Adım:** Kart (satır 31): Bakiye hareketleri (gelir değil)
+- **Adım:** Bilgi notu (satır 39): Net gelir = aidat + talep ücreti − iade. Defterdeki dönem toplamı: {kurus(r.ledger_total_k
+- **Adım:** Sayfayı yenile (F5): aynı içerik gelir, oturum düşmez
+- **Adım:** Erişimi olmayan hesapla (YÖNETİCİ, KURUL, DENETÇİ, GÖREVLİ, KİRACI) aynı adresi aç → `/dashboard/forbidden` sayfasına yönlenmeli, kenar çubuğunda bu menü görünmemeli
+- **Beklenen:** her veri bölümü yüklenir (boşsa anlamlı boş durum mesajı; "undefined", "NaN", "null", ham JSON ya da İngilizce hata metni YOK); sayılar ve tarihler Türkçe biçimde (1.234,56 ₺ · gg.aa.yyyy); uydurma/örnek veri yok; dar ekranda (400 px) yatay kaydırma olmadan okunur.
+- **Sonuç:** http://localhost:18000/sonuc → `P-PLATFORM-GELIR-00`
+
+---
+
+### /platform/hesaplar — `/platform/hesaplar`
+- Dosya: `admin/src/app/platform/hesaplar/page.tsx`
+- Panel erişimi: PlatformAdmin — Platform yönetimi (Usta & Hizmet)
+
+#### P-PLATFORM-HESAPLAR-00 · Sayfa açılışı ve ekran kontrolleri
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/hesaplar
+- **Adım:** http://localhost:3001/platform/hesaplar adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Adım:** Veri yüklenir: 
+- **Adım:** Her sekmeye tıkla, içerik hatasız yüklenir: 
+- **Adım:** Tablo sütunları görünür ve dolu/boş durumu doğru: Unvan \| Sahibi \| Vergi no \| Belge / işletme \| Durum \| Son değişiklik
+- **Adım:** Bağlantı (satır 24): {a.trade_name \|\| "(unvan girilm} → `/platform/hesaplar/${a.id
+- **Adım:** Sayfayı yenile (F5): aynı içerik gelir, oturum düşmez
+- **Adım:** Erişimi olmayan hesapla (YÖNETİCİ, KURUL, DENETÇİ, GÖREVLİ, KİRACI) aynı adresi aç → `/dashboard/forbidden` sayfasına yönlenmeli, kenar çubuğunda bu menü görünmemeli
+- **Beklenen:** her veri bölümü yüklenir (boşsa anlamlı boş durum mesajı; "undefined", "NaN", "null", ham JSON ya da İngilizce hata metni YOK); sayılar ve tarihler Türkçe biçimde (1.234,56 ₺ · gg.aa.yyyy); uydurma/örnek veri yok; dar ekranda (400 px) yatay kaydırma olmadan okunur.
+- **Sonuç:** http://localhost:18000/sonuc → `P-PLATFORM-HESAPLAR-00`
+
+---
+
+### /platform/hesaplar/[id] — `/platform/hesaplar/[id]`
+- Dosya: `admin/src/app/platform/hesaplar/[id]/page.tsx`
+- Panel erişimi: PlatformAdmin — Platform yönetimi (Usta & Hizmet)
+
+#### P-PLATFORM-HESAPLAR-ID-00 · Sayfa açılışı ve ekran kontrolleri
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/hesaplar/… (listeden bir kayda tıklanarak açılır)
+- **Adım:** http://localhost:3001/platform/hesaplar/… (listeden bir kayda tıklanarak açılır) adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Adım:** Veri yüklenir: 
+- **Adım:** Kart (satır 30): Hesap
+- **Adım:** Bilgi notu (satır 38): Son gerekçe: {a.status_reason}
+- **Adım:** Kart (satır 49): Belgeler
+- **Adım:** Tablo sütunları görünür ve dolu/boş durumu doğru: Tür \| Dosya \| Durum \| Yüklendi
+- **Adım:** Kart (satır 58): İşletmeler
+- **Adım:** Tablo sütunları görünür ve dolu/boş durumu doğru: İşletme \| Yer \| Durum
+- **Adım:** Bilgi notu (satır 77): Kalan bakiye {kurus(a.balance_kurus)}. Önce tedarikçiye havaleyle iade edin; dekont numara
+- **Adım:** Sayfayı yenile (F5): aynı içerik gelir, oturum düşmez
+- **Adım:** Erişimi olmayan hesapla (YÖNETİCİ, KURUL, DENETÇİ, GÖREVLİ, KİRACI) aynı adresi aç → `/dashboard/forbidden` sayfasına yönlenmeli, kenar çubuğunda bu menü görünmemeli
+- **Beklenen:** her veri bölümü yüklenir (boşsa anlamlı boş durum mesajı; "undefined", "NaN", "null", ham JSON ya da İngilizce hata metni YOK); sayılar ve tarihler Türkçe biçimde (1.234,56 ₺ · gg.aa.yyyy); uydurma/örnek veri yok; dar ekranda (400 px) yatay kaydırma olmadan okunur.
+- **Sonuç:** http://localhost:18000/sonuc → `P-PLATFORM-HESAPLAR-ID-00`
+
+#### P-PLATFORM-HESAPLAR-ID-01 · Düğme: Onayla
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/hesaplar/… (listeden bir kayda tıklanarak açılır)
+- **Adım:** "Onayla" düğme öğesine bas
+- **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
+- **Sonuç:** http://localhost:18000/sonuc → `P-PLATFORM-HESAPLAR-ID-01`
+
+#### P-PLATFORM-HESAPLAR-ID-02 · Düğme: Reddet
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/hesaplar/… (listeden bir kayda tıklanarak açılır)
+- **Adım:** "Reddet" düğme öğesine bas
+- **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
+- **Sonuç:** http://localhost:18000/sonuc → `P-PLATFORM-HESAPLAR-ID-02`
+
+#### P-PLATFORM-HESAPLAR-ID-03 · Düğme: Askıya al
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/hesaplar/… (listeden bir kayda tıklanarak açılır)
+- **Adım:** "Askıya al" düğme öğesine bas
+- **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
+- **Sonuç:** http://localhost:18000/sonuc → `P-PLATFORM-HESAPLAR-ID-03`
+
+#### P-PLATFORM-HESAPLAR-ID-04 · Düğme: Yeniden etkinleştir
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/hesaplar/… (listeden bir kayda tıklanarak açılır)
+- **Adım:** "Yeniden etkinleştir" düğme öğesine bas
+- **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
+- **Sonuç:** http://localhost:18000/sonuc → `P-PLATFORM-HESAPLAR-ID-04`
+
+#### P-PLATFORM-HESAPLAR-ID-05 · Düğme: Üyeliği kapat
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/hesaplar/… (listeden bir kayda tıklanarak açılır)
+- **Adım:** "Üyeliği kapat" düğme öğesine bas
+- **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
+- **Sonuç:** http://localhost:18000/sonuc → `P-PLATFORM-HESAPLAR-ID-05`
+
+#### P-PLATFORM-HESAPLAR-ID-06 · Düğme: Aç
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/hesaplar/… (listeden bir kayda tıklanarak açılır)
+- **Adım:** "Aç" düğme öğesine bas
+- **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
+- **Sonuç:** http://localhost:18000/sonuc → `P-PLATFORM-HESAPLAR-ID-06`
+
+#### P-PLATFORM-HESAPLAR-ID-07 · Form: (başlık dinamik)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/hesaplar/… (listeden bir kayda tıklanarak açılır)
+- **Adım:** Formu aç; alanlar: Havale dekont no*, İade tarihi*, Gerekçe (tedarikçiye gösterilir)* (* zorunlu)
+- **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
+- **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
+- **Adım:** Başarı mesajı tam olarak şu anlamda olmalı: "Üyelik kapatıldı"
+- **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
+- **Sonuç:** http://localhost:18000/sonuc → `P-PLATFORM-HESAPLAR-ID-07`
+
+---
+
+### /platform/isletmeler — `/platform/isletmeler`
+- Dosya: `admin/src/app/platform/isletmeler/page.tsx`
+- Panel erişimi: PlatformAdmin — Platform yönetimi (Usta & Hizmet)
+
+#### P-PLATFORM-ISLETMELER-00 · Sayfa açılışı ve ekran kontrolleri
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/isletmeler
+- **Adım:** http://localhost:3001/platform/isletmeler adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Adım:** Veri yüklenir: 
+- **Adım:** Veri yüklenir: `GET /market/meta` (marketplace)
+- **Adım:** Her sekmeye tıkla, içerik hatasız yüklenir: 
+- **Adım:** Tablo sütunları görünür ve dolu/boş durumu doğru: İşletme \| Hesap \| Yer \| Hizmet alanı \| Kategoriler \| Durum
+- **Adım:** Bağlantı (satır 34): hesaba git → `/platform/hesaplar/${b.account_id
+- **Adım:** Sayfayı yenile (F5): aynı içerik gelir, oturum düşmez
+- **Adım:** Erişimi olmayan hesapla (YÖNETİCİ, KURUL, DENETÇİ, GÖREVLİ, KİRACI) aynı adresi aç → `/dashboard/forbidden` sayfasına yönlenmeli, kenar çubuğunda bu menü görünmemeli
+- **Beklenen:** her veri bölümü yüklenir (boşsa anlamlı boş durum mesajı; "undefined", "NaN", "null", ham JSON ya da İngilizce hata metni YOK); sayılar ve tarihler Türkçe biçimde (1.234,56 ₺ · gg.aa.yyyy); uydurma/örnek veri yok; dar ekranda (400 px) yatay kaydırma olmadan okunur.
+- **Sonuç:** http://localhost:18000/sonuc → `P-PLATFORM-ISLETMELER-00`
+
+#### P-PLATFORM-ISLETMELER-01 · Düğme: Yayına al
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/isletmeler
+- **Adım:** "Yayına al" düğme öğesine bas
+- **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
+- **Sonuç:** http://localhost:18000/sonuc → `P-PLATFORM-ISLETMELER-01`
+
+#### P-PLATFORM-ISLETMELER-02 · Düğme: Reddet
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/isletmeler
+- **Adım:** "Reddet" düğme öğesine bas
+- **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
+- **Sonuç:** http://localhost:18000/sonuc → `P-PLATFORM-ISLETMELER-02`
+
+#### P-PLATFORM-ISLETMELER-03 · Form: Yayın onayını reddet
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/isletmeler
+- **Adım:** Formu aç; alanlar: Gerekçe (tedarikçiye gösterilir)* (* zorunlu)
+- **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
+- **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
+- **Adım:** Başarı mesajı tam olarak şu anlamda olmalı: "Reddedildi"
+- **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
+- **Sonuç:** http://localhost:18000/sonuc → `P-PLATFORM-ISLETMELER-03`
+
+---
+
+### /platform/itirazlar — `/platform/itirazlar`
+- Dosya: `admin/src/app/platform/itirazlar/page.tsx`
+- Panel erişimi: PlatformAdmin — Platform yönetimi (Usta & Hizmet)
+
+#### P-PLATFORM-ITIRAZLAR-00 · Sayfa açılışı ve ekran kontrolleri
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/itirazlar
+- **Adım:** http://localhost:3001/platform/itirazlar adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Adım:** Veri yüklenir: 
+- **Adım:** Tablo sütunları görünür ve dolu/boş durumu doğru: Tarih \| Tedarikçi \| Talep \| Neden \| İade \| Durum
+- **Adım:** Sayfayı yenile (F5): aynı içerik gelir, oturum düşmez
+- **Adım:** Erişimi olmayan hesapla (YÖNETİCİ, KURUL, DENETÇİ, GÖREVLİ, KİRACI) aynı adresi aç → `/dashboard/forbidden` sayfasına yönlenmeli, kenar çubuğunda bu menü görünmemeli
+- **Beklenen:** her veri bölümü yüklenir (boşsa anlamlı boş durum mesajı; "undefined", "NaN", "null", ham JSON ya da İngilizce hata metni YOK); sayılar ve tarihler Türkçe biçimde (1.234,56 ₺ · gg.aa.yyyy); uydurma/örnek veri yok; dar ekranda (400 px) yatay kaydırma olmadan okunur.
+- **Sonuç:** http://localhost:18000/sonuc → `P-PLATFORM-ITIRAZLAR-00`
+
+#### P-PLATFORM-ITIRAZLAR-01 · Düğme: Onayla ve iade et
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/itirazlar
+- **Adım:** "Onayla ve iade et" düğme öğesine bas
+- **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
+- **Sonuç:** http://localhost:18000/sonuc → `P-PLATFORM-ITIRAZLAR-01`
+
+#### P-PLATFORM-ITIRAZLAR-02 · Düğme: Reddet
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/itirazlar
+- **Adım:** "Reddet" düğme öğesine bas
+- **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
+- **Sonuç:** http://localhost:18000/sonuc → `P-PLATFORM-ITIRAZLAR-02`
+
+#### P-PLATFORM-ITIRAZLAR-03 · Form: (başlık dinamik)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/itirazlar
+- **Adım:** Formu aç; alanlar: Gerekçe (tedarikçiye gösterilir)* (* zorunlu)
+- **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
+- **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
+- **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
+- **Sonuç:** http://localhost:18000/sonuc → `P-PLATFORM-ITIRAZLAR-03`
+
+---
+
+### /platform/kategoriler — `/platform/kategoriler`
+- Dosya: `admin/src/app/platform/kategoriler/page.tsx`
+- Panel erişimi: PlatformAdmin — Platform yönetimi (Usta & Hizmet)
+
+#### P-PLATFORM-KATEGORILER-00 · Sayfa açılışı ve ekran kontrolleri
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/kategoriler
+- **Adım:** http://localhost:3001/platform/kategoriler adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Adım:** Veri yüklenir: 
+- **Adım:** Bilgi notu (satır 22): Site alımları kendi kategorilerindedir (ör. &quot;Site temizliği&quot; yalnız site yönetim
+- **Adım:** Tablo sütunları görünür ve dolu/boş durumu doğru: Kategori \| Üst \| Talep ücreti \| Kim açar \| Durum
+- **Adım:** Sayfayı yenile (F5): aynı içerik gelir, oturum düşmez
+- **Adım:** Erişimi olmayan hesapla (YÖNETİCİ, KURUL, DENETÇİ, GÖREVLİ, KİRACI) aynı adresi aç → `/dashboard/forbidden` sayfasına yönlenmeli, kenar çubuğunda bu menü görünmemeli
+- **Beklenen:** her veri bölümü yüklenir (boşsa anlamlı boş durum mesajı; "undefined", "NaN", "null", ham JSON ya da İngilizce hata metni YOK); sayılar ve tarihler Türkçe biçimde (1.234,56 ₺ · gg.aa.yyyy); uydurma/örnek veri yok; dar ekranda (400 px) yatay kaydırma olmadan okunur.
+- **Sonuç:** http://localhost:18000/sonuc → `P-PLATFORM-KATEGORILER-00`
+
+#### P-PLATFORM-KATEGORILER-01 · Düğme: Kategori ekle
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/kategoriler
+- **Adım:** "Kategori ekle" düğme öğesine bas
+- **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
+- **Sonuç:** http://localhost:18000/sonuc → `P-PLATFORM-KATEGORILER-01`
+
+#### P-PLATFORM-KATEGORILER-02 · Düğme: Düzenle
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/kategoriler
+- **Adım:** "Düzenle" düğme öğesine bas
+- **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
+- **Sonuç:** http://localhost:18000/sonuc → `P-PLATFORM-KATEGORILER-02`
+
+#### P-PLATFORM-KATEGORILER-03 · Form: (başlık dinamik)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/kategoriler
+- **Adım:** Formu aç; alanlar: Ad*, Talep ücreti (TL)*, Kim talep açabilir*, Üst kategori, Sıra (* zorunlu)
+- **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
+- **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
+- **Adım:** Başarı mesajı tam olarak şu anlamda olmalı: "Kategori kaydedildi"
+- **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
+- **Sonuç:** http://localhost:18000/sonuc → `P-PLATFORM-KATEGORILER-03`
+
+---
+
+### /platform/paketler — `/platform/paketler`
+- Dosya: `admin/src/app/platform/paketler/page.tsx`
+- Panel erişimi: PlatformAdmin — Platform yönetimi (Usta & Hizmet)
+
+#### P-PLATFORM-PAKETLER-00 · Sayfa açılışı ve ekran kontrolleri
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/paketler
+- **Adım:** http://localhost:3001/platform/paketler adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Adım:** Veri yüklenir: 
+- **Adım:** Bilgi notu (satır 24): Fiyat değişikliği mevcut abonelere bir sonraki yenilemede uygulanır. Varsayılan (ücretsiz)
+- **Adım:** Tablo sütunları görünür ve dolu/boş durumu doğru: Paket \| Aylık \| Talep indirimi \| Dahil talep / SMS \| Öncelik \| Vitrinde telefon \| Ağırlık
+- **Adım:** Sayfayı yenile (F5): aynı içerik gelir, oturum düşmez
+- **Adım:** Erişimi olmayan hesapla (YÖNETİCİ, KURUL, DENETÇİ, GÖREVLİ, KİRACI) aynı adresi aç → `/dashboard/forbidden` sayfasına yönlenmeli, kenar çubuğunda bu menü görünmemeli
+- **Beklenen:** her veri bölümü yüklenir (boşsa anlamlı boş durum mesajı; "undefined", "NaN", "null", ham JSON ya da İngilizce hata metni YOK); sayılar ve tarihler Türkçe biçimde (1.234,56 ₺ · gg.aa.yyyy); uydurma/örnek veri yok; dar ekranda (400 px) yatay kaydırma olmadan okunur.
+- **Sonuç:** http://localhost:18000/sonuc → `P-PLATFORM-PAKETLER-00`
+
+#### P-PLATFORM-PAKETLER-01 · Düğme: Paket ekle
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/paketler
+- **Adım:** "Paket ekle" düğme öğesine bas
+- **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
+- **Sonuç:** http://localhost:18000/sonuc → `P-PLATFORM-PAKETLER-01`
+
+#### P-PLATFORM-PAKETLER-02 · Düğme: Düzenle
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/paketler
+- **Adım:** "Düzenle" düğme öğesine bas
+- **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
+- **Sonuç:** http://localhost:18000/sonuc → `P-PLATFORM-PAKETLER-02`
+
+#### P-PLATFORM-PAKETLER-03 · Form: (başlık dinamik)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/paketler
+- **Adım:** Formu aç; alanlar: Ad*, Aylık ücret (TL), Talep indirimi (%), Sıralama ağırlığı, Ayda dahil talep, Aylık SMS hakkı, Sıra (* zorunlu)
+- **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
+- **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
+- **Adım:** Başarı mesajı tam olarak şu anlamda olmalı: "Paket kaydedildi"
+- **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
+- **Sonuç:** http://localhost:18000/sonuc → `P-PLATFORM-PAKETLER-03`
+
+---
+
+### /platform/yorumlar — `/platform/yorumlar`
+- Dosya: `admin/src/app/platform/yorumlar/page.tsx`
+- Panel erişimi: PlatformAdmin — Platform yönetimi (Usta & Hizmet)
+
+#### P-PLATFORM-YORUMLAR-00 · Sayfa açılışı ve ekran kontrolleri
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/yorumlar
+- **Adım:** http://localhost:3001/platform/yorumlar adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Adım:** Veri yüklenir: 
+- **Adım:** Tablo sütunları görünür ve dolu/boş durumu doğru: Tarih \| İşletme \| Puan \| Yorum \| Durum
+- **Adım:** Sayfayı yenile (F5): aynı içerik gelir, oturum düşmez
+- **Adım:** Erişimi olmayan hesapla (YÖNETİCİ, KURUL, DENETÇİ, GÖREVLİ, KİRACI) aynı adresi aç → `/dashboard/forbidden` sayfasına yönlenmeli, kenar çubuğunda bu menü görünmemeli
+- **Beklenen:** her veri bölümü yüklenir (boşsa anlamlı boş durum mesajı; "undefined", "NaN", "null", ham JSON ya da İngilizce hata metni YOK); sayılar ve tarihler Türkçe biçimde (1.234,56 ₺ · gg.aa.yyyy); uydurma/örnek veri yok; dar ekranda (400 px) yatay kaydırma olmadan okunur.
+- **Sonuç:** http://localhost:18000/sonuc → `P-PLATFORM-YORUMLAR-00`
+
+#### P-PLATFORM-YORUMLAR-01 · Düğme: Gizle
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/yorumlar
+- **Adım:** "Gizle" düğme öğesine bas
+- **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
+- **Sonuç:** http://localhost:18000/sonuc → `P-PLATFORM-YORUMLAR-01`
+
+#### P-PLATFORM-YORUMLAR-02 · Form: Yorumu gizle
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/yorumlar
+- **Adım:** Formu aç; alanlar: Gerekçe* (* zorunlu)
+- **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
+- **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
+- **Adım:** Başarı mesajı tam olarak şu anlamda olmalı: "Yorum gizlendi"
+- **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
+- **Sonuç:** http://localhost:18000/sonuc → `P-PLATFORM-YORUMLAR-02`
+
+---
+
+### /tedarikci/(auth)/giris — `/tedarikci/(auth)/giris`
+- Dosya: `admin/src/app/tedarikci/(auth)/giris/page.tsx`
+- Panel erişimi: Supplier — Tedarikçi paneli (Usta & Hizmet)
+
+#### P-TEDARIKCI-AUTH-GIRIS-00 · Sayfa açılışı ve ekran kontrolleri
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(auth)/giris
+- **Adım:** http://localhost:3001/tedarikci/(auth)/giris adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Adım:** Bağlantı (satır 14): Tedarikçi olarak kaydolun → /tedarikci/kayit
+- **Adım:** Bağlantı (satır 122): Şifremi unuttum / hesabımı etkinleştir → /activate
+- **Adım:** Sayfayı yenile (F5): aynı içerik gelir, oturum düşmez
+- **Adım:** Erişimi olmayan hesapla (YÖNETİCİ, KURUL, DENETÇİ, GÖREVLİ, KİRACI) aynı adresi aç → `/dashboard/forbidden` sayfasına yönlenmeli, kenar çubuğunda bu menü görünmemeli
+- **Beklenen:** her veri bölümü yüklenir (boşsa anlamlı boş durum mesajı; "undefined", "NaN", "null", ham JSON ya da İngilizce hata metni YOK); sayılar ve tarihler Türkçe biçimde (1.234,56 ₺ · gg.aa.yyyy); uydurma/örnek veri yok; dar ekranda (400 px) yatay kaydırma olmadan okunur.
+- **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-AUTH-GIRIS-00`
+
+---
+
+### /tedarikci/(auth)/kayit — `/tedarikci/(auth)/kayit`
+- Dosya: `admin/src/app/tedarikci/(auth)/kayit/page.tsx`
+- Panel erişimi: Supplier — Tedarikçi paneli (Usta & Hizmet)
+
+#### P-TEDARIKCI-AUTH-KAYIT-00 · Sayfa açılışı ve ekran kontrolleri
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(auth)/kayit
+- **Adım:** http://localhost:3001/tedarikci/(auth)/kayit adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Adım:** Bağlantı (satır 191): Giriş yapın → /tedarikci/giris
+- **Adım:** Sayfayı yenile (F5): aynı içerik gelir, oturum düşmez
+- **Adım:** Erişimi olmayan hesapla (YÖNETİCİ, KURUL, DENETÇİ, GÖREVLİ, KİRACI) aynı adresi aç → `/dashboard/forbidden` sayfasına yönlenmeli, kenar çubuğunda bu menü görünmemeli
+- **Beklenen:** her veri bölümü yüklenir (boşsa anlamlı boş durum mesajı; "undefined", "NaN", "null", ham JSON ya da İngilizce hata metni YOK); sayılar ve tarihler Türkçe biçimde (1.234,56 ₺ · gg.aa.yyyy); uydurma/örnek veri yok; dar ekranda (400 px) yatay kaydırma olmadan okunur.
+- **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-AUTH-KAYIT-00`
+
+---
+
+### /tedarikci/(panel) — `/tedarikci/(panel)`
+- Dosya: `admin/src/app/tedarikci/(panel)/page.tsx`
+- Panel erişimi: Supplier — Tedarikçi paneli (Usta & Hizmet)
+
+#### P-TEDARIKCI-PANEL-00 · Sayfa açılışı ve ekran kontrolleri
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)
+- **Adım:** http://localhost:3001/tedarikci/(panel) adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Adım:** Veri yüklenir: `GET /market/supplier/me` (marketplace)
+- **Adım:** Kart (satır 43): Tedarikçi hesabınızı oluşturun
+- **Adım:** Bilgi notu (satır 46): Havuzda görünmek için hesap bilgilerinizi girip vergi levhası (ya da oda kaydı) ve kimlik 
+- **Adım:** Kart (satır 70): Hesap durumu
+- **Adım:** Bilgi notu (satır 73): İnceleme notu: {acc.status_reason}
+- **Adım:** Bilgi notu (satır 74): Bilgilerinizi ve belgelerinizi tamamlayıp incelemeye gönderin. İnceleme sürerken bilgiler 
+- **Adım:** Bilgi notu (satır 75): Hesabınız inceleniyor. Sonuç size bildirilecek.
+- **Adım:** Kart (satır 80): Hesap bilgileri
+- **Adım:** Veri yüklenir: `GET /market/supplier/documents` (marketplace)
+- **Adım:** Kart (satır 103): Belgeler
+- **Adım:** Dosya seçme (satır 111)
+- **Adım:** Tablo sütunları görünür ve dolu/boş durumu doğru: Tür \| Dosya \| Durum \| Yüklendi
+- **Adım:** Sayfayı yenile (F5): aynı içerik gelir, oturum düşmez
+- **Adım:** Erişimi olmayan hesapla (YÖNETİCİ, KURUL, DENETÇİ, GÖREVLİ, KİRACI) aynı adresi aç → `/dashboard/forbidden` sayfasına yönlenmeli, kenar çubuğunda bu menü görünmemeli
+- **Beklenen:** her veri bölümü yüklenir (boşsa anlamlı boş durum mesajı; "undefined", "NaN", "null", ham JSON ya da İngilizce hata metni YOK); sayılar ve tarihler Türkçe biçimde (1.234,56 ₺ · gg.aa.yyyy); uydurma/örnek veri yok; dar ekranda (400 px) yatay kaydırma olmadan okunur.
+- **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-00`
+
+#### P-TEDARIKCI-PANEL-01 · Düğme: Hesabı oluştur
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)
+- **Adım:** "Hesabı oluştur" düğme öğesine bas
+- **Beklenen (yazma):** `POST /market/supplier/account` (marketplace, `services/marketplace/main.go:102`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+  - Sunucu yetkisi: Supplier
+  - **Veritabanı (Adminer → SQL komutu):**
+    - `mp_supplier_accounts` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM mp_supplier_accounts ORDER BY xmin::text::bigint DESC LIMIT 5;`
+  - **İşlem kaydı:** `SELECT created_at, action, entity_type, status_code, user_id FROM audit_logs WHERE screen = '/api/v1/market/supplier/account' ORDER BY created_at DESC LIMIT 5;` → `CREATE`, 2xx (yetkisiz denemede `DENIED`, 403)
+  - **Bildirim:** üretmez — `notifications` tablosuna bu işlemle yeni satır EKLENMEMELİ.
+  - **Etkisi görülmeli:** Panel `/tedarikci/(panel)/bakiye`, Panel `/tedarikci/(panel)/isletmeler`, Panel `/tedarikci/(panel)/talepler/[id]`, Panel `/tedarikci/(panel)/talepler`, Panel `/tedarikci/(panel)`
+- **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-01`
+
+#### P-TEDARIKCI-PANEL-02 · Düğme: Kaydet
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)
+- **Adım:** "Kaydet" düğme öğesine bas
+- **Beklenen (yazma):** `PUT /market/supplier/account` (marketplace, `services/marketplace/main.go:103`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+  - Sunucu yetkisi: Supplier
+  - **Veritabanı (Adminer → SQL komutu):**
+    - `mp_supplier_accounts` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM mp_supplier_accounts ORDER BY xmin::text::bigint DESC LIMIT 5;`
+  - **İşlem kaydı:** `SELECT created_at, action, entity_type, status_code, user_id FROM audit_logs WHERE screen = '/api/v1/market/supplier/account' ORDER BY created_at DESC LIMIT 5;` → `UPDATE`, 2xx (yetkisiz denemede `DENIED`, 403)
+  - **Bildirim:** üretmez — `notifications` tablosuna bu işlemle yeni satır EKLENMEMELİ.
+  - **Etkisi görülmeli:** Panel `/tedarikci/(panel)/bakiye`, Panel `/tedarikci/(panel)/isletmeler`, Panel `/tedarikci/(panel)/talepler/[id]`, Panel `/tedarikci/(panel)/talepler`, Panel `/tedarikci/(panel)`
+- **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-02`
+
+#### P-TEDARIKCI-PANEL-03 · Düğme: Kaydet ve incelemeye gönder
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)
+- **Adım:** "Kaydet ve incelemeye gönder" düğme öğesine bas
+- **Beklenen (yazma):** `PUT /market/supplier/account` (marketplace, `services/marketplace/main.go:103`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+  - Sunucu yetkisi: Supplier
+  - **Veritabanı (Adminer → SQL komutu):**
+    - `mp_supplier_accounts` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM mp_supplier_accounts ORDER BY xmin::text::bigint DESC LIMIT 5;`
+  - **İşlem kaydı:** `SELECT created_at, action, entity_type, status_code, user_id FROM audit_logs WHERE screen = '/api/v1/market/supplier/account' ORDER BY created_at DESC LIMIT 5;` → `UPDATE`, 2xx (yetkisiz denemede `DENIED`, 403)
+  - **Bildirim:** üretmez — `notifications` tablosuna bu işlemle yeni satır EKLENMEMELİ.
+  - **Etkisi görülmeli:** Panel `/tedarikci/(panel)/bakiye`, Panel `/tedarikci/(panel)/isletmeler`, Panel `/tedarikci/(panel)/talepler/[id]`, Panel `/tedarikci/(panel)/talepler`, Panel `/tedarikci/(panel)`
+- **Beklenen (yazma):** `POST /market/supplier/account/submit` (marketplace, `services/marketplace/main.go:104`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+  - Sunucu yetkisi: Supplier
+  - **Veritabanı (Adminer → SQL komutu):**
+    - `mp_supplier_accounts` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM mp_supplier_accounts ORDER BY xmin::text::bigint DESC LIMIT 5;`
+  - **İşlem kaydı:** `SELECT created_at, action, entity_type, status_code, user_id FROM audit_logs WHERE screen = '/api/v1/market/supplier/account/submit' ORDER BY created_at DESC LIMIT 5;` → `CREATE`, 2xx (yetkisiz denemede `DENIED`, 403)
+  - **Bildirim:** üretmez — `notifications` tablosuna bu işlemle yeni satır EKLENMEMELİ.
+  - **Etkisi görülmeli:** Panel `/tedarikci/(panel)/bakiye`, Panel `/tedarikci/(panel)/isletmeler`, Panel `/tedarikci/(panel)/talepler/[id]`, Panel `/tedarikci/(panel)/talepler`, Panel `/tedarikci/(panel)`
+- **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-03`
+
+#### P-TEDARIKCI-PANEL-04 · Düğme: Yükle
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)
+- **Adım:** "Yükle" düğme öğesine bas
+- **Beklenen (yazma):** `POST /market/supplier/documents` (marketplace, `services/marketplace/main.go:106`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+  - Sunucu yetkisi: Supplier
+  - Dosya depoya yazılır; ilgili ekranda indirilebilir olmalı
+  - **Veritabanı (Adminer → SQL komutu):**
+    - `mp_account_documents` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM mp_account_documents ORDER BY xmin::text::bigint DESC LIMIT 5;`
+  - **İşlem kaydı:** `SELECT created_at, action, entity_type, status_code, user_id FROM audit_logs WHERE screen = '/api/v1/market/supplier/documents' ORDER BY created_at DESC LIMIT 5;` → `CREATE`, 2xx (yetkisiz denemede `DENIED`, 403)
+  - **Bildirim:** üretmez — `notifications` tablosuna bu işlemle yeni satır EKLENMEMELİ.
+  - **Etkisi görülmeli:** Panel `/tedarikci/(panel)`
+- **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-04`
+
+#### P-TEDARIKCI-PANEL-05 · Düğme: İndir
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)
+- **Adım:** "İndir" düğme öğesine bas
+- **Beklenen (okuma):** `GET /market/supplier/documents/:id/file` (marketplace) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
+- **Beklenen (dosya):** dosya iner/açılır; boş ya da bozuk değildir (PDF ise sayfalar okunur).
+- **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-05`
+
+#### P-TEDARIKCI-PANEL-06 · Düğme: Sil
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)
+- **Adım:** "Sil" düğme öğesine bas (onay penceresi çıkarsa önce Vazgeç → hiçbir şey değişmemeli; sonra tekrar bas ve onayla)
+- **Beklenen (yazma):** `DELETE /market/supplier/documents/:id` (marketplace, `services/marketplace/main.go:108`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+  - Sunucu yetkisi: Supplier
+  - Dosya depoya yazılır; ilgili ekranda indirilebilir olmalı
+  - **Veritabanı (Adminer → SQL komutu):**
+    - `mp_account_documents` — satır silinmiş olmalı: `SELECT xmin, * FROM mp_account_documents ORDER BY xmin::text::bigint DESC LIMIT 5;`
+  - **İşlem kaydı:** `SELECT created_at, action, entity_type, status_code, user_id FROM audit_logs WHERE screen = '/api/v1/market/supplier/documents/:id' ORDER BY created_at DESC LIMIT 5;` → `DELETE`, 2xx (yetkisiz denemede `DENIED`, 403)
+  - **Bildirim:** üretmez — `notifications` tablosuna bu işlemle yeni satır EKLENMEMELİ.
+  - **Etkisi görülmeli:** Panel `/tedarikci/(panel)`
+- **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-06`
+
+---
+
+### /tedarikci/(panel)/bakiye — `/tedarikci/(panel)/bakiye`
+- Dosya: `admin/src/app/tedarikci/(panel)/bakiye/page.tsx`
+- Panel erişimi: Supplier — Tedarikçi paneli (Usta & Hizmet)
+
+#### P-TEDARIKCI-PANEL-BAKIYE-00 · Sayfa açılışı ve ekran kontrolleri
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)/bakiye
+- **Adım:** http://localhost:3001/tedarikci/(panel)/bakiye adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Adım:** Veri yüklenir: `GET /market/supplier/wallet` (marketplace)
+- **Adım:** Veri yüklenir: `GET /market/meta` (marketplace)
+- **Adım:** Veri yüklenir: `GET /market/supplier/me` (marketplace)
+- **Adım:** Bilgi notu (satır 41): Ödeme sonucu: {params.get("message")}
+- **Adım:** Bilgi notu (satır 55): Üyeliğiniz kapatıldı; bakiye yüklenemez ve paket değiştirilemez.
+- **Adım:** Kart (satır 56): Bakiye yükle
+- **Adım:** Bilgi notu (satır 63): Kartla ödeme bu kurulumda yapılandırılmamış.
+- **Adım:** Kart (satır 65): Paket
+- **Adım:** Kart (satır 91): Hareketler
+- **Adım:** Tablo sütunları görünür ve dolu/boş durumu doğru: Tarih \| Tür \| Açıklama \| Tutar \| Sonraki bakiye
+- **Adım:** Sayfayı yenile (F5): aynı içerik gelir, oturum düşmez
+- **Adım:** Erişimi olmayan hesapla (YÖNETİCİ, KURUL, DENETÇİ, GÖREVLİ, KİRACI) aynı adresi aç → `/dashboard/forbidden` sayfasına yönlenmeli, kenar çubuğunda bu menü görünmemeli
+- **Beklenen:** her veri bölümü yüklenir (boşsa anlamlı boş durum mesajı; "undefined", "NaN", "null", ham JSON ya da İngilizce hata metni YOK); sayılar ve tarihler Türkçe biçimde (1.234,56 ₺ · gg.aa.yyyy); uydurma/örnek veri yok; dar ekranda (400 px) yatay kaydırma olmadan okunur.
+- **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-BAKIYE-00`
+
+#### P-TEDARIKCI-PANEL-BAKIYE-01 · Düğme: Kartla öde
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)/bakiye
+- **Adım:** "Kartla öde" düğme öğesine bas
+- **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
+- **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-BAKIYE-01`
+
+#### P-TEDARIKCI-PANEL-BAKIYE-02 · Düğme: Bu pakete geç
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)/bakiye
+- **Adım:** "Bu pakete geç" düğme öğesine bas
+- **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
+- **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-BAKIYE-02`
+
+#### P-TEDARIKCI-PANEL-BAKIYE-03 · Düğme: Değişikliği iptal et
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)/bakiye
+- **Adım:** "Değişikliği iptal et" düğme öğesine bas
+- **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
+- **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-BAKIYE-03`
+
+#### P-TEDARIKCI-PANEL-BAKIYE-04 · Düğme: Önceki
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)/bakiye
+- **Adım:** "Önceki" düğme öğesine bas
+- **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
+- **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-BAKIYE-04`
+
+#### P-TEDARIKCI-PANEL-BAKIYE-05 · Düğme: Sonraki
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)/bakiye
+- **Adım:** "Sonraki" düğme öğesine bas
+- **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
+- **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-BAKIYE-05`
+
+---
+
+### /tedarikci/(panel)/bildirimler — `/tedarikci/(panel)/bildirimler`
+- Dosya: `admin/src/app/tedarikci/(panel)/bildirimler/page.tsx`
+- Panel erişimi: Supplier — Tedarikçi paneli (Usta & Hizmet)
+
+#### P-TEDARIKCI-PANEL-BILDIRIMLER-00 · Sayfa açılışı ve ekran kontrolleri
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)/bildirimler
+- **Adım:** http://localhost:3001/tedarikci/(panel)/bildirimler adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Adım:** Veri yüklenir: `GET /market/supplier/notifications` (marketplace)
+- **Adım:** Sayfayı yenile (F5): aynı içerik gelir, oturum düşmez
+- **Adım:** Erişimi olmayan hesapla (YÖNETİCİ, KURUL, DENETÇİ, GÖREVLİ, KİRACI) aynı adresi aç → `/dashboard/forbidden` sayfasına yönlenmeli, kenar çubuğunda bu menü görünmemeli
+- **Beklenen:** her veri bölümü yüklenir (boşsa anlamlı boş durum mesajı; "undefined", "NaN", "null", ham JSON ya da İngilizce hata metni YOK); sayılar ve tarihler Türkçe biçimde (1.234,56 ₺ · gg.aa.yyyy); uydurma/örnek veri yok; dar ekranda (400 px) yatay kaydırma olmadan okunur.
+- **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-BILDIRIMLER-00`
+
+#### P-TEDARIKCI-PANEL-BILDIRIMLER-01 · Düğme: Tümünü okundu say
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)/bildirimler
+- **Adım:** "Tümünü okundu say" düğme öğesine bas
+- **Beklenen (yazma):** `POST /market/supplier/notifications/read` (marketplace, `services/marketplace/main.go:121`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+  - Sunucu yetkisi: Supplier
+  - **Veritabanı (Adminer → SQL komutu):**
+    - `notification_reads` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM notification_reads ORDER BY xmin::text::bigint DESC LIMIT 5;`
+  - **İşlem kaydı:** `SELECT created_at, action, entity_type, status_code, user_id FROM audit_logs WHERE screen = '/api/v1/market/supplier/notifications/read' ORDER BY created_at DESC LIMIT 5;` → `CREATE`, 2xx (yetkisiz denemede `DENIED`, 403)
+  - **Bildirim:** üretmez — `notifications` tablosuna bu işlemle yeni satır EKLENMEMELİ.
+  - **Etkisi görülmeli:** Panel `/dashboard/inbox`, Panel `/tedarikci/(panel)/bildirimler`, Sakin `main_screen`, Sakin `notifications_screen`, Yön.mobil `inbox_screen`, Yön.mobil `main_screen`
+- **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-BILDIRIMLER-01`
+
+#### P-TEDARIKCI-PANEL-BILDIRIMLER-02 · Düğme: Okundu
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)/bildirimler
+- **Adım:** "Okundu" düğme öğesine bas
+- **Beklenen (yazma):** `POST /market/supplier/notifications/read` (marketplace, `services/marketplace/main.go:121`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+  - Sunucu yetkisi: Supplier
+  - **Veritabanı (Adminer → SQL komutu):**
+    - `notification_reads` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM notification_reads ORDER BY xmin::text::bigint DESC LIMIT 5;`
+  - **İşlem kaydı:** `SELECT created_at, action, entity_type, status_code, user_id FROM audit_logs WHERE screen = '/api/v1/market/supplier/notifications/read' ORDER BY created_at DESC LIMIT 5;` → `CREATE`, 2xx (yetkisiz denemede `DENIED`, 403)
+  - **Bildirim:** üretmez — `notifications` tablosuna bu işlemle yeni satır EKLENMEMELİ.
+  - **Etkisi görülmeli:** Panel `/dashboard/inbox`, Panel `/tedarikci/(panel)/bildirimler`, Sakin `main_screen`, Sakin `notifications_screen`, Yön.mobil `inbox_screen`, Yön.mobil `main_screen`
+- **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-BILDIRIMLER-02`
+
+---
+
+### /tedarikci/(panel)/isletmeler — `/tedarikci/(panel)/isletmeler`
+- Dosya: `admin/src/app/tedarikci/(panel)/isletmeler/page.tsx`
+- Panel erişimi: Supplier — Tedarikçi paneli (Usta & Hizmet)
+
+#### P-TEDARIKCI-PANEL-ISLETMELER-00 · Sayfa açılışı ve ekran kontrolleri
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)/isletmeler
+- **Adım:** http://localhost:3001/tedarikci/(panel)/isletmeler adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Adım:** Veri yüklenir: `GET /market/supplier/businesses` (marketplace)
+- **Adım:** Veri yüklenir: `GET /market/supplier/me` (marketplace)
+- **Adım:** Bağlantı (satır 15): Yeni işletme → /tedarikci/isletmeler/yeni
+- **Adım:** Bilgi notu (satır 16): Önce Hesabım sayfasından tedarikçi hesabınızı oluşturun.
+- **Adım:** Bilgi notu (satır 18): İşletmeleriniz, hesabınız ve işletme bilgileri SiteEksen tarafından onaylandıktan sonra ha
+- **Adım:** Tablo sütunları görünür ve dolu/boş durumu doğru: İşletme \| Yer \| Hizmet alanı \| Durum \| Puan
+- **Adım:** Bağlantı (satır 25): {b.name} → `/tedarikci/isletmeler/${b.id
+- **Adım:** Sayfayı yenile (F5): aynı içerik gelir, oturum düşmez
+- **Adım:** Erişimi olmayan hesapla (YÖNETİCİ, KURUL, DENETÇİ, GÖREVLİ, KİRACI) aynı adresi aç → `/dashboard/forbidden` sayfasına yönlenmeli, kenar çubuğunda bu menü görünmemeli
+- **Beklenen:** her veri bölümü yüklenir (boşsa anlamlı boş durum mesajı; "undefined", "NaN", "null", ham JSON ya da İngilizce hata metni YOK); sayılar ve tarihler Türkçe biçimde (1.234,56 ₺ · gg.aa.yyyy); uydurma/örnek veri yok; dar ekranda (400 px) yatay kaydırma olmadan okunur.
+- **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-ISLETMELER-00`
+
+---
+
+### /tedarikci/(panel)/isletmeler/[id] — `/tedarikci/(panel)/isletmeler/[id]`
+- Dosya: `admin/src/app/tedarikci/(panel)/isletmeler/[id]/page.tsx`
+- Panel erişimi: Supplier — Tedarikçi paneli (Usta & Hizmet)
+
+#### P-TEDARIKCI-PANEL-ISLETMELER-I-00 · Sayfa açılışı ve ekran kontrolleri
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)/isletmeler/… (listeden bir kayda tıklanarak açılır)
+- **Adım:** http://localhost:3001/tedarikci/(panel)/isletmeler/… (listeden bir kayda tıklanarak açılır) adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Adım:** Veri yüklenir: `GET /market/supplier/businesses/:id` (marketplace)
+- **Adım:** Veri yüklenir: `GET /market/meta` (marketplace)
+- **Adım:** Bilgi notu (satır 56): İnceleme notu: {existing.review_note}
+- **Adım:** Bilgi notu (satır 57): İşletme taslakta; havuzda görünmesi için incelemeye gönderin.
+- **Adım:** Kart (satır 58): Bilgiler
+- **Adım:** Veri yüklenir: `GET /market/supplier/businesses/:id/services` (marketplace)
+- **Adım:** Kart (satır 141): Hizmet ve ürünler
+- **Adım:** Dosya seçme (satır 144)
+- **Adım:** Tablo sütunları görünür ve dolu/boş durumu doğru: Hizmet \| Fiyat \| Durum
+- **Adım:** Sayfayı yenile (F5): aynı içerik gelir, oturum düşmez
+- **Adım:** Erişimi olmayan hesapla (YÖNETİCİ, KURUL, DENETÇİ, GÖREVLİ, KİRACI) aynı adresi aç → `/dashboard/forbidden` sayfasına yönlenmeli, kenar çubuğunda bu menü görünmemeli
+- **Beklenen:** her veri bölümü yüklenir (boşsa anlamlı boş durum mesajı; "undefined", "NaN", "null", ham JSON ya da İngilizce hata metni YOK); sayılar ve tarihler Türkçe biçimde (1.234,56 ₺ · gg.aa.yyyy); uydurma/örnek veri yok; dar ekranda (400 px) yatay kaydırma olmadan okunur.
+- **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-ISLETMELER-I-00`
+
+#### P-TEDARIKCI-PANEL-ISLETMELER-I-01 · Düğme: Kaydet
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)/isletmeler/… (listeden bir kayda tıklanarak açılır)
+- **Adım:** "Kaydet" düğme öğesine bas
+- **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
+- **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-ISLETMELER-I-01`
+
+#### P-TEDARIKCI-PANEL-ISLETMELER-I-02 · Düğme: İncelemeye gönder
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)/isletmeler/… (listeden bir kayda tıklanarak açılır)
+- **Adım:** "İncelemeye gönder" düğme öğesine bas
+- **Beklenen (yazma):** `POST /market/supplier/businesses/:id/submit` (marketplace, `services/marketplace/main.go:113`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+  - Sunucu yetkisi: Supplier
+  - **Veritabanı (Adminer → SQL komutu):**
+    - `mp_businesses` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM mp_businesses ORDER BY xmin::text::bigint DESC LIMIT 5;`
+  - **İşlem kaydı:** `SELECT created_at, action, entity_type, status_code, user_id FROM audit_logs WHERE screen = '/api/v1/market/supplier/businesses/:id/submit' ORDER BY created_at DESC LIMIT 5;` → `CREATE`, 2xx (yetkisiz denemede `DENIED`, 403)
+  - **Bildirim:** üretmez — `notifications` tablosuna bu işlemle yeni satır EKLENMEMELİ.
+  - **Etkisi görülmeli:** Panel `/tedarikci/(panel)/isletmeler/[id]`, Panel `/tedarikci/(panel)/isletmeler`, Panel `/tedarikci/(panel)/puanlar`, Panel `/tedarikci/(panel)/talepler/[id]`, Panel `/tedarikci/(panel)/talepler`, Sakin `market_request_screens`, Yön.mobil `site_market_screens`
+- **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-ISLETMELER-I-02`
+
+#### P-TEDARIKCI-PANEL-ISLETMELER-I-03 · Düğme: İşletmeyi kapat
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)/isletmeler/… (listeden bir kayda tıklanarak açılır)
+- **Adım:** "İşletmeyi kapat" düğme öğesine bas
+- **Beklenen (yazma):** `POST /market/supplier/businesses/:id/close` (marketplace, `services/marketplace/main.go:114`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+  - Sunucu yetkisi: Supplier
+  - **Veritabanı (Adminer → SQL komutu):**
+    - `mp_businesses` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM mp_businesses ORDER BY xmin::text::bigint DESC LIMIT 5;`
+  - **İşlem kaydı:** `SELECT created_at, action, entity_type, status_code, user_id FROM audit_logs WHERE screen = '/api/v1/market/supplier/businesses/:id/close' ORDER BY created_at DESC LIMIT 5;` → `CREATE`, 2xx (yetkisiz denemede `DENIED`, 403)
+  - **Bildirim:** üretmez — `notifications` tablosuna bu işlemle yeni satır EKLENMEMELİ.
+  - **Etkisi görülmeli:** Panel `/tedarikci/(panel)/isletmeler/[id]`, Panel `/tedarikci/(panel)/isletmeler`, Panel `/tedarikci/(panel)/puanlar`, Panel `/tedarikci/(panel)/talepler/[id]`, Panel `/tedarikci/(panel)/talepler`, Sakin `market_request_screens`, Yön.mobil `site_market_screens`
+- **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-ISLETMELER-I-03`
+
+#### P-TEDARIKCI-PANEL-ISLETMELER-I-04 · Düğme: Hizmet ekle
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)/isletmeler/… (listeden bir kayda tıklanarak açılır)
+- **Adım:** "Hizmet ekle" düğme öğesine bas
+- **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
+- **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-ISLETMELER-I-04`
+
+#### P-TEDARIKCI-PANEL-ISLETMELER-I-05 · Seçim: (başlık dinamik)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)/isletmeler/… (listeden bir kayda tıklanarak açılır)
+- **Adım:** Seçimi değiştir (her seçeneği en az bir kez dene); liste/içerik seçime göre değişmeli
+- **Beklenen (yazma):** `POST /market/supplier/services/:id/photo` (marketplace, `services/marketplace/main.go:119`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+  - Sunucu yetkisi: Supplier
+  - Dosya depoya yazılır; ilgili ekranda indirilebilir olmalı
+  - **Veritabanı (Adminer → SQL komutu):**
+    - `mp_business_services` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM mp_business_services ORDER BY xmin::text::bigint DESC LIMIT 5;`
+  - **İşlem kaydı:** `SELECT created_at, action, entity_type, status_code, user_id FROM audit_logs WHERE screen = '/api/v1/market/supplier/services/:id/photo' ORDER BY created_at DESC LIMIT 5;` → `CREATE`, 2xx (yetkisiz denemede `DENIED`, 403)
+  - **Bildirim:** üretmez — `notifications` tablosuna bu işlemle yeni satır EKLENMEMELİ.
+  - **Etkisi görülmeli:** Panel `/tedarikci/(panel)/isletmeler/[id]`
+- **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-ISLETMELER-I-05`
+
+#### P-TEDARIKCI-PANEL-ISLETMELER-I-06 · Düğme: Düzenle
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)/isletmeler/… (listeden bir kayda tıklanarak açılır)
+- **Adım:** "Düzenle" düğme öğesine bas
+- **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
+- **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-ISLETMELER-I-06`
+
+#### P-TEDARIKCI-PANEL-ISLETMELER-I-07 · Düğme: Fotoğraf
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)/isletmeler/… (listeden bir kayda tıklanarak açılır)
+- **Adım:** "Fotoğraf" düğme öğesine bas
+- **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
+- **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-ISLETMELER-I-07`
+
+#### P-TEDARIKCI-PANEL-ISLETMELER-I-08 · Düğme: Sil
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)/isletmeler/… (listeden bir kayda tıklanarak açılır)
+- **Adım:** "Sil" düğme öğesine bas (onay penceresi çıkarsa önce Vazgeç → hiçbir şey değişmemeli; sonra tekrar bas ve onayla)
+- **Beklenen (yazma):** `DELETE /market/supplier/services/:id` (marketplace, `services/marketplace/main.go:118`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+  - Sunucu yetkisi: Supplier
+  - Dosya depoya yazılır; ilgili ekranda indirilebilir olmalı
+  - **Veritabanı (Adminer → SQL komutu):**
+    - `mp_business_services` — satır silinmiş olmalı: `SELECT xmin, * FROM mp_business_services ORDER BY xmin::text::bigint DESC LIMIT 5;`
+  - **İşlem kaydı:** `SELECT created_at, action, entity_type, status_code, user_id FROM audit_logs WHERE screen = '/api/v1/market/supplier/services/:id' ORDER BY created_at DESC LIMIT 5;` → `DELETE`, 2xx (yetkisiz denemede `DENIED`, 403)
+  - **Bildirim:** üretmez — `notifications` tablosuna bu işlemle yeni satır EKLENMEMELİ.
+  - **Etkisi görülmeli:** Panel `/tedarikci/(panel)/isletmeler/[id]`
+- **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-ISLETMELER-I-08`
+
+#### P-TEDARIKCI-PANEL-ISLETMELER-I-09 · Form: (başlık dinamik)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)/isletmeler/… (listeden bir kayda tıklanarak açılır)
+- **Adım:** Formu aç; alanlar: Hizmet / ürün adı*, Açıklama, En düşük (TL), En yüksek (TL), Birim (* zorunlu)
+- **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
+- **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
+- **Adım:** Başarı mesajı tam olarak şu anlamda olmalı: "Hizmet kaydedildi"
+- **Beklenen (yazma):** `PUT /market/supplier/services/:id` (marketplace, `services/marketplace/main.go:117`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+  - Sunucu yetkisi: Supplier
+  - **Veritabanı (Adminer → SQL komutu):**
+    - `mp_business_services` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM mp_business_services ORDER BY xmin::text::bigint DESC LIMIT 5;`
+    - `mp_business_services` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM mp_business_services ORDER BY xmin::text::bigint DESC LIMIT 5;`
+  - **İşlem kaydı:** `SELECT created_at, action, entity_type, status_code, user_id FROM audit_logs WHERE screen = '/api/v1/market/supplier/services/:id' ORDER BY created_at DESC LIMIT 5;` → `UPDATE`, 2xx (yetkisiz denemede `DENIED`, 403)
+  - **Bildirim:** üretmez — `notifications` tablosuna bu işlemle yeni satır EKLENMEMELİ.
+  - **Etkisi görülmeli:** Panel `/tedarikci/(panel)/isletmeler/[id]`
+- **Beklenen (yazma):** `POST /market/supplier/businesses/:id/services` (marketplace, `services/marketplace/main.go:116`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+  - Sunucu yetkisi: Supplier
+  - **Veritabanı (Adminer → SQL komutu):**
+    - `mp_business_services` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM mp_business_services ORDER BY xmin::text::bigint DESC LIMIT 5;`
+    - `mp_business_services` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM mp_business_services ORDER BY xmin::text::bigint DESC LIMIT 5;`
+  - **İşlem kaydı:** `SELECT created_at, action, entity_type, status_code, user_id FROM audit_logs WHERE screen = '/api/v1/market/supplier/businesses/:id/services' ORDER BY created_at DESC LIMIT 5;` → `CREATE`, 2xx (yetkisiz denemede `DENIED`, 403)
+  - **Bildirim:** üretmez — `notifications` tablosuna bu işlemle yeni satır EKLENMEMELİ.
+  - **Etkisi görülmeli:** Panel `/tedarikci/(panel)/isletmeler/[id]`
+- **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-ISLETMELER-I-09`
+
+---
+
+### /tedarikci/(panel)/puanlar — `/tedarikci/(panel)/puanlar`
+- Dosya: `admin/src/app/tedarikci/(panel)/puanlar/page.tsx`
+- Panel erişimi: Supplier — Tedarikçi paneli (Usta & Hizmet)
+
+#### P-TEDARIKCI-PANEL-PUANLAR-00 · Sayfa açılışı ve ekran kontrolleri
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)/puanlar
+- **Adım:** http://localhost:3001/tedarikci/(panel)/puanlar adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Adım:** Veri yüklenir: `GET /market/supplier/reviews` (marketplace)
+- **Adım:** Kart (satır 26): ${r.business_name ?? ""} — ${"★".repeat(r.rating)}${"☆".repeat(5 - r.rating)}
+- **Adım:** Bilgi notu (satır 31): Platform bu yorumu gizledi: {r.hidden_reason}
+- **Adım:** Sayfayı yenile (F5): aynı içerik gelir, oturum düşmez
+- **Adım:** Erişimi olmayan hesapla (YÖNETİCİ, KURUL, DENETÇİ, GÖREVLİ, KİRACI) aynı adresi aç → `/dashboard/forbidden` sayfasına yönlenmeli, kenar çubuğunda bu menü görünmemeli
+- **Beklenen:** her veri bölümü yüklenir (boşsa anlamlı boş durum mesajı; "undefined", "NaN", "null", ham JSON ya da İngilizce hata metni YOK); sayılar ve tarihler Türkçe biçimde (1.234,56 ₺ · gg.aa.yyyy); uydurma/örnek veri yok; dar ekranda (400 px) yatay kaydırma olmadan okunur.
+- **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-PUANLAR-00`
+
+#### P-TEDARIKCI-PANEL-PUANLAR-01 · Düğme: Yanıtla
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)/puanlar
+- **Adım:** "Yanıtla" düğme öğesine bas
+- **Beklenen (yazma):** `POST /market/supplier/reviews/:id/reply` (marketplace, `services/marketplace/main.go:134`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+  - Sunucu yetkisi: Supplier
+  - Veritabanı tetikleyicileri çalışır: `mp_reviews_guard`, `mp_reviews_rating_refresh` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
+  - **Veritabanı (Adminer → SQL komutu):**
+    - `mp_reviews` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM mp_reviews ORDER BY xmin::text::bigint DESC LIMIT 5;`
+  - **İşlem kaydı:** `SELECT created_at, action, entity_type, status_code, user_id FROM audit_logs WHERE screen = '/api/v1/market/supplier/reviews/:id/reply' ORDER BY created_at DESC LIMIT 5;` → `CREATE`, 2xx (yetkisiz denemede `DENIED`, 403)
+  - **Bildirim:** üretmez — `notifications` tablosuna bu işlemle yeni satır EKLENMEMELİ.
+  - **Etkisi görülmeli:** Panel `/tedarikci/(panel)/puanlar`, Panel `/tedarikci/(panel)/talepler/[id]`, Sakin `market_request_screens`, Yön.mobil `site_market_screens`
+- **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-PUANLAR-01`
+
+---
+
+### /tedarikci/(panel)/talepler — `/tedarikci/(panel)/talepler`
+- Dosya: `admin/src/app/tedarikci/(panel)/talepler/page.tsx`
+- Panel erişimi: Supplier — Tedarikçi paneli (Usta & Hizmet)
+
+#### P-TEDARIKCI-PANEL-TALEPLER-00 · Sayfa açılışı ve ekran kontrolleri
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)/talepler
+- **Adım:** http://localhost:3001/tedarikci/(panel)/talepler adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Adım:** Veri yüklenir: `GET /market/supplier/requests` (marketplace)
+- **Adım:** Bilgi notu (satır 32): Hesabınız onaylanmadan talep kabul edemezsiniz.
+- **Adım:** Kart (satır 35): Henüz talep yok
+- **Adım:** Bağlantı (satır 65): Teklif, yazışma ve iletişim → → `/tedarikci/talepler/${r.id
+- **Adım:** Bağlantı (satır 70): Bakiye yetersiz — bakiye yükle → → /tedarikci/bakiye
+- **Adım:** Bağlantı (satır 73): Önizleme → → `/tedarikci/talepler/${r.id
+- **Adım:** Sayfayı yenile (F5): aynı içerik gelir, oturum düşmez
+- **Adım:** Erişimi olmayan hesapla (YÖNETİCİ, KURUL, DENETÇİ, GÖREVLİ, KİRACI) aynı adresi aç → `/dashboard/forbidden` sayfasına yönlenmeli, kenar çubuğunda bu menü görünmemeli
+- **Beklenen:** her veri bölümü yüklenir (boşsa anlamlı boş durum mesajı; "undefined", "NaN", "null", ham JSON ya da İngilizce hata metni YOK); sayılar ve tarihler Türkçe biçimde (1.234,56 ₺ · gg.aa.yyyy); uydurma/örnek veri yok; dar ekranda (400 px) yatay kaydırma olmadan okunur.
+- **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-TALEPLER-00`
+
+#### P-TEDARIKCI-PANEL-TALEPLER-01 · Düğme: Kabul et
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)/talepler
+- **Adım:** "Kabul et" düğme öğesine bas
+- **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
+- **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-TALEPLER-01`
+
+#### P-TEDARIKCI-PANEL-TALEPLER-02 · Form: Talebi kabul et
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)/talepler
+- **Adım:** Formu aç; alanlar:  (* zorunlu)
+- **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
+- **Beklenen (yazma):** `POST /market/supplier/requests/:id/accept` (marketplace, `services/marketplace/main.go:124`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+  - Sunucu yetkisi: Supplier
+  - Veritabanı tetikleyicileri çalışır: `mp_requests_active_property`, `mp_wallet_ledger_no_change` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
+  - **Veritabanı (Adminer → SQL komutu):**
+    - `mp_wallet_ledger` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM mp_wallet_ledger ORDER BY xmin::text::bigint DESC LIMIT 5;`
+    - `mp_request_dispatch` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM mp_request_dispatch ORDER BY xmin::text::bigint DESC LIMIT 5;`
+    - `mp_requests` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM mp_requests ORDER BY xmin::text::bigint DESC LIMIT 5;`
+    - `mp_supplier_accounts` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM mp_supplier_accounts ORDER BY xmin::text::bigint DESC LIMIT 5;`
+  - **İşlem kaydı:** `SELECT created_at, action, entity_type, status_code, user_id FROM audit_logs WHERE screen = '/api/v1/market/supplier/requests/:id/accept' ORDER BY created_at DESC LIMIT 5;` → `CREATE`, 2xx (yetkisiz denemede `DENIED`, 403)
+  - **Bildirim:** üretmez — `notifications` tablosuna bu işlemle yeni satır EKLENMEMELİ.
+  - **Etkisi görülmeli:** Panel `/dashboard/settings`, Panel `/tedarikci/(panel)/bakiye`, Panel `/tedarikci/(panel)/isletmeler`, Panel `/tedarikci/(panel)/talepler/[id]`, Panel `/tedarikci/(panel)/talepler`, Panel `/tedarikci/(panel)`, Sakin `market_request_screens`, Yön.mobil `site_market_screens`, Yön.mobil `site_settings_screen`
+- **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-TALEPLER-02`
+
+---
+
+### /tedarikci/(panel)/talepler/[id] — `/tedarikci/(panel)/talepler/[id]`
+- Dosya: `admin/src/app/tedarikci/(panel)/talepler/[id]/page.tsx`
+- Panel erişimi: Supplier — Tedarikçi paneli (Usta & Hizmet)
+
+#### P-TEDARIKCI-PANEL-TALEPLER-ID-00 · Sayfa açılışı ve ekran kontrolleri
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)/talepler/… (listeden bir kayda tıklanarak açılır)
+- **Adım:** http://localhost:3001/tedarikci/(panel)/talepler/… (listeden bir kayda tıklanarak açılır) adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Adım:** Veri yüklenir: `GET /market/supplier/requests/:id` (marketplace)
+- **Adım:** Bağlantı (satır 23): ← Talepler → /tedarikci/talepler
+- **Adım:** Kart (satır 25): Talep
+- **Adım:** Kart (satır 46): Alıcının iletişim bilgisi
+- **Adım:** Bağlantı (satır 50): {r.contact.phone} → `tel:${r.contact.phone
+- **Adım:** Bilgi notu (satır 58): Alıcının adı, telefonu ve adresi talebi kabul ettiğinizde açılır.{" "} {r.status === "OPEN
+- **Adım:** Bağlantı (satır 66): Bakiye yetersiz — bakiye yükle → /tedarikci/bakiye
+- **Adım:** Veri yüklenir: `GET /market/supplier/requests/:id/deal` (marketplace)
+- **Adım:** Kart (satır 37): Teklifiniz
+- **Adım:** Kart (satır 78): İş
+- **Adım:** Bilgi notu (satır 87): Alıcının onayı bekleniyor; süresinde yanıt vermezse iş tamamlanmış sayılır.
+- **Adım:** Bilgi notu (satır 88): Alıcının itirazı: {j.dispute_note}
+- **Adım:** Veri yüklenir: `GET /market/supplier/requests/:id/messages` (marketplace)
+- **Adım:** Kart (satır 102): Alıcıyla yazışma
+- **Adım:** Kart (satır 132): Geçersiz talep bildiriminiz
+- **Adım:** Kart (satır 142): Talep geçersiz mi?
+- **Adım:** Sayfayı yenile (F5): aynı içerik gelir, oturum düşmez
+- **Adım:** Erişimi olmayan hesapla (YÖNETİCİ, KURUL, DENETÇİ, GÖREVLİ, KİRACI) aynı adresi aç → `/dashboard/forbidden` sayfasına yönlenmeli, kenar çubuğunda bu menü görünmemeli
+- **Beklenen:** her veri bölümü yüklenir (boşsa anlamlı boş durum mesajı; "undefined", "NaN", "null", ham JSON ya da İngilizce hata metni YOK); sayılar ve tarihler Türkçe biçimde (1.234,56 ₺ · gg.aa.yyyy); uydurma/örnek veri yok; dar ekranda (400 px) yatay kaydırma olmadan okunur.
+- **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-TALEPLER-ID-00`
+
+#### P-TEDARIKCI-PANEL-TALEPLER-ID-01 · Düğme: Kabul et
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)/talepler/… (listeden bir kayda tıklanarak açılır)
+- **Adım:** "Kabul et" düğme öğesine bas
+- **Beklenen (yazma):** `POST /market/supplier/requests/:id/accept` (marketplace, `services/marketplace/main.go:124`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+  - Sunucu yetkisi: Supplier
+  - Veritabanı tetikleyicileri çalışır: `mp_requests_active_property`, `mp_wallet_ledger_no_change` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
+  - **Veritabanı (Adminer → SQL komutu):**
+    - `mp_wallet_ledger` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM mp_wallet_ledger ORDER BY xmin::text::bigint DESC LIMIT 5;`
+    - `mp_request_dispatch` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM mp_request_dispatch ORDER BY xmin::text::bigint DESC LIMIT 5;`
+    - `mp_requests` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM mp_requests ORDER BY xmin::text::bigint DESC LIMIT 5;`
+    - `mp_supplier_accounts` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM mp_supplier_accounts ORDER BY xmin::text::bigint DESC LIMIT 5;`
+  - **İşlem kaydı:** `SELECT created_at, action, entity_type, status_code, user_id FROM audit_logs WHERE screen = '/api/v1/market/supplier/requests/:id/accept' ORDER BY created_at DESC LIMIT 5;` → `CREATE`, 2xx (yetkisiz denemede `DENIED`, 403)
+  - **Bildirim:** üretmez — `notifications` tablosuna bu işlemle yeni satır EKLENMEMELİ.
+  - **Etkisi görülmeli:** Panel `/dashboard/settings`, Panel `/tedarikci/(panel)/bakiye`, Panel `/tedarikci/(panel)/isletmeler`, Panel `/tedarikci/(panel)/talepler/[id]`, Panel `/tedarikci/(panel)/talepler`, Panel `/tedarikci/(panel)`, Sakin `market_request_screens`, Yön.mobil `site_market_screens`, Yön.mobil `site_settings_screen`
+- **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-TALEPLER-ID-01`
+
+#### P-TEDARIKCI-PANEL-TALEPLER-ID-02 · Düğme: Geri çek
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)/talepler/… (listeden bir kayda tıklanarak açılır)
+- **Adım:** "Geri çek" düğme öğesine bas
+- **Adım:** Öğe `deal-panel` bileşenindedir (satır 46)
+- **Beklenen (yazma):** `POST /market/supplier/offers/:id/withdraw` (marketplace, `services/marketplace/main.go:128`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+  - Sunucu yetkisi: Supplier
+  - **Veritabanı (Adminer → SQL komutu):**
+    - `mp_offers` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM mp_offers ORDER BY xmin::text::bigint DESC LIMIT 5;`
+  - **İşlem kaydı:** `SELECT created_at, action, entity_type, status_code, user_id FROM audit_logs WHERE screen = '/api/v1/market/supplier/offers/:id/withdraw' ORDER BY created_at DESC LIMIT 5;` → `CREATE`, 2xx (yetkisiz denemede `DENIED`, 403)
+  - **Bildirim:** üretmez — `notifications` tablosuna bu işlemle yeni satır EKLENMEMELİ.
+  - **Etkisi görülmeli:** Panel `/tedarikci/(panel)/talepler/[id]`, Panel `/tedarikci/(panel)/talepler`, Sakin `market_request_screens`, Yön.mobil `site_market_screens`
+- **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-TALEPLER-ID-02`
+
+#### P-TEDARIKCI-PANEL-TALEPLER-ID-03 · Düğme: Teklifi güncelle
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)/talepler/… (listeden bir kayda tıklanarak açılır)
+- **Adım:** "Teklifi güncelle" düğme öğesine bas
+- **Adım:** Öğe `deal-panel` bileşenindedir (satır 62)
+- **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
+- **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-TALEPLER-ID-03`
+
+#### P-TEDARIKCI-PANEL-TALEPLER-ID-04 · Düğme: İş tamamlandı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)/talepler/… (listeden bir kayda tıklanarak açılır)
+- **Adım:** "İş tamamlandı" düğme öğesine bas
+- **Adım:** Öğe `deal-panel` bileşenindedir (satır 83)
+- **Beklenen (yazma):** `POST /market/supplier/jobs/:id/done` (marketplace, `services/marketplace/main.go:132`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+  - Sunucu yetkisi: Supplier
+  - Veritabanı tetikleyicileri çalışır: `mp_jobs_completed_refresh` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
+  - **Veritabanı (Adminer → SQL komutu):**
+    - `mp_jobs` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM mp_jobs ORDER BY xmin::text::bigint DESC LIMIT 5;`
+  - **İşlem kaydı:** `SELECT created_at, action, entity_type, status_code, user_id FROM audit_logs WHERE screen = '/api/v1/market/supplier/jobs/:id/done' ORDER BY created_at DESC LIMIT 5;` → `CREATE`, 2xx (yetkisiz denemede `DENIED`, 403)
+  - **Bildirim:** konu `{topic}` → alıcı: işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
+    - Sorgu: `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE '%' ORDER BY n.created_at DESC LIMIT 30;`
+    - SMS/EMAIL kanalı satırı varsa: SMS kutusu (http://localhost:18000/sms) / Mailpit (http://localhost:18025) içinde metin doğru kişiye gitmiş olmalı. **SİTE_B hesabı bu bildirimi hiçbir yerde görmemeli.**
+  - **Etkisi görülmeli:** Panel `/dashboard/settings`, Panel `/tedarikci/(panel)/talepler/[id]`, Panel `/tedarikci/(panel)/talepler`, Sakin `market_request_screens`, Yön.mobil `site_market_screens`, Yön.mobil `site_settings_screen`
+- **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-TALEPLER-ID-04`
+
+#### P-TEDARIKCI-PANEL-TALEPLER-ID-05 · Düğme: Gönder
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)/talepler/… (listeden bir kayda tıklanarak açılır)
+- **Adım:** "Gönder" düğme öğesine bas
+- **Adım:** Öğe `deal-panel` bileşenindedir (satır 119)
+- **Beklenen (yazma):** `POST /market/supplier/requests/:id/messages` (marketplace, `services/marketplace/main.go:130`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+  - Sunucu yetkisi: Supplier
+  - **Veritabanı (Adminer → SQL komutu):**
+    - `mp_messages` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM mp_messages ORDER BY xmin::text::bigint DESC LIMIT 5;`
+  - **İşlem kaydı:** `SELECT created_at, action, entity_type, status_code, user_id FROM audit_logs WHERE screen = '/api/v1/market/supplier/requests/:id/messages' ORDER BY created_at DESC LIMIT 5;` → `CREATE`, 2xx (yetkisiz denemede `DENIED`, 403)
+  - **Bildirim:** konu `{topic}` → alıcı: işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
+    - Sorgu: `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE '%' ORDER BY n.created_at DESC LIMIT 30;`
+    - SMS/EMAIL kanalı satırı varsa: SMS kutusu (http://localhost:18000/sms) / Mailpit (http://localhost:18025) içinde metin doğru kişiye gitmiş olmalı. **SİTE_B hesabı bu bildirimi hiçbir yerde görmemeli.**
+  - **Etkisi görülmeli:** Panel `/tedarikci/(panel)/talepler/[id]`, Sakin `market_request_screens`
+- **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-TALEPLER-ID-05`
+
+#### P-TEDARIKCI-PANEL-TALEPLER-ID-06 · Düğme: Platforma bildir
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)/talepler/… (listeden bir kayda tıklanarak açılır)
+- **Adım:** "Platforma bildir" düğme öğesine bas
+- **Adım:** Öğe `deal-panel` bileşenindedir (satır 158)
+- **Beklenen (yazma):** `POST /market/supplier/requests/:id/dispute` (marketplace, `services/marketplace/main.go:131`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+  - Sunucu yetkisi: Supplier
+  - **Veritabanı (Adminer → SQL komutu):**
+    - `mp_disputes` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM mp_disputes ORDER BY xmin::text::bigint DESC LIMIT 5;`
+  - **İşlem kaydı:** `SELECT created_at, action, entity_type, status_code, user_id FROM audit_logs WHERE screen = '/api/v1/market/supplier/requests/:id/dispute' ORDER BY created_at DESC LIMIT 5;` → `CREATE`, 2xx (yetkisiz denemede `DENIED`, 403)
+  - **Bildirim:** üretmez — `notifications` tablosuna bu işlemle yeni satır EKLENMEMELİ.
+  - **Etkisi görülmeli:** Panel `/tedarikci/(panel)/talepler/[id]`
+- **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-TALEPLER-ID-06`
 
 ---
 
@@ -5580,7 +6651,7 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 #### S-KVKK-CONSENT-01 · Düğme: Onaylıyorum ve Devam Ediyorum
 - **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/kvkk-consent
 - **Adım:** "Onaylıyorum ve Devam Ediyorum" öğesine dokun (kaynak satırı 84)
-- **Beklenen (yazma):** `POST /users/me/kvkk-consent` (identity, `services/identity/main.go:99`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /users/me/kvkk-consent` (identity, `services/identity/main.go:103`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: oturum açmış herkes (site kapsamı)
   - **Veritabanı (Adminer → SQL komutu):**
     - Ortak tablolar da değişir: `users` (aynı sorgu kalıbıyla bakılabilir)
@@ -6332,7 +7403,7 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 #### S-INVITATIONS-BANNER-02 · Düğme: Reddet
 - **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/invitations/presentation/widgets/invitations_banner.dart`)
 - **Adım:** "Reddet" öğesine dokun (kaynak satırı 109)
-- **Beklenen (yazma):** `POST /users/me/invitations/:id/accept` (identity, `services/identity/main.go:124`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /users/me/invitations/:id/accept` (identity, `services/identity/main.go:128`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: OWNER/TENANT
   - Veritabanı tetikleyicileri çalışır: `trg_resident_units_tenancy_guard`, `trg_resident_units_tenant_arrival`, `trg_resident_units_tenant_departure` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
   - **Veritabanı (Adminer → SQL komutu):**
@@ -6341,7 +7412,7 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
   - **İşlem kaydı:** `SELECT created_at, action, entity_type, status_code, user_id FROM audit_logs WHERE screen = '/api/v1/users/me/invitations/:id/accept' ORDER BY created_at DESC LIMIT 5;` → `CREATE`, 2xx (yetkisiz denemede `DENIED`, 403)
   - **Bildirim:** üretmez — `notifications` tablosuna bu işlemle yeni satır EKLENMEMELİ.
   - **Etkisi görülmeli:** Panel `/dashboard/residents`, Sakin `invitations_banner`, Yön.mobil `resident_tools_screen`
-- **Beklenen (yazma):** `POST /users/me/invitations/:id/decline` (identity, `services/identity/main.go:125`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /users/me/invitations/:id/decline` (identity, `services/identity/main.go:129`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: OWNER/TENANT
   - Veritabanı tetikleyicileri çalışır: `trg_resident_units_tenancy_guard`, `trg_resident_units_tenant_arrival`, `trg_resident_units_tenant_departure` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
   - **Veritabanı (Adminer → SQL komutu):**
@@ -6355,7 +7426,7 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 #### S-INVITATIONS-BANNER-03 · Düğme: Kabul et
 - **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/invitations/presentation/widgets/invitations_banner.dart`)
 - **Adım:** "Kabul et" öğesine dokun (kaynak satırı 114)
-- **Beklenen (yazma):** `POST /users/me/invitations/:id/accept` (identity, `services/identity/main.go:124`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /users/me/invitations/:id/accept` (identity, `services/identity/main.go:128`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: OWNER/TENANT
   - Veritabanı tetikleyicileri çalışır: `trg_resident_units_tenancy_guard`, `trg_resident_units_tenant_arrival`, `trg_resident_units_tenant_departure` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
   - **Veritabanı (Adminer → SQL komutu):**
@@ -6364,7 +7435,7 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
   - **İşlem kaydı:** `SELECT created_at, action, entity_type, status_code, user_id FROM audit_logs WHERE screen = '/api/v1/users/me/invitations/:id/accept' ORDER BY created_at DESC LIMIT 5;` → `CREATE`, 2xx (yetkisiz denemede `DENIED`, 403)
   - **Bildirim:** üretmez — `notifications` tablosuna bu işlemle yeni satır EKLENMEMELİ.
   - **Etkisi görülmeli:** Panel `/dashboard/residents`, Sakin `invitations_banner`, Yön.mobil `resident_tools_screen`
-- **Beklenen (yazma):** `POST /users/me/invitations/:id/decline` (identity, `services/identity/main.go:125`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /users/me/invitations/:id/decline` (identity, `services/identity/main.go:129`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: OWNER/TENANT
   - Veritabanı tetikleyicileri çalışır: `trg_resident_units_tenancy_guard`, `trg_resident_units_tenant_arrival`, `trg_resident_units_tenant_departure` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
   - **Veritabanı (Adminer → SQL komutu):**
@@ -6610,7 +7681,7 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 #### S-MORE-24 · Düğme: Çıkış Yap
 - **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/more
 - **Adım:** "Çıkış Yap" öğesine dokun (kaynak satırı 195); açılan pencere/formu gerçekçi değerlerle doldurup onayla
-- **Beklenen (yazma):** `POST /auth/logout` (identity, `services/identity/main.go:87`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /auth/logout` (identity, `services/identity/main.go:91`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: oturum açmış herkes (site kapsamı)
   - **Veritabanı (Adminer → SQL komutu):**
     - `revoked_tokens` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM revoked_tokens ORDER BY xmin::text::bigint DESC LIMIT 5;`
@@ -6665,7 +7736,7 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
     - `notification_reads` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM notification_reads ORDER BY xmin::text::bigint DESC LIMIT 5;`
   - **İşlem kaydı:** `SELECT created_at, action, entity_type, status_code, user_id FROM audit_logs WHERE screen = '/api/v1/notifications/read-all' ORDER BY created_at DESC LIMIT 5;` → `CREATE`, 2xx (yetkisiz denemede `DENIED`, 403)
   - **Bildirim:** üretmez — `notifications` tablosuna bu işlemle yeni satır EKLENMEMELİ.
-  - **Etkisi görülmeli:** Panel `/dashboard/inbox`, Sakin `main_screen`, Sakin `notifications_screen`, Yön.mobil `inbox_screen`, Yön.mobil `main_screen`
+  - **Etkisi görülmeli:** Panel `/dashboard/inbox`, Panel `/tedarikci/(panel)/bildirimler`, Sakin `main_screen`, Sakin `notifications_screen`, Yön.mobil `inbox_screen`, Yön.mobil `main_screen`
 - **Sonuç:** http://localhost:18000/sonuc → `S-NOTIFICATIONS-01`
 
 #### S-NOTIFICATIONS-02 · Düğme: ${n[
@@ -6677,7 +7748,7 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
     - `notification_reads` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM notification_reads ORDER BY xmin::text::bigint DESC LIMIT 5;`
   - **İşlem kaydı:** `SELECT created_at, action, entity_type, status_code, user_id FROM audit_logs WHERE screen = '/api/v1/notifications/:id/read' ORDER BY created_at DESC LIMIT 5;` → `CREATE`, 2xx (yetkisiz denemede `DENIED`, 403)
   - **Bildirim:** üretmez — `notifications` tablosuna bu işlemle yeni satır EKLENMEMELİ.
-  - **Etkisi görülmeli:** Panel `/dashboard/inbox`, Sakin `main_screen`, Sakin `notifications_screen`, Yön.mobil `inbox_screen`, Yön.mobil `main_screen`
+  - **Etkisi görülmeli:** Panel `/dashboard/inbox`, Panel `/tedarikci/(panel)/bildirimler`, Sakin `main_screen`, Sakin `notifications_screen`, Yön.mobil `inbox_screen`, Yön.mobil `main_screen`
 - **Sonuç:** http://localhost:18000/sonuc → `S-NOTIFICATIONS-02`
 
 ---
@@ -6783,7 +7854,7 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 #### S-PROFILE-SETTINGS-02 · Düğme: E-posta
 - **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/profile
 - **Adım:** "E-posta" öğesine dokun (kaynak satırı 211); açılan pencere/formu gerçekçi değerlerle doldurup onayla
-- **Beklenen (yazma):** `POST /users/me/email` (identity, `services/identity/main.go:106`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /users/me/email` (identity, `services/identity/main.go:110`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: oturum açmış herkes (site kapsamı)
   - **Veritabanı (Adminer → SQL komutu):**
     - `email_change_requests` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM email_change_requests ORDER BY xmin::text::bigint DESC LIMIT 5;`
@@ -6792,7 +7863,7 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
   - **Bildirim:** konu `identity.email_change` → alıcı: işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
     - Sorgu: `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE 'identity.email_change%' ORDER BY n.created_at DESC LIMIT 30;`
     - SMS/EMAIL kanalı satırı varsa: SMS kutusu (http://localhost:18000/sms) / Mailpit (http://localhost:18025) içinde metin doğru kişiye gitmiş olmalı. **SİTE_B hesabı bu bildirimi hiçbir yerde görmemeli.**
-- **Beklenen (yazma):** `POST /users/me/email/confirm` (identity, `services/identity/main.go:107`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /users/me/email/confirm` (identity, `services/identity/main.go:111`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: oturum açmış herkes (site kapsamı)
   - **Veritabanı (Adminer → SQL komutu):**
     - `email_change_requests` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM email_change_requests ORDER BY xmin::text::bigint DESC LIMIT 5;`
@@ -6806,7 +7877,7 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 #### S-PROFILE-SETTINGS-03 · Düğme: Telefon
 - **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/profile
 - **Adım:** "Telefon" öğesine dokun (kaynak satırı 220); açılan pencere/formu gerçekçi değerlerle doldurup onayla
-- **Beklenen (yazma):** `POST /users/me/phone/request` (identity, `services/identity/main.go:104`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /users/me/phone/request` (identity, `services/identity/main.go:108`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: oturum açmış herkes (site kapsamı)
   - **Veritabanı (Adminer → SQL komutu):**
     - `phone_change_requests` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM phone_change_requests ORDER BY xmin::text::bigint DESC LIMIT 5;`
@@ -6815,7 +7886,7 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
   - **Bildirim:** konu `identity.phone_change` → alıcı: işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
     - Sorgu: `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE 'identity.phone_change%' ORDER BY n.created_at DESC LIMIT 30;`
     - SMS/EMAIL kanalı satırı varsa: SMS kutusu (http://localhost:18000/sms) / Mailpit (http://localhost:18025) içinde metin doğru kişiye gitmiş olmalı. **SİTE_B hesabı bu bildirimi hiçbir yerde görmemeli.**
-- **Beklenen (yazma):** `POST /users/me/phone/confirm` (identity, `services/identity/main.go:105`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /users/me/phone/confirm` (identity, `services/identity/main.go:109`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: oturum açmış herkes (site kapsamı)
   - **Veritabanı (Adminer → SQL komutu):**
     - `user_token_invalidation` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM user_token_invalidation ORDER BY xmin::text::bigint DESC LIMIT 5;`
@@ -6830,7 +7901,7 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 #### S-PROFILE-SETTINGS-04 · Düğme: Şifre Değiştir
 - **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/profile
 - **Adım:** "Şifre Değiştir" öğesine dokun (kaynak satırı 263); açılan pencere/formu gerçekçi değerlerle doldurup onayla
-- **Beklenen (yazma):** `POST /users/me/password` (identity, `services/identity/main.go:102`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /users/me/password` (identity, `services/identity/main.go:106`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: oturum açmış herkes (site kapsamı)
   - **Veritabanı (Adminer → SQL komutu):**
     - `user_token_invalidation` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM user_token_invalidation ORDER BY xmin::text::bigint DESC LIMIT 5;`
@@ -6842,13 +7913,13 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 #### S-PROFILE-SETTINGS-05 · Düğme: Tüm Cihazlardan Çıkış
 - **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/profile
 - **Adım:** "Tüm Cihazlardan Çıkış" öğesine dokun (kaynak satırı 270); açılan pencere/formu gerçekçi değerlerle doldurup onayla
-- **Beklenen (yazma):** `POST /auth/logout` (identity, `services/identity/main.go:87`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /auth/logout` (identity, `services/identity/main.go:91`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: oturum açmış herkes (site kapsamı)
   - **Veritabanı (Adminer → SQL komutu):**
     - `revoked_tokens` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM revoked_tokens ORDER BY xmin::text::bigint DESC LIMIT 5;`
   - **İşlem kaydı:** `SELECT created_at, action, entity_type, status_code, user_id FROM audit_logs WHERE screen = '/api/v1/auth/logout' ORDER BY created_at DESC LIMIT 5;` → `CREATE`, 2xx (yetkisiz denemede `DENIED`, 403)
   - **Bildirim:** üretmez — `notifications` tablosuna bu işlemle yeni satır EKLENMEMELİ.
-- **Beklenen (yazma):** `POST /users/me/logout-all` (identity, `services/identity/main.go:101`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /users/me/logout-all` (identity, `services/identity/main.go:105`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: oturum açmış herkes (site kapsamı)
   - **Veritabanı (Adminer → SQL komutu):**
     - `user_token_invalidation` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM user_token_invalidation ORDER BY xmin::text::bigint DESC LIMIT 5;`
@@ -6865,7 +7936,7 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 #### S-PROFILE-SETTINGS-07 · Düğme: Çıkış Yap
 - **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/profile
 - **Adım:** "Çıkış Yap" öğesine dokun (kaynak satırı 305); açılan pencere/formu gerçekçi değerlerle doldurup onayla
-- **Beklenen (yazma):** `POST /auth/logout` (identity, `services/identity/main.go:87`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /auth/logout` (identity, `services/identity/main.go:91`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: oturum açmış herkes (site kapsamı)
   - **Veritabanı (Adminer → SQL komutu):**
     - `revoked_tokens` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM revoked_tokens ORDER BY xmin::text::bigint DESC LIMIT 5;`
@@ -6941,7 +8012,7 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 #### S-TENANCY-REQUESTS-05 · Düğme: Reddet
 - **Hesap:** KİRACI (kiracılık bitişi talebini yanıtlar) ve MALİK_A4 (talebi açar) · **Nerede:** http://localhost:3002 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/profile/presentation/screens/tenancy_requests_screen.dart`)
 - **Adım:** "Reddet" öğesine dokun (kaynak satırı 147); açılan pencere/formu gerçekçi değerlerle doldurup onayla
-- **Beklenen (yazma):** `POST /users/me/tenancy-requests/:id/approve` (identity, `services/identity/main.go:117`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /users/me/tenancy-requests/:id/approve` (identity, `services/identity/main.go:121`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: OWNER/PROXY
   - Veritabanı tetikleyicileri çalışır: `trg_resident_units_tenancy_guard`, `trg_resident_units_tenant_arrival`, `trg_resident_units_tenant_departure` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
   - **Veritabanı (Adminer → SQL komutu):**
@@ -6953,7 +8024,7 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
     - Sorgu: `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE 'identity.tenancy%' ORDER BY n.created_at DESC LIMIT 30;`
     - SMS/EMAIL kanalı satırı varsa: SMS kutusu (http://localhost:18000/sms) / Mailpit (http://localhost:18025) içinde metin doğru kişiye gitmiş olmalı. **SİTE_B hesabı bu bildirimi hiçbir yerde görmemeli.**
   - **Etkisi görülmeli:** Panel `/dashboard/residents`, Sakin `tenancy_requests_screen`, Yön.mobil `resident_tools_screen`
-- **Beklenen (yazma):** `POST /users/me/tenancy-requests/:id/decline` (identity, `services/identity/main.go:118`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /users/me/tenancy-requests/:id/decline` (identity, `services/identity/main.go:122`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: OWNER/PROXY
   - Veritabanı tetikleyicileri çalışır: `trg_resident_units_tenancy_guard`, `trg_resident_units_tenant_arrival`, `trg_resident_units_tenant_departure` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
   - **Veritabanı (Adminer → SQL komutu):**
@@ -6970,7 +8041,7 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 #### S-TENANCY-REQUESTS-06 · Düğme: Onayla
 - **Hesap:** KİRACI (kiracılık bitişi talebini yanıtlar) ve MALİK_A4 (talebi açar) · **Nerede:** http://localhost:3002 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/profile/presentation/screens/tenancy_requests_screen.dart`)
 - **Adım:** "Onayla" öğesine dokun (kaynak satırı 156)
-- **Beklenen (yazma):** `POST /users/me/tenancy-requests/:id/approve` (identity, `services/identity/main.go:117`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /users/me/tenancy-requests/:id/approve` (identity, `services/identity/main.go:121`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: OWNER/PROXY
   - Veritabanı tetikleyicileri çalışır: `trg_resident_units_tenancy_guard`, `trg_resident_units_tenant_arrival`, `trg_resident_units_tenant_departure` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
   - **Veritabanı (Adminer → SQL komutu):**
@@ -6982,7 +8053,7 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
     - Sorgu: `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE 'identity.tenancy%' ORDER BY n.created_at DESC LIMIT 30;`
     - SMS/EMAIL kanalı satırı varsa: SMS kutusu (http://localhost:18000/sms) / Mailpit (http://localhost:18025) içinde metin doğru kişiye gitmiş olmalı. **SİTE_B hesabı bu bildirimi hiçbir yerde görmemeli.**
   - **Etkisi görülmeli:** Panel `/dashboard/residents`, Sakin `tenancy_requests_screen`, Yön.mobil `resident_tools_screen`
-- **Beklenen (yazma):** `POST /users/me/tenancy-requests/:id/decline` (identity, `services/identity/main.go:118`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /users/me/tenancy-requests/:id/decline` (identity, `services/identity/main.go:122`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: OWNER/PROXY
   - Veritabanı tetikleyicileri çalışır: `trg_resident_units_tenancy_guard`, `trg_resident_units_tenant_arrival`, `trg_resident_units_tenant_departure` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
   - **Veritabanı (Adminer → SQL komutu):**
@@ -6999,7 +8070,7 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 #### S-TENANCY-REQUESTS-07 · Düğme: İtiraz et
 - **Hesap:** KİRACI (kiracılık bitişi talebini yanıtlar) ve MALİK_A4 (talebi açar) · **Nerede:** http://localhost:3002 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/profile/presentation/screens/tenancy_requests_screen.dart`)
 - **Adım:** "İtiraz et" öğesine dokun (kaynak satırı 166); açılan pencere/formu gerçekçi değerlerle doldurup onayla
-- **Beklenen (yazma):** `POST /users/me/tenancy-requests/:id/object` (identity, `services/identity/main.go:119`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /users/me/tenancy-requests/:id/object` (identity, `services/identity/main.go:123`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: oturum açmış herkes (site kapsamı)
   - **Veritabanı (Adminer → SQL komutu):**
     - `tenancy_end_events` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM tenancy_end_events ORDER BY xmin::text::bigint DESC LIMIT 5;`
@@ -7012,7 +8083,7 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 #### S-TENANCY-REQUESTS-08 · Düğme: Geri çek
 - **Hesap:** KİRACI (kiracılık bitişi talebini yanıtlar) ve MALİK_A4 (talebi açar) · **Nerede:** http://localhost:3002 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/profile/presentation/screens/tenancy_requests_screen.dart`)
 - **Adım:** "Geri çek" öğesine dokun (kaynak satırı 175)
-- **Beklenen (yazma):** `POST /users/me/tenancy-requests/:id/cancel` (identity, `services/identity/main.go:120`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /users/me/tenancy-requests/:id/cancel` (identity, `services/identity/main.go:124`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: oturum açmış herkes (site kapsamı)
   - **Veritabanı (Adminer → SQL komutu):**
     - `tenancy_end_events` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM tenancy_end_events ORDER BY xmin::text::bigint DESC LIMIT 5;`
@@ -7131,7 +8202,7 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 #### S-UNIT-RESIDENTS-13 · Düğme: Menü: OWNER / Kiracılığın bitmesini iste / Çıkışımı bildir
 - **Hesap:** MALİK_A4 · **Nerede:** http://localhost:3002 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/profile/presentation/screens/unit_residents_screen.dart`)
 - **Adım:** "Menü: OWNER / Kiracılığın bitmesini iste / Çıkışımı bildir" öğesine dokun (kaynak satırı 309)
-- **Beklenen (yazma):** `POST /users/me/units/:id/tenancy-end` (identity, `services/identity/main.go:114`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /users/me/units/:id/tenancy-end` (identity, `services/identity/main.go:118`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: OWNER
   - **Veritabanı (Adminer → SQL komutu):**
     - `tenancy_end_events` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM tenancy_end_events ORDER BY xmin::text::bigint DESC LIMIT 5;`
@@ -7141,7 +8212,7 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
     - Sorgu: `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE 'identity.tenancy%' ORDER BY n.created_at DESC LIMIT 30;`
     - SMS/EMAIL kanalı satırı varsa: SMS kutusu (http://localhost:18000/sms) / Mailpit (http://localhost:18025) içinde metin doğru kişiye gitmiş olmalı. **SİTE_B hesabı bu bildirimi hiçbir yerde görmemeli.**
   - **Etkisi görülmeli:** Panel `/dashboard/residents`, Sakin `tenancy_requests_screen`, Yön.mobil `resident_tools_screen`
-- **Beklenen (yazma):** `POST /users/me/units/:id/tenancy-exit` (identity, `services/identity/main.go:115`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /users/me/units/:id/tenancy-exit` (identity, `services/identity/main.go:119`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: OWNER/PROXY
   - Veritabanı tetikleyicileri çalışır: `trg_resident_units_tenancy_guard`, `trg_resident_units_tenant_arrival`, `trg_resident_units_tenant_departure` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
   - **Veritabanı (Adminer → SQL komutu):**
@@ -7159,7 +8230,7 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 #### S-UNIT-RESIDENTS-14 · Düğme: Davet gönder
 - **Hesap:** MALİK_A4 · **Nerede:** http://localhost:3002 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/profile/presentation/screens/unit_residents_screen.dart`)
 - **Adım:** "Davet gönder" öğesine dokun (kaynak satırı 313); açılan pencere/formu gerçekçi değerlerle doldurup onayla
-- **Beklenen (yazma):** `POST /users/me/units/:id/invitations` (identity, `services/identity/main.go:111`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /users/me/units/:id/invitations` (identity, `services/identity/main.go:115`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: OWNER/PROXY/TENANT
   - **Veritabanı (Adminer → SQL komutu):**
     - `resident_invitations` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM resident_invitations ORDER BY xmin::text::bigint DESC LIMIT 5;`
@@ -7177,7 +8248,7 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 #### S-UNIT-RESIDENTS-15 · Düğme: Bitir
 - **Hesap:** MALİK_A4 · **Nerede:** http://localhost:3002 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/profile/presentation/screens/unit_residents_screen.dart`)
 - **Adım:** "Bitir" öğesine dokun (kaynak satırı 351); açılan pencere/formu gerçekçi değerlerle doldurup onayla
-- **Beklenen (yazma):** `POST /users/me/units/:id/residents/:residentId/end` (identity, `services/identity/main.go:112`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /users/me/units/:id/residents/:residentId/end` (identity, `services/identity/main.go:116`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: PROXY/TENANT
   - Veritabanı tetikleyicileri çalışır: `trg_resident_units_tenancy_guard`, `trg_resident_units_tenant_arrival`, `trg_resident_units_tenant_departure` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
   - **Veritabanı (Adminer → SQL komutu):**
@@ -7499,6 +8570,213 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Adım:** "Yorumları gör" öğesine dokun (kaynak satırı 255); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (okuma):** `GET /surveys/:id/comments` (survey) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Sonuç:** http://localhost:18000/sonuc → `S-SURVEYS-03`
+
+---
+
+### market_request_screens
+- Dosya: `mobile/lib/features/usta_hizmet/presentation/screens/market_request_screens.dart`
+
+#### S-MARKET-REQUESTS-00 · Ekran açılışı ve görünüm
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/usta/talep, http://localhost:3002/#/usta/talepler/:id, http://localhost:3002/#/usta/talepler/:id/mesaj/:dispatchId
+- **Adım:** Ekranı aç: http://localhost:3002/#/usta/talep, http://localhost:3002/#/usta/talepler/:id, http://localhost:3002/#/usta/talepler/:id/mesaj/:dispatchId — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Adım:** Veri yüklenir: `GET /market/meta` (marketplace); `GET /market/requests/match-count` (marketplace); `GET /market/requests/:id` (marketplace); `GET /market/requests/:id/offers` (marketplace); `GET /market/requests/:id/messages/:dispatchId` (marketplace); `GET /market/requests/:id/job` (marketplace)
+- **Adım:** Dosya seçme (satır 5)
+- **Adım:** Dosya seçme (satır 5)
+- **Adım:** Dosya seçme (satır 67)
+- **Adım:** Mesaj (satır 71): Fotoğraf 5 MB sınırını aşıyor.
+- **Adım:** Mesaj (satır 99): Talebiniz ${r[
+- **Adım:** Başlık (satır 113): (dinamik)
+- **Adım:** Alan (satır 126): Kategori
+- **Adım:** Alan (satır 149): Ne yapılmasını istiyorsunuz?
+- **Adım:** Alan (satır 152): Uygun zaman (isteğe bağlı)
+- **Adım:** Başlık (satır 216): Talebim
+- **Adım:** Alan (satır 361): Yorumunuz (isteğe bağlı)
+- **Adım:** Başlık (satır 407): (dinamik)
+- **Adım:** Alan (satır 449): Mesajınız
+- **Adım:** Aşağı çekerek yenile (varsa) ya da ekrana yeniden gir: aynı veri gelir
+- **Beklenen:** her veri bölümü yüklenir (boşsa anlamlı boş durum mesajı; "undefined", "NaN", "null", ham JSON ya da İngilizce hata metni YOK); sayılar ve tarihler Türkçe biçimde (1.234,56 ₺ · gg.aa.yyyy); uydurma/örnek veri yok; dar ekranda (400 px) yatay kaydırma olmadan okunur.
+- **Sonuç:** http://localhost:18000/sonuc → `S-MARKET-REQUESTS-00`
+
+#### S-MARKET-REQUESTS-01 · Seçim: ${c[
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/usta/talep, http://localhost:3002/#/usta/talepler/:id, http://localhost:3002/#/usta/talepler/:id/mesaj/:dispatchId
+- **Adım:** "${c[" seçimini değiştir; her seçenekte içerik buna göre değişmeli
+- **Beklenen (okuma):** `GET /market/requests/match-count` (marketplace) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
+- **Sonuç:** http://localhost:18000/sonuc → `S-MARKET-REQUESTS-01`
+
+#### S-MARKET-REQUESTS-02 · Düğme: Fotoğraf ekle
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/usta/talep, http://localhost:3002/#/usta/talepler/:id, http://localhost:3002/#/usta/talepler/:id/mesaj/:dispatchId
+- **Adım:** "Fotoğraf ekle" öğesine dokun (kaynak satırı 162); açılan pencere/formu gerçekçi değerlerle doldurup onayla
+- **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
+- **Sonuç:** http://localhost:18000/sonuc → `S-MARKET-REQUESTS-02`
+
+#### S-MARKET-REQUESTS-03 · Düğme: Gönderiliyor… / Talebi gönder
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/usta/talep, http://localhost:3002/#/usta/talepler/:id, http://localhost:3002/#/usta/talepler/:id/mesaj/:dispatchId
+- **Adım:** "Gönderiliyor… / Talebi gönder" öğesine dokun (kaynak satırı 172)
+- **Beklenen (yazma):** `POST /market/requests` (marketplace, `services/marketplace/main.go:84`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+  - Sunucu yetkisi: işleyicide `hasRole` (backend/services/settings/visibility.go:74)
+  - Veritabanı tetikleyicileri çalışır: `mp_requests_active_property` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
+  - **Veritabanı (Adminer → SQL komutu):**
+    - `mp_request_contacts` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM mp_request_contacts ORDER BY xmin::text::bigint DESC LIMIT 5;`
+    - `mp_request_dispatch` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM mp_request_dispatch ORDER BY xmin::text::bigint DESC LIMIT 5;`
+    - `mp_requests` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM mp_requests ORDER BY xmin::text::bigint DESC LIMIT 5;`
+    - `mp_request_dispatch` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM mp_request_dispatch ORDER BY xmin::text::bigint DESC LIMIT 5;`
+    - `mp_supplier_accounts` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM mp_supplier_accounts ORDER BY xmin::text::bigint DESC LIMIT 5;`
+  - **İşlem kaydı:** `SELECT created_at, action, entity_type, status_code, user_id FROM audit_logs WHERE screen = '/api/v1/market/requests' ORDER BY created_at DESC LIMIT 5;` → `CREATE`, 2xx (yetkisiz denemede `DENIED`, 403)
+  - **Bildirim:** konu `{topic}` → alıcı: işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
+    - Sorgu: `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE '%' ORDER BY n.created_at DESC LIMIT 30;`
+    - SMS/EMAIL kanalı satırı varsa: SMS kutusu (http://localhost:18000/sms) / Mailpit (http://localhost:18025) içinde metin doğru kişiye gitmiş olmalı. **SİTE_B hesabı bu bildirimi hiçbir yerde görmemeli.**
+  - **Etkisi görülmeli:** Panel `/dashboard/settings`, Panel `/tedarikci/(panel)/bakiye`, Panel `/tedarikci/(panel)/isletmeler`, Panel `/tedarikci/(panel)/talepler/[id]`, Panel `/tedarikci/(panel)/talepler`, Panel `/tedarikci/(panel)`, Sakin `market_request_screens`, Yön.mobil `site_market_screens`, Yön.mobil `site_settings_screen`
+- **Beklenen (yazma):** `POST /market/requests/:id/photos` (marketplace, `services/marketplace/main.go:86`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+  - Sunucu yetkisi: işleyicide `hasRole` (backend/services/settings/visibility.go:74)
+  - Veritabanı tetikleyicileri çalışır: `mp_requests_active_property` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
+  - Dosya depoya yazılır; ilgili ekranda indirilebilir olmalı
+  - **Veritabanı (Adminer → SQL komutu):**
+    - `mp_requests` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM mp_requests ORDER BY xmin::text::bigint DESC LIMIT 5;`
+  - **İşlem kaydı:** `SELECT created_at, action, entity_type, status_code, user_id FROM audit_logs WHERE screen = '/api/v1/market/requests/:id/photos' ORDER BY created_at DESC LIMIT 5;` → `CREATE`, 2xx (yetkisiz denemede `DENIED`, 403)
+  - **Bildirim:** üretmez — `notifications` tablosuna bu işlemle yeni satır EKLENMEMELİ.
+  - **Etkisi görülmeli:** Panel `/dashboard/settings`, Panel `/tedarikci/(panel)/talepler/[id]`, Panel `/tedarikci/(panel)/talepler`, Sakin `market_request_screens`, Yön.mobil `site_market_screens`, Yön.mobil `site_settings_screen`
+- **Sonuç:** http://localhost:18000/sonuc → `S-MARKET-REQUESTS-03`
+
+#### S-MARKET-REQUESTS-04 · Düğme: Bu teklifi seç
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/usta/talep, http://localhost:3002/#/usta/talepler/:id, http://localhost:3002/#/usta/talepler/:id/mesaj/:dispatchId
+- **Adım:** "Bu teklifi seç" öğesine dokun (kaynak satırı 263); açılan pencere/formu gerçekçi değerlerle doldurup onayla
+- **Beklenen (yazma):** `POST /market/requests/:id/offers/:offerId/select` (marketplace, `services/marketplace/main.go:90`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+  - Sunucu yetkisi: işleyicide `hasRole` (backend/services/settings/visibility.go:74)
+  - Veritabanı tetikleyicileri çalışır: `mp_jobs_completed_refresh`, `mp_requests_active_property` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
+  - **Veritabanı (Adminer → SQL komutu):**
+    - `mp_jobs` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM mp_jobs ORDER BY xmin::text::bigint DESC LIMIT 5;`
+    - `mp_offers` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM mp_offers ORDER BY xmin::text::bigint DESC LIMIT 5;`
+    - `mp_requests` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM mp_requests ORDER BY xmin::text::bigint DESC LIMIT 5;`
+  - **İşlem kaydı:** `SELECT created_at, action, entity_type, status_code, user_id FROM audit_logs WHERE screen = '/api/v1/market/requests/:id/offers/:offerId/select' ORDER BY created_at DESC LIMIT 5;` → `CREATE`, 2xx (yetkisiz denemede `DENIED`, 403)
+  - **Bildirim:** konu `{topic}` → alıcı: işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
+    - Sorgu: `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE '%' ORDER BY n.created_at DESC LIMIT 30;`
+    - SMS/EMAIL kanalı satırı varsa: SMS kutusu (http://localhost:18000/sms) / Mailpit (http://localhost:18025) içinde metin doğru kişiye gitmiş olmalı. **SİTE_B hesabı bu bildirimi hiçbir yerde görmemeli.**
+  - **Etkisi görülmeli:** Panel `/dashboard/settings`, Panel `/tedarikci/(panel)/talepler/[id]`, Panel `/tedarikci/(panel)/talepler`, Sakin `market_request_screens`, Yön.mobil `site_market_screens`, Yön.mobil `site_settings_screen`
+- **Sonuç:** http://localhost:18000/sonuc → `S-MARKET-REQUESTS-04`
+
+#### S-MARKET-REQUESTS-05 · Düğme: Mesaj
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/usta/talep, http://localhost:3002/#/usta/talepler/:id, http://localhost:3002/#/usta/talepler/:id/mesaj/:dispatchId
+- **Adım:** "Mesaj" öğesine dokun (kaynak satırı 271); açılan pencere/formu gerçekçi değerlerle doldurup onayla
+- **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
+- **Sonuç:** http://localhost:18000/sonuc → `S-MARKET-REQUESTS-05`
+
+#### S-MARKET-REQUESTS-06 · Düğme: Teklif seçmeden talebi kapat
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/usta/talep, http://localhost:3002/#/usta/talepler/:id, http://localhost:3002/#/usta/talepler/:id/mesaj/:dispatchId
+- **Adım:** "Teklif seçmeden talebi kapat" öğesine dokun (kaynak satırı 286); açılan pencere/formu gerçekçi değerlerle doldurup onayla
+- **Beklenen (yazma):** `POST /market/requests/:id/close` (marketplace, `services/marketplace/main.go:91`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+  - Sunucu yetkisi: işleyicide `hasRole` (backend/services/settings/visibility.go:74)
+  - Veritabanı tetikleyicileri çalışır: `mp_requests_active_property` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
+  - **Veritabanı (Adminer → SQL komutu):**
+    - `mp_offers` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM mp_offers ORDER BY xmin::text::bigint DESC LIMIT 5;`
+    - `mp_requests` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM mp_requests ORDER BY xmin::text::bigint DESC LIMIT 5;`
+  - **İşlem kaydı:** `SELECT created_at, action, entity_type, status_code, user_id FROM audit_logs WHERE screen = '/api/v1/market/requests/:id/close' ORDER BY created_at DESC LIMIT 5;` → `CREATE`, 2xx (yetkisiz denemede `DENIED`, 403)
+  - **Bildirim:** konu `{topic}` → alıcı: işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
+    - Sorgu: `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE '%' ORDER BY n.created_at DESC LIMIT 30;`
+    - SMS/EMAIL kanalı satırı varsa: SMS kutusu (http://localhost:18000/sms) / Mailpit (http://localhost:18025) içinde metin doğru kişiye gitmiş olmalı. **SİTE_B hesabı bu bildirimi hiçbir yerde görmemeli.**
+  - **Etkisi görülmeli:** Panel `/dashboard/settings`, Panel `/tedarikci/(panel)/talepler/[id]`, Panel `/tedarikci/(panel)/talepler`, Sakin `market_request_screens`, Yön.mobil `site_market_screens`, Yön.mobil `site_settings_screen`
+- **Sonuç:** http://localhost:18000/sonuc → `S-MARKET-REQUESTS-06`
+
+#### S-MARKET-REQUESTS-07 · Düğme: İş tamamlandı, onaylıyorum
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/usta/talep, http://localhost:3002/#/usta/talepler/:id, http://localhost:3002/#/usta/talepler/:id/mesaj/:dispatchId
+- **Adım:** "İş tamamlandı, onaylıyorum" öğesine dokun (kaynak satırı 339)
+- **Beklenen (yazma):** `POST /market/requests/:id/job/confirm` (marketplace, `services/marketplace/main.go:95`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+  - Sunucu yetkisi: işleyicide `hasRole` (backend/services/settings/visibility.go:74)
+  - Veritabanı tetikleyicileri çalışır: `mp_jobs_completed_refresh` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
+  - **Veritabanı (Adminer → SQL komutu):**
+    - `mp_jobs` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM mp_jobs ORDER BY xmin::text::bigint DESC LIMIT 5;`
+  - **İşlem kaydı:** `SELECT created_at, action, entity_type, status_code, user_id FROM audit_logs WHERE screen = '/api/v1/market/requests/:id/job/confirm' ORDER BY created_at DESC LIMIT 5;` → `CREATE`, 2xx (yetkisiz denemede `DENIED`, 403)
+  - **Bildirim:** üretmez — `notifications` tablosuna bu işlemle yeni satır EKLENMEMELİ.
+  - **Etkisi görülmeli:** Panel `/dashboard/settings`, Panel `/tedarikci/(panel)/talepler/[id]`, Panel `/tedarikci/(panel)/talepler`, Sakin `market_request_screens`, Yön.mobil `site_market_screens`, Yön.mobil `site_settings_screen`
+- **Sonuç:** http://localhost:18000/sonuc → `S-MARKET-REQUESTS-07`
+
+#### S-MARKET-REQUESTS-08 · Düğme: İtiraz et
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/usta/talep, http://localhost:3002/#/usta/talepler/:id, http://localhost:3002/#/usta/talepler/:id/mesaj/:dispatchId
+- **Adım:** "İtiraz et" öğesine dokun (kaynak satırı 341); açılan pencere/formu gerçekçi değerlerle doldurup onayla
+- **Beklenen (yazma):** `POST /market/requests/:id/job/dispute` (marketplace, `services/marketplace/main.go:96`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+  - Sunucu yetkisi: işleyicide `hasRole` (backend/services/settings/visibility.go:74)
+  - Veritabanı tetikleyicileri çalışır: `mp_jobs_completed_refresh` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
+  - **Veritabanı (Adminer → SQL komutu):**
+    - `mp_jobs` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM mp_jobs ORDER BY xmin::text::bigint DESC LIMIT 5;`
+  - **İşlem kaydı:** `SELECT created_at, action, entity_type, status_code, user_id FROM audit_logs WHERE screen = '/api/v1/market/requests/:id/job/dispute' ORDER BY created_at DESC LIMIT 5;` → `CREATE`, 2xx (yetkisiz denemede `DENIED`, 403)
+  - **Bildirim:** üretmez — `notifications` tablosuna bu işlemle yeni satır EKLENMEMELİ.
+  - **Etkisi görülmeli:** Panel `/dashboard/settings`, Panel `/tedarikci/(panel)/talepler/[id]`, Panel `/tedarikci/(panel)/talepler`, Sakin `market_request_screens`, Yön.mobil `site_market_screens`, Yön.mobil `site_settings_screen`
+- **Sonuç:** http://localhost:18000/sonuc → `S-MARKET-REQUESTS-08`
+
+#### S-MARKET-REQUESTS-09 · Düğme: $i yıldız
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/usta/talep, http://localhost:3002/#/usta/talepler/:id, http://localhost:3002/#/usta/talepler/:id/mesaj/:dispatchId
+- **Adım:** "$i yıldız" öğesine dokun (kaynak satırı 355); açılan pencere/formu gerçekçi değerlerle doldurup onayla
+- **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
+- **Sonuç:** http://localhost:18000/sonuc → `S-MARKET-REQUESTS-09`
+
+#### S-MARKET-REQUESTS-10 · Düğme: Puanı gönder
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/usta/talep, http://localhost:3002/#/usta/talepler/:id, http://localhost:3002/#/usta/talepler/:id/mesaj/:dispatchId
+- **Adım:** "Puanı gönder" öğesine dokun (kaynak satırı 362)
+- **Beklenen (yazma):** `POST /market/requests/:id/review` (marketplace, `services/marketplace/main.go:97`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+  - Sunucu yetkisi: işleyicide `hasRole` (backend/services/settings/visibility.go:74)
+  - Veritabanı tetikleyicileri çalışır: `mp_reviews_guard`, `mp_reviews_rating_refresh` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
+  - **Veritabanı (Adminer → SQL komutu):**
+    - `mp_reviews` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM mp_reviews ORDER BY xmin::text::bigint DESC LIMIT 5;`
+  - **İşlem kaydı:** `SELECT created_at, action, entity_type, status_code, user_id FROM audit_logs WHERE screen = '/api/v1/market/requests/:id/review' ORDER BY created_at DESC LIMIT 5;` → `CREATE`, 2xx (yetkisiz denemede `DENIED`, 403)
+  - **Bildirim:** konu `{topic}` → alıcı: işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
+    - Sorgu: `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE '%' ORDER BY n.created_at DESC LIMIT 30;`
+    - SMS/EMAIL kanalı satırı varsa: SMS kutusu (http://localhost:18000/sms) / Mailpit (http://localhost:18025) içinde metin doğru kişiye gitmiş olmalı. **SİTE_B hesabı bu bildirimi hiçbir yerde görmemeli.**
+  - **Etkisi görülmeli:** Panel `/tedarikci/(panel)/puanlar`, Panel `/tedarikci/(panel)/talepler/[id]`, Sakin `market_request_screens`, Yön.mobil `site_market_screens`
+- **Sonuç:** http://localhost:18000/sonuc → `S-MARKET-REQUESTS-10`
+
+#### S-MARKET-REQUESTS-11 · Düğme: Gönder
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/usta/talep, http://localhost:3002/#/usta/talepler/:id, http://localhost:3002/#/usta/talepler/:id/mesaj/:dispatchId
+- **Adım:** "Gönder" öğesine dokun (kaynak satırı 450)
+- **Beklenen (yazma):** `POST /market/requests/:id/messages/:dispatchId` (marketplace, `services/marketplace/main.go:93`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+  - Sunucu yetkisi: işleyicide `hasRole` (backend/services/settings/visibility.go:74)
+  - **Veritabanı (Adminer → SQL komutu):**
+    - `mp_messages` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM mp_messages ORDER BY xmin::text::bigint DESC LIMIT 5;`
+  - **İşlem kaydı:** `SELECT created_at, action, entity_type, status_code, user_id FROM audit_logs WHERE screen = '/api/v1/market/requests/:id/messages/:dispatchId' ORDER BY created_at DESC LIMIT 5;` → `CREATE`, 2xx (yetkisiz denemede `DENIED`, 403)
+  - **Bildirim:** konu `{topic}` → alıcı: işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
+    - Sorgu: `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE '%' ORDER BY n.created_at DESC LIMIT 30;`
+    - SMS/EMAIL kanalı satırı varsa: SMS kutusu (http://localhost:18000/sms) / Mailpit (http://localhost:18025) içinde metin doğru kişiye gitmiş olmalı. **SİTE_B hesabı bu bildirimi hiçbir yerde görmemeli.**
+  - **Etkisi görülmeli:** Panel `/tedarikci/(panel)/talepler/[id]`, Sakin `market_request_screens`
+- **Sonuç:** http://localhost:18000/sonuc → `S-MARKET-REQUESTS-11`
+
+---
+
+### usta_screen
+- Dosya: `mobile/lib/features/usta_hizmet/presentation/screens/usta_screen.dart`
+
+#### S-USTA-00 · Ekran açılışı ve görünüm
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/usta, http://localhost:3002/#/usta/isletme/:id
+- **Adım:** Ekranı aç: http://localhost:3002/#/usta, http://localhost:3002/#/usta/isletme/:id — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Adım:** Veri yüklenir: `GET /market/meta` (marketplace); `GET /market/showcase` (marketplace); `GET /market/showcase/:id` (marketplace)
+- **Adım:** Başlık (satır 59): Usta & Hizmet
+- **Adım:** Her sekmeye tıkla, içerik hatasız yüklenir: Yakınımdakiler
+- **Adım:** Her sekmeye tıkla, içerik hatasız yüklenir: Taleplerim
+- **Adım:** Başlık (satır 192): İşletme
+- **Adım:** Aşağı çekerek yenile (varsa) ya da ekrana yeniden gir: aynı veri gelir
+- **Beklenen:** her veri bölümü yüklenir (boşsa anlamlı boş durum mesajı; "undefined", "NaN", "null", ham JSON ya da İngilizce hata metni YOK); sayılar ve tarihler Türkçe biçimde (1.234,56 ₺ · gg.aa.yyyy); uydurma/örnek veri yok; dar ekranda (400 px) yatay kaydırma olmadan okunur.
+- **Sonuç:** http://localhost:18000/sonuc → `S-USTA-00`
+
+#### S-USTA-01 · Düğme: Talep aç
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/usta, http://localhost:3002/#/usta/isletme/:id
+- **Adım:** "Talep aç" öğesine dokun (kaynak satırı 63); açılan pencere/formu gerçekçi değerlerle doldurup onayla
+- **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
+- **Sonuç:** http://localhost:18000/sonuc → `S-USTA-01`
+
+#### S-USTA-02 · Düğme: ${r[
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/usta, http://localhost:3002/#/usta/isletme/:id
+- **Adım:** "${r[" öğesine dokun (kaynak satırı 129); açılan pencere/formu gerçekçi değerlerle doldurup onayla
+- **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
+- **Sonuç:** http://localhost:18000/sonuc → `S-USTA-02`
+
+#### S-USTA-03 · Düğme: ${b[
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/usta, http://localhost:3002/#/usta/isletme/:id
+- **Adım:** "${b[" öğesine dokun (kaynak satırı 165); açılan pencere/formu gerçekçi değerlerle doldurup onayla
+- **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
+- **Sonuç:** http://localhost:18000/sonuc → `S-USTA-03`
+
+#### S-USTA-04 · Düğme: Bu işletmeye talep gönder
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/usta, http://localhost:3002/#/usta/isletme/:id
+- **Adım:** "Bu işletmeye talep gönder" öğesine dokun (kaynak satırı 218); açılan pencere/formu gerçekçi değerlerle doldurup onayla
+- **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
+- **Sonuç:** http://localhost:18000/sonuc → `S-USTA-04`
 
 ---
 
@@ -7985,7 +9263,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 #### Y-ACCOUNT-01 · Düğme: Şifre değiştir
 - **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/account
 - **Adım:** "Şifre değiştir" öğesine dokun (kaynak satırı 52); açılan pencere/formu gerçekçi değerlerle doldurup onayla
-- **Beklenen (yazma):** `POST /users/me/password` (identity, `services/identity/main.go:102`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /users/me/password` (identity, `services/identity/main.go:106`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: oturum açmış herkes (site kapsamı)
   - **Veritabanı (Adminer → SQL komutu):**
     - `user_token_invalidation` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM user_token_invalidation ORDER BY xmin::text::bigint DESC LIMIT 5;`
@@ -7997,7 +9275,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 #### Y-ACCOUNT-02 · Düğme: Telefon numarası değiştir
 - **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/account
 - **Adım:** "Telefon numarası değiştir" öğesine dokun (kaynak satırı 53)
-- **Beklenen (yazma):** `POST /users/me/phone/request` (identity, `services/identity/main.go:104`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /users/me/phone/request` (identity, `services/identity/main.go:108`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: oturum açmış herkes (site kapsamı)
   - **Veritabanı (Adminer → SQL komutu):**
     - `phone_change_requests` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM phone_change_requests ORDER BY xmin::text::bigint DESC LIMIT 5;`
@@ -8006,7 +9284,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
   - **Bildirim:** konu `identity.phone_change` → alıcı: işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
     - Sorgu: `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE 'identity.phone_change%' ORDER BY n.created_at DESC LIMIT 30;`
     - SMS/EMAIL kanalı satırı varsa: SMS kutusu (http://localhost:18000/sms) / Mailpit (http://localhost:18025) içinde metin doğru kişiye gitmiş olmalı. **SİTE_B hesabı bu bildirimi hiçbir yerde görmemeli.**
-- **Beklenen (yazma):** `POST /users/me/phone/confirm` (identity, `services/identity/main.go:105`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /users/me/phone/confirm` (identity, `services/identity/main.go:109`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: oturum açmış herkes (site kapsamı)
   - **Veritabanı (Adminer → SQL komutu):**
     - `user_token_invalidation` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM user_token_invalidation ORDER BY xmin::text::bigint DESC LIMIT 5;`
@@ -8021,7 +9299,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 #### Y-ACCOUNT-03 · Düğme: E-posta değiştir
 - **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/account
 - **Adım:** "E-posta değiştir" öğesine dokun (kaynak satırı 59)
-- **Beklenen (yazma):** `POST /users/me/email` (identity, `services/identity/main.go:106`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /users/me/email` (identity, `services/identity/main.go:110`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: oturum açmış herkes (site kapsamı)
   - **Veritabanı (Adminer → SQL komutu):**
     - `email_change_requests` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM email_change_requests ORDER BY xmin::text::bigint DESC LIMIT 5;`
@@ -8030,7 +9308,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
   - **Bildirim:** konu `identity.email_change` → alıcı: işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
     - Sorgu: `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE 'identity.email_change%' ORDER BY n.created_at DESC LIMIT 30;`
     - SMS/EMAIL kanalı satırı varsa: SMS kutusu (http://localhost:18000/sms) / Mailpit (http://localhost:18025) içinde metin doğru kişiye gitmiş olmalı. **SİTE_B hesabı bu bildirimi hiçbir yerde görmemeli.**
-- **Beklenen (yazma):** `POST /users/me/email/confirm` (identity, `services/identity/main.go:107`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /users/me/email/confirm` (identity, `services/identity/main.go:111`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: oturum açmış herkes (site kapsamı)
   - **Veritabanı (Adminer → SQL komutu):**
     - `email_change_requests` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM email_change_requests ORDER BY xmin::text::bigint DESC LIMIT 5;`
@@ -8044,7 +9322,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 #### Y-ACCOUNT-04 · Düğme: Çıkış yap
 - **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/account
 - **Adım:** "Çıkış yap" öğesine dokun (kaynak satırı 65); açılan pencere/formu gerçekçi değerlerle doldurup onayla
-- **Beklenen (yazma):** `POST /auth/logout` (identity, `services/identity/main.go:87`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /auth/logout` (identity, `services/identity/main.go:91`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: oturum açmış herkes (site kapsamı)
   - **Veritabanı (Adminer → SQL komutu):**
     - `revoked_tokens` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM revoked_tokens ORDER BY xmin::text::bigint DESC LIMIT 5;`
@@ -8055,13 +9333,13 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 #### Y-ACCOUNT-05 · Düğme: Yeni site
 - **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/account
 - **Adım:** "Yeni site" öğesine dokun (kaynak satırı 69); açılan pencere/formu gerçekçi değerlerle doldurup onayla
-- **Beklenen (yazma):** `POST /users/me/properties` (identity, `services/identity/main.go:97`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /users/me/properties` (identity, `services/identity/main.go:101`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: MANAGER/OWNER
   - **Veritabanı (Adminer → SQL komutu):**
     - Ortak tablolar da değişir: `properties`, `property_roles` (aynı sorgu kalıbıyla bakılabilir)
   - **İşlem kaydı:** `SELECT created_at, action, entity_type, status_code, user_id FROM audit_logs WHERE screen = '/api/v1/users/me/properties' ORDER BY created_at DESC LIMIT 5;` → `CREATE`, 2xx (yetkisiz denemede `DENIED`, 403)
   - **Bildirim:** üretmez — `notifications` tablosuna bu işlemle yeni satır EKLENMEMELİ.
-- **Beklenen (yazma):** `POST /users/me/active-property` (identity, `services/identity/main.go:98`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /users/me/active-property` (identity, `services/identity/main.go:102`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: oturum açmış herkes (site kapsamı)
   - **Veritabanı (Adminer → SQL komutu):**
     - Ortak tablolar da değişir: `users` (aynı sorgu kalıbıyla bakılabilir)
@@ -8072,7 +9350,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 #### Y-ACCOUNT-06 · Düğme: ${p[
 - **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/account
 - **Adım:** "${p[" öğesine dokun (kaynak satırı 99)
-- **Beklenen (yazma):** `POST /users/me/active-property` (identity, `services/identity/main.go:98`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /users/me/active-property` (identity, `services/identity/main.go:102`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: oturum açmış herkes (site kapsamı)
   - **Veritabanı (Adminer → SQL komutu):**
     - Ortak tablolar da değişir: `users` (aynı sorgu kalıbıyla bakılabilir)
@@ -8328,7 +9606,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 #### Y-KVKK-CONSENT-01 · Düğme: Onaylıyorum ve Devam Ediyorum
 - **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/kvkk-consent
 - **Adım:** "Onaylıyorum ve Devam Ediyorum" öğesine dokun (kaynak satırı 84)
-- **Beklenen (yazma):** `POST /users/me/kvkk-consent` (identity, `services/identity/main.go:99`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /users/me/kvkk-consent` (identity, `services/identity/main.go:103`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: oturum açmış herkes (site kapsamı)
   - **Veritabanı (Adminer → SQL komutu):**
     - Ortak tablolar da değişir: `users` (aynı sorgu kalıbıyla bakılabilir)
@@ -9834,33 +11112,33 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/main/presentation/screens/main_screen.dart`)
 - **Adım:** Ekranı aç: http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/main/presentation/screens/main_screen.dart`) — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /notifications/unread-count` (notification); `GET /users/me/properties` (identity)
-- **Adım:** Pencere (satır 200): Uygulamadan çık
+- **Adım:** Pencere (satır 201): Uygulamadan çık
 - **Adım:** Aşağı çekerek yenile (varsa) ya da ekrana yeniden gir: aynı veri gelir
 - **Beklenen:** her veri bölümü yüklenir (boşsa anlamlı boş durum mesajı; "undefined", "NaN", "null", ham JSON ya da İngilizce hata metni YOK); sayılar ve tarihler Türkçe biçimde (1.234,56 ₺ · gg.aa.yyyy); uydurma/örnek veri yok; dar ekranda (400 px) yatay kaydırma olmadan okunur.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-MAIN-00`
 
 #### Y-MAIN-01 · Düğme: Vazgeç
 - **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/main/presentation/screens/main_screen.dart`)
-- **Adım:** "Vazgeç" öğesine dokun (kaynak satırı 204); açılan pencere/formu gerçekçi değerlerle doldurup onayla
+- **Adım:** "Vazgeç" öğesine dokun (kaynak satırı 205); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-MAIN-01`
 
 #### Y-MAIN-02 · Düğme: Çık
 - **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/main/presentation/screens/main_screen.dart`)
-- **Adım:** "Çık" öğesine dokun (kaynak satırı 205); açılan pencere/formu gerçekçi değerlerle doldurup onayla
+- **Adım:** "Çık" öğesine dokun (kaynak satırı 206); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-MAIN-02`
 
-#### Y-MAIN-03 · Düğme: simge düğmesi (satır 266)
+#### Y-MAIN-03 · Düğme: simge düğmesi (satır 267)
 - **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/main/presentation/screens/main_screen.dart`)
-- **Adım:** "simge düğmesi (satır 266)" öğesine dokun (kaynak satırı 266); açılan pencere/formu gerçekçi değerlerle doldurup onayla
+- **Adım:** "simge düğmesi (satır 267)" öğesine dokun (kaynak satırı 267); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-MAIN-03`
 
 #### Y-MAIN-04 · Düğme: Şifre Değiştir
 - **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/main/presentation/screens/main_screen.dart`)
-- **Adım:** "Şifre Değiştir" öğesine dokun (kaynak satırı 281); açılan pencere/formu gerçekçi değerlerle doldurup onayla
-- **Beklenen (yazma):** `POST /users/me/password` (identity, `services/identity/main.go:102`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Adım:** "Şifre Değiştir" öğesine dokun (kaynak satırı 282); açılan pencere/formu gerçekçi değerlerle doldurup onayla
+- **Beklenen (yazma):** `POST /users/me/password` (identity, `services/identity/main.go:106`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: oturum açmış herkes (site kapsamı)
   - **Veritabanı (Adminer → SQL komutu):**
     - `user_token_invalidation` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM user_token_invalidation ORDER BY xmin::text::bigint DESC LIMIT 5;`
@@ -9871,8 +11149,8 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 
 #### Y-MAIN-05 · Düğme: Çıkış Yap
 - **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/main/presentation/screens/main_screen.dart`)
-- **Adım:** "Çıkış Yap" öğesine dokun (kaynak satırı 289); açılan pencere/formu gerçekçi değerlerle doldurup onayla
-- **Beklenen (yazma):** `POST /auth/logout` (identity, `services/identity/main.go:87`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Adım:** "Çıkış Yap" öğesine dokun (kaynak satırı 290); açılan pencere/formu gerçekçi değerlerle doldurup onayla
+- **Beklenen (yazma):** `POST /auth/logout` (identity, `services/identity/main.go:91`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: oturum açmış herkes (site kapsamı)
   - **Veritabanı (Adminer → SQL komutu):**
     - `revoked_tokens` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM revoked_tokens ORDER BY xmin::text::bigint DESC LIMIT 5;`
@@ -9882,8 +11160,8 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 
 #### Y-MAIN-06 · Düğme: Çıkış yap
 - **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/main/presentation/screens/main_screen.dart`)
-- **Adım:** "Çıkış yap" öğesine dokun (kaynak satırı 328); açılan pencere/formu gerçekçi değerlerle doldurup onayla
-- **Beklenen (yazma):** `POST /auth/logout` (identity, `services/identity/main.go:87`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Adım:** "Çıkış yap" öğesine dokun (kaynak satırı 329); açılan pencere/formu gerçekçi değerlerle doldurup onayla
+- **Beklenen (yazma):** `POST /auth/logout` (identity, `services/identity/main.go:91`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: oturum açmış herkes (site kapsamı)
   - **Veritabanı (Adminer → SQL komutu):**
     - `revoked_tokens` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM revoked_tokens ORDER BY xmin::text::bigint DESC LIMIT 5;`
@@ -10020,7 +11298,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
     - `notification_reads` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM notification_reads ORDER BY xmin::text::bigint DESC LIMIT 5;`
   - **İşlem kaydı:** `SELECT created_at, action, entity_type, status_code, user_id FROM audit_logs WHERE screen = '/api/v1/notifications/read-all' ORDER BY created_at DESC LIMIT 5;` → `CREATE`, 2xx (yetkisiz denemede `DENIED`, 403)
   - **Bildirim:** üretmez — `notifications` tablosuna bu işlemle yeni satır EKLENMEMELİ.
-  - **Etkisi görülmeli:** Panel `/dashboard/inbox`, Sakin `main_screen`, Sakin `notifications_screen`, Yön.mobil `inbox_screen`, Yön.mobil `main_screen`
+  - **Etkisi görülmeli:** Panel `/dashboard/inbox`, Panel `/tedarikci/(panel)/bildirimler`, Sakin `main_screen`, Sakin `notifications_screen`, Yön.mobil `inbox_screen`, Yön.mobil `main_screen`
 - **Sonuç:** http://localhost:18000/sonuc → `Y-INBOX-01`
 
 #### Y-INBOX-02 · Düğme: ${n[
@@ -10989,7 +12267,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 #### Y-ADD-RESIDENT-03 · Düğme: Kaydet
 - **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/residents/add
 - **Adım:** "Kaydet" öğesine dokun (kaynak satırı 122); açılan pencere/formu gerçekçi değerlerle doldurup onayla
-- **Beklenen (yazma):** `POST /residents` (identity, `services/identity/main.go:133`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /residents` (identity, `services/identity/main.go:137`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: BOARD_MEMBER/MANAGER/OWNER/PROXY/TENANT
   - Veritabanı tetikleyicileri çalışır: `trg_resident_units_tenancy_guard`, `trg_resident_units_tenant_arrival`, `trg_resident_units_tenant_departure` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
   - **Veritabanı (Adminer → SQL komutu):**
@@ -11031,7 +12309,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 #### Y-RESIDENT-DETAIL-01 · Düğme: Menü: Etkinleştirme / şifre sıfırlama kodu üret
 - **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/residents/:id
 - **Adım:** "Menü: Etkinleştirme / şifre sıfırlama kodu üret" öğesine dokun (kaynak satırı 146)
-- **Beklenen (yazma):** `POST /residents/:id/activation-code` (identity, `services/identity/main.go:148`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /residents/:id/activation-code` (identity, `services/identity/main.go:152`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: AUDITOR/BOARD_MEMBER/MANAGER/STAFF
   - **Veritabanı (Adminer → SQL komutu):**
     - `user_activation_codes` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM user_activation_codes ORDER BY xmin::text::bigint DESC LIMIT 5;`
@@ -11045,7 +12323,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 #### Y-RESIDENT-DETAIL-02 · Düğme: Menü: Telefon değiştir
 - **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/residents/:id
 - **Adım:** "Menü: Telefon değiştir" öğesine dokun (kaynak satırı 147)
-- **Beklenen (yazma):** `POST /residents/:id/phone` (identity, `services/identity/main.go:151`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /residents/:id/phone` (identity, `services/identity/main.go:155`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
   - **Veritabanı (Adminer → SQL komutu):**
     - `user_activation_codes` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM user_activation_codes ORDER BY xmin::text::bigint DESC LIMIT 5;`
@@ -11061,7 +12339,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 #### Y-RESIDENT-DETAIL-03 · Düğme: Menü: Giriş kilidini aç
 - **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/residents/:id
 - **Adım:** "Menü: Giriş kilidini aç" öğesine dokun (kaynak satırı 148)
-- **Beklenen (yazma):** `POST /residents/:id/unlock` (identity, `services/identity/main.go:152`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /residents/:id/unlock` (identity, `services/identity/main.go:156`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
   - **Veritabanı (Adminer → SQL komutu):**
     - Ortak tablolar da değişir: `users` (aynı sorgu kalıbıyla bakılabilir)
@@ -11072,7 +12350,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 #### Y-RESIDENT-DETAIL-04 · Düğme: Menü: Sıfat / ayrılış
 - **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/residents/:id
 - **Adım:** "Menü: Sıfat / ayrılış" öğesine dokun (kaynak satırı 149)
-- **Beklenen (yazma):** `PATCH /residents/:id` (identity, `services/identity/main.go:147`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `PATCH /residents/:id` (identity, `services/identity/main.go:151`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: BOARD_MEMBER/MANAGER/OWNER/PROXY/TENANT
   - Veritabanı tetikleyicileri çalışır: `trg_resident_units_tenancy_guard`, `trg_resident_units_tenant_arrival`, `trg_resident_units_tenant_departure` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
   - **Veritabanı (Adminer → SQL komutu):**
@@ -11084,7 +12362,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 #### Y-RESIDENT-DETAIL-05 · Düğme: Menü: Pasifleştir / Aktifleştir
 - **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/residents/:id
 - **Adım:** "Menü: Pasifleştir / Aktifleştir" öğesine dokun (kaynak satırı 150)
-- **Beklenen (yazma):** `PATCH /residents/:id` (identity, `services/identity/main.go:147`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `PATCH /residents/:id` (identity, `services/identity/main.go:151`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: BOARD_MEMBER/MANAGER/OWNER/PROXY/TENANT
   - Veritabanı tetikleyicileri çalışır: `trg_resident_units_tenancy_guard`, `trg_resident_units_tenant_arrival`, `trg_resident_units_tenant_departure` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
   - **Veritabanı (Adminer → SQL komutu):**
@@ -11114,7 +12392,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 #### Y-RESIDENT-TOOLS-01 · Düğme: Toplu sakin ekle
 - **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/residents/presentation/screens/resident_tools_screen.dart`)
 - **Adım:** "Toplu sakin ekle" öğesine dokun (kaynak satırı 161); açılan pencere/formu gerçekçi değerlerle doldurup onayla
-- **Beklenen (yazma):** `POST /residents/bulk` (identity, `services/identity/main.go:134`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /residents/bulk` (identity, `services/identity/main.go:138`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: BOARD_MEMBER/MANAGER/OWNER/PROXY/TENANT
   - Veritabanı tetikleyicileri çalışır: `trg_resident_units_tenancy_guard`, `trg_resident_units_tenant_arrival`, `trg_resident_units_tenant_departure` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
   - **Veritabanı (Adminer → SQL komutu):**
@@ -11131,7 +12409,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 #### Y-RESIDENT-TOOLS-02 · Düğme: Davet et
 - **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/residents/presentation/screens/resident_tools_screen.dart`)
 - **Adım:** "Davet et" öğesine dokun (kaynak satırı 179); açılan pencere/formu gerçekçi değerlerle doldurup onayla
-- **Beklenen (yazma):** `POST /residents/invitations` (identity, `services/identity/main.go:136`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /residents/invitations` (identity, `services/identity/main.go:140`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: BOARD_MEMBER/MANAGER/OWNER/PROXY/TENANT
   - **Veritabanı (Adminer → SQL komutu):**
     - `resident_invitations` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM resident_invitations ORDER BY xmin::text::bigint DESC LIMIT 5;`
@@ -11149,7 +12427,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 #### Y-RESIDENT-TOOLS-03 · Düğme: Yönetim yolu başlat
 - **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/residents/presentation/screens/resident_tools_screen.dart`)
 - **Adım:** "Yönetim yolu başlat" öğesine dokun (kaynak satırı 217); açılan pencere/formu gerçekçi değerlerle doldurup onayla
-- **Beklenen (yazma):** `POST /residents/tenancy-requests` (identity, `services/identity/main.go:140`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /residents/tenancy-requests` (identity, `services/identity/main.go:144`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: BOARD_MEMBER/MANAGER/OWNER/PROXY
   - Dosya depoya yazılır; ilgili ekranda indirilebilir olmalı
   - **Veritabanı (Adminer → SQL komutu):**
@@ -11161,7 +12439,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
     - Sorgu: `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE 'identity.tenancy%' ORDER BY n.created_at DESC LIMIT 30;`
     - SMS/EMAIL kanalı satırı varsa: SMS kutusu (http://localhost:18000/sms) / Mailpit (http://localhost:18025) içinde metin doğru kişiye gitmiş olmalı. **SİTE_B hesabı bu bildirimi hiçbir yerde görmemeli.**
   - **Etkisi görülmeli:** Panel `/dashboard/residents`, Sakin `tenancy_requests_screen`, Yön.mobil `resident_tools_screen`
-- **Beklenen (yazma):** `POST /residents/tenancy-requests/:id/documents` (identity, `services/identity/main.go:141`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /residents/tenancy-requests/:id/documents` (identity, `services/identity/main.go:145`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: BOARD_MEMBER/MANAGER/OWNER/PROXY
   - Dosya depoya yazılır; ilgili ekranda indirilebilir olmalı
   - **Veritabanı (Adminer → SQL komutu):**
@@ -11191,7 +12469,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 #### Y-RESIDENT-TOOLS-06 · Düğme: Yeni belge
 - **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/residents/presentation/screens/resident_tools_screen.dart`)
 - **Adım:** "Yeni belge" öğesine dokun (kaynak satırı 254); açılan pencere/formu gerçekçi değerlerle doldurup onayla
-- **Beklenen (yazma):** `POST /residents/tenancy-requests` (identity, `services/identity/main.go:140`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /residents/tenancy-requests` (identity, `services/identity/main.go:144`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: BOARD_MEMBER/MANAGER/OWNER/PROXY
   - Dosya depoya yazılır; ilgili ekranda indirilebilir olmalı
   - **Veritabanı (Adminer → SQL komutu):**
@@ -11203,7 +12481,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
     - Sorgu: `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE 'identity.tenancy%' ORDER BY n.created_at DESC LIMIT 30;`
     - SMS/EMAIL kanalı satırı varsa: SMS kutusu (http://localhost:18000/sms) / Mailpit (http://localhost:18025) içinde metin doğru kişiye gitmiş olmalı. **SİTE_B hesabı bu bildirimi hiçbir yerde görmemeli.**
   - **Etkisi görülmeli:** Panel `/dashboard/residents`, Sakin `tenancy_requests_screen`, Yön.mobil `resident_tools_screen`
-- **Beklenen (yazma):** `POST /residents/tenancy-requests/:id/documents` (identity, `services/identity/main.go:141`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /residents/tenancy-requests/:id/documents` (identity, `services/identity/main.go:145`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: BOARD_MEMBER/MANAGER/OWNER/PROXY
   - Dosya depoya yazılır; ilgili ekranda indirilebilir olmalı
   - **Veritabanı (Adminer → SQL komutu):**
@@ -11220,7 +12498,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 #### Y-RESIDENT-TOOLS-07 · Düğme: İptal
 - **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/residents/presentation/screens/resident_tools_screen.dart`)
 - **Adım:** "İptal" öğesine dokun (kaynak satırı 256)
-- **Beklenen (yazma):** `POST /residents/tenancy-requests/:id/cancel` (identity, `services/identity/main.go:143`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /residents/tenancy-requests/:id/cancel` (identity, `services/identity/main.go:147`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: BOARD_MEMBER/MANAGER
   - **Veritabanı (Adminer → SQL komutu):**
     - `tenancy_end_events` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM tenancy_end_events ORDER BY xmin::text::bigint DESC LIMIT 5;`
@@ -11233,7 +12511,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 #### Y-RESIDENT-TOOLS-08 · Düğme: Geri al
 - **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/residents/presentation/screens/resident_tools_screen.dart`)
 - **Adım:** "Geri al" öğesine dokun (kaynak satırı 263)
-- **Beklenen (yazma):** `POST /residents/tenancy-requests/:id/reverse` (identity, `services/identity/main.go:144`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /residents/tenancy-requests/:id/reverse` (identity, `services/identity/main.go:148`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: BOARD_MEMBER/MANAGER
   - Veritabanı tetikleyicileri çalışır: `trg_resident_units_tenancy_guard`, `trg_resident_units_tenant_arrival`, `trg_resident_units_tenant_departure` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
   - **Veritabanı (Adminer → SQL komutu):**
@@ -11349,7 +12627,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 #### Y-ROLES-01 · Düğme: Görev ver
 - **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/roles
 - **Adım:** "Görev ver" öğesine dokun (kaynak satırı 68); açılan pencere/formu gerçekçi değerlerle doldurup onayla
-- **Beklenen (yazma):** `POST /property-roles` (identity, `services/identity/main.go:169`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /property-roles` (identity, `services/identity/main.go:175`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: AUDITOR/BOARD_MEMBER/MANAGER/STAFF
   - **Veritabanı (Adminer → SQL komutu):**
     - `user_activation_codes` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM user_activation_codes ORDER BY xmin::text::bigint DESC LIMIT 5;`
@@ -11530,12 +12808,14 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
     - `client_error_reports` — satır silinmiş olmalı: `SELECT xmin, * FROM client_error_reports ORDER BY xmin::text::bigint DESC LIMIT 5;`
     - `data_destruction_log` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM data_destruction_log ORDER BY xmin::text::bigint DESC LIMIT 5;`
     - `storage_deletion_queue` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM storage_deletion_queue ORDER BY xmin::text::bigint DESC LIMIT 5;`
+    - `mp_messages` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM mp_messages ORDER BY xmin::text::bigint DESC LIMIT 5;`
+    - `mp_request_contacts` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM mp_request_contacts ORDER BY xmin::text::bigint DESC LIMIT 5;`
     - `packages` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM packages ORDER BY xmin::text::bigint DESC LIMIT 5;`
     - `parking_logs` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM parking_logs ORDER BY xmin::text::bigint DESC LIMIT 5;`
     - `visitors` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM visitors ORDER BY xmin::text::bigint DESC LIMIT 5;`
   - **İşlem kaydı:** `SELECT created_at, action, entity_type, status_code, user_id FROM audit_logs WHERE screen = '/api/v1/retention-rules/run' ORDER BY created_at DESC LIMIT 5;` → `CREATE`, 2xx (yetkisiz denemede `DENIED`, 403)
   - **Bildirim:** üretmez — `notifications` tablosuna bu işlemle yeni satır EKLENMEMELİ.
-  - **Etkisi görülmeli:** Panel `/dashboard/packages`, Panel `/dashboard/parking`, Panel `/dashboard/settings`, Panel `/dashboard/visitors`, Sakin `package_tracking_mobile_screen`, Yön.mobil `package_tracking_screen`, Yön.mobil `parking_management_screen`, Yön.mobil `site_settings_screen`, Yön.mobil `visitor_management_screen`
+  - **Etkisi görülmeli:** Panel `/dashboard/packages`, Panel `/dashboard/parking`, Panel `/dashboard/settings`, Panel `/dashboard/visitors`, Panel `/tedarikci/(panel)/talepler/[id]`, Sakin `market_request_screens`, Sakin `package_tracking_mobile_screen`, Yön.mobil `package_tracking_screen`, Yön.mobil `parking_management_screen`, Yön.mobil `site_settings_screen`, Yön.mobil `visitor_management_screen`
 - **Sonuç:** http://localhost:18000/sonuc → `Y-SITE-SETTINGS-01`
 
 #### Y-SITE-SETTINGS-02 · Düğme: simge düğmesi (satır 168)
@@ -11547,12 +12827,14 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
     - `client_error_reports` — satır silinmiş olmalı: `SELECT xmin, * FROM client_error_reports ORDER BY xmin::text::bigint DESC LIMIT 5;`
     - `data_retention_rules` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM data_retention_rules ORDER BY xmin::text::bigint DESC LIMIT 5;`
     - `storage_deletion_queue` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM storage_deletion_queue ORDER BY xmin::text::bigint DESC LIMIT 5;`
+    - `mp_messages` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM mp_messages ORDER BY xmin::text::bigint DESC LIMIT 5;`
+    - `mp_request_contacts` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM mp_request_contacts ORDER BY xmin::text::bigint DESC LIMIT 5;`
     - `packages` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM packages ORDER BY xmin::text::bigint DESC LIMIT 5;`
     - `parking_logs` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM parking_logs ORDER BY xmin::text::bigint DESC LIMIT 5;`
     - `visitors` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM visitors ORDER BY xmin::text::bigint DESC LIMIT 5;`
   - **İşlem kaydı:** `SELECT created_at, action, entity_type, status_code, user_id FROM audit_logs WHERE screen = '/api/v1/retention-rules/:category' ORDER BY created_at DESC LIMIT 5;` → `UPDATE`, 2xx (yetkisiz denemede `DENIED`, 403)
   - **Bildirim:** üretmez — `notifications` tablosuna bu işlemle yeni satır EKLENMEMELİ.
-  - **Etkisi görülmeli:** Panel `/dashboard/packages`, Panel `/dashboard/parking`, Panel `/dashboard/settings`, Panel `/dashboard/visitors`, Sakin `package_tracking_mobile_screen`, Yön.mobil `package_tracking_screen`, Yön.mobil `parking_management_screen`, Yön.mobil `site_settings_screen`, Yön.mobil `visitor_management_screen`
+  - **Etkisi görülmeli:** Panel `/dashboard/packages`, Panel `/dashboard/parking`, Panel `/dashboard/settings`, Panel `/dashboard/visitors`, Panel `/tedarikci/(panel)/talepler/[id]`, Sakin `market_request_screens`, Sakin `package_tracking_mobile_screen`, Yön.mobil `package_tracking_screen`, Yön.mobil `parking_management_screen`, Yön.mobil `site_settings_screen`, Yön.mobil `visitor_management_screen`
 - **Sonuç:** http://localhost:18000/sonuc → `Y-SITE-SETTINGS-02`
 
 #### Y-SITE-SETTINGS-03 · Düğme: simge düğmesi (satır 236)
@@ -11608,7 +12890,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 #### Y-SITE-SETTINGS-06 · Düğme: Siteyi pasife al / Siteyi yeniden etkinleştir
 - **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/site-settings
 - **Adım:** "Siteyi pasife al / Siteyi yeniden etkinleştir" öğesine dokun (kaynak satırı 299)
-- **Beklenen (yazma):** `POST /property/deactivate` (identity, `services/identity/main.go:160`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /property/deactivate` (identity, `services/identity/main.go:164`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: MANAGER
   - **Veritabanı (Adminer → SQL komutu):**
     - `property_lifecycle_events` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM property_lifecycle_events ORDER BY xmin::text::bigint DESC LIMIT 5;`
@@ -11616,7 +12898,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
   - **İşlem kaydı:** `SELECT created_at, action, entity_type, status_code, user_id FROM audit_logs WHERE screen = '/api/v1/property/deactivate' ORDER BY created_at DESC LIMIT 5;` → `CREATE`, 2xx (yetkisiz denemede `DENIED`, 403)
   - **Bildirim:** üretmez — `notifications` tablosuna bu işlemle yeni satır EKLENMEMELİ.
   - **Etkisi görülmeli:** Panel `/dashboard/settings`, Yön.mobil `site_settings_screen`
-- **Beklenen (yazma):** `POST /property/reactivate` (identity, `services/identity/main.go:161`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /property/reactivate` (identity, `services/identity/main.go:165`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: MANAGER
   - **Veritabanı (Adminer → SQL komutu):**
     - `property_lifecycle_events` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM property_lifecycle_events ORDER BY xmin::text::bigint DESC LIMIT 5;`
@@ -11864,7 +13146,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 #### Y-UNITS-01 · Düğme: Toplu ekle
 - **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/units
 - **Adım:** "Toplu ekle" öğesine dokun (kaynak satırı 142); açılan pencere/formu gerçekçi değerlerle doldurup onayla
-- **Beklenen (yazma):** `POST /units` (identity, `services/identity/main.go:178`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /units` (identity, `services/identity/main.go:184`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: BOARD_MEMBER/MANAGER
   - **Veritabanı (Adminer → SQL komutu):**
     - Ortak tablolar da değişir: `units` (aynı sorgu kalıbıyla bakılabilir)
@@ -11875,19 +13157,119 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 #### Y-UNITS-02 · Düğme: Bölüm
 - **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/units
 - **Adım:** "Bölüm" öğesine dokun (kaynak satırı 144)
-- **Beklenen (yazma):** `POST /units` (identity, `services/identity/main.go:178`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /units` (identity, `services/identity/main.go:184`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: BOARD_MEMBER/MANAGER
   - **Veritabanı (Adminer → SQL komutu):**
     - Ortak tablolar da değişir: `units` (aynı sorgu kalıbıyla bakılabilir)
   - **İşlem kaydı:** `SELECT created_at, action, entity_type, status_code, user_id FROM audit_logs WHERE screen = '/api/v1/units' ORDER BY created_at DESC LIMIT 5;` → `CREATE`, 2xx (yetkisiz denemede `DENIED`, 403)
   - **Bildirim:** üretmez — `notifications` tablosuna bu işlemle yeni satır EKLENMEMELİ.
-- **Beklenen (yazma):** `PATCH /units/:id` (identity, `services/identity/main.go:179`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `PATCH /units/:id` (identity, `services/identity/main.go:185`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: BOARD_MEMBER/MANAGER
   - **Veritabanı (Adminer → SQL komutu):**
     - Ortak tablolar da değişir: `units` (aynı sorgu kalıbıyla bakılabilir)
   - **İşlem kaydı:** `SELECT created_at, action, entity_type, status_code, user_id FROM audit_logs WHERE screen = '/api/v1/units/:id' ORDER BY created_at DESC LIMIT 5;` → `UPDATE`, 2xx (yetkisiz denemede `DENIED`, 403)
   - **Bildirim:** üretmez — `notifications` tablosuna bu işlemle yeni satır EKLENMEMELİ.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-UNITS-02`
+
+---
+
+### site_market_screens
+- Dosya: `admin_app/lib/features/usta_hizmet/presentation/screens/site_market_screens.dart`
+
+#### Y-SITE-MARKETS-00 · Ekran açılışı ve görünüm
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/usta-hizmet, http://localhost:3003/#/usta-hizmet/:id
+- **Adım:** Ekranı aç: http://localhost:3003/#/usta-hizmet, http://localhost:3003/#/usta-hizmet/:id — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Adım:** Veri yüklenir: `GET /market/meta` (marketplace); `GET /market/requests` (marketplace); `GET /market/requests/:id/job` (marketplace); `GET /market/requests/:id` (marketplace); `GET /market/requests/:id/offers` (marketplace); `GET /expense-categories` (expense)
+- **Adım:** Başlık (satır 56): Usta & Hizmet
+- **Adım:** Başlık (satır 138): Site talebi
+- **Adım:** Aşağı çekerek yenile (varsa) ya da ekrana yeniden gir: aynı veri gelir
+- **Beklenen:** her veri bölümü yüklenir (boşsa anlamlı boş durum mesajı; "undefined", "NaN", "null", ham JSON ya da İngilizce hata metni YOK); sayılar ve tarihler Türkçe biçimde (1.234,56 ₺ · gg.aa.yyyy); uydurma/örnek veri yok; dar ekranda (400 px) yatay kaydırma olmadan okunur.
+- **Sonuç:** http://localhost:18000/sonuc → `Y-SITE-MARKETS-00`
+
+#### Y-SITE-MARKETS-01 · Düğme: Teklif topla
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/usta-hizmet, http://localhost:3003/#/usta-hizmet/:id
+- **Adım:** "Teklif topla" öğesine dokun (kaynak satırı 57)
+- **Beklenen (yazma):** `POST /market/requests` (marketplace, `services/marketplace/main.go:84`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+  - Sunucu yetkisi: işleyicide `hasRole` (backend/services/settings/visibility.go:74)
+  - Veritabanı tetikleyicileri çalışır: `mp_requests_active_property` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
+  - **Veritabanı (Adminer → SQL komutu):**
+    - `mp_request_contacts` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM mp_request_contacts ORDER BY xmin::text::bigint DESC LIMIT 5;`
+    - `mp_request_dispatch` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM mp_request_dispatch ORDER BY xmin::text::bigint DESC LIMIT 5;`
+    - `mp_requests` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM mp_requests ORDER BY xmin::text::bigint DESC LIMIT 5;`
+    - `mp_request_dispatch` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM mp_request_dispatch ORDER BY xmin::text::bigint DESC LIMIT 5;`
+    - `mp_supplier_accounts` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM mp_supplier_accounts ORDER BY xmin::text::bigint DESC LIMIT 5;`
+  - **İşlem kaydı:** `SELECT created_at, action, entity_type, status_code, user_id FROM audit_logs WHERE screen = '/api/v1/market/requests' ORDER BY created_at DESC LIMIT 5;` → `CREATE`, 2xx (yetkisiz denemede `DENIED`, 403)
+  - **Bildirim:** konu `{topic}` → alıcı: işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
+    - Sorgu: `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE '%' ORDER BY n.created_at DESC LIMIT 30;`
+    - SMS/EMAIL kanalı satırı varsa: SMS kutusu (http://localhost:18000/sms) / Mailpit (http://localhost:18025) içinde metin doğru kişiye gitmiş olmalı. **SİTE_B hesabı bu bildirimi hiçbir yerde görmemeli.**
+  - **Etkisi görülmeli:** Panel `/dashboard/settings`, Panel `/tedarikci/(panel)/bakiye`, Panel `/tedarikci/(panel)/isletmeler`, Panel `/tedarikci/(panel)/talepler/[id]`, Panel `/tedarikci/(panel)/talepler`, Panel `/tedarikci/(panel)`, Sakin `market_request_screens`, Yön.mobil `site_market_screens`, Yön.mobil `site_settings_screen`
+- **Sonuç:** http://localhost:18000/sonuc → `Y-SITE-MARKETS-01`
+
+#### Y-SITE-MARKETS-02 · Düğme: ${r[
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/usta-hizmet, http://localhost:3003/#/usta-hizmet/:id
+- **Adım:** "${r[" öğesine dokun (kaynak satırı 65); açılan pencere/formu gerçekçi değerlerle doldurup onayla
+- **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
+- **Sonuç:** http://localhost:18000/sonuc → `Y-SITE-MARKETS-02`
+
+#### Y-SITE-MARKETS-03 · Düğme: Seç
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/usta-hizmet, http://localhost:3003/#/usta-hizmet/:id
+- **Adım:** "Seç" öğesine dokun (kaynak satırı 176)
+- **Beklenen (yazma):** `POST /market/requests/:id/offers/:offerId/select` (marketplace, `services/marketplace/main.go:90`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+  - Sunucu yetkisi: işleyicide `hasRole` (backend/services/settings/visibility.go:74)
+  - Veritabanı tetikleyicileri çalışır: `mp_jobs_completed_refresh`, `mp_requests_active_property` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
+  - **Veritabanı (Adminer → SQL komutu):**
+    - `mp_jobs` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM mp_jobs ORDER BY xmin::text::bigint DESC LIMIT 5;`
+    - `mp_offers` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM mp_offers ORDER BY xmin::text::bigint DESC LIMIT 5;`
+    - `mp_requests` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM mp_requests ORDER BY xmin::text::bigint DESC LIMIT 5;`
+  - **İşlem kaydı:** `SELECT created_at, action, entity_type, status_code, user_id FROM audit_logs WHERE screen = '/api/v1/market/requests/:id/offers/:offerId/select' ORDER BY created_at DESC LIMIT 5;` → `CREATE`, 2xx (yetkisiz denemede `DENIED`, 403)
+  - **Bildirim:** konu `{topic}` → alıcı: işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
+    - Sorgu: `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE '%' ORDER BY n.created_at DESC LIMIT 30;`
+    - SMS/EMAIL kanalı satırı varsa: SMS kutusu (http://localhost:18000/sms) / Mailpit (http://localhost:18025) içinde metin doğru kişiye gitmiş olmalı. **SİTE_B hesabı bu bildirimi hiçbir yerde görmemeli.**
+  - **Etkisi görülmeli:** Panel `/dashboard/settings`, Panel `/tedarikci/(panel)/talepler/[id]`, Panel `/tedarikci/(panel)/talepler`, Sakin `market_request_screens`, Yön.mobil `site_market_screens`, Yön.mobil `site_settings_screen`
+- **Sonuç:** http://localhost:18000/sonuc → `Y-SITE-MARKETS-03`
+
+#### Y-SITE-MARKETS-04 · Düğme: Teklif seçmeden kapat
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/usta-hizmet, http://localhost:3003/#/usta-hizmet/:id
+- **Adım:** "Teklif seçmeden kapat" öğesine dokun (kaynak satırı 189)
+- **Beklenen (yazma):** `POST /market/requests/:id/close` (marketplace, `services/marketplace/main.go:91`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+  - Sunucu yetkisi: işleyicide `hasRole` (backend/services/settings/visibility.go:74)
+  - Veritabanı tetikleyicileri çalışır: `mp_requests_active_property` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
+  - **Veritabanı (Adminer → SQL komutu):**
+    - `mp_offers` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM mp_offers ORDER BY xmin::text::bigint DESC LIMIT 5;`
+    - `mp_requests` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM mp_requests ORDER BY xmin::text::bigint DESC LIMIT 5;`
+  - **İşlem kaydı:** `SELECT created_at, action, entity_type, status_code, user_id FROM audit_logs WHERE screen = '/api/v1/market/requests/:id/close' ORDER BY created_at DESC LIMIT 5;` → `CREATE`, 2xx (yetkisiz denemede `DENIED`, 403)
+  - **Bildirim:** konu `{topic}` → alıcı: işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
+    - Sorgu: `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE '%' ORDER BY n.created_at DESC LIMIT 30;`
+    - SMS/EMAIL kanalı satırı varsa: SMS kutusu (http://localhost:18000/sms) / Mailpit (http://localhost:18025) içinde metin doğru kişiye gitmiş olmalı. **SİTE_B hesabı bu bildirimi hiçbir yerde görmemeli.**
+  - **Etkisi görülmeli:** Panel `/dashboard/settings`, Panel `/tedarikci/(panel)/talepler/[id]`, Panel `/tedarikci/(panel)/talepler`, Sakin `market_request_screens`, Yön.mobil `site_market_screens`, Yön.mobil `site_settings_screen`
+- **Sonuç:** http://localhost:18000/sonuc → `Y-SITE-MARKETS-04`
+
+#### Y-SITE-MARKETS-05 · Düğme: Onay bekleyen gider oluştur
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/usta-hizmet, http://localhost:3003/#/usta-hizmet/:id
+- **Adım:** "Onay bekleyen gider oluştur" öğesine dokun (kaynak satırı 209)
+- **Beklenen (yazma):** `POST /expenses` (expense, `services/expense/main.go:71`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+  - Sunucu yetkisi: BOARD_MEMBER/MANAGER
+  - Veritabanı tetikleyicileri çalışır: `expense_updated_at` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
+  - **Veritabanı (Adminer → SQL komutu):**
+    - `expense_distributions` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM expense_distributions ORDER BY xmin::text::bigint DESC LIMIT 5;`
+    - `expenses` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM expenses ORDER BY xmin::text::bigint DESC LIMIT 5;`
+  - **İşlem kaydı:** `SELECT created_at, action, entity_type, status_code, user_id FROM audit_logs WHERE screen = '/api/v1/expenses' ORDER BY created_at DESC LIMIT 5;` → `CREATE`, 2xx (yetkisiz denemede `DENIED`, 403)
+  - **Bildirim:** üretmez — `notifications` tablosuna bu işlemle yeni satır EKLENMEMELİ.
+  - **Etkisi görülmeli:** Panel `/dashboard/expenses`, Yön.mobil `expense_detail_screen`, Yön.mobil `expenses_screen`, Yön.mobil `resident_expenses_screen`
+- **Sonuç:** http://localhost:18000/sonuc → `Y-SITE-MARKETS-05`
+
+#### Y-SITE-MARKETS-06 · Düğme: İş tamamlandı, onayla
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/usta-hizmet, http://localhost:3003/#/usta-hizmet/:id
+- **Adım:** "İş tamamlandı, onayla" öğesine dokun (kaynak satırı 211)
+- **Beklenen (yazma):** `POST /market/requests/:id/job/confirm` (marketplace, `services/marketplace/main.go:95`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+  - Sunucu yetkisi: işleyicide `hasRole` (backend/services/settings/visibility.go:74)
+  - Veritabanı tetikleyicileri çalışır: `mp_jobs_completed_refresh` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
+  - **Veritabanı (Adminer → SQL komutu):**
+    - `mp_jobs` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM mp_jobs ORDER BY xmin::text::bigint DESC LIMIT 5;`
+  - **İşlem kaydı:** `SELECT created_at, action, entity_type, status_code, user_id FROM audit_logs WHERE screen = '/api/v1/market/requests/:id/job/confirm' ORDER BY created_at DESC LIMIT 5;` → `CREATE`, 2xx (yetkisiz denemede `DENIED`, 403)
+  - **Bildirim:** üretmez — `notifications` tablosuna bu işlemle yeni satır EKLENMEMELİ.
+  - **Etkisi görülmeli:** Panel `/dashboard/settings`, Panel `/tedarikci/(panel)/talepler/[id]`, Panel `/tedarikci/(panel)/talepler`, Sakin `market_request_screens`, Yön.mobil `site_market_screens`, Yön.mobil `site_settings_screen`
+- **Sonuç:** http://localhost:18000/sonuc → `Y-SITE-MARKETS-06`
 
 ---
 
@@ -12582,9 +13964,17 @@ Her satır bir test ID'sidir. Önce **Tetikleyen** sütunundaki işlemi ilgili s
 - **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
 - **Sonuç:** `B-POST-AUTH-PASSWORD-RESET-REQ`
 
+#### B-POST-AUTH-SUPPLIER-SIGNUP-RE · `POST /auth/supplier-signup/request`
+- **Tetikleyen:** Panel `/tedarikci/(auth)/kayit`
+- **Konu:** `identity.supplier_signup` · **Servis:** identity (`services/identity/main.go:85`)
+- **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
+- **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE 'identity.supplier_signup%' ORDER BY n.created_at DESC LIMIT 30;`
+- **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
+- **Sonuç:** `B-POST-AUTH-SUPPLIER-SIGNUP-RE`
+
 #### B-POST-USERS-ME-PHONE-REQUEST · `POST /users/me/phone/request`
 - **Tetikleyen:** Panel `/dashboard/account`, Sakin `profile_settings_screen`, Sakin `session_actions`, Yön.mobil `account_screen`
-- **Konu:** `identity.phone_change` · **Servis:** identity (`services/identity/main.go:104`)
+- **Konu:** `identity.phone_change` · **Servis:** identity (`services/identity/main.go:108`)
 - **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
 - **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE 'identity.phone_change%' ORDER BY n.created_at DESC LIMIT 30;`
 - **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
@@ -12592,7 +13982,7 @@ Her satır bir test ID'sidir. Önce **Tetikleyen** sütunundaki işlemi ilgili s
 
 #### B-POST-USERS-ME-PHONE-CONFIRM · `POST /users/me/phone/confirm`
 - **Tetikleyen:** Panel `/dashboard/account`, Sakin `profile_settings_screen`, Sakin `session_actions`, Yön.mobil `account_screen`
-- **Konu:** `identity.phone_changed` · **Servis:** identity (`services/identity/main.go:105`)
+- **Konu:** `identity.phone_changed` · **Servis:** identity (`services/identity/main.go:109`)
 - **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
 - **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE 'identity.phone_changed%' ORDER BY n.created_at DESC LIMIT 30;`
 - **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
@@ -12600,7 +13990,7 @@ Her satır bir test ID'sidir. Önce **Tetikleyen** sütunundaki işlemi ilgili s
 
 #### B-POST-USERS-ME-EMAIL · `POST /users/me/email`
 - **Tetikleyen:** Panel `/dashboard/account`, Sakin `profile_settings_screen`, Sakin `session_actions`, Yön.mobil `account_screen`
-- **Konu:** `identity.email_change` · **Servis:** identity (`services/identity/main.go:106`)
+- **Konu:** `identity.email_change` · **Servis:** identity (`services/identity/main.go:110`)
 - **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
 - **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE 'identity.email_change%' ORDER BY n.created_at DESC LIMIT 30;`
 - **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
@@ -12608,7 +13998,7 @@ Her satır bir test ID'sidir. Önce **Tetikleyen** sütunundaki işlemi ilgili s
 
 #### B-POST-USERS-ME-EMAIL-CONFIRM · `POST /users/me/email/confirm`
 - **Tetikleyen:** Panel `/dashboard/account`, Sakin `profile_settings_screen`, Sakin `session_actions`, Yön.mobil `account_screen`
-- **Konu:** `identity.email_changed` · **Servis:** identity (`services/identity/main.go:107`)
+- **Konu:** `identity.email_changed` · **Servis:** identity (`services/identity/main.go:111`)
 - **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
 - **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE 'identity.email_changed%' ORDER BY n.created_at DESC LIMIT 30;`
 - **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
@@ -12616,7 +14006,7 @@ Her satır bir test ID'sidir. Önce **Tetikleyen** sütunundaki işlemi ilgili s
 
 #### B-POST-USERS-ME-UNITS-ID-INVIT · `POST /users/me/units/:id/invitations`
 - **Tetikleyen:** Sakin `unit_residents_screen`
-- **Konu:** `identity.invitation` · **Servis:** identity (`services/identity/main.go:111`)
+- **Konu:** `identity.invitation` · **Servis:** identity (`services/identity/main.go:115`)
 - **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
 - **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE 'identity.invitation%' ORDER BY n.created_at DESC LIMIT 30;`
 - **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
@@ -12624,7 +14014,7 @@ Her satır bir test ID'sidir. Önce **Tetikleyen** sütunundaki işlemi ilgili s
 
 #### B-POST-USERS-ME-UNITS-ID-TENAN · `POST /users/me/units/:id/tenancy-end`
 - **Tetikleyen:** Sakin `unit_residents_screen`
-- **Konu:** `identity.tenancy` · **Servis:** identity (`services/identity/main.go:114`)
+- **Konu:** `identity.tenancy` · **Servis:** identity (`services/identity/main.go:118`)
 - **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
 - **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE 'identity.tenancy%' ORDER BY n.created_at DESC LIMIT 30;`
 - **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
@@ -12632,7 +14022,7 @@ Her satır bir test ID'sidir. Önce **Tetikleyen** sütunundaki işlemi ilgili s
 
 #### B-POST-USERS-ME-UNITS-ID-TENAN-2 · `POST /users/me/units/:id/tenancy-exit`
 - **Tetikleyen:** Sakin `unit_residents_screen`
-- **Konu:** `identity.tenancy` · **Servis:** identity (`services/identity/main.go:115`)
+- **Konu:** `identity.tenancy` · **Servis:** identity (`services/identity/main.go:119`)
 - **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
 - **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE 'identity.tenancy%' ORDER BY n.created_at DESC LIMIT 30;`
 - **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
@@ -12640,7 +14030,7 @@ Her satır bir test ID'sidir. Önce **Tetikleyen** sütunundaki işlemi ilgili s
 
 #### B-POST-USERS-ME-TENANCY-REQUES · `POST /users/me/tenancy-requests/:id/approve`
 - **Tetikleyen:** Sakin `tenancy_requests_screen`
-- **Konu:** `identity.tenancy` · **Servis:** identity (`services/identity/main.go:117`)
+- **Konu:** `identity.tenancy` · **Servis:** identity (`services/identity/main.go:121`)
 - **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
 - **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE 'identity.tenancy%' ORDER BY n.created_at DESC LIMIT 30;`
 - **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
@@ -12648,7 +14038,7 @@ Her satır bir test ID'sidir. Önce **Tetikleyen** sütunundaki işlemi ilgili s
 
 #### B-POST-USERS-ME-TENANCY-REQUES-2 · `POST /users/me/tenancy-requests/:id/decline`
 - **Tetikleyen:** Sakin `tenancy_requests_screen`
-- **Konu:** `identity.tenancy` · **Servis:** identity (`services/identity/main.go:118`)
+- **Konu:** `identity.tenancy` · **Servis:** identity (`services/identity/main.go:122`)
 - **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
 - **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE 'identity.tenancy%' ORDER BY n.created_at DESC LIMIT 30;`
 - **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
@@ -12656,7 +14046,7 @@ Her satır bir test ID'sidir. Önce **Tetikleyen** sütunundaki işlemi ilgili s
 
 #### B-POST-RESIDENTS · `POST /residents`
 - **Tetikleyen:** Panel `/dashboard/residents`, Yön.mobil `add_resident_screen`
-- **Konu:** `identity.activation` · **Servis:** identity (`services/identity/main.go:133`)
+- **Konu:** `identity.activation` · **Servis:** identity (`services/identity/main.go:137`)
 - **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
 - **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE 'identity.activation%' ORDER BY n.created_at DESC LIMIT 30;`
 - **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
@@ -12664,7 +14054,7 @@ Her satır bir test ID'sidir. Önce **Tetikleyen** sütunundaki işlemi ilgili s
 
 #### B-POST-RESIDENTS-INVITATIONS · `POST /residents/invitations`
 - **Tetikleyen:** Panel `/dashboard/residents`, Yön.mobil `resident_tools_screen`
-- **Konu:** `identity.invitation` · **Servis:** identity (`services/identity/main.go:136`)
+- **Konu:** `identity.invitation` · **Servis:** identity (`services/identity/main.go:140`)
 - **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
 - **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE 'identity.invitation%' ORDER BY n.created_at DESC LIMIT 30;`
 - **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
@@ -12672,7 +14062,7 @@ Her satır bir test ID'sidir. Önce **Tetikleyen** sütunundaki işlemi ilgili s
 
 #### B-POST-RESIDENTS-TENANCY-REQUE · `POST /residents/tenancy-requests`
 - **Tetikleyen:** Panel `/dashboard/residents`, Yön.mobil `resident_tools_screen`
-- **Konu:** `identity.tenancy` · **Servis:** identity (`services/identity/main.go:140`)
+- **Konu:** `identity.tenancy` · **Servis:** identity (`services/identity/main.go:144`)
 - **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
 - **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE 'identity.tenancy%' ORDER BY n.created_at DESC LIMIT 30;`
 - **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
@@ -12680,7 +14070,7 @@ Her satır bir test ID'sidir. Önce **Tetikleyen** sütunundaki işlemi ilgili s
 
 #### B-POST-RESIDENTS-TENANCY-REQUE-2 · `POST /residents/tenancy-requests/:id/documents`
 - **Tetikleyen:** Panel `/dashboard/residents`, Yön.mobil `resident_tools_screen`
-- **Konu:** `identity.tenancy` · **Servis:** identity (`services/identity/main.go:141`)
+- **Konu:** `identity.tenancy` · **Servis:** identity (`services/identity/main.go:145`)
 - **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
 - **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE 'identity.tenancy%' ORDER BY n.created_at DESC LIMIT 30;`
 - **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
@@ -12688,7 +14078,7 @@ Her satır bir test ID'sidir. Önce **Tetikleyen** sütunundaki işlemi ilgili s
 
 #### B-POST-RESIDENTS-TENANCY-REQUE-3 · `POST /residents/tenancy-requests/:id/complete`
 - **Tetikleyen:** Panel `/dashboard/residents`, Yön.mobil `resident_tools_screen`
-- **Konu:** `identity.tenancy` · **Servis:** identity (`services/identity/main.go:142`)
+- **Konu:** `identity.tenancy` · **Servis:** identity (`services/identity/main.go:146`)
 - **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
 - **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE 'identity.tenancy%' ORDER BY n.created_at DESC LIMIT 30;`
 - **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
@@ -12696,7 +14086,7 @@ Her satır bir test ID'sidir. Önce **Tetikleyen** sütunundaki işlemi ilgili s
 
 #### B-POST-RESIDENTS-TENANCY-REQUE-4 · `POST /residents/tenancy-requests/:id/reverse`
 - **Tetikleyen:** Panel `/dashboard/residents`, Yön.mobil `resident_tools_screen`
-- **Konu:** `identity.tenancy` · **Servis:** identity (`services/identity/main.go:144`)
+- **Konu:** `identity.tenancy` · **Servis:** identity (`services/identity/main.go:148`)
 - **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
 - **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE 'identity.tenancy%' ORDER BY n.created_at DESC LIMIT 30;`
 - **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
@@ -12704,7 +14094,7 @@ Her satır bir test ID'sidir. Önce **Tetikleyen** sütunundaki işlemi ilgili s
 
 #### B-POST-RESIDENTS-ID-ACTIVATION · `POST /residents/:id/activation-code`
 - **Tetikleyen:** Panel `/dashboard/residents`, Yön.mobil `resident_detail_screen`
-- **Konu:** `identity.activation` · **Servis:** identity (`services/identity/main.go:148`)
+- **Konu:** `identity.activation` · **Servis:** identity (`services/identity/main.go:152`)
 - **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
 - **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE 'identity.activation%' ORDER BY n.created_at DESC LIMIT 30;`
 - **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
@@ -12712,7 +14102,7 @@ Her satır bir test ID'sidir. Önce **Tetikleyen** sütunundaki işlemi ilgili s
 
 #### B-POST-RESIDENTS-ID-PHONE · `POST /residents/:id/phone`
 - **Tetikleyen:** Panel `/dashboard/residents`, Yön.mobil `resident_detail_screen`
-- **Konu:** `identity.activation`, `identity.phone_changed` · **Servis:** identity (`services/identity/main.go:151`)
+- **Konu:** `identity.activation`, `identity.phone_changed` · **Servis:** identity (`services/identity/main.go:155`)
 - **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
 - **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE 'identity.activation%' OR n.topic LIKE 'identity.phone_changed%' ORDER BY n.created_at DESC LIMIT 30;`
 - **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
@@ -12755,6 +14145,150 @@ Her satır bir test ID'sidir. Önce **Tetikleyen** sütunundaki işlemi ilgili s
 - **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE '%' ORDER BY n.created_at DESC LIMIT 30;`
 - **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
 - **Sonuç:** `B-POST-PUBLIC-SENSORS-DATA`
+
+#### B-POST-MARKET-REQUESTS · `POST /market/requests`
+- **Tetikleyen:** Sakin `market_request_screens`, Yön.mobil `site_market_screens`
+- **Konu:** `{topic}` · **Servis:** marketplace (`services/marketplace/main.go:84`)
+- **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
+- **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE '%' ORDER BY n.created_at DESC LIMIT 30;`
+- **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
+- **Sonuç:** `B-POST-MARKET-REQUESTS`
+
+#### B-POST-MARKET-REQUESTS-ID-OFFE · `POST /market/requests/:id/offers/:offerId/select`
+- **Tetikleyen:** Sakin `market_request_screens`, Yön.mobil `site_market_screens`
+- **Konu:** `{topic}` · **Servis:** marketplace (`services/marketplace/main.go:90`)
+- **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
+- **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE '%' ORDER BY n.created_at DESC LIMIT 30;`
+- **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
+- **Sonuç:** `B-POST-MARKET-REQUESTS-ID-OFFE`
+
+#### B-POST-MARKET-REQUESTS-ID-CLOS · `POST /market/requests/:id/close`
+- **Tetikleyen:** Sakin `market_request_screens`, Yön.mobil `site_market_screens`
+- **Konu:** `{topic}` · **Servis:** marketplace (`services/marketplace/main.go:91`)
+- **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
+- **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE '%' ORDER BY n.created_at DESC LIMIT 30;`
+- **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
+- **Sonuç:** `B-POST-MARKET-REQUESTS-ID-CLOS`
+
+#### B-POST-MARKET-REQUESTS-ID-MESS · `POST /market/requests/:id/messages/:dispatchId`
+- **Tetikleyen:** Sakin `market_request_screens`
+- **Konu:** `{topic}` · **Servis:** marketplace (`services/marketplace/main.go:93`)
+- **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
+- **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE '%' ORDER BY n.created_at DESC LIMIT 30;`
+- **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
+- **Sonuç:** `B-POST-MARKET-REQUESTS-ID-MESS`
+
+#### B-POST-MARKET-REQUESTS-ID-REVI · `POST /market/requests/:id/review`
+- **Tetikleyen:** Sakin `market_request_screens`
+- **Konu:** `{topic}` · **Servis:** marketplace (`services/marketplace/main.go:97`)
+- **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
+- **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE '%' ORDER BY n.created_at DESC LIMIT 30;`
+- **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
+- **Sonuç:** `B-POST-MARKET-REQUESTS-ID-REVI`
+
+#### B-POST-MARKET-SUPPLIER-REQUEST · `POST /market/supplier/requests/:id/offers`
+- **Tetikleyen:** Panel `/tedarikci/(panel)/talepler/[id]`
+- **Konu:** `{topic}` · **Servis:** marketplace (`services/marketplace/main.go:127`)
+- **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
+- **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE '%' ORDER BY n.created_at DESC LIMIT 30;`
+- **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
+- **Sonuç:** `B-POST-MARKET-SUPPLIER-REQUEST`
+
+#### B-POST-MARKET-SUPPLIER-REQUEST-2 · `POST /market/supplier/requests/:id/messages`
+- **Tetikleyen:** Panel `/tedarikci/(panel)/talepler/[id]`
+- **Konu:** `{topic}` · **Servis:** marketplace (`services/marketplace/main.go:130`)
+- **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
+- **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE '%' ORDER BY n.created_at DESC LIMIT 30;`
+- **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
+- **Sonuç:** `B-POST-MARKET-SUPPLIER-REQUEST-2`
+
+#### B-POST-MARKET-SUPPLIER-JOBS-ID · `POST /market/supplier/jobs/:id/done`
+- **Tetikleyen:** Panel `/tedarikci/(panel)/talepler/[id]`
+- **Konu:** `{topic}` · **Servis:** marketplace (`services/marketplace/main.go:132`)
+- **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
+- **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE '%' ORDER BY n.created_at DESC LIMIT 30;`
+- **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
+- **Sonuç:** `B-POST-MARKET-SUPPLIER-JOBS-ID`
+
+#### B-POST-MARKET-SUPPLIER-PACKAGE · `POST /market/supplier/package`
+- **Tetikleyen:** Panel `/tedarikci/(panel)/bakiye`
+- **Konu:** `market.wallet.low` · **Servis:** marketplace (`services/marketplace/main.go:138`)
+- **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
+- **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE 'market.wallet.low%' ORDER BY n.created_at DESC LIMIT 30;`
+- **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
+- **Sonuç:** `B-POST-MARKET-SUPPLIER-PACKAGE`
+
+#### B-POST-MARKET-PLATFORM-ACCOUNT · `POST /market/platform/accounts/:id/approve`
+- **Tetikleyen:** arayüzde düğmesi yok (5. bölüm) — yalnız başka bir işlemin parçası olarak tetiklenir
+- **Konu:** `{topic}` · **Servis:** marketplace (`services/marketplace/main.go:144`)
+- **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
+- **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE '%' ORDER BY n.created_at DESC LIMIT 30;`
+- **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
+- **Sonuç:** `B-POST-MARKET-PLATFORM-ACCOUNT`
+
+#### B-POST-MARKET-PLATFORM-ACCOUNT-2 · `POST /market/platform/accounts/:id/reject`
+- **Tetikleyen:** arayüzde düğmesi yok (5. bölüm) — yalnız başka bir işlemin parçası olarak tetiklenir
+- **Konu:** `{topic}` · **Servis:** marketplace (`services/marketplace/main.go:145`)
+- **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
+- **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE '%' ORDER BY n.created_at DESC LIMIT 30;`
+- **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
+- **Sonuç:** `B-POST-MARKET-PLATFORM-ACCOUNT-2`
+
+#### B-POST-MARKET-PLATFORM-ACCOUNT-3 · `POST /market/platform/accounts/:id/suspend`
+- **Tetikleyen:** arayüzde düğmesi yok (5. bölüm) — yalnız başka bir işlemin parçası olarak tetiklenir
+- **Konu:** `{topic}` · **Servis:** marketplace (`services/marketplace/main.go:146`)
+- **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
+- **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE '%' ORDER BY n.created_at DESC LIMIT 30;`
+- **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
+- **Sonuç:** `B-POST-MARKET-PLATFORM-ACCOUNT-3`
+
+#### B-POST-MARKET-PLATFORM-ACCOUNT-4 · `POST /market/platform/accounts/:id/reinstate`
+- **Tetikleyen:** arayüzde düğmesi yok (5. bölüm) — yalnız başka bir işlemin parçası olarak tetiklenir
+- **Konu:** `{topic}` · **Servis:** marketplace (`services/marketplace/main.go:147`)
+- **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
+- **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE '%' ORDER BY n.created_at DESC LIMIT 30;`
+- **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
+- **Sonuç:** `B-POST-MARKET-PLATFORM-ACCOUNT-4`
+
+#### B-POST-MARKET-PLATFORM-ACCOUNT-5 · `POST /market/platform/accounts/:id/close`
+- **Tetikleyen:** arayüzde düğmesi yok (5. bölüm) — yalnız başka bir işlemin parçası olarak tetiklenir
+- **Konu:** `{topic}` · **Servis:** marketplace (`services/marketplace/main.go:148`)
+- **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
+- **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE '%' ORDER BY n.created_at DESC LIMIT 30;`
+- **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
+- **Sonuç:** `B-POST-MARKET-PLATFORM-ACCOUNT-5`
+
+#### B-POST-MARKET-PLATFORM-BUSINES · `POST /market/platform/businesses/:id/approve`
+- **Tetikleyen:** arayüzde düğmesi yok (5. bölüm) — yalnız başka bir işlemin parçası olarak tetiklenir
+- **Konu:** `{topic}` · **Servis:** marketplace (`services/marketplace/main.go:151`)
+- **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
+- **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE '%' ORDER BY n.created_at DESC LIMIT 30;`
+- **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
+- **Sonuç:** `B-POST-MARKET-PLATFORM-BUSINES`
+
+#### B-POST-MARKET-PLATFORM-BUSINES-2 · `POST /market/platform/businesses/:id/reject`
+- **Tetikleyen:** arayüzde düğmesi yok (5. bölüm) — yalnız başka bir işlemin parçası olarak tetiklenir
+- **Konu:** `{topic}` · **Servis:** marketplace (`services/marketplace/main.go:152`)
+- **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
+- **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE '%' ORDER BY n.created_at DESC LIMIT 30;`
+- **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
+- **Sonuç:** `B-POST-MARKET-PLATFORM-BUSINES-2`
+
+#### B-POST-MARKET-PLATFORM-DISPUTE · `POST /market/platform/disputes/:id/approve`
+- **Tetikleyen:** arayüzde düğmesi yok (5. bölüm) — yalnız başka bir işlemin parçası olarak tetiklenir
+- **Konu:** `{topic}` · **Servis:** marketplace (`services/marketplace/main.go:161`)
+- **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
+- **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE '%' ORDER BY n.created_at DESC LIMIT 30;`
+- **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
+- **Sonuç:** `B-POST-MARKET-PLATFORM-DISPUTE`
+
+#### B-POST-MARKET-PLATFORM-DISPUTE-2 · `POST /market/platform/disputes/:id/reject`
+- **Tetikleyen:** arayüzde düğmesi yok (5. bölüm) — yalnız başka bir işlemin parçası olarak tetiklenir
+- **Konu:** `{topic}` · **Servis:** marketplace (`services/marketplace/main.go:162`)
+- **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
+- **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE '%' ORDER BY n.created_at DESC LIMIT 30;`
+- **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
+- **Sonuç:** `B-POST-MARKET-PLATFORM-DISPUTE-2`
 
 #### B-POST-NOTIFICATIONS · `POST /notifications`
 - **Tetikleyen:** Panel `/dashboard/notifications`, Yön.mobil `notification_center_screen`
@@ -13011,6 +14545,11 @@ Adminer (http://localhost:18080, `test_okuyucu`) salt okunurdur: buradan veri DE
 | T-MONTHLY-ASSESSMENTS-ACTIVE-P | `monthly_assessments` | `monthly_assessments_active_property_increase` | BEFORE UPDATE OF total_amount, late_fee | engeller: site pasif: tahakkuk tutarı artırılamaz | ilgili kaydı arayüzden değiştirmeyi/silmeyi dene → reddedilmeli |
 | T-MONTHLY-ASSESSMENTS-GUARD | `monthly_assessments` | `monthly_assessments_guard` | BEFORE UPDATE | engeller: Tahakkukun sınıfı (kullanım/malik) değiştirilemez; düzeltme alacak dekontu ve yeni tahakkukla yapılır | ilgili kaydı arayüzden değiştirmeyi/silmeyi dene → reddedilmeli |
 | T-TRG-MONTHLY-ASSESSMENTS-TENA | `monthly_assessments` | `trg_monthly_assessments_tenant_link` | BEFORE INSERT | satırı düzenler | ilgili işlemi yap → `satır düzenlemesi` sonucu Adminer'de görünmeli |
+| T-MP-JOBS-COMPLETED-REFRESH | `mp_jobs` | `mp_jobs_completed_refresh` | AFTER UPDATE OF status | UPDATE mp_businesses | ilgili işlemi yap → `UPDATE mp_businesses` sonucu Adminer'de görünmeli |
+| T-MP-REQUESTS-ACTIVE-PROPERTY | `mp_requests` | `mp_requests_active_property` | BEFORE INSERT | engeller: site pasif: % tablosuna yeni kayıt yazılamaz | ilgili kaydı arayüzden değiştirmeyi/silmeyi dene → reddedilmeli |
+| T-MP-REVIEWS-GUARD | `mp_reviews` | `mp_reviews_guard` | BEFORE UPDATE OR DELETE | engeller: Yorum silinemez; gerekçeyle gizlenebilir | ilgili kaydı arayüzden değiştirmeyi/silmeyi dene → reddedilmeli |
+| T-MP-REVIEWS-RATING-REFRESH | `mp_reviews` | `mp_reviews_rating_refresh` | AFTER INSERT OR UPDATE OF hidden_at | UPDATE mp_businesses | ilgili işlemi yap → `UPDATE mp_businesses` sonucu Adminer'de görünmeli |
+| T-MP-WALLET-LEDGER-NO-CHANGE | `mp_wallet_ledger` | `mp_wallet_ledger_no_change` | BEFORE UPDATE OR DELETE | engeller: Bakiye defteri değiştirilemez ve silinemez; düzeltme yeni bir hareketle yapılır | ilgili kaydı arayüzden değiştirmeyi/silmeyi dene → reddedilmeli |
 | T-NOTIFICATIONS-ACTIVE-PROPERT | `notifications` | `notifications_active_property` | BEFORE INSERT | engeller: site pasif: % tablosuna yeni kayıt yazılamaz | ilgili kaydı arayüzden değiştirmeyi/silmeyi dene → reddedilmeli |
 | T-NOTIFICATIONS-SENT-FINAL | `notifications` | `notifications_sent_final` | BEFORE UPDATE OR DELETE | engeller: Gönderilmiş bildirim silinemez (haber verildiğinin kanıtıdır) | ilgili kaydı arayüzden değiştirmeyi/silmeyi dene → reddedilmeli |
 | T-TRG-OWNER-VISIBILITY-GUARD | `owner_visibility_policies` | `trg_owner_visibility_guard` | BEFORE UPDATE | engeller: Görünürlük önerisi değiştirilemez; yeni öneri açılmalı | ilgili kaydı arayüzden değiştirmeyi/silmeyi dene → reddedilmeli |
@@ -13335,14 +14874,124 @@ Bunlar tarayıcıdan denenemez; burada yalnız beklenen durumları listelenir. E
 | `GET /facilities/:id` | reservation | arayüzde karşılığı yok |
 | `GET /finance/assessments/:id` | finance | arayüzde karşılığı yok |
 | `GET /inventory/:id` | inventory | arayüzde karşılığı yok |
+| `GET /market/platform/accounts` | marketplace | arayüzde karşılığı yok |
+| `GET /market/platform/accounts/:id` | marketplace | arayüzde karşılığı yok |
+| `GET /market/platform/businesses` | marketplace | arayüzde karşılığı yok |
+| `GET /market/platform/categories` | marketplace | arayüzde karşılığı yok |
+| `GET /market/platform/disputes` | marketplace | arayüzde karşılığı yok |
+| `GET /market/platform/documents/:id/file` | marketplace | arayüzde karşılığı yok |
+| `GET /market/platform/packages` | marketplace | arayüzde karşılığı yok |
+| `GET /market/platform/revenue` | marketplace | arayüzde karşılığı yok |
+| `GET /market/platform/reviews` | marketplace | arayüzde karşılığı yok |
+| `GET /market/requests/:id/photos/:n` | marketplace | arayüzde karşılığı yok |
+| `GET /market/services/:id/photo` | marketplace | arayüzde karşılığı yok |
+| `GET /market/supplier/requests/:id/photos/:n` | marketplace | arayüzde karşılığı yok |
+| `GET /market/supplier/topups/:id` | marketplace | arayüzde karşılığı yok |
 | `GET /packages/:id` | package | arayüzde karşılığı yok |
 | `GET /public/clearance/:code` | finance | borcu yoktur belgesindeki karekod → `http://localhost:3001/dogrula/<kod>` (01 bölümünde test edilir) |
 | `GET /sensors/:id` | iot | arayüzde karşılığı yok |
 | `POST /auth/refresh` | identity | jeton yenileme; oturum 15 dk sonra da sürüyorsa çalışıyor demektir (01 bölümü) |
+| `POST /auth/supplier-signup/verify` | identity | arayüzde karşılığı yok |
+| `POST /market/platform/accounts/:id/approve` | marketplace | arayüzde karşılığı yok |
+| `POST /market/platform/accounts/:id/close` | marketplace | arayüzde karşılığı yok |
+| `POST /market/platform/accounts/:id/reinstate` | marketplace | arayüzde karşılığı yok |
+| `POST /market/platform/accounts/:id/reject` | marketplace | arayüzde karşılığı yok |
+| `POST /market/platform/accounts/:id/suspend` | marketplace | arayüzde karşılığı yok |
+| `POST /market/platform/businesses/:id/approve` | marketplace | arayüzde karşılığı yok |
+| `POST /market/platform/businesses/:id/reject` | marketplace | arayüzde karşılığı yok |
+| `POST /market/platform/categories` | marketplace | arayüzde karşılığı yok |
+| `POST /market/platform/disputes/:id/approve` | marketplace | arayüzde karşılığı yok |
+| `POST /market/platform/disputes/:id/reject` | marketplace | arayüzde karşılığı yok |
+| `POST /market/platform/packages` | marketplace | arayüzde karşılığı yok |
+| `POST /market/platform/reviews/:id/hide` | marketplace | arayüzde karşılığı yok |
 | `POST /public/devices/heartbeat` | parking | cihaz simülatörü (http://localhost:18000/cihaz) |
+| `POST /public/market/topups/iyzico/callback` | marketplace | arayüzde karşılığı yok |
 | `POST /public/payments/iyzico/callback` | finance | sahte iyzico sayfası çağırır (kart ödemesi senaryosu) |
 | `POST /public/sensors/data` | iot | cihaz simülatörü (http://localhost:18000/cihaz) |
+| `PUT /market/platform/categories/:id` | marketplace | arayüzde karşılığı yok |
+| `PUT /market/platform/packages/:id` | marketplace | arayüzde karşılığı yok |
+| `PUT /market/platform/settings/:key` | marketplace | arayüzde karşılığı yok |
 
 **Yazılmamış modül (S-07):** `banking` — 16 uç, hepsi 501 döner. Panelde banka entegrasyonu menüsü varsa "henüz hazır değil" demeli.
 
 **Bilinen sınırlar:** push bildirimi yok (PUSH kanalı PENDING kalır); iOS derlemesi yok; web derlemesinde biyometrik giriş yok; QR okutma ve konum web'de tarayıcı iznine bağlıdır.
+
+---
+
+# 10. Usta & Hizmet — tedarikçi pazaryeri (uçtan uca)
+
+> Elle yazılır. Her senaryo tek test ID'sidir; adımlar `.a`, `.b` … diye ayrı da kaydedilebilir (ör. `U-TALEP-01.c`).
+> Hesaplar (PLATFORM, TEDARİKÇİ1, TEDARİKÇİ2) ve sorgular (Q-TALEP, Q-GONDERIM, Q-DEFTER, Q-BILDIRIM): [00-baslangic.md](00-baslangic.md).
+> Tedarikçi tarafı panelde (`http://localhost:3001/tedarikci`) ya da tedarikçi uygulamasında (`http://localhost:3004`) yürütülebilir;
+> ikisi aynı uçları kullanır. Senaryo içinde hangisinin kullanıldığını sonuç notuna yazın.
+>
+> Gelir kuralı: tedarikçi talebi **kabul ettiği anda** ücret bakiyesinden (ya da paketinin dahil talep hakkından) düşer; alıcının adı ve
+> telefonu ancak o zaman açılır. Her para adımından sonra Q-DEFTER ile bakiye = defter toplamı olmalı.
+
+Başlangıç verisi (test ortamı kurulumu): kategoriler Tesisat, Elektrik, Boya badana (sakin + yönetim), Daire temizliği (sakin),
+Site temizliği, Asansör bakımı (yönetim); paketler Ücretsiz ve Usta Pro (350 TL/ay, %25 indirim, ayda 5 talep, 50 SMS, öncelik,
+vitrinde telefon). Güneş Sitesi'nin konumu yoksa YÖNETİCİ önce panel **Ayarlar → Site konumu**'ndan haritada işaretlesin
+(konumsuz sitede yarıçaplı işletmeler yalnız aynı ilçeyle eşleşir).
+
+---
+
+## U-KAYIT-01 · Tedarikçi kaydı → belge → platform onayı → işletme yayını
+1. **a (yeni numara, tedarikçi uygulaması ya da `/tedarikci/kayit`):** 5550007001 ile **Kod gönder** → SMS kutusundaki 8 karakterlik kod → **Kodu doğrula** → ad, soyad, şifre, koşullar → **Hesabımı aç**.
+   Beklenen: tedarikçi paneli açılır; `users.roles` içinde `SUPPLIER`.
+2. **b:** Hesabım'da unvan, vergi no (10 hane), vergi dairesi → **Hesabı oluştur**; vergi levhası (PDF) ve kimlik (JPG) yükle → **İncelemeye gönder**. Beklenen: durum İncelemede; belge olmadan gönderilince eksikler tek tek söylenir.
+3. **c (PLATFORM, `/platform/hesaplar`):** hesabı aç, belgeyi indir (erişim kaydı) → gerekçesiz **Reddet** denenir (engellenir) → **Onayla**. Beklenen: tedarikçinin Bildirimler'inde "hesabınız onaylandı".
+4. **d (tedarikçi):** İşletmelerim → işletme ekle (ad, telefon, adres, il/ilçe, haritadan konum, yarıçap 10 km, kategori Elektrik), bir hizmet kalemi (fiyat aralığıyla) → **İncelemeye gönder**.
+5. **e (PLATFORM, `/platform/isletmeler`):** **Yayına al**. Beklenen: KİRACI'nın sakin uygulamasında **Usta & Hizmet → Yakınımdakiler**'de işletme görünür; ücretsiz pakette telefonu görünmez.
+- **Sonuç:** `U-KAYIT-01`
+
+## U-TALEP-01 · Talep → öncelik penceresi → kabul → teklif → seçim → iş → puan
+1. **a (KİRACI, sakin uygulaması → Usta & Hizmet → Talep aç):** kategori Tesisat; "yakınınızda N onaylı işletme" yazısı; açıklamaya bir telefon numarası da yaz; rızayı işaretle → **Talebi gönder**.
+   Beklenen: Q-TALEP'te açıklamadaki numara `[iletişim bilgisi gizlendi]`; Q-GONDERIM'de TEDARİKÇİ1 satırı `visible_at` = şimdi (ücretli paket), ücretsiz hesaplarınki 30 dk sonra.
+2. **b (TEDARİKÇİ1):** Talepler'de talep görünür; ad/telefon/adres yok; "Paketinizdeki talep hakkından düşer". Q-BILDIRIM: `market.request.new` uygulama içi + SMS (SMS kutusunda TEDARİKÇİ1'in numarası).
+3. **c (TEDARİKÇİ2, ücretsiz):** pencere içinde talebi **görmez** (liste boş). (Pencereyi beklemek yerine PLATFORM `/platform/ayarlar`'da öncelik penceresini 1 dk yapıp yeni bir talep açılabilir.)
+4. **d (TEDARİKÇİ1):** **Kabul et** → onay. Beklenen: alıcının adı, telefonu, site adresi görünür; Q-DEFTER'de `INCLUDED_REQUEST` 0 TL satırı; dahil hak 1 azalır.
+5. **e (TEDARİKÇİ1):** teklif (tutar, geçerlilik, açıklama) → **Teklif gönder**; yazışmaya bir mesaj. Beklenen: KİRACI'ya `market.offer.new`, `market.message`.
+6. **f (KİRACI):** Taleplerim → talep → teklifler (işletme telefonu, puan) → **Mesaj** ile yanıt (daire no) → **Bu teklifi seç**. Beklenen: TEDARİKÇİ1'e `market.offer.accepted`; talep "Teklif seçildi".
+7. **g (TEDARİKÇİ1):** **İş tamamlandı**. **(KİRACI):** **İş tamamlandı, onaylıyorum** → 5 yıldız + yorum → **Puanı gönder**.
+   Beklenen: işletmenin vitrin puanı güncellenir; TEDARİKÇİ1 Puanlar'da yorumu görür ve **bir kez** yanıtlar.
+- **Sonuç:** `U-TALEP-01`
+
+## U-KOTA-01 · En çok 4 kabul ve bakiyesiz kabul
+1. **a:** Elektrik kategorisinde en az 5 onaylı hesap yoksa bu senaryoyu ATLANDI işaretle (kota otomatik doğrulamada sınanıyor). Varsa 5 hesap sırayla kabul eder: 5. hesap "Talep doldu" (409) alır.
+2. **b:** Bakiyesi talep ücretinden az bir ücretsiz hesapla kabul dene: "Bakiye yetersiz — bakiye yükle" görünür, kabul yapılamaz, Q-DEFTER değişmez.
+- **Sonuç:** `U-KOTA-01`
+
+## U-DOGRUDAN-01 · "Bu işletmeye talep gönder"
+1. **a (MALİK_B1, sakin uygulaması):** Yakınımdakiler → TEDARİKÇİ2'nin işletmesi → **Bu işletmeye talep gönder** → Daire temizliği.
+   Beklenen: "Talep yalnız bu işletmeye gönderilir"; Q-GONDERIM'de tek satır, ücretsiz pakette de `visible_at` = şimdi; `max_accepts` = 1.
+2. **b (TEDARİKÇİ2):** talep hemen görünür; kabul edince kategori ücreti bakiyeden düşer (Q-DEFTER `REQUEST_FEE`).
+- **Sonuç:** `U-DOGRUDAN-01`
+
+## U-SUBE-01 · İki şubeli hesap
+1. **a:** TEDARİKÇİ1'in iki şubesi Tesisat'ta uygun. KİRACI Tesisat talebi açar.
+   Beklenen: Q-GONDERIM'de TEDARİKÇİ1 için **tek** satır; işletme olarak siteye en yakın şube (site konumu yoksa sitenin ilçesindeki şube).
+- **Sonuç:** `U-SUBE-01`
+
+## U-IADE-01 · Geçersiz talep bildirimi ve platform iadesi
+1. **a (TEDARİKÇİ2):** kabul ettiği bir talepte **Talep geçersiz — platforma bildir** (Alıcıya ulaşılamıyor, açıklama).
+2. **b (PLATFORM, `/platform/itirazlar`):** gerekçesiz karar engellenir; **Onayla ve iade et** (gerekçe).
+   Beklenen: Q-DEFTER'de `REFUND` (kabul ücreti kadar, tek satır); ikinci onay engellenir; TEDARİKÇİ2'ye `market.dispute.resolved`. Dahil hakla kabul edilmişse defter satırı yerine hak geri gelir.
+3. **c (PLATFORM, `/platform/yorumlar`):** bir yorumu gerekçeyle **Gizle**. Beklenen: vitrinden kalkar, veritabanında durur; puan özetinden çıkar.
+4. **d (PLATFORM, `/platform/gelir`):** bugünün raporu: net = aidat + talep ücreti − iade; yüklemeler ayrı.
+- **Sonuç:** `U-IADE-01`
+
+## U-BAKIYE-01 · Bakiye yükleme ve paket
+1. **a (TEDARİKÇİ2, `/tedarikci/bakiye` ya da uygulamada Bakiye):** 400 TL → **Kartla öde** → sahte iyzico **Ödeme başarılı**. Beklenen: bakiye 600 TL; Q-DEFTER `TOPUP`.
+2. **b:** **Reddedildi: limit yetersiz** ve **Yarıda bırak** yolları: bakiye değişmez.
+3. **c:** Usta Pro'ya geç: aidat (350 TL) düşer, 5 talep + 50 SMS hakkı tanımlanır.
+- **Sonuç:** `U-BAKIYE-01`
+
+## U-YONETIM-01 · Site adına alım → teklif karşılaştırma → onay bekleyen gider
+1. **a (YÖNETİCİ, panel `/dashboard/usta-hizmet`):** **Teklif topla** → Site temizliği → açıklama → **Talebi gönder**.
+2. **b (TEDARİKÇİ1, TEDARİKÇİ2):** kabul + teklif. (Ücretsiz hesap için öncelik penceresini bekleyin ya da ayarı kısaltın.)
+3. **c (YÖNETİCİ):** talepte **Teklif karşılaştırma** tablosu (tutar, kapsam, puan, telefon) → **Seç**. İş kartında tedarikçinin fatura bilgisi (unvan, VKN).
+4. **d:** **Onay bekleyen gider oluştur** → gider kalemi → **Gideri oluştur**. Beklenen: Giderler'de `PENDING` gider, tutar ve VKN doğru; kurul onay akışı aynı.
+5. **e:** **Sözleşme formunu doldur** → sözleşme formu başlık ve karşı tarafla dolu açılır.
+6. **f (DENETÇİ):** aynı talebi ve tabloyu görür; **Teklif topla**, **Seç**, **Gider oluştur** yok.
+7. **g (Yön.mobil, YÖNETİCİ):** Menü → Usta & Hizmet → talep → teklifler ve fatura bilgisi görünür.
+- **Sonuç:** `U-YONETIM-01`

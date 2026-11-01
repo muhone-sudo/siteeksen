@@ -297,23 +297,31 @@ Koda başlanmadı. Sıra: M1 → M12; M0 kullanıcıda (kodu bekletmez, yayını
   verify-stack'te `export PGTZ=Europe/Istanbul` — kullanıcı onayıyla.
 
 ### M10 — Yönetim alımı
-- [ ] M10.1 Panel `/dashboard/usta-hizmet` + yönetici uygulaması: site talebi açma (MANAGER, yalnız site kategorileri), kurul/denetçi okur
+- [x] M10.1 Panel `/dashboard/usta-hizmet` + yönetici uygulaması: site talebi açma (MANAGER, yalnız site kategorileri), kurul/denetçi okur
   — **Kanıt:** verify-stack: DENETÇİ açamaz 403, okur 200; tarayıcı D4
-- [ ] M10.2 Teklif karşılaştırma tablosu — **Kanıt:** tarayıcı D4
-- [ ] M10.3 Seçilen teklif → `services/expense`'te onay bekleyen gider (`PENDING`, `vendor_tax_id` dolu, tedarikçi bağlı); ya da sözleşme formu önceden doldurulmuş açılır
+  → **Sonuç:** `[D4]` verify-stack 1537/1537 (2026-11-01) §76: yönetici site adına talep açar; denetçi ve kurul üyesi açamaz 403 ama site taleplerini okur 200; sakin site taleplerini göremez 403. Panel `/dashboard/usta-hizmet` (menü: Yönetişim → Usta & Hizmet; yönetim + denetçi) ve yönetici uygulaması "Usta & Hizmet" ekranı. Tarayıcı `~/.siteeksen-test/kanit/M10/` 1–2 (panel: uygun işletme sayısı, talep), 8 (denetçi salt okuma), 9–10 (yönetici uygulaması web derlemesi). `verify-mobile.sh` 14/14.
+- [x] M10.2 Teklif karşılaştırma tablosu — **Kanıt:** tarayıcı D4
+  → **Sonuç:** `[D4]` tarayıcı `~/.siteeksen-test/kanit/M10/` 3: teklif karşılaştırma tablosu (işletme, tutar, kapsam, geçerlilik, puan, tamamlanan iş, telefon); denetçi aynı tabloyu salt okur.
+- [x] M10.3 Seçilen teklif → `services/expense`'te onay bekleyen gider (`PENDING`, `vendor_tax_id` dolu, tedarikçi bağlı); ya da sözleşme formu önceden doldurulmuş açılır
   — **Kanıt:** verify-stack: gider satırı doğru tutar/vergi no/durumla; mevcut gider onay akışı ve sözleşme kontrolleri değişmeden yeşil; tarayıcı D4
-- [ ] **M10 kapısı**
+  → **Sonuç:** `[D4]` verify-stack 1537/1537 (2026-11-01) §76: teklifi yönetici seçer (denetçi 403); site alımının işinde tedarikçinin fatura bilgisi (080 `mp_job_vendor`: unvan, VKN, vergi dairesi), sakin alımında yok; mevcut gider ucuyla onay bekleyen gider (PENDING, tutar, VKN, unvan). Tarayıcı `~/.siteeksen-test/kanit/M10/` 4–7: seçim → "Onay bekleyen gider oluştur" → `expenses` satırı `PENDING|14500.00|1234567890|Kemal Tesisat Ltd. Şti.`; "Sözleşme formunu doldur" → sözleşme formu başlık ve karşı tarafla dolu açılır (şema değişmedi). Mevcut gider ve sözleşme kontrolleri tam doğrulamada yeşil.
+- [x] **M10 kapısı**
+  → **Kapı (2026-11-01):** verify-stack 1537/1537 (2026-11-01); panel tsc/lint/build temiz; verify-mobile 14/14; tarayıcı `~/.siteeksen-test/kanit/M10/` 11/11; changelog + roadmap güncel. Adım 76'nın 3 kontrolü önce bozuk kodla kırmızı gösterildi.
 
 ### M11 — Tarayıcı test planı
-- [ ] M11.1 Test planı üreticisine (`docs/ozellik-haritasi/arac/test_plani.py`) yeni ekranlar/uçlar; elle yazılan uçtan uca senaryolar (talep → 4 kabul → teklif → iş → puan;
+- [x] M11.1 Test planı üreticisine (`docs/ozellik-haritasi/arac/test_plani.py`) yeni ekranlar/uçlar; elle yazılan uçtan uca senaryolar (talep → 4 kabul → teklif → iş → puan;
   öncelik penceresi; doğrudan talep; iki şube; platform iadesi; yönetim alımı) — **Kanıt:** `uret.sh` çıktısı; yeni bölüm `docs/test-plani/ilerleme.md` sırasına eklendi
+  → **Sonuç:** `[D1]` 2026-11-01: `docs/test-plani/10-usta-hizmet.md` (8 uçtan uca senaryo: U-KAYIT-01, U-TALEP-01, U-KOTA-01, U-DOGRUDAN-01, U-SUBE-01, U-IADE-01, U-BAKIYE-01, U-YONETIM-01); `00-baslangic.md`'ye adresler (:3004, `/tedarikci`, `/platform`), hesaplar (PLATFORM, TEDARİKÇİ1/2) ve sorgular (Q-TALEP, Q-GONDERIM, Q-DEFTER); üretici sırasına eklendi (`test_plani.py`). `bash docs/ozellik-haritasi/arac/uret.sh` → 1284 test başlığı; üretilen bölümler yeni panel ekranlarını (`/dashboard/usta-hizmet`, `/tedarikci/*`, `/platform/*`) ve sakin/yönetici uygulaması ekranlarını içeriyor. `ilerleme.md` sırasına 17. satır (U, 8) eklendi.
 - [ ] M11.2 Test ajanı bölümü yürütür; KALDI/KISMEN kalmayana kadar düzeltilir — **Kanıt:** `~/.siteeksen-test/sonuclar.jsonl` özeti; her GEÇTİ ekran görüntüsü ve işlem kaydıyla karşılaştırıldı
+  → **Sonuç:** **Kalan:** test ajanı bölümü yürütecek. Not: 2026-11-01'de disk dolup Docker çökünce test ortamının veritabanı konteyneri silindi; test ortamı yeniden açılmalı (`test-ortami.sh`, bu sürümle :3004 ve pazaryeri verisi de kurulur).
 - [ ] **M11 kapısı**
 
 ### M12 — Yayın öncesi
 - [ ] M12.1 Güvenlik gözden geçirmesi (IDOR, maskeleme, ödeme dönüşü, hız sınırları, belge erişimi) — **Kanıt:** bulgular ve kapanış kanıtları `docs/claude/guvenlik-durumu.md`'de
+  → **Sonuç:** `[D1]` 2026-11-01: `docs/claude/guvenlik-durumu.md` "Usta & Hizmet pazaryeri — güvenlik gözden geçirmesi": kapsam/IDOR, iletişim açılması, maskeleme, vitrin, ödeme dönüşü, bakiye, hız sınırları, belge erişimi, çıkar çatışması, saklama — her satır verify adımına bağlı. **Kalan (karar bekleyen 4 açık bulgu):** kapanış sonrası tamamlanan yükleme, mesaj/teklif hız sınırı, uygulamaya ödeme dönüşü, fotoğraf içeriği.
 - [ ] M12.2 M0 maddelerinin hepsi kapalı — **Kanıt:** M0 kanıt satırları
-- [ ] M12.3 `docs/claude/servisler.md`, `docs/ozellik-haritasi/` ve `tasks/roadmap.md` güncel — **Kanıt:** `uret.sh` sonrası fark yok
+- [x] M12.3 `docs/claude/servisler.md`, `docs/ozellik-haritasi/` ve `tasks/roadmap.md` güncel — **Kanıt:** `uret.sh` sonrası fark yok
+  → **Sonuç:** `[D1]` 2026-11-01: `docs/claude/servisler.md`'ye marketplace (8111) satırı; `uret.sh` ile `docs/ozellik-haritasi/` ve `docs/test-plani/` yeniden üretildi (commit sonrası ikinci çalıştırmada fark yok); `tasks/roadmap.md` FAZ M satırları güncel.
 
 
 ---

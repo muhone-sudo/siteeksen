@@ -247,9 +247,17 @@ Her satır bir test ID'sidir. Önce **Tetikleyen** sütunundaki işlemi ilgili s
 - **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
 - **Sonuç:** `B-POST-AUTH-PASSWORD-RESET-REQ`
 
+#### B-POST-AUTH-SUPPLIER-SIGNUP-RE · `POST /auth/supplier-signup/request`
+- **Tetikleyen:** Panel `/tedarikci/(auth)/kayit`
+- **Konu:** `identity.supplier_signup` · **Servis:** identity (`services/identity/main.go:85`)
+- **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
+- **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE 'identity.supplier_signup%' ORDER BY n.created_at DESC LIMIT 30;`
+- **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
+- **Sonuç:** `B-POST-AUTH-SUPPLIER-SIGNUP-RE`
+
 #### B-POST-USERS-ME-PHONE-REQUEST · `POST /users/me/phone/request`
 - **Tetikleyen:** Panel `/dashboard/account`, Sakin `profile_settings_screen`, Sakin `session_actions`, Yön.mobil `account_screen`
-- **Konu:** `identity.phone_change` · **Servis:** identity (`services/identity/main.go:104`)
+- **Konu:** `identity.phone_change` · **Servis:** identity (`services/identity/main.go:108`)
 - **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
 - **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE 'identity.phone_change%' ORDER BY n.created_at DESC LIMIT 30;`
 - **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
@@ -257,7 +265,7 @@ Her satır bir test ID'sidir. Önce **Tetikleyen** sütunundaki işlemi ilgili s
 
 #### B-POST-USERS-ME-PHONE-CONFIRM · `POST /users/me/phone/confirm`
 - **Tetikleyen:** Panel `/dashboard/account`, Sakin `profile_settings_screen`, Sakin `session_actions`, Yön.mobil `account_screen`
-- **Konu:** `identity.phone_changed` · **Servis:** identity (`services/identity/main.go:105`)
+- **Konu:** `identity.phone_changed` · **Servis:** identity (`services/identity/main.go:109`)
 - **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
 - **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE 'identity.phone_changed%' ORDER BY n.created_at DESC LIMIT 30;`
 - **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
@@ -265,7 +273,7 @@ Her satır bir test ID'sidir. Önce **Tetikleyen** sütunundaki işlemi ilgili s
 
 #### B-POST-USERS-ME-EMAIL · `POST /users/me/email`
 - **Tetikleyen:** Panel `/dashboard/account`, Sakin `profile_settings_screen`, Sakin `session_actions`, Yön.mobil `account_screen`
-- **Konu:** `identity.email_change` · **Servis:** identity (`services/identity/main.go:106`)
+- **Konu:** `identity.email_change` · **Servis:** identity (`services/identity/main.go:110`)
 - **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
 - **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE 'identity.email_change%' ORDER BY n.created_at DESC LIMIT 30;`
 - **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
@@ -273,7 +281,7 @@ Her satır bir test ID'sidir. Önce **Tetikleyen** sütunundaki işlemi ilgili s
 
 #### B-POST-USERS-ME-EMAIL-CONFIRM · `POST /users/me/email/confirm`
 - **Tetikleyen:** Panel `/dashboard/account`, Sakin `profile_settings_screen`, Sakin `session_actions`, Yön.mobil `account_screen`
-- **Konu:** `identity.email_changed` · **Servis:** identity (`services/identity/main.go:107`)
+- **Konu:** `identity.email_changed` · **Servis:** identity (`services/identity/main.go:111`)
 - **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
 - **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE 'identity.email_changed%' ORDER BY n.created_at DESC LIMIT 30;`
 - **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
@@ -281,7 +289,7 @@ Her satır bir test ID'sidir. Önce **Tetikleyen** sütunundaki işlemi ilgili s
 
 #### B-POST-USERS-ME-UNITS-ID-INVIT · `POST /users/me/units/:id/invitations`
 - **Tetikleyen:** Sakin `unit_residents_screen`
-- **Konu:** `identity.invitation` · **Servis:** identity (`services/identity/main.go:111`)
+- **Konu:** `identity.invitation` · **Servis:** identity (`services/identity/main.go:115`)
 - **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
 - **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE 'identity.invitation%' ORDER BY n.created_at DESC LIMIT 30;`
 - **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
@@ -289,7 +297,7 @@ Her satır bir test ID'sidir. Önce **Tetikleyen** sütunundaki işlemi ilgili s
 
 #### B-POST-USERS-ME-UNITS-ID-TENAN · `POST /users/me/units/:id/tenancy-end`
 - **Tetikleyen:** Sakin `unit_residents_screen`
-- **Konu:** `identity.tenancy` · **Servis:** identity (`services/identity/main.go:114`)
+- **Konu:** `identity.tenancy` · **Servis:** identity (`services/identity/main.go:118`)
 - **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
 - **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE 'identity.tenancy%' ORDER BY n.created_at DESC LIMIT 30;`
 - **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
@@ -297,7 +305,7 @@ Her satır bir test ID'sidir. Önce **Tetikleyen** sütunundaki işlemi ilgili s
 
 #### B-POST-USERS-ME-UNITS-ID-TENAN-2 · `POST /users/me/units/:id/tenancy-exit`
 - **Tetikleyen:** Sakin `unit_residents_screen`
-- **Konu:** `identity.tenancy` · **Servis:** identity (`services/identity/main.go:115`)
+- **Konu:** `identity.tenancy` · **Servis:** identity (`services/identity/main.go:119`)
 - **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
 - **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE 'identity.tenancy%' ORDER BY n.created_at DESC LIMIT 30;`
 - **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
@@ -305,7 +313,7 @@ Her satır bir test ID'sidir. Önce **Tetikleyen** sütunundaki işlemi ilgili s
 
 #### B-POST-USERS-ME-TENANCY-REQUES · `POST /users/me/tenancy-requests/:id/approve`
 - **Tetikleyen:** Sakin `tenancy_requests_screen`
-- **Konu:** `identity.tenancy` · **Servis:** identity (`services/identity/main.go:117`)
+- **Konu:** `identity.tenancy` · **Servis:** identity (`services/identity/main.go:121`)
 - **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
 - **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE 'identity.tenancy%' ORDER BY n.created_at DESC LIMIT 30;`
 - **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
@@ -313,7 +321,7 @@ Her satır bir test ID'sidir. Önce **Tetikleyen** sütunundaki işlemi ilgili s
 
 #### B-POST-USERS-ME-TENANCY-REQUES-2 · `POST /users/me/tenancy-requests/:id/decline`
 - **Tetikleyen:** Sakin `tenancy_requests_screen`
-- **Konu:** `identity.tenancy` · **Servis:** identity (`services/identity/main.go:118`)
+- **Konu:** `identity.tenancy` · **Servis:** identity (`services/identity/main.go:122`)
 - **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
 - **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE 'identity.tenancy%' ORDER BY n.created_at DESC LIMIT 30;`
 - **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
@@ -321,7 +329,7 @@ Her satır bir test ID'sidir. Önce **Tetikleyen** sütunundaki işlemi ilgili s
 
 #### B-POST-RESIDENTS · `POST /residents`
 - **Tetikleyen:** Panel `/dashboard/residents`, Yön.mobil `add_resident_screen`
-- **Konu:** `identity.activation` · **Servis:** identity (`services/identity/main.go:133`)
+- **Konu:** `identity.activation` · **Servis:** identity (`services/identity/main.go:137`)
 - **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
 - **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE 'identity.activation%' ORDER BY n.created_at DESC LIMIT 30;`
 - **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
@@ -329,7 +337,7 @@ Her satır bir test ID'sidir. Önce **Tetikleyen** sütunundaki işlemi ilgili s
 
 #### B-POST-RESIDENTS-INVITATIONS · `POST /residents/invitations`
 - **Tetikleyen:** Panel `/dashboard/residents`, Yön.mobil `resident_tools_screen`
-- **Konu:** `identity.invitation` · **Servis:** identity (`services/identity/main.go:136`)
+- **Konu:** `identity.invitation` · **Servis:** identity (`services/identity/main.go:140`)
 - **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
 - **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE 'identity.invitation%' ORDER BY n.created_at DESC LIMIT 30;`
 - **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
@@ -337,7 +345,7 @@ Her satır bir test ID'sidir. Önce **Tetikleyen** sütunundaki işlemi ilgili s
 
 #### B-POST-RESIDENTS-TENANCY-REQUE · `POST /residents/tenancy-requests`
 - **Tetikleyen:** Panel `/dashboard/residents`, Yön.mobil `resident_tools_screen`
-- **Konu:** `identity.tenancy` · **Servis:** identity (`services/identity/main.go:140`)
+- **Konu:** `identity.tenancy` · **Servis:** identity (`services/identity/main.go:144`)
 - **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
 - **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE 'identity.tenancy%' ORDER BY n.created_at DESC LIMIT 30;`
 - **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
@@ -345,7 +353,7 @@ Her satır bir test ID'sidir. Önce **Tetikleyen** sütunundaki işlemi ilgili s
 
 #### B-POST-RESIDENTS-TENANCY-REQUE-2 · `POST /residents/tenancy-requests/:id/documents`
 - **Tetikleyen:** Panel `/dashboard/residents`, Yön.mobil `resident_tools_screen`
-- **Konu:** `identity.tenancy` · **Servis:** identity (`services/identity/main.go:141`)
+- **Konu:** `identity.tenancy` · **Servis:** identity (`services/identity/main.go:145`)
 - **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
 - **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE 'identity.tenancy%' ORDER BY n.created_at DESC LIMIT 30;`
 - **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
@@ -353,7 +361,7 @@ Her satır bir test ID'sidir. Önce **Tetikleyen** sütunundaki işlemi ilgili s
 
 #### B-POST-RESIDENTS-TENANCY-REQUE-3 · `POST /residents/tenancy-requests/:id/complete`
 - **Tetikleyen:** Panel `/dashboard/residents`, Yön.mobil `resident_tools_screen`
-- **Konu:** `identity.tenancy` · **Servis:** identity (`services/identity/main.go:142`)
+- **Konu:** `identity.tenancy` · **Servis:** identity (`services/identity/main.go:146`)
 - **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
 - **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE 'identity.tenancy%' ORDER BY n.created_at DESC LIMIT 30;`
 - **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
@@ -361,7 +369,7 @@ Her satır bir test ID'sidir. Önce **Tetikleyen** sütunundaki işlemi ilgili s
 
 #### B-POST-RESIDENTS-TENANCY-REQUE-4 · `POST /residents/tenancy-requests/:id/reverse`
 - **Tetikleyen:** Panel `/dashboard/residents`, Yön.mobil `resident_tools_screen`
-- **Konu:** `identity.tenancy` · **Servis:** identity (`services/identity/main.go:144`)
+- **Konu:** `identity.tenancy` · **Servis:** identity (`services/identity/main.go:148`)
 - **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
 - **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE 'identity.tenancy%' ORDER BY n.created_at DESC LIMIT 30;`
 - **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
@@ -369,7 +377,7 @@ Her satır bir test ID'sidir. Önce **Tetikleyen** sütunundaki işlemi ilgili s
 
 #### B-POST-RESIDENTS-ID-ACTIVATION · `POST /residents/:id/activation-code`
 - **Tetikleyen:** Panel `/dashboard/residents`, Yön.mobil `resident_detail_screen`
-- **Konu:** `identity.activation` · **Servis:** identity (`services/identity/main.go:148`)
+- **Konu:** `identity.activation` · **Servis:** identity (`services/identity/main.go:152`)
 - **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
 - **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE 'identity.activation%' ORDER BY n.created_at DESC LIMIT 30;`
 - **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
@@ -377,7 +385,7 @@ Her satır bir test ID'sidir. Önce **Tetikleyen** sütunundaki işlemi ilgili s
 
 #### B-POST-RESIDENTS-ID-PHONE · `POST /residents/:id/phone`
 - **Tetikleyen:** Panel `/dashboard/residents`, Yön.mobil `resident_detail_screen`
-- **Konu:** `identity.activation`, `identity.phone_changed` · **Servis:** identity (`services/identity/main.go:151`)
+- **Konu:** `identity.activation`, `identity.phone_changed` · **Servis:** identity (`services/identity/main.go:155`)
 - **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
 - **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE 'identity.activation%' OR n.topic LIKE 'identity.phone_changed%' ORDER BY n.created_at DESC LIMIT 30;`
 - **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
@@ -420,6 +428,150 @@ Her satır bir test ID'sidir. Önce **Tetikleyen** sütunundaki işlemi ilgili s
 - **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE '%' ORDER BY n.created_at DESC LIMIT 30;`
 - **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
 - **Sonuç:** `B-POST-PUBLIC-SENSORS-DATA`
+
+#### B-POST-MARKET-REQUESTS · `POST /market/requests`
+- **Tetikleyen:** Sakin `market_request_screens`, Yön.mobil `site_market_screens`
+- **Konu:** `{topic}` · **Servis:** marketplace (`services/marketplace/main.go:84`)
+- **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
+- **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE '%' ORDER BY n.created_at DESC LIMIT 30;`
+- **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
+- **Sonuç:** `B-POST-MARKET-REQUESTS`
+
+#### B-POST-MARKET-REQUESTS-ID-OFFE · `POST /market/requests/:id/offers/:offerId/select`
+- **Tetikleyen:** Sakin `market_request_screens`, Yön.mobil `site_market_screens`
+- **Konu:** `{topic}` · **Servis:** marketplace (`services/marketplace/main.go:90`)
+- **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
+- **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE '%' ORDER BY n.created_at DESC LIMIT 30;`
+- **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
+- **Sonuç:** `B-POST-MARKET-REQUESTS-ID-OFFE`
+
+#### B-POST-MARKET-REQUESTS-ID-CLOS · `POST /market/requests/:id/close`
+- **Tetikleyen:** Sakin `market_request_screens`, Yön.mobil `site_market_screens`
+- **Konu:** `{topic}` · **Servis:** marketplace (`services/marketplace/main.go:91`)
+- **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
+- **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE '%' ORDER BY n.created_at DESC LIMIT 30;`
+- **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
+- **Sonuç:** `B-POST-MARKET-REQUESTS-ID-CLOS`
+
+#### B-POST-MARKET-REQUESTS-ID-MESS · `POST /market/requests/:id/messages/:dispatchId`
+- **Tetikleyen:** Sakin `market_request_screens`
+- **Konu:** `{topic}` · **Servis:** marketplace (`services/marketplace/main.go:93`)
+- **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
+- **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE '%' ORDER BY n.created_at DESC LIMIT 30;`
+- **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
+- **Sonuç:** `B-POST-MARKET-REQUESTS-ID-MESS`
+
+#### B-POST-MARKET-REQUESTS-ID-REVI · `POST /market/requests/:id/review`
+- **Tetikleyen:** Sakin `market_request_screens`
+- **Konu:** `{topic}` · **Servis:** marketplace (`services/marketplace/main.go:97`)
+- **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
+- **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE '%' ORDER BY n.created_at DESC LIMIT 30;`
+- **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
+- **Sonuç:** `B-POST-MARKET-REQUESTS-ID-REVI`
+
+#### B-POST-MARKET-SUPPLIER-REQUEST · `POST /market/supplier/requests/:id/offers`
+- **Tetikleyen:** Panel `/tedarikci/(panel)/talepler/[id]`
+- **Konu:** `{topic}` · **Servis:** marketplace (`services/marketplace/main.go:127`)
+- **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
+- **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE '%' ORDER BY n.created_at DESC LIMIT 30;`
+- **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
+- **Sonuç:** `B-POST-MARKET-SUPPLIER-REQUEST`
+
+#### B-POST-MARKET-SUPPLIER-REQUEST-2 · `POST /market/supplier/requests/:id/messages`
+- **Tetikleyen:** Panel `/tedarikci/(panel)/talepler/[id]`
+- **Konu:** `{topic}` · **Servis:** marketplace (`services/marketplace/main.go:130`)
+- **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
+- **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE '%' ORDER BY n.created_at DESC LIMIT 30;`
+- **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
+- **Sonuç:** `B-POST-MARKET-SUPPLIER-REQUEST-2`
+
+#### B-POST-MARKET-SUPPLIER-JOBS-ID · `POST /market/supplier/jobs/:id/done`
+- **Tetikleyen:** Panel `/tedarikci/(panel)/talepler/[id]`
+- **Konu:** `{topic}` · **Servis:** marketplace (`services/marketplace/main.go:132`)
+- **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
+- **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE '%' ORDER BY n.created_at DESC LIMIT 30;`
+- **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
+- **Sonuç:** `B-POST-MARKET-SUPPLIER-JOBS-ID`
+
+#### B-POST-MARKET-SUPPLIER-PACKAGE · `POST /market/supplier/package`
+- **Tetikleyen:** Panel `/tedarikci/(panel)/bakiye`
+- **Konu:** `market.wallet.low` · **Servis:** marketplace (`services/marketplace/main.go:138`)
+- **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
+- **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE 'market.wallet.low%' ORDER BY n.created_at DESC LIMIT 30;`
+- **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
+- **Sonuç:** `B-POST-MARKET-SUPPLIER-PACKAGE`
+
+#### B-POST-MARKET-PLATFORM-ACCOUNT · `POST /market/platform/accounts/:id/approve`
+- **Tetikleyen:** arayüzde düğmesi yok (5. bölüm) — yalnız başka bir işlemin parçası olarak tetiklenir
+- **Konu:** `{topic}` · **Servis:** marketplace (`services/marketplace/main.go:144`)
+- **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
+- **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE '%' ORDER BY n.created_at DESC LIMIT 30;`
+- **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
+- **Sonuç:** `B-POST-MARKET-PLATFORM-ACCOUNT`
+
+#### B-POST-MARKET-PLATFORM-ACCOUNT-2 · `POST /market/platform/accounts/:id/reject`
+- **Tetikleyen:** arayüzde düğmesi yok (5. bölüm) — yalnız başka bir işlemin parçası olarak tetiklenir
+- **Konu:** `{topic}` · **Servis:** marketplace (`services/marketplace/main.go:145`)
+- **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
+- **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE '%' ORDER BY n.created_at DESC LIMIT 30;`
+- **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
+- **Sonuç:** `B-POST-MARKET-PLATFORM-ACCOUNT-2`
+
+#### B-POST-MARKET-PLATFORM-ACCOUNT-3 · `POST /market/platform/accounts/:id/suspend`
+- **Tetikleyen:** arayüzde düğmesi yok (5. bölüm) — yalnız başka bir işlemin parçası olarak tetiklenir
+- **Konu:** `{topic}` · **Servis:** marketplace (`services/marketplace/main.go:146`)
+- **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
+- **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE '%' ORDER BY n.created_at DESC LIMIT 30;`
+- **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
+- **Sonuç:** `B-POST-MARKET-PLATFORM-ACCOUNT-3`
+
+#### B-POST-MARKET-PLATFORM-ACCOUNT-4 · `POST /market/platform/accounts/:id/reinstate`
+- **Tetikleyen:** arayüzde düğmesi yok (5. bölüm) — yalnız başka bir işlemin parçası olarak tetiklenir
+- **Konu:** `{topic}` · **Servis:** marketplace (`services/marketplace/main.go:147`)
+- **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
+- **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE '%' ORDER BY n.created_at DESC LIMIT 30;`
+- **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
+- **Sonuç:** `B-POST-MARKET-PLATFORM-ACCOUNT-4`
+
+#### B-POST-MARKET-PLATFORM-ACCOUNT-5 · `POST /market/platform/accounts/:id/close`
+- **Tetikleyen:** arayüzde düğmesi yok (5. bölüm) — yalnız başka bir işlemin parçası olarak tetiklenir
+- **Konu:** `{topic}` · **Servis:** marketplace (`services/marketplace/main.go:148`)
+- **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
+- **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE '%' ORDER BY n.created_at DESC LIMIT 30;`
+- **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
+- **Sonuç:** `B-POST-MARKET-PLATFORM-ACCOUNT-5`
+
+#### B-POST-MARKET-PLATFORM-BUSINES · `POST /market/platform/businesses/:id/approve`
+- **Tetikleyen:** arayüzde düğmesi yok (5. bölüm) — yalnız başka bir işlemin parçası olarak tetiklenir
+- **Konu:** `{topic}` · **Servis:** marketplace (`services/marketplace/main.go:151`)
+- **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
+- **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE '%' ORDER BY n.created_at DESC LIMIT 30;`
+- **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
+- **Sonuç:** `B-POST-MARKET-PLATFORM-BUSINES`
+
+#### B-POST-MARKET-PLATFORM-BUSINES-2 · `POST /market/platform/businesses/:id/reject`
+- **Tetikleyen:** arayüzde düğmesi yok (5. bölüm) — yalnız başka bir işlemin parçası olarak tetiklenir
+- **Konu:** `{topic}` · **Servis:** marketplace (`services/marketplace/main.go:152`)
+- **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
+- **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE '%' ORDER BY n.created_at DESC LIMIT 30;`
+- **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
+- **Sonuç:** `B-POST-MARKET-PLATFORM-BUSINES-2`
+
+#### B-POST-MARKET-PLATFORM-DISPUTE · `POST /market/platform/disputes/:id/approve`
+- **Tetikleyen:** arayüzde düğmesi yok (5. bölüm) — yalnız başka bir işlemin parçası olarak tetiklenir
+- **Konu:** `{topic}` · **Servis:** marketplace (`services/marketplace/main.go:161`)
+- **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
+- **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE '%' ORDER BY n.created_at DESC LIMIT 30;`
+- **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
+- **Sonuç:** `B-POST-MARKET-PLATFORM-DISPUTE`
+
+#### B-POST-MARKET-PLATFORM-DISPUTE-2 · `POST /market/platform/disputes/:id/reject`
+- **Tetikleyen:** arayüzde düğmesi yok (5. bölüm) — yalnız başka bir işlemin parçası olarak tetiklenir
+- **Konu:** `{topic}` · **Servis:** marketplace (`services/marketplace/main.go:162`)
+- **Alıcı:** işlemin muhatabı olan kişi (tek kişi) ya da doğrudan girilen telefon/e-posta
+- **Sorgu:** `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE '%' ORDER BY n.created_at DESC LIMIT 30;`
+- **Beklenen:** alıcı başına kanal satırları (`IN_APP` her zaman; SMS/EMAIL konuya ve tercihe göre); metin Türkçe, kişisel veriyi gereğinden fazla taşımaz (ör. kargo bildiriminde takip numarası yok); aynı olay iki kez bildirilmez
+- **Sonuç:** `B-POST-MARKET-PLATFORM-DISPUTE-2`
 
 #### B-POST-NOTIFICATIONS · `POST /notifications`
 - **Tetikleyen:** Panel `/dashboard/notifications`, Yön.mobil `notification_center_screen`

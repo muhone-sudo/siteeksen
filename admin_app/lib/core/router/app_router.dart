@@ -17,6 +17,7 @@ import '../../features/meters/presentation/screens/meters_screen.dart';
 import '../../features/meters/presentation/screens/meter_reading_screen.dart';
 import '../../features/announcements/presentation/screens/announcements_screen.dart';
 import '../../features/announcements/presentation/screens/create_announcement_screen.dart';
+import '../../features/usta_hizmet/presentation/screens/site_market_screens.dart';
 import '../../features/requests/presentation/screens/requests_screen.dart';
 import '../../features/requests/presentation/screens/request_detail_screen.dart';
 import '../../features/reports/presentation/screens/reports_screen.dart';
@@ -173,6 +174,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                   requestId: state.pathParameters['id']!,
                 ),
               ),
+            ],
+          ),
+
+          // Usta & Hizmet: site adına alım (FAZ M10)
+          GoRoute(
+            path: '/usta-hizmet',
+            builder: (context, state) => const SiteMarketScreen(),
+            routes: [
+              GoRoute(path: ':id', builder: (context, state) => SiteMarketRequestScreen(id: state.pathParameters['id']!)),
             ],
           ),
 

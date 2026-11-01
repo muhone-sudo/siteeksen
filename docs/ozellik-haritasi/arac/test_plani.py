@@ -653,7 +653,7 @@ write_db()
 write_unused()
 
 order = ["00-baslangic.md", "01-oturum-ve-hesap.md", "02-rol-ve-izolasyon.md"] + [f for f, _, _ in pfiles] + \
-        ["04-sakin-uygulamasi.md", "05-yonetici-uygulamasi.md", "06-bildirimler.md", "07-veritabani.md", "08-uctan-uca-senaryolar.md", "09-arayuzsuz-ve-sinirlar.md"]
+        ["04-sakin-uygulamasi.md", "05-yonetici-uygulamasi.md", "06-bildirimler.md", "07-veritabani.md", "08-uctan-uca-senaryolar.md", "09-arayuzsuz-ve-sinirlar.md", "10-usta-hizmet.md"]
 parts = []
 for f in order:
     p = os.path.join(OUT, f)

@@ -68,6 +68,15 @@ type Job struct {
 	DisputeNote      *string    `json:"dispute_note"`
 	CreatedAt        time.Time  `json:"created_at"`
 	Review           *Review    `json:"review,omitempty"`
+	// Vendor, site adına alımda tedarikçinin fatura bilgisidir (gider/sözleşme kaydı için; 080).
+	Vendor *Vendor `json:"vendor,omitempty"`
+}
+
+// Vendor, tedarikçi hesabının fatura bilgisidir.
+type Vendor struct {
+	TradeName string `json:"trade_name"`
+	TaxNumber string `json:"tax_number"`
+	TaxOffice string `json:"tax_office"`
 }
 
 // Review, işletmeye verilen puan ve yorumdur.
@@ -570,7 +579,18 @@ func (s *Store) BuyerJob(ctx context.Context, b Buyer, requestID string) (*Job, 
 	if _, _, err := buyerRequest(ctx, tx, b, requestID, false); err != nil {
 		return nil, err
 	}
-	return s.jobBy(ctx, tx, `j.request_id = $1`, requestID)
+	j, err := s.jobBy(ctx, tx, `j.request_id = $1`, requestID)
+	if err != nil {
+		return nil, err
+	}
+	v := &Vendor{}
+	err = tx.QueryRow(ctx, `SELECT trade_name, tax_number, tax_office FROM mp_job_vendor($1)`, j.ID).Scan(&v.TradeName, &v.TaxNumber, &v.TaxOffice)
+	if err == nil {
+		j.Vendor = v
+	} else if !errors.Is(err, pgx.ErrNoRows) {
+		return nil, err
+	}
+	return j, nil
 }
 
 // BuyerJobDecision, alıcının onayı (COMPLETED, BUYER) ya da itirazıdır (DISPUTED, not zorunlu). İtirazdaki iş otomatik

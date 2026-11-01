@@ -618,6 +618,7 @@ export interface MpJob {
     id: Id; request_id: Id; offer_id: Id; business_id: Id; business_name: string; amount_kurus: number;
     status: "ACTIVE" | "DONE_CLAIMED" | "COMPLETED" | "DISPUTED"; supplier_done_at?: string | null; completed_at?: string | null;
     completion_source?: "BUYER" | "AUTO" | null; dispute_note?: string | null; created_at: string; review?: MpReview;
+    vendor?: { trade_name: string; tax_number: string; tax_office: string } | null;
 }
 export interface MpDispute {
     id: Id; request_id: Id; account_id: Id; trade_name?: string; category: string; reason_code: "FAKE" | "WRONG_CATEGORY" | "UNREACHABLE" | "OTHER";
@@ -629,6 +630,11 @@ export interface MpMessage { id: Id; sender_side: "BUYER" | "SUPPLIER"; body: st
 export interface MpRevenue {
     from: string; to: string; package_fees_kurus: number; request_fees_kurus: number; refunds_kurus: number; net_kurus: number;
     topups_kurus: number; closure_refunds_kurus: number; included_requests: number; ledger_total_kurus: number; balance_liability_kurus: number;
+}
+export interface MpBuyerRequest {
+    id: Id; buyer_type: "RESIDENT" | "MANAGEMENT"; category_id: Id; category_name: string; description: string; preferred_time: string;
+    status: MpRequestStatus; accepted_count: number; max_accepts: number; dispatch_count: number; expires_at: string; closed_at?: string | null;
+    created_at: string; accepted?: { business_id: Id; business_name: string; accepted_at: string }[];
 }
 export interface MpSupplierRequests { data: MpSupplierRequest[]; balance_kurus: number; period_included_left: number; account_status: string }
 export interface MpTopup { id: Id; amount_kurus: number; status: "PENDING" | "SUCCEEDED" | "FAILED"; error_message?: string | null; created_at: string; completed_at?: string | null }

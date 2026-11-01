@@ -402,6 +402,21 @@ export function endpoints(http: Http) {
             replyReview: (id: string, reply: string) => http.post<Msg>(`/market/supplier/reviews/${id}/reply`, { reply }),
             notifications: () => g<T.List<T.MpSupplierNotification> & { unread: number }>("/market/supplier/notifications"),
             readNotifications: (ids: string[] = []) => http.post<{ marked: number }>("/market/supplier/notifications/read", { ids }),
+            // Yönetim alımı (FAZ M10): site adına talep, teklif karşılaştırma, seçim, iş, gidere/sözleşmeye çevirme.
+            buyer: {
+                requests: () => g<T.List<T.MpBuyerRequest>>("/market/requests", { scope: "management" }),
+                request: (id: string) => g<T.MpBuyerRequest>(`/market/requests/${id}`),
+                matchCount: (category_id: string) => g<{ count: number }>("/market/requests/match-count", { category_id, buyer_type: "MANAGEMENT" }),
+                create: (b: { category_id: string; description: string; preferred_time?: string }) =>
+                    http.post<{ request: T.MpBuyerRequest; dispatched: number }>("/market/requests", { ...b, buyer_type: "MANAGEMENT" }),
+                offers: (id: string) => g<T.List<T.MpOffer>>(`/market/requests/${id}/offers`),
+                select: (id: string, offerId: string) => http.post<{ job: T.MpJob }>(`/market/requests/${id}/offers/${offerId}/select`, {}),
+                close: (id: string) => http.post<Msg>(`/market/requests/${id}/close`, {}),
+                job: (id: string) => g<T.MpJob>(`/market/requests/${id}/job`),
+                confirm: (id: string) => http.post<T.MpJob>(`/market/requests/${id}/job/confirm`, {}),
+                dispute: (id: string, note: string) => http.post<T.MpJob>(`/market/requests/${id}/job/dispute`, { note }),
+                review: (id: string, rating: number, comment: string) => http.post<T.MpReview>(`/market/requests/${id}/review`, { rating, comment }),
+            },
             // Platform yönetimi (FAZ M4) — yalnız PLATFORM_ADMIN.
             platform: {
                 disputes: (status = "") => g<T.List<T.MpDispute>>("/market/platform/disputes", { status }),

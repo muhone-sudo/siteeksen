@@ -232,23 +232,23 @@ Kaynak: `admin/src/app/**/page.tsx` ve içe aktardığı `admin/src/components/*
 | 3 | Düğme **Toplu ekle (yalnız yazma yetkisi; pencere/form açar)** (satır 119) | — | | | | |
 | 4 | Düğme **Davet gönder (yalnız yazma yetkisi; pencere/form açar)** (satır 120) | — | | | | |
 | 5 | Düğme **Sakin ekle (yalnız yazma yetkisi; pencere/form açar)** (satır 121) | — | | | | |
-| 6 | Düğme **Kod üret (yalnız yazma yetkisi)** (satır 147) | `POST /residents/:id/activation-code` · identity · `services/identity/main.go:148` | serviste rol karşılaştırması: AUDITOR/BOARD_MEMBER/MANAGER/STAFF | user_activation_codes(+), user_activation_codes(±) | `identity.activation` → işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |  |
+| 6 | Düğme **Kod üret (yalnız yazma yetkisi)** (satır 147) | `POST /residents/:id/activation-code` · identity · `services/identity/main.go:152` | serviste rol karşılaştırması: AUDITOR/BOARD_MEMBER/MANAGER/STAFF | user_activation_codes(+), user_activation_codes(±) | `identity.activation` → işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |  |
 | 7 | Düğme **Telefon (pencere/form açar)** (satır 162) | — | | | | |
-| 8 | Düğme **Kilidi aç** (satır 163) | `POST /residents/:id/unlock` · identity · `services/identity/main.go:152` | BOARD_MEMBER/MANAGER | users(±) | yok | Panel/accounting, Panel/announcements, Panel/bulletins, Panel/documents, Panel/emergency, Panel/governance/assemblies, Panel/governance/common-area, Panel/inventory, Panel/kvkk, Panel/meters, Panel/notifications, Panel/packages, Panel/patrol, Panel/patrol/reports, Panel/renovations, Panel/reports, Panel/reservations, Panel/residents, Panel/roles, Panel/sensors, Panel/settings, Panel/surveys, Panel/units, Panel/violations, Sakin announcements, Sakin bulletin_board_mobile, Sakin common_income, Sakin create_reservation, Sakin documents, Sakin dues_payment, Sakin emergency, Sakin energy_consumption_mobile, Sakin kvkk_requests, Sakin more, Sakin my_meters, Sakin my_reservations, Sakin owner_visibility, Sakin package_tracking_mobile, Sakin profile_settings, Sakin renovations, Sakin resident_home, Sakin surveys_mobile, Sakin tenancy_requests, Sakin unit_residents, Sakin violations, Yön.mobil announcements, Yön.mobil bulletin_board, Yön.mobil dashboard, Yön.mobil documents, Yön.mobil emergency, Yön.mobil finance, Yön.mobil finance_tools, Yön.mobil governance, Yön.mobil inventory_management, Yön.mobil kvkk_requests, Yön.mobil meters, Yön.mobil notification_center, Yön.mobil package_tracking, Yön.mobil patrol_control, Yön.mobil patrol_report, Yön.mobil patrol_run, Yön.mobil payments, Yön.mobil renovations, Yön.mobil reports, Yön.mobil reservation_management, Yön.mobil resident_detail, Yön.mobil resident_tools, Yön.mobil residents, Yön.mobil roles, Yön.mobil sensors, Yön.mobil site_settings, Yön.mobil survey_management, Yön.mobil units, Yön.mobil violations |
+| 8 | Düğme **Kilidi aç** (satır 163) | `POST /residents/:id/unlock` · identity · `services/identity/main.go:156` | BOARD_MEMBER/MANAGER | users(±) | yok | Panel/accounting, Panel/announcements, Panel/bulletins, Panel/documents, Panel/emergency, Panel/governance/assemblies, Panel/governance/common-area, Panel/inventory, Panel/kvkk, Panel/meters, Panel/notifications, Panel/packages, Panel/patrol, Panel/patrol/reports, Panel/renovations, Panel/reports, Panel/reservations, Panel/residents, Panel/roles, Panel/sensors, Panel/settings, Panel/surveys, Panel/units, Panel/violations, Sakin announcements, Sakin bulletin_board_mobile, Sakin common_income, Sakin create_reservation, Sakin documents, Sakin dues_payment, Sakin emergency, Sakin energy_consumption_mobile, Sakin kvkk_requests, Sakin more, Sakin my_meters, Sakin my_reservations, Sakin owner_visibility, Sakin package_tracking_mobile, Sakin profile_settings, Sakin renovations, Sakin resident_home, Sakin surveys_mobile, Sakin tenancy_requests, Sakin unit_residents, Sakin violations, Yön.mobil announcements, Yön.mobil bulletin_board, Yön.mobil dashboard, Yön.mobil documents, Yön.mobil emergency, Yön.mobil finance, Yön.mobil finance_tools, Yön.mobil governance, Yön.mobil inventory_management, Yön.mobil kvkk_requests, Yön.mobil meters, Yön.mobil notification_center, Yön.mobil package_tracking, Yön.mobil patrol_control, Yön.mobil patrol_report, Yön.mobil patrol_run, Yön.mobil payments, Yön.mobil renovations, Yön.mobil reports, Yön.mobil reservation_management, Yön.mobil resident_detail, Yön.mobil resident_tools, Yön.mobil residents, Yön.mobil roles, Yön.mobil sensors, Yön.mobil site_settings, Yön.mobil survey_management, Yön.mobil units, Yön.mobil violations |
 | 9 | Düğme **Düzenle (pencere/form açar)** (satır 165) | — | | | | |
-| 10 | Düğme **İptal et (başarı: Davet iptal edildi)** (satır 201) | `POST /residents/invitations/:id/cancel` · identity · `services/identity/main.go:137` | serviste rol karşılaştırması: BOARD_MEMBER/MANAGER | resident_invitations(±) | yok | Panel/residents, Sakin invitations_banner, Yön.mobil resident_tools |
-| 11 | Form **Sakin ekle — alanlar: Ad*, Soyad*, Telefon*, E-posta, Bağımsız bölüm*, Sıfat* — başarı: ** (satır 215) | `POST /residents` · identity · `services/identity/main.go:133` | serviste rol karşılaştırması: BOARD_MEMBER/MANAGER/OWNER/PROXY/TENANT | resident_invitations(+), resident_units(+), user_activation_codes(+), users(+), resident_invitations(±), user_activation_codes(±) · tetikleyici: trg_resident_units_tenancy_guard, trg_resident_units_tenant_arrival, trg_resident_units_tenant_departure | `identity.activation` → işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta | Panel/accounting, Panel/announcements, Panel/assessments, Panel/bulletins, Panel/documents, Panel/emergency, Panel/governance/assemblies, Panel/governance/common-area, Panel/governance/legal, Panel/insurance, Panel/inventory, Panel/kvkk, Panel/meters, Panel/notifications, Panel/packages, Panel/parking, Panel/patrol, Panel/patrol/reports, Panel/renovations, Panel/reports, Panel/reservations, Panel/residents, Panel/roles, Panel/sensors, Panel/settings, Panel/surveys, Panel/units, Panel/violations, Panel/visitors, Sakin announcements, Sakin bulletin_board_mobile, Sakin common_income, Sakin create_reservation, Sakin dask, Sakin documents, Sakin dues_payment, Sakin emergency, Sakin energy_consumption_mobile, Sakin invitations_banner, Sakin kvkk_requests, Sakin more, Sakin my_budgets, Sakin my_meters, Sakin my_reservations, Sakin owner_visibility, Sakin package_tracking_mobile, Sakin profile_settings, Sakin renovations, Sakin resident_home, Sakin surveys_mobile, Sakin tenancy_requests, Sakin unit_residents, Sakin vehicles, Sakin violations, Sakin visitor_preregister, Yön.mobil account, Yön.mobil add_resident, Yön.mobil announcements, Yön.mobil bulletin_board, Yön.mobil collection_entry, Yön.mobil create_assessment, Yön.mobil dashboard, Yön.mobil documents, Yön.mobil emergency, Yön.mobil finance, Yön.mobil finance_tools, Yön.mobil forms, Yön.mobil governance, Yön.mobil insurance, Yön.mobil inventory_management, Yön.mobil kvkk_requests, Yön.mobil main, Yön.mobil meter_reading, Yön.mobil meters, Yön.mobil notification_center, Yön.mobil package_tracking, Yön.mobil parking_management, Yön.mobil patrol_control, Yön.mobil patrol_report, Yön.mobil patrol_run, Yön.mobil payments, Yön.mobil renovations, Yön.mobil reports, Yön.mobil reservation_management, Yön.mobil resident_detail, Yön.mobil resident_tools, Yön.mobil residents, Yön.mobil roles, Yön.mobil sensors, Yön.mobil site_settings, Yön.mobil survey_management, Yön.mobil units, Yön.mobil violations, Yön.mobil visitor_management |
-| 12 | Form **Daire daveti gönder — alanlar: Ad, Soyad, Telefon*, E-posta, Bağımsız bölüm*, Sıfat* — başarı: ** (satır 246) | `POST /residents/invitations` · identity · `services/identity/main.go:136` | serviste rol karşılaştırması: BOARD_MEMBER/MANAGER/OWNER/PROXY/TENANT | resident_invitations(+), user_activation_codes(+), users(+), resident_invitations(±), user_activation_codes(±) | `identity.invitation` → işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta | Panel/accounting, Panel/announcements, Panel/bulletins, Panel/documents, Panel/emergency, Panel/governance/assemblies, Panel/governance/common-area, Panel/inventory, Panel/kvkk, Panel/meters, Panel/notifications, Panel/packages, Panel/patrol, Panel/patrol/reports, Panel/renovations, Panel/reports, Panel/reservations, Panel/residents, Panel/roles, Panel/sensors, Panel/settings, Panel/surveys, Panel/units, Panel/violations, Sakin announcements, Sakin bulletin_board_mobile, Sakin common_income, Sakin create_reservation, Sakin documents, Sakin dues_payment, Sakin emergency, Sakin energy_consumption_mobile, Sakin invitations_banner, Sakin kvkk_requests, Sakin more, Sakin my_meters, Sakin my_reservations, Sakin owner_visibility, Sakin package_tracking_mobile, Sakin profile_settings, Sakin renovations, Sakin resident_home, Sakin surveys_mobile, Sakin tenancy_requests, Sakin unit_residents, Sakin violations, Yön.mobil announcements, Yön.mobil bulletin_board, Yön.mobil dashboard, Yön.mobil documents, Yön.mobil emergency, Yön.mobil finance, Yön.mobil finance_tools, Yön.mobil governance, Yön.mobil inventory_management, Yön.mobil kvkk_requests, Yön.mobil meters, Yön.mobil notification_center, Yön.mobil package_tracking, Yön.mobil patrol_control, Yön.mobil patrol_report, Yön.mobil patrol_run, Yön.mobil payments, Yön.mobil renovations, Yön.mobil reports, Yön.mobil reservation_management, Yön.mobil resident_detail, Yön.mobil resident_tools, Yön.mobil residents, Yön.mobil roles, Yön.mobil sensors, Yön.mobil site_settings, Yön.mobil survey_management, Yön.mobil units, Yön.mobil violations |
-| 13 | Form **Telefon değiştir — ${phoneEdit?.r.first_name ?? ""} ${phoneEdit?.r.last_name ?? ""} — alanlar: Yeni telefon* — başarı: ** (satır 277) | `POST /residents/:id/phone` · identity · `services/identity/main.go:151` | BOARD_MEMBER/MANAGER | user_activation_codes(+), user_token_invalidation(+), user_activation_codes(±), users(±) | `identity.activation`, `identity.phone_changed` → işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta | Panel/accounting, Panel/announcements, Panel/bulletins, Panel/documents, Panel/emergency, Panel/governance/assemblies, Panel/governance/common-area, Panel/inventory, Panel/kvkk, Panel/meters, Panel/notifications, Panel/packages, Panel/patrol, Panel/patrol/reports, Panel/renovations, Panel/reports, Panel/reservations, Panel/residents, Panel/roles, Panel/sensors, Panel/settings, Panel/surveys, Panel/units, Panel/violations, Sakin announcements, Sakin bulletin_board_mobile, Sakin common_income, Sakin create_reservation, Sakin documents, Sakin dues_payment, Sakin emergency, Sakin energy_consumption_mobile, Sakin kvkk_requests, Sakin more, Sakin my_meters, Sakin my_reservations, Sakin owner_visibility, Sakin package_tracking_mobile, Sakin profile_settings, Sakin renovations, Sakin resident_home, Sakin surveys_mobile, Sakin tenancy_requests, Sakin unit_residents, Sakin violations, Yön.mobil announcements, Yön.mobil bulletin_board, Yön.mobil dashboard, Yön.mobil documents, Yön.mobil emergency, Yön.mobil finance, Yön.mobil finance_tools, Yön.mobil governance, Yön.mobil inventory_management, Yön.mobil kvkk_requests, Yön.mobil meters, Yön.mobil notification_center, Yön.mobil package_tracking, Yön.mobil patrol_control, Yön.mobil patrol_report, Yön.mobil patrol_run, Yön.mobil payments, Yön.mobil renovations, Yön.mobil reports, Yön.mobil reservation_management, Yön.mobil resident_detail, Yön.mobil resident_tools, Yön.mobil residents, Yön.mobil roles, Yön.mobil sensors, Yön.mobil site_settings, Yön.mobil survey_management, Yön.mobil units, Yön.mobil violations |
-| 14 | Form **Toplu sakin ekle — alanlar:  — başarı: ** (satır 291) | `POST /residents/bulk` · identity · `services/identity/main.go:134` | serviste rol karşılaştırması: BOARD_MEMBER/MANAGER/OWNER/PROXY/TENANT | resident_invitations(+), resident_units(+), user_activation_codes(+), users(+), resident_invitations(±), user_activation_codes(±) · tetikleyici: trg_resident_units_tenancy_guard, trg_resident_units_tenant_arrival, trg_resident_units_tenant_departure | yok | Panel/accounting, Panel/announcements, Panel/assessments, Panel/bulletins, Panel/documents, Panel/emergency, Panel/governance/assemblies, Panel/governance/common-area, Panel/governance/legal, Panel/insurance, Panel/inventory, Panel/kvkk, Panel/meters, Panel/notifications, Panel/packages, Panel/parking, Panel/patrol, Panel/patrol/reports, Panel/renovations, Panel/reports, Panel/reservations, Panel/residents, Panel/roles, Panel/sensors, Panel/settings, Panel/surveys, Panel/units, Panel/violations, Panel/visitors, Sakin announcements, Sakin bulletin_board_mobile, Sakin common_income, Sakin create_reservation, Sakin dask, Sakin documents, Sakin dues_payment, Sakin emergency, Sakin energy_consumption_mobile, Sakin invitations_banner, Sakin kvkk_requests, Sakin more, Sakin my_budgets, Sakin my_meters, Sakin my_reservations, Sakin owner_visibility, Sakin package_tracking_mobile, Sakin profile_settings, Sakin renovations, Sakin resident_home, Sakin surveys_mobile, Sakin tenancy_requests, Sakin unit_residents, Sakin vehicles, Sakin violations, Sakin visitor_preregister, Yön.mobil account, Yön.mobil add_resident, Yön.mobil announcements, Yön.mobil bulletin_board, Yön.mobil collection_entry, Yön.mobil create_assessment, Yön.mobil dashboard, Yön.mobil documents, Yön.mobil emergency, Yön.mobil finance, Yön.mobil finance_tools, Yön.mobil forms, Yön.mobil governance, Yön.mobil insurance, Yön.mobil inventory_management, Yön.mobil kvkk_requests, Yön.mobil main, Yön.mobil meter_reading, Yön.mobil meters, Yön.mobil notification_center, Yön.mobil package_tracking, Yön.mobil parking_management, Yön.mobil patrol_control, Yön.mobil patrol_report, Yön.mobil patrol_run, Yön.mobil payments, Yön.mobil renovations, Yön.mobil reports, Yön.mobil reservation_management, Yön.mobil resident_detail, Yön.mobil resident_tools, Yön.mobil residents, Yön.mobil roles, Yön.mobil sensors, Yön.mobil site_settings, Yön.mobil survey_management, Yön.mobil units, Yön.mobil violations, Yön.mobil visitor_management |
+| 10 | Düğme **İptal et (başarı: Davet iptal edildi)** (satır 201) | `POST /residents/invitations/:id/cancel` · identity · `services/identity/main.go:141` | serviste rol karşılaştırması: BOARD_MEMBER/MANAGER | resident_invitations(±) | yok | Panel/residents, Sakin invitations_banner, Yön.mobil resident_tools |
+| 11 | Form **Sakin ekle — alanlar: Ad*, Soyad*, Telefon*, E-posta, Bağımsız bölüm*, Sıfat* — başarı: ** (satır 215) | `POST /residents` · identity · `services/identity/main.go:137` | serviste rol karşılaştırması: BOARD_MEMBER/MANAGER/OWNER/PROXY/TENANT | resident_invitations(+), resident_units(+), user_activation_codes(+), users(+), resident_invitations(±), user_activation_codes(±) · tetikleyici: trg_resident_units_tenancy_guard, trg_resident_units_tenant_arrival, trg_resident_units_tenant_departure | `identity.activation` → işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta | Panel/accounting, Panel/announcements, Panel/assessments, Panel/bulletins, Panel/documents, Panel/emergency, Panel/governance/assemblies, Panel/governance/common-area, Panel/governance/legal, Panel/insurance, Panel/inventory, Panel/kvkk, Panel/meters, Panel/notifications, Panel/packages, Panel/parking, Panel/patrol, Panel/patrol/reports, Panel/renovations, Panel/reports, Panel/reservations, Panel/residents, Panel/roles, Panel/sensors, Panel/settings, Panel/surveys, Panel/units, Panel/violations, Panel/visitors, Sakin announcements, Sakin bulletin_board_mobile, Sakin common_income, Sakin create_reservation, Sakin dask, Sakin documents, Sakin dues_payment, Sakin emergency, Sakin energy_consumption_mobile, Sakin invitations_banner, Sakin kvkk_requests, Sakin more, Sakin my_budgets, Sakin my_meters, Sakin my_reservations, Sakin owner_visibility, Sakin package_tracking_mobile, Sakin profile_settings, Sakin renovations, Sakin resident_home, Sakin surveys_mobile, Sakin tenancy_requests, Sakin unit_residents, Sakin vehicles, Sakin violations, Sakin visitor_preregister, Yön.mobil account, Yön.mobil add_resident, Yön.mobil announcements, Yön.mobil bulletin_board, Yön.mobil collection_entry, Yön.mobil create_assessment, Yön.mobil dashboard, Yön.mobil documents, Yön.mobil emergency, Yön.mobil finance, Yön.mobil finance_tools, Yön.mobil forms, Yön.mobil governance, Yön.mobil insurance, Yön.mobil inventory_management, Yön.mobil kvkk_requests, Yön.mobil main, Yön.mobil meter_reading, Yön.mobil meters, Yön.mobil notification_center, Yön.mobil package_tracking, Yön.mobil parking_management, Yön.mobil patrol_control, Yön.mobil patrol_report, Yön.mobil patrol_run, Yön.mobil payments, Yön.mobil renovations, Yön.mobil reports, Yön.mobil reservation_management, Yön.mobil resident_detail, Yön.mobil resident_tools, Yön.mobil residents, Yön.mobil roles, Yön.mobil sensors, Yön.mobil site_settings, Yön.mobil survey_management, Yön.mobil units, Yön.mobil violations, Yön.mobil visitor_management |
+| 12 | Form **Daire daveti gönder — alanlar: Ad, Soyad, Telefon*, E-posta, Bağımsız bölüm*, Sıfat* — başarı: ** (satır 246) | `POST /residents/invitations` · identity · `services/identity/main.go:140` | serviste rol karşılaştırması: BOARD_MEMBER/MANAGER/OWNER/PROXY/TENANT | resident_invitations(+), user_activation_codes(+), users(+), resident_invitations(±), user_activation_codes(±) | `identity.invitation` → işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta | Panel/accounting, Panel/announcements, Panel/bulletins, Panel/documents, Panel/emergency, Panel/governance/assemblies, Panel/governance/common-area, Panel/inventory, Panel/kvkk, Panel/meters, Panel/notifications, Panel/packages, Panel/patrol, Panel/patrol/reports, Panel/renovations, Panel/reports, Panel/reservations, Panel/residents, Panel/roles, Panel/sensors, Panel/settings, Panel/surveys, Panel/units, Panel/violations, Sakin announcements, Sakin bulletin_board_mobile, Sakin common_income, Sakin create_reservation, Sakin documents, Sakin dues_payment, Sakin emergency, Sakin energy_consumption_mobile, Sakin invitations_banner, Sakin kvkk_requests, Sakin more, Sakin my_meters, Sakin my_reservations, Sakin owner_visibility, Sakin package_tracking_mobile, Sakin profile_settings, Sakin renovations, Sakin resident_home, Sakin surveys_mobile, Sakin tenancy_requests, Sakin unit_residents, Sakin violations, Yön.mobil announcements, Yön.mobil bulletin_board, Yön.mobil dashboard, Yön.mobil documents, Yön.mobil emergency, Yön.mobil finance, Yön.mobil finance_tools, Yön.mobil governance, Yön.mobil inventory_management, Yön.mobil kvkk_requests, Yön.mobil meters, Yön.mobil notification_center, Yön.mobil package_tracking, Yön.mobil patrol_control, Yön.mobil patrol_report, Yön.mobil patrol_run, Yön.mobil payments, Yön.mobil renovations, Yön.mobil reports, Yön.mobil reservation_management, Yön.mobil resident_detail, Yön.mobil resident_tools, Yön.mobil residents, Yön.mobil roles, Yön.mobil sensors, Yön.mobil site_settings, Yön.mobil survey_management, Yön.mobil units, Yön.mobil violations |
+| 13 | Form **Telefon değiştir — ${phoneEdit?.r.first_name ?? ""} ${phoneEdit?.r.last_name ?? ""} — alanlar: Yeni telefon* — başarı: ** (satır 277) | `POST /residents/:id/phone` · identity · `services/identity/main.go:155` | BOARD_MEMBER/MANAGER | user_activation_codes(+), user_token_invalidation(+), user_activation_codes(±), users(±) | `identity.activation`, `identity.phone_changed` → işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta | Panel/accounting, Panel/announcements, Panel/bulletins, Panel/documents, Panel/emergency, Panel/governance/assemblies, Panel/governance/common-area, Panel/inventory, Panel/kvkk, Panel/meters, Panel/notifications, Panel/packages, Panel/patrol, Panel/patrol/reports, Panel/renovations, Panel/reports, Panel/reservations, Panel/residents, Panel/roles, Panel/sensors, Panel/settings, Panel/surveys, Panel/units, Panel/violations, Sakin announcements, Sakin bulletin_board_mobile, Sakin common_income, Sakin create_reservation, Sakin documents, Sakin dues_payment, Sakin emergency, Sakin energy_consumption_mobile, Sakin kvkk_requests, Sakin more, Sakin my_meters, Sakin my_reservations, Sakin owner_visibility, Sakin package_tracking_mobile, Sakin profile_settings, Sakin renovations, Sakin resident_home, Sakin surveys_mobile, Sakin tenancy_requests, Sakin unit_residents, Sakin violations, Yön.mobil announcements, Yön.mobil bulletin_board, Yön.mobil dashboard, Yön.mobil documents, Yön.mobil emergency, Yön.mobil finance, Yön.mobil finance_tools, Yön.mobil governance, Yön.mobil inventory_management, Yön.mobil kvkk_requests, Yön.mobil meters, Yön.mobil notification_center, Yön.mobil package_tracking, Yön.mobil patrol_control, Yön.mobil patrol_report, Yön.mobil patrol_run, Yön.mobil payments, Yön.mobil renovations, Yön.mobil reports, Yön.mobil reservation_management, Yön.mobil resident_detail, Yön.mobil resident_tools, Yön.mobil residents, Yön.mobil roles, Yön.mobil sensors, Yön.mobil site_settings, Yön.mobil survey_management, Yön.mobil units, Yön.mobil violations |
+| 14 | Form **Toplu sakin ekle — alanlar:  — başarı: ** (satır 291) | `POST /residents/bulk` · identity · `services/identity/main.go:138` | serviste rol karşılaştırması: BOARD_MEMBER/MANAGER/OWNER/PROXY/TENANT | resident_invitations(+), resident_units(+), user_activation_codes(+), users(+), resident_invitations(±), user_activation_codes(±) · tetikleyici: trg_resident_units_tenancy_guard, trg_resident_units_tenant_arrival, trg_resident_units_tenant_departure | yok | Panel/accounting, Panel/announcements, Panel/assessments, Panel/bulletins, Panel/documents, Panel/emergency, Panel/governance/assemblies, Panel/governance/common-area, Panel/governance/legal, Panel/insurance, Panel/inventory, Panel/kvkk, Panel/meters, Panel/notifications, Panel/packages, Panel/parking, Panel/patrol, Panel/patrol/reports, Panel/renovations, Panel/reports, Panel/reservations, Panel/residents, Panel/roles, Panel/sensors, Panel/settings, Panel/surveys, Panel/units, Panel/violations, Panel/visitors, Sakin announcements, Sakin bulletin_board_mobile, Sakin common_income, Sakin create_reservation, Sakin dask, Sakin documents, Sakin dues_payment, Sakin emergency, Sakin energy_consumption_mobile, Sakin invitations_banner, Sakin kvkk_requests, Sakin more, Sakin my_budgets, Sakin my_meters, Sakin my_reservations, Sakin owner_visibility, Sakin package_tracking_mobile, Sakin profile_settings, Sakin renovations, Sakin resident_home, Sakin surveys_mobile, Sakin tenancy_requests, Sakin unit_residents, Sakin vehicles, Sakin violations, Sakin visitor_preregister, Yön.mobil account, Yön.mobil add_resident, Yön.mobil announcements, Yön.mobil bulletin_board, Yön.mobil collection_entry, Yön.mobil create_assessment, Yön.mobil dashboard, Yön.mobil documents, Yön.mobil emergency, Yön.mobil finance, Yön.mobil finance_tools, Yön.mobil forms, Yön.mobil governance, Yön.mobil insurance, Yön.mobil inventory_management, Yön.mobil kvkk_requests, Yön.mobil main, Yön.mobil meter_reading, Yön.mobil meters, Yön.mobil notification_center, Yön.mobil package_tracking, Yön.mobil parking_management, Yön.mobil patrol_control, Yön.mobil patrol_report, Yön.mobil patrol_run, Yön.mobil payments, Yön.mobil renovations, Yön.mobil reports, Yön.mobil reservation_management, Yön.mobil resident_detail, Yön.mobil resident_tools, Yön.mobil residents, Yön.mobil roles, Yön.mobil sensors, Yön.mobil site_settings, Yön.mobil survey_management, Yön.mobil units, Yön.mobil violations, Yön.mobil visitor_management |
 | 15 | Düğme **Kodları ilettim, kapat (pencere/form açar)** (satır 330) | — | | | | |
-| 16 | Form **(başlık dinamik) — alanlar: Sıfat, Durum, Ayrılış (ilişik kesme) tarihi — başarı: Sakin kaydı güncellendi** (satır 335) | `PATCH /residents/:id` · identity · `services/identity/main.go:147` | serviste rol karşılaştırması: BOARD_MEMBER/MANAGER/OWNER/PROXY/TENANT | resident_units(±) · tetikleyici: trg_resident_units_tenancy_guard, trg_resident_units_tenant_arrival, trg_resident_units_tenant_departure | yok | Panel/accounting, Panel/announcements, Panel/assessments, Panel/emergency, Panel/governance/assemblies, Panel/governance/common-area, Panel/governance/legal, Panel/insurance, Panel/meters, Panel/notifications, Panel/packages, Panel/parking, Panel/renovations, Panel/reports, Panel/residents, Panel/units, Panel/violations, Panel/visitors, Sakin common_income, Sakin dask, Sakin dues_payment, Sakin emergency, Sakin energy_consumption_mobile, Sakin more, Sakin my_budgets, Sakin my_meters, Sakin package_tracking_mobile, Sakin profile_settings, Sakin renovations, Sakin resident_home, Sakin tenancy_requests, Sakin unit_residents, Sakin vehicles, Sakin violations, Sakin visitor_preregister, Yön.mobil account, Yön.mobil add_resident, Yön.mobil announcements, Yön.mobil collection_entry, Yön.mobil create_assessment, Yön.mobil emergency, Yön.mobil finance, Yön.mobil finance_tools, Yön.mobil forms, Yön.mobil governance, Yön.mobil insurance, Yön.mobil main, Yön.mobil meter_reading, Yön.mobil meters, Yön.mobil notification_center, Yön.mobil package_tracking, Yön.mobil parking_management, Yön.mobil renovations, Yön.mobil reports, Yön.mobil resident_detail, Yön.mobil resident_tools, Yön.mobil residents, Yön.mobil units, Yön.mobil violations, Yön.mobil visitor_management |
+| 16 | Form **(başlık dinamik) — alanlar: Sıfat, Durum, Ayrılış (ilişik kesme) tarihi — başarı: Sakin kaydı güncellendi** (satır 335) | `PATCH /residents/:id` · identity · `services/identity/main.go:151` | serviste rol karşılaştırması: BOARD_MEMBER/MANAGER/OWNER/PROXY/TENANT | resident_units(±) · tetikleyici: trg_resident_units_tenancy_guard, trg_resident_units_tenant_arrival, trg_resident_units_tenant_departure | yok | Panel/accounting, Panel/announcements, Panel/assessments, Panel/emergency, Panel/governance/assemblies, Panel/governance/common-area, Panel/governance/legal, Panel/insurance, Panel/meters, Panel/notifications, Panel/packages, Panel/parking, Panel/renovations, Panel/reports, Panel/residents, Panel/units, Panel/violations, Panel/visitors, Sakin common_income, Sakin dask, Sakin dues_payment, Sakin emergency, Sakin energy_consumption_mobile, Sakin more, Sakin my_budgets, Sakin my_meters, Sakin package_tracking_mobile, Sakin profile_settings, Sakin renovations, Sakin resident_home, Sakin tenancy_requests, Sakin unit_residents, Sakin vehicles, Sakin violations, Sakin visitor_preregister, Yön.mobil account, Yön.mobil add_resident, Yön.mobil announcements, Yön.mobil collection_entry, Yön.mobil create_assessment, Yön.mobil emergency, Yön.mobil finance, Yön.mobil finance_tools, Yön.mobil forms, Yön.mobil governance, Yön.mobil insurance, Yön.mobil main, Yön.mobil meter_reading, Yön.mobil meters, Yön.mobil notification_center, Yön.mobil package_tracking, Yön.mobil parking_management, Yön.mobil renovations, Yön.mobil reports, Yön.mobil resident_detail, Yön.mobil resident_tools, Yön.mobil residents, Yön.mobil units, Yön.mobil violations, Yön.mobil visitor_management |
 | 17 | Düğme **Yönetim yolu başlat (yalnız yazma yetkisi; pencere/form açar)** (tenancy-ends satır 72) | — | | | | |
-| 18 | Düğme **Tamamla** (tenancy-ends satır 108) | `POST /residents/tenancy-requests/:id/complete` · identity · `services/identity/main.go:142` | serviste rol karşılaştırması: BOARD_MEMBER/MANAGER/OWNER/PROXY | tenancy_end_events(+), resident_units(±), tenancy_end_requests(±), units(±) · tetikleyici: trg_resident_units_tenancy_guard, trg_resident_units_tenant_arrival, trg_resident_units_tenant_departure | `identity.tenancy` → işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta | Panel/accounting, Panel/announcements, Panel/assessments, Panel/bulletins, Panel/collection, Panel/emergency, Panel/energy, Panel/esg, Panel/expenses, Panel/governance/assemblies, Panel/governance/budgets, Panel/governance/common-area, Panel/governance/legal, Panel/insurance, Panel/meters, Panel/notifications, Panel/packages, Panel/parking, Panel/renovations, Panel/reports, Panel/reservations, Panel/residents, Panel/units, Panel/violations, Panel/visitors, Sakin bulletin_board_mobile, Sakin common_income, Sakin create_reservation, Sakin dask, Sakin dues_payment, Sakin emergency, Sakin energy_consumption_mobile, Sakin invitations_banner, Sakin more, Sakin my_budgets, Sakin my_meters, Sakin my_reservations, Sakin package_tracking_mobile, Sakin profile_settings, Sakin renovations, Sakin resident_home, Sakin tenancy_requests, Sakin unit_residents, Sakin vehicles, Sakin violations, Sakin visitor_preregister, Yön.mobil account, Yön.mobil add_resident, Yön.mobil announcements, Yön.mobil bulletin_board, Yön.mobil collection_entry, Yön.mobil create_assessment, Yön.mobil dashboard, Yön.mobil emergency, Yön.mobil energy_dashboard, Yön.mobil esg, Yön.mobil expense_detail, Yön.mobil finance, Yön.mobil finance_tools, Yön.mobil forms, Yön.mobil governance, Yön.mobil insurance, Yön.mobil main, Yön.mobil meter_reading, Yön.mobil meters, Yön.mobil notification_center, Yön.mobil package_tracking, Yön.mobil parking_management, Yön.mobil payments, Yön.mobil renovations, Yön.mobil reports, Yön.mobil reservation_management, Yön.mobil resident_detail, Yön.mobil resident_tools, Yön.mobil residents, Yön.mobil smart_collection, Yön.mobil units, Yön.mobil violations, Yön.mobil visitor_management |
+| 18 | Düğme **Tamamla** (tenancy-ends satır 108) | `POST /residents/tenancy-requests/:id/complete` · identity · `services/identity/main.go:146` | serviste rol karşılaştırması: BOARD_MEMBER/MANAGER/OWNER/PROXY | tenancy_end_events(+), resident_units(±), tenancy_end_requests(±), units(±) · tetikleyici: trg_resident_units_tenancy_guard, trg_resident_units_tenant_arrival, trg_resident_units_tenant_departure | `identity.tenancy` → işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta | Panel/accounting, Panel/announcements, Panel/assessments, Panel/bulletins, Panel/collection, Panel/emergency, Panel/energy, Panel/esg, Panel/expenses, Panel/governance/assemblies, Panel/governance/budgets, Panel/governance/common-area, Panel/governance/legal, Panel/insurance, Panel/meters, Panel/notifications, Panel/packages, Panel/parking, Panel/renovations, Panel/reports, Panel/reservations, Panel/residents, Panel/units, Panel/violations, Panel/visitors, Sakin bulletin_board_mobile, Sakin common_income, Sakin create_reservation, Sakin dask, Sakin dues_payment, Sakin emergency, Sakin energy_consumption_mobile, Sakin invitations_banner, Sakin more, Sakin my_budgets, Sakin my_meters, Sakin my_reservations, Sakin package_tracking_mobile, Sakin profile_settings, Sakin renovations, Sakin resident_home, Sakin tenancy_requests, Sakin unit_residents, Sakin vehicles, Sakin violations, Sakin visitor_preregister, Yön.mobil account, Yön.mobil add_resident, Yön.mobil announcements, Yön.mobil bulletin_board, Yön.mobil collection_entry, Yön.mobil create_assessment, Yön.mobil dashboard, Yön.mobil emergency, Yön.mobil energy_dashboard, Yön.mobil esg, Yön.mobil expense_detail, Yön.mobil finance, Yön.mobil finance_tools, Yön.mobil forms, Yön.mobil governance, Yön.mobil insurance, Yön.mobil main, Yön.mobil meter_reading, Yön.mobil meters, Yön.mobil notification_center, Yön.mobil package_tracking, Yön.mobil parking_management, Yön.mobil payments, Yön.mobil renovations, Yön.mobil reports, Yön.mobil reservation_management, Yön.mobil resident_detail, Yön.mobil resident_tools, Yön.mobil residents, Yön.mobil smart_collection, Yön.mobil units, Yön.mobil violations, Yön.mobil visitor_management |
 | 19 | Düğme **Yeni belge (pencere/form açar)** (tenancy-ends satır 113) | — | | | | |
-| 20 | Düğme **İptal** (tenancy-ends satır 116) | `POST /residents/tenancy-requests/:id/cancel` · identity · `services/identity/main.go:143` | serviste rol karşılaştırması: BOARD_MEMBER/MANAGER | tenancy_end_events(+), tenancy_end_requests(±) | yok | Panel/residents, Sakin tenancy_requests, Yön.mobil resident_tools |
+| 20 | Düğme **İptal** (tenancy-ends satır 116) | `POST /residents/tenancy-requests/:id/cancel` · identity · `services/identity/main.go:147` | serviste rol karşılaştırması: BOARD_MEMBER/MANAGER | tenancy_end_events(+), tenancy_end_requests(±) | yok | Panel/residents, Sakin tenancy_requests, Yön.mobil resident_tools |
 | 21 | Düğme **Geri al (pencere/form açar)** (tenancy-ends satır 120) | — | | | | |
-| 22 | Form **Kiracılığı geri aç — alanlar: Gerekçe*, Şifreniz* — başarı: ** (tenancy-ends satır 161) | `POST /residents/tenancy-requests/:id/reverse` · identity · `services/identity/main.go:144` | serviste rol karşılaştırması: BOARD_MEMBER/MANAGER | tenancy_end_events(+), resident_units(±), tenancy_end_requests(±) · tetikleyici: trg_resident_units_tenancy_guard, trg_resident_units_tenant_arrival, trg_resident_units_tenant_departure | `identity.tenancy` → işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta | Panel/accounting, Panel/announcements, Panel/assessments, Panel/emergency, Panel/governance/assemblies, Panel/governance/common-area, Panel/governance/legal, Panel/insurance, Panel/meters, Panel/notifications, Panel/packages, Panel/parking, Panel/renovations, Panel/reports, Panel/residents, Panel/units, Panel/violations, Panel/visitors, Sakin common_income, Sakin dask, Sakin dues_payment, Sakin emergency, Sakin energy_consumption_mobile, Sakin more, Sakin my_budgets, Sakin my_meters, Sakin package_tracking_mobile, Sakin profile_settings, Sakin renovations, Sakin resident_home, Sakin tenancy_requests, Sakin unit_residents, Sakin vehicles, Sakin violations, Sakin visitor_preregister, Yön.mobil account, Yön.mobil add_resident, Yön.mobil announcements, Yön.mobil collection_entry, Yön.mobil create_assessment, Yön.mobil emergency, Yön.mobil finance, Yön.mobil finance_tools, Yön.mobil forms, Yön.mobil governance, Yön.mobil insurance, Yön.mobil main, Yön.mobil meter_reading, Yön.mobil meters, Yön.mobil notification_center, Yön.mobil package_tracking, Yön.mobil parking_management, Yön.mobil renovations, Yön.mobil reports, Yön.mobil resident_detail, Yön.mobil resident_tools, Yön.mobil residents, Yön.mobil units, Yön.mobil violations, Yön.mobil visitor_management |
+| 22 | Form **Kiracılığı geri aç — alanlar: Gerekçe*, Şifreniz* — başarı: ** (tenancy-ends satır 161) | `POST /residents/tenancy-requests/:id/reverse` · identity · `services/identity/main.go:148` | serviste rol karşılaştırması: BOARD_MEMBER/MANAGER | tenancy_end_events(+), resident_units(±), tenancy_end_requests(±) · tetikleyici: trg_resident_units_tenancy_guard, trg_resident_units_tenant_arrival, trg_resident_units_tenant_departure | `identity.tenancy` → işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta | Panel/accounting, Panel/announcements, Panel/assessments, Panel/emergency, Panel/governance/assemblies, Panel/governance/common-area, Panel/governance/legal, Panel/insurance, Panel/meters, Panel/notifications, Panel/packages, Panel/parking, Panel/renovations, Panel/reports, Panel/residents, Panel/units, Panel/violations, Panel/visitors, Sakin common_income, Sakin dask, Sakin dues_payment, Sakin emergency, Sakin energy_consumption_mobile, Sakin more, Sakin my_budgets, Sakin my_meters, Sakin package_tracking_mobile, Sakin profile_settings, Sakin renovations, Sakin resident_home, Sakin tenancy_requests, Sakin unit_residents, Sakin vehicles, Sakin violations, Sakin visitor_preregister, Yön.mobil account, Yön.mobil add_resident, Yön.mobil announcements, Yön.mobil collection_entry, Yön.mobil create_assessment, Yön.mobil emergency, Yön.mobil finance, Yön.mobil finance_tools, Yön.mobil forms, Yön.mobil governance, Yön.mobil insurance, Yön.mobil main, Yön.mobil meter_reading, Yön.mobil meters, Yön.mobil notification_center, Yön.mobil package_tracking, Yön.mobil parking_management, Yön.mobil renovations, Yön.mobil reports, Yön.mobil resident_detail, Yön.mobil resident_tools, Yön.mobil residents, Yön.mobil units, Yön.mobil violations, Yön.mobil visitor_management |
 
 ### Görevlendirmeler — `/dashboard/roles`
 - **Dosya:** `admin/src/app/(dashboard)/dashboard/roles/page.tsx`
@@ -263,8 +263,8 @@ Kaynak: `admin/src/app/**/page.tsx` ve içe aktardığı `admin/src/components/*
 | # | Öğe | Uç · servis · kayıt | Yetki | Değişen tablolar | Bildirim (konu → alıcı) | Etkisinin görüldüğü yerler |
 |---|---|---|---|---|---|---|
 | 1 | Düğme **Görev ver (pencere/form açar)** (satır 38) | — | | | | |
-| 2 | Düğme **Sonlandır (başarı: Görev sonlandırıldı; onay sorar)** (satır 61) | `POST /property-roles/:id/end` · identity · `services/identity/main.go:170` | serviste rol karşılaştırması: MANAGER | user_token_invalidation(+), property_roles(±) | yok | Panel/roles, Sakin dues_payment, Sakin emergency, Sakin more, Sakin profile_settings, Sakin renovations, Sakin resident_home, Sakin vehicles, Sakin visitor_preregister, Yön.mobil account, Yön.mobil main, Yön.mobil roles |
-| 3 | Form **Görev ver — alanlar: Telefon*, Görev*, Kurul kararı*, Bitiş tarihi, Ad, Soyad — başarı: Görev verildi** (satır 78) | `POST /property-roles` · identity · `services/identity/main.go:169` | serviste rol karşılaştırması: AUDITOR/BOARD_MEMBER/MANAGER/STAFF | property_roles(+), user_activation_codes(+), users(+), user_activation_codes(±) | yok | Panel/accounting, Panel/announcements, Panel/bulletins, Panel/documents, Panel/emergency, Panel/governance/assemblies, Panel/governance/common-area, Panel/inventory, Panel/kvkk, Panel/meters, Panel/notifications, Panel/packages, Panel/patrol, Panel/patrol/reports, Panel/renovations, Panel/reports, Panel/reservations, Panel/residents, Panel/roles, Panel/sensors, Panel/settings, Panel/surveys, Panel/units, Panel/violations, Sakin announcements, Sakin bulletin_board_mobile, Sakin common_income, Sakin create_reservation, Sakin documents, Sakin dues_payment, Sakin emergency, Sakin energy_consumption_mobile, Sakin kvkk_requests, Sakin more, Sakin my_meters, Sakin my_reservations, Sakin owner_visibility, Sakin package_tracking_mobile, Sakin profile_settings, Sakin renovations, Sakin resident_home, Sakin surveys_mobile, Sakin tenancy_requests, Sakin unit_residents, Sakin vehicles, Sakin violations, Sakin visitor_preregister, Yön.mobil account, Yön.mobil announcements, Yön.mobil bulletin_board, Yön.mobil dashboard, Yön.mobil documents, Yön.mobil emergency, Yön.mobil finance, Yön.mobil finance_tools, Yön.mobil governance, Yön.mobil inventory_management, Yön.mobil kvkk_requests, Yön.mobil main, Yön.mobil meters, Yön.mobil notification_center, Yön.mobil package_tracking, Yön.mobil patrol_control, Yön.mobil patrol_report, Yön.mobil patrol_run, Yön.mobil payments, Yön.mobil renovations, Yön.mobil reports, Yön.mobil reservation_management, Yön.mobil resident_detail, Yön.mobil resident_tools, Yön.mobil residents, Yön.mobil roles, Yön.mobil sensors, Yön.mobil site_settings, Yön.mobil survey_management, Yön.mobil units, Yön.mobil violations |
+| 2 | Düğme **Sonlandır (başarı: Görev sonlandırıldı; onay sorar)** (satır 61) | `POST /property-roles/:id/end` · identity · `services/identity/main.go:176` | serviste rol karşılaştırması: MANAGER | user_token_invalidation(+), property_roles(±) | yok | Panel/roles, Sakin dues_payment, Sakin emergency, Sakin more, Sakin profile_settings, Sakin renovations, Sakin resident_home, Sakin vehicles, Sakin visitor_preregister, Yön.mobil account, Yön.mobil main, Yön.mobil roles |
+| 3 | Form **Görev ver — alanlar: Telefon*, Görev*, Kurul kararı*, Bitiş tarihi, Ad, Soyad — başarı: Görev verildi** (satır 78) | `POST /property-roles` · identity · `services/identity/main.go:175` | serviste rol karşılaştırması: AUDITOR/BOARD_MEMBER/MANAGER/STAFF | property_roles(+), user_activation_codes(+), users(+), user_activation_codes(±) | yok | Panel/accounting, Panel/announcements, Panel/bulletins, Panel/documents, Panel/emergency, Panel/governance/assemblies, Panel/governance/common-area, Panel/inventory, Panel/kvkk, Panel/meters, Panel/notifications, Panel/packages, Panel/patrol, Panel/patrol/reports, Panel/renovations, Panel/reports, Panel/reservations, Panel/residents, Panel/roles, Panel/sensors, Panel/settings, Panel/surveys, Panel/units, Panel/violations, Sakin announcements, Sakin bulletin_board_mobile, Sakin common_income, Sakin create_reservation, Sakin documents, Sakin dues_payment, Sakin emergency, Sakin energy_consumption_mobile, Sakin kvkk_requests, Sakin more, Sakin my_meters, Sakin my_reservations, Sakin owner_visibility, Sakin package_tracking_mobile, Sakin profile_settings, Sakin renovations, Sakin resident_home, Sakin surveys_mobile, Sakin tenancy_requests, Sakin unit_residents, Sakin vehicles, Sakin violations, Sakin visitor_preregister, Yön.mobil account, Yön.mobil announcements, Yön.mobil bulletin_board, Yön.mobil dashboard, Yön.mobil documents, Yön.mobil emergency, Yön.mobil finance, Yön.mobil finance_tools, Yön.mobil governance, Yön.mobil inventory_management, Yön.mobil kvkk_requests, Yön.mobil main, Yön.mobil meters, Yön.mobil notification_center, Yön.mobil package_tracking, Yön.mobil patrol_control, Yön.mobil patrol_report, Yön.mobil patrol_run, Yön.mobil payments, Yön.mobil renovations, Yön.mobil reports, Yön.mobil reservation_management, Yön.mobil resident_detail, Yön.mobil resident_tools, Yön.mobil residents, Yön.mobil roles, Yön.mobil sensors, Yön.mobil site_settings, Yön.mobil survey_management, Yön.mobil units, Yön.mobil violations |
 | 4 | Düğme **Kodu ilettim, kapat (pencere/form açar)** (satır 122) | — | | | | |
 
 ### Anketler — `/dashboard/surveys`
@@ -313,9 +313,9 @@ Kaynak: `admin/src/app/**/page.tsx` ve içe aktardığı `admin/src/components/*
 | 3 | Düğme **Düzenle (yalnız yazma yetkisi) — yalnız arayüz (pencere/gezinme), sunucu çağrısı yok** (satır 129) | — | | | | |
 | 4 | Düğme **Borcu yoktur (yalnız yazma yetkisi)** (satır 130) | `POST /finance/clearance-certificates` · finance · `services/finance/main.go:104` | işleyicide `isFinanceManager` (backend/services/finance/clearance.go:41) | clearance_certificates(+) | yok | Panel/units, Sakin dues_payment, Yön.mobil units |
 |  | ↳ | `GET /finance/clearance-certificates/:id/pdf` · finance · `services/finance/main.go:105` | işleyicide `isFinanceManager` (backend/services/finance/clearance.go:41) | — | yok | — |
-| 5 | Form **(başlık dinamik) — alanlar: Blok, Kapı no*, Kat, Arsa payı*, Net kullanım alanı (m²)*, Brüt m², Tür, Ticari mi?, Kiracı yokken — başarı: Bölüm güncellendi; Bölüm eklendi** (satır 144) | `PATCH /units/:id` · identity · `services/identity/main.go:179` | serviste rol karşılaştırması: BOARD_MEMBER/MANAGER | units(±) | yok | Panel/accounting, Panel/announcements, Panel/assessments, Panel/bulletins, Panel/collection, Panel/emergency, Panel/energy, Panel/esg, Panel/expenses, Panel/governance/assemblies, Panel/governance/budgets, Panel/governance/common-area, Panel/governance/legal, Panel/insurance, Panel/meters, Panel/notifications, Panel/packages, Panel/parking, Panel/renovations, Panel/reports, Panel/reservations, Panel/residents, Panel/units, Panel/violations, Panel/visitors, Sakin bulletin_board_mobile, Sakin common_income, Sakin create_reservation, Sakin dask, Sakin dues_payment, Sakin emergency, Sakin energy_consumption_mobile, Sakin invitations_banner, Sakin more, Sakin my_budgets, Sakin my_meters, Sakin my_reservations, Sakin package_tracking_mobile, Sakin profile_settings, Sakin renovations, Sakin resident_home, Sakin tenancy_requests, Sakin unit_residents, Sakin vehicles, Sakin violations, Sakin visitor_preregister, Yön.mobil account, Yön.mobil add_resident, Yön.mobil announcements, Yön.mobil bulletin_board, Yön.mobil collection_entry, Yön.mobil create_assessment, Yön.mobil dashboard, Yön.mobil emergency, Yön.mobil energy_dashboard, Yön.mobil esg, Yön.mobil expense_detail, Yön.mobil finance, Yön.mobil finance_tools, Yön.mobil forms, Yön.mobil governance, Yön.mobil insurance, Yön.mobil main, Yön.mobil meter_reading, Yön.mobil meters, Yön.mobil notification_center, Yön.mobil package_tracking, Yön.mobil parking_management, Yön.mobil payments, Yön.mobil renovations, Yön.mobil reports, Yön.mobil reservation_management, Yön.mobil resident_detail, Yön.mobil resident_tools, Yön.mobil residents, Yön.mobil smart_collection, Yön.mobil units, Yön.mobil violations, Yön.mobil visitor_management |
-|  | ↳ | `POST /units` · identity · `services/identity/main.go:178` | serviste rol karşılaştırması: BOARD_MEMBER/MANAGER | units(+) | yok | Panel/accounting, Panel/announcements, Panel/assessments, Panel/bulletins, Panel/collection, Panel/emergency, Panel/energy, Panel/esg, Panel/expenses, Panel/governance/assemblies, Panel/governance/budgets, Panel/governance/common-area, Panel/governance/legal, Panel/insurance, Panel/meters, Panel/notifications, Panel/packages, Panel/parking, Panel/renovations, Panel/reports, Panel/reservations, Panel/residents, Panel/units, Panel/violations, Panel/visitors, Sakin bulletin_board_mobile, Sakin common_income, Sakin create_reservation, Sakin dask, Sakin dues_payment, Sakin emergency, Sakin energy_consumption_mobile, Sakin invitations_banner, Sakin more, Sakin my_budgets, Sakin my_meters, Sakin my_reservations, Sakin package_tracking_mobile, Sakin profile_settings, Sakin renovations, Sakin resident_home, Sakin tenancy_requests, Sakin unit_residents, Sakin vehicles, Sakin violations, Sakin visitor_preregister, Yön.mobil account, Yön.mobil add_resident, Yön.mobil announcements, Yön.mobil bulletin_board, Yön.mobil collection_entry, Yön.mobil create_assessment, Yön.mobil dashboard, Yön.mobil emergency, Yön.mobil energy_dashboard, Yön.mobil esg, Yön.mobil expense_detail, Yön.mobil finance, Yön.mobil finance_tools, Yön.mobil forms, Yön.mobil governance, Yön.mobil insurance, Yön.mobil main, Yön.mobil meter_reading, Yön.mobil meters, Yön.mobil notification_center, Yön.mobil package_tracking, Yön.mobil parking_management, Yön.mobil payments, Yön.mobil renovations, Yön.mobil reports, Yön.mobil reservation_management, Yön.mobil resident_detail, Yön.mobil resident_tools, Yön.mobil residents, Yön.mobil smart_collection, Yön.mobil units, Yön.mobil violations, Yön.mobil visitor_management |
-| 6 | Form **Toplu bölüm ekle — alanlar:  — başarı: ** (satır 184) | `POST /units` · identity · `services/identity/main.go:178` | serviste rol karşılaştırması: BOARD_MEMBER/MANAGER | units(+) | yok | Panel/accounting, Panel/announcements, Panel/assessments, Panel/bulletins, Panel/collection, Panel/emergency, Panel/energy, Panel/esg, Panel/expenses, Panel/governance/assemblies, Panel/governance/budgets, Panel/governance/common-area, Panel/governance/legal, Panel/insurance, Panel/meters, Panel/notifications, Panel/packages, Panel/parking, Panel/renovations, Panel/reports, Panel/reservations, Panel/residents, Panel/units, Panel/violations, Panel/visitors, Sakin bulletin_board_mobile, Sakin common_income, Sakin create_reservation, Sakin dask, Sakin dues_payment, Sakin emergency, Sakin energy_consumption_mobile, Sakin invitations_banner, Sakin more, Sakin my_budgets, Sakin my_meters, Sakin my_reservations, Sakin package_tracking_mobile, Sakin profile_settings, Sakin renovations, Sakin resident_home, Sakin tenancy_requests, Sakin unit_residents, Sakin vehicles, Sakin violations, Sakin visitor_preregister, Yön.mobil account, Yön.mobil add_resident, Yön.mobil announcements, Yön.mobil bulletin_board, Yön.mobil collection_entry, Yön.mobil create_assessment, Yön.mobil dashboard, Yön.mobil emergency, Yön.mobil energy_dashboard, Yön.mobil esg, Yön.mobil expense_detail, Yön.mobil finance, Yön.mobil finance_tools, Yön.mobil forms, Yön.mobil governance, Yön.mobil insurance, Yön.mobil main, Yön.mobil meter_reading, Yön.mobil meters, Yön.mobil notification_center, Yön.mobil package_tracking, Yön.mobil parking_management, Yön.mobil payments, Yön.mobil renovations, Yön.mobil reports, Yön.mobil reservation_management, Yön.mobil resident_detail, Yön.mobil resident_tools, Yön.mobil residents, Yön.mobil smart_collection, Yön.mobil units, Yön.mobil violations, Yön.mobil visitor_management |
+| 5 | Form **(başlık dinamik) — alanlar: Blok, Kapı no*, Kat, Arsa payı*, Net kullanım alanı (m²)*, Brüt m², Tür, Ticari mi?, Kiracı yokken — başarı: Bölüm güncellendi; Bölüm eklendi** (satır 144) | `PATCH /units/:id` · identity · `services/identity/main.go:185` | serviste rol karşılaştırması: BOARD_MEMBER/MANAGER | units(±) | yok | Panel/accounting, Panel/announcements, Panel/assessments, Panel/bulletins, Panel/collection, Panel/emergency, Panel/energy, Panel/esg, Panel/expenses, Panel/governance/assemblies, Panel/governance/budgets, Panel/governance/common-area, Panel/governance/legal, Panel/insurance, Panel/meters, Panel/notifications, Panel/packages, Panel/parking, Panel/renovations, Panel/reports, Panel/reservations, Panel/residents, Panel/units, Panel/violations, Panel/visitors, Sakin bulletin_board_mobile, Sakin common_income, Sakin create_reservation, Sakin dask, Sakin dues_payment, Sakin emergency, Sakin energy_consumption_mobile, Sakin invitations_banner, Sakin more, Sakin my_budgets, Sakin my_meters, Sakin my_reservations, Sakin package_tracking_mobile, Sakin profile_settings, Sakin renovations, Sakin resident_home, Sakin tenancy_requests, Sakin unit_residents, Sakin vehicles, Sakin violations, Sakin visitor_preregister, Yön.mobil account, Yön.mobil add_resident, Yön.mobil announcements, Yön.mobil bulletin_board, Yön.mobil collection_entry, Yön.mobil create_assessment, Yön.mobil dashboard, Yön.mobil emergency, Yön.mobil energy_dashboard, Yön.mobil esg, Yön.mobil expense_detail, Yön.mobil finance, Yön.mobil finance_tools, Yön.mobil forms, Yön.mobil governance, Yön.mobil insurance, Yön.mobil main, Yön.mobil meter_reading, Yön.mobil meters, Yön.mobil notification_center, Yön.mobil package_tracking, Yön.mobil parking_management, Yön.mobil payments, Yön.mobil renovations, Yön.mobil reports, Yön.mobil reservation_management, Yön.mobil resident_detail, Yön.mobil resident_tools, Yön.mobil residents, Yön.mobil smart_collection, Yön.mobil units, Yön.mobil violations, Yön.mobil visitor_management |
+|  | ↳ | `POST /units` · identity · `services/identity/main.go:184` | serviste rol karşılaştırması: BOARD_MEMBER/MANAGER | units(+) | yok | Panel/accounting, Panel/announcements, Panel/assessments, Panel/bulletins, Panel/collection, Panel/emergency, Panel/energy, Panel/esg, Panel/expenses, Panel/governance/assemblies, Panel/governance/budgets, Panel/governance/common-area, Panel/governance/legal, Panel/insurance, Panel/meters, Panel/notifications, Panel/packages, Panel/parking, Panel/renovations, Panel/reports, Panel/reservations, Panel/residents, Panel/units, Panel/violations, Panel/visitors, Sakin bulletin_board_mobile, Sakin common_income, Sakin create_reservation, Sakin dask, Sakin dues_payment, Sakin emergency, Sakin energy_consumption_mobile, Sakin invitations_banner, Sakin more, Sakin my_budgets, Sakin my_meters, Sakin my_reservations, Sakin package_tracking_mobile, Sakin profile_settings, Sakin renovations, Sakin resident_home, Sakin tenancy_requests, Sakin unit_residents, Sakin vehicles, Sakin violations, Sakin visitor_preregister, Yön.mobil account, Yön.mobil add_resident, Yön.mobil announcements, Yön.mobil bulletin_board, Yön.mobil collection_entry, Yön.mobil create_assessment, Yön.mobil dashboard, Yön.mobil emergency, Yön.mobil energy_dashboard, Yön.mobil esg, Yön.mobil expense_detail, Yön.mobil finance, Yön.mobil finance_tools, Yön.mobil forms, Yön.mobil governance, Yön.mobil insurance, Yön.mobil main, Yön.mobil meter_reading, Yön.mobil meters, Yön.mobil notification_center, Yön.mobil package_tracking, Yön.mobil parking_management, Yön.mobil payments, Yön.mobil renovations, Yön.mobil reports, Yön.mobil reservation_management, Yön.mobil resident_detail, Yön.mobil resident_tools, Yön.mobil residents, Yön.mobil smart_collection, Yön.mobil units, Yön.mobil violations, Yön.mobil visitor_management |
+| 6 | Form **Toplu bölüm ekle — alanlar:  — başarı: ** (satır 184) | `POST /units` · identity · `services/identity/main.go:184` | serviste rol karşılaştırması: BOARD_MEMBER/MANAGER | units(+) | yok | Panel/accounting, Panel/announcements, Panel/assessments, Panel/bulletins, Panel/collection, Panel/emergency, Panel/energy, Panel/esg, Panel/expenses, Panel/governance/assemblies, Panel/governance/budgets, Panel/governance/common-area, Panel/governance/legal, Panel/insurance, Panel/meters, Panel/notifications, Panel/packages, Panel/parking, Panel/renovations, Panel/reports, Panel/reservations, Panel/residents, Panel/units, Panel/violations, Panel/visitors, Sakin bulletin_board_mobile, Sakin common_income, Sakin create_reservation, Sakin dask, Sakin dues_payment, Sakin emergency, Sakin energy_consumption_mobile, Sakin invitations_banner, Sakin more, Sakin my_budgets, Sakin my_meters, Sakin my_reservations, Sakin package_tracking_mobile, Sakin profile_settings, Sakin renovations, Sakin resident_home, Sakin tenancy_requests, Sakin unit_residents, Sakin vehicles, Sakin violations, Sakin visitor_preregister, Yön.mobil account, Yön.mobil add_resident, Yön.mobil announcements, Yön.mobil bulletin_board, Yön.mobil collection_entry, Yön.mobil create_assessment, Yön.mobil dashboard, Yön.mobil emergency, Yön.mobil energy_dashboard, Yön.mobil esg, Yön.mobil expense_detail, Yön.mobil finance, Yön.mobil finance_tools, Yön.mobil forms, Yön.mobil governance, Yön.mobil insurance, Yön.mobil main, Yön.mobil meter_reading, Yön.mobil meters, Yön.mobil notification_center, Yön.mobil package_tracking, Yön.mobil parking_management, Yön.mobil payments, Yön.mobil renovations, Yön.mobil reports, Yön.mobil reservation_management, Yön.mobil resident_detail, Yön.mobil resident_tools, Yön.mobil residents, Yön.mobil smart_collection, Yön.mobil units, Yön.mobil violations, Yön.mobil visitor_management |
 
 ### Kural İhlalleri — `/dashboard/violations`
 - **Dosya:** `admin/src/app/(dashboard)/dashboard/violations/page.tsx`
@@ -539,17 +539,17 @@ Kaynak: `admin/src/app/**/page.tsx` ve içe aktardığı `admin/src/components/*
 - **Ekranda:**
   - Veri (satır 20): `GET /contracts` (contract)
   - Veri (satır 21): `GET /contracts-summary` (contract)
-  - Kart (satır 47): Sözleşmeler
-  - Tablo (satır 50): Sözleşme \| Dönem \| Kalan \| Yenileme \| Tutar \| Durum
+  - Kart (satır 55): Sözleşmeler
+  - Tablo (satır 58): Sözleşme \| Dönem \| Kalan \| Yenileme \| Tutar \| Durum
 
 | # | Öğe | Uç · servis · kayıt | Yetki | Değişen tablolar | Bildirim (konu → alıcı) | Etkisinin görüldüğü yerler |
 |---|---|---|---|---|---|---|
-| 1 | Düğme **Süresi dolanları işle (yalnız yazma yetkisi)** (satır 35) | `POST /contracts/expire-due` · contract · `services/contract/main.go:172` | BOARD_MEMBER/MANAGER | contracts(±) | yok | Panel/contracts, Yön.mobil contract_management |
-| 2 | Düğme **Sözleşme ekle (yalnız yazma yetkisi; pencere/form açar)** (satır 36) | — | | | | |
-| 3 | Düğme **Yenile (yalnız yazma yetkisi; başarı: Sözleşme yenilendi)** (satır 59) | `POST /contracts/:id/renew` · contract · `services/contract/main.go:138` | BOARD_MEMBER/MANAGER | contracts(±) | yok | Panel/contracts, Yön.mobil contract_management |
-| 4 | Düğme **Feshet (pencere/form açar)** (satır 60) | — | | | | |
-| 5 | Form **Sözleşme ekle — alanlar: Tür*, Başlık*, Karşı taraf*, Başlangıç*, Bitiş, İhbar süresi (gün), Otomatik yenileme, Yenileme süresi (ay), Ödeme, Aylık tutar (TL), Yıllık tutar (TL), Telefon, Not — başarı: Sözleşme kaydedildi** (satır 68) | `POST /contracts` · contract · `services/contract/main.go:117` | BOARD_MEMBER/MANAGER | contracts(+) | yok | Panel/contracts, Yön.mobil contract_management |
-| 6 | Form **Sözleşmeyi feshet — alanlar: Gerekçe* — başarı: Fesih kaydedildi** (satır 93) | `POST /contracts/:id/terminate` · contract · `services/contract/main.go:151` | BOARD_MEMBER/MANAGER | contracts(±) | yok | Panel/contracts, Yön.mobil contract_management |
+| 1 | Düğme **Süresi dolanları işle (yalnız yazma yetkisi)** (satır 43) | `POST /contracts/expire-due` · contract · `services/contract/main.go:172` | BOARD_MEMBER/MANAGER | contracts(±) | yok | Panel/contracts, Yön.mobil contract_management |
+| 2 | Düğme **Sözleşme ekle (yalnız yazma yetkisi; pencere/form açar)** (satır 44) | — | | | | |
+| 3 | Düğme **Yenile (yalnız yazma yetkisi; başarı: Sözleşme yenilendi)** (satır 67) | `POST /contracts/:id/renew` · contract · `services/contract/main.go:138` | BOARD_MEMBER/MANAGER | contracts(±) | yok | Panel/contracts, Yön.mobil contract_management |
+| 4 | Düğme **Feshet (pencere/form açar)** (satır 68) | — | | | | |
+| 5 | Form **Sözleşme ekle — alanlar: Tür*, Başlık*, Karşı taraf*, Başlangıç*, Bitiş, İhbar süresi (gün), Otomatik yenileme, Yenileme süresi (ay), Ödeme, Aylık tutar (TL), Yıllık tutar (TL), Telefon, Not — başarı: Sözleşme kaydedildi** (satır 76) | `POST /contracts` · contract · `services/contract/main.go:117` | BOARD_MEMBER/MANAGER | contracts(+) | yok | Panel/contracts, Yön.mobil contract_management |
+| 6 | Form **Sözleşmeyi feshet — alanlar: Gerekçe* — başarı: Fesih kaydedildi** (satır 101) | `POST /contracts/:id/terminate` · contract · `services/contract/main.go:151` | BOARD_MEMBER/MANAGER | contracts(±) | yok | Panel/contracts, Yön.mobil contract_management |
 
 ### Belge Arşivi — `/dashboard/documents`
 - **Dosya:** `admin/src/app/(dashboard)/dashboard/documents/page.tsx`
@@ -694,6 +694,21 @@ Kaynak: `admin/src/app/**/page.tsx` ve içe aktardığı `admin/src/components/*
 |---|---|---|---|---|---|---|
 | 1 | Düğme **Takip aç (yalnız yazma yetkisi; pencere/form açar)** (satır 42) | — | | | | |
 | 2 | Form **Hukuki takip aç — alanlar: Daire*, Tür, Dayanak belge, İcra dairesi / mahkeme, Dosya no, Avukat, Not — başarı: ** (satır 62) | `POST /governance/legal-cases` · governance · `services/governance/main.go:106` | BOARD_MEMBER/MANAGER | legal_cases(+) | yok | Panel/governance/legal, Yön.mobil governance |
+
+### Usta & Hizmet — `/dashboard/usta-hizmet`
+- **Dosya:** `admin/src/app/(dashboard)/dashboard/usta-hizmet/page.tsx`
+- **Panel erişimi:** MANAGER/BOARD_MEMBER/AUDITOR/STAFF — Yönetim paneli
+- **Ekranda:**
+  - Veri (satır 15): 
+  - Veri (satır 16): `GET /market/meta` (marketplace)
+  - Bilgi notu (satır 30): Site adına talebi yönetici açar ve teklif seçer; kurul üyeleri ve denetçi talepleri ve tek
+  - Tablo (satır 34): Tarih \| Kategori \| Açıklama \| Kabul \| Durum
+  - Bağlantı (satır 36): {r.category_name} → `/dashboard/usta-hizmet/${r.id
+
+| # | Öğe | Uç · servis · kayıt | Yetki | Değişen tablolar | Bildirim (konu → alıcı) | Etkisinin görüldüğü yerler |
+|---|---|---|---|---|---|---|
+| 1 | Düğme **Teklif topla (pencere/form açar)** (satır 28) | — | | | | |
+| 2 | Form **Site adına teklif topla — alanlar: Kategori*, Ne yapılacak?*, Uygun zaman — başarı: ** (satır 45) | — | | | | |
 
 
 ## Operasyon
@@ -1079,8 +1094,8 @@ Kaynak: `admin/src/app/**/page.tsx` ve içe aktardığı `admin/src/components/*
 
 | # | Öğe | Uç · servis · kayıt | Yetki | Değişen tablolar | Bildirim (konu → alıcı) | Etkisinin görüldüğü yerler |
 |---|---|---|---|---|---|---|
-| 1 | Düğme **Tümünü okundu say (başarı: Tümü okundu sayıldı)** (satır 24) | `POST /notifications/read-all` · notification · `services/notification/main.go:97` | oturum açmış herkes (site kapsamı) | notification_reads(+) | yok | Panel/inbox, Sakin main, Sakin notifications, Yön.mobil inbox, Yön.mobil main |
-| 2 | Düğme **Okundu say (başarı: Okundu sayıldı)** (satır 38) | `POST /notifications/:id/read` · notification · `services/notification/main.go:84` | oturum açmış herkes (site kapsamı) | notification_reads(+) | yok | Panel/inbox, Sakin main, Sakin notifications, Yön.mobil inbox, Yön.mobil main |
+| 1 | Düğme **Tümünü okundu say (başarı: Tümü okundu sayıldı)** (satır 24) | `POST /notifications/read-all` · notification · `services/notification/main.go:97` | oturum açmış herkes (site kapsamı) | notification_reads(+) | yok | Panel tedarikci/(panel)/bildirimler, Panel/inbox, Sakin main, Sakin notifications, Yön.mobil inbox, Yön.mobil main |
+| 2 | Düğme **Okundu say (başarı: Okundu sayıldı)** (satır 38) | `POST /notifications/:id/read` · notification · `services/notification/main.go:84` | oturum açmış herkes (site kapsamı) | notification_reads(+) | yok | Panel tedarikci/(panel)/bildirimler, Panel/inbox, Sakin main, Sakin notifications, Yön.mobil inbox, Yön.mobil main |
 
 ### Entegrasyon Durumu — `/dashboard/integrations`
 - **Dosya:** `admin/src/app/(dashboard)/dashboard/integrations/page.tsx`
@@ -1103,13 +1118,13 @@ Kaynak: `admin/src/app/**/page.tsx` ve içe aktardığı `admin/src/components/*
 - **Dosya:** `admin/src/app/(dashboard)/dashboard/settings/page.tsx`
 - **Panel erişimi:** MANAGER/BOARD_MEMBER — Site ayarları
 - **Ekranda:**
-  - Veri (satır 21): 
-  - Veri (satır 22): `GET /settings/definitions` (settings)
-  - Veri (satır 23): `GET /settings-history` (settings)
-  - Bilgi notu (satır 32): Mevzuata bağlı değerler (gecikme tazminatı, ısıtma payları, genel kurul nisapları) burada 
-  - Sekmeler (satır 34): Ayarlar, Saklama ve imha (KVKK), Kamera ve biyometrik envanter, Değişiklik geçmişi, Site durumu, Malik görünürlüğü
-  - Tablo (satır 43): Ayar \| Değer \| Son değişiklik
-  - Tablo (satır 63): Zaman \| Ayar \| Eski \| Yeni \| Değiştiren
+  - Veri (satır 22): 
+  - Veri (satır 23): `GET /settings/definitions` (settings)
+  - Veri (satır 24): `GET /settings-history` (settings)
+  - Bilgi notu (satır 33): Mevzuata bağlı değerler (gecikme tazminatı, ısıtma payları, genel kurul nisapları) burada 
+  - Sekmeler (satır 35): Ayarlar, Saklama ve imha (KVKK), Kamera ve biyometrik envanter, Değişiklik geçmişi, Site durumu, Malik görünürlüğü, Site konumu
+  - Tablo (satır 45): Ayar \| Değer \| Son değişiklik
+  - Tablo (satır 65): Zaman \| Ayar \| Eski \| Yeni \| Değiştiren
   - **Bileşen `admin/src/components/settings/retention-card.tsx`** (aşağıdaki satır numaraları bu dosyaya aittir)
   - Veri (satır 16): `GET /retention-rules` (settings)
   - Veri (satır 17): `GET /retention-rules/log` (settings)
@@ -1140,15 +1155,19 @@ Kaynak: `admin/src/app/**/page.tsx` ve içe aktardığı `admin/src/components/*
   - Kart (satır 75): Geçmiş
   - Tablo (satır 76): Öneri \| Açılan alanlar \| Gerekçe \| Durum \| Karar
   - Bilgi notu (satır 94): Seçenekleri açmak kiracının kişisel verisini malike gösterir (KVKK m.4 ölçülülük). Değişik
+  - **Bileşen `admin/src/components/settings/location-card.tsx`** (aşağıdaki satır numaraları bu dosyaya aittir)
+  - Veri (satır 17): `GET /property` (identity)
+  - Kart (satır 36): Site konumu
+  - Bilgi notu (satır 40): Usta & Hizmet'te sakinlerin talepleri, hizmet alanı bu konumu kapsayan tedarikçilere gider
 
 | # | Öğe | Uç · servis · kayıt | Yetki | Değişen tablolar | Bildirim (konu → alıcı) | Etkisinin görüldüğü yerler |
 |---|---|---|---|---|---|---|
-| 1 | Düğme **Düzenle (pencere/form açar)** (satır 50) | — | | | | |
-| 2 | Düğme **Sıfırla (başarı: Varsayılana döndü)** (satır 51) | `DELETE /settings/:key` · settings · `services/settings/main.go:126` | BOARD_MEMBER/MANAGER; işleyicide `hasRole` (backend/services/settings/visibility.go:74) | property_settings(−), property_setting_history(+) · tetikleyici: property_settings_guard_legal_key, property_setting_history_no_change | yok | Panel/personnel, Panel/settings, Sakin my_budgets, Yön.mobil personnel_management, Yön.mobil site_settings |
-| 3 | Form **(başlık dinamik) — alanlar: Değer — başarı: Ayar kaydedildi** (satır 75) | `PUT /settings/:key` · settings · `services/settings/main.go:105` | BOARD_MEMBER/MANAGER; işleyicide `hasRole` (backend/services/settings/visibility.go:74) | property_setting_history(+), property_settings(+) · tetikleyici: property_setting_history_no_change, property_settings_guard_legal_key | yok | Panel/personnel, Panel/settings, Sakin my_budgets, Yön.mobil personnel_management, Yön.mobil site_settings |
-| 4 | Düğme **Şimdi imha et** (retention-card satır 26) | `POST /retention-rules/run` · settings · `services/settings/main.go:152` | BOARD_MEMBER/MANAGER | client_error_reports(−), data_destruction_log(+), storage_deletion_queue(+), packages(±), parking_logs(±), visitors(±) | yok | Panel/packages, Panel/parking, Panel/settings, Panel/visitors, Sakin package_tracking_mobile, Yön.mobil package_tracking, Yön.mobil parking_management, Yön.mobil site_settings, Yön.mobil visitor_management |
+| 1 | Düğme **Düzenle (pencere/form açar)** (satır 52) | — | | | | |
+| 2 | Düğme **Sıfırla (başarı: Varsayılana döndü)** (satır 53) | `DELETE /settings/:key` · settings · `services/settings/main.go:126` | BOARD_MEMBER/MANAGER; işleyicide `hasRole` (backend/services/settings/visibility.go:74) | property_settings(−), property_setting_history(+) · tetikleyici: property_settings_guard_legal_key, property_setting_history_no_change | yok | Panel/personnel, Panel/settings, Sakin my_budgets, Yön.mobil personnel_management, Yön.mobil site_settings |
+| 3 | Form **(başlık dinamik) — alanlar: Değer — başarı: Ayar kaydedildi** (satır 77) | `PUT /settings/:key` · settings · `services/settings/main.go:105` | BOARD_MEMBER/MANAGER; işleyicide `hasRole` (backend/services/settings/visibility.go:74) | property_setting_history(+), property_settings(+) · tetikleyici: property_setting_history_no_change, property_settings_guard_legal_key | yok | Panel/personnel, Panel/settings, Sakin my_budgets, Yön.mobil personnel_management, Yön.mobil site_settings |
+| 4 | Düğme **Şimdi imha et** (retention-card satır 26) | `POST /retention-rules/run` · settings · `services/settings/main.go:152` | BOARD_MEMBER/MANAGER | client_error_reports(−), data_destruction_log(+), storage_deletion_queue(+), mp_messages(±), mp_request_contacts(±), packages(±), parking_logs(±), visitors(±) | yok | Panel tedarikci/(panel)/talepler/[id], Panel/packages, Panel/parking, Panel/settings, Panel/visitors, Sakin market_requests, Sakin package_tracking_mobile, Yön.mobil package_tracking, Yön.mobil parking_management, Yön.mobil site_settings, Yön.mobil visitor_management |
 | 5 | Düğme **Düzenle (pencere/form açar)** (retention-card satır 35) | — | | | | |
-| 6 | Form **Saklama süresi — ${edit?.rule.title ?? ""} — alanlar: Saklama süresi (ay)*, Gerekçe (işleme amacı / hukuki dayanak)* — başarı: Kaydedildi** (retention-card satır 56) | `PUT /retention-rules/:category` · settings · `services/settings/main.go:143` | BOARD_MEMBER/MANAGER | client_error_reports(−), data_retention_rules(+), storage_deletion_queue(+), packages(±), parking_logs(±), visitors(±) | yok | Panel/packages, Panel/parking, Panel/settings, Panel/visitors, Sakin package_tracking_mobile, Yön.mobil package_tracking, Yön.mobil parking_management, Yön.mobil site_settings, Yön.mobil visitor_management |
+| 6 | Form **Saklama süresi — ${edit?.rule.title ?? ""} — alanlar: Saklama süresi (ay)*, Gerekçe (işleme amacı / hukuki dayanak)* — başarı: Kaydedildi** (retention-card satır 56) | `PUT /retention-rules/:category` · settings · `services/settings/main.go:143` | BOARD_MEMBER/MANAGER | client_error_reports(−), data_retention_rules(+), storage_deletion_queue(+), mp_messages(±), mp_request_contacts(±), packages(±), parking_logs(±), visitors(±) | yok | Panel tedarikci/(panel)/talepler/[id], Panel/packages, Panel/parking, Panel/settings, Panel/visitors, Sakin market_requests, Sakin package_tracking_mobile, Yön.mobil package_tracking, Yön.mobil parking_management, Yön.mobil site_settings, Yön.mobil visitor_management |
 | 7 | Düğme **Kamera ekle (pencere/form açar)** (privacy-card satır 34) | — | | | | |
 | 8 | Düğme **Düzenle (pencere/form açar)** (privacy-card satır 42) | — | | | | |
 | 9 | Düğme **Sistem ekle (pencere/form açar)** (privacy-card satır 53) | — | | | | |
@@ -1156,8 +1175,8 @@ Kaynak: `admin/src/app/**/page.tsx` ve içe aktardığı `admin/src/components/*
 |  | ↳ | `POST /privacy/cameras` · settings · `services/settings/main.go:149` | BOARD_MEMBER/MANAGER | camera_devices(+) | yok | Panel/settings, Sakin kvkk_requests, Yön.mobil site_settings |
 | 11 | Form **Biyometrik sistem — alanlar: Sistem adı*, Yöntem, Amaç*, Alternatif yöntem*, Saklama notu — başarı: Kaydedildi** (privacy-card satır 94) | `POST /privacy/biometrics` · settings · `services/settings/main.go:151` | BOARD_MEMBER/MANAGER | biometric_systems(+) | yok | Panel/settings, Yön.mobil site_settings |
 | 12 | Düğme **Siteyi pasife al (pencere/form açar)** (lifecycle-card satır 37) | — | | | | |
-| 13 | Form **(başlık dinamik) — alanlar: Gerekçe* — başarı: ** (lifecycle-card satır 52) | `POST /property/deactivate` · identity · `services/identity/main.go:160` | MANAGER | property_lifecycle_events(+), properties(±) | yok | Panel/accounting, Panel/governance/books, Panel/governance/budgets, Panel/meters, Panel/reports, Panel/settings, Panel/units, Sakin dues_payment, Sakin emergency, Sakin energy_consumption_mobile, Sakin invitations_banner, Sakin more, Sakin profile_settings, Sakin renovations, Sakin resident_home, Sakin vehicles, Sakin visitor_preregister, Yön.mobil account, Yön.mobil finance_tools, Yön.mobil governance, Yön.mobil main, Yön.mobil meters, Yön.mobil reports, Yön.mobil site_settings, Yön.mobil units |
-|  | ↳ | `POST /property/reactivate` · identity · `services/identity/main.go:161` | MANAGER | property_lifecycle_events(+), properties(±) | yok | Panel/accounting, Panel/governance/books, Panel/governance/budgets, Panel/meters, Panel/reports, Panel/settings, Panel/units, Sakin dues_payment, Sakin emergency, Sakin energy_consumption_mobile, Sakin invitations_banner, Sakin more, Sakin profile_settings, Sakin renovations, Sakin resident_home, Sakin vehicles, Sakin visitor_preregister, Yön.mobil account, Yön.mobil finance_tools, Yön.mobil governance, Yön.mobil main, Yön.mobil meters, Yön.mobil reports, Yön.mobil site_settings, Yön.mobil units |
+| 13 | Form **(başlık dinamik) — alanlar: Gerekçe* — başarı: ** (lifecycle-card satır 52) | `POST /property/deactivate` · identity · `services/identity/main.go:164` | MANAGER | property_lifecycle_events(+), properties(±) | yok | Panel/accounting, Panel/governance/books, Panel/governance/budgets, Panel/meters, Panel/reports, Panel/settings, Panel/units, Sakin dues_payment, Sakin emergency, Sakin energy_consumption_mobile, Sakin invitations_banner, Sakin market_requests, Sakin more, Sakin profile_settings, Sakin renovations, Sakin resident_home, Sakin usta, Sakin vehicles, Sakin visitor_preregister, Yön.mobil account, Yön.mobil finance_tools, Yön.mobil governance, Yön.mobil main, Yön.mobil meters, Yön.mobil reports, Yön.mobil site_settings, Yön.mobil units |
+|  | ↳ | `POST /property/reactivate` · identity · `services/identity/main.go:165` | MANAGER | property_lifecycle_events(+), properties(±) | yok | Panel/accounting, Panel/governance/books, Panel/governance/budgets, Panel/meters, Panel/reports, Panel/settings, Panel/units, Sakin dues_payment, Sakin emergency, Sakin energy_consumption_mobile, Sakin invitations_banner, Sakin market_requests, Sakin more, Sakin profile_settings, Sakin renovations, Sakin resident_home, Sakin usta, Sakin vehicles, Sakin visitor_preregister, Yön.mobil account, Yön.mobil finance_tools, Yön.mobil governance, Yön.mobil main, Yön.mobil meters, Yön.mobil reports, Yön.mobil site_settings, Yön.mobil units |
 | 14 | Düğme **Değişiklik öner (pencere/form açar)** (visibility-card satır 35) | — | | | | |
 | 15 | Düğme **Onayla (pencere/form açar)** (visibility-card satır 61) | — | | | | |
 | 16 | Düğme **Reddet (pencere/form açar)** (visibility-card satır 62) | — | | | | |
@@ -1166,6 +1185,8 @@ Kaynak: `admin/src/app/**/page.tsx` ve içe aktardığı `admin/src/components/*
 | 18 | Form **Görünürlük değişikliği öner — alanlar: Gerekçe* — başarı: ** (visibility-card satır 86) | `POST /settings/owner-visibility` · settings · `services/settings/main.go:145` | BOARD_MEMBER/MANAGER | owner_visibility_policies(+) · tetikleyici: trg_owner_visibility_guard | yok | Panel/settings, Sakin owner_visibility, Yön.mobil site_settings |
 | 19 | Form **(başlık dinamik) — alanlar: Not — başarı: ** (visibility-card satır 108) | `POST /settings/owner-visibility/:id/approve` · settings · `services/settings/main.go:146` | BOARD_MEMBER/MANAGER; işleyicide `hasRole` (backend/services/settings/visibility.go:74) | owner_visibility_policies(±) · tetikleyici: trg_owner_visibility_guard | `visibility.policy` → Tenants | Panel/settings, Sakin owner_visibility, Yön.mobil site_settings |
 |  | ↳ | `POST /settings/owner-visibility/:id/reject` · settings · `services/settings/main.go:147` | BOARD_MEMBER/MANAGER; işleyicide `hasRole` (backend/services/settings/visibility.go:74) | owner_visibility_policies(±) · tetikleyici: trg_owner_visibility_guard | `visibility.policy` → Tenants | Panel/settings, Sakin owner_visibility, Yön.mobil site_settings |
+| 20 | Düğme **Konumu kaydet (başarı: Site konumu kaydedildi)** (location-card satır 54) | `PUT /property/location` · identity · `services/identity/main.go:167` | MANAGER | properties(±) | yok | Panel/accounting, Panel/governance/books, Panel/governance/budgets, Panel/meters, Panel/reports, Panel/settings, Panel/units, Sakin dues_payment, Sakin emergency, Sakin energy_consumption_mobile, Sakin invitations_banner, Sakin market_requests, Sakin more, Sakin profile_settings, Sakin renovations, Sakin resident_home, Sakin usta, Sakin vehicles, Sakin visitor_preregister, Yön.mobil account, Yön.mobil finance_tools, Yön.mobil governance, Yön.mobil main, Yön.mobil meters, Yön.mobil reports, Yön.mobil site_settings, Yön.mobil units |
+| 21 | Düğme **Konumu sil (başarı: Site konumu silindi)** (location-card satır 59) | `PUT /property/location` · identity · `services/identity/main.go:167` | MANAGER | properties(±) | yok | Panel/accounting, Panel/governance/books, Panel/governance/budgets, Panel/meters, Panel/reports, Panel/settings, Panel/units, Sakin dues_payment, Sakin emergency, Sakin energy_consumption_mobile, Sakin invitations_banner, Sakin market_requests, Sakin more, Sakin profile_settings, Sakin renovations, Sakin resident_home, Sakin usta, Sakin vehicles, Sakin visitor_preregister, Yön.mobil account, Yön.mobil finance_tools, Yön.mobil governance, Yön.mobil main, Yön.mobil meters, Yön.mobil reports, Yön.mobil site_settings, Yön.mobil units |
 
 
 ## Menü dışı
@@ -1211,7 +1232,7 @@ Kaynak: `admin/src/app/**/page.tsx` ve içe aktardığı `admin/src/components/*
 - **Dosya:** `admin/src/app/(dashboard)/dashboard/forbidden/page.tsx`
 - **Panel erişimi:** MANAGER/BOARD_MEMBER/AUDITOR/STAFF — Yönetim paneli
 - **Ekranda:**
-  - Bağlantı (satır 76): Panele dön → /dashboard
+  - Bağlantı (satır 79): Panele dön → homeFor(myRoles)
 - **Eylem:** yok (salt bilgi / yönlendirme)
 
 ### /dashboard/governance — `/dashboard/governance`
@@ -1239,6 +1260,35 @@ Kaynak: `admin/src/app/**/page.tsx` ve içe aktardığı `admin/src/components/*
 | 1 | Düğme **Uygula — yalnız arayüz (pencere/gezinme), sunucu çağrısı yok** (satır 34) | — | | | | |
 | 2 | Düğme **Ayrıntı (pencere/form açar)** (satır 70) | — | | | | |
 
+### /dashboard/usta-hizmet/[id] — `/dashboard/usta-hizmet/[id]`
+- **Dosya:** `admin/src/app/(dashboard)/dashboard/usta-hizmet/[id]/page.tsx`
+- **Panel erişimi:** MANAGER/BOARD_MEMBER/AUDITOR/STAFF — Yönetim paneli
+- **Ekranda:**
+  - Veri (satır 20): 
+  - Veri (satır 21): 
+  - Veri (satır 22): 
+  - Bağlantı (satır 32): ← Usta & Hizmet → /dashboard/usta-hizmet
+  - Kart (satır 34): Talep
+  - Kart (satır 41): Teklif karşılaştırma
+  - Tablo (satır 44): İşletme \| Tutar \| Kapsam \| Geçerlilik \| Puan \| Tamamlanan iş \| Telefon
+  - Veri (satır 86): `GET /expense-categories` (expense)
+  - Kart (satır 95): İş
+  - Bağlantı (satır 103): Sözleşme formunu doldur → contractHref
+  - Bilgi notu (satır 117): İtiraz: {job.dispute_note}
+  - Bilgi notu (satır 139): Faturasız gider onay bekler; kurul onayından sonra hesap verme belgelerine girer. Fatura g
+
+| # | Öğe | Uç · servis · kayıt | Yetki | Değişen tablolar | Bildirim (konu → alıcı) | Etkisinin görüldüğü yerler |
+|---|---|---|---|---|---|---|
+| 1 | Düğme **Seç (pencere/form açar)** (satır 53) | — | | | | |
+| 2 | Düğme **Teklif seçmeden kapat (başarı: Talep kapatıldı; onay sorar)** (satır 61) | — | | | | |
+| 3 | Form **Teklifi seç — alanlar:  — başarı: Teklif seçildi; işletmeye bildirildi** (satır 68) | — | | | | |
+| 4 | Düğme **Onay bekleyen gider oluştur (pencere/form açar)** (satır 102) | — | | | | |
+| 5 | Düğme **Sözleşme formunu doldur — yalnız arayüz (pencere/gezinme), sunucu çağrısı yok** (satır 103) | — | | | | |
+| 6 | Düğme **İş tamamlandı, onayla (başarı: İş onaylandı; onay sorar)** (satır 108) | — | | | | |
+| 7 | Düğme **İtiraz et (başarı: İtiraz iletildi)** (satır 110) | — | | | | |
+| 8 | Düğme **Puanı gönder (başarı: Puan verildi)** (satır 122) | — | | | | |
+| 9 | Form **Onay bekleyen gider — alanlar: Gider kalemi*, Gider tarihi* — başarı: ** (satır 128) | `POST /expenses` · expense · `services/expense/main.go:71` | BOARD_MEMBER/MANAGER | expense_distributions(+), expenses(+) · tetikleyici: expense_updated_at | yok | Panel/expenses, Yön.mobil expense_detail, Yön.mobil expenses, Yön.mobil resident_expenses |
+
 ### /dogrula/[code] — `/dogrula/[code]`
 - **Dosya:** `admin/src/app/dogrula/[code]/page.tsx`
 - **Panel erişimi:** herkese açık / oturum gerekmez (rbac kapsamı dışı)
@@ -1248,14 +1298,330 @@ Kaynak: `admin/src/app/**/page.tsx` ve içe aktardığı `admin/src/components/*
 - **Dosya:** `admin/src/app/login/page.tsx`
 - **Panel erişimi:** herkese açık / oturum gerekmez (rbac kapsamı dışı)
 - **Ekranda:**
-  - Bağlantı (satır 116): Şifremi unuttum / hesabımı etkinleştir → /activate
-  - Bağlantı (satır 154): Etkinleştirme kodum var → /activate
+  - Bağlantı (satır 15): Etkinleştirme kodum var → /activate
+  - Bağlantı (satır 21): Usta &amp; Hizmet&apos;e kaydolun → /tedarikci/kayit
+  - **Bileşen `admin/src/components/auth/login-card.tsx`** (aşağıdaki satır numaraları bu dosyaya aittir)
+  - Bağlantı (satır 122): Şifremi unuttum / hesabımı etkinleştir → /activate
 - **Eylem:** yok (salt bilgi / yönlendirme)
 
 ### /odeme-sonuc — `/odeme-sonuc`
 - **Dosya:** `admin/src/app/odeme-sonuc/page.tsx`
 - **Panel erişimi:** herkese açık / oturum gerekmez (rbac kapsamı dışı)
 - **Eylem:** yok (salt bilgi / yönlendirme)
+
+### /platform — `/platform`
+- **Dosya:** `admin/src/app/platform/page.tsx`
+- **Panel erişimi:** PlatformAdmin — Platform yönetimi (Usta & Hizmet)
+- **Ekranda:**
+  - Veri (satır 10): 
+  - Veri (satır 11): 
+  - Kart (satır 19): Kuyruklar
+  - Bağlantı (satır 21): Tedarikçi hesapları ve belgeler → /platform/hesaplar
+  - Bağlantı (satır 22): İşletme yayın onayı → /platform/isletmeler
+- **Eylem:** yok (salt bilgi / yönlendirme)
+
+### /platform/ayarlar — `/platform/ayarlar`
+- **Dosya:** `admin/src/app/platform/ayarlar/page.tsx`
+- **Panel erişimi:** PlatformAdmin — Platform yönetimi (Usta & Hizmet)
+- **Ekranda:**
+  - Veri (satır 11): `GET /market/meta` (marketplace)
+  - Tablo (satır 20): Ayar \| Değer
+
+| # | Öğe | Uç · servis · kayıt | Yetki | Değişen tablolar | Bildirim (konu → alıcı) | Etkisinin görüldüğü yerler |
+|---|---|---|---|---|---|---|
+| 1 | Düğme **Düzenle (pencere/form açar)** (satır 23) | — | | | | |
+| 2 | Form **(başlık dinamik) — alanlar: Değer (tam sayı) — başarı: Ayar kaydedildi** (satır 29) | — | | | | |
+
+### /platform/gelir — `/platform/gelir`
+- **Dosya:** `admin/src/app/platform/gelir/page.tsx`
+- **Panel erişimi:** PlatformAdmin — Platform yönetimi (Usta & Hizmet)
+- **Ekranda:**
+  - Veri (satır 15): 
+  - Kart (satır 31): Bakiye hareketleri (gelir değil)
+  - Bilgi notu (satır 39): Net gelir = aidat + talep ücreti − iade. Defterdeki dönem toplamı: {kurus(r.ledger_total_k
+- **Eylem:** yok (salt bilgi / yönlendirme)
+
+### /platform/hesaplar — `/platform/hesaplar`
+- **Dosya:** `admin/src/app/platform/hesaplar/page.tsx`
+- **Panel erişimi:** PlatformAdmin — Platform yönetimi (Usta & Hizmet)
+- **Ekranda:**
+  - Veri (satır 16): 
+  - Sekmeler (satır 19): 
+  - Tablo (satır 23): Unvan \| Sahibi \| Vergi no \| Belge / işletme \| Durum \| Son değişiklik
+  - Bağlantı (satır 24): {a.trade_name \|\| "(unvan girilm} → `/platform/hesaplar/${a.id
+- **Eylem:** yok (salt bilgi / yönlendirme)
+
+### /platform/hesaplar/[id] — `/platform/hesaplar/[id]`
+- **Dosya:** `admin/src/app/platform/hesaplar/[id]/page.tsx`
+- **Panel erişimi:** PlatformAdmin — Platform yönetimi (Usta & Hizmet)
+- **Ekranda:**
+  - Veri (satır 18): 
+  - Kart (satır 30): Hesap
+  - Bilgi notu (satır 38): Son gerekçe: {a.status_reason}
+  - Kart (satır 49): Belgeler
+  - Tablo (satır 50): Tür \| Dosya \| Durum \| Yüklendi
+  - Kart (satır 58): İşletmeler
+  - Tablo (satır 59): İşletme \| Yer \| Durum
+  - Bilgi notu (satır 77): Kalan bakiye {kurus(a.balance_kurus)}. Önce tedarikçiye havaleyle iade edin; dekont numara
+  - **Bileşen `admin/src/components/market/field-group.tsx`** (aşağıdaki satır numaraları bu dosyaya aittir)
+
+| # | Öğe | Uç · servis · kayıt | Yetki | Değişen tablolar | Bildirim (konu → alıcı) | Etkisinin görüldüğü yerler |
+|---|---|---|---|---|---|---|
+| 1 | Düğme **Onayla — yalnız arayüz (pencere/gezinme), sunucu çağrısı yok** (satır 41) | — | | | | |
+| 2 | Düğme **Reddet (pencere/form açar)** (satır 42) | — | | | | |
+| 3 | Düğme **Askıya al (pencere/form açar)** (satır 44) | — | | | | |
+| 4 | Düğme **Yeniden etkinleştir — yalnız arayüz (pencere/gezinme), sunucu çağrısı yok** (satır 45) | — | | | | |
+| 5 | Düğme **Üyeliği kapat (pencere/form açar)** (satır 46) | — | | | | |
+| 6 | Düğme **Aç (indirir)** (satır 55) | — | | | | |
+| 7 | Form **(başlık dinamik) — alanlar: Havale dekont no*, İade tarihi*, Gerekçe (tedarikçiye gösterilir)* — başarı: Üyelik kapatıldı** (satır 66) | — | | | | |
+
+### /platform/isletmeler — `/platform/isletmeler`
+- **Dosya:** `admin/src/app/platform/isletmeler/page.tsx`
+- **Panel erişimi:** PlatformAdmin — Platform yönetimi (Usta & Hizmet)
+- **Ekranda:**
+  - Veri (satır 19): 
+  - Veri (satır 20): `GET /market/meta` (marketplace)
+  - Sekmeler (satır 28): 
+  - Tablo (satır 32): İşletme \| Hesap \| Yer \| Hizmet alanı \| Kategoriler \| Durum
+  - Bağlantı (satır 34): hesaba git → `/platform/hesaplar/${b.account_id
+
+| # | Öğe | Uç · servis · kayıt | Yetki | Değişen tablolar | Bildirim (konu → alıcı) | Etkisinin görüldüğü yerler |
+|---|---|---|---|---|---|---|
+| 1 | Düğme **Yayına al** (satır 41) | — | | | | |
+| 2 | Düğme **Reddet (pencere/form açar)** (satır 43) | — | | | | |
+| 3 | Form **Yayın onayını reddet — alanlar: Gerekçe (tedarikçiye gösterilir)* — başarı: Reddedildi** (satır 61) | — | | | | |
+
+### /platform/itirazlar — `/platform/itirazlar`
+- **Dosya:** `admin/src/app/platform/itirazlar/page.tsx`
+- **Panel erişimi:** PlatformAdmin — Platform yönetimi (Usta & Hizmet)
+- **Ekranda:**
+  - Veri (satır 14): 
+  - Tablo (satır 29): Tarih \| Tedarikçi \| Talep \| Neden \| İade \| Durum
+
+| # | Öğe | Uç · servis · kayıt | Yetki | Değişen tablolar | Bildirim (konu → alıcı) | Etkisinin görüldüğü yerler |
+|---|---|---|---|---|---|---|
+| 1 | Düğme **Onayla ve iade et (pencere/form açar)** (satır 38) | — | | | | |
+| 2 | Düğme **Reddet (pencere/form açar)** (satır 39) | — | | | | |
+| 3 | Form **(başlık dinamik) — alanlar: Gerekçe (tedarikçiye gösterilir)* — başarı: ** (satır 47) | — | | | | |
+
+### /platform/kategoriler — `/platform/kategoriler`
+- **Dosya:** `admin/src/app/platform/kategoriler/page.tsx`
+- **Panel erişimi:** PlatformAdmin — Platform yönetimi (Usta & Hizmet)
+- **Ekranda:**
+  - Veri (satır 15): 
+  - Bilgi notu (satır 22): Site alımları kendi kategorilerindedir (ör. &quot;Site temizliği&quot; yalnız site yönetim
+  - Tablo (satır 26): Kategori \| Üst \| Talep ücreti \| Kim açar \| Durum
+
+| # | Öğe | Uç · servis · kayıt | Yetki | Değişen tablolar | Bildirim (konu → alıcı) | Etkisinin görüldüğü yerler |
+|---|---|---|---|---|---|---|
+| 1 | Düğme **Kategori ekle (pencere/form açar)** (satır 20) | — | | | | |
+| 2 | Düğme **Düzenle (pencere/form açar)** (satır 32) | — | | | | |
+| 3 | Form **(başlık dinamik) — alanlar: Ad*, Talep ücreti (TL)*, Kim talep açabilir*, Üst kategori, Sıra — başarı: Kategori kaydedildi** (satır 38) | — | | | | |
+
+### /platform/paketler — `/platform/paketler`
+- **Dosya:** `admin/src/app/platform/paketler/page.tsx`
+- **Panel erişimi:** PlatformAdmin — Platform yönetimi (Usta & Hizmet)
+- **Ekranda:**
+  - Veri (satır 14): 
+  - Bilgi notu (satır 24): Fiyat değişikliği mevcut abonelere bir sonraki yenilemede uygulanır. Varsayılan (ücretsiz)
+  - Tablo (satır 28): Paket \| Aylık \| Talep indirimi \| Dahil talep / SMS \| Öncelik \| Vitrinde telefon \| Ağırlık
+
+| # | Öğe | Uç · servis · kayıt | Yetki | Değişen tablolar | Bildirim (konu → alıcı) | Etkisinin görüldüğü yerler |
+|---|---|---|---|---|---|---|
+| 1 | Düğme **Paket ekle (pencere/form açar)** (satır 21) | — | | | | |
+| 2 | Düğme **Düzenle (pencere/form açar)** (satır 37) | — | | | | |
+| 3 | Form **(başlık dinamik) — alanlar: Ad*, Aylık ücret (TL), Talep indirimi (%), Sıralama ağırlığı, Ayda dahil talep, Aylık SMS hakkı, Sıra — başarı: Paket kaydedildi** (satır 43) | — | | | | |
+
+### /platform/yorumlar — `/platform/yorumlar`
+- **Dosya:** `admin/src/app/platform/yorumlar/page.tsx`
+- **Panel erişimi:** PlatformAdmin — Platform yönetimi (Usta & Hizmet)
+- **Ekranda:**
+  - Veri (satır 13): 
+  - Tablo (satır 27): Tarih \| İşletme \| Puan \| Yorum \| Durum
+
+| # | Öğe | Uç · servis · kayıt | Yetki | Değişen tablolar | Bildirim (konu → alıcı) | Etkisinin görüldüğü yerler |
+|---|---|---|---|---|---|---|
+| 1 | Düğme **Gizle (pencere/form açar)** (satır 33) | — | | | | |
+| 2 | Form **Yorumu gizle — alanlar: Gerekçe* — başarı: Yorum gizlendi** (satır 39) | — | | | | |
+
+### /tedarikci/(auth)/giris — `/tedarikci/(auth)/giris`
+- **Dosya:** `admin/src/app/tedarikci/(auth)/giris/page.tsx`
+- **Panel erişimi:** Supplier — Tedarikçi paneli (Usta & Hizmet)
+- **Ekranda:**
+  - Bağlantı (satır 14): Tedarikçi olarak kaydolun → /tedarikci/kayit
+  - **Bileşen `admin/src/components/auth/login-card.tsx`** (aşağıdaki satır numaraları bu dosyaya aittir)
+  - Bağlantı (satır 122): Şifremi unuttum / hesabımı etkinleştir → /activate
+- **Eylem:** yok (salt bilgi / yönlendirme)
+
+### /tedarikci/(auth)/kayit — `/tedarikci/(auth)/kayit`
+- **Dosya:** `admin/src/app/tedarikci/(auth)/kayit/page.tsx`
+- **Panel erişimi:** Supplier — Tedarikçi paneli (Usta & Hizmet)
+- **Ekranda:**
+  - Bağlantı (satır 191): Giriş yapın → /tedarikci/giris
+- **Eylem:** yok (salt bilgi / yönlendirme)
+
+### /tedarikci/(panel) — `/tedarikci/(panel)`
+- **Dosya:** `admin/src/app/tedarikci/(panel)/page.tsx`
+- **Panel erişimi:** Supplier — Tedarikçi paneli (Usta & Hizmet)
+- **Ekranda:**
+  - Veri (satır 13): `GET /market/supplier/me` (marketplace)
+  - Kart (satır 43): Tedarikçi hesabınızı oluşturun
+  - Bilgi notu (satır 46): Havuzda görünmek için hesap bilgilerinizi girip vergi levhası (ya da oda kaydı) ve kimlik 
+  - Kart (satır 70): Hesap durumu
+  - Bilgi notu (satır 73): İnceleme notu: {acc.status_reason}
+  - Bilgi notu (satır 74): Bilgilerinizi ve belgelerinizi tamamlayıp incelemeye gönderin. İnceleme sürerken bilgiler 
+  - Bilgi notu (satır 75): Hesabınız inceleniyor. Sonuç size bildirilecek.
+  - Kart (satır 80): Hesap bilgileri
+  - Veri (satır 98): `GET /market/supplier/documents` (marketplace)
+  - Kart (satır 103): Belgeler
+  - Dosya seçme (satır 111)
+  - Tablo (satır 127): Tür \| Dosya \| Durum \| Yüklendi
+
+| # | Öğe | Uç · servis · kayıt | Yetki | Değişen tablolar | Bildirim (konu → alıcı) | Etkisinin görüldüğü yerler |
+|---|---|---|---|---|---|---|
+| 1 | Düğme **Hesabı oluştur (başarı: Tedarikçi hesabınız oluşturuldu)** (satır 55) | `POST /market/supplier/account` · marketplace · `services/marketplace/main.go:102` | Supplier | mp_supplier_accounts(+) | yok | Panel tedarikci/(panel), Panel tedarikci/(panel)/bakiye, Panel tedarikci/(panel)/isletmeler, Panel tedarikci/(panel)/talepler, Panel tedarikci/(panel)/talepler/[id] |
+| 2 | Düğme **Kaydet (başarı: Kaydedildi)** (satır 85) | `PUT /market/supplier/account` · marketplace · `services/marketplace/main.go:103` | Supplier | mp_supplier_accounts(±) | yok | Panel tedarikci/(panel), Panel tedarikci/(panel)/bakiye, Panel tedarikci/(panel)/isletmeler, Panel tedarikci/(panel)/talepler, Panel tedarikci/(panel)/talepler/[id] |
+| 3 | Düğme **Kaydet ve incelemeye gönder (başarı: Hesabınız incelemeye gönderildi)** (satır 86) | `PUT /market/supplier/account` · marketplace · `services/marketplace/main.go:103` | Supplier | mp_supplier_accounts(±) | yok | Panel tedarikci/(panel), Panel tedarikci/(panel)/bakiye, Panel tedarikci/(panel)/isletmeler, Panel tedarikci/(panel)/talepler, Panel tedarikci/(panel)/talepler/[id] |
+|  | ↳ | `POST /market/supplier/account/submit` · marketplace · `services/marketplace/main.go:104` | Supplier | mp_supplier_accounts(±) | yok | Panel tedarikci/(panel), Panel tedarikci/(panel)/bakiye, Panel tedarikci/(panel)/isletmeler, Panel tedarikci/(panel)/talepler, Panel tedarikci/(panel)/talepler/[id] |
+| 4 | Düğme **Yükle (başarı: Belge yüklendi)** (satır 112) | `POST /market/supplier/documents` · marketplace · `services/marketplace/main.go:106` | Supplier | mp_account_documents(+) · dosya deposu | yok | Panel tedarikci/(panel) |
+| 5 | Düğme **İndir (indirir)** (satır 134) | `GET /market/supplier/documents/:id/file` · marketplace · `services/marketplace/main.go:107` | Supplier | mp_document_access_logs(+) · dosya deposu | yok | — |
+| 6 | Düğme **Sil (başarı: Belge silindi)** (satır 136) | `DELETE /market/supplier/documents/:id` · marketplace · `services/marketplace/main.go:108` | Supplier | mp_account_documents(−) · dosya deposu | yok | Panel tedarikci/(panel) |
+
+### /tedarikci/(panel)/bakiye — `/tedarikci/(panel)/bakiye`
+- **Dosya:** `admin/src/app/tedarikci/(panel)/bakiye/page.tsx`
+- **Panel erişimi:** Supplier — Tedarikçi paneli (Usta & Hizmet)
+- **Ekranda:**
+  - Veri (satır 24): `GET /market/supplier/wallet` (marketplace)
+  - Veri (satır 25): `GET /market/meta` (marketplace)
+  - Veri (satır 26): `GET /market/supplier/me` (marketplace)
+  - Bilgi notu (satır 41): Ödeme sonucu: {params.get("message")}
+  - Bilgi notu (satır 55): Üyeliğiniz kapatıldı; bakiye yüklenemez ve paket değiştirilemez.
+  - Kart (satır 56): Bakiye yükle
+  - Bilgi notu (satır 63): Kartla ödeme bu kurulumda yapılandırılmamış.
+  - Kart (satır 65): Paket
+  - Kart (satır 91): Hareketler
+  - Tablo (satır 93): Tarih \| Tür \| Açıklama \| Tutar \| Sonraki bakiye
+
+| # | Öğe | Uç · servis · kayıt | Yetki | Değişen tablolar | Bildirim (konu → alıcı) | Etkisinin görüldüğü yerler |
+|---|---|---|---|---|---|---|
+| 1 | Düğme **Kartla öde — yalnız arayüz (pencere/gezinme), sunucu çağrısı yok** (satır 60) | — | | | | |
+| 2 | Düğme **Bu pakete geç — yalnız arayüz (pencere/gezinme), sunucu çağrısı yok** (satır 82) | — | | | | |
+| 3 | Düğme **Değişikliği iptal et — yalnız arayüz (pencere/gezinme), sunucu çağrısı yok** (satır 83) | — | | | | |
+| 4 | Düğme **Önceki (pencere/form açar)** (satır 102) | — | | | | |
+| 5 | Düğme **Sonraki (pencere/form açar)** (satır 104) | — | | | | |
+
+### /tedarikci/(panel)/bildirimler — `/tedarikci/(panel)/bildirimler`
+- **Dosya:** `admin/src/app/tedarikci/(panel)/bildirimler/page.tsx`
+- **Panel erişimi:** Supplier — Tedarikçi paneli (Usta & Hizmet)
+- **Ekranda:**
+  - Veri (satır 10): `GET /market/supplier/notifications` (marketplace)
+
+| # | Öğe | Uç · servis · kayıt | Yetki | Değişen tablolar | Bildirim (konu → alıcı) | Etkisinin görüldüğü yerler |
+|---|---|---|---|---|---|---|
+| 1 | Düğme **Tümünü okundu say** (satır 15) | `POST /market/supplier/notifications/read` · marketplace · `services/marketplace/main.go:121` | Supplier | notification_reads(+) | yok | Panel tedarikci/(panel)/bildirimler, Panel/inbox, Sakin main, Sakin notifications, Yön.mobil inbox, Yön.mobil main |
+| 2 | Düğme **Okundu** (satır 32) | `POST /market/supplier/notifications/read` · marketplace · `services/marketplace/main.go:121` | Supplier | notification_reads(+) | yok | Panel tedarikci/(panel)/bildirimler, Panel/inbox, Sakin main, Sakin notifications, Yön.mobil inbox, Yön.mobil main |
+
+### /tedarikci/(panel)/isletmeler — `/tedarikci/(panel)/isletmeler`
+- **Dosya:** `admin/src/app/tedarikci/(panel)/isletmeler/page.tsx`
+- **Panel erişimi:** Supplier — Tedarikçi paneli (Usta & Hizmet)
+- **Ekranda:**
+  - Veri (satır 11): `GET /market/supplier/businesses` (marketplace)
+  - Veri (satır 12): `GET /market/supplier/me` (marketplace)
+  - Bağlantı (satır 15): Yeni işletme → /tedarikci/isletmeler/yeni
+  - Bilgi notu (satır 16): Önce Hesabım sayfasından tedarikçi hesabınızı oluşturun.
+  - Bilgi notu (satır 18): İşletmeleriniz, hesabınız ve işletme bilgileri SiteEksen tarafından onaylandıktan sonra ha
+  - Tablo (satır 24): İşletme \| Yer \| Hizmet alanı \| Durum \| Puan
+  - Bağlantı (satır 25): {b.name} → `/tedarikci/isletmeler/${b.id
+- **Eylem:** yok (salt bilgi / yönlendirme)
+
+### /tedarikci/(panel)/isletmeler/[id] — `/tedarikci/(panel)/isletmeler/[id]`
+- **Dosya:** `admin/src/app/tedarikci/(panel)/isletmeler/[id]/page.tsx`
+- **Panel erişimi:** Supplier — Tedarikçi paneli (Usta & Hizmet)
+- **Ekranda:**
+  - Veri (satır 28): `GET /market/supplier/businesses/:id` (marketplace)
+  - Veri (satır 37): `GET /market/meta` (marketplace)
+  - Bilgi notu (satır 56): İnceleme notu: {existing.review_note}
+  - Bilgi notu (satır 57): İşletme taslakta; havuzda görünmesi için incelemeye gönderin.
+  - Kart (satır 58): Bilgiler
+  - Veri (satır 132): `GET /market/supplier/businesses/:id/services` (marketplace)
+  - Kart (satır 141): Hizmet ve ürünler
+  - Dosya seçme (satır 144)
+  - Tablo (satır 154): Hizmet \| Fiyat \| Durum
+  - **Bileşen `admin/src/components/market/service-photo.tsx`** (aşağıdaki satır numaraları bu dosyaya aittir)
+  - **Bileşen `admin/src/components/market/field-group.tsx`** (aşağıdaki satır numaraları bu dosyaya aittir)
+
+| # | Öğe | Uç · servis · kayıt | Yetki | Değişen tablolar | Bildirim (konu → alıcı) | Etkisinin görüldüğü yerler |
+|---|---|---|---|---|---|---|
+| 1 | Düğme **Kaydet — yalnız arayüz (pencere/gezinme), sunucu çağrısı yok** (satır 107) | — | | | | |
+| 2 | Düğme **İncelemeye gönder (başarı: İşletme incelemeye gönderildi)** (satır 109) | `POST /market/supplier/businesses/:id/submit` · marketplace · `services/marketplace/main.go:113` | Supplier | mp_businesses(±) | yok | Panel tedarikci/(panel)/isletmeler, Panel tedarikci/(panel)/isletmeler/[id], Panel tedarikci/(panel)/puanlar, Panel tedarikci/(panel)/talepler, Panel tedarikci/(panel)/talepler/[id], Sakin market_requests, Yön.mobil site_markets |
+| 3 | Düğme **İşletmeyi kapat (başarı: İşletme kapatıldı; onay sorar)** (satır 113) | `POST /market/supplier/businesses/:id/close` · marketplace · `services/marketplace/main.go:114` | Supplier | mp_businesses(±) | yok | Panel tedarikci/(panel)/isletmeler, Panel tedarikci/(panel)/isletmeler/[id], Panel tedarikci/(panel)/puanlar, Panel tedarikci/(panel)/talepler, Panel tedarikci/(panel)/talepler/[id], Sakin market_requests, Yön.mobil site_markets |
+| 4 | Düğme **Hizmet ekle — yalnız arayüz (pencere/gezinme), sunucu çağrısı yok** (satır 142) | — | | | | |
+| 5 | Seçim **—** (satır 144) | `POST /market/supplier/services/:id/photo` · marketplace · `services/marketplace/main.go:119` | Supplier | mp_business_services(±) · dosya deposu | yok | Panel tedarikci/(panel)/isletmeler/[id] |
+| 6 | Düğme **Düzenle — yalnız arayüz (pencere/gezinme), sunucu çağrısı yok** (satır 162) | — | | | | |
+| 7 | Düğme **Fotoğraf (pencere/form açar)** (satır 163) | — | | | | |
+| 8 | Düğme **Sil (başarı: Hizmet silindi)** (satır 164) | `DELETE /market/supplier/services/:id` · marketplace · `services/marketplace/main.go:118` | Supplier | mp_business_services(−) · dosya deposu | yok | Panel tedarikci/(panel)/isletmeler/[id] |
+| 9 | Form **(başlık dinamik) — alanlar: Hizmet / ürün adı*, Açıklama, En düşük (TL), En yüksek (TL), Birim — başarı: Hizmet kaydedildi** (satır 171) | `PUT /market/supplier/services/:id` · marketplace · `services/marketplace/main.go:117` | Supplier | mp_business_services(+), mp_business_services(±) | yok | Panel tedarikci/(panel)/isletmeler/[id] |
+|  | ↳ | `POST /market/supplier/businesses/:id/services` · marketplace · `services/marketplace/main.go:116` | Supplier | mp_business_services(+), mp_business_services(±) | yok | Panel tedarikci/(panel)/isletmeler/[id] |
+
+### /tedarikci/(panel)/puanlar — `/tedarikci/(panel)/puanlar`
+- **Dosya:** `admin/src/app/tedarikci/(panel)/puanlar/page.tsx`
+- **Panel erişimi:** Supplier — Tedarikçi paneli (Usta & Hizmet)
+- **Ekranda:**
+  - Veri (satır 12): `GET /market/supplier/reviews` (marketplace)
+  - Kart (satır 26): ${r.business_name ?? ""} — ${"★".repeat(r.rating)}${"☆".repeat(5 - r.rating)}
+  - Bilgi notu (satır 31): Platform bu yorumu gizledi: {r.hidden_reason}
+
+| # | Öğe | Uç · servis · kayıt | Yetki | Değişen tablolar | Bildirim (konu → alıcı) | Etkisinin görüldüğü yerler |
+|---|---|---|---|---|---|---|
+| 1 | Düğme **Yanıtla (başarı: Yanıt yayımlandı)** (satır 37) | `POST /market/supplier/reviews/:id/reply` · marketplace · `services/marketplace/main.go:134` | Supplier | mp_reviews(±) · tetikleyici: mp_reviews_guard, mp_reviews_rating_refresh | yok | Panel tedarikci/(panel)/puanlar, Panel tedarikci/(panel)/talepler/[id], Sakin market_requests, Yön.mobil site_markets |
+
+### /tedarikci/(panel)/talepler — `/tedarikci/(panel)/talepler`
+- **Dosya:** `admin/src/app/tedarikci/(panel)/talepler/page.tsx`
+- **Panel erişimi:** Supplier — Tedarikçi paneli (Usta & Hizmet)
+- **Ekranda:**
+  - Veri (satır 16): `GET /market/supplier/requests` (marketplace)
+  - Bilgi notu (satır 32): Hesabınız onaylanmadan talep kabul edemezsiniz.
+  - Kart (satır 35): Henüz talep yok
+  - Bağlantı (satır 65): Teklif, yazışma ve iletişim → → `/tedarikci/talepler/${r.id
+  - Bağlantı (satır 70): Bakiye yetersiz — bakiye yükle → → /tedarikci/bakiye
+  - Bağlantı (satır 73): Önizleme → → `/tedarikci/talepler/${r.id
+
+| # | Öğe | Uç · servis · kayıt | Yetki | Değişen tablolar | Bildirim (konu → alıcı) | Etkisinin görüldüğü yerler |
+|---|---|---|---|---|---|---|
+| 1 | Düğme **Kabul et (yalnız yazma yetkisi; pencere/form açar)** (satır 68) | — | | | | |
+| 2 | Form **Talebi kabul et — alanlar:  — başarı: ** (satır 83) | `POST /market/supplier/requests/:id/accept` · marketplace · `services/marketplace/main.go:124` | Supplier | mp_wallet_ledger(+), mp_request_dispatch(±), mp_requests(±), mp_supplier_accounts(±) · tetikleyici: mp_wallet_ledger_no_change, mp_requests_active_property | yok | Panel tedarikci/(panel), Panel tedarikci/(panel)/bakiye, Panel tedarikci/(panel)/isletmeler, Panel tedarikci/(panel)/talepler, Panel tedarikci/(panel)/talepler/[id], Panel/settings, Sakin market_requests, Yön.mobil site_markets, Yön.mobil site_settings |
+
+### /tedarikci/(panel)/talepler/[id] — `/tedarikci/(panel)/talepler/[id]`
+- **Dosya:** `admin/src/app/tedarikci/(panel)/talepler/[id]/page.tsx`
+- **Panel erişimi:** Supplier — Tedarikçi paneli (Usta & Hizmet)
+- **Ekranda:**
+  - Veri (satır 17): `GET /market/supplier/requests/:id` (marketplace)
+  - Bağlantı (satır 23): ← Talepler → /tedarikci/talepler
+  - Kart (satır 25): Talep
+  - Kart (satır 46): Alıcının iletişim bilgisi
+  - Bağlantı (satır 50): {r.contact.phone} → `tel:${r.contact.phone
+  - Bilgi notu (satır 58): Alıcının adı, telefonu ve adresi talebi kabul ettiğinizde açılır.{" "} {r.status === "OPEN
+  - Bağlantı (satır 66): Bakiye yetersiz — bakiye yükle → /tedarikci/bakiye
+  - **Bileşen `admin/src/components/market/service-photo.tsx`** (aşağıdaki satır numaraları bu dosyaya aittir)
+  - **Bileşen `admin/src/components/market/deal-panel.tsx`** (aşağıdaki satır numaraları bu dosyaya aittir)
+  - Veri (satır 13): `GET /market/supplier/requests/:id/deal` (marketplace)
+  - Kart (satır 37): Teklifiniz
+  - Kart (satır 78): İş
+  - Bilgi notu (satır 87): Alıcının onayı bekleniyor; süresinde yanıt vermezse iş tamamlanmış sayılır.
+  - Bilgi notu (satır 88): Alıcının itirazı: {j.dispute_note}
+  - Veri (satır 98): `GET /market/supplier/requests/:id/messages` (marketplace)
+  - Kart (satır 102): Alıcıyla yazışma
+  - Kart (satır 132): Geçersiz talep bildiriminiz
+  - Kart (satır 142): Talep geçersiz mi?
+
+| # | Öğe | Uç · servis · kayıt | Yetki | Değişen tablolar | Bildirim (konu → alıcı) | Etkisinin görüldüğü yerler |
+|---|---|---|---|---|---|---|
+| 1 | Düğme **Kabul et** (satır 61) | `POST /market/supplier/requests/:id/accept` · marketplace · `services/marketplace/main.go:124` | Supplier | mp_wallet_ledger(+), mp_request_dispatch(±), mp_requests(±), mp_supplier_accounts(±) · tetikleyici: mp_wallet_ledger_no_change, mp_requests_active_property | yok | Panel tedarikci/(panel), Panel tedarikci/(panel)/bakiye, Panel tedarikci/(panel)/isletmeler, Panel tedarikci/(panel)/talepler, Panel tedarikci/(panel)/talepler/[id], Panel/settings, Sakin market_requests, Yön.mobil site_markets, Yön.mobil site_settings |
+| 2 | Düğme **Geri çek (başarı: Teklif geri çekildi)** (deal-panel satır 46) | `POST /market/supplier/offers/:id/withdraw` · marketplace · `services/marketplace/main.go:128` | Supplier | mp_offers(±) | yok | Panel tedarikci/(panel)/talepler, Panel tedarikci/(panel)/talepler/[id], Sakin market_requests, Yön.mobil site_markets |
+| 3 | Düğme **Teklifi güncelle — yalnız arayüz (pencere/gezinme), sunucu çağrısı yok** (deal-panel satır 62) | — | | | | |
+| 4 | Düğme **İş tamamlandı (başarı: Alıcıya iş tamamlandı bildirildi)** (deal-panel satır 83) | `POST /market/supplier/jobs/:id/done` · marketplace · `services/marketplace/main.go:132` | Supplier | mp_jobs(±) · tetikleyici: mp_jobs_completed_refresh | `{topic}` → işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta | Panel tedarikci/(panel)/talepler, Panel tedarikci/(panel)/talepler/[id], Panel/settings, Sakin market_requests, Yön.mobil site_markets, Yön.mobil site_settings |
+| 5 | Düğme **Gönder** (deal-panel satır 119) | `POST /market/supplier/requests/:id/messages` · marketplace · `services/marketplace/main.go:130` | Supplier | mp_messages(+) | `{topic}` → işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta | Panel tedarikci/(panel)/talepler/[id], Sakin market_requests |
+| 6 | Düğme **Platforma bildir (başarı: Bildiriminiz platforma iletildi)** (deal-panel satır 158) | `POST /market/supplier/requests/:id/dispute` · marketplace · `services/marketplace/main.go:131` | Supplier | mp_disputes(+) | yok | Panel tedarikci/(panel)/talepler/[id] |
 
 ## Her sayfada ortak: kenar çubuğu ve üst bar
 

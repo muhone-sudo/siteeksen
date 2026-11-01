@@ -771,7 +771,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 #### P-RESIDENTS-06 · Düğme: Kod üret
 - **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/residents
 - **Adım:** "Kod üret" düğme öğesine bas
-- **Beklenen (yazma):** `POST /residents/:id/activation-code` (identity, `services/identity/main.go:148`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /residents/:id/activation-code` (identity, `services/identity/main.go:152`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: AUDITOR/BOARD_MEMBER/MANAGER/STAFF
   - **Veritabanı (Adminer → SQL komutu):**
     - `user_activation_codes` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM user_activation_codes ORDER BY xmin::text::bigint DESC LIMIT 5;`
@@ -792,7 +792,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 #### P-RESIDENTS-08 · Düğme: Kilidi aç
 - **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/residents
 - **Adım:** "Kilidi aç" düğme öğesine bas
-- **Beklenen (yazma):** `POST /residents/:id/unlock` (identity, `services/identity/main.go:152`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /residents/:id/unlock` (identity, `services/identity/main.go:156`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
   - **Veritabanı (Adminer → SQL komutu):**
     - Ortak tablolar da değişir: `users` (aynı sorgu kalıbıyla bakılabilir)
@@ -810,7 +810,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 #### P-RESIDENTS-10 · Düğme: İptal et
 - **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/residents
 - **Adım:** "İptal et" düğme öğesine bas (onay penceresi çıkarsa önce Vazgeç → hiçbir şey değişmemeli; sonra tekrar bas ve onayla)
-- **Beklenen (yazma):** `POST /residents/invitations/:id/cancel` (identity, `services/identity/main.go:137`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /residents/invitations/:id/cancel` (identity, `services/identity/main.go:141`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: BOARD_MEMBER/MANAGER
   - **Veritabanı (Adminer → SQL komutu):**
     - `resident_invitations` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM resident_invitations ORDER BY xmin::text::bigint DESC LIMIT 5;`
@@ -824,7 +824,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Adım:** Formu aç; alanlar: Ad*, Soyad*, Telefon*, E-posta, Bağımsız bölüm*, Sıfat* (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
-- **Beklenen (yazma):** `POST /residents` (identity, `services/identity/main.go:133`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /residents` (identity, `services/identity/main.go:137`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: BOARD_MEMBER/MANAGER/OWNER/PROXY/TENANT
   - Veritabanı tetikleyicileri çalışır: `trg_resident_units_tenancy_guard`, `trg_resident_units_tenant_arrival`, `trg_resident_units_tenant_departure` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
   - **Veritabanı (Adminer → SQL komutu):**
@@ -845,7 +845,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Adım:** Formu aç; alanlar: Ad, Soyad, Telefon*, E-posta, Bağımsız bölüm*, Sıfat* (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
-- **Beklenen (yazma):** `POST /residents/invitations` (identity, `services/identity/main.go:136`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /residents/invitations` (identity, `services/identity/main.go:140`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: BOARD_MEMBER/MANAGER/OWNER/PROXY/TENANT
   - **Veritabanı (Adminer → SQL komutu):**
     - `resident_invitations` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM resident_invitations ORDER BY xmin::text::bigint DESC LIMIT 5;`
@@ -865,7 +865,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Adım:** Formu aç; alanlar: Yeni telefon* (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
-- **Beklenen (yazma):** `POST /residents/:id/phone` (identity, `services/identity/main.go:151`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /residents/:id/phone` (identity, `services/identity/main.go:155`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
   - **Veritabanı (Adminer → SQL komutu):**
     - `user_activation_codes` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM user_activation_codes ORDER BY xmin::text::bigint DESC LIMIT 5;`
@@ -883,7 +883,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/residents
 - **Adım:** Formu aç; alanlar:  (* zorunlu)
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
-- **Beklenen (yazma):** `POST /residents/bulk` (identity, `services/identity/main.go:134`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /residents/bulk` (identity, `services/identity/main.go:138`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: BOARD_MEMBER/MANAGER/OWNER/PROXY/TENANT
   - Veritabanı tetikleyicileri çalışır: `trg_resident_units_tenancy_guard`, `trg_resident_units_tenant_arrival`, `trg_resident_units_tenant_departure` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
   - **Veritabanı (Adminer → SQL komutu):**
@@ -908,7 +908,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Adım:** Formu aç; alanlar: Sıfat, Durum, Ayrılış (ilişik kesme) tarihi (* zorunlu)
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
 - **Adım:** Başarı mesajı tam olarak şu anlamda olmalı: "Sakin kaydı güncellendi"
-- **Beklenen (yazma):** `PATCH /residents/:id` (identity, `services/identity/main.go:147`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `PATCH /residents/:id` (identity, `services/identity/main.go:151`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: BOARD_MEMBER/MANAGER/OWNER/PROXY/TENANT
   - Veritabanı tetikleyicileri çalışır: `trg_resident_units_tenancy_guard`, `trg_resident_units_tenant_arrival`, `trg_resident_units_tenant_departure` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
   - **Veritabanı (Adminer → SQL komutu):**
@@ -929,7 +929,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/residents
 - **Adım:** "Tamamla" düğme öğesine bas
 - **Adım:** Öğe `tenancy-ends` bileşenindedir (satır 108)
-- **Beklenen (yazma):** `POST /residents/tenancy-requests/:id/complete` (identity, `services/identity/main.go:142`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /residents/tenancy-requests/:id/complete` (identity, `services/identity/main.go:146`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: BOARD_MEMBER/MANAGER/OWNER/PROXY
   - Veritabanı tetikleyicileri çalışır: `trg_resident_units_tenancy_guard`, `trg_resident_units_tenant_arrival`, `trg_resident_units_tenant_departure` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
   - **Veritabanı (Adminer → SQL komutu):**
@@ -954,7 +954,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/residents
 - **Adım:** "İptal" düğme öğesine bas
 - **Adım:** Öğe `tenancy-ends` bileşenindedir (satır 116)
-- **Beklenen (yazma):** `POST /residents/tenancy-requests/:id/cancel` (identity, `services/identity/main.go:143`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /residents/tenancy-requests/:id/cancel` (identity, `services/identity/main.go:147`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: BOARD_MEMBER/MANAGER
   - **Veritabanı (Adminer → SQL komutu):**
     - `tenancy_end_events` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM tenancy_end_events ORDER BY xmin::text::bigint DESC LIMIT 5;`
@@ -977,7 +977,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
 - **Adım:** Öğe `tenancy-ends` bileşenindedir (satır 161)
-- **Beklenen (yazma):** `POST /residents/tenancy-requests/:id/reverse` (identity, `services/identity/main.go:144`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /residents/tenancy-requests/:id/reverse` (identity, `services/identity/main.go:148`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: BOARD_MEMBER/MANAGER
   - Veritabanı tetikleyicileri çalışır: `trg_resident_units_tenancy_guard`, `trg_resident_units_tenant_arrival`, `trg_resident_units_tenant_departure` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
   - **Veritabanı (Adminer → SQL komutu):**
@@ -1019,7 +1019,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 #### P-ROLES-02 · Düğme: Sonlandır
 - **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/roles
 - **Adım:** "Sonlandır" düğme öğesine bas
-- **Beklenen (yazma):** `POST /property-roles/:id/end` (identity, `services/identity/main.go:170`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /property-roles/:id/end` (identity, `services/identity/main.go:176`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: MANAGER
   - **Veritabanı (Adminer → SQL komutu):**
     - `user_token_invalidation` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM user_token_invalidation ORDER BY xmin::text::bigint DESC LIMIT 5;`
@@ -1034,7 +1034,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
 - **Adım:** Başarı mesajı tam olarak şu anlamda olmalı: "Görev verildi"
-- **Beklenen (yazma):** `POST /property-roles` (identity, `services/identity/main.go:169`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /property-roles` (identity, `services/identity/main.go:175`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: AUDITOR/BOARD_MEMBER/MANAGER/STAFF
   - **Veritabanı (Adminer → SQL komutu):**
     - `user_activation_codes` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM user_activation_codes ORDER BY xmin::text::bigint DESC LIMIT 5;`
@@ -1229,13 +1229,13 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
 - **Adım:** Başarı mesajı tam olarak şu anlamda olmalı: "Bölüm güncellendi; Bölüm eklendi"
-- **Beklenen (yazma):** `PATCH /units/:id` (identity, `services/identity/main.go:179`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `PATCH /units/:id` (identity, `services/identity/main.go:185`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: BOARD_MEMBER/MANAGER
   - **Veritabanı (Adminer → SQL komutu):**
     - Ortak tablolar da değişir: `units` (aynı sorgu kalıbıyla bakılabilir)
   - **İşlem kaydı:** `SELECT created_at, action, entity_type, status_code, user_id FROM audit_logs WHERE screen = '/api/v1/units/:id' ORDER BY created_at DESC LIMIT 5;` → `UPDATE`, 2xx (yetkisiz denemede `DENIED`, 403)
   - **Bildirim:** üretmez — `notifications` tablosuna bu işlemle yeni satır EKLENMEMELİ.
-- **Beklenen (yazma):** `POST /units` (identity, `services/identity/main.go:178`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /units` (identity, `services/identity/main.go:184`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: BOARD_MEMBER/MANAGER
   - **Veritabanı (Adminer → SQL komutu):**
     - Ortak tablolar da değişir: `units` (aynı sorgu kalıbıyla bakılabilir)
@@ -1247,7 +1247,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/units
 - **Adım:** Formu aç; alanlar:  (* zorunlu)
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
-- **Beklenen (yazma):** `POST /units` (identity, `services/identity/main.go:178`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /units` (identity, `services/identity/main.go:184`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: BOARD_MEMBER/MANAGER
   - **Veritabanı (Adminer → SQL komutu):**
     - Ortak tablolar da değişir: `units` (aynı sorgu kalıbıyla bakılabilir)

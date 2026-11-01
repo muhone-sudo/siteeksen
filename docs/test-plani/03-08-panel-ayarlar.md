@@ -14,8 +14,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Adım:** Veri yüklenir: 
 - **Adım:** Veri yüklenir: `GET /settings/definitions` (settings)
 - **Adım:** Veri yüklenir: `GET /settings-history` (settings)
-- **Adım:** Bilgi notu (satır 32): Mevzuata bağlı değerler (gecikme tazminatı, ısıtma payları, genel kurul nisapları) burada 
-- **Adım:** Her sekmeye tıkla, içerik hatasız yüklenir: Ayarlar, Saklama ve imha (KVKK), Kamera ve biyometrik envanter, Değişiklik geçmişi, Site durumu, Malik görünürlüğü
+- **Adım:** Bilgi notu (satır 33): Mevzuata bağlı değerler (gecikme tazminatı, ısıtma payları, genel kurul nisapları) burada 
+- **Adım:** Her sekmeye tıkla, içerik hatasız yüklenir: Ayarlar, Saklama ve imha (KVKK), Kamera ve biyometrik envanter, Değişiklik geçmişi, Site durumu, Malik görünürlüğü, Site konumu
 - **Adım:** Tablo sütunları görünür ve dolu/boş durumu doğru: Ayar \| Değer \| Son değişiklik
 - **Adım:** Tablo sütunları görünür ve dolu/boş durumu doğru: Zaman \| Ayar \| Eski \| Yeni \| Değiştiren
 - **Adım:** Veri yüklenir: `GET /retention-rules` (settings)
@@ -44,6 +44,9 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Adım:** Kart (satır 75): Geçmiş
 - **Adım:** Tablo sütunları görünür ve dolu/boş durumu doğru: Öneri \| Açılan alanlar \| Gerekçe \| Durum \| Karar
 - **Adım:** Bilgi notu (satır 94): Seçenekleri açmak kiracının kişisel verisini malike gösterir (KVKK m.4 ölçülülük). Değişik
+- **Adım:** Veri yüklenir: `GET /property` (identity)
+- **Adım:** Kart (satır 36): Site konumu
+- **Adım:** Bilgi notu (satır 40): Usta & Hizmet'te sakinlerin talepleri, hizmet alanı bu konumu kapsayan tedarikçilere gider
 - **Adım:** Sayfayı yenile (F5): aynı içerik gelir, oturum düşmez
 - **Adım:** Erişimi olmayan hesapla (DENETÇİ, GÖREVLİ, KİRACI) aynı adresi aç → `/dashboard/forbidden` sayfasına yönlenmeli, kenar çubuğunda bu menü görünmemeli
 - **Beklenen:** her veri bölümü yüklenir (boşsa anlamlı boş durum mesajı; "undefined", "NaN", "null", ham JSON ya da İngilizce hata metni YOK); sayılar ve tarihler Türkçe biçimde (1.234,56 ₺ · gg.aa.yyyy); uydurma/örnek veri yok; dar ekranda (400 px) yatay kaydırma olmadan okunur.
@@ -95,12 +98,14 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
     - `client_error_reports` — satır silinmiş olmalı: `SELECT xmin, * FROM client_error_reports ORDER BY xmin::text::bigint DESC LIMIT 5;`
     - `data_destruction_log` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM data_destruction_log ORDER BY xmin::text::bigint DESC LIMIT 5;`
     - `storage_deletion_queue` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM storage_deletion_queue ORDER BY xmin::text::bigint DESC LIMIT 5;`
+    - `mp_messages` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM mp_messages ORDER BY xmin::text::bigint DESC LIMIT 5;`
+    - `mp_request_contacts` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM mp_request_contacts ORDER BY xmin::text::bigint DESC LIMIT 5;`
     - `packages` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM packages ORDER BY xmin::text::bigint DESC LIMIT 5;`
     - `parking_logs` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM parking_logs ORDER BY xmin::text::bigint DESC LIMIT 5;`
     - `visitors` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM visitors ORDER BY xmin::text::bigint DESC LIMIT 5;`
   - **İşlem kaydı:** `SELECT created_at, action, entity_type, status_code, user_id FROM audit_logs WHERE screen = '/api/v1/retention-rules/run' ORDER BY created_at DESC LIMIT 5;` → `CREATE`, 2xx (yetkisiz denemede `DENIED`, 403)
   - **Bildirim:** üretmez — `notifications` tablosuna bu işlemle yeni satır EKLENMEMELİ.
-  - **Etkisi görülmeli:** Panel `/dashboard/packages`, Panel `/dashboard/parking`, Panel `/dashboard/settings`, Panel `/dashboard/visitors`, Sakin `package_tracking_mobile_screen`, Yön.mobil `package_tracking_screen`, Yön.mobil `parking_management_screen`, Yön.mobil `site_settings_screen`, Yön.mobil `visitor_management_screen`
+  - **Etkisi görülmeli:** Panel `/dashboard/packages`, Panel `/dashboard/parking`, Panel `/dashboard/settings`, Panel `/dashboard/visitors`, Panel `/tedarikci/(panel)/talepler/[id]`, Sakin `market_request_screens`, Sakin `package_tracking_mobile_screen`, Yön.mobil `package_tracking_screen`, Yön.mobil `parking_management_screen`, Yön.mobil `site_settings_screen`, Yön.mobil `visitor_management_screen`
 - **Sonuç:** http://localhost:18000/sonuc → `P-SETTINGS-04`
 
 #### P-SETTINGS-05 · Düğme: Düzenle
@@ -123,12 +128,14 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
     - `client_error_reports` — satır silinmiş olmalı: `SELECT xmin, * FROM client_error_reports ORDER BY xmin::text::bigint DESC LIMIT 5;`
     - `data_retention_rules` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM data_retention_rules ORDER BY xmin::text::bigint DESC LIMIT 5;`
     - `storage_deletion_queue` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM storage_deletion_queue ORDER BY xmin::text::bigint DESC LIMIT 5;`
+    - `mp_messages` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM mp_messages ORDER BY xmin::text::bigint DESC LIMIT 5;`
+    - `mp_request_contacts` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM mp_request_contacts ORDER BY xmin::text::bigint DESC LIMIT 5;`
     - `packages` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM packages ORDER BY xmin::text::bigint DESC LIMIT 5;`
     - `parking_logs` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM parking_logs ORDER BY xmin::text::bigint DESC LIMIT 5;`
     - `visitors` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM visitors ORDER BY xmin::text::bigint DESC LIMIT 5;`
   - **İşlem kaydı:** `SELECT created_at, action, entity_type, status_code, user_id FROM audit_logs WHERE screen = '/api/v1/retention-rules/:category' ORDER BY created_at DESC LIMIT 5;` → `UPDATE`, 2xx (yetkisiz denemede `DENIED`, 403)
   - **Bildirim:** üretmez — `notifications` tablosuna bu işlemle yeni satır EKLENMEMELİ.
-  - **Etkisi görülmeli:** Panel `/dashboard/packages`, Panel `/dashboard/parking`, Panel `/dashboard/settings`, Panel `/dashboard/visitors`, Sakin `package_tracking_mobile_screen`, Yön.mobil `package_tracking_screen`, Yön.mobil `parking_management_screen`, Yön.mobil `site_settings_screen`, Yön.mobil `visitor_management_screen`
+  - **Etkisi görülmeli:** Panel `/dashboard/packages`, Panel `/dashboard/parking`, Panel `/dashboard/settings`, Panel `/dashboard/visitors`, Panel `/tedarikci/(panel)/talepler/[id]`, Sakin `market_request_screens`, Sakin `package_tracking_mobile_screen`, Yön.mobil `package_tracking_screen`, Yön.mobil `parking_management_screen`, Yön.mobil `site_settings_screen`, Yön.mobil `visitor_management_screen`
 - **Sonuç:** http://localhost:18000/sonuc → `P-SETTINGS-06`
 
 #### P-SETTINGS-07 · Düğme: Kamera ekle
@@ -204,7 +211,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
 - **Adım:** Öğe `lifecycle-card` bileşenindedir (satır 52)
-- **Beklenen (yazma):** `POST /property/deactivate` (identity, `services/identity/main.go:160`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /property/deactivate` (identity, `services/identity/main.go:164`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: MANAGER
   - **Veritabanı (Adminer → SQL komutu):**
     - `property_lifecycle_events` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM property_lifecycle_events ORDER BY xmin::text::bigint DESC LIMIT 5;`
@@ -212,7 +219,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
   - **İşlem kaydı:** `SELECT created_at, action, entity_type, status_code, user_id FROM audit_logs WHERE screen = '/api/v1/property/deactivate' ORDER BY created_at DESC LIMIT 5;` → `CREATE`, 2xx (yetkisiz denemede `DENIED`, 403)
   - **Bildirim:** üretmez — `notifications` tablosuna bu işlemle yeni satır EKLENMEMELİ.
   - **Etkisi görülmeli:** Panel `/dashboard/settings`, Yön.mobil `site_settings_screen`
-- **Beklenen (yazma):** `POST /property/reactivate` (identity, `services/identity/main.go:161`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /property/reactivate` (identity, `services/identity/main.go:165`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: MANAGER
   - **Veritabanı (Adminer → SQL komutu):**
     - `property_lifecycle_events` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM property_lifecycle_events ORDER BY xmin::text::bigint DESC LIMIT 5;`
@@ -303,5 +310,31 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
     - SMS/EMAIL kanalı satırı varsa: SMS kutusu (http://localhost:18000/sms) / Mailpit (http://localhost:18025) içinde metin doğru kişiye gitmiş olmalı. **SİTE_B hesabı bu bildirimi hiçbir yerde görmemeli.**
   - **Etkisi görülmeli:** Panel `/dashboard/settings`, Sakin `owner_visibility_screen`, Yön.mobil `site_settings_screen`
 - **Sonuç:** http://localhost:18000/sonuc → `P-SETTINGS-19`
+
+#### P-SETTINGS-20 · Düğme: Konumu kaydet
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/settings
+- **Adım:** "Konumu kaydet" düğme öğesine bas
+- **Adım:** Öğe `location-card` bileşenindedir (satır 54)
+- **Beklenen (yazma):** `PUT /property/location` (identity, `services/identity/main.go:167`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+  - Sunucu yetkisi: MANAGER
+  - **Veritabanı (Adminer → SQL komutu):**
+    - Ortak tablolar da değişir: `properties` (aynı sorgu kalıbıyla bakılabilir)
+  - **İşlem kaydı:** `SELECT created_at, action, entity_type, status_code, user_id FROM audit_logs WHERE screen = '/api/v1/property/location' ORDER BY created_at DESC LIMIT 5;` → `UPDATE`, 2xx (yetkisiz denemede `DENIED`, 403)
+  - **Bildirim:** üretmez — `notifications` tablosuna bu işlemle yeni satır EKLENMEMELİ.
+- **Yetki (olumsuz):** KURUL ile aynı ekranda bu işlem yapılamamalı: düğme gizli/pasif olmalı ya da sunucu **403** dönmeli ve ekranda "yetkiniz yok" anlamında mesaj görünmeli; veritabanında değişiklik OLMAMALI (`PUT /property/location` yalnız MANAGER).
+- **Sonuç:** http://localhost:18000/sonuc → `P-SETTINGS-20`
+
+#### P-SETTINGS-21 · Düğme: Konumu sil
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/settings
+- **Adım:** "Konumu sil" düğme öğesine bas (onay penceresi çıkarsa önce Vazgeç → hiçbir şey değişmemeli; sonra tekrar bas ve onayla)
+- **Adım:** Öğe `location-card` bileşenindedir (satır 59)
+- **Beklenen (yazma):** `PUT /property/location` (identity, `services/identity/main.go:167`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+  - Sunucu yetkisi: MANAGER
+  - **Veritabanı (Adminer → SQL komutu):**
+    - Ortak tablolar da değişir: `properties` (aynı sorgu kalıbıyla bakılabilir)
+  - **İşlem kaydı:** `SELECT created_at, action, entity_type, status_code, user_id FROM audit_logs WHERE screen = '/api/v1/property/location' ORDER BY created_at DESC LIMIT 5;` → `UPDATE`, 2xx (yetkisiz denemede `DENIED`, 403)
+  - **Bildirim:** üretmez — `notifications` tablosuna bu işlemle yeni satır EKLENMEMELİ.
+- **Yetki (olumsuz):** KURUL ile aynı ekranda bu işlem yapılamamalı: düğme gizli/pasif olmalı ya da sunucu **403** dönmeli ve ekranda "yetkiniz yok" anlamında mesaj görünmeli; veritabanında değişiklik OLMAMALI (`PUT /property/location` yalnız MANAGER).
+- **Sonuç:** http://localhost:18000/sonuc → `P-SETTINGS-21`
 
 ---

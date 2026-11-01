@@ -32,6 +32,7 @@ Her hesapla panele girip aşağıdaki her adresi adres çubuğuna yazarak açın
 | R-GOVERNANCE-BUDGETS | `/dashboard/governance/budgets` | MANAGER/BOARD_MEMBER/AUDITOR | Erişir | Erişir | Erişir | Yönlenir | Yönlenir |
 | R-GOVERNANCE-COMMON-AREA | `/dashboard/governance/common-area` | MANAGER/BOARD_MEMBER/AUDITOR | Erişir | Erişir | Erişir | Yönlenir | Yönlenir |
 | R-GOVERNANCE-LEGAL | `/dashboard/governance/legal` | MANAGER/BOARD_MEMBER/AUDITOR | Erişir | Erişir | Erişir | Yönlenir | Yönlenir |
+| R-USTA-HIZMET | `/dashboard/usta-hizmet` | MANAGER/BOARD_MEMBER/AUDITOR/STAFF | Erişir | Erişir | Erişir | Erişir | Yönlenir |
 | R-ASSETS | `/dashboard/assets` | MANAGER/BOARD_MEMBER/AUDITOR/STAFF | Erişir | Erişir | Erişir | Erişir | Yönlenir |
 | R-INVENTORY | `/dashboard/inventory` | MANAGER/BOARD_MEMBER/AUDITOR/STAFF | Erişir | Erişir | Erişir | Erişir | Yönlenir |
 | R-PACKAGES | `/dashboard/packages` | MANAGER/BOARD_MEMBER/STAFF | Erişir | Erişir | Yönlenir | Erişir | Yönlenir |
@@ -57,6 +58,23 @@ Her hesapla panele girip aşağıdaki her adresi adres çubuğuna yazarak açın
 | R-PATROL-REPORTS | `/dashboard/patrol/reports` | MANAGER/BOARD_MEMBER/AUDITOR/STAFF | Erişir | Erişir | Erişir | Erişir | Yönlenir |
 | R-LOGIN | `/login` | — | Erişir | Erişir | Erişir | Erişir | Erişir |
 | R-ODEME-SONUC | `/odeme-sonuc` | — | Erişir | Erişir | Erişir | Erişir | Erişir |
+| R-PLATFORM | `/platform` | PlatformAdmin | Yönlenir | Yönlenir | Yönlenir | Yönlenir | Yönlenir |
+| R-PLATFORM-AYARLAR | `/platform/ayarlar` | PlatformAdmin | Yönlenir | Yönlenir | Yönlenir | Yönlenir | Yönlenir |
+| R-PLATFORM-GELIR | `/platform/gelir` | PlatformAdmin | Yönlenir | Yönlenir | Yönlenir | Yönlenir | Yönlenir |
+| R-PLATFORM-HESAPLAR | `/platform/hesaplar` | PlatformAdmin | Yönlenir | Yönlenir | Yönlenir | Yönlenir | Yönlenir |
+| R-PLATFORM-ISLETMELER | `/platform/isletmeler` | PlatformAdmin | Yönlenir | Yönlenir | Yönlenir | Yönlenir | Yönlenir |
+| R-PLATFORM-ITIRAZLAR | `/platform/itirazlar` | PlatformAdmin | Yönlenir | Yönlenir | Yönlenir | Yönlenir | Yönlenir |
+| R-PLATFORM-KATEGORILER | `/platform/kategoriler` | PlatformAdmin | Yönlenir | Yönlenir | Yönlenir | Yönlenir | Yönlenir |
+| R-PLATFORM-PAKETLER | `/platform/paketler` | PlatformAdmin | Yönlenir | Yönlenir | Yönlenir | Yönlenir | Yönlenir |
+| R-PLATFORM-YORUMLAR | `/platform/yorumlar` | PlatformAdmin | Yönlenir | Yönlenir | Yönlenir | Yönlenir | Yönlenir |
+| R-TEDARIKCI-AUTH-GIRIS | `/tedarikci/(auth)/giris` | Supplier | Yönlenir | Yönlenir | Yönlenir | Yönlenir | Yönlenir |
+| R-TEDARIKCI-AUTH-KAYIT | `/tedarikci/(auth)/kayit` | Supplier | Yönlenir | Yönlenir | Yönlenir | Yönlenir | Yönlenir |
+| R-TEDARIKCI-PANEL | `/tedarikci/(panel)` | Supplier | Yönlenir | Yönlenir | Yönlenir | Yönlenir | Yönlenir |
+| R-TEDARIKCI-PANEL-BAKIYE | `/tedarikci/(panel)/bakiye` | Supplier | Yönlenir | Yönlenir | Yönlenir | Yönlenir | Yönlenir |
+| R-TEDARIKCI-PANEL-BILDIRIMLER | `/tedarikci/(panel)/bildirimler` | Supplier | Yönlenir | Yönlenir | Yönlenir | Yönlenir | Yönlenir |
+| R-TEDARIKCI-PANEL-ISLETMELER | `/tedarikci/(panel)/isletmeler` | Supplier | Yönlenir | Yönlenir | Yönlenir | Yönlenir | Yönlenir |
+| R-TEDARIKCI-PANEL-PUANLAR | `/tedarikci/(panel)/puanlar` | Supplier | Yönlenir | Yönlenir | Yönlenir | Yönlenir | Yönlenir |
+| R-TEDARIKCI-PANEL-TALEPLER | `/tedarikci/(panel)/talepler` | Supplier | Yönlenir | Yönlenir | Yönlenir | Yönlenir | Yönlenir |
 
 Her satır bir test ID'sidir; satırdaki beş hesabın hepsi beklendiği gibiyse GEÇTİ, biri farklıysa KALDI (gözleme hangi hesap).
 

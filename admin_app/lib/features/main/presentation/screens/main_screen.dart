@@ -60,6 +60,7 @@ const _groups = <(String, List<_NavItem>)>[
     _NavItem(Icons.receipt_long, 'Giderler', '/expenses', _mgmtAudit),
     _NavItem(Icons.trending_up, 'Tahsilat riski', '/collection', _mgmtAudit),
     _NavItem(Icons.description, 'Sözleşmeler', '/contracts', _mgmtAudit),
+    _NavItem(Icons.handyman, 'Usta & Hizmet', '/usta-hizmet', _mgmtAudit),
     _NavItem(Icons.gavel, 'Yönetişim (KMK)', '/governance', _mgmtAudit),
     _NavItem(Icons.folder, 'Belge arşivi', '/documents', _mgmtAudit),
     _NavItem(Icons.shield, 'Sigorta (DASK)', '/insurance', _mgmtAudit),

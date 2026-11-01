@@ -12,6 +12,19 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-11-01 — Usta & Hizmet M10–M12: yönetim alımı, test planı bölümü, güvenlik gözden geçirmesi (DOĞRULANMIŞ / kısmen)
+
+- **Yönetim alımı (080):** panel `/dashboard/usta-hizmet` ve yönetici uygulaması "Usta & Hizmet": yönetici site adına teklif toplar,
+  kurul ve denetçi okur; teklif karşılaştırma tablosu; seçilen işte tedarikçinin fatura bilgisi (`mp_job_vendor`); tek tıkla onay
+  bekleyen gider (mevcut gider ucu, `PENDING`) ya da teklif bilgileriyle dolu sözleşme formu.
+- **Test planı:** `docs/test-plani/10-usta-hizmet.md` (8 uçtan uca senaryo), başlangıç belgesine adres/hesap/sorgular; üretici yeni
+  ekranları kapsıyor (1284 test başlığı).
+- **Güvenlik ve belgeler:** `docs/claude/guvenlik-durumu.md`'ye pazaryeri gözden geçirmesi (4 açık bulgu karar bekliyor);
+  `docs/claude/servisler.md`'ye marketplace satırı; özellik haritası yeniden üretildi.
+- **Kanıt:** `bash backend/scripts/verify-stack.sh` → 1537/1537 (yeni adım §76, 3 kontrol; önce bozuk kodla kırmızı); `verify-mobile.sh`
+  14/14; panel tsc/lint/build temiz; tarayıcı D4 `~/.siteeksen-test/kanit/M10/` 11/11. Kalan: test ajanının 10. bölümü yürütmesi (M11.2),
+  M0 iş/hukuk maddeleri ve açık güvenlik bulgularının kararı.
+
 ### 2026-11-01 — Usta & Hizmet M9: SiteEksen Tedarikçi uygulaması (DOĞRULANMIŞ)
 
 - **`supplier_app/` (Flutter, Android + web):** SMS koduyla kayıt ve giriş, hesap ve belgeler, işletmeler (haritadan konum, hizmet alanı,

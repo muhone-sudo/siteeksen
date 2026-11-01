@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Plus } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAction, useApi, useRoles } from "@/lib/use-api";
@@ -25,6 +25,14 @@ export default function ContractsPage() {
     const blank = { contract_type: "SERVICE", title: "", party_name: "", party_phone: "", party_email: "", start_date: today(), end_date: "", auto_renew: false, renewal_period_months: "", renewal_notice_days: "30", payment_type: "MONTHLY", monthly_amount: "", yearly_amount: "", notes: "" };
     const [form, setForm] = useState(blank);
     const [terminating, setTerminating] = useState<Contract | null>(null);
+    // Usta & Hizmet'te seçilen tekliften gelindiğinde form teklif bilgileriyle önceden dolu açılır (FAZ M10, K12).
+    useEffect(() => {
+        const q = new URLSearchParams(window.location.search);
+        if (!q.get("baslik")) return;
+        setForm((f) => ({ ...f, title: q.get("baslik") ?? "", party_name: q.get("taraf") ?? "", payment_type: "ONE_TIME",
+            notes: q.get("tutar") ? `Usta & Hizmet teklifi: ${tl(Number(q.get("tutar")))} (tek sefer)` : "" }));
+        setOpen(true);
+    }, []);
     const [reason, setReason] = useState("");
     const s = summary.data?.summary;
 

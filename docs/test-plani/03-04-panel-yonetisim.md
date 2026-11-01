@@ -13,7 +13,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Adım:** http://localhost:3001/dashboard/contracts adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: `GET /contracts` (contract)
 - **Adım:** Veri yüklenir: `GET /contracts-summary` (contract)
-- **Adım:** Kart (satır 47): Sözleşmeler
+- **Adım:** Kart (satır 55): Sözleşmeler
 - **Adım:** Tablo sütunları görünür ve dolu/boş durumu doğru: Sözleşme \| Dönem \| Kalan \| Yenileme \| Tutar \| Durum
 - **Adım:** Sayfayı yenile (F5): aynı içerik gelir, oturum düşmez
 - **Adım:** Erişimi olmayan hesapla (GÖREVLİ, KİRACI) aynı adresi aç → `/dashboard/forbidden` sayfasına yönlenmeli, kenar çubuğunda bu menü görünmemeli
@@ -672,5 +672,38 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
   - **Etkisi görülmeli:** Panel `/dashboard/governance/legal`, Yön.mobil `governance_screen`
 - **Yetki (olumsuz):** DENETÇİ ile aynı ekranda bu işlem yapılamamalı: düğme gizli/pasif olmalı ya da sunucu **403** dönmeli ve ekranda "yetkiniz yok" anlamında mesaj görünmeli; veritabanında değişiklik OLMAMALI (`POST /governance/legal-cases` yalnız BOARD_MEMBER/MANAGER).
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-LEGAL-02`
+
+---
+
+### Usta & Hizmet — `/dashboard/usta-hizmet`
+- Dosya: `admin/src/app/(dashboard)/dashboard/usta-hizmet/page.tsx`
+- Panel erişimi: MANAGER/BOARD_MEMBER/AUDITOR/STAFF — Yönetim paneli
+
+#### P-USTA-HIZMET-00 · Sayfa açılışı ve ekran kontrolleri
+- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ, GÖREVLİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/dashboard/usta-hizmet
+- **Adım:** http://localhost:3001/dashboard/usta-hizmet adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Adım:** Veri yüklenir: 
+- **Adım:** Veri yüklenir: `GET /market/meta` (marketplace)
+- **Adım:** Bilgi notu (satır 30): Site adına talebi yönetici açar ve teklif seçer; kurul üyeleri ve denetçi talepleri ve tek
+- **Adım:** Tablo sütunları görünür ve dolu/boş durumu doğru: Tarih \| Kategori \| Açıklama \| Kabul \| Durum
+- **Adım:** Bağlantı (satır 36): {r.category_name} → `/dashboard/usta-hizmet/${r.id
+- **Adım:** Sayfayı yenile (F5): aynı içerik gelir, oturum düşmez
+- **Adım:** Erişimi olmayan hesapla (KİRACI) aynı adresi aç → `/dashboard/forbidden` sayfasına yönlenmeli, kenar çubuğunda bu menü görünmemeli
+- **Beklenen:** her veri bölümü yüklenir (boşsa anlamlı boş durum mesajı; "undefined", "NaN", "null", ham JSON ya da İngilizce hata metni YOK); sayılar ve tarihler Türkçe biçimde (1.234,56 ₺ · gg.aa.yyyy); uydurma/örnek veri yok; dar ekranda (400 px) yatay kaydırma olmadan okunur.
+- **Sonuç:** http://localhost:18000/sonuc → `P-USTA-HIZMET-00`
+
+#### P-USTA-HIZMET-01 · Düğme: Teklif topla
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/usta-hizmet
+- **Adım:** "Teklif topla" düğme öğesine bas
+- **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
+- **Sonuç:** http://localhost:18000/sonuc → `P-USTA-HIZMET-01`
+
+#### P-USTA-HIZMET-02 · Form: Site adına teklif topla
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/usta-hizmet
+- **Adım:** Formu aç; alanlar: Kategori*, Ne yapılacak?*, Uygun zaman (* zorunlu)
+- **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
+- **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
+- **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
+- **Sonuç:** http://localhost:18000/sonuc → `P-USTA-HIZMET-02`
 
 ---

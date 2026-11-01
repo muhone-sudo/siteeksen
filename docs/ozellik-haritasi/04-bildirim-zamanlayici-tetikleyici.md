@@ -35,27 +35,46 @@
 | `POST /finance/bank-statements/lines/:id/collect` | finance · `services/finance/main.go:156` | `payment.recorded` | AssessmentPayers |
 | `POST /governance/budgets/:id/assessments` | governance · `services/governance/main.go:92` | `dues.created` | AssessmentPayers, NotifyCharges |
 | `POST /auth/password-reset/request` | identity · `services/identity/main.go:83` | `identity.self_reset` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
-| `POST /users/me/phone/request` | identity · `services/identity/main.go:104` | `identity.phone_change` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
-| `POST /users/me/phone/confirm` | identity · `services/identity/main.go:105` | `identity.phone_changed` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
-| `POST /users/me/email` | identity · `services/identity/main.go:106` | `identity.email_change` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
-| `POST /users/me/email/confirm` | identity · `services/identity/main.go:107` | `identity.email_changed` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
-| `POST /users/me/units/:id/invitations` | identity · `services/identity/main.go:111` | `identity.invitation` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
-| `POST /users/me/units/:id/tenancy-end` | identity · `services/identity/main.go:114` | `identity.tenancy` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
-| `POST /users/me/units/:id/tenancy-exit` | identity · `services/identity/main.go:115` | `identity.tenancy` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
-| `POST /users/me/tenancy-requests/:id/approve` | identity · `services/identity/main.go:117` | `identity.tenancy` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
-| `POST /users/me/tenancy-requests/:id/decline` | identity · `services/identity/main.go:118` | `identity.tenancy` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
-| `POST /residents` | identity · `services/identity/main.go:133` | `identity.activation` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
-| `POST /residents/invitations` | identity · `services/identity/main.go:136` | `identity.invitation` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
-| `POST /residents/tenancy-requests` | identity · `services/identity/main.go:140` | `identity.tenancy` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
-| `POST /residents/tenancy-requests/:id/documents` | identity · `services/identity/main.go:141` | `identity.tenancy` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
-| `POST /residents/tenancy-requests/:id/complete` | identity · `services/identity/main.go:142` | `identity.tenancy` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
-| `POST /residents/tenancy-requests/:id/reverse` | identity · `services/identity/main.go:144` | `identity.tenancy` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
-| `POST /residents/:id/activation-code` | identity · `services/identity/main.go:148` | `identity.activation` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
-| `POST /residents/:id/phone` | identity · `services/identity/main.go:151` | `identity.activation`, `identity.phone_changed` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /auth/supplier-signup/request` | identity · `services/identity/main.go:85` | `identity.supplier_signup` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /users/me/phone/request` | identity · `services/identity/main.go:108` | `identity.phone_change` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /users/me/phone/confirm` | identity · `services/identity/main.go:109` | `identity.phone_changed` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /users/me/email` | identity · `services/identity/main.go:110` | `identity.email_change` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /users/me/email/confirm` | identity · `services/identity/main.go:111` | `identity.email_changed` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /users/me/units/:id/invitations` | identity · `services/identity/main.go:115` | `identity.invitation` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /users/me/units/:id/tenancy-end` | identity · `services/identity/main.go:118` | `identity.tenancy` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /users/me/units/:id/tenancy-exit` | identity · `services/identity/main.go:119` | `identity.tenancy` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /users/me/tenancy-requests/:id/approve` | identity · `services/identity/main.go:121` | `identity.tenancy` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /users/me/tenancy-requests/:id/decline` | identity · `services/identity/main.go:122` | `identity.tenancy` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /residents` | identity · `services/identity/main.go:137` | `identity.activation` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /residents/invitations` | identity · `services/identity/main.go:140` | `identity.invitation` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /residents/tenancy-requests` | identity · `services/identity/main.go:144` | `identity.tenancy` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /residents/tenancy-requests/:id/documents` | identity · `services/identity/main.go:145` | `identity.tenancy` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /residents/tenancy-requests/:id/complete` | identity · `services/identity/main.go:146` | `identity.tenancy` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /residents/tenancy-requests/:id/reverse` | identity · `services/identity/main.go:148` | `identity.tenancy` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /residents/:id/activation-code` | identity · `services/identity/main.go:152` | `identity.activation` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /residents/:id/phone` | identity · `services/identity/main.go:155` | `identity.activation`, `identity.phone_changed` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
 | `POST /inventory/:id/movements` | inventory · `services/inventory/main.go:142` | `inventory.low_stock` | Managers |
 | `POST /consumption/statements/:id/objections` | iot · `services/iot/main.go:471` | `statement.objection` | Approvers |
 | `POST /consumption/objections/:id/respond` | iot · `services/iot/main.go:473` | `statement.objection.answer` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
 | `POST /public/sensors/data` | iot · `services/iot/sensors.go:127` | `{topic}` | Operations |
+| `POST /market/requests` | marketplace · `services/marketplace/main.go:84` | `{topic}` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /market/requests/:id/offers/:offerId/select` | marketplace · `services/marketplace/main.go:90` | `{topic}` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /market/requests/:id/close` | marketplace · `services/marketplace/main.go:91` | `{topic}` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /market/requests/:id/messages/:dispatchId` | marketplace · `services/marketplace/main.go:93` | `{topic}` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /market/requests/:id/review` | marketplace · `services/marketplace/main.go:97` | `{topic}` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /market/supplier/requests/:id/offers` | marketplace · `services/marketplace/main.go:127` | `{topic}` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /market/supplier/requests/:id/messages` | marketplace · `services/marketplace/main.go:130` | `{topic}` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /market/supplier/jobs/:id/done` | marketplace · `services/marketplace/main.go:132` | `{topic}` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /market/supplier/package` | marketplace · `services/marketplace/main.go:138` | `market.wallet.low` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /market/platform/accounts/:id/approve` | marketplace · `services/marketplace/main.go:144` | `{topic}` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /market/platform/accounts/:id/reject` | marketplace · `services/marketplace/main.go:145` | `{topic}` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /market/platform/accounts/:id/suspend` | marketplace · `services/marketplace/main.go:146` | `{topic}` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /market/platform/accounts/:id/reinstate` | marketplace · `services/marketplace/main.go:147` | `{topic}` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /market/platform/accounts/:id/close` | marketplace · `services/marketplace/main.go:148` | `{topic}` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /market/platform/businesses/:id/approve` | marketplace · `services/marketplace/main.go:151` | `{topic}` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /market/platform/businesses/:id/reject` | marketplace · `services/marketplace/main.go:152` | `{topic}` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /market/platform/disputes/:id/approve` | marketplace · `services/marketplace/main.go:161` | `{topic}` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /market/platform/disputes/:id/reject` | marketplace · `services/marketplace/main.go:162` | `{topic}` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
 | `POST /notifications` | notification · `services/notification/main.go:158` | `{{in}.Topic}` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
 | `POST /packages` | package · `services/package/main.go:133` | `package.received` | UnitUsers |
 | `POST /public/devices/heartbeat` | parking · `services/parking/devices.go:37` | — | Operations |
@@ -114,6 +133,11 @@ Mükerrer gönderim `DedupeKey` ile engellenir (ör. `dues.overdue:<daire>:<ay>`
 | monthly_assessments | monthly_assessments_active_property_increase | BEFORE UPDATE OF total_amount, late_fee | engeller: site pasif: tahakkuk tutarı artırılamaz | 058_property_lifecycle.sql |
 | monthly_assessments | monthly_assessments_guard | BEFORE UPDATE | engeller: Tahakkukun sınıfı (kullanım/malik) değiştirilemez; düzeltme alacak dekontu ve yeni tahakkukla yapılır | 070_debt_responsibility.sql |
 | monthly_assessments | trg_monthly_assessments_tenant_link | BEFORE INSERT | satırı düzenler (NEW) | 070_debt_responsibility.sql |
+| mp_jobs | mp_jobs_completed_refresh | AFTER UPDATE OF status | UPDATE mp_businesses | 077_marketplace.sql |
+| mp_requests | mp_requests_active_property | BEFORE INSERT | engeller: site pasif: % tablosuna yeni kayıt yazılamaz | 058_property_lifecycle.sql |
+| mp_reviews | mp_reviews_guard | BEFORE UPDATE OR DELETE | engeller: Yorum silinemez; gerekçeyle gizlenebilir | 077_marketplace.sql |
+| mp_reviews | mp_reviews_rating_refresh | AFTER INSERT OR UPDATE OF hidden_at | UPDATE mp_businesses | 077_marketplace.sql |
+| mp_wallet_ledger | mp_wallet_ledger_no_change | BEFORE UPDATE OR DELETE | engeller: Bakiye defteri değiştirilemez ve silinemez; düzeltme yeni bir hareketle yapılır | 077_marketplace.sql |
 | notifications | notifications_active_property | BEFORE INSERT | engeller: site pasif: % tablosuna yeni kayıt yazılamaz | 058_property_lifecycle.sql |
 | notifications | notifications_sent_final | BEFORE UPDATE OR DELETE | engeller: Gönderilmiş bildirim silinemez (haber verildiğinin kanıtıdır) | 016_notifications.sql |
 | owner_visibility_policies | trg_owner_visibility_guard | BEFORE UPDATE | engeller: Görünürlük önerisi değiştirilemez; yeni öneri açılmalı | 071_owner_visibility.sql |

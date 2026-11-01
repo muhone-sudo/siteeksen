@@ -27,3 +27,28 @@
 
 `legal/kvkk-aydinlatma.md` 2026-09-13'te **gerçek duruma göre** düzeltildi: uygulanan ve
 uygulanmayan tedbirler ayrı listelenmiştir; karşılığı olmayan taahhüt kalmamıştır.
+
+### Usta & Hizmet pazaryeri — güvenlik gözden geçirmesi (FAZ M12.1, 2026-11-01)
+
+Kanıtlar: `bash backend/scripts/verify-stack.sh` §68–§76 (tedarikçi kimliği, veri modeli, hesap, platform, bakiye, talep, teklif/iş,
+vitrin, yönetim alımı) ve tarayıcı D4 (`~/.siteeksen-test/kanit/M*`).
+
+| Konu | Durum |
+|---|---|
+| Kapsam ve IDOR | **Üç kapsam** (`pkg/dbscope`): site, tedarikçi hesabı, platform; 19 pazaryeri tablosunda RLS + FORCE (077). Başka tedarikçinin hesabı/işletmesi/belgesi/talebi 404; aynı sitedeki komşunun talebi, teklifleri, yazışması ve işi 404; sakin site taleplerini göremez (403). Platform iletişim bilgisini ve yazışmaları **okuyamaz** (politika). §69, §70, §73, §74 |
+| İletişim bilgisinin açılması | Alıcının adı/telefonu/adresi ayrı tabloda; yalnız talebi **kabul edip ödemiş** hesaba açılır (RLS). Kabul işlem kaydında adıyla (`market.request.accepted`). Önizleme JSON'unda ad/telefon/adres yok. §73 |
+| Maskeleme | Talep açıklaması ve hizmet tanımlarında telefon/e-posta kalıbı gizlenir. **Açık:** fotoğrafların içeriği denetlenmez (şikâyetle platform kaldırır); kabulden sonraki yazışmalar bilerek maskelenmez |
+| Vitrin | Vergi no, belge, bakiye, hesap kimliği dönmez; telefon yalnız paketi izin veriyorsa; gizlenen yorumlar görünmez. §75 |
+| Ödeme dönüşü | Kimliksiz uç yalnız jetonu alır; sonuç **sağlayıcıdan yeniden sorgulanır**, tutar ve sepet kimliği doğrulanır; aynı dönüş iki kez gelince tek defter satırı (benzersiz indeks); dönüşü gelmeyen ödeme uzlaştırılır. `Idempotency-Key` zorunlu. §72 |
+| Bakiye | Hesap satırında CHECK ≥ 0 (borç oluşmaz); defter değiştirilemez/silinemez (süper kullanıcı dahil); kabul ücreti ve iade tek işlemde; her adımda bakiye = defter toplamı. §69, §72–§74 |
+| Hız sınırları | Tedarikçi kaydı SMS kodu: 60 sn, numara saatte 3, IP saatte 10; 5 yanlışta kilit. Sakin günlük talep sınırı (ayar). **Açık:** oturumlu mesaj/teklif uçlarında hız sınırı yok (gateway/Kong IP sınırı dışında) |
+| Belge erişimi | Belgeyi yalnız sahibi ve platform indirir; her indirme erişim kaydına (sahibi/PLATFORM); açılmış belge silinemez; içerik türü dosyanın kendisinden, boyut sınırlı. §70, §71 |
+| Çıkar çatışması | Sitede görevli kişinin tedarikçi hesabına o sitenin yönetim talepleri gitmez (078). §73 |
+| Saklama | Kapanmış taleplerin iletişim bilgisi ve yazışmaları site saklama süresi sonunda anonimleşir (`MARKET_REQUEST`, 079). §74 |
+
+**Açık bulgular (karar/iş bekliyor):**
+1. Kapanıştan önce başlatılıp kapanıştan sonra tamamlanan kart yüklemesi bakiyeye yine yazılır (kart çekildiği için doğru), ama kapalı
+   hesapta kalır; platform ikinci kez elle iade etmelidir. Uzlaştırma raporunda işaretlenmesi önerilir.
+2. Mesaj/teklif uçlarında kullanıcı başına hız sınırı yok.
+3. Kartla ödemeden sonra tarayıcı panelin bakiye sayfasına döner; tedarikçi uygulaması için uygulamaya dönüş adresi yok (UX).
+4. Fotoğraf içeriğindeki iletişim bilgisi denetlenmez.
