@@ -293,8 +293,10 @@ Koda başlanmadı. Sıra: M1 → M12; M0 kullanıcıda (kodu bekletmez, yayını
 
 - [ ] **Bulgu (2026-11-01): verify-stack gece yarısı yanlış kırmızı** — 00:00–03:00 arasında 13 kontrol kırmızıya döndü (KVKK son gün, işletme projesi
   süreleri, hatırlatmalar, valör…). Neden: servis tarihleri İstanbul saatine göre yazıyor, kontroller `$PSQL` oturumunda UTC `CURRENT_DATE` ile
-  karşılaştırıyor (verify-stack `PGTZ` ayarlamıyor). Kod hatası değil, doğrulama betiği hatası; gündüz aynı kod 1533/1533. Düzeltme önerisi:
-  verify-stack'te `export PGTZ=Europe/Istanbul` — kullanıcı onayıyla.
+  karşılaştırıyor. İlk teşhis ("verify-stack `PGTZ` ayarlamıyor") yanlıştı: `export PGTZ` zaten var; ana makinede psql olmadığı için kullanılan
+  Docker sarmalayıcısı (`scripts/tools/pg-docker/_pgrun`) `docker exec`'e `PGTZ`'yi geçirmiyordu, kaptaki psql UTC kalıyordu.
+  → **Sonuç (2026-11-01, kullanıcı onayı):** `_pgrun` `-e PGTZ` geçirir; verify-stack adım 1'e "psql oturumu iş saat diliminde" kontrolü.
+  Kırmızı gösterildi (eski sarmalayıcıyla `SHOW TimeZone` = UTC → BAŞARISIZ), düzeltmeyle Europe/Istanbul → GEÇTİ.
 
 ### M10 — Yönetim alımı
 - [x] M10.1 Panel `/dashboard/usta-hizmet` + yönetici uygulaması: site talebi açma (MANAGER, yalnız site kategorileri), kurul/denetçi okur

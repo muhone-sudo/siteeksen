@@ -276,6 +276,9 @@ docker exec "$CNAME" pg_isready -h 127.0.0.1 -U siteeksen -d siteeksen >/dev/nul
 
 export PGPASSWORD="$PW"
 PSQL="psql -h 127.0.0.1 -p ${DBPORT} -U siteeksen -d siteeksen -v ON_ERROR_STOP=1 -q"
+PSQLTZ=$($PSQL -t -A -c "SHOW TimeZone;")
+[ "$PSQLTZ" = "$PGTZ" ] && ok "doğrulamanın psql oturumu iş saat diliminde ($PGTZ)" \
+  || bad "psql oturumu $PSQLTZ saat diliminde, beklenen $PGTZ: tarih kontrolleri 00:00–03:00 arasında bir gün kayar"
 
 step "2) Migration'lar (sıfırdan kurulum, cmd/migrate ile)"
 export DATABASE_URL="postgres://siteeksen:${PW}@127.0.0.1:${DBPORT}/siteeksen?sslmode=disable"

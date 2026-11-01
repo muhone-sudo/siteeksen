@@ -20,7 +20,7 @@ if [ "$(docker inspect -f '{{.State.Running}}' pgclient 2>/dev/null)" != "true" 
   docker rm -f pgclient >/dev/null 2>&1
   docker run -d --name pgclient --add-host=host.docker.internal:host-gateway postgres:16-alpine sleep infinity >/dev/null
 fi
-run=(docker exec -i -e PGPASSWORD -e PGHOST -e PGPORT -e PGUSER -e PGDATABASE pgclient "$tool" "${args[@]}")
+run=(docker exec -i -e PGPASSWORD -e PGHOST -e PGPORT -e PGUSER -e PGDATABASE -e PGTZ pgclient "$tool" "${args[@]}")
 if [ -n "$infile" ] && [ -n "$outfile" ]; then "${run[@]}" <"$infile" >"$outfile"
 elif [ -n "$infile" ]; then "${run[@]}" <"$infile"
 elif [ -n "$outfile" ]; then "${run[@]}" >"$outfile"

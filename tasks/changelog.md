@@ -12,6 +12,13 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-11-01 — verify-stack gece yarısı yanlış kırmızısı düzeltildi (DOĞRULANMIŞ)
+
+- Kök neden: ana makinede psql yok; Docker sarmalayıcısı `scripts/tools/pg-docker/_pgrun` `PGTZ`'yi kaba geçirmiyordu, doğrulamanın
+  psql oturumu UTC kalıyor, 00:00–03:00 arasında 13 tarih kontrolü bir gün kayıyordu. Sarmalayıcı artık `-e PGTZ` geçirir;
+  verify-stack adım 1'de "psql oturumu iş saat diliminde" kontrolü.
+- **Kanıt:** eski sarmalayıcıyla kontrol BAŞARISIZ (`SHOW TimeZone` = UTC), düzeltmeyle GEÇTİ; `verify-stack` 1538/1538 (2026-11-01).
+
 ### 2026-11-01 — Usta & Hizmet M10–M12: yönetim alımı, test planı bölümü, güvenlik gözden geçirmesi (DOĞRULANMIŞ / kısmen)
 
 - **Yönetim alımı (080):** panel `/dashboard/usta-hizmet` ve yönetici uygulaması "Usta & Hizmet": yönetici site adına teklif toplar,
