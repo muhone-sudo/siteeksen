@@ -325,6 +325,55 @@ Koda başlanmadı. Sıra: M1 → M12; M0 kullanıcıda (kodu bekletmez, yayını
 - [x] M12.3 `docs/claude/servisler.md`, `docs/ozellik-haritasi/` ve `tasks/roadmap.md` güncel — **Kanıt:** `uret.sh` sonrası fark yok
   → **Sonuç:** `[D1]` 2026-11-01: `docs/claude/servisler.md`'ye marketplace (8111) satırı; `uret.sh` ile `docs/ozellik-haritasi/` ve `docs/test-plani/` yeniden üretildi (commit sonrası ikinci çalıştırmada fark yok); `tasks/roadmap.md` FAZ M satırları güncel.
 
+### M13 — M12.1'in 4 açık bulgusu (kullanıcı kararları 2026-11-01) — PLAN `[D0]`, onay bekliyor
+Kararlar: (1) ödeme sayfası tedarikçi uygulamasının İÇİNDE açılır; (2) mesaj dk 20 / gün 300, teklif saatte 20, talep başına 5 düzenleme;
+(3) kalan bakiye son 365 gündeki yüklemelerden karşılanan kısmıyla karta otomatik iade, 365 günü geçen kısım iade edilmez — sözleşmeye madde,
+ayrıca kabul ettirilir (TBK m.21); (4) fotoğraflar platform onayından geçer: önce OCR, sonra (açılıp kapanan) yapay zekâ denetimi, ayrıca
+platformda elle onay/ret ekranı.
+
+**M13.1 Uygulama içi ödeme (`supplier_app`)**
+- [ ] M13.1a Android: ödeme sayfası uygulama içi WebView'de (`webview_flutter`, yeni bağımlılık); dönüş adresine gidiş yakalanır, WebView kapanır,
+  bakiye sunucudan yeniden okunur (sonuç istemciye güvenilmez, `Retrieve` sunucuda kalır); kullanıcı yarıda kapatırsa yükleme PENDING kalır,
+  uzlaştırma işi sonuçlandırır — **Kanıt:** APK + emülatörde/cihazda sahte iyzico ile başarılı, reddedilen, yarıda kapatılan yol (ekran görüntüsü)
+- [ ] M13.1b Web derlemesi (WebView yok): aynı sekmede açılır, dönüş adresi uygulamanın bakiye rotasına yönlenir — **Kanıt:** tarayıcı D4
+- [ ] M13.1c `verify-mobile` (analyze/test) yeşil — **Kanıt:** çıktı
+
+**M13.2 Hız sınırı**
+- [ ] M13.2a Mesaj: kullanıcı başına dakikada 20, günde 300; teklif: hesap başına saatte 20, teklif başına 5 düzenleme; aşımda 429 + açık mesaj;
+  sınırlar `mp_settings`'te (koda gömülmez), platform ayar ekranında — **Kanıt:** verify-stack: 21. mesaj 429, 21. teklif 429, 6. düzenleme 429; önce kırmızı
+
+**M13.3 Bakiyenin karta otomatik iadesi**
+- [ ] M13.3a `pkg/iyzico` iade (paymentId ile, kısmi tutar) + sahte iyzico'ya iade ucu — **Kanıt:** `go test ./pkg/iyzico/...`; imza testi
+- [ ] M13.3b Defter: `CARD_REFUND` hareket türü; `mp_card_refunds` (yükleme, tutar, durum, iyzico yanıtı, deneme sayısı) + RLS — **Kanıt:** verify-stack RLS listesi
+- [ ] M13.3c Üyelik kapanışı: kalan bakiye en yeni yüklemeden başlayarak (LIFO) son 365 gündeki yüklemelerin iade edilmemiş kısmından karşılanır,
+  her yükleme için karta kısmi iade; 365 günü aşan kısım `EXPIRED_BALANCE` satırıyla kapanır; elle havale kaydı yalnız iyzico hatasında yedek
+  — **Kanıt:** verify-stack: üç yükleme (10, 200, 400 gün önce) ile kapanış → iki iade, bir sona erme satırı, bakiye 0, para tutarlılığı fark 0
+- [ ] M13.3d Kapanıştan sonra tamamlanan yükleme hesaba yazılmaz, aynı işte karta iade edilir — **Kanıt:** verify-stack (bulgu 3)
+- [ ] M13.3e İade başarısızsa yeniden deneme (zamanlayıcı), tükenince platforma bildirim + elle işlem kuyruğu — **Kanıt:** sahte iyzico hata modu ile
+- [ ] M13.3f Sözleşme maddesi taslağı `docs/hukuk/tedarikci-bakiye-kosullari.md` (TASLAK, avukat onayı M0.4): bakiye yalnız platform hizmetinde
+  kullanılır, çekilemez; üyelik sona erince son 365 günde yapılan yüklemelerden karşılanan kalan bakiye karta iade edilir; 365 günü geçen kısım
+  iade edilmez; hesaplama sırası (en yeni yükleme önce) — **Kanıt:** dosya
+- [ ] M13.3g Ayrıca kabul (TBK m.21): ilk yüklemeden önce madde ayrı kutuyla gösterilir, kabul sürümü ve zamanı kaydedilir; kabulsüz yükleme 409
+  — **Kanıt:** verify-stack; tarayıcı D4 (panel + uygulama)
+
+**M13.4 Fotoğraf denetimi (hizmet kalemi fotoğrafları; talep fotoğrafları kullanıcı kararına bağlı)**
+- [ ] M13.4a Fotoğraf durumu: yüklenen fotoğraf `PENDING`; vitrinde yalnız `APPROVED`; red gerekçeli; tedarikçi durumu ve gerekçeyi görür — **Kanıt:** verify-stack
+- [ ] M13.4b OCR (sunucuda, yeni bağımlılık: Tesseract + Türkçe dil paketi): metinde telefon/e-posta/web adresi kalıbı → yapay zekâya gitmez,
+  sonuç kullanıcı kararına göre (otomatik ret ya da elle onay kuyruğu) — **Kanıt:** test görselleriyle `go test`; verify-stack
+- [ ] M13.4c Yapay zekâ denetimi (açılıp kapanır, `mp_settings`): OCR temizse görsel sağlayıcıya gider; çıplaklık/cinsellik, şiddet, nefret
+  sembolü, uyuşturucu/silah vb. kategorilerden biri → elle onay kuyruğu; temizse otomatik onay. Kapalıyken her fotoğraf elle onay kuyruğuna.
+  Sağlayıcı hatasında fotoğraf kuyruğa düşer (sessiz onay yok). "Yapay zekâ" yalnız gerçekten çağrılan sağlayıcı için yazılır — **Kanıt:** sahte
+  sağlayıcıyla üç yol (temiz, sakıncalı, hata) verify-stack; sağlayıcı/KVKK kararı (yurt dışına aktarım, KVKK m.9) `questions.md`'de
+- [ ] M13.4d Platform ekranı `/platform/fotograflar`: bekleyenler, OCR metni, yapay zekâ sonucu ve gerekçesi; Onayla / Reddet (gerekçe zorunlu);
+  otomatik onaylananlar da listelenir, sonradan kaldırılabilir; işlem kaydı — **Kanıt:** tarayıcı D4
+- [ ] **M13 kapısı** (verify-stack + verify-mobile + panel tsc/lint/build + para tutarlılığı + changelog + roadmap; `guvenlik-durumu.md` 4 bulgu kapanış kanıtı)
+
+### Yurt dışı hazırlığı (kullanıcı kararı 2026-11-01: sonra)
+- [ ] **YD.1 Site başına saat dilimi** — bugün tek `APP_TIMEZONE` (Europe/Istanbul). Tasarım: `properties.timezone` (varsayılan Europe/Istanbul);
+  `dbscope.For` kapsamı açarken `SET LOCAL TimeZone` → veritabanındaki `CURRENT_DATE`/`now()::date` (30 dosya) sorgu değişmeden site gününü verir;
+  Go tarafında `time.Now()` kullanan 132 yer site konumuna geçirilir; zamanlayıcı işleri site saatine göre; tedarikçi hesabına da saat dilimi.
+  Ön koşul: yurt dışı mevzuat modülü (KMK, TL, KDV, `legal_parameters` ülkeye bağlı) — saat dilimi tek başına yetmez.
+
 
 ---
 
