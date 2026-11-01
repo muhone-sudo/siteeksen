@@ -36,7 +36,7 @@ fi
 step "0) Araç sürümü"
 flutter --version | head -1 | sed 's/^/  /'
 
-for APP in mobile admin_app; do
+for APP in mobile admin_app supplier_app; do
   step "$APP"
   cd "$REPO_ROOT/$APP" || { bad "$APP dizini yok"; continue; }
 
@@ -66,12 +66,12 @@ done
 step "Dürüstlük: mobilde sahte başarı mesajı kalmamalı"
 # "Ödeme Başarılı" gibi mesajlar ağ çağrısı yapılmadan gösteriliyordu.
 # Yorum satırları (açıklama amaçlı geçen ifadeler) hariç tutulur.
-FAKE=$(grep -rn "Ödeme Başarılı" "$REPO_ROOT/mobile/lib" "$REPO_ROOT/admin_app/lib" 2>/dev/null \
+FAKE=$(grep -rn "Ödeme Başarılı" "$REPO_ROOT/mobile/lib" "$REPO_ROOT/admin_app/lib" "$REPO_ROOT/supplier_app/lib" 2>/dev/null \
   | grep -v ':[0-9]*: *//' | wc -l)
 [ "$FAKE" -eq 0 ] && ok "sahte 'Ödeme Başarılı' mesajı yok" || bad "$FAKE adet sahte ödeme başarı mesajı var"
 
 HARDNAME=$(grep -rn "Ahmet Yılmaz\|Mehmet Demir\|Ayşe Yılmaz\|Ali Veli\|Ayşe Kaya" \
-  "$REPO_ROOT/mobile/lib" "$REPO_ROOT/admin_app/lib" 2>/dev/null \
+  "$REPO_ROOT/mobile/lib" "$REPO_ROOT/admin_app/lib" "$REPO_ROOT/supplier_app/lib" 2>/dev/null \
   | grep -v ':[0-9]*: *//' | wc -l)
 [ "$HARDNAME" -eq 0 ] && ok "arayüzde gömülü sahte kullanıcı adı yok" || bad "$HARDNAME satırda gömülü sahte kullanıcı adı var"
 
@@ -79,7 +79,7 @@ step "Yayın derlemesi: ağ izni"
 # Flutter şablonu INTERNET iznini yalnızca debug/profile manifestlerine koyar.
 # Ana manifestte yoksa debug'da her şey çalışır, mağaza sürümü API'ye HİÇ
 # bağlanamaz — testlerin göremeyeceği bir hata (2026-10-03'e kadar ikisinde de yoktu).
-for APP in mobile admin_app; do
+for APP in mobile admin_app supplier_app; do
   grep -q 'android.permission.INTERNET' "$REPO_ROOT/$APP/android/app/src/main/AndroidManifest.xml" \
     && ok "$APP: release manifestinde INTERNET izni var" \
     || bad "$APP: release manifestinde INTERNET izni YOK (yayın sürümü ağa çıkamaz)"

@@ -279,12 +279,22 @@ Koda başlanmadı. Sıra: M1 → M12; M0 kullanıcıda (kodu bekletmez, yayını
   → **Kapı (2026-10-31):** verify-stack 1533/1533 (2026-10-31); verify-mobile 10/10; `flutter build apk --debug` → app-debug.apk; tarayıcı `~/.siteeksen-test/kanit/M8/` 17/17; changelog + roadmap güncel. Adım 75'in 3 kontrolü önce bozuk kodla kırmızı gösterildi.
 
 ### M9 — SiteEksen Tedarikçi uygulaması (`supplier_app/`, Android + web)
-- [ ] M9.1 İskelet (`mobile/`/`admin_app/` yapısı, tema, API istemcisi, oturum, `file_opener`, web derlemesi) — **Kanıt:** `flutter analyze` 0, `flutter test` geçer; verify-mobile'a eklendi
-- [ ] M9.2 Kayıt/giriş, hesap ve belgeler, işletmelerim (konum `flutter_map`, hizmet kalemleri), paket, bakiye (ödeme sayfası tarayıcıda açılır, dönüşte uygulama yenilenir)
+- [x] M9.1 İskelet (`mobile/`/`admin_app/` yapısı, tema, API istemcisi, oturum, `file_opener`, web derlemesi) — **Kanıt:** `flutter analyze` 0, `flutter test` geçer; verify-mobile'a eklendi
+  → **Sonuç:** `[D4]` `supplier_app/` (Flutter; paket `siteeksen_supplier`): dio istemcisi (jeton güvenli depoda, 401'de tek yenileme), go_router, `file_opener`, web derlemesi; Android yapılandırması sakin uygulamasıyla aynı sürümlerde (AGP 8.11, Kotlin 2.2, Gradle 8.14 — yeni şablonla `file_picker` derlenmiyordu). `bash backend/scripts/verify-mobile.sh` 14/14 (supplier_app: pub get, analyze 0, test +1, release manifestinde INTERNET); yeni kontroller önce bozuk kodla kırmızı (analyze, INTERNET; test ayrıca `flutter test` ile).
+- [x] M9.2 Kayıt/giriş, hesap ve belgeler, işletmelerim (konum `flutter_map`, hizmet kalemleri), paket, bakiye (ödeme sayfası tarayıcıda açılır, dönüşte uygulama yenilenir)
   — **Kanıt:** web derlemesinde tarayıcı D4; Android debug APK
-- [ ] M9.3 Gelen talepler (maskeli önizleme), kabul, teklif, mesaj, işler, puanlar; açılışta ve ekrana dönüşte yenileme — **Kanıt:** tarayıcı D4 uçtan uca (M6–M7 akışı uygulamadan)
+  → **Sonuç:** `[D4]` web derlemesinde tarayıcı `~/.siteeksen-test/kanit/M9/` 1–4: SMS koduyla kayıt (yeni hesap), hesap açma, iki belge yükleme (dosya seçici) ve incelemeye gönderme; haritaya dokunarak konum, kategori, hizmet kalemi, işletmeyi incelemeye gönderme; kartla bakiye yükleme (sahte iyzico sayfası) → uygulamaya dönüşte bakiye 300 TL. `flutter build apk --debug` → app-debug.apk. **Bulgu (karar gerekir):** ödemeden sonra tarayıcı `MARKET_TOPUP_RESULT_URL`'e (panelin bakiye sayfası) döner; uygulamaya geri dönüş adresi (deep link) yok — bakiye uygulamaya dönünce yenilenir.
+- [x] M9.3 Gelen talepler (maskeli önizleme), kabul, teklif, mesaj, işler, puanlar; açılışta ve ekrana dönüşte yenileme — **Kanıt:** tarayıcı D4 uçtan uca (M6–M7 akışı uygulamadan)
+  → **Sonuç:** `[D4]` tarayıcı `~/.siteeksen-test/kanit/M9/` 5–10: maskeli önizleme ve kabul ücreti; kabulde alıcının adı/telefonu açıldı; teklif ve mesaj; teklif seçilince "İş tamamlandı"; puan ve tek seferlik yanıt; bildirimler (hesap onayı, yeni talep, teklif seçimi). Ekrana dönüldüğünde liste ve bakiye yenilenir (bakiye: uygulama yaşam döngüsü).
 - [ ] M9.4 Test ortamı: `test-ortami.sh`'a tedarikçi uygulamasının web derlemesi (:3004) — **Kanıt:** "TEST ORTAMI HAZIR" çıktısında yeni adres
+  → **Sonuç:** `[D1]` `backend/scripts/test-ortami.sh`: supplier_app web derlemesi :3004'te sunulur, CORS ve port denetimi listesine eklendi, "TEST ORTAMI HAZIR" çıktısında "Tedarikçi uygulaması http://localhost:3004". **Kalan:** çalışan test ortamı yeniden başlatılmadığı için çıktı bir sonraki açılışta görülecek.
 - [ ] **M9 kapısı** (+ APK)
+  → **Kapı (2026-11-01):** verify-stack 1533/1533 (2026-11-01); verify-mobile 14/14; iki APK (sakin, tedarikçi) derlendi; tarayıcı `~/.siteeksen-test/kanit/M9/` 11/11; changelog + roadmap güncel. **Kalan:** M9.4 test ortamı açılış çıktısı.
+
+- [ ] **Bulgu (2026-11-01): verify-stack gece yarısı yanlış kırmızı** — 00:00–03:00 arasında 13 kontrol kırmızıya döndü (KVKK son gün, işletme projesi
+  süreleri, hatırlatmalar, valör…). Neden: servis tarihleri İstanbul saatine göre yazıyor, kontroller `$PSQL` oturumunda UTC `CURRENT_DATE` ile
+  karşılaştırıyor (verify-stack `PGTZ` ayarlamıyor). Kod hatası değil, doğrulama betiği hatası; gündüz aynı kod 1533/1533. Düzeltme önerisi:
+  verify-stack'te `export PGTZ=Europe/Istanbul` — kullanıcı onayıyla.
 
 ### M10 — Yönetim alımı
 - [ ] M10.1 Panel `/dashboard/usta-hizmet` + yönetici uygulaması: site talebi açma (MANAGER, yalnız site kategorileri), kurul/denetçi okur

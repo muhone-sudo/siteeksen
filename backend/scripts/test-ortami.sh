@@ -11,7 +11,7 @@
 #   - E-posta → Mailpit (http://localhost:18025)
 #   - Kart ödemesi → sahte iyzico, tarayıcıda ödeme sayfası (/iyzico/pay/…)
 #   - Veritabanı → Adminer (http://localhost:18080), SALT OKUNUR rol test_okuyucu (RLS'i aşar, yazamaz)
-#   - Sakin ve yönetici uygulamalarının web derlemesi (http://localhost:3002, :3003)
+#   - Sakin, yönetici ve tedarikçi uygulamalarının web derlemesi (http://localhost:3002, :3003, :3004)
 #   - Panel (http://localhost:3001)
 #   - Test hesapları (test-hesaplari.sh): her rol için bir kişi, ikinci site
 #   - Zamanlayıcı 1 dakikada bir çalışır
@@ -32,7 +32,7 @@ stop_all() {
   echo ""
   echo "Test ortamı durduruluyor..."
   pkill -f "^python3 -I \S*test-araclari/sunucu\.py" 2>/dev/null
-  fuser -k 3001/tcp 3002/tcp 3003/tcp >/dev/null 2>&1
+  fuser -k 3001/tcp 3002/tcp 3003/tcp 3004/tcp >/dev/null 2>&1
   docker rm -f siteeksen-test-adminer siteeksen-test-mailpit >/dev/null 2>&1
   bash "$SCRIPT_DIR/dev-up.sh" --stop >/dev/null 2>&1
   pkill -f "^bash \S*scripts/dev-up\.sh$" 2>/dev/null
@@ -45,7 +45,7 @@ if [ "${1:-}" = "--stop" ]; then
 fi
 
 docker info >/dev/null 2>&1 || { echo "Docker çalışmıyor: systemctl --user start docker-desktop"; exit 1; }
-for p in 3001 3002 3003 8888 $TOOLS_PORT 18025 18080 11025 55432; do
+for p in 3001 3002 3003 3004 8888 $TOOLS_PORT 18025 18080 11025 55432; do
   if (exec 3<>/dev/tcp/127.0.0.1/$p) 2>/dev/null; then
     echo "Port $p kullanımda. Önce: bash backend/scripts/test-ortami.sh --stop"; exit 1
   fi
@@ -70,7 +70,7 @@ export PAYMENT_RESULT_URL=http://localhost:3001/odeme-sonuc
 export MARKET_IYZICO_CALLBACK_URL=http://localhost:8888/api/v1/public/market/topups/iyzico/callback
 export MARKET_TOPUP_RESULT_URL=http://localhost:3001/tedarikci/bakiye
 export SCHEDULER_INTERVAL=1m
-export CORS_ALLOWED_ORIGINS=http://localhost:3001,http://localhost:3002,http://localhost:3003
+export CORS_ALLOWED_ORIGINS=http://localhost:3001,http://localhost:3002,http://localhost:3003,http://localhost:3004
 bash "$SCRIPT_DIR/dev-up.sh" >"$DATA/dev-up.log" 2>&1 &
 for _ in $(seq 1 240); do
   curl -fsS http://127.0.0.1:8888/health >/dev/null 2>&1 && break
@@ -111,7 +111,7 @@ python3 -I "$SCRIPT_DIR/test-araclari/pazaryeri.py" http://127.0.0.1:8888/api/v1
 [ "${PIPESTATUS[0]}" -eq 0 ] || { echo "Usta & Hizmet test verisi oluşturulamadı"; exit 1; }
 
 echo "=== Mobil uygulamaların web derlemesi ==="
-for app in mobile admin_app; do
+for app in mobile admin_app supplier_app; do
   if [ "${YENIDEN_DERLE:-0}" = "1" ] || [ ! -f "$ROOT/$app/build/web/index.html" ]; then
     echo "  $app derleniyor (1-2 dk)..."
     (cd "$ROOT/$app" && flutter build web --dart-define=API_BASE_URL=http://localhost:8888/api/v1 >"$DATA/web-$app.log" 2>&1) \
@@ -120,6 +120,7 @@ for app in mobile admin_app; do
 done
 python3 -m http.server 3002 --bind 127.0.0.1 --directory "$ROOT/mobile/build/web" >/dev/null 2>&1 &
 python3 -m http.server 3003 --bind 127.0.0.1 --directory "$ROOT/admin_app/build/web" >/dev/null 2>&1 &
+python3 -m http.server 3004 --bind 127.0.0.1 --directory "$ROOT/supplier_app/build/web" >/dev/null 2>&1 &
 
 echo "=== Panel ==="
 if [ ! -f "$ROOT/admin/.env.local" ]; then
@@ -136,6 +137,7 @@ cat <<EOF
   Panel               http://localhost:3001
   Sakin uygulaması    http://localhost:3002   (web derlemesi)
   Yönetici uygulaması http://localhost:3003   (web derlemesi)
+  Tedarikçi uygulaması http://localhost:3004  (SiteEksen Tedarikçi, web derlemesi)
   Adminer (DB)        http://localhost:18080  sunucu: db · kullanıcı/şifre: test_okuyucu · veritabanı: siteeksen
   E-posta (Mailpit)   http://localhost:18025
   SMS kutusu          http://localhost:$TOOLS_PORT/sms

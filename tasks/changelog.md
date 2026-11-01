@@ -12,6 +12,17 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-11-01 — Usta & Hizmet M9: SiteEksen Tedarikçi uygulaması (DOĞRULANMIŞ)
+
+- **`supplier_app/` (Flutter, Android + web):** SMS koduyla kayıt ve giriş, hesap ve belgeler, işletmeler (haritadan konum, hizmet alanı,
+  kategori, hizmet kalemleri ve fotoğraf), gelen talepler (maskeli önizleme, kabul), teklif, alıcıyla yazışma, işin tamamlandığını bildirme,
+  geçersiz talep bildirimi, puan ve yanıt, bildirimler, bakiye (iyzico ödeme sayfası; dönüşte yenilenir) ve paket.
+- **Doğrulama:** `verify-mobile.sh` üçüncü uygulamayı da denetler (pub get, analyze, test, release INTERNET izni); test ortamı tedarikçi
+  uygulamasını :3004'te sunar.
+- **Bulgu:** ödemeden sonra tarayıcı panelin bakiye sayfasına döner; uygulamaya geri dönüş adresi yok (karar bekliyor).
+- **Kanıt:** `bash backend/scripts/verify-stack.sh` → 1533/1533; `verify-mobile.sh` 14/14 (yeni kontroller önce kırmızı); iki debug APK;
+  tarayıcı D4 `~/.siteeksen-test/kanit/M9/` 11/11.
+
 ### 2026-10-31 — Usta & Hizmet M8: sakin uygulamasında "Usta & Hizmet" (DOĞRULANMIŞ)
 
 - **Vitrin (API):** `GET /market/showcase` ve `/showcase/:id` — sitenin hizmet alanındaki onaylı hesapların yayındaki işletmeleri; paket
