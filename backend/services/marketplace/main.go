@@ -73,6 +73,7 @@ func main() {
 	api.Use(middleware.AuthMiddleware(pool), middleware.AuditLog(pool, "marketplace"))
 	// Ortak: ayarlar, kategoriler, paketler (oturum açmış herkes okur); vitrindeki hizmet fotoğrafı.
 	api.GET("/meta", app.meta)
+	api.GET("/terms/balance", app.balanceTerms)
 	api.GET("/services/:id/photo", app.servicePhoto)
 
 	// Talep (M6): sakin kendi dairesi için, yönetici site adına açar; site oturumu gerekir.
@@ -135,6 +136,8 @@ func main() {
 	supplier.GET("/wallet", app.wallet)
 	supplier.POST("/topups", app.startTopup)
 	supplier.GET("/topups/:id", app.topupStatus)
+	supplier.POST("/terms/balance/accept", app.acceptBalanceTerms)
+	supplier.GET("/card-refunds", app.supplierCardRefunds)
 	supplier.POST("/package", app.changePackage)
 
 	platform := api.Group("/platform")
@@ -146,6 +149,9 @@ func main() {
 	platform.POST("/accounts/:id/suspend", app.reviewAccount("suspend"))
 	platform.POST("/accounts/:id/reinstate", app.reviewAccount("reinstate"))
 	platform.POST("/accounts/:id/close", app.closeAccount)
+	platform.GET("/card-refunds", app.platformCardRefunds)
+	platform.POST("/card-refunds/:id/manual", app.resolveCardRefund)
+	platform.POST("/card-refunds/:id/retry", app.retryCardRefund)
 	platform.GET("/documents/:id/file", app.platformDocument)
 	platform.GET("/businesses", app.platformBusinesses)
 	platform.POST("/businesses/:id/approve", app.reviewBusiness("approve"))

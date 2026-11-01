@@ -37,18 +37,21 @@ vitrin, yönetim alımı) ve tarayıcı D4 (`~/.siteeksen-test/kanit/M*`).
 |---|---|
 | Kapsam ve IDOR | **Üç kapsam** (`pkg/dbscope`): site, tedarikçi hesabı, platform; 19 pazaryeri tablosunda RLS + FORCE (077). Başka tedarikçinin hesabı/işletmesi/belgesi/talebi 404; aynı sitedeki komşunun talebi, teklifleri, yazışması ve işi 404; sakin site taleplerini göremez (403). Platform iletişim bilgisini ve yazışmaları **okuyamaz** (politika). §69, §70, §73, §74 |
 | İletişim bilgisinin açılması | Alıcının adı/telefonu/adresi ayrı tabloda; yalnız talebi **kabul edip ödemiş** hesaba açılır (RLS). Kabul işlem kaydında adıyla (`market.request.accepted`). Önizleme JSON'unda ad/telefon/adres yok. §73 |
-| Maskeleme | Talep açıklaması ve hizmet tanımlarında telefon/e-posta kalıbı gizlenir. **Açık:** fotoğrafların içeriği denetlenmez (şikâyetle platform kaldırır); kabulden sonraki yazışmalar bilerek maskelenmez |
+| Maskeleme | Talep açıklaması ve hizmet tanımlarında telefon/e-posta kalıbı gizlenir. Fotoğraflar (hizmet + talep) denetimden geçmeden vitrinde ve tedarikçide görünmez: OCR'da telefon/e-posta/web adresi → ret; açıksa yapay zekâ (sakıncalı/hata → elle onay); platform elle onay/ret/kaldır (082, `services/moderation`). Kabulden sonraki yazışmalar bilerek maskelenmez. §71, §73, §77 |
+| Yapay zekâ sağlayıcı kimliği | API anahtarı/parola PII anahtarıyla şifreli; yanıtta ve işlem kaydında görünmez; ayar ve kararlar yalnız PLATFORM_ADMIN. Yurt dışı SaaS'a fotoğraf gönderimi KVKK m.9 aktarımı — karar `questions.md` S-24. §77 |
 | Vitrin | Vergi no, belge, bakiye, hesap kimliği dönmez; telefon yalnız paketi izin veriyorsa; gizlenen yorumlar görünmez. §75 |
-| Ödeme dönüşü | Kimliksiz uç yalnız jetonu alır; sonuç **sağlayıcıdan yeniden sorgulanır**, tutar ve sepet kimliği doğrulanır; aynı dönüş iki kez gelince tek defter satırı (benzersiz indeks); dönüşü gelmeyen ödeme uzlaştırılır. `Idempotency-Key` zorunlu. §72 |
+| Ödeme dönüşü | Dönüş adresi sunucu ayarıdır (panel ya da tedarikçi uygulaması; istemci yalnız hangisini ister, adres veremez — açık yönlendirme yok); tedarikçi uygulamasında ödeme sayfası uygulama içinde açılır. Kimliksiz uç yalnız jetonu alır; sonuç **sağlayıcıdan yeniden sorgulanır**, tutar ve sepet kimliği doğrulanır; aynı dönüş iki kez gelince tek defter satırı (benzersiz indeks); dönüşü gelmeyen ödeme uzlaştırılır. `Idempotency-Key` zorunlu. §72 |
 | Bakiye | Hesap satırında CHECK ≥ 0 (borç oluşmaz); defter değiştirilemez/silinemez (süper kullanıcı dahil); kabul ücreti ve iade tek işlemde; her adımda bakiye = defter toplamı. §69, §72–§74 |
-| Hız sınırları | Tedarikçi kaydı SMS kodu: 60 sn, numara saatte 3, IP saatte 10; 5 yanlışta kilit. Sakin günlük talep sınırı (ayar). **Açık:** oturumlu mesaj/teklif uçlarında hız sınırı yok (gateway/Kong IP sınırı dışında) |
+| Hız sınırları | Tedarikçi kaydı SMS kodu: 60 sn, numara saatte 3, IP saatte 10; 5 yanlışta kilit. Sakin günlük talep sınırı (ayar). Mesaj: kişi başına dakikada 20 / 24 saatte 300; teklif: hesap başına saatte 20 yeni, teklif başına 5 düzenleme (ayar, 429; eşzamanlı istekler işlem kilidiyle sıraya girer). §74 |
 | Belge erişimi | Belgeyi yalnız sahibi ve platform indirir; her indirme erişim kaydına (sahibi/PLATFORM); açılmış belge silinemez; içerik türü dosyanın kendisinden, boyut sınırlı. §70, §71 |
 | Çıkar çatışması | Sitede görevli kişinin tedarikçi hesabına o sitenin yönetim talepleri gitmez (078). §73 |
 | Saklama | Kapanmış taleplerin iletişim bilgisi ve yazışmaları site saklama süresi sonunda anonimleşir (`MARKET_REQUEST`, 079). §74 |
 
-**Açık bulgular (karar/iş bekliyor):**
-1. Kapanıştan önce başlatılıp kapanıştan sonra tamamlanan kart yüklemesi bakiyeye yine yazılır (kart çekildiği için doğru), ama kapalı
-   hesapta kalır; platform ikinci kez elle iade etmelidir. Uzlaştırma raporunda işaretlenmesi önerilir.
-2. Mesaj/teklif uçlarında kullanıcı başına hız sınırı yok.
-3. Kartla ödemeden sonra tarayıcı panelin bakiye sayfasına döner; tedarikçi uygulaması için uygulamaya dönüş adresi yok (UX).
-4. Fotoğraf içeriğindeki iletişim bilgisi denetlenmez.
+**Açık bulgular — kapandı (FAZ M13, 2026-11-01, verify-stack 1557/1557):**
+1. ~~Kapanış sonrası tamamlanan yükleme kapalı hesaba yazılıyordu~~ → bakiyeye yazılmaz, tamamı karta iade sırasına girer (`LATE_TOPUP`);
+   kapanışta kalan bakiye son 365 gündeki yüklemelerden en yeniden eskiye karta iade edilir, kalanı bakiye koşulları m.3 gereği düşülür;
+   sonucu bilinmeyen iade çift iade olmasın diye yeniden denenmez, platform kuyruğuna düşer. Koşullar ilk yüklemeden önce ayrıca kabul
+   ettirilir (TBK m.21). §72
+2. ~~Mesaj/teklif hız sınırı yok~~ → ayarlanabilir sınırlar, 429. §74
+3. ~~Uygulamaya ödeme dönüşü yok~~ → Android'de uygulama içi ödeme sayfası, web'de uygulamanın bakiye sayfasına dönüş. §72; D4 (kanıt M13)
+4. ~~Fotoğraf içeriği denetlenmiyor~~ → OCR + isteğe bağlı yapay zekâ + platform onayı. §77

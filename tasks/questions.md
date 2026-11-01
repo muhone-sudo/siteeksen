@@ -414,3 +414,14 @@ bağlanır; hane üyesini oturan ve yönetim ekler; yönetim kiracıyı doğruda
 ## E. CEVAPLANMIŞ SORULAR
 
 _(henüz yok)_
+
+
+### S-24. Fotoğraf denetiminde yapay zekâ sağlayıcısı ve KVKK (2026-11-01, FAZ M13.4)
+- **Karar (kullanıcı):** sağlayıcı sabit değil; platform yöneticisi panelden seçer (yerel ya da SaaS; Anthropic ya da OpenAI uyumlu;
+  API anahtarı ya da kullanıcı adı/parola). Özellik açılıp kapanır; kapalıyken bütün fotoğraflar elle onaya düşer.
+- **Açık (kullanıcı + avukat):** yurt dışındaki bir SaaS sağlayıcıya fotoğraf gönderilmesi kişisel verinin yurt dışına aktarımıdır
+  (KVKK m.9; fotoğrafta yüz, plaka, belge olabilir). Sağlayıcıyla standart sözleşme imzalanıp Kurul'a bildirilmeli ve tedarikçi/sakin
+  aydınlatma metinlerine eklenmeli. Yerel model (ör. Ollama) seçilirse aktarım olmaz. Hangisinin kullanılacağı ve sağlayıcı adı
+  buraya yazılacak.
+- **Not:** Anthropic çağrısı ham HTTP ile yapılır; resmî Go SDK'sının (v2) Go 1.25 istemesi, bütün servislerin derleme imajını
+  (golang:1.24) yükseltmeyi gerektirirdi.

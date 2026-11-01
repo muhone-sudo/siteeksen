@@ -139,9 +139,19 @@ func (s *Store) DecideDispute(ctx context.Context, adminID, id string, approve b
 				return nil, err
 			}
 		case fee != nil && *fee > 0:
+			var accStatus string
+			if err := tx.QueryRow(ctx, `SELECT status FROM mp_supplier_accounts WHERE id = $1 FOR UPDATE`, accountID).Scan(&accStatus); err != nil {
+				return nil, err
+			}
 			if _, _, err := post(ctx, tx, accountID, "REFUND", *fee, ledgerRef{dispatch: &dispatchID, by: strp(adminID),
 				note: fmt.Sprintf("Geçersiz talep iadesi — %s: %s", category, note)}); err != nil {
 				return nil, err
+			}
+			// Kapalı hesapta bakiye kullanılamaz: iade edilen ücret aynı işlemde karta iadeye çevrilir (bakiye koşulları m.2).
+			if accStatus == "CLOSED" {
+				if _, err := refundBalance(ctx, tx, accountID, "CLOSED_ACCOUNT", adminID, *fee); err != nil {
+					return nil, err
+				}
 			}
 		}
 		if _, err := tx.Exec(ctx, `UPDATE mp_request_dispatch SET refunded_at = now() WHERE id = $1`, dispatchID); err != nil {

@@ -238,21 +238,28 @@ ML=$(m6 GET "/requests?scope=management" "$MG"); RL1=$(m6 GET "/requests?scope=m
 
 # Fotoğraf: sahibi ekler; gönderilen tedarikçi görür; gönderilmeyen ve komşu göremez
 PH=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$M6/requests/$REQ1/photos" -H "$R1" -F "file=@/tmp/verify-m3-kimlik.png")
+# Fotoğraf denetimi (M13.4): talep beklemeden gider; fotoğraf onaylanana kadar tedarikçiye gösterilmez (sayı da 0)
+PS0=$(code "$M6/supplier/requests/$REQ1/photos/0" -H "${HF[$WIN1]}")
+PC0=$(jget "$(m6 GET "/supplier/requests/$REQ1" "${HF[$WIN1]}")" "d['photo_count']")
+BST=$(jget "$(m6 GET "/requests/$REQ1" "$R1")" "[p['status'] for p in d['photo_statuses']]")
+m6sql "UPDATE photo_moderation SET status='APPROVED', decision_source='PLATFORM', decided_at=now() WHERE request_id='$REQ1';" >/dev/null
 PS=$(code "$M6/supplier/requests/$REQ1/photos/0" -H "${HF[$WIN1]}"); PF=$(code "$M6/supplier/requests/$REQ1/photos/0" -H "$HFAR")
 PN=$(code "$M6/requests/$REQ1/photos/0" -H "$R2"); PO=$(code "$M6/requests/$REQ1/photos/0" -H "$R1")
-[ "$PH$PS$PF$PN$PO" = "200200404404200" ] \
-  && ok "talep fotoğrafı: sahibi ekledi ve görüyor; talebin gönderildiği tedarikçi görüyor; gönderilmeyen tedarikçi ve komşu 404" \
-  || bad "fotoğraf: ekle=$PH tedarikçi=$PS gönderilmeyen=$PF komşu=$PN sahibi=$PO"
+[ "$PH$PS0$PC0" = "2004040" ] && [ "$BST" = "['PENDING']" ] && [ "$PH$PS$PF$PN$PO" = "200200404404200" ] \
+  && ok "talep fotoğrafı: sahibi ekledi ve görüyor (durumu 'denetimde'); onaydan önce tedarikçiye 404 ve sayıda yok, onaydan sonra talebin gönderildiği tedarikçi görüyor; gönderilmeyen tedarikçi ve komşu 404" \
+  || bad "fotoğraf: ekle=$PH onaysız=$PS0/$PC0 alıcı durumu=$BST tedarikçi=$PS gönderilmeyen=$PF komşu=$PN sahibi=$PO"
 
 # Süre dolumu
 m6sql "UPDATE mp_requests SET expires_at = now() - interval '1 second' WHERE id='$REQ4';" >/dev/null
-for _ in $(seq 1 15); do [ "$(m6sql "SELECT status FROM mp_requests WHERE id='$REQ4';")" = "EXPIRED" ] && break; sleep 1; done
+# Durum ve bildirim zamanlayıcının ayrı adımlarında yazılır: ikisi de beklenir (yalnız durumu beklemek yarış doğurur)
+expn() { m6sql "SELECT count(*) FROM notifications n JOIN users u ON u.id=n.recipient_user_id WHERE n.topic='market.request.expired' AND u.phone='+905550009611' AND n.payload->>'request_id'='$REQ4';"; }
+for _ in $(seq 1 20); do [ "$(m6sql "SELECT status FROM mp_requests WHERE id='$REQ4';")" = "EXPIRED" ] && [ "$(expn)" != "0" ] && break; sleep 1; done
 EX=$(m6sql "SELECT status FROM mp_requests WHERE id='$REQ4';")
-EN=$(m6sql "SELECT count(*) FROM notifications n JOIN users u ON u.id=n.recipient_user_id WHERE n.topic='market.request.expired' AND u.phone='+905550009611' AND n.payload->>'request_id'='$REQ4';")
+EN=$(expn)
 AX=$(m6 POST "/supplier/requests/$REQ4/accept" "$HP1")
 [ "$EX" = "EXPIRED" ] && [ "$EN" = "1" ] && [ "${AX##*|}" = "409" ] && [ "$(jget "$AX" "d['code']")" = "CLOSED" ] \
   && ok "süresi dolan talep zamanlayıcıyla kapandı, sahibine bildirildi; kapanan talep kabul edilemez (409)" \
-  || bad "süre dolumu: durum=$EX bildirim=$EN kabul=${AX: -80}"
+  || bad "süre dolumu: durum=$EX bildirim=$EN kabul=${AX:0:160}"
 
 # Pasif site
 m6sql "UPDATE properties SET is_active = false WHERE id='$DEMO_PROPERTY';" >/dev/null

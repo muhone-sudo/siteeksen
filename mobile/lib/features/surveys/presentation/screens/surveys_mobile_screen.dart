@@ -48,7 +48,7 @@ class _SurveysMobileScreenState extends State<SurveysMobileScreen> {
   }
 
   Future<void> _reload() async {
-    setState(() => _future = apiClient.getSurveys());
+    setState(() { _future = apiClient.getSurveys(); });
     await _future;
   }
 
@@ -187,7 +187,7 @@ class _SurveyDetailScreenState extends State<SurveyDetailScreen> {
           if (snap.hasError) {
             return ErrorStateView(
               message: toUserMessage(snap.error!),
-              onRetry: () => setState(() => _future = apiClient.getSurvey(widget.surveyId)),
+              onRetry: () => setState(() { _future = apiClient.getSurvey(widget.surveyId); }),
             );
           }
           final res = snap.data!;

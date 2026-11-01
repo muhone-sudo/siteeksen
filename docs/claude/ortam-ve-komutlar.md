@@ -17,7 +17,7 @@
 
 Repo yolu: `/home/muhone/projeler/sitesen`
 
-`verify-stack.sh` PDF kontrolleri için Python'da `pypdf` gerekir: `python3 -m venv ~/.venv-siteeksen && ~/.venv-siteeksen/bin/pip install pypdf`
+`verify-stack.sh` PDF kontrolleri için Python'da `pypdf`, fotoğraf denetimi (adım 77) test görselleri için `pillow` gerekir: `python3 -m venv ~/.venv-siteeksen && ~/.venv-siteeksen/bin/pip install pypdf pillow`
 ve doğrulamadan önce `export PATH=$HOME/.venv-siteeksen/bin:$PATH`.
 
 **Doğrulama betikleri**

@@ -38,25 +38,32 @@ type RequestInput struct {
 
 // BuyerRequest, alıcının gördüğü taleptir.
 type BuyerRequest struct {
-	ID               string     `json:"id"`
-	BuyerType        string     `json:"buyer_type"`
-	UnitID           *string    `json:"unit_id"`
-	CategoryID       string     `json:"category_id"`
-	CategoryName     string     `json:"category_name"`
-	TargetBusinessID *string    `json:"target_business_id"`
-	Description      string     `json:"description"`
-	PreferredTime    string     `json:"preferred_time"`
-	PhoneHidden      bool       `json:"phone_hidden"`
-	PhotoCount       int        `json:"photo_count"`
-	Status           string     `json:"status"`
-	AcceptedCount    int        `json:"accepted_count"`
-	MaxAccepts       int        `json:"max_accepts"`
-	DispatchCount    int        `json:"dispatch_count"`
-	ExpiresAt        time.Time  `json:"expires_at"`
-	ClosedAt         *time.Time `json:"closed_at"`
-	CreatedAt        time.Time  `json:"created_at"`
-	Masked           bool       `json:"masked,omitempty"`
-	Accepted         []Acceptor `json:"accepted,omitempty"`
+	ID               string       `json:"id"`
+	BuyerType        string       `json:"buyer_type"`
+	UnitID           *string      `json:"unit_id"`
+	CategoryID       string       `json:"category_id"`
+	CategoryName     string       `json:"category_name"`
+	TargetBusinessID *string      `json:"target_business_id"`
+	Description      string       `json:"description"`
+	PreferredTime    string       `json:"preferred_time"`
+	PhoneHidden      bool         `json:"phone_hidden"`
+	PhotoCount       int          `json:"photo_count"`
+	PhotoStatuses    []PhotoState `json:"photo_statuses"`
+	Status           string       `json:"status"`
+	AcceptedCount    int          `json:"accepted_count"`
+	MaxAccepts       int          `json:"max_accepts"`
+	DispatchCount    int          `json:"dispatch_count"`
+	ExpiresAt        time.Time    `json:"expires_at"`
+	ClosedAt         *time.Time   `json:"closed_at"`
+	CreatedAt        time.Time    `json:"created_at"`
+	Masked           bool         `json:"masked,omitempty"`
+	Accepted         []Acceptor   `json:"accepted,omitempty"`
+}
+
+// PhotoState, talep fotoğrafının denetim durumudur (M13.4): tedarikçiye yalnız APPROVED olanlar gösterilir.
+type PhotoState struct {
+	Status string  `json:"status"`
+	Reason *string `json:"reason"`
 }
 
 // Acceptor, talebi kabul etmiş işletmedir (alıcıya görünen).
@@ -347,14 +354,17 @@ func (s *Store) CreateRequest(ctx context.Context, b Buyer, in RequestInput) (st
 }
 
 const buyerRequestSelect = `SELECT r.id, r.buyer_type, r.unit_id, r.category_id, c.name, r.target_business_id, r.description,
-	r.preferred_time, r.phone_hidden, jsonb_array_length(r.photo_keys), r.status, r.accepted_count, r.max_accepts,
+	r.preferred_time, r.phone_hidden, jsonb_array_length(r.photo_keys),
+	(SELECT COALESCE(jsonb_agg(jsonb_build_object('status', COALESCE(pm.status, 'PENDING'), 'reason', pm.reason) ORDER BY k.ord), '[]')
+	   FROM jsonb_array_elements_text(r.photo_keys) WITH ORDINALITY AS k(key, ord) LEFT JOIN photo_moderation pm ON pm.storage_key = k.key),
+	r.status, r.accepted_count, r.max_accepts,
 	(SELECT count(*) FROM mp_request_dispatch d WHERE d.request_id = r.id), r.expires_at, r.closed_at, r.created_at
 	FROM mp_requests r JOIN mp_categories c ON c.id = r.category_id`
 
 func scanBuyerRequest(r pgx.Row) (*BuyerRequest, error) {
 	x := &BuyerRequest{}
 	err := r.Scan(&x.ID, &x.BuyerType, &x.UnitID, &x.CategoryID, &x.CategoryName, &x.TargetBusinessID, &x.Description,
-		&x.PreferredTime, &x.PhoneHidden, &x.PhotoCount, &x.Status, &x.AcceptedCount, &x.MaxAccepts, &x.DispatchCount,
+		&x.PreferredTime, &x.PhoneHidden, &x.PhotoCount, &x.PhotoStatuses, &x.Status, &x.AcceptedCount, &x.MaxAccepts, &x.DispatchCount,
 		&x.ExpiresAt, &x.ClosedAt, &x.CreatedAt)
 	x.Masked = strings.Contains(x.Description, rules.MaskedNotice)
 	return x, err
@@ -419,20 +429,31 @@ func (s *Store) BuyerRequestByID(ctx context.Context, b Buyer, id string) (*Buye
 }
 
 // AddRequestPhoto, talebe fotoğraf ekler (yalnız talep sahibi, en çok 3, açık ya da dolu talepte).
-func (s *Store) AddRequestPhoto(ctx context.Context, b Buyer, id, key string) error {
-	tag, err := s.site(b.PropertyID).Exec(ctx, `UPDATE mp_requests SET photo_keys = photo_keys || to_jsonb($2::text)
+func (s *Store) AddRequestPhoto(ctx context.Context, b Buyer, id, key, contentType string) error {
+	tx, err := s.site(b.PropertyID).Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+	tag, err := tx.Exec(ctx, `UPDATE mp_requests SET photo_keys = photo_keys || to_jsonb($2::text)
 		WHERE id = $1 AND requester_user_id = $3 AND status IN ('OPEN', 'FULL') AND jsonb_array_length(photo_keys) < $4`,
 		id, key, b.UserID, maxRequestPhotos)
 	if err != nil {
 		return err
 	}
 	if tag.RowsAffected() == 0 {
+		_ = tx.Rollback(ctx)
 		if _, err := s.BuyerRequestByID(ctx, b, id); err != nil {
 			return err
 		}
 		return userErr(http.StatusConflict, "PHOTOS", fmt.Sprintf("Talebe en çok %d fotoğraf eklenebilir (kapanan talebe eklenemez)", maxRequestPhotos))
 	}
-	return nil
+	// Fotoğraf denetim kuyruğuna girer (M13.4): talep beklemeden tedarikçilere gider, fotoğraf onaylanınca görünür.
+	if _, err := tx.Exec(ctx, `INSERT INTO photo_moderation (storage_key, source, request_id, property_id, uploaded_by, content_type)
+		VALUES ($1, 'REQUEST_PHOTO', $2, $3, $4, $5)`, key, id, b.PropertyID, b.UserID, contentType); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }
 
 // RequestPhotoKey, talebin n. fotoğrafının anahtarıdır: alıcı (b) ya da talebi görebilen tedarikçi (accountID).
@@ -445,7 +466,9 @@ func (s *Store) RequestPhotoKey(ctx context.Context, b *Buyer, accountID, id str
 		}
 		err = s.site(b.PropertyID).QueryRow(ctx, `SELECT photo_keys ->> $2::int FROM mp_requests WHERE id = $1`, id, n).Scan(&key)
 	} else {
-		err = s.supplier(accountID).QueryRow(ctx, `SELECT photo_keys ->> $2::int FROM mp_requests WHERE id = $1`, id, n).Scan(&key)
+		// Tedarikçi yalnız onaylı fotoğrafları görür; n, onaylılar arasındaki sıradır (photo_count da onaylı sayısıdır).
+		err = s.supplier(accountID).QueryRow(ctx, `SELECT k.key FROM mp_requests r, jsonb_array_elements_text(r.photo_keys) WITH ORDINALITY AS k(key, ord)
+			WHERE r.id = $1 AND photo_approved(k.key) ORDER BY k.ord OFFSET $2 LIMIT 1`, id, n).Scan(&key)
 	}
 	if errors.Is(err, pgx.ErrNoRows) || (err == nil && key == nil) {
 		return "", ErrNotFound
@@ -461,7 +484,8 @@ func derefKey(k *string) string {
 }
 
 const supplierRequestSelect = `SELECT r.id, r.buyer_type, c.name, r.city, r.district, d.distance_m, b.id, b.name, r.description,
-	r.preferred_time, r.phone_hidden, jsonb_array_length(r.photo_keys), r.target_business_id IS NOT NULL, r.status,
+	r.preferred_time, r.phone_hidden, (SELECT count(*) FROM jsonb_array_elements_text(r.photo_keys) AS k(key) WHERE photo_approved(k.key)),
+	r.target_business_id IS NOT NULL, r.status,
 	r.accepted_count, r.max_accepts, r.expires_at, d.visible_at, d.accepted_at, d.fee_kurus, d.used_included,
 	c.request_fee_kurus, r.created_at,
 	(SELECT o.status FROM mp_offers o WHERE o.dispatch_id = d.id ORDER BY o.created_at DESC LIMIT 1),

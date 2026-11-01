@@ -178,6 +178,13 @@ class _CreateMarketRequestScreenState extends State<CreateMarketRequestScreen> {
   }
 }
 
+const _photoStatus = {
+  'PENDING': 'denetimde',
+  'REVIEW': 'incelemede',
+  'APPROVED': 'tedarikçilere gösteriliyor',
+  'REJECTED': 'tedarikçilere gösterilmedi',
+};
+
 class MarketRequestScreen extends StatefulWidget {
   final String id;
   const MarketRequestScreen({super.key, required this.id});
@@ -202,7 +209,7 @@ class _MarketRequestScreenState extends State<MarketRequestScreen> {
       ]);
 
   Future<void> _reload() async {
-    setState(() => _future = _load());
+    setState(() { _future = _load(); });
     await _future;
   }
 
@@ -233,6 +240,10 @@ class _MarketRequestScreenState extends State<MarketRequestScreen> {
                 Text('${marketRequestStatus['${r['status']}'] ?? r['status']} · ${r['accepted_count']}/${r['max_accepts']} işletme kabul etti · ${formatDate(r['created_at'])}'),
                 const SizedBox(height: 8),
                 Text('${r['description']}'),
+                // Fotoğraf denetimi (M13.4): tedarikçiler yalnız onaylanan fotoğrafları görür.
+                for (final (i, p) in (r['photo_statuses'] as List? ?? const []).whereType<Map>().indexed)
+                  Text('Fotoğraf ${i + 1}: ${_photoStatus['${p['status']}'] ?? p['status']}${p['reason'] != null ? ' — ${p['reason']}' : ''}',
+                      style: TextStyle(fontSize: 13, color: p['status'] == 'REJECTED' ? Colors.red.shade700 : Colors.grey.shade700)),
                 if (job != null) _JobCard(id: widget.id, job: job, onAct: _act),
                 const SizedBox(height: 16),
                 Text('Teklifler', style: Theme.of(context).textTheme.titleMedium),
@@ -397,7 +408,7 @@ class _MarketChatScreenState extends State<MarketChatScreen> {
     if (text.isEmpty) return;
     if (await runSnack(context, () => apiClient.sendMarketMessage(widget.id, widget.dispatchId, text), 'Gönderildi')) {
       _body.clear();
-      setState(() => _future = apiClient.getMarketMessages(widget.id, widget.dispatchId));
+      setState(() { _future = apiClient.getMarketMessages(widget.id, widget.dispatchId); });
     }
   }
 

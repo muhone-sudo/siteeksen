@@ -2130,10 +2130,10 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Adım:** Alan (satır 126): Kategori
 - **Adım:** Alan (satır 149): Ne yapılmasını istiyorsunuz?
 - **Adım:** Alan (satır 152): Uygun zaman (isteğe bağlı)
-- **Adım:** Başlık (satır 216): Talebim
-- **Adım:** Alan (satır 361): Yorumunuz (isteğe bağlı)
-- **Adım:** Başlık (satır 407): (dinamik)
-- **Adım:** Alan (satır 449): Mesajınız
+- **Adım:** Başlık (satır 223): Talebim
+- **Adım:** Alan (satır 372): Yorumunuz (isteğe bağlı)
+- **Adım:** Başlık (satır 418): (dinamik)
+- **Adım:** Alan (satır 460): Mesajınız
 - **Adım:** Aşağı çekerek yenile (varsa) ya da ekrana yeniden gir: aynı veri gelir
 - **Beklenen:** her veri bölümü yüklenir (boşsa anlamlı boş durum mesajı; "undefined", "NaN", "null", ham JSON ya da İngilizce hata metni YOK); sayılar ve tarihler Türkçe biçimde (1.234,56 ₺ · gg.aa.yyyy); uydurma/örnek veri yok; dar ekranda (400 px) yatay kaydırma olmadan okunur.
 - **Sonuç:** http://localhost:18000/sonuc → `S-MARKET-REQUESTS-00`
@@ -2153,7 +2153,7 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 #### S-MARKET-REQUESTS-03 · Düğme: Gönderiliyor… / Talebi gönder
 - **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/usta/talep, http://localhost:3002/#/usta/talepler/:id, http://localhost:3002/#/usta/talepler/:id/mesaj/:dispatchId
 - **Adım:** "Gönderiliyor… / Talebi gönder" öğesine dokun (kaynak satırı 172)
-- **Beklenen (yazma):** `POST /market/requests` (marketplace, `services/marketplace/main.go:84`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /market/requests` (marketplace, `services/marketplace/main.go:85`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: işleyicide `hasRole` (backend/services/settings/visibility.go:74)
   - Veritabanı tetikleyicileri çalışır: `mp_requests_active_property` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
   - **Veritabanı (Adminer → SQL komutu):**
@@ -2167,21 +2167,22 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
     - Sorgu: `SELECT n.created_at, n.topic, n.channel, n.status, n.recipient_address, u.first_name || ' ' || u.last_name AS alici, n.subject FROM notifications n LEFT JOIN users u ON u.id = n.recipient_user_id WHERE n.topic LIKE '%' ORDER BY n.created_at DESC LIMIT 30;`
     - SMS/EMAIL kanalı satırı varsa: SMS kutusu (http://localhost:18000/sms) / Mailpit (http://localhost:18025) içinde metin doğru kişiye gitmiş olmalı. **SİTE_B hesabı bu bildirimi hiçbir yerde görmemeli.**
   - **Etkisi görülmeli:** Panel `/dashboard/settings`, Panel `/tedarikci/(panel)/bakiye`, Panel `/tedarikci/(panel)/isletmeler`, Panel `/tedarikci/(panel)/talepler/[id]`, Panel `/tedarikci/(panel)/talepler`, Panel `/tedarikci/(panel)`, Sakin `market_request_screens`, Yön.mobil `site_market_screens`, Yön.mobil `site_settings_screen`
-- **Beklenen (yazma):** `POST /market/requests/:id/photos` (marketplace, `services/marketplace/main.go:86`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /market/requests/:id/photos` (marketplace, `services/marketplace/main.go:87`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: işleyicide `hasRole` (backend/services/settings/visibility.go:74)
   - Veritabanı tetikleyicileri çalışır: `mp_requests_active_property` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
   - Dosya depoya yazılır; ilgili ekranda indirilebilir olmalı
   - **Veritabanı (Adminer → SQL komutu):**
+    - `photo_moderation` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM photo_moderation ORDER BY xmin::text::bigint DESC LIMIT 5;`
     - `mp_requests` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM mp_requests ORDER BY xmin::text::bigint DESC LIMIT 5;`
   - **İşlem kaydı:** `SELECT created_at, action, entity_type, status_code, user_id FROM audit_logs WHERE screen = '/api/v1/market/requests/:id/photos' ORDER BY created_at DESC LIMIT 5;` → `CREATE`, 2xx (yetkisiz denemede `DENIED`, 403)
   - **Bildirim:** üretmez — `notifications` tablosuna bu işlemle yeni satır EKLENMEMELİ.
-  - **Etkisi görülmeli:** Panel `/dashboard/settings`, Panel `/tedarikci/(panel)/talepler/[id]`, Panel `/tedarikci/(panel)/talepler`, Sakin `market_request_screens`, Yön.mobil `site_market_screens`, Yön.mobil `site_settings_screen`
+  - **Etkisi görülmeli:** Panel `/dashboard/settings`, Panel `/tedarikci/(panel)/isletmeler/[id]`, Panel `/tedarikci/(panel)/talepler/[id]`, Panel `/tedarikci/(panel)/talepler`, Sakin `market_request_screens`, Yön.mobil `site_market_screens`, Yön.mobil `site_settings_screen`
 - **Sonuç:** http://localhost:18000/sonuc → `S-MARKET-REQUESTS-03`
 
 #### S-MARKET-REQUESTS-04 · Düğme: Bu teklifi seç
 - **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/usta/talep, http://localhost:3002/#/usta/talepler/:id, http://localhost:3002/#/usta/talepler/:id/mesaj/:dispatchId
-- **Adım:** "Bu teklifi seç" öğesine dokun (kaynak satırı 263); açılan pencere/formu gerçekçi değerlerle doldurup onayla
-- **Beklenen (yazma):** `POST /market/requests/:id/offers/:offerId/select` (marketplace, `services/marketplace/main.go:90`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Adım:** "Bu teklifi seç" öğesine dokun (kaynak satırı 274); açılan pencere/formu gerçekçi değerlerle doldurup onayla
+- **Beklenen (yazma):** `POST /market/requests/:id/offers/:offerId/select` (marketplace, `services/marketplace/main.go:91`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: işleyicide `hasRole` (backend/services/settings/visibility.go:74)
   - Veritabanı tetikleyicileri çalışır: `mp_jobs_completed_refresh`, `mp_requests_active_property` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
   - **Veritabanı (Adminer → SQL komutu):**
@@ -2197,14 +2198,14 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 
 #### S-MARKET-REQUESTS-05 · Düğme: Mesaj
 - **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/usta/talep, http://localhost:3002/#/usta/talepler/:id, http://localhost:3002/#/usta/talepler/:id/mesaj/:dispatchId
-- **Adım:** "Mesaj" öğesine dokun (kaynak satırı 271); açılan pencere/formu gerçekçi değerlerle doldurup onayla
+- **Adım:** "Mesaj" öğesine dokun (kaynak satırı 282); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-MARKET-REQUESTS-05`
 
 #### S-MARKET-REQUESTS-06 · Düğme: Teklif seçmeden talebi kapat
 - **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/usta/talep, http://localhost:3002/#/usta/talepler/:id, http://localhost:3002/#/usta/talepler/:id/mesaj/:dispatchId
-- **Adım:** "Teklif seçmeden talebi kapat" öğesine dokun (kaynak satırı 286); açılan pencere/formu gerçekçi değerlerle doldurup onayla
-- **Beklenen (yazma):** `POST /market/requests/:id/close` (marketplace, `services/marketplace/main.go:91`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Adım:** "Teklif seçmeden talebi kapat" öğesine dokun (kaynak satırı 297); açılan pencere/formu gerçekçi değerlerle doldurup onayla
+- **Beklenen (yazma):** `POST /market/requests/:id/close` (marketplace, `services/marketplace/main.go:92`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: işleyicide `hasRole` (backend/services/settings/visibility.go:74)
   - Veritabanı tetikleyicileri çalışır: `mp_requests_active_property` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
   - **Veritabanı (Adminer → SQL komutu):**
@@ -2219,8 +2220,8 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 
 #### S-MARKET-REQUESTS-07 · Düğme: İş tamamlandı, onaylıyorum
 - **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/usta/talep, http://localhost:3002/#/usta/talepler/:id, http://localhost:3002/#/usta/talepler/:id/mesaj/:dispatchId
-- **Adım:** "İş tamamlandı, onaylıyorum" öğesine dokun (kaynak satırı 339)
-- **Beklenen (yazma):** `POST /market/requests/:id/job/confirm` (marketplace, `services/marketplace/main.go:95`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Adım:** "İş tamamlandı, onaylıyorum" öğesine dokun (kaynak satırı 350)
+- **Beklenen (yazma):** `POST /market/requests/:id/job/confirm` (marketplace, `services/marketplace/main.go:96`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: işleyicide `hasRole` (backend/services/settings/visibility.go:74)
   - Veritabanı tetikleyicileri çalışır: `mp_jobs_completed_refresh` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
   - **Veritabanı (Adminer → SQL komutu):**
@@ -2232,8 +2233,8 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 
 #### S-MARKET-REQUESTS-08 · Düğme: İtiraz et
 - **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/usta/talep, http://localhost:3002/#/usta/talepler/:id, http://localhost:3002/#/usta/talepler/:id/mesaj/:dispatchId
-- **Adım:** "İtiraz et" öğesine dokun (kaynak satırı 341); açılan pencere/formu gerçekçi değerlerle doldurup onayla
-- **Beklenen (yazma):** `POST /market/requests/:id/job/dispute` (marketplace, `services/marketplace/main.go:96`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Adım:** "İtiraz et" öğesine dokun (kaynak satırı 352); açılan pencere/formu gerçekçi değerlerle doldurup onayla
+- **Beklenen (yazma):** `POST /market/requests/:id/job/dispute` (marketplace, `services/marketplace/main.go:97`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: işleyicide `hasRole` (backend/services/settings/visibility.go:74)
   - Veritabanı tetikleyicileri çalışır: `mp_jobs_completed_refresh` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
   - **Veritabanı (Adminer → SQL komutu):**
@@ -2245,14 +2246,14 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 
 #### S-MARKET-REQUESTS-09 · Düğme: $i yıldız
 - **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/usta/talep, http://localhost:3002/#/usta/talepler/:id, http://localhost:3002/#/usta/talepler/:id/mesaj/:dispatchId
-- **Adım:** "$i yıldız" öğesine dokun (kaynak satırı 355); açılan pencere/formu gerçekçi değerlerle doldurup onayla
+- **Adım:** "$i yıldız" öğesine dokun (kaynak satırı 366); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-MARKET-REQUESTS-09`
 
 #### S-MARKET-REQUESTS-10 · Düğme: Puanı gönder
 - **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/usta/talep, http://localhost:3002/#/usta/talepler/:id, http://localhost:3002/#/usta/talepler/:id/mesaj/:dispatchId
-- **Adım:** "Puanı gönder" öğesine dokun (kaynak satırı 362)
-- **Beklenen (yazma):** `POST /market/requests/:id/review` (marketplace, `services/marketplace/main.go:97`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Adım:** "Puanı gönder" öğesine dokun (kaynak satırı 373)
+- **Beklenen (yazma):** `POST /market/requests/:id/review` (marketplace, `services/marketplace/main.go:98`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: işleyicide `hasRole` (backend/services/settings/visibility.go:74)
   - Veritabanı tetikleyicileri çalışır: `mp_reviews_guard`, `mp_reviews_rating_refresh` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
   - **Veritabanı (Adminer → SQL komutu):**
@@ -2266,8 +2267,8 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 
 #### S-MARKET-REQUESTS-11 · Düğme: Gönder
 - **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/usta/talep, http://localhost:3002/#/usta/talepler/:id, http://localhost:3002/#/usta/talepler/:id/mesaj/:dispatchId
-- **Adım:** "Gönder" öğesine dokun (kaynak satırı 450)
-- **Beklenen (yazma):** `POST /market/requests/:id/messages/:dispatchId` (marketplace, `services/marketplace/main.go:93`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Adım:** "Gönder" öğesine dokun (kaynak satırı 461)
+- **Beklenen (yazma):** `POST /market/requests/:id/messages/:dispatchId` (marketplace, `services/marketplace/main.go:94`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: işleyicide `hasRole` (backend/services/settings/visibility.go:74)
   - **Veritabanı (Adminer → SQL komutu):**
     - `mp_messages` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM mp_messages ORDER BY xmin::text::bigint DESC LIMIT 5;`

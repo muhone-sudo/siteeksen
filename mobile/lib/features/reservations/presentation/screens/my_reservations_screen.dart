@@ -33,7 +33,7 @@ class _MyReservationsScreenState extends State<MyReservationsScreen> {
   }
 
   Future<void> _reload() async {
-    setState(() => _future = apiClient.getReservations());
+    setState(() { _future = apiClient.getReservations(); });
     await _future;
   }
 

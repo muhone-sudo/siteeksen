@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useParams } from "next/navigation";
 import { api } from "@/lib/api";
 import { useAction, useApi } from "@/lib/use-api";
-import { ActionFeedback, Badge, Button, Card, Field, FormModal, Input, Notice, Page, QueryView, StatusBadge, Table, Textarea } from "@/components/ui/kit";
+import { ActionFeedback, Badge, Button, Card, Field, FormModal, Notice, Page, QueryView, StatusBadge, Table, Textarea } from "@/components/ui/kit";
 import { dateTime, kurus } from "@/lib/format";
 import { ACCOUNT_STATUS, BUSINESS_STATUS, DOC_STATUS, DOC_TYPE } from "@/components/market/labels";
 import type { MpNotifyResult } from "@/lib/types";
@@ -17,7 +17,7 @@ export default function PlatformAccountPage() {
     const { id } = useParams<{ id: string }>();
     const q = useApi(["mp-account", id], () => api.market.platform.account(id));
     const act = useAction();
-    const [dec, setDec] = useState<{ kind: Decision; reason: string; docs: string[]; ref?: string; day?: string } | null>(null);
+    const [dec, setDec] = useState<{ kind: Decision; reason: string; docs: string[] } | null>(null);
     const note = (r: { notification: MpNotifyResult }) => `Tedarikçiye bildirim: uygulama içi ${r.notification.in_app}${r.notification.email ? `, e-posta ${r.notification.email}` : ""}`;
     const run = (action: "approve" | "reject" | "suspend" | "reinstate", b = {}) =>
         act.run(() => api.market.platform.reviewAccount(id, action, b), { invalidate: ["mp-account", "mp-accounts"], success: note });
@@ -43,7 +43,7 @@ export default function PlatformAccountPage() {
                             </>}
                             {a.status === "APPROVED" && <Button variant="danger" disabled={act.pending} onClick={() => setDec({ kind: "suspend", reason: "", docs: [] })}>Askıya al</Button>}
                             {a.status === "SUSPENDED" && <Button disabled={act.pending} onClick={() => run("reinstate")}>Yeniden etkinleştir</Button>}
-                            {a.status !== "CLOSED" && <Button variant="secondary" disabled={act.pending} onClick={() => setDec({ kind: "close", reason: "", docs: [], ref: "", day: "" })}>Üyeliği kapat</Button>}
+                            {a.status !== "CLOSED" && <Button variant="secondary" disabled={act.pending} onClick={() => setDec({ kind: "close", reason: "", docs: [] })}>Üyeliği kapat</Button>}
                         </div>
                     </Card>
                     <Card title="Belgeler" padded={false}>
@@ -68,19 +68,17 @@ export default function PlatformAccountPage() {
                             submitLabel={dec.kind === "reject" ? "Reddet" : dec.kind === "suspend" ? "Askıya al" : "Kapat"}
                             onSubmit={async () => {
                                 const r = dec.kind === "close"
-                                    ? await act.run(() => api.market.platform.closeAccount(id, { reason: dec.reason, refund_reference: dec.ref, refund_date: dec.day }),
-                                        { invalidate: ["mp-account", "mp-accounts"], success: "Üyelik kapatıldı" })
+                                    ? await act.run(() => api.market.platform.closeAccount(id, { reason: dec.reason }),
+                                        { invalidate: ["mp-account", "mp-accounts", "mp-card-refunds"], success: (x) => "Üyelik kapatıldı."
+                                            + (x.refund.card_refund_kurus ? ` ${kurus(x.refund.card_refund_kurus)} karta iade ediliyor (${x.refund.card_refunds} yükleme).` : "")
+                                            + (x.refund.expired_kurus ? ` ${kurus(x.refund.expired_kurus)} 365 günden eski yüklemelerden kaldığı için iade edilmedi.` : "") })
                                     : await run(dec.kind, { reason: dec.reason, reject_document_ids: dec.docs });
                                 if (r) setDec(null);
                             }}>
                             {dec.kind === "close" && a.balance_kurus > 0 && (
-                                <Notice tone="amber">Kalan bakiye {kurus(a.balance_kurus)}. Önce tedarikçiye havaleyle iade edin; dekont numarası ve tarihini girin.</Notice>
-                            )}
-                            {dec.kind === "close" && a.balance_kurus > 0 && (
-                                <div className="grid gap-3 sm:grid-cols-2">
-                                    <Field label="Havale dekont no" required><Input value={dec.ref} onChange={(e) => setDec({ ...dec, ref: e.target.value })} /></Field>
-                                    <Field label="İade tarihi" required><Input type="date" value={dec.day} onChange={(e) => setDec({ ...dec, day: e.target.value })} /></Field>
-                                </div>
+                                <Notice tone="amber">Kalan bakiye {kurus(a.balance_kurus)}. Son 365 günde kartla yüklenen kısmı en yeni yüklemeden başlanarak
+                                    kendiliğinden karta iade edilir; 365 günden eski yüklemelerden kalan kısım bakiye koşullarının 3. maddesi gereği iade edilmez.
+                                    İadelerin durumu &quot;Karta iadeler&quot; ekranındadır.</Notice>
                             )}
                             <Field label="Gerekçe (tedarikçiye gösterilir)" required><Textarea value={dec.reason} onChange={(e) => setDec({ ...dec, reason: e.target.value })} /></Field>
                             {dec.kind === "reject" && documents.length > 0 && (

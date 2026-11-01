@@ -13,6 +13,7 @@ import '../../core/widgets/data_state.dart';
 import '../../core/widgets/future_list.dart';
 
 const businessStatus = {'DRAFT': 'Taslak', 'REVIEW': 'İncelemede', 'PUBLISHED': 'Yayında', 'REJECTED': 'Reddedildi', 'CLOSED': 'Kapalı'};
+const _photoStatus = {'PENDING': 'denetimde', 'REVIEW': 'incelemede', 'APPROVED': 'yayında', 'REJECTED': 'reddedildi'};
 const serviceAreas = {'KM': 'Yarıçap (km)', 'CITY': 'Tüm il', 'COUNTRY': 'Türkiye geneli'};
 
 class BusinessesScreen extends StatelessWidget {
@@ -247,7 +248,7 @@ class _ServicesState extends State<_Services> {
           'price_max_kurus': k(max),
           'unit': unit.text.trim(),
         }), 'Kaydedildi')) {
-      setState(() => _future = apiClient.services(widget.businessId));
+      setState(() { _future = apiClient.services(widget.businessId); });
     }
   }
 
@@ -255,8 +256,9 @@ class _ServicesState extends State<_Services> {
     final picked = await FilePicker.pickFiles(type: FileType.custom, allowedExtensions: const ['jpg', 'jpeg', 'png', 'webp'], withData: true);
     final f = picked?.files.single;
     if (f == null || f.bytes == null || !mounted) return;
-    if (await runSnack(context, () => apiClient.uploadServicePhoto('${s['id']}', f.bytes!, f.name), 'Fotoğraf yüklendi')) {
-      setState(() => _future = apiClient.services(widget.businessId));
+    if (await runSnack(context, () => apiClient.uploadServicePhoto('${s['id']}', f.bytes!, f.name),
+        'Fotoğraf yüklendi; platform denetiminden geçince vitrinde görünür')) {
+      setState(() { _future = apiClient.services(widget.businessId); });
     }
   }
 
@@ -276,7 +278,8 @@ class _ServicesState extends State<_Services> {
             ListTile(
               contentPadding: EdgeInsets.zero,
               title: Text('${s['name']}'),
-              subtitle: Text('${_price(s)}${s['has_photo'] == true ? ' · fotoğraflı' : ''}'),
+              subtitle: Text('${_price(s)}${s['has_photo'] == true ? ' · fotoğraf: ${_photoStatus['${s['photo_status']}'] ?? 'yüklendi'}' : ''}'
+                  '${s['photo_status'] == 'REJECTED' && s['photo_reason'] != null ? '\n${s['photo_reason']}' : ''}'),
               trailing: widget.editable
                   ? Row(mainAxisSize: MainAxisSize.min, children: [
                       IconButton(tooltip: 'Fotoğraf', onPressed: () => _photo(s), icon: const Icon(Icons.add_a_photo_outlined)),

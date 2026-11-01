@@ -48,7 +48,7 @@ class _KvkkRequestsScreenState extends State<KvkkRequestsScreen> {
   }
 
   Future<void> _reload() async {
-    setState(() => _future = apiClient.getKvkkRequests());
+    setState(() { _future = apiClient.getKvkkRequests(); });
     await _future;
   }
 

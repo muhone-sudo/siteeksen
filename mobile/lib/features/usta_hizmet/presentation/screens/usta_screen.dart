@@ -73,7 +73,7 @@ class _UstaScreenState extends State<UstaScreen> {
             future: _meta,
             builder: (context, snap) {
               if (snap.connectionState != ConnectionState.done) return const LoadingView();
-              if (snap.hasError) return ErrorStateView(message: toUserMessage(snap.error!), onRetry: () => setState(() => _meta = apiClient.getMarketMeta()));
+              if (snap.hasError) return ErrorStateView(message: toUserMessage(snap.error!), onRetry: () => setState(() { _meta = apiClient.getMarketMeta(); }));
               final cats = (snap.data!['categories'] as List? ?? const [])
                   .whereType<Map>()
                   .where((c) => c['buyer_scope'] != 'MANAGEMENT')

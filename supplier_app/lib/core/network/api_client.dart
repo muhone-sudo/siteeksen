@@ -153,8 +153,12 @@ class ApiClient {
   // --- Bakiye ve paket ---
   Future<Map<String, dynamic>> wallet() async => _map((await _dio.get('/market/supplier/wallet', queryParameters: {'limit': 50})).data);
   Future<Map<String, dynamic>> startTopup(int kurus, String idempotencyKey) async => _map((await _dio.post('/market/supplier/topups',
-          data: {'amount_kurus': kurus}, options: Options(headers: {'Idempotency-Key': idempotencyKey})))
+          data: {'amount_kurus': kurus, 'return_to': 'APP'}, options: Options(headers: {'Idempotency-Key': idempotencyKey})))
       .data);
+  Future<Map<String, dynamic>> topup(String id) async => _map((await _dio.get('/market/supplier/topups/$id')).data);
+  Future<Map<String, dynamic>> balanceTerms() async => _map((await _dio.get('/market/terms/balance')).data);
+  Future<void> acceptBalanceTerms(String version) async => _dio.post('/market/supplier/terms/balance/accept', data: {'version': version});
+  Future<List<dynamic>> cardRefunds() async => _list((await _dio.get('/market/supplier/card-refunds')).data);
   Future<Map<String, dynamic>> changePackage(String id) async => _map((await _dio.post('/market/supplier/package', data: {'package_id': id})).data);
 }
 

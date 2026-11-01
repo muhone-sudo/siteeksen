@@ -68,7 +68,7 @@ class _BudgetDetailState extends State<_BudgetDetail> {
   late Future<Map<String, dynamic>> _future = apiClient.getMyBudget(widget.id);
 
   Future<void> _reload() async {
-    setState(() => _future = apiClient.getMyBudget(widget.id));
+    setState(() { _future = apiClient.getMyBudget(widget.id); });
     await _future;
   }
 

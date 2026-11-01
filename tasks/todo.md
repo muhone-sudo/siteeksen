@@ -321,11 +321,12 @@ Koda başlanmadı. Sıra: M1 → M12; M0 kullanıcıda (kodu bekletmez, yayını
 ### M12 — Yayın öncesi
 - [ ] M12.1 Güvenlik gözden geçirmesi (IDOR, maskeleme, ödeme dönüşü, hız sınırları, belge erişimi) — **Kanıt:** bulgular ve kapanış kanıtları `docs/claude/guvenlik-durumu.md`'de
   → **Sonuç:** `[D1]` 2026-11-01: `docs/claude/guvenlik-durumu.md` "Usta & Hizmet pazaryeri — güvenlik gözden geçirmesi": kapsam/IDOR, iletişim açılması, maskeleme, vitrin, ödeme dönüşü, bakiye, hız sınırları, belge erişimi, çıkar çatışması, saklama — her satır verify adımına bağlı. **Kalan (karar bekleyen 4 açık bulgu):** kapanış sonrası tamamlanan yükleme, mesaj/teklif hız sınırı, uygulamaya ödeme dönüşü, fotoğraf içeriği.
+  → **Güncelleme (2026-11-01):** 4 açık bulgu M13'te kapandı (`guvenlik-durumu.md` kapanış satırları, verify-stack 1557/1557). Madde M0'a bağlı olduğu için açık kalır.
 - [ ] M12.2 M0 maddelerinin hepsi kapalı — **Kanıt:** M0 kanıt satırları
 - [x] M12.3 `docs/claude/servisler.md`, `docs/ozellik-haritasi/` ve `tasks/roadmap.md` güncel — **Kanıt:** `uret.sh` sonrası fark yok
   → **Sonuç:** `[D1]` 2026-11-01: `docs/claude/servisler.md`'ye marketplace (8111) satırı; `uret.sh` ile `docs/ozellik-haritasi/` ve `docs/test-plani/` yeniden üretildi (commit sonrası ikinci çalıştırmada fark yok); `tasks/roadmap.md` FAZ M satırları güncel.
 
-### M13 — M12.1'in 4 açık bulgusu (kullanıcı kararları 2026-11-01) — PLAN `[D0]`, onay bekliyor
+### M13 — M12.1'in 4 açık bulgusu (kullanıcı kararları 2026-11-01) — uygulandı (2026-11-01)
 Kararlar: (1) ödeme sayfası tedarikçi uygulamasının İÇİNDE açılır; (2) mesaj dk 20 / gün 300, teklif saatte 20, talep başına 5 düzenleme;
 (3) kalan bakiye son 365 gündeki yüklemelerden karşılanan kısmıyla karta otomatik iade, 365 günü geçen kısım iade edilmez — sözleşmeye madde,
 ayrıca kabul ettirilir (TBK m.21); (4) fotoğraflar platform onayından geçer: önce OCR, sonra (açılıp kapanan) yapay zekâ denetimi, ayrıca
@@ -335,38 +336,57 @@ platformda elle onay/ret ekranı.
 - [ ] M13.1a Android: ödeme sayfası uygulama içi WebView'de (`webview_flutter`, yeni bağımlılık); dönüş adresine gidiş yakalanır, WebView kapanır,
   bakiye sunucudan yeniden okunur (sonuç istemciye güvenilmez, `Retrieve` sunucuda kalır); kullanıcı yarıda kapatırsa yükleme PENDING kalır,
   uzlaştırma işi sonuçlandırır — **Kanıt:** APK + emülatörde/cihazda sahte iyzico ile başarılı, reddedilen, yarıda kapatılan yol (ekran görüntüsü)
-- [ ] M13.1b Web derlemesi (WebView yok): aynı sekmede açılır, dönüş adresi uygulamanın bakiye rotasına yönlenir — **Kanıt:** tarayıcı D4
-- [ ] M13.1c `verify-mobile` (analyze/test) yeşil — **Kanıt:** çıktı
+  → **Sonuç:** `[D4]` Android emülatörü (Pixel 8 API 34, debug APK, `adb reverse` ile geçici yığın): ödeme sayfası uygulamanın içinde açıldı (`~/.siteeksen-test/kanit/M13/`30), "Ödeme başarılı" → sayfa kapandı, "Ödeme alındı; bakiye güncellendi", bakiye 970 → 1.120 TL (33); X → "Ödemeden çıkılsın mı?" → Çık: bakiye değişmedi, hata yok (34–35). Bu sınamada M9'dan kalan hata bulundu: `setState(() => _future = …)` Future döndürdüğü için debug derlemede yenileme hiç çalışmıyordu (3 uygulamada 29 yer düzeltildi). Debug manifestine yalnız hata ayıklama için `usesCleartextTraffic` (sahte iyzico http). **Kalan:** reddedilen ödeme yolu emülatörde sınanmadı (web D4 ve verify-stack'te sınandı).
+- [x] M13.1b Web derlemesi (WebView yok): aynı sekmede açılır, dönüş adresi uygulamanın bakiye rotasına yönlenir — **Kanıt:** tarayıcı D4
+  → **Sonuç:** `[D4]` web derlemesi (:3013): ödeme aynı sekmede → dönüş `http://localhost:3013/#/bakiye?…status=SUCCEEDED` (panele değil), bakiye +100 TL, sonuç mesajı (`~/.siteeksen-test/kanit/M13/`20–22); verify-stack 1557/1557 (2026-11-01, `verify-m13c`): dönüş hedefi `APP` → uygulama adresine 303, istemcinin verdiği adres yok sayılır.
+- [x] M13.1c `verify-mobile` (analyze/test) yeşil — **Kanıt:** çıktı
+  → **Sonuç:** `[D2]` `verify-mobile.sh` 14/14 (2026-11-01, setState düzeltmesinden sonra).
 
 **M13.2 Hız sınırı**
-- [ ] M13.2a Mesaj: kullanıcı başına dakikada 20, günde 300; teklif: hesap başına saatte 20, teklif başına 5 düzenleme; aşımda 429 + açık mesaj;
+- [x] M13.2a Mesaj: kullanıcı başına dakikada 20, günde 300; teklif: hesap başına saatte 20, teklif başına 5 düzenleme; aşımda 429 + açık mesaj;
   sınırlar `mp_settings`'te (koda gömülmez), platform ayar ekranında — **Kanıt:** verify-stack: 21. mesaj 429, 21. teklif 429, 6. düzenleme 429; önce kırmızı
+  → **Sonuç:** `[D2]` verify-stack 1557/1557 (2026-11-01, `verify-m13c`) §74: dakikalık sınırda 429 ("dakikada en çok 3"), günlük 429, düzenleme sınırında 429, saatlik yeni teklif 429; sınırlar platform ayarından. Bozuk kodla (sınır kapalı) kırmızı gösterildi (`harness-m13-kirmizi`).
 
 **M13.3 Bakiyenin karta otomatik iadesi**
-- [ ] M13.3a `pkg/iyzico` iade (paymentId ile, kısmi tutar) + sahte iyzico'ya iade ucu — **Kanıt:** `go test ./pkg/iyzico/...`; imza testi
-- [ ] M13.3b Defter: `CARD_REFUND` hareket türü; `mp_card_refunds` (yükleme, tutar, durum, iyzico yanıtı, deneme sayısı) + RLS — **Kanıt:** verify-stack RLS listesi
-- [ ] M13.3c Üyelik kapanışı: kalan bakiye en yeni yüklemeden başlayarak (LIFO) son 365 gündeki yüklemelerin iade edilmemiş kısmından karşılanır,
+- [x] M13.3a `pkg/iyzico` iade (paymentId ile, kısmi tutar) + sahte iyzico'ya iade ucu — **Kanıt:** `go test ./pkg/iyzico/...`; imza testi
+  → **Sonuç:** `[D2]` `go test ./pkg/iyzico` (TestRefundSignsAndChecksAmount: v2 yol, imza, kuruş tutarı, farklı tutar ve failure hata); sahte iyzico'lara `/v2/payment/refund` (verify + test ortamı).
+- [x] M13.3b Defter: `CARD_REFUND` hareket türü; `mp_card_refunds` (yükleme, tutar, durum, iyzico yanıtı, deneme sayısı) + RLS — **Kanıt:** verify-stack RLS listesi
+  → **Sonuç:** `[D2]` migration 081; verify-stack 1557/1557 (2026-11-01, `verify-m13c`): RLS 152 tablo, RLS dışı liste değişmedi; para tutarlılığı fark 0.
+- [x] M13.3c Üyelik kapanışı: kalan bakiye en yeni yüklemeden başlayarak (LIFO) son 365 gündeki yüklemelerin iade edilmemiş kısmından karşılanır,
   her yükleme için karta kısmi iade; 365 günü aşan kısım `EXPIRED_BALANCE` satırıyla kapanır; elle havale kaydı yalnız iyzico hatasında yedek
   — **Kanıt:** verify-stack: üç yükleme (10, 200, 400 gün önce) ile kapanış → iki iade, bir sona erme satırı, bakiye 0, para tutarlılığı fark 0
-- [ ] M13.3d Kapanıştan sonra tamamlanan yükleme hesaba yazılmaz, aynı işte karta iade edilir — **Kanıt:** verify-stack (bulgu 3)
-- [ ] M13.3e İade başarısızsa yeniden deneme (zamanlayıcı), tükenince platforma bildirim + elle işlem kuyruğu — **Kanıt:** sahte iyzico hata modu ile
-- [ ] M13.3f Sözleşme maddesi taslağı `docs/hukuk/tedarikci-bakiye-kosullari.md` (TASLAK, avukat onayı M0.4): bakiye yalnız platform hizmetinde
+  → **Sonuç:** `[D2]` verify-stack 1557/1557 (2026-11-01, `verify-m13c`) §72: 10/200/400 günlük yüklemelerle kapanış → iki karta iade + `EXPIRED_BALANCE`, bakiye 0; ikinci hesapta kalan 150 TL yalnız EN YENİ yüklemeye iade (sıra kontrolü: eskiden başlayınca kırmızı gösterildi); iyzico'ya iki imzalı kısmi iade, SUCCEEDED. D4 panel: kapanış penceresi ve sonuç, `/platform/iadeler` "Karta iletildi", tedarikçi bakiyesinde karta iade (`~/.siteeksen-test/kanit/M13/`11–14).
+- [x] M13.3d Kapanıştan sonra tamamlanan yükleme hesaba yazılmaz, aynı işte karta iade edilir — **Kanıt:** verify-stack (bulgu 3)
+  → **Sonuç:** `[D2]` verify-stack 1557/1557 (2026-11-01, `verify-m13c`) §72: kapanış sonrası sonuçlanan yükleme bakiyeye yazılmadı (defter satırı yok), `LATE_TOPUP` iadesi; bozuk kodla kırmızı.
+- [x] M13.3e İade başarısızsa yeniden deneme (zamanlayıcı), tükenince platforma bildirim + elle işlem kuyruğu — **Kanıt:** sahte iyzico hata modu ile
+  → **Sonuç:** `[D2]` verify-stack 1557/1557 (2026-11-01, `verify-m13c`) §72: iyzico reddi → FAILED + tedarikçiye gecikme bildirimi → platform yeniden dene → SUCCEEDED; HTTP 500 (sonuç bilinmiyor) yeniden denenmedi, platform kuyruğunda, dekontsuz kapanış 422, dekontla MANUAL.
+- [x] M13.3f Sözleşme maddesi taslağı `docs/hukuk/tedarikci-bakiye-kosullari.md` (TASLAK, avukat onayı M0.4): bakiye yalnız platform hizmetinde
   kullanılır, çekilemez; üyelik sona erince son 365 günde yapılan yüklemelerden karşılanan kalan bakiye karta iade edilir; 365 günü geçen kısım
   iade edilmez; hesaplama sırası (en yeni yükleme önce) — **Kanıt:** dosya
-- [ ] M13.3g Ayrıca kabul (TBK m.21): ilk yüklemeden önce madde ayrı kutuyla gösterilir, kabul sürümü ve zamanı kaydedilir; kabulsüz yükleme 409
+  → **Sonuç:** `[D1]` `docs/hukuk/tedarikci-bakiye-kosullari.md` (TASLAK, avukat onayı M0.4; m.25 riski ve seçenekler yazılı); verify-stack 1557/1557 (2026-11-01, `verify-m13c`) §72: belgedeki metin ve sürüm uygulamadaki metinle birebir (bozulunca kırmızı).
+- [x] M13.3g Ayrıca kabul (TBK m.21): ilk yüklemeden önce madde ayrı kutuyla gösterilir, kabul sürümü ve zamanı kaydedilir; kabulsüz yükleme 409
   — **Kanıt:** verify-stack; tarayıcı D4 (panel + uygulama)
+  → **Sonuç:** `[D4]` verify-stack 1557/1557 (2026-11-01, `verify-m13c`) §72: kabulsüz yükleme 409 `TERMS_REQUIRED`, eski sürüm 409, kabul sürüm + SHA-256 + IP; panel (`~/.siteeksen-test/kanit/M13/`1–2) ve uygulama (20) kabul kartı/sürüm-tarih satırı.
 
-**M13.4 Fotoğraf denetimi (hizmet kalemi fotoğrafları; talep fotoğrafları kullanıcı kararına bağlı)**
-- [ ] M13.4a Fotoğraf durumu: yüklenen fotoğraf `PENDING`; vitrinde yalnız `APPROVED`; red gerekçeli; tedarikçi durumu ve gerekçeyi görür — **Kanıt:** verify-stack
-- [ ] M13.4b OCR (sunucuda, yeni bağımlılık: Tesseract + Türkçe dil paketi): metinde telefon/e-posta/web adresi kalıbı → yapay zekâya gitmez,
-  sonuç kullanıcı kararına göre (otomatik ret ya da elle onay kuyruğu) — **Kanıt:** test görselleriyle `go test`; verify-stack
-- [ ] M13.4c Yapay zekâ denetimi (açılıp kapanır, `mp_settings`): OCR temizse görsel sağlayıcıya gider; çıplaklık/cinsellik, şiddet, nefret
-  sembolü, uyuşturucu/silah vb. kategorilerden biri → elle onay kuyruğu; temizse otomatik onay. Kapalıyken her fotoğraf elle onay kuyruğuna.
-  Sağlayıcı hatasında fotoğraf kuyruğa düşer (sessiz onay yok). "Yapay zekâ" yalnız gerçekten çağrılan sağlayıcı için yazılır — **Kanıt:** sahte
-  sağlayıcıyla üç yol (temiz, sakıncalı, hata) verify-stack; sağlayıcı/KVKK kararı (yurt dışına aktarım, KVKK m.9) `questions.md`'de
-- [ ] M13.4d Platform ekranı `/platform/fotograflar`: bekleyenler, OCR metni, yapay zekâ sonucu ve gerekçesi; Onayla / Reddet (gerekçe zorunlu);
-  otomatik onaylananlar da listelenir, sonradan kaldırılabilir; işlem kaydı — **Kanıt:** tarayıcı D4
+**M13.4 Fotoğraf denetimi** — kararlar (2026-11-01): hizmet fotoğrafları VE talep fotoğrafları denetlenir (talep beklemeden gider,
+fotoğraf onaylanınca tedarikçiye görünür); OCR'da iletişim bilgisi → otomatik ret, gerekçe yükleyene gösterilir; yapay zekâ açılıp
+kapanır, sağlayıcı platformdan seçilir (yerel ya da SaaS; API anahtarı ya da kullanıcı adı/parola ile); OCR ayrı mikroservis.
+- [x] M13.4a `services/moderation` (8112): `photo_moderation` kuyruğu (081 sonrası migration), RLS; pazaryeri fotoğraf yüklenince kuyruğa
+  yazar; vitrin/tedarikçi yalnız `APPROVED` fotoğrafı görür; yükleyen durumu ve ret gerekçesini görür — **Kanıt:** verify-stack
+  → **Sonuç:** `[D2]` migration 082, `services/moderation` (8112, gen-deploy/gateway/dev-up/test-ortami); verify-stack 1557/1557 (2026-11-01, `verify-m13c`) §71/§73/§77: onaysız fotoğraf vitrinde ve tedarikçide 404 (sayıda yok), onaydan sonra açık; sahibi durumu görür.
+- [x] M13.4b OCR: Tesseract (`tur+eng`) servis kabında (gen-deploy ek paket); metinde telefon/e-posta/web adresi → `REJECTED` (yapay zekâya
+  gitmez) — **Kanıt:** üretilen test görselleriyle verify-stack (numaralı görsel ret, numarasız görsel geçer)
+  → **Sonuç:** `[D2]` verify-stack 1557/1557 (2026-11-01, `verify-m13c`) §77 (gerçek Tesseract, Alpine paketleriyle Docker'da): telefonlu görsel → REJECTED, gerekçe + bildirim, yapay zekâya gitmedi; temiz görsel OCR'dan geçti; `go test ./services/moderation` (TestFindContacts).
+- [x] M13.4c Yapay zekâ: platform ayarı (aç/kapa, sağlayıcı türü Anthropic / OpenAI uyumlu (Ollama, LM Studio, vLLM, OpenAI…), adres, model,
+  kimlik: API anahtarı / kullanıcı adı-parola / yok; gizli değerler şifreli, geri okunmaz; "bağlantıyı sına"). Temiz → otomatik onay;
+  sakıncalı (çıplaklık, şiddet, nefret, silah/uyuşturucu, QR/iletişim…) ya da hata → elle onay kuyruğu; kapalıyken hepsi kuyruğa
+  — **Kanıt:** sahte sağlayıcıyla (iki API biçimi) temiz/sakıncalı/hata yolları verify-stack; KVKK yurt dışı aktarım notu `questions.md`
+  → **Sonuç:** `[D2]` verify-stack 1557/1557 (2026-11-01, `verify-m13c`) §77: Anthropic Messages (API anahtarı, `anthropic-version 2026-10-21`, görsel + JSON şeması) temiz → onay; sakıncalı, sağlayıcı reddi, HTTP 500 → elle onay; OpenAI uyumlu + Basic kimlik → onay; anahtar şifreli, yanıtta ve işlem kaydında yok; 'bağlantıyı sına'. KVKK notu `questions.md` S-24.
+- [x] M13.4d Platform ekranları `/platform/fotograflar` (görsel, OCR metni, yapay zekâ sonucu, onayla/reddet gerekçeli, otomatik
+  onaylananları kaldır) ve `/platform/yapay-zeka` (sağlayıcı ayarı) — **Kanıt:** tarayıcı D4
+  → **Sonuç:** `[D4]` panel (`~/.siteeksen-test/kanit/M13/`3–10): tedarikçi kaleminde Reddedildi + gerekçe / İncelemede; platform `/platform/fotograflar` görsel + OCR metni + Onayla + reddedilenlerde OCR bulgusu; `/platform/yapay-zeka` anahtarsız açma reddi, anahtar "Tanımlı" (geri gösterilmez), bağlantı sınaması, açıkken temiz fotoğraf otomatik Yayında; uygulamada hizmet fotoğrafı durumu (23), sakin uygulamasında talep fotoğrafı "tedarikçilere gösterilmedi" (24).
 - [ ] **M13 kapısı** (verify-stack + verify-mobile + panel tsc/lint/build + para tutarlılığı + changelog + roadmap; `guvenlik-durumu.md` 4 bulgu kapanış kanıtı)
+  → **Kapı (2026-11-01):** verify-stack 1557/1557; verify-mobile 14/14; panel tsc/lint/build temiz (kopyada); para tutarlılığı fark 0; changelog + roadmap + `guvenlik-durumu.md` güncel; yeni kontroller bozuk kodla kırmızı gösterildi (19 kırmızı + sıra kontrolü). **Kalan:** M13.1a reddedilen ödeme yolu Android'de; test ortamı yeniden açılınca (`test-ortami.sh`) yeni test planı bölümleri (U-KOSUL/ODEME/IADE-02/SINIR/FOTO) test ajanınca yürütülecek.
 
 ### Yurt dışı hazırlığı (kullanıcı kararı 2026-11-01: sonra)
 - [ ] **YD.1 Site başına saat dilimi** — bugün tek `APP_TIMEZONE` (Europe/Istanbul). Tasarım: `properties.timezone` (varsayılan Europe/Istanbul);

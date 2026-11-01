@@ -148,7 +148,7 @@ class ApiListState extends State<ApiList> {
   }
 
   Future<void> reload() async {
-    setState(() => _future = widget.load());
+    setState(() { _future = widget.load(); });
     try {
       await _future;
     } catch (_) {}
@@ -213,7 +213,7 @@ class _ApiObjectState extends State<ApiObject> {
   }
 
   Future<void> _reload() async {
-    setState(() => _future = widget.load());
+    setState(() { _future = widget.load(); });
     try {
       await _future;
     } catch (_) {}

@@ -58,6 +58,34 @@ MF4W=$(m6 POST "/supplier/requests/$REQ5/messages" "$HF4" '{"body":"araya giriyo
   && ok "mesaj: alıcı ve kabul eden tedarikçi yazışıyor (iki yöne bildirim); komşu 404, kabul etmemiş tedarikçi okuyamıyor/yazamıyor 403, gönderilmemiş 404" \
   || bad "mesaj: alıcı=${MB##*|} tedarikçi=${MS##*|} liste=${ML: -80} komşu=${MN##*|} kabulsüz=${MF4##*|}/${MF4W##*|} gönderilmemiş=${MFAR##*|}"
 
+# Hız sınırı (M13.2): ayarlar geçici olarak düşürülüp sınanır, sonra geri alınır
+m6 PUT /platform/settings/message_per_minute_limit "$PA" '{"value":3}' >/dev/null
+RL1=$(m6 POST "/requests/$REQ5/messages/$D1" "$R2" '{"body":"ikinci"}'); RL2=$(m6 POST "/requests/$REQ5/messages/$D1" "$R2" '{"body":"üçüncü"}')
+RL3=$(m6 POST "/requests/$REQ5/messages/$D1" "$R2" '{"body":"dördüncü"}')
+m6 PUT /platform/settings/message_per_minute_limit "$PA" '{"value":20}' >/dev/null
+m6 PUT /platform/settings/message_per_day_limit "$PA" '{"value":3}' >/dev/null
+RL4=$(m6 POST "/requests/$REQ5/messages/$D1" "$R2" '{"body":"beşinci"}')
+m6 PUT /platform/settings/message_per_day_limit "$PA" '{"value":300}' >/dev/null
+RL5=$(m6 POST "/requests/$REQ5/messages/$D1" "$R2" '{"body":"sınır geri alındı"}')
+[ "${RL1##*|}" = "201" ] && [ "${RL2##*|}" = "201" ] && [ "${RL3##*|}" = "429" ] && grep -q 'dakikada en çok 3' <<<"$RL3" \
+  && [ "${RL4##*|}" = "429" ] && grep -q '24 saat' <<<"$RL4" && [ "${RL5##*|}" = "201" ] \
+  && [ "$(m6sql "SELECT count(*) FROM mp_messages WHERE request_id='$REQ5' AND sender_side='BUYER';")" = "4" ] \
+  && ok "mesaj hız sınırı: dakikalık sınırda 429 (açık mesajla), günlük sınırda 429; sınır ayardan geliyor, geri alınınca gönderim sürdü; reddedilen mesaj kaydolmadı" \
+  || bad "mesaj sınırı: ${RL1##*|} ${RL2##*|} dk=${RL3: -120} gün=${RL4: -120} sonra=${RL5##*|}"
+m6 PUT /platform/settings/offer_edit_limit "$PA" '{"value":2}' >/dev/null
+OE1=$(m6 POST "/supplier/requests/$REQ5/offers" "$HF2" '{"amount_kurus":120000,"description":"Yeni petek takılır (1)","valid_until":"2099-12-31"}')
+OE2=$(m6 POST "/supplier/requests/$REQ5/offers" "$HF2" '{"amount_kurus":120000,"description":"Yeni petek takılır (2)","valid_until":"2099-12-31"}')
+OE3=$(m6 POST "/supplier/requests/$REQ5/offers" "$HF2" '{"amount_kurus":120000,"description":"Yeni petek takılır (3)","valid_until":"2099-12-31"}')
+m6 PUT /platform/settings/offer_edit_limit "$PA" '{"value":5}' >/dev/null
+m6 PUT /platform/settings/offer_per_hour_limit "$PA" '{"value":1}' >/dev/null
+OH=$(m6 POST "/supplier/requests/$REQ5/offers" "$HF3" '{"amount_kurus":95000,"description":"Geçici onarım (yeniden)","valid_until":"2099-12-31"}')
+m6 PUT /platform/settings/offer_per_hour_limit "$PA" '{"value":20}' >/dev/null
+[ "${OE1##*|}" = "200" ] && [ "${OE2##*|}" = "200" ] && [ "${OE3##*|}" = "429" ] && grep -q 'en çok 2 kez' <<<"$OE3" \
+  && [ "$(m6sql "SELECT edit_count || '|' || description FROM mp_offers WHERE id='$(jget "$O2" "d['id']")';")" = "2|Yeni petek takılır (2)" ] \
+  && [ "${OH##*|}" = "429" ] && grep -q 'saatte en çok 1' <<<"$OH" \
+  && ok "teklif hız sınırı: düzenleme sınırında 429 (teklif son geçerli hâlinde kaldı); saatlik yeni teklif sınırında 429 (geri çekip yeniden vermek de sayılır)" \
+  || bad "teklif sınırı: düzenle=${OE1##*|}/${OE2##*|}/${OE3: -120} saatlik=${OH: -120}"
+
 # Seçim (M7.2)
 LB=$(m6sql "SELECT count(*) FROM mp_wallet_ledger;")
 SE=$(m6 POST "/requests/$REQ5/offers/$(jget "$O1B" "d['id']")/select" "$R2")
@@ -174,7 +202,7 @@ RR=$(curl -s -X POST "http://127.0.0.1:19930/api/v1/retention-rules/run" -H "$MG
 AN=$(m6sql "SELECT string_agg(COALESCE(c.contact_name,'-') || ':' || COALESCE(c.contact_phone,'-'), ',' ORDER BY r.created_at) FROM mp_request_contacts c JOIN mp_requests r ON r.id=c.request_id WHERE r.id IN ('$REQ5','$REQ6','$REQ7');")
 AM=$(m6sql "SELECT count(*) FILTER (WHERE anonymized_at IS NOT NULL AND body='[imha edildi]') || '|' || count(*) FROM mp_messages WHERE request_id='$REQ5';")
 KEEP=$(m6sql "SELECT (SELECT count(*) FROM mp_requests WHERE id IN ('$REQ5','$REQ6')) || '|' || (SELECT count(*) FROM mp_wallet_ledger l JOIN mp_request_dispatch d ON d.id=l.dispatch_id WHERE d.request_id='$REQ5');")
-[ "$RS" = "200" ] && [ "$AN" = "[imha edildi]:-,[imha edildi]:-,Sakin M6-2:+905550009612" ] && [ "$AM" = "2|2" ] && [ "$KEEP" = "2|4" ] \
+[ "$RS" = "200" ] && [ "$AN" = "[imha edildi]:-,[imha edildi]:-,Sakin M6-2:+905550009612" ] && [ "$AM" = "5|5" ] && [ "$KEEP" = "2|4" ] \
   && [ "$(m6sql "SELECT count(*) FROM data_destruction_log WHERE category='MARKET_REQUEST' AND record_count >= 2;")" -ge 1 ] \
   && ok "saklama: süresi dolan kapanmış taleplerin adı/telefonu ve mesajları anonimleşti, yeni talep korundu; talep ve defter kayıtları duruyor; imha kaydı yazıldı" \
   || bad "saklama: kural=$RS iletişim=$AN mesaj=$AM kalan=$KEEP çalıştırma=${RR: -200}"

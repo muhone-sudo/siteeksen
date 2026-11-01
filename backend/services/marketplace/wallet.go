@@ -45,7 +45,7 @@ func (a *App) wallet(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, gin.H{"balance_kurus": acc.BalanceKurus, "package": acc.Package, "next_package_id": acc.NextPackageID,
 		"package_renews_at": acc.PackageRenewsAt, "period_included_left": acc.PeriodIncludedLeft, "period_sms_left": acc.PeriodSMSLeft,
-		"data": list, "total": total, "limit": limit, "offset": offset, "card_ready": a.card != nil})
+		"data": list, "total": total, "limit": limit, "offset": offset, "card_ready": a.card != nil, "status": acc.Status})
 }
 
 func (a *App) startTopup(c *gin.Context) {
@@ -58,14 +58,16 @@ func (a *App) startTopup(c *gin.Context) {
 		return
 	}
 	var in struct {
-		AmountKurus int64 `json:"amount_kurus"`
+		AmountKurus int64  `json:"amount_kurus"`
+		ReturnTo    string `json:"return_to"`
 	}
 	if err := c.ShouldBindJSON(&in); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "amount_kurus (kuruş, tam sayı) zorunludur"})
 		return
 	}
 	ctx := c.Request.Context()
-	t, created, err := a.store.CreateTopup(ctx, id, c.GetString("user_id"), in.AmountKurus, strings.TrimSpace(c.GetHeader("Idempotency-Key")))
+	t, created, err := a.store.CreateTopup(ctx, id, c.GetString("user_id"), in.AmountKurus, strings.TrimSpace(c.GetHeader("Idempotency-Key")),
+		strings.ToUpper(strings.TrimSpace(in.ReturnTo)))
 	if err != nil {
 		fail(c, err, "bakiye yükleme")
 		return
@@ -113,7 +115,7 @@ func (a *App) startTopup(c *gin.Context) {
 		fail(c, err, "ödeme kaydı")
 		return
 	}
-	c.JSON(http.StatusCreated, gin.H{"topup": t, "checkout_url": init.PaymentPageURL,
+	c.JSON(http.StatusCreated, gin.H{"topup": t, "checkout_url": init.PaymentPageURL, "result_url": topupResultURL(t.ReturnTarget),
 		"note": "Ödeme sayfasında kart bilgilerinizi ve 3D Secure doğrulamasını girin. Tutar, ödeme onaylanınca bakiyenize eklenir."})
 }
 
@@ -130,11 +132,18 @@ func (a *App) topupStatus(c *gin.Context) {
 	c.JSON(http.StatusOK, t)
 }
 
+const lateTopupMsg = "Ödeme alındı ancak üyeliğiniz kapalı olduğu için tutar bakiyeye yazılmadı; tamamı kartınıza iade edilecek."
+
 // settleTopup, yüklemenin sonucunu sağlayıcıdan sorar; tutar ve sepet kimliği doğrulanınca bakiyeye işler.
 // expire=true ise sonuç hâlâ belirsizse yükleme başarısız kapanır (tutar çekilmemiştir).
 func (a *App) settleTopup(ctx context.Context, t *store.Topup, expire bool) (string, string, error) {
 	switch t.Status {
 	case "SUCCEEDED":
+		if q, err := a.store.TopupRefundQueued(ctx, t.AccountID, t.ID); err != nil {
+			return "", "", err
+		} else if q {
+			return "SUCCEEDED", lateTopupMsg, nil
+		}
 		return "SUCCEEDED", "Bakiye yüklendi.", nil
 	case "FAILED":
 		msg := ""
@@ -163,8 +172,12 @@ func (a *App) settleTopup(ctx context.Context, t *store.Topup, expire bool) (str
 			msg := "Bankadan dönen tutar yükleme kaydıyla uyuşmadı; bakiyeye işlenmedi. Destek ekibi inceleyecek."
 			return "FAILED", msg, a.store.FailTopup(ctx, t.AccountID, t.ID, msg)
 		}
-		if _, err := a.store.CompleteTopup(ctx, t.AccountID, t.ID, res.PaymentID); err != nil {
+		_, queued, err := a.store.CompleteTopup(ctx, t.AccountID, t.ID, res.PaymentID)
+		if err != nil {
 			return "", "", err
+		}
+		if queued {
+			return "SUCCEEDED", lateTopupMsg, nil
 		}
 		return "SUCCEEDED", "Bakiye yüklendi.", nil
 	case "FAILURE":
@@ -176,6 +189,18 @@ func (a *App) settleTopup(ctx context.Context, t *store.Topup, expire bool) (str
 		return "FAILED", msg, a.store.FailTopup(ctx, t.AccountID, t.ID, msg)
 	}
 	return "PENDING", "3D Secure doğrulaması bekleniyor.", nil
+}
+
+// topupResultURL, ödeme dönüşünde tarayıcının gideceği adrestir (sunucu ayarı): panel ya da tedarikçi uygulaması
+// (MARKET_TOPUP_APP_RESULT_URL; uygulama içi ödeme sayfası bu adrese gidişi yakalayıp kapanır). Uygulama adresi
+// tanımlı değilse panel adresi kullanılır.
+func topupResultURL(target string) string {
+	if target == "APP" {
+		if u := strings.TrimSpace(os.Getenv("MARKET_TOPUP_APP_RESULT_URL")); u != "" {
+			return u
+		}
+	}
+	return strings.TrimSpace(os.Getenv("MARKET_TOPUP_RESULT_URL"))
 }
 
 // topupCallback: kimliksiz; iyzico tarayıcıyı jetonla gönderir. Sonuç sağlayıcıdan YENİDEN sorgulanır.
@@ -199,7 +224,7 @@ func (a *App) topupCallback(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Ödeme sonucu işlenemedi; durum birkaç dakika içinde kendiliğinden güncellenecek"})
 		return
 	}
-	if base := strings.TrimSpace(os.Getenv("MARKET_TOPUP_RESULT_URL")); base != "" && !strings.Contains(c.GetHeader("Accept"), "application/json") {
+	if base := topupResultURL(t.ReturnTarget); base != "" && !strings.Contains(c.GetHeader("Accept"), "application/json") {
 		q := url.Values{"topup_id": {t.ID}, "status": {status}, "message": {msg}}
 		c.Redirect(http.StatusSeeOther, base+"?"+q.Encode())
 		return
@@ -230,22 +255,167 @@ func (a *App) changePackage(c *gin.Context) {
 
 func (a *App) closeAccount(c *gin.Context) {
 	var in struct {
-		Reason          string `json:"reason"`
-		RefundReference string `json:"refund_reference"`
-		RefundDate      string `json:"refund_date"`
+		Reason string `json:"reason"`
 	}
 	_ = c.ShouldBindJSON(&in)
 	admin := c.GetString("user_id")
-	acc, err := a.store.CloseAccount(c.Request.Context(), admin, c.Param("id"), strings.TrimSpace(in.Reason),
-		strings.TrimSpace(in.RefundReference), strings.TrimSpace(in.RefundDate))
+	acc, out, err := a.store.CloseAccount(c.Request.Context(), admin, c.Param("id"), strings.TrimSpace(in.Reason))
 	if err != nil {
 		fail(c, err, "üyelik kapanışı")
 		return
 	}
-	c.Set("audit_details", gin.H{"account_id": acc.ID, "refund_reference": in.RefundReference, "refund_date": in.RefundDate})
-	res := a.notifySupplier(c.Request.Context(), admin, acc.ID, "market.supplier.closed", "Usta & Hizmet üyeliğiniz", "Usta & Hizmet üyeliğiniz kapatıldı. "+
-		"Gerekçe: "+in.Reason, map[string]any{"account_id": acc.ID}, "")
-	c.JSON(http.StatusOK, gin.H{"account": acc, "notification": res})
+	c.Set("audit_details", gin.H{"account_id": acc.ID, "card_refund_kurus": out.CardRefundKurus, "card_refunds": out.CardRefunds,
+		"expired_kurus": out.ExpiredKurus})
+	body := "Usta & Hizmet üyeliğiniz kapatıldı. Gerekçe: " + in.Reason + "."
+	if out.CardRefundKurus > 0 {
+		body += " Kalan bakiyenizin " + store.TL(out.CardRefundKurus) + " tutarı yükleme yaptığınız karta iade ediliyor."
+	}
+	if out.ExpiredKurus > 0 {
+		body += " " + store.TL(out.ExpiredKurus) + " tutarı 365 günden eski yüklemelerden kaldığı için bakiye koşullarının 3. maddesi gereği iade edilmedi."
+	}
+	res := a.notifySupplier(c.Request.Context(), admin, acc.ID, "market.supplier.closed", "Usta & Hizmet üyeliğiniz", body,
+		map[string]any{"account_id": acc.ID}, "")
+	a.kickCardRefunds()
+	c.JSON(http.StatusOK, gin.H{"account": acc, "refund": out, "notification": res})
+}
+
+// balanceTerms, yürürlükteki bakiye koşullarını ve (tedarikçiyse) kabul durumunu döner.
+func (a *App) balanceTerms(c *gin.Context) {
+	out := gin.H{"key": store.BalanceTermsKey, "version": store.BalanceTermsVersion, "title": store.BalanceTermsTitle,
+		"text": store.BalanceTermsText, "sha256": store.BalanceTermsSHA256(), "accepted": nil}
+	if id, err := a.store.AccountIDOfUser(c.Request.Context(), c.GetString("user_id")); err == nil && id != "" {
+		acc, err := a.store.BalanceTermsAccepted(c.Request.Context(), id)
+		if err != nil {
+			fail(c, err, "koşul kabulü")
+			return
+		}
+		out["accepted"] = acc
+	}
+	c.JSON(http.StatusOK, out)
+}
+
+func (a *App) acceptBalanceTerms(c *gin.Context) {
+	id := a.accountID(c)
+	if id == "" {
+		return
+	}
+	var in struct {
+		Version string `json:"version"`
+	}
+	if err := c.ShouldBindJSON(&in); err != nil || in.Version == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Kabul edilen koşul sürümü (version) zorunludur"})
+		return
+	}
+	acc, err := a.store.AcceptBalanceTerms(c.Request.Context(), id, c.GetString("user_id"), in.Version, c.ClientIP())
+	if err != nil {
+		fail(c, err, "koşul kabulü")
+		return
+	}
+	c.Set("audit_details", gin.H{"terms": store.BalanceTermsKey, "version": acc.Version, "sha256": store.BalanceTermsSHA256()})
+	c.JSON(http.StatusOK, gin.H{"accepted": acc, "message": "Bakiye ve iade koşullarını kabul ettiniz"})
+}
+
+func (a *App) supplierCardRefunds(c *gin.Context) {
+	id := a.accountID(c)
+	if id == "" {
+		return
+	}
+	list, err := a.store.SupplierCardRefunds(c.Request.Context(), id)
+	if err != nil {
+		fail(c, err, "karta iadeler")
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": list})
+}
+
+func (a *App) platformCardRefunds(c *gin.Context) {
+	list, err := a.store.PlatformCardRefunds(c.Request.Context(), c.GetString("user_id"), strings.ToUpper(strings.TrimSpace(c.Query("status"))))
+	if err != nil {
+		fail(c, err, "karta iadeler")
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"data": list})
+}
+
+func (a *App) resolveCardRefund(c *gin.Context) {
+	var in struct {
+		Reference string `json:"reference"`
+		Date      string `json:"date"`
+	}
+	_ = c.ShouldBindJSON(&in)
+	r, err := a.store.ResolveCardRefundManually(c.Request.Context(), c.GetString("user_id"), c.Param("id"), strings.TrimSpace(in.Reference), strings.TrimSpace(in.Date))
+	if err != nil {
+		fail(c, err, "elle iade kaydı")
+		return
+	}
+	c.Set("audit_details", gin.H{"card_refund_id": r.ID, "reference": r.ManualReference, "date": in.Date, "amount_kurus": r.AmountKurus})
+	a.notifySupplier(c.Request.Context(), c.GetString("user_id"), r.AccountID, "market.refund.completed", "İadeniz yapıldı",
+		store.TL(r.AmountKurus)+" tutarındaki iadeniz banka hesabınıza havaleyle gönderildi (dekont "+in.Reference+").", map[string]any{"card_refund_id": r.ID},
+		"market.refund.completed:"+r.ID)
+	c.JSON(http.StatusOK, r)
+}
+
+func (a *App) retryCardRefund(c *gin.Context) {
+	r, err := a.store.RetryCardRefund(c.Request.Context(), c.GetString("user_id"), c.Param("id"))
+	if err != nil {
+		fail(c, err, "iade yeniden deneme")
+		return
+	}
+	c.Set("audit_details", gin.H{"card_refund_id": r.ID})
+	a.kickCardRefunds()
+	c.JSON(http.StatusOK, r)
+}
+
+// processCardRefunds, sırası gelen karta iadeleri iyzico'ya iletir. Sağlayıcı açık bir "failure" döndürürse yeniden denenir;
+// ağ hatası ya da tutar uyuşmazlığında sonuç bilinmediği için yeniden DENENMEZ (çift iade olmasın): FAILED olur, platform
+// iyzico panelinden kontrol edip elle kapatır ya da yeniden dener.
+func (a *App) processCardRefunds(ctx context.Context) {
+	list, err := a.store.ClaimDueCardRefunds(ctx)
+	if err != nil {
+		log.Printf("[marketplace] karta iade kuyruğu: %v", err)
+		return
+	}
+	for _, r := range list {
+		var done *store.CardRefund
+		switch {
+		case a.card == nil:
+			done, err = a.store.FinishCardRefund(ctx, r.ID, false, false, "", "Kartla ödeme bu kurulumda yapılandırılmamış; iade elle yapılmalı")
+		case r.PaymentID == "":
+			done, err = a.store.FinishCardRefund(ctx, r.ID, false, false, "", "Yüklemenin ödeme kimliği yok; iade elle yapılmalı")
+		default:
+			res, rerr := a.card.Refund(ctx, r.PaymentID, r.AmountKurus, r.ID, "")
+			var ae *iyzico.APIError
+			switch {
+			case rerr == nil:
+				done, err = a.store.FinishCardRefund(ctx, r.ID, true, false, res.RefundHostReference, "")
+			case errors.As(rerr, &ae):
+				done, err = a.store.FinishCardRefund(ctx, r.ID, false, true, "", "iyzico reddetti: "+ae.Code+" "+ae.Message)
+			default:
+				log.Printf("[marketplace] KRİTİK: karta iade sonucu bilinmiyor (%s): %v", r.ID, rerr)
+				done, err = a.store.FinishCardRefund(ctx, r.ID, false, false, "",
+					"Sonuç bilinmiyor ("+rerr.Error()+"); iyzico panelinden kontrol edip elle kapatın ya da yeniden deneyin")
+			}
+		}
+		if err != nil {
+			log.Printf("[marketplace] karta iade sonucu yazılamadı (%s): %v", r.ID, err)
+			continue
+		}
+		switch done.Status {
+		case "SUCCEEDED":
+			a.notifySupplier(ctx, "", done.AccountID, "market.refund.completed", "Kartınıza iade yapıldı",
+				store.TL(done.AmountKurus)+" tutarındaki iade talimatı kartınıza iletildi. Hesabınıza yansıma süresi bankanıza bağlıdır.",
+				map[string]any{"card_refund_id": done.ID}, "market.refund.completed:"+done.ID)
+		case "FAILED":
+			a.notifySupplier(ctx, "", done.AccountID, "market.refund.delayed", "İadeniz gecikti",
+				store.TL(done.AmountKurus)+" tutarındaki iade kartınıza yapılamadı; platform iadeyi elle (havaleyle) tamamlayacak.",
+				map[string]any{"card_refund_id": done.ID}, "market.refund.delayed:"+done.ID)
+		}
+	}
+}
+
+// kickCardRefunds, yeni iadeleri zamanlayıcıyı beklemeden işler.
+func (a *App) kickCardRefunds() {
+	go a.processCardRefunds(context.Background())
 }
 
 // lowBalanceCheck, bakiye eşiğin altındaysa tedarikçiye (günde bir kez) haber verir.

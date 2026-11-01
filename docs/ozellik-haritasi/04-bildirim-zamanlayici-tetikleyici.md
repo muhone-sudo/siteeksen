@@ -57,24 +57,29 @@
 | `POST /consumption/statements/:id/objections` | iot · `services/iot/main.go:471` | `statement.objection` | Approvers |
 | `POST /consumption/objections/:id/respond` | iot · `services/iot/main.go:473` | `statement.objection.answer` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
 | `POST /public/sensors/data` | iot · `services/iot/sensors.go:127` | `{topic}` | Operations |
-| `POST /market/requests` | marketplace · `services/marketplace/main.go:84` | `{topic}` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
-| `POST /market/requests/:id/offers/:offerId/select` | marketplace · `services/marketplace/main.go:90` | `{topic}` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
-| `POST /market/requests/:id/close` | marketplace · `services/marketplace/main.go:91` | `{topic}` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
-| `POST /market/requests/:id/messages/:dispatchId` | marketplace · `services/marketplace/main.go:93` | `{topic}` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
-| `POST /market/requests/:id/review` | marketplace · `services/marketplace/main.go:97` | `{topic}` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
-| `POST /market/supplier/requests/:id/offers` | marketplace · `services/marketplace/main.go:127` | `{topic}` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
-| `POST /market/supplier/requests/:id/messages` | marketplace · `services/marketplace/main.go:130` | `{topic}` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
-| `POST /market/supplier/jobs/:id/done` | marketplace · `services/marketplace/main.go:132` | `{topic}` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
-| `POST /market/supplier/package` | marketplace · `services/marketplace/main.go:138` | `market.wallet.low` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
-| `POST /market/platform/accounts/:id/approve` | marketplace · `services/marketplace/main.go:144` | `{topic}` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
-| `POST /market/platform/accounts/:id/reject` | marketplace · `services/marketplace/main.go:145` | `{topic}` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
-| `POST /market/platform/accounts/:id/suspend` | marketplace · `services/marketplace/main.go:146` | `{topic}` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
-| `POST /market/platform/accounts/:id/reinstate` | marketplace · `services/marketplace/main.go:147` | `{topic}` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
-| `POST /market/platform/accounts/:id/close` | marketplace · `services/marketplace/main.go:148` | `{topic}` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
-| `POST /market/platform/businesses/:id/approve` | marketplace · `services/marketplace/main.go:151` | `{topic}` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
-| `POST /market/platform/businesses/:id/reject` | marketplace · `services/marketplace/main.go:152` | `{topic}` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
-| `POST /market/platform/disputes/:id/approve` | marketplace · `services/marketplace/main.go:161` | `{topic}` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
-| `POST /market/platform/disputes/:id/reject` | marketplace · `services/marketplace/main.go:162` | `{topic}` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /market/requests` | marketplace · `services/marketplace/main.go:85` | `{topic}` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /market/requests/:id/offers/:offerId/select` | marketplace · `services/marketplace/main.go:91` | `{topic}` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /market/requests/:id/close` | marketplace · `services/marketplace/main.go:92` | `{topic}` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /market/requests/:id/messages/:dispatchId` | marketplace · `services/marketplace/main.go:94` | `{topic}` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /market/requests/:id/review` | marketplace · `services/marketplace/main.go:98` | `{topic}` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /market/supplier/requests/:id/offers` | marketplace · `services/marketplace/main.go:128` | `{topic}` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /market/supplier/requests/:id/messages` | marketplace · `services/marketplace/main.go:131` | `{topic}` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /market/supplier/jobs/:id/done` | marketplace · `services/marketplace/main.go:133` | `{topic}` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /market/supplier/package` | marketplace · `services/marketplace/main.go:141` | `market.wallet.low` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /market/platform/accounts/:id/approve` | marketplace · `services/marketplace/main.go:147` | `{topic}` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /market/platform/accounts/:id/reject` | marketplace · `services/marketplace/main.go:148` | `{topic}` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /market/platform/accounts/:id/suspend` | marketplace · `services/marketplace/main.go:149` | `{topic}` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /market/platform/accounts/:id/reinstate` | marketplace · `services/marketplace/main.go:150` | `{topic}` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /market/platform/accounts/:id/close` | marketplace · `services/marketplace/main.go:151` | `{topic}` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /market/platform/card-refunds/:id/manual` | marketplace · `services/marketplace/main.go:153` | `{topic}` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /market/platform/card-refunds/:id/retry` | marketplace · `services/marketplace/main.go:154` | `{topic}` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /market/platform/businesses/:id/approve` | marketplace · `services/marketplace/main.go:157` | `{topic}` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /market/platform/businesses/:id/reject` | marketplace · `services/marketplace/main.go:158` | `{topic}` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /market/platform/disputes/:id/approve` | marketplace · `services/marketplace/main.go:167` | `{topic}` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /market/platform/disputes/:id/reject` | marketplace · `services/marketplace/main.go:168` | `{topic}` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /moderation/photos/:id/approve` | moderation · `services/moderation/main.go:69` | `market.photo.rejected` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /moderation/photos/:id/reject` | moderation · `services/moderation/main.go:70` | `market.photo.rejected` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
+| `POST /moderation/photos/:id/recheck` | moderation · `services/moderation/main.go:71` | `market.photo.rejected` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
 | `POST /notifications` | notification · `services/notification/main.go:158` | `{{in}.Topic}` | işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta |
 | `POST /packages` | package · `services/package/main.go:133` | `package.received` | UnitUsers |
 | `POST /public/devices/heartbeat` | parking · `services/parking/devices.go:37` | — | Operations |

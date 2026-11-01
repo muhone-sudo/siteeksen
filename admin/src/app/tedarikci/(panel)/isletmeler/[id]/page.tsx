@@ -7,7 +7,7 @@ import { api } from "@/lib/api";
 import { useAction, useApi } from "@/lib/use-api";
 import { ActionFeedback, Badge, Button, Card, Field, FormModal, Grid, Input, Notice, Page, QueryView, Select, StatusBadge, Table, Textarea } from "@/components/ui/kit";
 import { kurus } from "@/lib/format";
-import { BUSINESS_STATUS, SERVICE_AREA } from "@/components/market/labels";
+import { BUSINESS_STATUS, PHOTO_STATUS, SERVICE_AREA } from "@/components/market/labels";
 import { ServicePhoto } from "@/components/market/service-photo";
 import { FieldGroup } from "@/components/market/field-group";
 import type { MpBusiness, MpBusinessInput, MpService, MpServiceInput } from "@/lib/types";
@@ -146,13 +146,19 @@ function Services({ businessId, readOnly }: { businessId: string; readOnly: bool
                 if (!file || !photoFor) return;
                 const form = new FormData();
                 form.append("file", file);
-                void act.run(() => api.market.uploadServicePhoto(photoFor, form), { invalidate: ["market-services"], success: "Fotoğraf yüklendi" })
+                void act.run(() => api.market.uploadServicePhoto(photoFor, form), { invalidate: ["market-services"], success: (r) => r.message ?? "Fotoğraf yüklendi" })
                     .then(() => { e.target.value = ""; setPhotoFor(null); });
             }} />
             <QueryView q={list} empty="Henüz hizmet eklenmedi">
                 {(d) => (
                     <Table rows={d.data} rowKey={(s) => s.id} columns={[
-                        { header: "", cell: (s) => (s.has_photo ? <ServicePhoto id={s.id} className="h-12 w-12 rounded object-cover" /> : <span className="text-xs text-gray-400">—</span>) },
+                        { header: "", cell: (s) => (s.has_photo ? (
+                            <div className="space-y-1">
+                                <ServicePhoto id={s.id} className="h-12 w-12 rounded object-cover" />
+                                {s.photo_status && <StatusBadge value={s.photo_status} map={PHOTO_STATUS} />}
+                                {s.photo_status === "REJECTED" && s.photo_reason && <p className="max-w-48 text-xs text-red-600">{s.photo_reason}</p>}
+                            </div>
+                        ) : <span className="text-xs text-gray-400">—</span>) },
                         { header: "Hizmet", cell: (s) => <div><p className="font-medium">{s.name}</p><p className="text-xs text-gray-500">{s.description}</p></div> },
                         { header: "Fiyat", cell: (s) => (s.price_min_kurus == null ? <Badge>Teklifle</Badge>
                             : `${kurus(s.price_min_kurus)} – ${kurus(s.price_max_kurus)}${s.unit ? ` / ${s.unit}` : ""}`) },

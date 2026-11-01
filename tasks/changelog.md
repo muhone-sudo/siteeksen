@@ -12,6 +12,31 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-11-01 — Usta & Hizmet M13: hız sınırı, karta iade ve bakiye koşulları, uygulama içi ödeme, fotoğraf denetimi (DOĞRULANMIŞ / kısmen)
+
+- **Hız sınırı (081):** mesaj kişi başına dakikada 20 / 24 saatte 300; teklif hesap başına saatte 20 yeni, teklif başına 5 düzenleme;
+  `mp_settings`'ten, aşımda 429 ve açık mesaj; eşzamanlı istekler işlem kilidiyle sıraya girer.
+- **Bakiye koşulları ve karta iade (081):** ilk yüklemeden önce "Bakiye ve İade Koşulları" ayrıca kabul edilir (sürüm + metin SHA-256 +
+  IP; TBK m.21). Üyelik kapanışında kalan bakiye son 365 gündeki yüklemelerden en yeniden eskiye iyzico iade v2 ile karta iade edilir
+  (`mp_card_refunds`, defterde `CARD_REFUND`), kalanı `EXPIRED_BALANCE`; kapanış sonrası sonuçlanan yükleme bakiyeye yazılmaz, karta
+  iade edilir; kapalı hesaba itiraz iadesi de karta gider. iyzico reddi yeniden denenir; sonucu bilinmeyen iade (çift iade olmasın)
+  yeniden denenmez, platformun "Karta iadeler" ekranında yeniden denenir ya da havale dekontuyla kapatılır. Elle dekontlu kapanış kalktı.
+  Hukuk taslağı `docs/hukuk/tedarikci-bakiye-kosullari.md` (avukat onayı bekler).
+- **Uygulama içi ödeme:** tedarikçi uygulamasında (Android) iyzico sayfası uygulama içi WebView'de açılır, dönüşte kapanır, bakiye sunucudan
+  okunur; web derlemesi uygulamanın bakiye sayfasına döner. Dönüş adresi sunucu ayarı (`MARKET_TOPUP_APP_RESULT_URL`). Yeni bağımlılık
+  `webview_flutter`; yalnız debug manifestinde `usesCleartextTraffic` (test ortamının sahte iyzico'su http).
+- **Fotoğraf denetimi (082, yeni servis `services/moderation` :8112):** hizmet ve talep fotoğrafları kuyruğa girer; OCR (Tesseract
+  `tur+eng`, imaja gen-deploy ile eklenir) telefon/e-posta/web adresi bulursa ret (gerekçe ve bildirim); yapay zekâ açılıp kapanır
+  (Anthropic Messages ya da OpenAI uyumlu; API anahtarı / kullanıcı adı-parola / yok; gizli değerler şifreli), temiz → onay, sakıncalı /
+  sağlayıcı reddi / hata → elle onay. Vitrin ve tedarikçi yalnız onaylı fotoğrafı görür. Panel `/platform/fotograflar`, `/platform/yapay-zeka`;
+  tedarikçi ve sakin ekranlarında fotoğraf durumu. `CLAUDE.md` yapay zekâ kuralı kullanıcı kararıyla güncellendi.
+- **Hata düzeltmesi:** üç Flutter uygulamasında `setState(() => _future = …)` Future döndürdüğü için debug derlemede (test APK'ları) yenileme
+  hiç çalışmıyordu (29 yer); Android emülatöründeki D4'te bulundu.
+- **Doğrulama:** verify-stack psql sarmalayıcısı `PGTZ`'yi geçirir (ayrı girdi); talep süre dolumu kontrolündeki yarış giderildi.
+- **Kanıt:** `verify-stack` 1557/1557 (2026-11-01); yeni kontroller bozuk kodla kırmızı (19 + sıra kontrolü); `verify-mobile` 14/14; panel
+  tsc/lint/build temiz; tarayıcı D4 panel 19/19 + uygulamalar 5/5, Android emülatörü (uygulama içi ödeme, yarıda bırakma) —
+  `~/.siteeksen-test/kanit/M13/`. **Kalan:** Android'de reddedilen ödeme yolu; test ajanının yeni test planı bölümlerini yürütmesi; M0.
+
 ### 2026-11-01 — verify-stack gece yarısı yanlış kırmızısı düzeltildi (DOĞRULANMIŞ)
 
 - Kök neden: ana makinede psql yok; Docker sarmalayıcısı `scripts/tools/pg-docker/_pgrun` `PGTZ`'yi kaba geçirmiyordu, doğrulamanın

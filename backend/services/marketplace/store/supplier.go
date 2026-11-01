@@ -478,14 +478,18 @@ type Service struct {
 	HasPhoto      bool    `json:"has_photo"`
 	IsActive      bool    `json:"is_active"`
 	SortOrder     int     `json:"sort_order"`
+	// PhotoStatus, fotoğraf denetiminin durumudur (PENDING/REVIEW/APPROVED/REJECTED; M13.4); yalnız sahibine döner.
+	PhotoStatus *string `json:"photo_status"`
+	PhotoReason *string `json:"photo_reason"`
 }
 
-const serviceCols = `id, business_id, name, description, price_min_kurus, price_max_kurus, unit, photo_key, is_active, sort_order`
+const serviceCols = `id, business_id, name, description, price_min_kurus, price_max_kurus, unit, photo_key, is_active, sort_order,
+	(SELECT pm.status FROM photo_moderation pm WHERE pm.storage_key = photo_key), (SELECT pm.reason FROM photo_moderation pm WHERE pm.storage_key = photo_key)`
 
 func scanService(r pgx.Row) (*Service, error) {
 	x := &Service{}
 	err := r.Scan(&x.ID, &x.BusinessID, &x.Name, &x.Description, &x.PriceMinKurus, &x.PriceMaxKurus, &x.Unit, &x.PhotoKey,
-		&x.IsActive, &x.SortOrder)
+		&x.IsActive, &x.SortOrder, &x.PhotoStatus, &x.PhotoReason)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -580,20 +584,38 @@ func (s *Store) DeleteService(ctx context.Context, accountID, id string) (*strin
 }
 
 // SetServicePhoto, hizmet fotoğrafının anahtarını yazar; önceki anahtar döner (çağıran depodan siler).
-func (s *Store) SetServicePhoto(ctx context.Context, accountID, id, key string) (*string, error) {
+func (s *Store) SetServicePhoto(ctx context.Context, accountID, userID, id, key, contentType string) (*string, error) {
+	tx, err := s.supplier(accountID).Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
 	var old *string
-	err := s.supplier(accountID).QueryRow(ctx, `UPDATE mp_business_services x SET photo_key = $2, updated_at = now()
+	err = tx.QueryRow(ctx, `UPDATE mp_business_services x SET photo_key = $2, updated_at = now()
 		FROM (SELECT photo_key FROM mp_business_services WHERE id = $1) prev WHERE x.id = $1 RETURNING prev.photo_key`, id, key).Scan(&old)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}
-	return old, err
+	if err != nil {
+		return nil, err
+	}
+	// Yeni fotoğraf denetim kuyruğuna girer (M13.4); onaylanana kadar vitrinde görünmez. Eskisinin kaydı REPLACED olur.
+	if old != nil {
+		if _, err := tx.Exec(ctx, `UPDATE photo_moderation SET status = 'REPLACED' WHERE storage_key = $1 AND source = 'SERVICE_PHOTO'`, *old); err != nil {
+			return nil, err
+		}
+	}
+	if _, err := tx.Exec(ctx, `INSERT INTO photo_moderation (storage_key, source, service_id, account_id, uploaded_by, content_type)
+		VALUES ($1, 'SERVICE_PHOTO', $2, $3, $4, $5)`, key, id, accountID, userID, contentType); err != nil {
+		return nil, err
+	}
+	return old, tx.Commit(ctx)
 }
 
 // ServicePhotoKey, yayındaki (vitrinde görünen) hizmetin fotoğraf anahtarı — herkes görebilir; ya da sahibinin kendi kalemi.
 func (s *Store) ServicePhotoKey(ctx context.Context, accountID, id string) (string, error) {
 	var key *string
-	err := s.pool.QueryRow(ctx, `SELECT photo_key FROM mp_business_services_public WHERE id = $1`, id).Scan(&key)
+	err := s.pool.QueryRow(ctx, `SELECT photo_key FROM mp_business_services_public WHERE id = $1 AND photo_approved(photo_key)`, id).Scan(&key)
 	if errors.Is(err, pgx.ErrNoRows) && accountID != "" {
 		err = s.supplier(accountID).QueryRow(ctx, `SELECT photo_key FROM mp_business_services WHERE id = $1`, id).Scan(&key)
 	}

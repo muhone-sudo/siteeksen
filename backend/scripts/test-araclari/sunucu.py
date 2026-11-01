@@ -174,6 +174,10 @@ class H(BaseHTTPRequestHandler):
         append(IYZ_LOG, {"t": now(), "path": path, "sig_ok": ok, "body": req})
         if not ok:
             out = {"status": "failure", "errorCode": "1001", "errorMessage": "imza geçersiz"}
+        elif path == "/v2/payment/refund":
+            # Test ortamında iade her zaman başarılı (kayıt sonuclar için IYZ_LOG'da)
+            out = {"status": "success", "paymentId": req.get("paymentId"), "price": req.get("price"),
+                   "refundHostReference": "TESTRF-%d" % int(time.time() * 1000)}
         elif path.endswith("/initialize/auth/ecom"):
             with LOCK:
                 n = len(TOKENS) + 1

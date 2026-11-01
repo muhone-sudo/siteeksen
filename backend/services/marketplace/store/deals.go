@@ -8,6 +8,7 @@ package store
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -155,10 +156,25 @@ func (s *Store) SaveOffer(ctx context.Context, accountID, requestID string, in O
 		return nil, nil, false, userErr(http.StatusConflict, "REQUEST_CLOSED", "Alıcı talebi kapattı ya da bir teklif seçti; yeni teklif verilemez")
 	}
 	var id string
+	var edits int
 	created := false
-	err = tx.QueryRow(ctx, `UPDATE mp_offers SET amount_kurus = $2, description = $3, valid_until = $4, updated_at = now()
-		WHERE dispatch_id = $1 AND status = 'ACTIVE' RETURNING id`, dispatchID, in.AmountKurus, desc, until).Scan(&id)
-	if errors.Is(err, pgx.ErrNoRows) {
+	err = tx.QueryRow(ctx, `SELECT id, edit_count FROM mp_offers WHERE dispatch_id = $1 AND status = 'ACTIVE' FOR UPDATE`, dispatchID).Scan(&id, &edits)
+	switch {
+	case err == nil:
+		limit, lerr := s.setting(ctx, "offer_edit_limit")
+		if lerr != nil {
+			return nil, nil, false, lerr
+		}
+		if edits >= limit {
+			return nil, nil, false, userErr(http.StatusTooManyRequests, "RATE_LIMIT",
+				fmt.Sprintf("Bu teklif en çok %d kez düzenlenebilir; değişiklik gerekiyorsa teklifi geri çekip yenisini verin", limit))
+		}
+		_, err = tx.Exec(ctx, `UPDATE mp_offers SET amount_kurus = $2, description = $3, valid_until = $4, edit_count = edit_count + 1,
+			updated_at = now() WHERE id = $1`, id, in.AmountKurus, desc, until)
+	case errors.Is(err, pgx.ErrNoRows):
+		if err = s.offerLimit(ctx, tx, accountID); err != nil {
+			return nil, nil, false, err
+		}
 		created = true
 		err = tx.QueryRow(ctx, `INSERT INTO mp_offers (request_id, dispatch_id, property_id, account_id, business_id, amount_kurus,
 			description, valid_until) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING id`,
@@ -445,6 +461,57 @@ func checkBody(body string) (string, error) {
 	return body, nil
 }
 
+// messageLimit, kişinin bütün yazışmalarındaki gönderim hızını denetler (mp_settings). Aynı kişinin eşzamanlı gönderimleri
+// işlem kilidiyle sıraya girer; sayım ile ekleme aynı işlemde olduğundan sınır aşılamaz.
+func (s *Store) messageLimit(ctx context.Context, tx pgx.Tx, userID string) error {
+	perMin, err := s.setting(ctx, "message_per_minute_limit")
+	if err != nil {
+		return err
+	}
+	perDay, err := s.setting(ctx, "message_per_day_limit")
+	if err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended('mp_message:' || $1, 0))`, userID); err != nil {
+		return err
+	}
+	var nMin, nDay int
+	if err := tx.QueryRow(ctx, `SELECT mp_user_message_count($1, now() - interval '1 minute'), mp_user_message_count($1, now() - interval '1 day')`,
+		userID).Scan(&nMin, &nDay); err != nil {
+		return err
+	}
+	if nMin >= perMin {
+		return userErr(http.StatusTooManyRequests, "RATE_LIMIT",
+			fmt.Sprintf("Çok hızlı mesaj gönderiyorsunuz: dakikada en çok %d mesaj gönderilebilir. Biraz bekleyip yeniden deneyin", perMin))
+	}
+	if nDay >= perDay {
+		return userErr(http.StatusTooManyRequests, "RATE_LIMIT",
+			fmt.Sprintf("Son 24 saatteki mesaj sınırına ulaştınız (en çok %d mesaj). Daha sonra yeniden deneyin", perDay))
+	}
+	return nil
+}
+
+// offerLimit, hesabın son bir saatteki yeni teklif sayısını denetler (eşzamanlı istekler hesap kilidiyle sıraya girer).
+func (s *Store) offerLimit(ctx context.Context, tx pgx.Tx, accountID string) error {
+	perHour, err := s.setting(ctx, "offer_per_hour_limit")
+	if err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtextextended('mp_offer:' || $1, 0))`, accountID); err != nil {
+		return err
+	}
+	var n int
+	if err := tx.QueryRow(ctx, `SELECT count(*) FROM mp_offers WHERE account_id = $1 AND created_at >= now() - interval '1 hour'`,
+		accountID).Scan(&n); err != nil {
+		return err
+	}
+	if n >= perHour {
+		return userErr(http.StatusTooManyRequests, "RATE_LIMIT",
+			fmt.Sprintf("Bir saatte en çok %d yeni teklif verilebilir. Biraz bekleyip yeniden deneyin", perHour))
+	}
+	return nil
+}
+
 // SupplierMessages, tedarikçinin talepteki yazışmasıdır (yalnız kabul ettiyse).
 func (s *Store) SupplierMessages(ctx context.Context, accountID, requestID string, before *time.Time, limit int) ([]Message, error) {
 	tx, err := s.supplier(accountID).Begin(ctx)
@@ -472,6 +539,9 @@ func (s *Store) SupplierSend(ctx context.Context, accountID, userID, requestID, 
 	defer tx.Rollback(ctx) //nolint:errcheck
 	dispatchID, _, p, err := acceptedDispatch(ctx, tx, accountID, requestID)
 	if err != nil {
+		return nil, nil, err
+	}
+	if err := s.messageLimit(ctx, tx, userID); err != nil {
 		return nil, nil, err
 	}
 	m := &Message{SenderSide: "SUPPLIER", Body: body}
@@ -527,6 +597,9 @@ func (s *Store) BuyerSend(ctx context.Context, b Buyer, requestID, dispatchID, b
 		return nil, nil, err
 	}
 	if p.AccountID, err = buyerThread(ctx, tx, requestID, dispatchID); err != nil {
+		return nil, nil, err
+	}
+	if err := s.messageLimit(ctx, tx, b.UserID); err != nil {
 		return nil, nil, err
 	}
 	m := &Message{SenderSide: "BUYER", Body: body}

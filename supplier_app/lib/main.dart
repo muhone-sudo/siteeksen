@@ -47,7 +47,7 @@ class _SupplierAppState extends State<SupplierApp> {
             builder: (context, state) => const BusinessesScreen(),
             routes: [GoRoute(path: ':id', builder: (context, state) => BusinessScreen(id: state.pathParameters['id']!))],
           ),
-          GoRoute(path: '/bakiye', builder: (context, state) => const WalletScreen()),
+          GoRoute(path: '/bakiye', builder: (context, state) => WalletScreen(returned: state.uri.queryParameters)),
           GoRoute(
             path: '/hesap',
             builder: (context, state) => const AccountScreen(),

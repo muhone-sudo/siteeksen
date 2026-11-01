@@ -5876,8 +5876,8 @@ ok "kullanılmayan 13 site tablosu RLS ile korunuyor"
 
 # 9) Toplam durum — RLS DIŞINDA KALAN her tablo bilinçli ve gerekçeli olmalı
 RLSCOUNT=$($PSQL -t -A -c "SELECT count(*) FROM rls_enabled_tables;")
-[ "$RLSCOUNT" = "148" ] && ok "RLS toplam 148 tabloda açık (069, 071, 073 okundu bilgisi, 074 sensörler, 075 devriye izi, 077 pazaryeri 19 tablo)" \
-  || bad "beklenmedik RLS tablo sayısı: $RLSCOUNT (beklenen 148)"
+[ "$RLSCOUNT" = "152" ] && ok "RLS toplam 152 tabloda açık (069, 071, 073 okundu bilgisi, 074 sensörler, 075 devriye izi, 077 pazaryeri 19 tablo, 081 koşul kabulü + karta iade, 082 fotoğraf denetimi + yapay zekâ ayarı)" \
+  || bad "beklenmedik RLS tablo sayısı: $RLSCOUNT (beklenen 152)"
 NOTRLS=$($PSQL -t -A -c "SELECT string_agg(t.table_name, ' ' ORDER BY t.table_name)
   FROM information_schema.tables t
   WHERE t.table_schema='public' AND t.table_type='BASE TABLE'
@@ -7464,6 +7464,15 @@ class H(http.server.BaseHTTPRequestHandler):
             f.write(json.dumps({'path': self.path, 'sig_ok': ok, 'body': req}) + '\n')
         if not ok:
             out = {'status': 'failure', 'errorCode': '1001', 'errorMessage': 'imza geçersiz'}
+        elif self.path == '/v2/payment/refund':
+            m = mode('/tmp/fake-iyzico-refund', 'OK')
+            if m == 'HTTP500':
+                self.send_response(500); self.send_header('Content-Length', '0'); self.end_headers(); return
+            if m == 'FAIL':
+                out = {'status': 'failure', 'errorCode': '5089', 'errorMessage': 'İade yapılamadı'}
+            else:
+                out = {'status': 'success', 'paymentId': req.get('paymentId'), 'price': req.get('price'),
+                       'refundHostReference': 'RF-' + req.get('conversationId', '')[:8]}
         elif self.path.endswith('/initialize/auth/ecom'):
             if mode('/tmp/fake-iyzico-init', 'OK') == 'FAIL':
                 out = {'status': 'failure', 'errorCode': '5013', 'errorMessage': 'Geçersiz istek'}
@@ -7490,7 +7499,7 @@ class H(http.server.BaseHTTPRequestHandler):
     def log_message(self, *a): pass
 http.server.HTTPServer(('127.0.0.1', int(sys.argv[1])), H).serve_forever()
 PYEOF
-rm -f /tmp/fake-iyzico.log /tmp/fake-iyzico-mode /tmp/fake-iyzico-init
+rm -f /tmp/fake-iyzico.log /tmp/fake-iyzico-mode /tmp/fake-iyzico-init /tmp/fake-iyzico-refund
 python3 /tmp/fake-iyzico.py 18890 >/dev/null 2>&1 &
 FIYZ_PID=$!
 IZ="IYZICO_API_KEY=sandbox-ak IYZICO_SECRET_KEY=sandbox-sk IYZICO_BASE_URL=http://127.0.0.1:18890 IYZICO_CALLBACK_URL=http://127.0.0.1:8888/api/v1/public/payments/iyzico/callback"

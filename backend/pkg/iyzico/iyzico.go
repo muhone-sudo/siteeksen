@@ -33,6 +33,7 @@ import (
 const (
 	initializePath = "/payment/iyzipos/checkoutform/initialize/auth/ecom"
 	retrievePath   = "/payment/iyzipos/checkoutform/auth/ecom/detail"
+	refundPath     = "/v2/payment/refund"
 )
 
 // ErrNotConfigured, sağlayıcının yapılandırılmadığını bildirir.
@@ -175,6 +176,16 @@ type RetrieveResponse struct {
 	MDStatus      int         `json:"mdStatus"`
 }
 
+// RefundResponse, iade yanıtıdır (iade v2: ödeme kimliğiyle, kısmi tutar; ödemeden sonra 365 gün içinde).
+type RefundResponse struct {
+	Status              string      `json:"status"`
+	ErrorCode           string      `json:"errorCode"`
+	ErrorMessage        string      `json:"errorMessage"`
+	PaymentID           string      `json:"paymentId"`
+	Price               json.Number `json:"price"`
+	RefundHostReference string      `json:"refundHostReference"`
+}
+
 // APIError, iyzico'nun "failure" yanıtıdır (iş kuralı reddi).
 type APIError struct{ Code, Message string }
 
@@ -261,6 +272,26 @@ func (c *Client) Retrieve(ctx context.Context, token, conversationID string) (*R
 	}
 	if out.Status != "success" {
 		return nil, &APIError{Code: out.ErrorCode, Message: out.ErrorMessage}
+	}
+	return &out, nil
+}
+
+// Refund, ödemenin bir kısmını ya da tamamını karta iade eder. Sağlayıcının onayladığı tutar istenenle aynı değilse
+// hata döner (iade tutarı sessizce farklı kabul edilmez).
+func (c *Client) Refund(ctx context.Context, paymentID string, kurus int64, conversationID, ip string) (*RefundResponse, error) {
+	if c == nil {
+		return nil, ErrNotConfigured
+	}
+	var out RefundResponse
+	if err := c.post(ctx, refundPath, map[string]string{"locale": "tr", "conversationId": conversationID, "paymentId": paymentID,
+		"price": Price(kurus), "currency": "TRY", "ip": ip}, &out); err != nil {
+		return nil, err
+	}
+	if out.Status != "success" {
+		return nil, &APIError{Code: out.ErrorCode, Message: out.ErrorMessage}
+	}
+	if got, err := ParsePriceKurus(out.Price); err != nil || got != kurus {
+		return nil, fmt.Errorf("iyzico iade tutarı uyuşmadı: istenen %d kuruş, yanıt %q", kurus, out.Price)
 	}
 	return &out, nil
 }

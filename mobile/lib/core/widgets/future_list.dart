@@ -34,7 +34,7 @@ class FutureListState extends State<FutureList> {
   }
 
   Future<void> reload() async {
-    setState(() => _future = widget.load());
+    setState(() { _future = widget.load(); });
     try {
       await _future;
     } catch (_) {}

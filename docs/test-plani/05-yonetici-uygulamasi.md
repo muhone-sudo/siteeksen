@@ -4127,7 +4127,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 #### Y-SITE-MARKETS-01 · Düğme: Teklif topla
 - **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/usta-hizmet, http://localhost:3003/#/usta-hizmet/:id
 - **Adım:** "Teklif topla" öğesine dokun (kaynak satırı 57)
-- **Beklenen (yazma):** `POST /market/requests` (marketplace, `services/marketplace/main.go:84`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /market/requests` (marketplace, `services/marketplace/main.go:85`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: işleyicide `hasRole` (backend/services/settings/visibility.go:74)
   - Veritabanı tetikleyicileri çalışır: `mp_requests_active_property` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
   - **Veritabanı (Adminer → SQL komutu):**
@@ -4152,7 +4152,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 #### Y-SITE-MARKETS-03 · Düğme: Seç
 - **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/usta-hizmet, http://localhost:3003/#/usta-hizmet/:id
 - **Adım:** "Seç" öğesine dokun (kaynak satırı 176)
-- **Beklenen (yazma):** `POST /market/requests/:id/offers/:offerId/select` (marketplace, `services/marketplace/main.go:90`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /market/requests/:id/offers/:offerId/select` (marketplace, `services/marketplace/main.go:91`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: işleyicide `hasRole` (backend/services/settings/visibility.go:74)
   - Veritabanı tetikleyicileri çalışır: `mp_jobs_completed_refresh`, `mp_requests_active_property` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
   - **Veritabanı (Adminer → SQL komutu):**
@@ -4169,7 +4169,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 #### Y-SITE-MARKETS-04 · Düğme: Teklif seçmeden kapat
 - **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/usta-hizmet, http://localhost:3003/#/usta-hizmet/:id
 - **Adım:** "Teklif seçmeden kapat" öğesine dokun (kaynak satırı 189)
-- **Beklenen (yazma):** `POST /market/requests/:id/close` (marketplace, `services/marketplace/main.go:91`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /market/requests/:id/close` (marketplace, `services/marketplace/main.go:92`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: işleyicide `hasRole` (backend/services/settings/visibility.go:74)
   - Veritabanı tetikleyicileri çalışır: `mp_requests_active_property` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
   - **Veritabanı (Adminer → SQL komutu):**
@@ -4199,7 +4199,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 #### Y-SITE-MARKETS-06 · Düğme: İş tamamlandı, onayla
 - **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/usta-hizmet, http://localhost:3003/#/usta-hizmet/:id
 - **Adım:** "İş tamamlandı, onayla" öğesine dokun (kaynak satırı 211)
-- **Beklenen (yazma):** `POST /market/requests/:id/job/confirm` (marketplace, `services/marketplace/main.go:95`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
+- **Beklenen (yazma):** `POST /market/requests/:id/job/confirm` (marketplace, `services/marketplace/main.go:96`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: işleyicide `hasRole` (backend/services/settings/visibility.go:74)
   - Veritabanı tetikleyicileri çalışır: `mp_jobs_completed_refresh` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
   - **Veritabanı (Adminer → SQL komutu):**

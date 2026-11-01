@@ -156,7 +156,8 @@ func (s *Store) ShowcaseBusinessByID(ctx context.Context, b Buyer, id string) (*
 	}
 	_, x.DistanceM = rules.Covers(area, site)
 	d := &ShowcaseDetail{ShowcaseBusiness: *x, Services: []PublicService{}, Reviews: []PublicReview{}}
-	rows, err := tx.Query(ctx, `SELECT id, name, description, price_min_kurus, price_max_kurus, unit, photo_key IS NOT NULL
+	rows, err := tx.Query(ctx, `SELECT id, name, description, price_min_kurus, price_max_kurus, unit,
+		photo_key IS NOT NULL AND photo_approved(photo_key)
 		FROM mp_business_services_public WHERE business_id = $1 ORDER BY sort_order, name`, id)
 	if err != nil {
 		return nil, err

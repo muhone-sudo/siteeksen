@@ -113,12 +113,12 @@ func (a *App) addRequestPhoto(c *gin.Context) {
 		fail(c, err, "fotoğraf saklama")
 		return
 	}
-	if err := a.store.AddRequestPhoto(c.Request.Context(), b, c.Param("id"), key); err != nil {
+	if err := a.store.AddRequestPhoto(c.Request.Context(), b, c.Param("id"), key, ctype); err != nil {
 		_ = a.files.Delete(c.Request.Context(), key)
 		fail(c, err, "fotoğraf kaydı")
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "Fotoğraf eklendi"})
+	c.JSON(http.StatusOK, gin.H{"message": "Fotoğraf eklendi; denetimden geçince tedarikçilere gösterilir"})
 }
 
 // requestPhoto, talep fotoğrafını alıcıya (kendi talebi) ya da talebi görebilen tedarikçiye verir.

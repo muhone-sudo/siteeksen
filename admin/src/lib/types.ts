@@ -587,11 +587,32 @@ export interface MpBusiness extends MpBusinessInput {
     rating_count: number; rating_sum: number; completed_jobs: number; created_at: string;
 }
 export interface MpServiceInput { name: string; description: string; price_min_kurus: number | null; price_max_kurus: number | null; unit: string; is_active: boolean; sort_order: number }
-export interface MpService extends MpServiceInput { id: Id; business_id: Id; has_photo: boolean }
+export interface MpService extends MpServiceInput { id: Id; business_id: Id; has_photo: boolean; photo_status?: string | null; photo_reason?: string | null }
+export interface PhotoReview {
+    id: Id; source: "SERVICE_PHOTO" | "REQUEST_PHOTO"; service_id?: Id | null; request_id?: Id | null; account_id?: Id | null; property_id?: Id | null;
+    status: "PENDING" | "REVIEW" | "APPROVED" | "REJECTED" | "REPLACED"; ocr_text?: string | null; ocr_findings: string[]; ai_provider?: string | null;
+    ai_verdict?: "CLEAN" | "UNSAFE" | "ERROR" | null; ai_categories: string[]; ai_reason?: string | null; decision_source?: "OCR" | "AI" | "PLATFORM" | null;
+    decided_at?: string | null; reason?: string | null; attempts: number; last_error?: string | null; created_at: string; context: string; owner: string;
+}
+export interface AiSettings {
+    enabled: boolean; provider: "ANTHROPIC" | "OPENAI"; base_url: string; model: string; auth_type: "API_KEY" | "BASIC" | "NONE";
+    api_key_set: boolean; username: string; password_set: boolean; updated_at?: string | null; encryption_ready: boolean;
+}
+export interface AiSettingsInput {
+    enabled: boolean; provider: string; base_url: string; model: string; auth_type: string; api_key?: string; clear_api_key?: boolean;
+    username?: string; password?: string; clear_password?: boolean;
+}
 export interface MpAccountReview extends MpAccount { owner_name: string; owner_phone: string; owner_email: string; document_count: number; business_count: number; updated_at?: string }
 export interface MpNotifyResult { in_app: string; email?: string; sms?: string }
 export interface MpSupplierNotification { id: Id; topic: string; subject?: string | null; body: string; payload: Record<string, unknown>; created_at: string; read_at?: string | null }
-export interface MpLedgerEntry { id: Id; kind: "TOPUP" | "PACKAGE_FEE" | "REQUEST_FEE" | "INCLUDED_REQUEST" | "REFUND" | "CLOSURE_REFUND"; amount_kurus: number; balance_after: number; note: string; created_at: string }
+export interface MpLedgerEntry { id: Id; kind: "TOPUP" | "PACKAGE_FEE" | "REQUEST_FEE" | "INCLUDED_REQUEST" | "REFUND" | "CLOSURE_REFUND" | "CARD_REFUND" | "EXPIRED_BALANCE"; amount_kurus: number; balance_after: number; note: string; created_at: string }
+export interface MpBalanceTerms { key: string; version: string; title: string; text: string; sha256: string; accepted: { version: string; accepted_at: string } | null }
+export interface MpCardRefund {
+    id: Id; account_id: Id; trade_name?: string; topup_id: Id; amount_kurus: number; reason: "CLOSURE" | "LATE_TOPUP" | "CLOSED_ACCOUNT";
+    status: "PENDING" | "SUCCEEDED" | "FAILED" | "MANUAL"; attempts: number; last_error?: string | null; gateway_reference?: string | null;
+    manual_reference?: string | null; manual_date?: string | null; topup_at?: string | null; created_at: string; completed_at?: string | null;
+}
+export interface MpRefundOutcome { card_refund_kurus: number; card_refunds: number; expired_kurus: number }
 export interface MpWallet {
     balance_kurus: number; package: MpPackage; next_package_id?: Id | null; package_renews_at?: string | null;
     period_included_left: number; period_sms_left: number; data: MpLedgerEntry[]; total: number; limit: number; offset: number; card_ready: boolean;

@@ -269,7 +269,7 @@ class _EmergencyCardScreenState extends State<EmergencyCardScreen> {
         future: _future,
         builder: (context, snap) {
           if (snap.connectionState != ConnectionState.done) return const LoadingView();
-          if (snap.hasError) return ErrorStateView(message: toUserMessage(snap.error!), onRetry: () => setState(() => _future = _load()));
+          if (snap.hasError) return ErrorStateView(message: toUserMessage(snap.error!), onRetry: () => setState(() { _future = _load(); }));
           final d = snap.data!;
           return ListView(padding: const EdgeInsets.all(16), children: [
             TextField(

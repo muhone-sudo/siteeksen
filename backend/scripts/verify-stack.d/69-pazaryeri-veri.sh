@@ -137,8 +137,8 @@ M2MGR="Authorization: Bearer $(m2login 5551234567 'Demo123!')"
 M2SUPT="Authorization: Bearer $(m2login 5550000040 'Demo123!')"
 [ "$(code "$M2GW/market/meta")" = "401" ] && ok "gateway → pazaryeri: kimliksiz /market/meta 401" || bad "kimliksiz meta: $(code "$M2GW/market/meta")"
 META=$(curl -s "$M2GW/market/meta" -H "$M2MGR")
-python3 -c "import json,sys; d=json.loads(sys.argv[1]); assert len(d['settings'])==6 and any(p['is_default'] and p['monthly_fee_kurus']==0 for p in d['packages'])" "$META" 2>/dev/null \
-  && ok "gateway → pazaryeri: /market/meta 200 (6 ayar, varsayılan ücretsiz paket)" || bad "meta: ${META:0:200}"
+python3 -c "import json,sys; d=json.loads(sys.argv[1]); assert len(d['settings'])==11 and any(p['is_default'] and p['monthly_fee_kurus']==0 for p in d['packages'])" "$META" 2>/dev/null \
+  && ok "gateway → pazaryeri: /market/meta 200 (11 ayar, varsayılan ücretsiz paket)" || bad "meta: ${META:0:200}"
 SMS=$(curl -s -w '|%{http_code}' "$M2GW/market/supplier/me" -H "$(printf 'Authorization: Bearer %s' "$(m2login 5550009101 'Esnaf2026x')")")
 SMM=$(code "$M2GW/market/supplier/me" -H "$M2MGR")
 grep -q '"status":"DRAFT"' <<<"$SMS" && [ "${SMS##*|}" = "200" ] && [ "$SMM" = "403" ] \

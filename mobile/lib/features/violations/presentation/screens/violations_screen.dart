@@ -53,7 +53,7 @@ class _ViolationsScreenState extends State<ViolationsScreen> {
   }
 
   Future<void> _reload() async {
-    setState(() => _future = apiClient.getViolations());
+    setState(() { _future = apiClient.getViolations(); });
     await _future;
   }
 

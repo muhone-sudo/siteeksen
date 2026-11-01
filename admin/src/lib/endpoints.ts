@@ -385,6 +385,9 @@ export function endpoints(http: Http) {
             startTopup: (amount_kurus: number, idempotencyKey: string) =>
                 http.post<{ topup: T.MpTopup; checkout_url?: string; note?: string }>("/market/supplier/topups", { amount_kurus }, { "Idempotency-Key": idempotencyKey }),
             topup: (id: string) => g<T.MpTopup>(`/market/supplier/topups/${id}`),
+            balanceTerms: () => g<T.MpBalanceTerms>("/market/terms/balance"),
+            acceptBalanceTerms: (version: string) => http.post<{ accepted: T.MpBalanceTerms["accepted"]; message: string }>("/market/supplier/terms/balance/accept", { version }),
+            cardRefunds: () => g<T.List<T.MpCardRefund>>("/market/supplier/card-refunds"),
             changePackage: (package_id: string) => http.post<{ account: T.MpAccount; message: string }>("/market/supplier/package", { package_id }),
             // Gelen talepler ve kabul (FAZ M6).
             requests: () => g<T.MpSupplierRequests>("/market/supplier/requests"),
@@ -440,8 +443,20 @@ export function endpoints(http: Http) {
                 savePackage: (id: string | null, b: Omit<T.MpPackage, "id" | "is_default">) =>
                     (id ? http.put<T.MpPackage>(`/market/platform/packages/${id}`, b) : http.post<T.MpPackage>("/market/platform/packages", b)),
                 saveSetting: (key: string, value: number) => http.put<T.MpSetting>(`/market/platform/settings/${key}`, { value }),
-                closeAccount: (id: string, b: { reason: string; refund_reference?: string; refund_date?: string }) =>
-                    http.post<{ account: T.MpAccountReview; notification: T.MpNotifyResult }>(`/market/platform/accounts/${id}/close`, b),
+                closeAccount: (id: string, b: { reason: string }) =>
+                    http.post<{ account: T.MpAccountReview; refund: T.MpRefundOutcome; notification: T.MpNotifyResult }>(`/market/platform/accounts/${id}/close`, b),
+                cardRefunds: (status: string) => g<T.List<T.MpCardRefund>>("/market/platform/card-refunds", { status }),
+                resolveCardRefund: (id: string, b: { reference: string; date: string }) => http.post<T.MpCardRefund>(`/market/platform/card-refunds/${id}/manual`, b),
+                retryCardRefund: (id: string) => http.post<T.MpCardRefund>(`/market/platform/card-refunds/${id}/retry`),
+                // Fotoğraf denetimi (M13.4, moderation servisi).
+                photos: (status: string) => g<T.List<T.PhotoReview>>("/moderation/photos", { status }),
+                photoImagePath: (id: string) => `/moderation/photos/${id}/image`,
+                approvePhoto: (id: string) => http.post<T.PhotoReview>(`/moderation/photos/${id}/approve`, {}),
+                rejectPhoto: (id: string, reason: string) => http.post<T.PhotoReview>(`/moderation/photos/${id}/reject`, { reason }),
+                recheckPhoto: (id: string) => http.post<T.PhotoReview>(`/moderation/photos/${id}/recheck`),
+                aiSettings: () => g<T.AiSettings>("/moderation/ai-settings"),
+                saveAiSettings: (b: T.AiSettingsInput) => http.put<T.AiSettings>("/moderation/ai-settings", b),
+                testAi: () => http.post<{ ok: boolean; verdict?: { unsafe: boolean; categories: string[]; reason: string }; error?: string; provider?: string; model?: string }>("/moderation/ai-settings/test"),
             },
         },
         surveys: {

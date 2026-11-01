@@ -67,6 +67,43 @@ func TestRetrieveFailureIsAPIError(t *testing.T) {
 	}
 }
 
+// İade: v2 yolu, kuruştan tutar metni, imza; sağlayıcının farklı tutar döndürmesi hatadır.
+func TestRefundSignsAndChecksAmount(t *testing.T) {
+	var gotAuth, gotRnd, gotPath string
+	var gotBody []byte
+	reply := `{"status":"success","paymentId":"P1","price":"125.5","refundHostReference":"R1"}`
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotAuth, gotRnd, gotPath = r.Header.Get("Authorization"), r.Header.Get("x-iyzi-rnd"), r.URL.Path
+		gotBody, _ = io.ReadAll(r.Body)
+		_, _ = w.Write([]byte(reply))
+	}))
+	defer srv.Close()
+	c := &Client{APIKey: "ak", SecretKey: "sk", BaseURL: srv.URL, CallbackURL: "https://x/cb", HTTP: srv.Client()}
+	out, err := c.Refund(context.Background(), "P1", 12550, "r1", "127.0.0.1")
+	if err != nil || out.RefundHostReference != "R1" {
+		t.Fatalf("iade: %+v %v", out, err)
+	}
+	if gotPath != refundPath {
+		t.Errorf("yol: %s", gotPath)
+	}
+	if want := Authorization("ak", "sk", gotRnd, refundPath, gotBody); gotAuth != want {
+		t.Errorf("imza uyuşmuyor")
+	}
+	var sent map[string]any
+	_ = json.Unmarshal(gotBody, &sent)
+	if sent["paymentId"] != "P1" || sent["price"] != "125.5" || sent["currency"] != "TRY" {
+		t.Errorf("gövde: %v", sent)
+	}
+	reply = `{"status":"success","paymentId":"P1","price":"100.0"}`
+	if _, err := c.Refund(context.Background(), "P1", 12550, "r1", ""); err == nil {
+		t.Error("farklı iade tutarı hata olmalıydı")
+	}
+	reply = `{"status":"failure","errorCode":"5089","errorMessage":"İade süresi geçti"}`
+	if _, err := c.Refund(context.Background(), "P1", 12550, "r1", ""); err == nil {
+		t.Error("failure yanıtı hata olmalıydı")
+	}
+}
+
 func TestClassify(t *testing.T) {
 	if k, m := Classify("10051", ""); k != "CARD" || m != "Kartınızın limiti yetersiz." {
 		t.Errorf("10051: %s %s", k, m)

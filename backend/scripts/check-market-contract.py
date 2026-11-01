@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Pazaryeri uçları sözleşme belgesinde mi? (FAZ M2.8)
+"""Pazaryeri ve fotoğraf denetimi uçları sözleşme belgesinde mi? (FAZ M2.8, M13.4)
 
 services/marketplace'in kaydettiği her rota ve kimlik servisinin tedarikçi kaydı/konum uçları
 tasks/api-sozlesmesi.md'de "`METHOD /yol`" biçiminde geçmelidir. Belgede olmayan uç = sözleşmesiz uç.
@@ -12,7 +12,7 @@ cgr = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(cgr)
 DOC = open(os.path.join(HERE, "..", "..", "tasks", "api-sozlesmesi.md"), encoding="utf-8").read()
 
-routes = set(cgr.service_routes("marketplace"))
+routes = set(cgr.service_routes("marketplace")) | set(cgr.service_routes("moderation"))
 routes |= {r for r in cgr.service_routes("identity") if "/supplier-signup/" in r[1] or r[1].endswith("/property/location")}
 missing = []
 for method, path in sorted(routes):

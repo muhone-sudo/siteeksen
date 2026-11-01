@@ -36,7 +36,7 @@ class _AnnouncementsScreenState extends State<AnnouncementsScreen> {
   }
 
   Future<void> _reload() async {
-    setState(() => _future = apiClient.getAnnouncements());
+    setState(() { _future = apiClient.getAnnouncements(); });
     await _future;
   }
 

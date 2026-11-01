@@ -42,7 +42,7 @@ class _PackageTrackingMobileScreenState extends State<PackageTrackingMobileScree
   }
 
   Future<void> _reload() async {
-    setState(() => _future = apiClient.getPackages());
+    setState(() { _future = apiClient.getPackages(); });
     await _future;
   }
 

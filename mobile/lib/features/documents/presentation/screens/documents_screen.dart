@@ -59,7 +59,7 @@ class _DocumentsScreenState extends State<DocumentsScreen> {
   }
 
   Future<void> _reload() async {
-    setState(() => _future = apiClient.getDocuments());
+    setState(() { _future = apiClient.getDocuments(); });
     await _future;
   }
 

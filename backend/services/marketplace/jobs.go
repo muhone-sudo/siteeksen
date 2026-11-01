@@ -74,6 +74,7 @@ func (a *App) runJobs(ctx context.Context, topupAge time.Duration) {
 			a.notifyExpired(ctx, e)
 		}
 	}
+	a.processCardRefunds(ctx)
 	if list, err := a.store.StaleTopups(ctx, topupAge); err != nil {
 		log.Printf("[marketplace] yükleme uzlaştırma: %v", err)
 	} else {

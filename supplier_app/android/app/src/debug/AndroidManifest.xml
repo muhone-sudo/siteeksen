@@ -4,4 +4,7 @@
          to allow setting breakpoints, to provide hot reload, etc.
     -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Yalnız hata ayıklama derlemesi: test ortamının sahte iyzico ödeme sayfası http'dir; uygulama içi ödeme
+         (WebView) şifresiz bağlantıyı varsayılan olarak engeller. Yayın derlemesi etkilenmez (iyzico https). -->
+    <application android:usesCleartextTraffic="true"/>
 </manifest>

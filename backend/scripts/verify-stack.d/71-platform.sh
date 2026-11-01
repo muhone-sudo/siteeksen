@@ -71,11 +71,15 @@ BA=$(m4 POST "/platform/businesses/$BID/approve" "$PA")
 V1=$($PSQL -t -A -c "SELECT count(*) FROM mp_business_public WHERE id='$BID';")
 VS=$(PGPASSWORD="$APPPW" psql -h 127.0.0.1 -p "${DBPORT}" -U siteeksen_app -d siteeksen -q -t -A -c "BEGIN; SELECT set_config('app.property_id','$DEMO_PROPERTY',true); SELECT count(*) FROM mp_business_services_public WHERE business_id='$BID'; COMMIT;" | awk 'NF && !/-/' | tail -1)
 VPH=$($PSQL -t -A -c "SELECT COALESCE(phone,'gizli') FROM mp_business_public WHERE id='$BID';")
+# Fotoğraf denetimi (M13.4): onaylanmadan vitrinde yok; onaydan (burada doğrudan kayıtla) sonra açık
+PH0=$(code "$M4/services/$SID/photo" -H "$MG")
+$PSQL -q -c "UPDATE photo_moderation SET status='APPROVED', decision_source='PLATFORM', decided_at=now()
+  WHERE storage_key=(SELECT photo_key FROM mp_business_services WHERE id='$SID');"
 PH1=$(code "$M4/services/$SID/photo" -H "$MG"); PH2=$(code "$M4/services/$SID/photo" -H "$S2")
-[ "$V0" = "0" ] && [ "$(jget "$BA" "d['business']['status']")" = "PUBLISHED" ] && [ "$V1" = "1" ] && [ "$VS" = "2" ] && [ "$VPH" = "gizli" ] \
+[ "$PH0" = "404" ] && [ "$V0" = "0" ] && [ "$(jget "$BA" "d['business']['status']")" = "PUBLISHED" ] && [ "$V1" = "1" ] && [ "$VS" = "2" ] && [ "$VPH" = "gizli" ] \
   && [ "$PH1$PH2" = "200200" ] \
-  && ok "işletme yayına alındı: vitrinde görünüyor (site kapsamında 2 hizmet kalemi okunuyor), ücretsiz pakette telefon gizli; fotoğraf artık sakine ve başka tedarikçiye açık" \
-  || bad "yayın: önce=$V0 onay=${BA: -80} sonra=$V1 hizmet=$VS telefon=$VPH foto=$PH1/$PH2"
+  && ok "işletme yayına alındı: vitrinde görünüyor (site kapsamında 2 hizmet kalemi okunuyor), ücretsiz pakette telefon gizli; fotoğraf denetimden geçmeden 404, onaydan sonra sakine ve başka tedarikçiye açık" \
+  || bad "yayın: önce=$V0 onay=${BA: -80} sonra=$V1 hizmet=$VS telefon=$VPH foto onaysız=$PH0 onaylı=$PH1/$PH2"
 NB=$(m4 POST /supplier/businesses "$S1" "{\"name\":\"Kemal Tesisat Bostancı\",\"phone\":\"02165550012\",\"address\":\"Bağdat Cad.\",\"city\":\"İstanbul\",\"district\":\"Kadıköy\",\"latitude\":40.96,\"longitude\":29.09,\"service_area\":\"KM\",\"radius_km\":5,\"category_ids\":[\"$M3CAT1\"]}")
 NBID=$(jget "$NB" "d['id']"); m4 POST "/supplier/businesses/$NBID/submit" "$S1" >/dev/null
 BR0=$(m4 POST "/platform/businesses/$NBID/reject" "$PA" '{"reason":""}')

@@ -279,6 +279,7 @@ func main() {
 	bankingURL := getEnv("BANKING_SERVICE_URL", "http://localhost:8106")
 	governanceURL := getEnv("GOVERNANCE_SERVICE_URL", "http://localhost:8107")
 	marketplaceURL := getEnv("MARKETPLACE_SERVICE_URL", "http://localhost:8111")
+	moderationURL := getEnv("MODERATION_SERVICE_URL", "http://localhost:8112")
 	port := getEnv("PORT", "8888")
 	corsOrigins := strings.Split(getEnv("CORS_ALLOWED_ORIGINS",
 		"http://localhost:3000,http://localhost:3001"), ",")
@@ -348,6 +349,8 @@ func main() {
 		{governanceURL, []string{"/api/v1/governance"}},
 		// Usta & Hizmet pazaryeri (FAZ M, 077): tedarikçi, platform ve alıcı uçları.
 		{marketplaceURL, []string{"/api/v1/market", "/api/v1/public/market"}},
+		// Fotoğraf denetimi (FAZ M13.4, 082): platform kuyruğu ve yapay zekâ sağlayıcı ayarı.
+		{moderationURL, []string{"/api/v1/moderation"}},
 	}
 	for _, rt := range routes {
 		proxyPaths(mux, newProxy(rt.url), rt.prefixes...)

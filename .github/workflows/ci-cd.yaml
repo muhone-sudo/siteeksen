@@ -285,6 +285,9 @@ jobs:
           - name: marketplace-service
             context: ./backend
             dockerfile: services/marketplace/Dockerfile
+          - name: moderation-service
+            context: ./backend
+            dockerfile: services/moderation/Dockerfile
           - name: gateway
             context: ./backend
             dockerfile: cmd/gateway/Dockerfile
@@ -406,6 +409,7 @@ jobs:
           kubectl rollout status deployment/banking-service --timeout=300s
           kubectl rollout status deployment/governance-service --timeout=300s
           kubectl rollout status deployment/marketplace-service --timeout=300s
+          kubectl rollout status deployment/moderation-service --timeout=300s
           kubectl rollout status deployment/scheduler --timeout=300s
           kubectl rollout status deployment/gateway --timeout=300s
           kubectl rollout status deployment/admin-panel --timeout=300s

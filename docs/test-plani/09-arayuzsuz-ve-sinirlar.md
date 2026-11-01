@@ -17,6 +17,7 @@ Bunlar tarayıcıdan denenemez; burada yalnız beklenen durumları listelenir. E
 | `GET /market/platform/accounts` | marketplace | arayüzde karşılığı yok |
 | `GET /market/platform/accounts/:id` | marketplace | arayüzde karşılığı yok |
 | `GET /market/platform/businesses` | marketplace | arayüzde karşılığı yok |
+| `GET /market/platform/card-refunds` | marketplace | arayüzde karşılığı yok |
 | `GET /market/platform/categories` | marketplace | arayüzde karşılığı yok |
 | `GET /market/platform/disputes` | marketplace | arayüzde karşılığı yok |
 | `GET /market/platform/documents/:id/file` | marketplace | arayüzde karşılığı yok |
@@ -27,6 +28,9 @@ Bunlar tarayıcıdan denenemez; burada yalnız beklenen durumları listelenir. E
 | `GET /market/services/:id/photo` | marketplace | arayüzde karşılığı yok |
 | `GET /market/supplier/requests/:id/photos/:n` | marketplace | arayüzde karşılığı yok |
 | `GET /market/supplier/topups/:id` | marketplace | arayüzde karşılığı yok |
+| `GET /moderation/ai-settings` | moderation | arayüzde karşılığı yok |
+| `GET /moderation/photos` | moderation | arayüzde karşılığı yok |
+| `GET /moderation/photos/:id/image` | moderation | arayüzde karşılığı yok |
 | `GET /packages/:id` | package | arayüzde karşılığı yok |
 | `GET /public/clearance/:code` | finance | borcu yoktur belgesindeki karekod → `http://localhost:3001/dogrula/<kod>` (01 bölümünde test edilir) |
 | `GET /sensors/:id` | iot | arayüzde karşılığı yok |
@@ -39,11 +43,17 @@ Bunlar tarayıcıdan denenemez; burada yalnız beklenen durumları listelenir. E
 | `POST /market/platform/accounts/:id/suspend` | marketplace | arayüzde karşılığı yok |
 | `POST /market/platform/businesses/:id/approve` | marketplace | arayüzde karşılığı yok |
 | `POST /market/platform/businesses/:id/reject` | marketplace | arayüzde karşılığı yok |
+| `POST /market/platform/card-refunds/:id/manual` | marketplace | arayüzde karşılığı yok |
+| `POST /market/platform/card-refunds/:id/retry` | marketplace | arayüzde karşılığı yok |
 | `POST /market/platform/categories` | marketplace | arayüzde karşılığı yok |
 | `POST /market/platform/disputes/:id/approve` | marketplace | arayüzde karşılığı yok |
 | `POST /market/platform/disputes/:id/reject` | marketplace | arayüzde karşılığı yok |
 | `POST /market/platform/packages` | marketplace | arayüzde karşılığı yok |
 | `POST /market/platform/reviews/:id/hide` | marketplace | arayüzde karşılığı yok |
+| `POST /moderation/ai-settings/test` | moderation | arayüzde karşılığı yok |
+| `POST /moderation/photos/:id/approve` | moderation | arayüzde karşılığı yok |
+| `POST /moderation/photos/:id/recheck` | moderation | arayüzde karşılığı yok |
+| `POST /moderation/photos/:id/reject` | moderation | arayüzde karşılığı yok |
 | `POST /public/devices/heartbeat` | parking | cihaz simülatörü (http://localhost:18000/cihaz) |
 | `POST /public/market/topups/iyzico/callback` | marketplace | arayüzde karşılığı yok |
 | `POST /public/payments/iyzico/callback` | finance | sahte iyzico sayfası çağırır (kart ödemesi senaryosu) |
@@ -51,6 +61,7 @@ Bunlar tarayıcıdan denenemez; burada yalnız beklenen durumları listelenir. E
 | `PUT /market/platform/categories/:id` | marketplace | arayüzde karşılığı yok |
 | `PUT /market/platform/packages/:id` | marketplace | arayüzde karşılığı yok |
 | `PUT /market/platform/settings/:key` | marketplace | arayüzde karşılığı yok |
+| `PUT /moderation/ai-settings` | moderation | arayüzde karşılığı yok |
 
 **Yazılmamış modül (S-07):** `banking` — 16 uç, hepsi 501 döner. Panelde banka entegrasyonu menüsü varsa "henüz hazır değil" demeli.
 

@@ -69,6 +69,8 @@ export PAYMENT_RESULT_URL=http://localhost:3001/odeme-sonuc
 # Usta & Hizmet (FAZ M5): tedarikçi bakiye yüklemesinin dönüşü ve sonuç sayfası.
 export MARKET_IYZICO_CALLBACK_URL=http://localhost:8888/api/v1/public/market/topups/iyzico/callback
 export MARKET_TOPUP_RESULT_URL=http://localhost:3001/tedarikci/bakiye
+# Tedarikçi uygulaması (M13.1): uygulama içi ödeme bu adrese gidişi yakalayıp kapanır; web derlemesi aynı adrese döner.
+export MARKET_TOPUP_APP_RESULT_URL="http://localhost:3004/#/bakiye"
 export SCHEDULER_INTERVAL=1m
 export CORS_ALLOWED_ORIGINS=http://localhost:3001,http://localhost:3002,http://localhost:3003,http://localhost:3004
 bash "$SCRIPT_DIR/dev-up.sh" >"$DATA/dev-up.log" 2>&1 &
@@ -78,7 +80,7 @@ for _ in $(seq 1 240); do
 done
 curl -fsS http://127.0.0.1:8888/health >/dev/null 2>&1 || { echo "Gateway açılmadı; $DATA/dev-up.log ve /tmp/dev-*.log"; tail -20 "$DATA/dev-up.log"; exit 1; }
 # Bütün servisler: gateway sağlıklı olsa da arkadaki servis geç açılabilir.
-for port in 8081 8082 8083 8084 8085 8086 8087 8089 8090 8091 8092 8093 8094 8096 8097 8098 8099 8100 8101 8102 8103 8104 8105 8107 8111; do
+for port in 8081 8082 8083 8084 8085 8086 8087 8089 8090 8091 8092 8093 8094 8096 8097 8098 8099 8100 8101 8102 8103 8104 8105 8107 8111 8112; do
   for _ in $(seq 1 120); do curl -fsS http://127.0.0.1:$port/health >/dev/null 2>&1 && break; sleep 1; done
   curl -fsS http://127.0.0.1:$port/health >/dev/null 2>&1 || echo "  UYARI: :$port sağlıklı değil (günlük: /tmp/dev-*.log)"
 done

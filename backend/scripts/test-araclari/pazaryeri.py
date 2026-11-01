@@ -61,6 +61,9 @@ def login(phone):
 
 def topup(tok, kurus):
     """Sahte iyzico ödeme sayfasında "Ödeme başarılı" seçilir; tarayıcının yaptığı gibi dönüş ucuna jeton gönderilir."""
+    terms = call("GET", "/market/terms/balance", token=tok)
+    if not terms.get("accepted"):
+        call("POST", "/market/supplier/terms/balance/accept", {"version": terms["version"]}, tok)
     r = call("POST", "/market/supplier/topups", {"amount_kurus": kurus}, tok, {"Idempotency-Key": str(uuid.uuid4())})
     pay_token = r["checkout_url"].rstrip("/").rsplit("/", 1)[-1]
     form(TOOLS + "/iyzico/pay/" + pay_token, {"sonuc": "SUCCESS"}, (200,))

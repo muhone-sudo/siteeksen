@@ -60,7 +60,7 @@ class _BulletinBoardMobileScreenState extends State<BulletinBoardMobileScreen> {
   }
 
   Future<void> _reload() async {
-    setState(() => _future = apiClient.getBulletins());
+    setState(() { _future = apiClient.getBulletins(); });
     await _future;
   }
 
@@ -301,7 +301,7 @@ class _BulletinCommentsState extends State<_BulletinComments> {
     try {
       await apiClient.addBulletinComment(widget.id, t, _anon);
       _text.clear();
-      setState(() => _future = apiClient.getBulletinComments(widget.id));
+      setState(() { _future = apiClient.getBulletinComments(widget.id); });
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(toUserMessage(e))));
     } finally {

@@ -42,7 +42,7 @@ class _RequestsScreenState extends State<RequestsScreen> {
   }
 
   Future<void> _reload() async {
-    setState(() => _future = apiClient.getRequests());
+    setState(() { _future = apiClient.getRequests(); });
     await _future;
   }
 

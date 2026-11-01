@@ -29,7 +29,7 @@ class _DaskScreenState extends State<DaskScreen> {
   late Future<Map<String, dynamic>> _future = apiClient.getDask();
 
   Future<void> _reload() async {
-    setState(() => _future = apiClient.getDask());
+    setState(() { _future = apiClient.getDask(); });
     await _future;
   }
 

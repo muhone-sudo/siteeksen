@@ -46,7 +46,7 @@ Demo girişleri ve sorun giderme: `docs/yerel-calistirma.md`. Özellik haritası
 - Migration'lar `cmd/migrate` ile uygulanır; uygulanmış migration düzenlenmez. "Down" betiği yok; geri alma yedekten yapılır (`docs/runbook-veritabani-geri-alma.md`).
 - Dağıtım dosyaları (Dockerfile'lar, `docker-compose.yml`, `k8s/`, CI matrisi) `python3 backend/scripts/gen-deploy.py` ile üretilir; elle düzenlenmez.
 - Bildirim `pkg/notify` üzerinden gider; alıcı kümeleri yalnız `pkg/notify/audience.go`'da tanımlanır. "Gönderildi" yalnız gerçekten gönderildiyse yazılır.
-- Sahte başarı ya da uydurma veri yok. Yazılmamış modül nedenini söyleyerek 501 döner (`banking`, S-07). "Yapay zekâ" iddiası yok.
+- Sahte başarı ya da uydurma veri yok. Yazılmamış modül nedenini söyleyerek 501 döner (`banking`, S-07). "Yapay zekâ" yalnız gerçekten bir sağlayıcının çağrıldığı yerde yazılır (fotoğraf denetimi, `services/moderation`, M13.4 — kullanıcı kararı 2026-11-01); başka yerde iddia yok.
 - Ölü kod, import etme: `pkg/tenant`, `pkg/payment`, `pkg/notification`, `pkg/ai`, `pkg/integrations/*`.
 - Gateway (`cmd/gateway`, 8888) tek giriş kapısıdır ve istemci kimlik başlıklarını siler. Kong yalnız önünde durur.
 

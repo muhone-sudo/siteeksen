@@ -28,6 +28,18 @@ export const JOB_STATUS: Record<string, [string, Tone]> = {
 export const DISPUTE_STATUS: Record<string, [string, Tone]> = {
     OPEN: ["İncelenecek", "amber"], APPROVED: ["Onaylandı (iade)", "green"], REJECTED: ["Reddedildi", "red"],
 };
+/** Fotoğraf denetimi (M13.4): vitrinde ve tedarikçide yalnız onaylı fotoğraf görünür. */
+export const PHOTO_STATUS: Record<string, [string, Tone]> = {
+    PENDING: ["Denetimde", "amber"], REVIEW: ["İncelemede", "amber"], APPROVED: ["Yayında", "green"], REJECTED: ["Reddedildi", "red"],
+    REPLACED: ["Değiştirildi", "gray"],
+};
+export const AI_VERDICT: Record<string, [string, Tone]> = { CLEAN: ["Temiz", "green"], UNSAFE: ["Sakıncalı", "red"], ERROR: ["Hata", "amber"] };
+export const CARD_REFUND_STATUS: Record<string, [string, Tone]> = {
+    PENDING: ["İşleniyor", "amber"], SUCCEEDED: ["Karta iletildi", "green"], FAILED: ["Başarısız", "red"], MANUAL: ["Havaleyle ödendi", "blue"],
+};
+export const CARD_REFUND_REASON: Record<string, string> = {
+    CLOSURE: "Üyelik kapanışı", LATE_TOPUP: "Kapanıştan sonra sonuçlanan yükleme", CLOSED_ACCOUNT: "Kapalı hesaba yapılan iade",
+};
 export const DISPUTE_REASON: Record<string, string> = {
     FAKE: "Sahte talep", WRONG_CATEGORY: "Yanlış kategori", UNREACHABLE: "Alıcıya ulaşılamıyor", OTHER: "Diğer",
 };

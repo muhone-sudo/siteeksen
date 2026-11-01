@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Ana makinede Tesseract yok (sudo yok); denetim servisinin dağıtım imajıyla AYNI Alpine paketleri bir kapta çalıştırılır.
+# Kullanım: OCR_COMMAND=$PWD/backend/scripts/tools/ocr-docker/tesseract (görsel stdin'den, metin stdout'a).
+set -euo pipefail
+IMG=siteeksen-ocr:alpine3.20
+if ! docker image inspect "$IMG" >/dev/null 2>&1; then
+  printf 'FROM alpine:3.20\nRUN apk --no-cache add tesseract-ocr tesseract-ocr-data-tur tesseract-ocr-data-eng\n' \
+    | docker build -q -t "$IMG" - >/dev/null
+fi
+exec docker run --rm -i "$IMG" tesseract "$@"

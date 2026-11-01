@@ -378,7 +378,7 @@ func (a *App) uploadServicePhoto(c *gin.Context) {
 		fail(c, err, "fotoğraf saklama")
 		return
 	}
-	old, err := a.store.SetServicePhoto(c.Request.Context(), id, c.Param("id"), key)
+	old, err := a.store.SetServicePhoto(c.Request.Context(), id, c.GetString("user_id"), c.Param("id"), key, ctype)
 	if err != nil {
 		_ = a.files.Delete(c.Request.Context(), key)
 		fail(c, err, "fotoğraf kaydı")
@@ -387,7 +387,7 @@ func (a *App) uploadServicePhoto(c *gin.Context) {
 	if old != nil {
 		_ = a.files.Delete(c.Request.Context(), *old)
 	}
-	c.JSON(http.StatusOK, gin.H{"message": "Fotoğraf yüklendi"})
+	c.JSON(http.StatusOK, gin.H{"message": "Fotoğraf yüklendi; platform denetiminden geçince vitrinde görünür"})
 }
 
 // servicePhoto: vitrindeki hizmetin fotoğrafı (oturum açmış herkes) ya da tedarikçinin kendi kalemi.

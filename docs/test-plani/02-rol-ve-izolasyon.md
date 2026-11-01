@@ -60,12 +60,15 @@ Her hesapla panele girip aşağıdaki her adresi adres çubuğuna yazarak açın
 | R-ODEME-SONUC | `/odeme-sonuc` | — | Erişir | Erişir | Erişir | Erişir | Erişir |
 | R-PLATFORM | `/platform` | PlatformAdmin | Yönlenir | Yönlenir | Yönlenir | Yönlenir | Yönlenir |
 | R-PLATFORM-AYARLAR | `/platform/ayarlar` | PlatformAdmin | Yönlenir | Yönlenir | Yönlenir | Yönlenir | Yönlenir |
+| R-PLATFORM-FOTOGRAFLAR | `/platform/fotograflar` | PlatformAdmin | Yönlenir | Yönlenir | Yönlenir | Yönlenir | Yönlenir |
 | R-PLATFORM-GELIR | `/platform/gelir` | PlatformAdmin | Yönlenir | Yönlenir | Yönlenir | Yönlenir | Yönlenir |
 | R-PLATFORM-HESAPLAR | `/platform/hesaplar` | PlatformAdmin | Yönlenir | Yönlenir | Yönlenir | Yönlenir | Yönlenir |
+| R-PLATFORM-IADELER | `/platform/iadeler` | PlatformAdmin | Yönlenir | Yönlenir | Yönlenir | Yönlenir | Yönlenir |
 | R-PLATFORM-ISLETMELER | `/platform/isletmeler` | PlatformAdmin | Yönlenir | Yönlenir | Yönlenir | Yönlenir | Yönlenir |
 | R-PLATFORM-ITIRAZLAR | `/platform/itirazlar` | PlatformAdmin | Yönlenir | Yönlenir | Yönlenir | Yönlenir | Yönlenir |
 | R-PLATFORM-KATEGORILER | `/platform/kategoriler` | PlatformAdmin | Yönlenir | Yönlenir | Yönlenir | Yönlenir | Yönlenir |
 | R-PLATFORM-PAKETLER | `/platform/paketler` | PlatformAdmin | Yönlenir | Yönlenir | Yönlenir | Yönlenir | Yönlenir |
+| R-PLATFORM-YAPAY-ZEKA | `/platform/yapay-zeka` | PlatformAdmin | Yönlenir | Yönlenir | Yönlenir | Yönlenir | Yönlenir |
 | R-PLATFORM-YORUMLAR | `/platform/yorumlar` | PlatformAdmin | Yönlenir | Yönlenir | Yönlenir | Yönlenir | Yönlenir |
 | R-TEDARIKCI-AUTH-GIRIS | `/tedarikci/(auth)/giris` | Supplier | Yönlenir | Yönlenir | Yönlenir | Yönlenir | Yönlenir |
 | R-TEDARIKCI-AUTH-KAYIT | `/tedarikci/(auth)/kayit` | Supplier | Yönlenir | Yönlenir | Yönlenir | Yönlenir | Yönlenir |

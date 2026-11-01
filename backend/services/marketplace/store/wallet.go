@@ -96,13 +96,14 @@ type Topup struct {
 	CreatedAt    time.Time  `json:"created_at"`
 	CompletedAt  *time.Time `json:"completed_at"`
 	AccountID    string     `json:"-"`
+	ReturnTarget string     `json:"return_target"`
 }
 
-const topupCols = `id, amount_kurus, status, gateway_token, error_message, created_at, completed_at, account_id`
+const topupCols = `id, amount_kurus, status, gateway_token, error_message, created_at, completed_at, account_id, return_target`
 
 func scanTopup(r pgx.Row) (*Topup, error) {
 	t := &Topup{}
-	err := r.Scan(&t.ID, &t.AmountKurus, &t.Status, &t.Token, &t.ErrorMessage, &t.CreatedAt, &t.CompletedAt, &t.AccountID)
+	err := r.Scan(&t.ID, &t.AmountKurus, &t.Status, &t.Token, &t.ErrorMessage, &t.CreatedAt, &t.CompletedAt, &t.AccountID, &t.ReturnTarget)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -110,7 +111,10 @@ func scanTopup(r pgx.Row) (*Topup, error) {
 }
 
 // CreateTopup, yüklemeyi PENDING açar. Aynı anahtarla ikinci istek aynı kaydı döner (çift tıklama, ağ yinelemesi).
-func (s *Store) CreateTopup(ctx context.Context, accountID, userID string, amount int64, idemKey string) (*Topup, bool, error) {
+func (s *Store) CreateTopup(ctx context.Context, accountID, userID string, amount int64, idemKey, returnTarget string) (*Topup, bool, error) {
+	if returnTarget != "APP" {
+		returnTarget = "PANEL"
+	}
 	if amount <= 0 {
 		return nil, false, userErr(http.StatusUnprocessableEntity, "AMOUNT", "Yükleme tutarı sıfırdan büyük olmalı")
 	}
@@ -135,10 +139,15 @@ func (s *Store) CreateTopup(ctx context.Context, accountID, userID string, amoun
 	if st == "CLOSED" {
 		return nil, false, userErr(http.StatusConflict, "CLOSED", "Kapatılmış hesaba bakiye yüklenemez")
 	}
+	if acc, err := termsAccepted(ctx, sc, accountID); err != nil {
+		return nil, false, err
+	} else if acc == nil {
+		return nil, false, ErrTermsRequired
+	}
 	// Sağlayıcıdaki konuşma ve sepet kimliği yüklemenin kendi kimliğidir: dönen sonuç bununla eşleştirilir.
 	id := uuid.NewString()
-	t, err = scanTopup(sc.QueryRow(ctx, `INSERT INTO mp_topups (id, account_id, amount_kurus, idempotency_key, conversation_id, created_by)
-		VALUES ($1, $2, $3, $4, $5, $6) RETURNING `+topupCols, id, accountID, amount, idemKey, id, userID))
+	t, err = scanTopup(sc.QueryRow(ctx, `INSERT INTO mp_topups (id, account_id, amount_kurus, idempotency_key, conversation_id, created_by, return_target)
+		VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING `+topupCols, id, accountID, amount, idemKey, id, userID, returnTarget))
 	return t, true, err
 }
 
@@ -166,26 +175,45 @@ func (s *Store) GetTopup(ctx context.Context, accountID, id string) (*Topup, err
 }
 
 // CompleteTopup, başarılı yüklemeyi bakiyeye işler: tek işlemde yükleme SUCCEEDED, bakiye artar, deftere TOPUP yazılır.
-// Aynı yükleme ikinci kez işlenmez (satır kilidi + defterde yükleme başına tekil indeks).
-func (s *Store) CompleteTopup(ctx context.Context, accountID, id, gatewayPaymentID string) (bool, error) {
+// Aynı yükleme ikinci kez işlenmez (satır kilidi + defterde yükleme başına tekil indeks). Hesap bu arada kapatıldıysa tutar
+// bakiyeye yazılmaz, tamamı karta iade sırasına girer (bakiye koşulları m.4); ikinci dönüş değeri bunu söyler.
+func (s *Store) CompleteTopup(ctx context.Context, accountID, id, gatewayPaymentID string) (bool, bool, error) {
 	tx, err := s.supplier(accountID).Begin(ctx)
 	if err != nil {
-		return false, err
+		return false, false, err
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
+	var status string
+	if err := tx.QueryRow(ctx, `SELECT status FROM mp_supplier_accounts WHERE id = $1 FOR UPDATE`, accountID).Scan(&status); err != nil {
+		return false, false, err
+	}
 	var amount int64
 	err = tx.QueryRow(ctx, `UPDATE mp_topups SET status = 'SUCCEEDED', completed_at = now(), gateway_payment_id = $2
 		WHERE id = $1 AND status = 'PENDING' RETURNING amount_kurus`, id, gatewayPaymentID).Scan(&amount)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return false, nil
+		return false, false, nil
 	}
 	if err != nil {
-		return false, err
+		return false, false, err
+	}
+	if status == "CLOSED" {
+		if _, err := tx.Exec(ctx, `INSERT INTO mp_card_refunds (account_id, topup_id, amount_kurus, reason) VALUES ($1, $2, $3, 'LATE_TOPUP')`,
+			accountID, id, amount); err != nil {
+			return false, false, err
+		}
+		return true, true, tx.Commit(ctx)
 	}
 	if _, _, err := post(ctx, tx, accountID, "TOPUP", amount, ledgerRef{topup: &id, note: "Kartla bakiye yükleme"}); err != nil {
-		return false, err
+		return false, false, err
 	}
-	return true, tx.Commit(ctx)
+	return true, false, tx.Commit(ctx)
+}
+
+// TopupRefundQueued, yüklemenin karta iade sırasına girip girmediğini söyler (kapanış sonrası yükleme).
+func (s *Store) TopupRefundQueued(ctx context.Context, accountID, topupID string) (bool, error) {
+	var n int
+	err := s.supplier(accountID).QueryRow(ctx, `SELECT count(*) FROM mp_card_refunds WHERE topup_id = $1 AND reason = 'LATE_TOPUP'`, topupID).Scan(&n)
+	return n > 0, err
 }
 
 // FailTopup, yüklemeyi başarısız kapatır (bakiye değişmez).
@@ -369,54 +397,47 @@ func (s *Store) renewOne(ctx context.Context, accountID string) (*RenewalOutcome
 	return o, tx.Commit(ctx)
 }
 
-// CloseAccount, üyeliği kapatır (platform): kalan bakiye elle (havale) iade edildiyse dekont bilgisi zorunludur;
-// defter kapanış satırıyla sıfırlanır, işletmeler kapanır. Kart iadesi altyapısı sonraki aşamadadır.
-func (s *Store) CloseAccount(ctx context.Context, adminID, accountID, reason, refundRef, refundDate string) (*AccountReview, error) {
+// CloseAccount, üyeliği kapatır (platform): kalan bakiye son RefundWindowDays gündeki yüklemelerden karşılanan kısmıyla
+// karta iade sırasına girer, kalanı süresi dolan bakiye olarak düşülür (bakiye koşulları m.2–3); bakiye aynı işlemde 0 olur,
+// işletmeler kapanır. iyzico iadesi zamanlayıcıyla yapılır.
+func (s *Store) CloseAccount(ctx context.Context, adminID, accountID, reason string) (*AccountReview, *RefundOutcome, error) {
 	if len([]rune(reason)) < 5 {
-		return nil, userErr(http.StatusUnprocessableEntity, "REASON", "Kapanış gerekçesi zorunludur (en az 5 karakter)")
+		return nil, nil, userErr(http.StatusUnprocessableEntity, "REASON", "Kapanış gerekçesi zorunludur (en az 5 karakter)")
 	}
 	tx, err := s.platform(adminID).Begin(ctx)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 	var bal int64
 	var status string
 	err = tx.QueryRow(ctx, `SELECT balance_kurus, status FROM mp_supplier_accounts WHERE id = $1 FOR UPDATE`, accountID).Scan(&bal, &status)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, ErrNotFound
+		return nil, nil, ErrNotFound
 	}
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if status == "CLOSED" {
-		return nil, userErr(http.StatusConflict, "STATE", "Hesap zaten kapalı")
+		return nil, nil, userErr(http.StatusConflict, "STATE", "Hesap zaten kapalı")
 	}
-	if bal > 0 {
-		if refundRef == "" || refundDate == "" {
-			return nil, &UserError{Status: http.StatusUnprocessableEntity, Code: "REFUND_PROOF",
-				Message: fmt.Sprintf("Kalan bakiye (%d kuruş) iade edilmeden hesap kapatılamaz: havale dekont no ve tarihi zorunludur", bal)}
-		}
-		if _, err := time.Parse("2006-01-02", refundDate); err != nil {
-			return nil, userErr(http.StatusUnprocessableEntity, "REFUND_DATE", "İade tarihi YYYY-AA-GG biçiminde olmalı")
-		}
-		if _, _, err := post(ctx, tx, accountID, "CLOSURE_REFUND", -bal, ledgerRef{by: &adminID,
-			note: fmt.Sprintf("Üyelik kapanışı — kalan bakiye havaleyle iade edildi (dekont %s, %s). %s", refundRef, refundDate, reason)}); err != nil {
-			return nil, err
-		}
+	outcome, err := refundBalance(ctx, tx, accountID, "CLOSURE", adminID, bal)
+	if err != nil {
+		return nil, nil, err
 	}
 	if _, err := tx.Exec(ctx, `UPDATE mp_supplier_accounts SET status = 'CLOSED', status_reason = $3, closed_at = now(),
 		reviewed_by = $2, reviewed_at = now(), package_renews_at = NULL, next_package_id = NULL, updated_at = now() WHERE id = $1`,
 		accountID, adminID, reason); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if _, err := tx.Exec(ctx, `UPDATE mp_businesses SET status = 'CLOSED', updated_at = now() WHERE account_id = $1 AND status <> 'CLOSED'`, accountID); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if err := tx.Commit(ctx); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return scanAccountReview(s.platform(adminID).QueryRow(ctx, accountSelectReview+` WHERE a.id = $1`, accountID))
+	acc, err := scanAccountReview(s.platform(adminID).QueryRow(ctx, accountSelectReview+` WHERE a.id = $1`, accountID))
+	return acc, outcome, err
 }
 
 // BalanceDrift, hesap bakiyesi ile defter toplamı arasındaki farkı bulur (tutarlılık sorgusu; platform).

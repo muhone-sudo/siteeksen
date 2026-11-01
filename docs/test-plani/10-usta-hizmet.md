@@ -75,3 +75,38 @@ vitrinde telefon). Güneş Sitesi'nin konumu yoksa YÖNETİCİ önce panel **Aya
 6. **f (DENETÇİ):** aynı talebi ve tabloyu görür; **Teklif topla**, **Seç**, **Gider oluştur** yok.
 7. **g (Yön.mobil, YÖNETİCİ):** Menü → Usta & Hizmet → talep → teklifler ve fatura bilgisi görünür.
 - **Sonuç:** `U-YONETIM-01`
+
+---
+
+## M13 — yayın öncesi düzeltmeler (2026-11-01)
+
+## U-KOSUL-01 · Bakiye ve iade koşullarının ayrıca kabulü
+1. **a (TEDARİKÇİ2, `/tedarikci/bakiye` ya da uygulamada Bakiye):** ilk yüklemeden önce "Usta & Hizmet Bakiye ve İade Koşulları" kartı görünür; kutu işaretlenmeden **Koşulları kabul et** pasif.
+2. **b:** kabul et → kart kaybolur, yükleme formu açılır; altında koşul sürümü ve kabul tarihi yazar. Q: `SELECT version, text_sha256, accepted_at FROM mp_terms_acceptances` — tek satır.
+- **Sonuç:** `U-KOSUL-01`
+
+## U-ODEME-01 · Tedarikçi uygulamasında uygulama içi ödeme
+1. **a (Android APK ya da `http://localhost:3004`):** Bakiye → 100 TL → **Kartla öde**. Android'de ödeme sayfası uygulamanın içinde açılır (tarayıcıya çıkılmaz); web derlemesinde aynı sekmede.
+2. **b:** sahte iyzico'da **Ödeme başarılı** → sayfa kendiliğinden kapanır (web: uygulamanın Bakiye sayfasına döner), "Ödeme alındı; bakiye güncellendi" mesajı, bakiye +100 TL.
+3. **c:** yeni ödeme başlatıp sayfayı **X** ile kapat → "Ödemeden çıkılsın mı?" → **Çık**: bakiye değişmez; yükleme birkaç dakika içinde uzlaştırmayla sonuçlanır.
+- **Sonuç:** `U-ODEME-01`
+
+## U-IADE-02 · Üyelik kapanışında kalan bakiyenin karta iadesi
+1. **a (PLATFORM, `/platform/hesaplar` → bakiyesi olan tedarikçi):** **Üyeliği kapat** → bilgi kutusu: son 365 günde kartla yüklenen kısım karta iade edilir, eskisi edilmez → gerekçe → **Kapat**.
+   Beklenen: mesajda karta iade edilen tutar (ve varsa iade edilmeyen kısım); Q-DEFTER'de `CARD_REFUND` (ve varsa `EXPIRED_BALANCE`) satırları, bakiye 0.
+2. **b (`/platform/iadeler`, "Hepsi"):** iadeler "Karta iletildi"; iyzico referansı görünür. Tedarikçinin Bildirimler'inde "Kartınıza iade yapıldı".
+3. **c:** başarısız bir iade varsa **Havaleyle ödendi** → dekont no + tarih → "Havaleyle ödendi".
+- **Sonuç:** `U-IADE-02`
+
+## U-SINIR-01 · Mesaj ve teklif hız sınırı
+1. **a (PLATFORM, `/platform/ayarlar`):** `message_per_minute_limit` = 2 yap. **(KİRACI)** bir yazışmada art arda 3 mesaj: 3.'de "Çok hızlı mesaj gönderiyorsunuz…" (429).
+2. **b:** `offer_edit_limit` = 1 yap. **(TEDARİKÇİ1)** bir teklifi iki kez düzenle: 2.'de "Bu teklif en çok 1 kez düzenlenebilir…". Ayarları geri al (20 / 5).
+- **Sonuç:** `U-SINIR-01`
+
+## U-FOTO-01 · Fotoğraf denetimi (OCR + yapay zekâ + elle onay)
+1. **a (TEDARİKÇİ1, İşletmelerim → işletme → hizmet → Fotoğraf):** üzerinde telefon numarası yazan bir görsel yükle. Beklenen: birkaç saniye sonra kalemde "Reddedildi" ve gerekçe (iletişim bilgisi); Bildirimler'de "Hizmet fotoğrafınız yayınlanmadı".
+2. **b:** numarasız bir iş fotoğrafı yükle (yapay zekâ kapalı). Beklenen: "İncelemede"; KİRACI vitrinde fotoğrafı görmez.
+3. **c (PLATFORM, `/platform/fotograflar`):** fotoğraf, OCR metni ve bağlamıyla listede → **Onayla** → KİRACI vitrinde görür. Aynı fotoğrafı "Yayında" süzgecinden gerekçeyle **Kaldır** → vitrinden düşer.
+4. **d (`/platform/yapay-zeka`):** sağlayıcı ayarı (anahtarsız açma engellenir); anahtar kaydedilince "Tanımlı" yazar, anahtarın kendisi görünmez. Gerçek sağlayıcı yoksa bu adımı ATLANDI işaretle.
+5. **e (KİRACI, sakin uygulaması):** talebe telefonlu fotoğraf ekle → talep ekranında "Fotoğraf 1: tedarikçilere gösterilmedi — …".
+- **Sonuç:** `U-FOTO-01`

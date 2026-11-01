@@ -88,7 +88,7 @@ class _RenovationsScreenState extends State<RenovationsScreen> {
   }
 
   Future<void> _reload() async {
-    setState(() => _future = apiClient.getRenovations());
+    setState(() { _future = apiClient.getRenovations(); });
     await _future;
   }
 

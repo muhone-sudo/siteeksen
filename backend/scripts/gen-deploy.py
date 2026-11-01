@@ -53,6 +53,7 @@ SERVICES = [
     ("banking",          8106, "banking-service",          "app", "Yazılmadı — S-07 kararı, 501"),
     ("governance",       8107, "governance-service",       "app", "KMK yönetişim"),
     ("marketplace",      8111, "marketplace-service",      "app", "Usta & Hizmet pazaryeri (FAZ M)"),
+    ("moderation",       8112, "moderation-service",       "app", "Fotoğraf denetimi: OCR + yapay zekâ (FAZ M13.4)"),
 ]
 
 # Zamanlanmış bildirim işçisi (cmd/scheduler). Gateway'e bağlı DEĞİLDİR; yalnızca
@@ -76,6 +77,7 @@ GATEWAY_ENV = {
     "survey": "SURVEY_SERVICE_URL", "visitor": "VISITOR_SERVICE_URL",
     "banking": "BANKING_SERVICE_URL", "governance": "GOVERNANCE_SERVICE_URL",
     "marketplace": "MARKETPLACE_SERVICE_URL",
+    "moderation": "MODERATION_SERVICE_URL",
 }
 
 
@@ -85,14 +87,22 @@ def req(var, why):
 
 
 # Dosya depolama kullanan servisler (pkg/storage): belge arşivi, kargo teslim kanıtı, havale dekontu (064).
-STORAGE_SERVICES = ("document", "package", "finance", "identity", "marketplace")
+STORAGE_SERVICES = ("document", "package", "finance", "identity", "marketplace", "moderation")
+
+# PII anahtarıyla şifreleyen servisler: personel/sakin kimliği; denetim servisi yapay zekâ sağlayıcısının gizli değerleri.
+PII_SERVICES = ("personnel", "community", "moderation")
+
+# Servise özgü Alpine paketleri: denetim servisi OCR için Tesseract (Türkçe + İngilizce dil verisi) çalıştırır.
+EXTRA_APK = {"moderation": "tesseract-ocr tesseract-ocr-data-tur tesseract-ocr-data-eng"}
 
 # --------------------------------------------------------------------------- Dockerfile
 def dockerfile(directory, port, name, build_path):
     extra = ""
+    if directory in EXTRA_APK:
+        extra += f"RUN apk --no-cache add {EXTRA_APK[directory]}\n"
     if directory in STORAGE_SERVICES:
         # Yerel depolama kipinde dosyalar bu dizine yazılır (compose'da birime bağlanır).
-        extra = "RUN mkdir -p /data/files && chown app:app /data/files\n"
+        extra += "RUN mkdir -p /data/files && chown app:app /data/files\n"
     return f"""# {name} — {HEADER}
 #
 # Root olmayan kullanıcıyla çalışır; ikili, kaynak kodu içermeyen küçük bir
@@ -216,7 +226,7 @@ def compose():
         if kind == "identity":
             out += ["      DB_USER: siteeksen_identity",
                     f"      DB_PASSWORD: {req('IDENTITY_DB_PASSWORD', 'IDENTITY_DB_PASSWORD gerekli')}"]
-        if directory in ("personnel", "community"):
+        if directory in PII_SERVICES:
             # Anahtar döndürme (docs/runbook-anahtar-dondurme.md): kimlik şifreli
             # metne yazılır; eski anahtarlar yalnızca çözmek için verilir.
             out += [f"      PII_ENCRYPTION_KEY: {req('PII_ENCRYPTION_KEY', 'PII_ENCRYPTION_KEY gerekli (32 bayt, base64)')}",
@@ -479,7 +489,7 @@ def k8s():
                          ("NETGSM_MSGHEADER", "netgsm-msgheader"), ("SMTP_HOST", "smtp-host"), ("SMTP_PORT", "smtp-port"),
                          ("SMTP_USERNAME", "smtp-username"), ("SMTP_PASSWORD", "smtp-password"), ("SMTP_FROM", "smtp-from")):
             env += k8s_env_secret(var, "notify", key, optional=True)
-        if directory in ("personnel", "community"):
+        if directory in PII_SERVICES:
             env += k8s_env_secret("PII_ENCRYPTION_KEY", "app-secrets", "pii-encryption-key")
             # Döndürme sırasında doldurulur; yoksa birincil kimlik "k1", eski anahtar yok.
             env += k8s_env_secret("PII_ENCRYPTION_KEY_ID", "app-secrets", "pii-encryption-key-id", optional=True)

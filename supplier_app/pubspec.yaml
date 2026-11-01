@@ -22,6 +22,7 @@ dependencies:
   latlong2: ^0.10.1
   flutter_localizations:
     sdk: flutter
+  webview_flutter: ^4.14.1
 
 dev_dependencies:
   flutter_test:
