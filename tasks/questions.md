@@ -448,3 +448,9 @@ Durum (kod ve `go.mod` taramasıyla):
 - **Kong** — isteğe bağlı kenar katmanı (`--profile kong`; IP hız sınırı, gövde sınırı); yayında Kong ya da bulut yük dengeleyici seçilir.
 - **Açık karar (kullanıcı):** eski compose yığını silinsin mi, güncel `docker-compose.yml` ile (`gen-deploy.py` çıktısı: Postgres + servisler +
   isteğe bağlı Kong) yeniden mi kurulsun, yoksa olduğu gibi mi kalsın.
+
+### S-26. Silme politikası (2026-11-02, KARAR VERİLDİ)
+**Cevap (kullanıcı):** Sistemde kalıcı silme yok, silme yumuşaktır; saklama süresi dolan teknik veri kalıcı silinir. KVKK imhası kalıcı
+silme olmak zorunda değil (yönetmelik silme / yok etme / anonim hale getirmeyi tanır; salt "silindi" işareti imha sayılmaz) → imha
+anonimleştirmeyle. Belge silinince erişim kayıtları silinmez; kötüye kullanıma karşı gerekçeli açıklama eklenir. Plan: `todo.md` M15.
+Açık: silinen tedarikçi kişisel belgesinin saklama süresi; değiştirilen fotoğrafın eski dosyası.

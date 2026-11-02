@@ -480,6 +480,130 @@ Platform ekranında iki alan; tedarikçi ekranlarında "2/3" kullanım.
   (Android'de bakılmadı; test ajanı `U-PAKET-01`).
 - [x] M14.5 Belgeler: test planı `U-PAKET-01`, `api-sozlesmesi.md`, changelog, roadmap — **Kanıt:** dosya farkı
 
+### M15 — Yumuşak silme (kullanıcı kararı 2026-11-02) — PLAN, ONAY BEKLİYOR
+**Karar:** Sistemde kalıcı (hard) silme yok; silme yumuşaktır. Saklama süresi dolan teknik veri kalıcı silinir. KVKK imhası
+anonimleştirmeyle yapılır (yönetmelik silme / yok etme / anonim hale getirmeyi tanır; salt "silindi" işareti imha sayılmaz — veri
+geri getirilebilir kalır). Belge silinince erişim kayıtları silinmez; kötüye kullanıma karşı kayda gerekçeli açıklama eklenir.
+
+**Bugünkü durum (2026-11-02 taraması, 13 kalıcı silme):**
+| Yer | Ne | Sınıf → yapılacak |
+|---|---|---|
+| `scheduler` sensör okumaları, devriye konum izi (365 gün) | saklama süresi dolan veri | teknik → kalıcı kalır |
+| `retention` uygulama hata raporları (KVKK imha) | saklama süresi dolan teknik veri | teknik → kalıcı kalır |
+| `audit_log_purge_client` (yalnız `source='CLIENT'` ekran olayları, 30–730 gün) | istemci telemetrisi | teknik → kalıcı kalır |
+| `revoked_tokens` süresi dolanlar, `storage_deletion_queue` işlenen satır | iç kuyruk/önbellek | teknik → kalıcı kalır |
+| `payment_risk_scores` günün skoru yeniden hesaplanırken | türetilmiş veri | teknik → kalıcı kalır |
+| `mp_business_categories` işletme kategorileri yeniden yazılırken | ilişki satırı (bilgi kaybı yok: işletmenin güncel kategorileri) | teknik → kalıcı kalır |
+| `emergency_points`, `emergency_contacts` silme | kullanıcı silmesi | → yumuşak (`deleted_at`, `deleted_by`) |
+| `resident_emergency_cards` rıza geri alınınca (KVKK m.7, sağlık verisi) | KVKK imhası | → anonimleştirme: satır kalır, şifreli ihtiyaç, kişi/telefon, hane sayısı boşaltılır, `withdrawn_at` |
+| `property_settings` varsayılana dönüş | kullanıcı işlemi | → eski değer geçmiş tablosuna (`property_settings_history`) yazılır, sonra satır kaldırılır (okuyucular değişmez) |
+| `mp_account_documents` taslak belge silme | kullanıcı silmesi (kişisel belge: kimlik) | → yumuşak + saklama kuralı (soru 1) |
+| `mp_business_services` hizmet kalemi silme | kullanıcı silmesi | → yumuşak; vitrin, sayım (084 sınırı), fotoğraf okuma silinmişi saymaz |
+| Belgeler (`documents`) | zaten arşivleniyor (yumuşak) | erişim kaydı ve kalıcı silme yasağı aşağıda |
+**Dosyalar:** sahipsiz dosya temizliği (kayıt yazılamadıysa yüklenen dosyanın silinmesi) teknik → kalır. Değiştirilen fotoğrafın eski dosyası
+bugün siliniyor → soru 2.
+
+**Plan:**
+1. Migration: yumuşak silme sütunları, `property_settings_history`, belge erişim kaydı değişiklikleri.
+2. Uygulama yetkisiyle zorlama: `siteeksen_app` ve `siteeksen_identity` rollerinden **bütün tablolarda DELETE yetkisi geri alınır**, yalnız
+   teknik izin listesine verilir; `ALTER DEFAULT PRIVILEGES` yeni tablolara DELETE vermez. Kod bir yerde unutsa bile veritabanı reddeder.
+3. Kod: yukarıdaki dönüşümler; listeleme/okuma sorguları silinmişi göstermez.
+4. Belge: erişim kaydı belgeye yabancı anahtarla bağlı olmaz (var olmayan kimliğe deneme de `DENIED` yazılır); arşivlemede kayda
+   `ARCHIVED` satırı ve gerekçe; `documents` için kalıcı silme yetkisi yok; erişim kaydı ekranı arşiv notunu gösterir.
+5. verify-stack: DELETE yetkisi olan tablo listesi izin listesiyle **birebir** (RLS listesi gibi); her dönüşüm için kontrol; önce kırmızı.
+
+**Zihinde çalıştırma — bulunan sorunlar ve çözümleri:**
+1. *Bir sorguda silinmiş filtresi unutulur:* silinen hizmet kalemi vitrinde görünür. → Vitrin zaten görünüm/politikadan okuyor
+   (`mp_business_services_public`, `mp_service_within_limit`): filtre orada tek yerde. Tedarikçinin kendi listesi ayrıca süzülür; verify
+   silinen kalemin vitrinde, işletme sayfasında, fotoğraf ucunda ve sınır sayımında olmadığını denetler.
+2. *Ayarlar için `deleted_at` çok okuyucuyu bozar:* `property_settings`'i okuyan her yer filtre unutursa sıfırlanan ayar geçerli sayılır.
+   → Satıra dokunulmaz; eski değer önce geçmiş tablosuna yazılır (kim, ne zaman, eski değer), sonra satır kaldırılır. Bu tek tablo
+   izin listesine girer ve geçmişe yazılmadan silme yapılamaz (aynı işlemde tetikleyici).
+3. *Yeniden ekleme ve tekillik:* `resident_emergency_cards (property_id, user_id, unit_id)` tekil; rıza geri alınıp yeniden verilirse
+   upsert anonim satırı yeniden doldurur ve `withdrawn_at`'ı boşaltır. Acil durum listeleri `withdrawn_at` olanı göstermez.
+4. *Silinen kalemin adıyla yenisi:* tekil kısıt varsa çakışır → silinmiş satırlar tekillikte sayılmaz (kısmi tekil indeks), kontrol edilir.
+5. *Zincirleme silme:* `ON DELETE CASCADE` yalnız kalıcı silmede çalışır; izin listesindeki tablolardan zincir başlıyor mu taranır
+   (sensör/devriye/hata raporu çocuk tablosu yok — migration öncesi sorguyla doğrulanır).
+6. *`SECURITY DEFINER` fonksiyonlar yetki geri alımından etkilenmez* (sahibi siler): bugün iki tane (`audit_log_purge_client`,
+   `revoked_tokens` temizliği) ve ikisi teknik; verify bu fonksiyon listesini de birebir denetler, yeni bir DELETE'li fonksiyon gözden kaçmaz.
+7. *Kişisel belgeyi yumuşak silip sonsuza dek tutmak KVKK'ya aykırı* (amaç bitti): tedarikçinin yanlış yüklediği kimlik belgesi → saklama
+   süresi sonunda dosya imha edilir, satır anonim kalır (süre: soru 1). Silinen belgeye erişim kaydı yazılmaya devam eder.
+8. *Belge erişim kaydında yabancı anahtar kalkınca yanlış kimlik:* başka sitenin belge kimliğiyle deneme → satır denemeyi yapanın sitesine
+   yazılır (bugünkü gibi); belge bilgisi o siteye sızmaz (yalnız denenen kimlik). Kimlik UUID değilse yazılmaz (`audit_logs`'ta DENIED).
+9. *Test/geliştirme betikleri silme yapıyor mu:* `test-hesaplari.sh`, verify ve seed süper kullanıcıyla çalışır → etkilenmez; uygulama
+   rolüyle silen betik varsa kırmızı verir (verify kapsar).
+10. *Geri alma:* yumuşak silinen kayıt için "geri getir" arayüzü bu işte yok (istenirse ayrı madde); veritabanında `deleted_at` boşaltılarak döner.
+
+**Maddeler:**
+- [ ] M15.1 Tarama doğrulaması: izin listesindeki tablolara bağlı `ON DELETE CASCADE` çocuk yok; DELETE'li fonksiyon listesi — **Kanıt:** sorgu çıktısı
+- [ ] M15.2 Migration 085: yetki geri alımı + izin listesi + varsayılan yetkiler; sütunlar; `property_settings_history` + tetikleyici; belge
+  erişim kaydı FK kaldırma, `ARCHIVED` eylemi — **Kanıt:** verify adım 4; DELETE yetkili tablo listesi birebir (önce kırmızı)
+- [ ] M15.3 Acil durum noktası/kişisi yumuşak; acil durum kartı rıza geri alımında anonimleştirme — **Kanıt:** verify: satır kalır, kişisel alanlar boş, listede yok; yeniden rıza
+- [ ] M15.4 Ayar sıfırlama geçmişe yazar — **Kanıt:** verify: eski değer, kişi, zaman geçmişte; okuma varsayılanı döner
+- [ ] M15.5 Tedarikçi belgesi ve hizmet kalemi yumuşak; saklama kuralı (soru 1) — **Kanıt:** verify: vitrin/sayfa/fotoğraf/sınır sayımı silineni görmez; tedarikçi listesinde yok
+- [ ] M15.6 Belge: var olmayan kimliğe deneme `DENIED` yazılır; arşivlemede gerekçeli `ARCHIVED` satırı; panel erişim kaydında görünür — **Kanıt:** verify + tarayıcı
+- [ ] M15.7 Belgeler: `guvenlik-durumu.md`, `mimari-durum.md`, `api-sozlesmesi.md`, KVKK imha politikası notu, changelog — **Kanıt:** dosya farkı
+- [ ] **M15 kapısı** (verify-stack, verify-mobile, panel tsc/lint)
+
+**Sorular (kullanıcı):** (1) Tedarikçinin sildiği kişisel belge (kimlik, vergi levhası) kaç gün sonra kalıcı imha edilsin? Öneri 30 gün.
+(2) Değiştirilen fotoğrafın eski dosyası tutulsun mu (kötüye kullanım kanıtı, ör. telefonlu fotoğraf) — öneri: tutulsun, satırı zaten
+`REPLACED` olarak duruyor; saklama süresi teknik kurala bağlansın (ör. 1 yıl)?
+
+### M16 — Bildirim üretmeyen akışlara bildirim (06 E7, kullanıcı kararı 2026-10-29) — PLAN, ONAY BEKLİYOR
+**Bugün:** Altı akışta sakin/yönetim sonucu ancak ekrana bakınca öğreniyor. Bildirim `pkg/notify` üzerinden, alıcı kümeleri yalnız
+`audience.go`'da; her uç yanıtında gerçek gönderim sonucu (`notification`: alıcı sayısı, not) döner (mevcut kalıp: tahakkuk, anket, tadilat).
+
+**Plan (akış → konu → alıcı → içerik):**
+| Akış | Konu | Alıcı | İçerik |
+|---|---|---|---|
+| Talep açıldı (`POST /requests`) | `request.created` | `Operations` (yönetici, kurul, görevli) | talep no + başlık (açıklama yok) |
+| Talep işleme alındı / çözüldü (`PATCH /requests/:id/status`) | `request.status` | talebi açan kişi | yeni durum; çözüldüyse "onaylayın ya da reddedin" |
+| Sakin çözümü reddetti (`confirm-resolution`, red) | `request.reopened` | `Operations` | talep no + sakinin notu |
+| Havale bildirimi onaylandı / reddedildi / onay geri alındı (`payments/:id/confirm|reject|reverse`, ekstre satırı onayı) | `payment.confirmed` / `payment.rejected` / `payment.reversed` | bildirimi yapan kişi | tutar, dönem, ret gerekçesi |
+| Onay gerektiren rezervasyon talebi (`POST /reservations`, durum PENDING) | `reservation.pending` | `Approvers` (rotayı onaylayabilenler) | tesis, tarih/saat, daire |
+| İşletme projesi bildirildi (`budgets/:id/notify`) | `budget.notified` | yeni küme `Owners` (sitenin aktif malik ve vekilleri) | dönem, toplam, bölüm payı; itiraz süresi yalnız yasal parametre yürürlükteyse |
+| Genel kurul çağrısı (`assemblies/:id/notify`) | `assembly.called` | `Owners` | tarih, yer, gündem, ikinci toplantı; kanuni çağrı yöntemi |
+| NPS ölçümü açıldı (`POST /nps`) | `nps.opened` | `Residents` | başlık, son tarih, anonimlik notu |
+
+**Zihinde çalıştırma — bulunan sorunlar ve çözümleri:**
+1. *İşlemi yapan kendine bildirim alır* (yönetici kendi talebini açar, kurul üyesi aynı zamanda malik): → işlemi yapan alıcılardan çıkarılır
+   (her akışta; verify denetler).
+2. *Talep içeriği hassas olabilir* (komşu şikâyeti): görevliye açıklama gitmez → bildirimde yalnız talep no + başlık; ayrıntı ekranda, mevcut yetkiyle.
+3. *Havale onayı iki yoldan olur:* `payments/:id/confirm` ve banka ekstresi satırının bekleyen bildirime eşlenip onaylanması. Yalnız birine
+   eklenirse diğer yolda sakin habersiz kalır → ikisi de aynı fonksiyonu çağırır. Yönetimin doğrudan girdiği tahsilat zaten
+   `payment.recorded` gönderiyor; aynı ödemeye iki bildirim gitmemeli → tekilleştirme anahtarı ödeme kimliği.
+4. *Onaylanmış ödemenin geri alınması* sakinin borcunu yeniden artırır; E7'de yazmıyor ama "onay/ret"in parçası → `payment.reversed` eklendi
+   (istemezseniz çıkar).
+5. *İtiraz süresini koda gömmek:* `BUDGET_OBJECTION_DAYS` yasal parametresi "7579 ile mülga (22/5/2026'ya kadar)" → bildirim metni itiraz
+   hakkını yalnız parametre bildirim tarihinde yürürlükteyse yazar; sabit "7 gün" yok.
+6. *Uygulama içi bildirim kanuni tebliğin yerine geçmez* (KMK m.29 çağrı, m.37 proje): kayıtta `notice_method` (imza karşılığı, taahhütlü)
+   tutuluyor. → Metin "bilgilendirmedir; kanuni çağrı/tebliğ: <yöntem>" der; elektronik bildirimin tebliğ sayılıp sayılmayacağı hukuki
+   soru (avukat, M0.4 listesine eklenir), sistem bunu iddia etmez.
+7. *Alıcı kümesi:* genel kurul ve işletme projesi kat maliklerini ilgilendirir; kiracı yasal muhatap değil → `Owners` (malik + vekil,
+   kişi başına tek). Bugün yalnız bölüm bazlı `UnitOwners` var; site geneli küme `audience.go`'ya eklenir.
+8. *İki kez çağrı:* `notify` uçları yeniden çağrılabilirse çift bildirim → tekilleştirme anahtarı (`assembly:<id>:call`, `budget:<id>:notify`);
+   tarih değişip yeniden çağrı yapılırsa anahtar tarih içerir.
+9. *Rezervasyon:* otomatik onaylanan (tesis onay istemiyor ya da sakinlere otomatik) yönetime gitmez; yalnız PENDING. Alıcı, onay ucunun
+   yetkisiyle aynı (MANAGER, BOARD_MEMBER = `Approvers`).
+10. *Sakin bildirime dokununca ilgili ekran açılmalı:* mobil uygulamada konu → ekran eşlemesi var mı bakılır; yeni konular eklenir (yoksa
+    yalnız liste).
+11. *Kanal:* diğer işlem bildirimleri gibi uygulama içi; kişinin tercihleri (`notification_preferences`) uygulanır. E-posta/SMS istenirse ayrı karar.
+12. *Taşınmış talep sahibi:* sakinlik bitmişse bildirim yazılır ama siteye erişimi olmadığı için göremez → yazılmaz, yanıtta "alıcı yok" notu.
+
+**Maddeler:**
+- [ ] M16.1 `audience.go`: `Owners`; işlemi yapanı dışlama yardımcı — **Kanıt:** `go test ./pkg/notify/...` (iki daireli malik tek kez, kiracı yok)
+- [ ] M16.2 Talep: açıldı / durum / yeniden açıldı — **Kanıt:** verify: alıcı kümesi birebir, işlemi yapan yok, SİTE_B yok; önce kırmızı
+- [ ] M16.3 Havale: onay / ret / geri alma, iki onay yolu, tekilleştirme — **Kanıt:** verify: ekstre yoluyla onayda da bildirim; ikinci bildirim yok
+- [ ] M16.4 Rezervasyon PENDING → onaylayıcılar — **Kanıt:** verify: otomatik onayda bildirim yok
+- [ ] M16.5 İşletme projesi ve genel kurul → malikler; yasal parametreye bağlı metin; tekilleştirme — **Kanıt:** verify: kiracı almaz, vekil alır; tekrar çağrıda yok
+- [ ] M16.6 NPS → sakinler; uç yanıtındaki "BİLDİRİM GÖNDERİLMEDİ" notu gerçek sonuçla değişir — **Kanıt:** verify
+- [ ] M16.7 Mobil konu → ekran eşlemesi (sakin, yönetici) — **Kanıt:** verify-mobile; tarayıcı (web derlemesi)
+- [ ] M16.8 Test planı `06-bildirimler.md` yeniden üretilir (E7'deki "bildirim beklenmez" işaretleri kalkar), `06-bulgular` E7 kapanır, changelog — **Kanıt:** `uret.sh`
+- [ ] **M16 kapısı**
+
+**Sorular (kullanıcı):** (3) Sakinin havale bildirimi (onay bekleyen) yönetime de bildirilsin mi? E7'de yok; rezervasyonla aynı mantık.
+(4) Onaylanmış ödemenin geri alınması bildirimi (madde 4) kalsın mı?
+
 ### Yurt dışı hazırlığı (kullanıcı kararı 2026-11-01: sonra)
 - [ ] **YD.1 Site başına saat dilimi** — bugün tek `APP_TIMEZONE` (Europe/Istanbul). Tasarım: `properties.timezone` (varsayılan Europe/Istanbul);
   `dbscope.For` kapsamı açarken `SET LOCAL TimeZone` → veritabanındaki `CURRENT_DATE`/`now()::date` (30 dosya) sorgu değişmeden site gününü verir;
@@ -515,7 +639,7 @@ Kullanıcı kararları (2026-10-26):
   YÖNETİCİ'de tahsilat oranı ve Son ödemeler eskisi gibi (`kanit/M14/03-gorevli-panel.jpg`). tsc/lint temiz.
 - [ ] Belge servisi: var olmayan belgeye reddedilen erişim, `document_access_logs` yabancı anahtarına takılıp kaydedilemiyor (yalnız günlük)
   — 2026-11-02 inceleme: kod bunu bilerek yapıyor (`logAccessAttempt` notu: kayıt yoksa `audit_logs` DENIED tutar). Çözüm bir şema kararı
-  (FK kaldırılır ya da denenen kimlik ayrı sütunda tutulur; ayrıca `ON DELETE CASCADE` salt-ekleme tetikleyicisiyle çelişiyor) — **kullanıcıya soruldu**.
+  (FK kaldırılır ya da denenen kimlik ayrı sütunda tutulur; ayrıca `ON DELETE CASCADE` salt-ekleme tetikleyicisiyle çelişiyor) — kullanıcı kararı 2026-11-02: yumuşak silme → **M15.6**.
 
 ## H.0 Sınıflandırma — 51 arayüzsüz uç (inceleme sonucu)
 
