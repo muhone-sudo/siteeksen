@@ -608,13 +608,49 @@ Metin: `docs/hukuk/tedarikci-kvkk-aydinlatma.md` (TASLAK). Otomasyondaki sürele
 **Maddeler:**
 - [ ] M16.1 `audience.go`: `Owners`; işlemi yapanı dışlama yardımcı — **Kanıt:** `go test ./pkg/notify/...` (iki daireli malik tek kez, kiracı yok)
 - [ ] M16.2 Talep: açıldı / durum / yeniden açıldı — **Kanıt:** verify: alıcı kümesi birebir, işlemi yapan yok, SİTE_B yok; önce kırmızı
-- [ ] M16.3 Havale: onay / ret / geri alma, iki onay yolu, tekilleştirme — **Kanıt:** verify: ekstre yoluyla onayda da bildirim; ikinci bildirim yok
+- [ ] M16.3 Havale: bekleyen bildirim yönetime (`payment.pending`), onay / ret / geri alma, iki onay yolu, tekilleştirme — **Kanıt:** verify:
+  ekstre yoluyla onayda da bildirim; ikinci bildirim yok
+- [ ] M16.3b **Mükerrer ödeme bildirimi (kullanıcı 2026-11-02: "biri onaylanınca diğerinin onayı anlık düşsün")** — bulgu: aynı tahakkukları
+  kapsayan iki bekleyen bildirim (malik ve kiracı aynı havaleyi bildirir) ikisi de onaylanabiliyor; ikinci onay `paid_amount`'ı tutarın
+  üstüne çıkarıyor (kod fazla ödemeyi bilerek gizlemiyor, ama engellemiyor da; yalnız raporda görünür).
+  Çözüm: (1) onay anında, bildirimin kapsadığı tahakkuklar başka ödemeyle tamamen kapanmışsa onay **reddedilir** (409 `ALREADY_PAID`,
+  hangi ödemeyle kapandığı yazılır) — iki yönetici aynı anda bassa da satır kilidiyle yalnız biri geçer; (2) bir bildirim onaylanınca,
+  tahakkukları tamamen kapanan diğer bekleyen bildirimler aynı işlemde **"mükerrer"** gerekçesiyle kapanır (silinmez; durum REJECTED +
+  `duplicate_of`), bildirimi yapan sakine "tahakkuk X ödemesiyle kapandı; ayrıca havale yaptıysanız yönetimle görüşün (iade ya da sonraki
+  döneme aktarım)" bildirimi gider; (3) tahakkukları yalnız kısmen kapanan bildirim beklemede kalır, panelde "kısmen kapandı" uyarısıyla.
+  Zihinde çalıştırma: iki gerçek havale (ikisi de para yatırdı) → ikinci bildirim mükerrer kapanır ama para hesapta: sakine giden metin
+  bunu söyler, yönetim alacak dekontu/iade ile çözer (mevcut uçlar); yanlışlıkla mükerrer sayılan → yönetici ödemeyi yeniden kaydedebilir
+  (`/collections`). — **Kanıt:** verify: iki bildirim, biri onay → diğeri REJECTED/`duplicate_of`, ikinci onay 409, paralel iki onayda tek başarı,
+  `paid_amount` tutarı aşmaz; önce kırmızı
 - [ ] M16.4 Rezervasyon PENDING → onaylayıcılar — **Kanıt:** verify: otomatik onayda bildirim yok
 - [ ] M16.5 İşletme projesi ve genel kurul → malikler; yasal parametreye bağlı metin; tekilleştirme — **Kanıt:** verify: kiracı almaz, vekil alır; tekrar çağrıda yok
 - [ ] M16.6 NPS → sakinler; uç yanıtındaki "BİLDİRİM GÖNDERİLMEDİ" notu gerçek sonuçla değişir — **Kanıt:** verify
 - [ ] M16.7 Mobil konu → ekran eşlemesi (sakin, yönetici) — **Kanıt:** verify-mobile; tarayıcı (web derlemesi)
 - [ ] M16.8 Test planı `06-bildirimler.md` yeniden üretilir (E7'deki "bildirim beklenmez" işaretleri kalkar), `06-bulgular` E7 kapanır, changelog — **Kanıt:** `uret.sh`
 - [ ] **M16 kapısı**
+
+### M17 — Gerçek zamanlı bildirim (kullanıcı isteği 2026-11-02: "socket kurman lazım") — PLAN, ONAY BEKLİYOR
+**Bugün:** socket yok. Bildirim veritabanına yazılır; panel okunmamış sayısını 60 sn'de bir sorar, listeler sayfa açılınca yenilenir;
+mobil uygulama ekran açılınca çeker; telefona anlık bildirim (push) Firebase'e bağlı (B11, proje bilgisi bekleniyor).
+**Plan:** gateway'de tek bir canlı akış ucu (`GET /api/v1/events`). Öneri **SSE** (sunucudan istemciye tek yönlü akış): yalnız sunucu →
+istemci gerekiyor; WebSocket'in çift yönlülüğü kullanılmayacak, SSE vekil sunuculardan ve yeniden bağlanmadan daha kolay geçer. Kaynak:
+PostgreSQL `LISTEN/NOTIFY` (ek bileşen yok; Redis gerekmez — S-25 kararını etkilemez). Bildirim satırı yazılınca tetikleyici
+`pg_notify` ile yalnız kimlik/konu/site gönderir; gateway alıcının açık bağlantılarına iletir; istemci içeriği normal API'den (RLS'li) okur.
+Ayrıca kayıtsız "değişti" olayları (ör. ödeme bildirimi onaylandı → o sitenin onay ekranı açık yöneticilerinde liste kendiliğinden yenilenir).
+**Zihinde çalıştırma — sorunlar ve çözümleri:**
+1. *Tarayıcının `EventSource`'u başlık gönderemez* (jeton `Authorization`'da) → `fetch` akışıyla okunur (başlık destekli); jeton URL'ye yazılmaz (günlüklere düşer).
+2. *Jeton süresi akış açıkken dolar* → gateway süre dolunca akışı kapatır, istemci yenilenen jetonla bağlanır; oturum iptali (`user_token_invalidation`) de akışı kapatır.
+3. *Kaçırılan olay* (bağlantı koptu) → istemci yeniden bağlanınca listeleri ve sayacı bir kez yeniler; olaylar tek doğruluk kaynağı değil.
+4. *Veri sızıntısı:* akış içerik taşımaz, yalnız "şu kimlikli bildirim geldi / şu liste değişti"; okuma RLS'li API'den. Olay yalnız alıcının
+   kendi kullanıcı kimliğine ya da (değişti olaylarında) o sitede ilgili rolü olanlara gider; rol gateway'de jetondan değil veritabanından okunur.
+5. *Gateway zaman aşımları ve tampon* → akış ucunda yazma zaman aşımı kapalı, 25 sn'de bir canlılık satırı; Kong/ters vekilde tamponlama kapatılır.
+6. *`pg_notify` 8 KB sınırı ve yoğunluk* → yalnız kimlikler; toplu duyuruda (1000 alıcı) tek tek olay yerine "bildirimlerin değişti" tek olayı.
+7. *Birden çok gateway örneği* → her örnek kendi `LISTEN`'ını açar; doğru çalışır.
+8. *Mobil arka planda* → SSE yalnız uygulama açıkken; kapalıyken telefon bildirimi push ister (B11) — bu iş push'u kapsamaz.
+9. *Doğruluk akışa bağlı değil:* mükerrer onay gibi kurallar sunucuda (M16.3b); akış yalnız ekranı güncel tutar.
+**Maddeler:** M17.1 tetikleyici + gateway akış ucu + kimlik/oturum iptali · M17.2 panel: zil ve açık listeler · M17.3 sakin/yönetici/tedarikçi
+uygulamaları (açıkken) · M17.4 verify: iki istemci, biri onaylar → diğerine olay; başka site/başka kullanıcı olay almaz; jeton dolunca akış kapanır.
+**Soru (kullanıcı):** (5) SSE (öneri) mi, WebSocket mi?
 
 **Sorular (kullanıcı):** (3) Sakinin havale bildirimi (onay bekleyen) yönetime de bildirilsin mi? E7'de yok; rezervasyonla aynı mantık.
 (4) Onaylanmış ödemenin geri alınması bildirimi (madde 4) kalsın mı?
