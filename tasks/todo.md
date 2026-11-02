@@ -292,7 +292,7 @@ Koda başlanmadı. Sıra: M1 → M12; M0 kullanıcıda (kodu bekletmez, yayını
 - [ ] **M9 kapısı** (+ APK)
   → **Kapı (2026-11-01):** verify-stack 1533/1533 (2026-11-01); verify-mobile 14/14; iki APK (sakin, tedarikçi) derlendi; tarayıcı `~/.siteeksen-test/kanit/M9/` 11/11; changelog + roadmap güncel. **Kalan:** M9.4 test ortamı açılış çıktısı.
 
-- [ ] **Bulgu (2026-11-01): verify-stack gece yarısı yanlış kırmızı** — 00:00–03:00 arasında 13 kontrol kırmızıya döndü (KVKK son gün, işletme projesi
+- [x] **Bulgu (2026-11-01): verify-stack gece yarısı yanlış kırmızı** — 00:00–03:00 arasında 13 kontrol kırmızıya döndü (KVKK son gün, işletme projesi
   süreleri, hatırlatmalar, valör…). Neden: servis tarihleri İstanbul saatine göre yazıyor, kontroller `$PSQL` oturumunda UTC `CURRENT_DATE` ile
   karşılaştırıyor. İlk teşhis ("verify-stack `PGTZ` ayarlamıyor") yanlıştı: `export PGTZ` zaten var; ana makinede psql olmadığı için kullanılan
   Docker sarmalayıcısı (`scripts/tools/pg-docker/_pgrun`) `docker exec`'e `PGTZ`'yi geçirmiyordu, kaptaki psql UTC kalıyordu.
@@ -509,8 +509,13 @@ Kullanıcı kararları (2026-10-26):
 - [ ] KALDI/KISMEN sonuçlarının düzeltilmesi
 - [ ] **Kullanıcı kararı (2026-10-29): yapılacak** — bildirim üretmeyen akışlara bildirim eklenecek (06 E7: talep açma/durum, havale onay/ret, yeni rezervasyon talebi, işletme projesi bildirimi, genel kurul çağrısı, NPS ölçümü)
 - [ ] Yönetici uygulaması küçük arayüz (06 E8)
-- [ ] Panel ana sayfa, mali yetkisi olmayan rol (GÖREVLİ): "Son ödemeler" kartı 502 "Ödeme verisi alınamadı… (403)" ve tahsilat uyarısı gösteriyor; yetkisi olmayana bu kartlar gizlenmeli (2026-10-29 test günlüğü)
+- [x] Panel ana sayfa, mali yetkisi olmayan rol (GÖREVLİ): "Son ödemeler" kartı 502 "Ödeme verisi alınamadı… (403)" ve tahsilat uyarısı gösteriyor; yetkisi olmayana bu kartlar gizlenmeli (2026-10-29 test günlüğü)
+  → **Sonuç:** `[D4]` 2026-11-02: kartlar `canAccess("/dashboard/accounting")` ile gösterilir; yetkisizde ödeme isteği hiç atılmaz, `finance.*` eksik
+  uyarısı süzülür. Playwright (test ortamı): GÖREVLİ'de Sakin/Bölüm/Bekleyen talep + Son talepler, `recent-payments` isteği yok, uyarı yok;
+  YÖNETİCİ'de tahsilat oranı ve Son ödemeler eskisi gibi (`kanit/M14/03-gorevli-panel.jpg`). tsc/lint temiz.
 - [ ] Belge servisi: var olmayan belgeye reddedilen erişim, `document_access_logs` yabancı anahtarına takılıp kaydedilemiyor (yalnız günlük)
+  — 2026-11-02 inceleme: kod bunu bilerek yapıyor (`logAccessAttempt` notu: kayıt yoksa `audit_logs` DENIED tutar). Çözüm bir şema kararı
+  (FK kaldırılır ya da denenen kimlik ayrı sütunda tutulur; ayrıca `ON DELETE CASCADE` salt-ekleme tetikleyicisiyle çelişiyor) — **kullanıcıya soruldu**.
 
 ## H.0 Sınıflandırma — 51 arayüzsüz uç (inceleme sonucu)
 

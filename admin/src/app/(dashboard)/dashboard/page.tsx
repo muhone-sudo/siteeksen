@@ -5,21 +5,25 @@
  * Ulaşılamayan kaynak için uydurma değer gösterilmez: kart "—" gösterir ve
  * nedeni ayrıca listelenir. (Önceki sürümde pano toplayıcısı servis
  * yanıtlarını çözemiyor, bütün kartlar "—" kalıyordu — 2026-09-26 düzeltildi.)
+ * Mali kayıtlara yetkisi olmayan rol (ör. GÖREVLİ) mali kartları görmez; sunucu zaten 403 verir.
  */
 import Link from "next/link";
 import { api } from "@/lib/api";
-import { useApi } from "@/lib/use-api";
+import { useApi, useRoles } from "@/lib/use-api";
+import { canAccess } from "@/lib/rbac";
 import { Card, Notice, Page, QueryView, Stats, StatusBadge, Table } from "@/components/ui/kit";
 import { date, num, pct, tl } from "@/lib/format";
 import { PAYMENT_STATUS, REQUEST_STATUS } from "@/lib/labels";
 
 export default function DashboardPage() {
+    const { roles } = useRoles();
+    const financial = canAccess("/dashboard/accounting", roles);
     const stats = useApi(["dashboard", "stats"], api.dashboard.stats);
-    const payments = useApi(["dashboard", "payments"], api.dashboard.recentPayments);
+    const payments = useApi(["dashboard", "payments"], api.dashboard.recentPayments, financial);
     const requests = useApi(["dashboard", "requests"], api.dashboard.recentRequests);
 
     const s = stats.data?.data;
-    const missing = stats.data?.unavailable ?? [];
+    const missing = (stats.data?.unavailable ?? []).filter((u) => financial || !u.source.startsWith("finance."));
 
     return (
         <Page title="Panel" description="Aktif sitenin genel durumu">
@@ -40,16 +44,16 @@ export default function DashboardPage() {
                     { label: "Sakin", value: num(s?.totalResidents), tone: "blue" },
                     { label: "Bağımsız bölüm", value: num(s?.totalUnits) },
                     { label: "Bekleyen talep", value: num(s?.pendingRequests), tone: "amber" },
-                    {
+                    ...(financial ? [{
                         label: s?.period ? `Tahsilat oranı (${s.period})` : "Tahsilat oranı",
                         value: pct(s?.collectionRate, 1),
-                        tone: "green",
+                        tone: "green" as const,
                         hint: s?.period ? `${tl(s.monthlyIncome)} / ${tl(s.monthlyAssessed)}` : undefined,
-                    },
+                    }] : []),
                 ]}
             />
             <div className="grid gap-6 lg:grid-cols-2">
-                <Card title="Son ödemeler" actions={<Link href="/dashboard/accounting" className="text-sm text-primary hover:underline">Tümü</Link>} padded={false}>
+                {financial && <Card title="Son ödemeler" actions={<Link href="/dashboard/accounting" className="text-sm text-primary hover:underline">Tümü</Link>} padded={false}>
                     <QueryView q={payments} empty="Kayıtlı ödeme yok">
                         {(d) => (
                             <Table
@@ -65,7 +69,7 @@ export default function DashboardPage() {
                             />
                         )}
                     </QueryView>
-                </Card>
+                </Card>}
                 <Card title="Son talepler" actions={<Link href="/dashboard/requests" className="text-sm text-primary hover:underline">Tümü</Link>} padded={false}>
                     <QueryView q={requests} empty="Talep yok">
                         {(d) => (
