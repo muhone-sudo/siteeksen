@@ -545,9 +545,15 @@ bugün siliniyor → soru 2.
 - [ ] M15.7 Belgeler: `guvenlik-durumu.md`, `mimari-durum.md`, `api-sozlesmesi.md`, KVKK imha politikası notu, changelog — **Kanıt:** dosya farkı
 - [ ] **M15 kapısı** (verify-stack, verify-mobile, panel tsc/lint)
 
-**Sorular (kullanıcı):** (1) Tedarikçinin sildiği kişisel belge (kimlik, vergi levhası) kaç gün sonra kalıcı imha edilsin? Öneri 30 gün.
-(2) Değiştirilen fotoğrafın eski dosyası tutulsun mu (kötüye kullanım kanıtı, ör. telefonlu fotoğraf) — öneri: tutulsun, satırı zaten
-`REPLACED` olarak duruyor; saklama süresi teknik kurala bağlansın (ör. 1 yıl)?
+**Cevaplar (kullanıcı 2026-11-02):** (1) Kanunen sorun yoksa silinen tedarikçi belgesi hemen imha edilmez; KVKK izni süresince durur;
+takibi kişiye bırakılmaz, otomasyon yapar. (2) Değiştirilen fotoğrafın eski dosyası tutulur, 1 yıl sonra teknik kuralla silinir.
+→ **M15.5 güncellendi:** mevcut KVKK saklama/imha otomasyonuna (`pkg/retention`, zamanlayıcının `kvkk.destruction` işi, "süre tanımlı
+değil" uyarısı) platform düzeyinde "Tedarikçi belgeleri" kategorisi eklenir. Süre başlangıcı: üyelik kapanışı ya da KVKK izninin geri
+alınması; süre dolunca dosya imha edilir, satır anonim kalır, imha kaydı tutulur (yönetmelik: işlem kayıtları en az 3 yıl). **Süre
+tanımlanana kadar imha yapılmaz ve platforma "saklama süresi tanımlı değil" bildirimi gider** (sitelerdeki mevcut davranış). Hukuki not:
+amacı biten verinin tutulması saklama-imha politikasında ve tedarikçi aydınlatma metninde yazılı süreye dayanmalı; tedarikçi KVKK metni
+henüz yok (M0.4) → avukat listesine: "yanlış yüklenip silinen kimlik belgesi üyelik süresince tutulabilir mi, süre ne olmalı".
+Ayrıca bugün tedarikçiye özel KVKK izni ve izni geri alma yolu yok (yalnız genel `kvkk_consent_at`) → izin geri alma ucu bu işe eklenir.
 
 ### M16 — Bildirim üretmeyen akışlara bildirim (06 E7, kullanıcı kararı 2026-10-29) — PLAN, ONAY BEKLİYOR
 **Bugün:** Altı akışta sakin/yönetim sonucu ancak ekrana bakınca öğreniyor. Bildirim `pkg/notify` üzerinden, alıcı kümeleri yalnız
@@ -602,7 +608,7 @@ bugün siliniyor → soru 2.
 - [ ] **M16 kapısı**
 
 **Sorular (kullanıcı):** (3) Sakinin havale bildirimi (onay bekleyen) yönetime de bildirilsin mi? E7'de yok; rezervasyonla aynı mantık.
-(4) Onaylanmış ödemenin geri alınması bildirimi (madde 4) kalsın mı?
+(4) Onaylanmış ödemenin geri alınması bildirimi (madde 4) kalsın mı? — 2026-11-02 kullanıcı ikisinin ne olduğunu sordu; açıklandı, cevap bekleniyor.
 
 ### Yurt dışı hazırlığı (kullanıcı kararı 2026-11-01: sonra)
 - [ ] **YD.1 Site başına saat dilimi** — bugün tek `APP_TIMEZONE` (Europe/Istanbul). Tasarım: `properties.timezone` (varsayılan Europe/Istanbul);
