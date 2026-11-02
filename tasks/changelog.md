@@ -12,6 +12,24 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-11-02 — Paket sınırları (M14); alıcının kabul edilmiş işletmeyi görmesi; gün sınırı (GS.2) (DOĞRULANMIŞ)
+
+- **Paket sınırları (084, kullanıcı isteği):** platform `/platform/paketler`'de fiyat ve haklara ek olarak **en çok işletme** ve **işletme başına
+  en çok hizmet kalemi** (boş = sınırsız, 1–1000). Eklemede kilitli sayımla 409 `PACKAGE_LIMIT` (kapatılmamış bütün işletmeler, pasif kalemler
+  de sayılır). Paket düşünce fazlası **silinmez**: en eski yayındaki N işletme ve sıradaki ilk N etkin kalem vitrinde/eşleşmede kalır, diğerleri
+  görünmez; pakete dönülünce geri gelir. Kural veritabanında tek yerde (`mp_business_within_limit`, `mp_service_within_limit`; vitrin
+  görünümleri, RLS politikaları). Paket değişikliği yanıtı sınır aşımını uyarır; tedarikçi web ve uygulamasında kullanım ve "vitrinde değil" işareti.
+- **Alıcı görünürlüğü (bulunan hata):** alıcının teklif/iş/kabul ekranları işletmeyi yalnız "vitrinde görünür" kuralıyla okuyordu; işletme
+  kapatılınca, hesap askıya alınınca (ve artık sınır dışına düşünce) alıcı mevcut teklifini ve işini göremiyordu. `mp_businesses_buyer_read`:
+  sitenin talebini kabul etmiş işletme her zaman okunur.
+- **Gün sınırı (GS.2):** etkinlik kaydı tarih süzgeci ve teklif geçerlilik kontrolü UTC gününe göre çalışıyordu (00:00–03:00 İstanbul).
+  Diğer adaylar DATE sütunlarıyla karşılaştırıldığı için etkilenmiyor (iot, esg, enerji, sözleşme, personel, gider).
+- **Doğrulama düzeltmesi:** talep durum yarışı kontrolü, kilidi tutan `psql` kabı açılmadan istek gönderebiliyordu (yükte "200 400");
+  artık kilit tutulana kadar bekler.
+- **Kanıt:** verify-stack önce kırmızı (`m14/verify-kirmizi-1`: 4 yeni kontrol; `verify-kirmizi-2`: alıcı görünürlüğü politikası olmadan),
+  sonra yeşil 1566/1566 (`verify-yesil`); GS.2 birim testleri eski davranışla kırmızı, düzeltmeyle yeşil; son koşu 1566/1566 (`verify-son`); verify-mobile 14/14; panel tsc/lint temiz; tarayıcı (test ortamı): platform paket sınırları
+  ve tedarikçi "İşletme sınırı doldu (2/1)" / "Paket sınırı: vitrinde değil" (`~/.siteeksen-test/kanit/M14/`).
+
 ### 2026-11-02 — Teklif seçildikten sonra içerik kilidi; test ortamı portları; Docker düzeni; gün sınırı ve oturum düzeltmeleri (DOĞRULANMIŞ)
 
 - **İçerik kilidi (083, kullanıcı kararı):** teklif seçildikten sonra seçilen teklif ve talebin içeriği iki taraf için de değişmez. API'de zaten

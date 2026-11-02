@@ -41,7 +41,8 @@ class BusinessesScreen extends StatelessWidget {
           child: ListTile(
             title: Text('${b['name']}'),
             subtitle: Text('${businessStatus['${b['status']}']} · ${b['district']} / ${b['city']} · ${serviceAreas['${b['service_area']}']}'
-                '${b['radius_km'] != null ? ' ${b['radius_km']} km' : ''}${b['review_note'] != null ? '\nNot: ${b['review_note']}' : ''}'),
+                '${b['radius_km'] != null ? ' ${b['radius_km']} km' : ''}${b['review_note'] != null ? '\nNot: ${b['review_note']}' : ''}'
+                '${b['over_limit'] == true ? '\nPaket sınırı: vitrinde görünmüyor' : ''}'),
             onTap: () async {
               await context.push('/isletmeler/${b['id']}');
               reload();
@@ -139,6 +140,9 @@ class _BusinessScreenState extends State<BusinessScreen> {
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 48),
             children: [
               if (_b != null) Text('Durum: ${businessStatus[status]}${_b!['review_note'] != null ? ' — ${_b!['review_note']}' : ''}'),
+              if (_b?['over_limit'] == true)
+                const Text('Paketinizin işletme sınırı aşıldığı için bu işletme vitrinde ve yeni taleplerde görünmüyor. Paketinizi yükseltin ya da başka bir işletmeyi kapatın.',
+                    style: TextStyle(color: Colors.orange)),
               TextField(controller: _name, enabled: editable, decoration: const InputDecoration(labelText: 'İşletme adı')),
               TextField(controller: _desc, enabled: editable, minLines: 2, maxLines: 4, decoration: const InputDecoration(labelText: 'Tanıtım')),
               TextField(controller: _phone, enabled: editable, keyboardType: TextInputType.phone, decoration: const InputDecoration(labelText: 'İşletme telefonu')),
@@ -279,7 +283,8 @@ class _ServicesState extends State<_Services> {
               contentPadding: EdgeInsets.zero,
               title: Text('${s['name']}'),
               subtitle: Text('${_price(s)}${s['has_photo'] == true ? ' · fotoğraf: ${_photoStatus['${s['photo_status']}'] ?? 'yüklendi'}' : ''}'
-                  '${s['photo_status'] == 'REJECTED' && s['photo_reason'] != null ? '\n${s['photo_reason']}' : ''}'),
+                  '${s['photo_status'] == 'REJECTED' && s['photo_reason'] != null ? '\n${s['photo_reason']}' : ''}'
+                  '${s['over_limit'] == true ? '\nPaket sınırı: vitrinde görünmüyor' : ''}'),
               trailing: widget.editable
                   ? Row(mainAxisSize: MainAxisSize.min, children: [
                       IconButton(tooltip: 'Fotoğraf', onPressed: () => _photo(s), icon: const Icon(Icons.add_a_photo_outlined)),

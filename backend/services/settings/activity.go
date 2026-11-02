@@ -213,17 +213,21 @@ type auditRow struct {
 
 var errBadFilter = errors.New("geçersiz süzgeç")
 
+// parseDay, YYYY-AA-GG gününün iş saat dilimindeki başlangıcıdır (time.Local = APP_TIMEZONE, database.Connect). time.Parse UTC
+// gece yarısı verir; timestamptz süzgecinde 00:00–03:00 (İstanbul) arasındaki kayıtlar kaçar.
+func parseDay(v string) (time.Time, error) { return time.ParseInLocation("2006-01-02", v, time.Local) }
+
 func listAuditLogs(c *gin.Context, pool *pgxpool.Pool, forceLimit int) ([]auditRow, error) {
 	var from, to *time.Time
 	if v := c.Query("from"); v != "" {
-		t, err := time.Parse("2006-01-02", v)
+		t, err := parseDay(v)
 		if err != nil {
 			return nil, errBadFilter
 		}
 		from = &t
 	}
 	if v := c.Query("to"); v != "" {
-		t, err := time.Parse("2006-01-02", v)
+		t, err := parseDay(v)
 		if err != nil {
 			return nil, errBadFilter
 		}

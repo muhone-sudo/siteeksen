@@ -55,6 +55,12 @@ function BusinessEditor({ existing }: { existing?: MpBusiness }) {
             <ActionFeedback action={act} />
             {existing?.review_note && <Notice tone={existing.status === "REJECTED" ? "red" : "blue"} title="İnceleme notu">{existing.review_note}</Notice>}
             {existing?.status === "DRAFT" && <Notice tone="amber">İşletme taslakta; havuzda görünmesi için incelemeye gönderin.</Notice>}
+            {existing?.over_limit && (
+                <Notice tone="amber" title="Paket sınırı">
+                    Paketinizin işletme sınırı aşıldığı için bu işletme vitrinde ve yeni taleplerde görünmüyor (en eski yayındaki işletmeler görünür).
+                    Görünmesi için paketinizi yükseltin ya da başka bir işletmeyi kapatın.
+                </Notice>
+            )}
             <Card title="Bilgiler">
                 <div className="space-y-4">
                     <Grid>
@@ -130,6 +136,10 @@ const KURUS = (s: string) => (s.trim() === "" ? null : Math.round(Number(s.repla
 
 function Services({ businessId, readOnly }: { businessId: string; readOnly: boolean }) {
     const list = useApi(["market-services", businessId], () => api.market.services(businessId));
+    const me = useApi(["market-me"], api.market.supplierMe);
+    const max = me.data?.package.max_services_per_business ?? null;
+    const count = list.data?.data.length ?? 0;
+    const full = max != null && count >= max;
     const act = useAction();
     const [edit, setEdit] = useState<(MpServiceInput & { id?: string; min: string; max: string }) | null>(null);
     const fileRef = useRef<HTMLInputElement>(null);
@@ -138,8 +148,8 @@ function Services({ businessId, readOnly }: { businessId: string; readOnly: bool
         ? { ...s, min: TL(s.price_min_kurus), max: TL(s.price_max_kurus) }
         : { name: "", description: "", price_min_kurus: null, price_max_kurus: null, unit: "", is_active: true, sort_order: 0, min: "", max: "" });
     return (
-        <Card title="Hizmet ve ürünler" padded={false}
-            actions={!readOnly && <Button size="sm" onClick={() => open()}>Hizmet ekle</Button>}>
+        <Card title={max != null ? `Hizmet ve ürünler (${count}/${max})` : "Hizmet ve ürünler"} padded={false}
+            actions={!readOnly && <Button size="sm" disabled={full} title={full ? "Paketinizin hizmet kalemi sınırı doldu" : undefined} onClick={() => open()}>Hizmet ekle</Button>}>
             <ActionFeedback action={act} />
             <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => {
                 const file = e.target.files?.[0];
@@ -162,7 +172,12 @@ function Services({ businessId, readOnly }: { businessId: string; readOnly: bool
                         { header: "Hizmet", cell: (s) => <div><p className="font-medium">{s.name}</p><p className="text-xs text-gray-500">{s.description}</p></div> },
                         { header: "Fiyat", cell: (s) => (s.price_min_kurus == null ? <Badge>Teklifle</Badge>
                             : `${kurus(s.price_min_kurus)} – ${kurus(s.price_max_kurus)}${s.unit ? ` / ${s.unit}` : ""}`) },
-                        { header: "Durum", cell: (s) => (s.is_active ? <Badge tone="green">Etkin</Badge> : <Badge>Pasif</Badge>) },
+                        { header: "Durum", cell: (s) => (
+                            <div className="space-y-1">
+                                {s.is_active ? <Badge tone="green">Etkin</Badge> : <Badge>Pasif</Badge>}
+                                {s.over_limit && <p><Badge tone="amber">Paket sınırı: vitrinde değil</Badge></p>}
+                            </div>
+                        ) },
                         { header: "", cell: (s) => !readOnly && (
                             <div className="flex gap-1">
                                 <Button size="sm" variant="ghost" onClick={() => open(s)}>Düzenle</Button>

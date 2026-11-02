@@ -116,3 +116,15 @@ vitrinde telefon). Güneş Sitesi'nin konumu yoksa YÖNETİCİ önce panel **Aya
 2. **b (KİRACI, Taleplerim → aynı talep):** talep "Teklif seçildi"; **Bu teklifi seç** ve **Talebi kapat** YOK; seçilen teklifin tutarı ve açıklaması tedarikçinin gördüğüyle aynı.
 3. **c:** `SELECT o.status, o.amount_kurus, o.description, o.edit_count, r.status, r.description FROM mp_offers o JOIN mp_requests r ON r.id = o.request_id WHERE o.status = 'ACCEPTED' ORDER BY o.updated_at DESC LIMIT 5;` — değerler seçim anındaki gibi. (Doğrudan veritabanı değişikliğinin reddi otomatik doğrulamada sınanıyor.)
 - **Sonuç:** `U-KILIT-01`
+
+## U-PAKET-01 · Paket fiyatı ve sınırları (2026-11-02)
+1. **a (PLATFORM, `/platform/paketler`):** **Paket ekle** → ad "Deneme Sınırlı", aylık 0, **En çok işletme** = 1, **İşletme başına en çok hizmet kalemi** = 1 → kaydet.
+   Beklenen: tabloda "İşletme / hizmet sınırı" sütununda `1 / 1`; varsayılan Ücretsiz pakette `∞ / ∞`. Alanı 0 yapıp kaydetmeyi dene → "İşletme ve hizmet kalemi sınırı 1–1000 olmalı".
+2. **b:** mevcut ücretli paketin aylık ücretini değiştir → kaydedilir; not metni "aidat … bir sonraki yenilemede" der. Q: `SELECT action, details FROM audit_logs WHERE entity_type='marketplace' ORDER BY created_at DESC LIMIT 3;` → değişiklik ve sınır alanları kayıtta.
+3. **c (TEDARİKÇİ2 — iki şubeli, `/tedarikci/bakiye`):** paket kartlarında "en çok 1 işletme, işletme başına en çok 1 hizmet kalemi" satırı → **Deneme Sınırlı**'ya geç.
+   Beklenen mesaj: "Dikkat: yayında 2 işletmeniz var; bu pakette en çok 1 işletme vitrinde görünür…".
+4. **d (`/tedarikci/isletmeler`):** üstte "Deneme Sınırlı paketinde en çok 1 işletme" notu; **Yeni işletme** yerine "İşletme sınırı doldu (2/1)"; ikinci (daha yeni) şubede "Paket sınırı: vitrinde değil".
+   Hizmetleri olan işletmede başlık "Hizmet ve ürünler (n/1)", **Hizmet ekle** kapalı; fazla kalemlerde "Paket sınırı: vitrinde değil".
+5. **e (KİRACI, sakin uygulaması → Usta & Hizmet):** TEDARİKÇİ2'nin yalnız eski şubesi görünür; o şubenin sayfasında yalnız ilk hizmet kalemi. Gizlenen şubeye daha önce teklif vermişse KİRACI'nın talebinde teklif hâlâ görünür.
+6. **f (TEDARİKÇİ2):** eski paketine geri dön → iki şube de vitrinde (KİRACI'da yenile). Deneme paketini **Etkin** kutusunu kaldırarak pasifleştir.
+- **Sonuç:** `U-PAKET-01`

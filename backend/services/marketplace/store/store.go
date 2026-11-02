@@ -77,6 +77,9 @@ type Package struct {
 	IsDefault        bool   `json:"is_default"`
 	IsActive         bool   `json:"is_active"`
 	SortOrder        int    `json:"sort_order"`
+	// Sınırlar (084): boş = sınırsız. Eklemede ve görünürlükte uygulanır.
+	MaxBusinesses          *int `json:"max_businesses"`
+	MaxServicesPerBusiness *int `json:"max_services_per_business"`
 }
 
 // MetaInfo, istemcilerin ihtiyaç duyduğu sabit olmayan pazaryeri bilgileridir.
@@ -88,7 +91,7 @@ type MetaInfo struct {
 
 const categoryCols = `id, parent_id, name, request_fee_kurus, buyer_scope, is_active, sort_order`
 const packageCols = `id, name, monthly_fee_kurus, fee_discount_pct, included_requests, monthly_sms, priority_access,
-	phone_in_showcase, rank_weight, is_default, is_active, sort_order`
+	phone_in_showcase, rank_weight, is_default, is_active, sort_order, max_businesses, max_services_per_business`
 
 func scanCategory(r pgx.Row) (Category, error) {
 	var x Category
@@ -99,7 +102,8 @@ func scanCategory(r pgx.Row) (Category, error) {
 func scanPackage(r pgx.Row) (Package, error) {
 	var x Package
 	err := r.Scan(&x.ID, &x.Name, &x.MonthlyFeeKurus, &x.FeeDiscountPct, &x.IncludedRequests, &x.MonthlySMS,
-		&x.PriorityAccess, &x.PhoneInShowcase, &x.RankWeight, &x.IsDefault, &x.IsActive, &x.SortOrder)
+		&x.PriorityAccess, &x.PhoneInShowcase, &x.RankWeight, &x.IsDefault, &x.IsActive, &x.SortOrder, &x.MaxBusinesses,
+		&x.MaxServicesPerBusiness)
 	return x, err
 }
 
@@ -205,7 +209,7 @@ type Account struct {
 
 const accountSelect = `SELECT a.id, a.user_id, a.trade_name, a.tax_number, a.tax_office, a.status, a.status_reason, a.reviewed_at,
 	p.id, p.name, p.monthly_fee_kurus, p.fee_discount_pct, p.included_requests, p.monthly_sms, p.priority_access,
-	p.phone_in_showcase, p.rank_weight, p.is_default, p.is_active, p.sort_order,
+	p.phone_in_showcase, p.rank_weight, p.is_default, p.is_active, p.sort_order, p.max_businesses, p.max_services_per_business,
 	a.next_package_id, a.package_renews_at, a.period_included_left, a.period_sms_left, a.balance_kurus,
 	a.terms_accepted_at, a.created_at
 	FROM mp_supplier_accounts a JOIN mp_packages p ON p.id = a.package_id`
@@ -215,7 +219,7 @@ func scanAccount(r pgx.Row) (*Account, error) {
 	p := &a.Package
 	err := r.Scan(&a.ID, &a.UserID, &a.TradeName, &a.TaxNumber, &a.TaxOffice, &a.Status, &a.StatusReason, &a.ReviewedAt,
 		&p.ID, &p.Name, &p.MonthlyFeeKurus, &p.FeeDiscountPct, &p.IncludedRequests, &p.MonthlySMS, &p.PriorityAccess,
-		&p.PhoneInShowcase, &p.RankWeight, &p.IsDefault, &p.IsActive, &p.SortOrder,
+		&p.PhoneInShowcase, &p.RankWeight, &p.IsDefault, &p.IsActive, &p.SortOrder, &p.MaxBusinesses, &p.MaxServicesPerBusiness,
 		&a.NextPackageID, &a.PackageRenewsAt, &a.PeriodIncludedLeft, &a.PeriodSMSLeft, &a.BalanceKurus,
 		&a.TermsAcceptedAt, &a.CreatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {

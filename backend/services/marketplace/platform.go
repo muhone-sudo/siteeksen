@@ -153,7 +153,8 @@ func (a *App) savePackage(c *gin.Context) {
 		return
 	}
 	c.Set("audit_details", gin.H{"package_id": p.ID, "name": p.Name, "monthly_fee_kurus": p.MonthlyFeeKurus,
-		"fee_discount_pct": p.FeeDiscountPct, "included_requests": p.IncludedRequests, "monthly_sms": p.MonthlySMS})
+		"fee_discount_pct": p.FeeDiscountPct, "included_requests": p.IncludedRequests, "monthly_sms": p.MonthlySMS,
+		"max_businesses": p.MaxBusinesses, "max_services_per_business": p.MaxServicesPerBusiness})
 	status := http.StatusOK
 	if c.Param("id") == "" {
 		status = http.StatusCreated

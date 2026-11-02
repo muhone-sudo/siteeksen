@@ -44,3 +44,4 @@ export const DISPUTE_REASON: Record<string, string> = {
     FAKE: "Sahte talep", WRONG_CATEGORY: "Yanlış kategori", UNREACHABLE: "Alıcıya ulaşılamıyor", OTHER: "Diğer",
 };
 export const SERVICE_AREA: Record<string, string> = { KM: "Yarıçap (km)", CITY: "Tüm il", COUNTRY: "Türkiye geneli" };
+export const limitText = (n: number | null, what: string) => (n == null ? `sınırsız ${what}` : `en çok ${n} ${what}`);

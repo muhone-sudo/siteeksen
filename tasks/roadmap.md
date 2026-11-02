@@ -289,6 +289,7 @@ Plan `docs/usta-hizmet/plan.md`; maddeler ve kanıtları `tasks/todo.md` "FAZ M"
 | M11 | Tarayıcı test planı bölümü | `[D1]` 2026-11-01 — bölüm yazıldı; test ajanının yürütmesi kaldı |
 | M12 | Yayın öncesi güvenlik ve belgeler | `[D1]` 2026-11-01 — gözden geçirme ve belgeler; 4 açık bulgu M13'te kapandı; M0 kaldı |
 | M13 | 4 açık bulgu: hız sınırı, karta iade + bakiye koşulları, uygulama içi ödeme, fotoğraf denetimi (OCR + yapay zekâ, `services/moderation`) | `[D4]` 2026-11-01 (081–082; verify 1557/1557, mobil 14/14, tarayıcı + Android emülatörü) — 2026-11-02: Android ret yolu D4, içerik kilidi (083), verify 1559/1559; test ajanı yürütmesi kaldı |
+| M14 | Paket sınırları: işletme sayısı ve işletme başına hizmet kalemi (platform panelinden; eklemede ve görünürlükte uygulanır, fazlası silinmez); alıcı, kabul etmiş işletmeyi vitrinden düşse de görür | `[D2]` 2026-11-02 (084; verify-stack) — tarayıcı D4 test ajanında (`U-PAKET-01`) |
 
 ---
 

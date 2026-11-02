@@ -81,6 +81,7 @@ Koda başlanmadı. Sıra: M1 → M12; M0 kullanıcıda (kodu bekletmez, yayını
 - [ ] M0.2 E-fatura/e-arşiv entegratörü; bakiye yükleme faturasının yüklemede mi kullanımda mı kesileceği (mali müşavir) — **Kanıt:** karar `questions.md`'de
 - [ ] M0.3 iyzico: bakiye yükleme tahsilatının mevcut üye işyeri sözleşmesine uygunluğu — **Kanıt:** iyzico'nun yazılı yanıtı
 - [ ] M0.4 Tedarikçi üyelik sözleşmesi, sakin KVKK aydınlatma + açık rıza metni, tedarikçi KVKK metni — **Kanıt:** metinler `docs/hukuk/` altında
+  — Not (M14, 2026-11-02): sözleşmede "paket hakları ve sınırları (işletme/hizmet kalemi sayısı) platformca değiştirilebilir; sınırı aşan kayıt silinmez, vitrinde görünmez" maddesi olmalı
 - [ ] M0.5 Paket fiyatları, kategori listesi (sakin ve site kategorileri ayrı) ve kategori talep ücretleri — **Kanıt:** tablo `docs/usta-hizmet/fiyatlar.md`
 - [ ] M0.6 Yayın için harita karo sağlayıcısı — **Kanıt:** seçilen sağlayıcı ve anahtar ortam değişkeni adı `questions.md`'de
 - [ ] M0.7 (İsteğe bağlı) Apple geliştirici hesabı (iOS), Firebase projesi (push, B11) — **Kanıt:** kullanıcıdan hesap/proje bilgisi
@@ -409,7 +410,7 @@ API'de zaten kapalıydı (talep CLOSED → teklif/fotoğraf 409, yalnız etkin t
 - [x] M13.7c Test ortamı portları: panel/uygulamalar 3101–3104, gateway 28888, servisler 28081–28112 (`DEV_PORT_OFFSET=20000`); web derlemeleri
   API adresi değişince kendiliğinden yeniden derlenir; test planı ve araçlar sayfası yeni adreslerle — **Kanıt:** compose yığını açıkken "TEST ORTAMI HAZIR"
   → **Sonuç:** `[D4]` 2026-11-02: compose yığını (3001/8888) açıkken test ortamı açıldı; Playwright ile panel :3101 girişi → istekler :28888; üç web derlemesi 28888'e bağlı.
-- [ ] M13.7d Altyapı değerlendirmesi (Redis, MongoDB, Kafka/Zookeeper, Kong, eski compose yığını) — kullanıcı kararı bekliyor (`questions.md` S-25)
+- [ ] M13.7d Altyapı değerlendirmesi (Redis, MongoDB, Kafka/Zookeeper, Kong, eski compose yığını) — **KARAR VERİLECEK** (kullanıcı 2026-11-02: karar çıkana kadar mevcut düzen bozulmaz; eski yığına ve test portlarına dokunulmaz) (`questions.md` S-25)
 
 **Gün sınırı hatası (2026-11-02, verify gece 01:30'da yakalandı)** — `time.Parse("2006-01-02")` UTC gece yarısı verir; `timestamptz` ile
 karşılaştırılan tarih süzgeçleri 00:00–03:00 arasında (İstanbul) o günü kaçırır. Doğrusu `time.ParseInLocation(…, time.Local)` (servisler
@@ -418,8 +419,66 @@ karşılaştırılan tarih süzgeçleri 00:00–03:00 arasında (İstanbul) o g�
   → **Sonuç:** `[D2]` 01:30'daki koşuda kırmızı (`verify-kilit-kirmizi`), düzeltmeden sonra yeşil (`verify-kilit-yesil`, 1559/1559).
 - [x] GS.3 Tedarikçi uygulamasında oturum koruması (sunucu oturumu düşürünce girişe dönüş; sakin uygulamasıyla aynı) — **Kanıt:** Android: toplu
   oturum iptalinden sonra "Oturumunuzun süresi dolmuş" ve sonraki sekmede giriş ekranı (43); verify-mobile 14/14
-- [ ] GS.2 Aynı kalıbın taranması: iot `parseRange`, energy_analytics, esg, settings etkinlik süzgeci, document, iot sayaç, marketplace teklif geçerliliği
+- [x] GS.2 Aynı kalıbın taranması: iot `parseRange`, energy_analytics, esg, settings etkinlik süzgeci, document, iot sayaç, marketplace teklif geçerliliği
   (`Truncate(24*time.Hour)` UTC'de keser) — her biri sütun türüne göre (DATE ise sorun yok) incelenip gerekiyorsa düzeltilir; verify'a gece yarısı kontrolü
+  → **Sonuç:** `[D2]` 2026-11-02. Hatalı iki yer: etkinlik kaydı süzgeci (`settings/activity.go`, `timestamptz`) ve teklif geçerliliği
+  (`marketplace/store/deals.go` "bugün" UTC'ydi: dünün teklifi 00:00–03:00 arası seçilebilirdi). Birim testleri eski davranışla kırmızı, düzeltmeyle
+  yeşil; settings testi verify-stack'e eklendi. Etkilenmeyenler (DATE sütunu ya da `::date` dönüşümü): iot okuma/sayaç/değişim, esg, enerji,
+  sözleşme, varlık, personel, gider, finans, belge saklama tarihi; gelir raporu zaten İstanbul saatine çeviriyor.
+
+### M14 — Paket sınırları (kullanıcı isteği 2026-11-02; plan önceden onaylı, "zihinde çalıştır, sorunları bul, uygula")
+Platform `/platform/paketler`'de paket ücreti, yeni paket ve bugünkü haklar (indirim, dahil talep, SMS, öncelik, vitrinde telefon, ağırlık)
+zaten değiştirilebiliyor. Eksik olan, paketin **içerik sınırları**: işletme (şube) sayısı ve işletme başına hizmet kalemi sayısı. Kullanıcı
+seçimi: "Tedarikçi paketleri" (SiteEksen abonelik planı değil; o S-14'te P2).
+
+**Plan (ilk hâli):** `mp_packages`'a `max_businesses`, `max_services_per_business` (boş = sınırsız). İşletme/hizmet eklerken sınır aşılırsa 409.
+Platform ekranında iki alan; tedarikçi ekranlarında "2/3" kullanım.
+
+**Zihinde çalıştırma — bulunan sorunlar ve çözümleri:**
+1. *Paket düşürme sınırı aşar:* 3 işletmeli hesap 1 işletmelik pakete iner (kendi isteğiyle dönem sonunda ya da aidat yetmeyince
+   kendiliğinden). Yalnız eklemeyi engellemek açık kapı bırakır: bir ay ücretli pakete geçip 20 işletme aç, sonra ücretsize in, hepsi kalsın.
+   → Sınır **görünürlükte de** uygulanır: yayındaki işletmelerin en eskisinden başlayarak ilk N'i vitrinde ve eşleşmede yer alır, fazlası
+   görünmez. Hiçbir şey silinmez; pakete yeniden geçilince hemen geri gelir. Hizmet kalemlerinde ilk N etkin kalem (tedarikçinin sırasıyla) görünür.
+2. *Görünürlük birçok yerde okunuyor* (vitrin listesi, işletme sayfası, hizmet fotoğrafı, yorumlar, kategoriler, eşleşme, doğrudan talep):
+   ayrı ayrı yamalamak bir yeri kaçırır. → Kural veritabanında tek fonksiyonda (`mp_business_within_limit`, `mp_service_within_limit`);
+   `mp_business_is_public`, vitrin görünümleri, ilgili RLS politikaları ve eşleşme sorgusu bunu kullanır.
+3. *Taslakla sınırı aşmak:* sınır yalnız yayındakileri sayarsa sınırsız taslak açılıp sırayla yayına alınabilir. → Eklemede kapatılmamış
+   bütün işletmeler (taslak, inceleme, reddedilmiş, yayında) sayılır; hizmette etkin/pasif bütün kalemler.
+4. *Eşzamanlı ekleme:* iki istek aynı anda sayarsa ikisi de geçer. → İşletme eklemede hesap satırı, hizmet eklemede işletme satırı kilitlenir.
+5. *Platform sınırı dönem ortasında düşürür:* aidat ve dahil talep/SMS dönem başında alındığı için yenilemede uygulanır; indirim, öncelik,
+   vitrinde telefon ise bugün de hemen uygulanıyor. Sınırlar da hemen uygulanır (görünürlük kuralı veri kaybettirmez). Ekrandaki not bunu
+   açıkça yazar. Tedarikçi sözleşmesinde (M0.4) "paket hakları değişebilir" maddesi olmalı → M0.4'e not.
+6. *0 belirsiz* ("hiç" mi "sınırsız" mı): → boş = sınırsız, değer 1–1000; 0 ve eksi 422.
+7. *Mevcut paketler:* sütunlar boş başlar → bugünkü davranış değişmez; mevcut doğrulamalar aynen geçmeli.
+8. *Paket düşürürken tedarikçi habersiz kalır:* → paket değişikliği yanıtında, kullanım hedef paketin sınırını aşıyorsa "N işletmeniz var,
+   bu pakette en çok M'si görünür" uyarısı; tedarikçi listesinde fazla kalan işletme/kalemde "Paket sınırı nedeniyle vitrinde görünmüyor".
+9. *PUT tam değiştirmedir:* gövdede alan yoksa sınır kalkar. Yalnız platform ekranı yazar ve iki alanı her zaman gönderir.
+10. *Kapatma geri alınamaz:* fazla işletmeden hangisinin görüneceğini seçmek için kapatmak tek yol olur. → Bilinçli sınır: görünürlük en eski
+    yayındaki işletmelerden başlar; seçmek isteyen pakete yükselir ya da işletme kapatır. Ekranda yazar. (Sıra seçimi istenirse ayrı madde.)
+11. *Kapsam dışı:* kategori sayısı sınırı (eşleşmede hangi kategorinin sayılacağı belirsiz), fotoğraf sınırı (her kalemde zaten tek fotoğraf
+    var; hizmet sınırı fotoğrafı da sınırlar). İstenirse ayrı madde.
+
+**Maddeler:**
+- [x] M14.1 Migration 084: iki sütun + CHECK; iki fonksiyon; `mp_business_is_public`, `mp_business_public`, `mp_business_services_public`,
+  `mp_businesses_public_read`, `mp_business_services_public_read` güncel — **Kanıt:** verify-stack adım 4 (tekrar uygulanabilir), RLS listesi değişmez
+  → **Sonuç:** `[D2]` verify-stack 1566/1566 (2026-11-02, `m14/verify-yesil`, `verify-son`).
+  12. *(Uygularken bulundu)* Alıcının teklif/iş/kabul ekranları işletmeyi yalnız vitrin kuralıyla okuyordu: işletme kapatılınca, hesap askıya
+  alınınca ya da sınır dışına düşünce alıcı mevcut teklifini ve işini göremiyordu (iş onayı da yapılamazdı). → `mp_businesses_buyer_read`:
+  sitenin talebini kabul etmiş işletme her zaman okunur. **Kanıt:** politika olmadan kırmızı (`verify-kirmizi-2`), sonra yeşil.
+  13. *(Uygularken bulundu)* Eşzamanlı eklemede kilit ve sayım aynı sorguda olursa, kilidi bekleyen istek eski anlık görüntüyle sayar → kilit
+  ve sayım ayrı sorgularda (READ COMMITTED'da ikinci sorgu güncel görüntüyü görür). **Kanıt:** üç paralel istekten tam biri kabul.
+- [x] M14.2 Servis: paket kaydı (doğrulama, işlem kaydı ayrıntısı), işletme/hizmet eklemede kilitli sayım ve 409 `PACKAGE_LIMIT`, eşleşme
+  sorgusu, tedarikçi listelerinde `over_limit`, paket değişikliği uyarısı — **Kanıt:** verify-stack §75 yeni blok, önce kırmızı
+  → **Sonuç:** `[D2]` 084 olmadan 4 yeni kontrol kırmızı (`m14/verify-kirmizi-1`, 1560/1564), uygulanınca yeşil (eşleşme sorgusu RLS ile kapsandı).
+- [x] M14.3 Platform ekranı: iki alan (boş = sınırsız), tabloda sütun, not metni — **Kanıt:** tsc/lint; tarayıcı (test ortamı)
+  → **Sonuç:** `[D4]` tsc/lint temiz; Playwright (test ortamı 2026-11-02): tabloda "∞ / ∞", Usta Pro 1/1 yapılınca "Paket kaydedildi"; 0 girişi
+  formdan çıkmaz (sunucuda 422, verify). Kanıt `~/.siteeksen-test/kanit/M14/01-platform-paketler.jpg`. Test verisi geri alındı (350 TL, sınırsız).
+- [x] M14.4 Tedarikçi web ve uygulaması: paket kartlarında sınırlar, işletme/hizmet sayısı "x/y", ekleme düğmesi sınırda kapalı, fazla kalan
+  kayıtta uyarı — **Kanıt:** tsc/lint; verify-mobile; tarayıcı
+  → **Sonuç:** web `[D4]`: TEDARİKÇİ1 "İşletme sınırı doldu (2/1)", sınır notu, yeni şubede "Paket sınırı: vitrinde değil"; paket kartında
+  "en çok 1 işletme, işletme başına en çok 1 hizmet kalemi" (`02-tedarikci-isletmeler.jpg`). Uygulama `[D2]`: analyze temiz, verify-mobile 14/14
+  (Android'de bakılmadı; test ajanı `U-PAKET-01`).
+- [x] M14.5 Belgeler: test planı `U-PAKET-01`, `api-sozlesmesi.md`, changelog, roadmap — **Kanıt:** dosya farkı
 
 ### Yurt dışı hazırlığı (kullanıcı kararı 2026-11-01: sonra)
 - [ ] **YD.1 Site başına saat dilimi** — bugün tek `APP_TIMEZONE` (Europe/Istanbul). Tasarım: `properties.timezone` (varsayılan Europe/Istanbul);

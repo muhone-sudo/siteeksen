@@ -268,6 +268,10 @@ func (s *Store) ChangePackage(ctx context.Context, accountID, userID, packageID 
 		return nil, "", err
 	}
 	var msg string
+	warn, err := limitWarning(ctx, tx, accountID, p)
+	if err != nil {
+		return nil, "", err
+	}
 	switch {
 	case p.ID == curID:
 		if _, err := tx.Exec(ctx, `UPDATE mp_supplier_accounts SET next_package_id = NULL, updated_at = now() WHERE id = $1`, accountID); err != nil {
@@ -290,19 +294,41 @@ func (s *Store) ChangePackage(ctx context.Context, accountID, userID, packageID 
 			WHERE id = $1`, accountID, p.ID, p.IncludedRequests, p.MonthlySMS); err != nil {
 			return nil, "", err
 		}
-		msg = p.Name + " paketine geçildi; aidat bakiyeden düşüldü, aylık haklar tanımlandı."
+		msg = p.Name + " paketine geçildi; aidat bakiyeden düşüldü, aylık haklar tanımlandı." + warn
 	default:
 		if _, err := tx.Exec(ctx, `UPDATE mp_supplier_accounts SET next_package_id = $2, updated_at = now() WHERE id = $1`,
 			accountID, p.ID); err != nil {
 			return nil, "", err
 		}
-		msg = p.Name + " paketine geçiş, mevcut dönemin sonunda uygulanacak."
+		msg = p.Name + " paketine geçiş, mevcut dönemin sonunda uygulanacak." + warn
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return nil, "", err
 	}
 	a, err := s.Account(ctx, accountID)
 	return a, msg, err
+}
+
+// limitWarning, hedef paketin sınırları hesabın bugünkü kullanımını aşıyorsa tedarikçiye gösterilen uyarıdır (084):
+// sınırı aşan kayıt silinmez, vitrinde ve eşleşmede görünmez.
+func limitWarning(ctx context.Context, tx pgx.Tx, accountID string, p Package) (string, error) {
+	var published, maxServices int
+	if err := tx.QueryRow(ctx, `SELECT (SELECT count(*) FROM mp_businesses WHERE account_id = $1 AND status = 'PUBLISHED'),
+		COALESCE((SELECT max(n) FROM (SELECT count(*) n FROM mp_business_services s JOIN mp_businesses b ON b.id = s.business_id
+		WHERE b.account_id = $1 AND b.status <> 'CLOSED' AND s.is_active GROUP BY s.business_id) x), 0)`, accountID).
+		Scan(&published, &maxServices); err != nil {
+		return "", err
+	}
+	w := ""
+	if p.MaxBusinesses != nil && published > *p.MaxBusinesses {
+		w += fmt.Sprintf(" Dikkat: yayında %d işletmeniz var; bu pakette en çok %d işletme vitrinde görünür (en eski yayındakiler), "+
+			"diğerleri silinmez ama görünmez.", published, *p.MaxBusinesses)
+	}
+	if p.MaxServicesPerBusiness != nil && maxServices > *p.MaxServicesPerBusiness {
+		w += fmt.Sprintf(" Dikkat: bazı işletmelerinizde etkin hizmet kalemi sayısı %d sınırını aşıyor; her işletmede sıradaki ilk %d kalem "+
+			"vitrinde görünür.", *p.MaxServicesPerBusiness, *p.MaxServicesPerBusiness)
+	}
+	return w, nil
 }
 
 // RenewalOutcome, aidat yenileme sonucudur (bildirim için).

@@ -46,7 +46,7 @@ func (s *Store) PlatformAccounts(ctx context.Context, adminID, status string) ([
 
 const accountSelectReview = `SELECT a.id, a.user_id, a.trade_name, a.tax_number, a.tax_office, a.status, a.status_reason, a.reviewed_at,
 	p.id, p.name, p.monthly_fee_kurus, p.fee_discount_pct, p.included_requests, p.monthly_sms, p.priority_access,
-	p.phone_in_showcase, p.rank_weight, p.is_default, p.is_active, p.sort_order,
+	p.phone_in_showcase, p.rank_weight, p.is_default, p.is_active, p.sort_order, p.max_businesses, p.max_services_per_business,
 	a.next_package_id, a.package_renews_at, a.period_included_left, a.period_sms_left, a.balance_kurus,
 	a.terms_accepted_at, a.created_at,
 	u.first_name || ' ' || u.last_name, u.phone, COALESCE(u.email, ''),
@@ -59,7 +59,7 @@ func scanAccountReview(r pgx.Row) (*AccountReview, error) {
 	a, p := &x.Account, &x.Account.Package
 	err := r.Scan(&a.ID, &a.UserID, &a.TradeName, &a.TaxNumber, &a.TaxOffice, &a.Status, &a.StatusReason, &a.ReviewedAt,
 		&p.ID, &p.Name, &p.MonthlyFeeKurus, &p.FeeDiscountPct, &p.IncludedRequests, &p.MonthlySMS, &p.PriorityAccess,
-		&p.PhoneInShowcase, &p.RankWeight, &p.IsDefault, &p.IsActive, &p.SortOrder,
+		&p.PhoneInShowcase, &p.RankWeight, &p.IsDefault, &p.IsActive, &p.SortOrder, &p.MaxBusinesses, &p.MaxServicesPerBusiness,
 		&a.NextPackageID, &a.PackageRenewsAt, &a.PeriodIncludedLeft, &a.PeriodSMSLeft, &a.BalanceKurus,
 		&a.TermsAcceptedAt, &a.CreatedAt, &x.OwnerName, &x.OwnerPhone, &x.OwnerEmail, &x.DocumentCount, &x.BusinessCount, &x.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -294,27 +294,35 @@ func (s *Store) AllPackages(ctx context.Context, adminID string) ([]Package, err
 }
 
 // SavePackage, paket ekler ya da günceller. Fiyat değişikliği mevcut abonelere bir sonraki yenilemede uygulanır
-// (aidat yenileme anında paketin o anki fiyatından alınır).
+// (aidat yenileme anında paketin o anki fiyatından alınır). Sınırlar (084) hemen uygulanır; boş = sınırsız.
 func (s *Store) SavePackage(ctx context.Context, adminID, id string, in Package) (*Package, error) {
 	in.Name = strings.TrimSpace(in.Name)
 	if in.Name == "" || in.MonthlyFeeKurus < 0 || in.FeeDiscountPct < 0 || in.FeeDiscountPct > 100 || in.IncludedRequests < 0 ||
 		in.MonthlySMS < 0 || in.RankWeight < 0 {
 		return nil, userErr(http.StatusUnprocessableEntity, "FIELDS", "Paket adı zorunlu; ücret, indirim (0–100), dahil talep, SMS ve ağırlık eksi olamaz")
 	}
+	for _, m := range []*int{in.MaxBusinesses, in.MaxServicesPerBusiness} {
+		if m != nil && (*m < 1 || *m > 1000) {
+			return nil, userErr(http.StatusUnprocessableEntity, "LIMIT", "İşletme ve hizmet kalemi sınırı 1–1000 olmalı (boş = sınırsız)")
+		}
+	}
 	sc := s.platform(adminID)
 	var p Package
 	var err error
 	if id == "" {
 		p, err = scanPackage(sc.QueryRow(ctx, `INSERT INTO mp_packages (name, monthly_fee_kurus, fee_discount_pct, included_requests,
-			monthly_sms, priority_access, phone_in_showcase, rank_weight, is_active, sort_order)
-			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING `+packageCols, in.Name, in.MonthlyFeeKurus, in.FeeDiscountPct,
-			in.IncludedRequests, in.MonthlySMS, in.PriorityAccess, in.PhoneInShowcase, in.RankWeight, in.IsActive, in.SortOrder))
+			monthly_sms, priority_access, phone_in_showcase, rank_weight, is_active, sort_order, max_businesses, max_services_per_business)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING `+packageCols, in.Name, in.MonthlyFeeKurus, in.FeeDiscountPct,
+			in.IncludedRequests, in.MonthlySMS, in.PriorityAccess, in.PhoneInShowcase, in.RankWeight, in.IsActive, in.SortOrder,
+			in.MaxBusinesses, in.MaxServicesPerBusiness))
 	} else {
 		p, err = scanPackage(sc.QueryRow(ctx, `UPDATE mp_packages SET name=$2, monthly_fee_kurus=$3, fee_discount_pct=$4,
 			included_requests=$5, monthly_sms=$6, priority_access=$7, phone_in_showcase=$8, rank_weight=$9,
-			is_active = CASE WHEN is_default THEN true ELSE $10 END, sort_order=$11, updated_at=now()
+			is_active = CASE WHEN is_default THEN true ELSE $10 END, sort_order=$11, max_businesses=$12,
+			max_services_per_business=$13, updated_at=now()
 			WHERE id=$1 RETURNING `+packageCols, id, in.Name, in.MonthlyFeeKurus, in.FeeDiscountPct, in.IncludedRequests,
-			in.MonthlySMS, in.PriorityAccess, in.PhoneInShowcase, in.RankWeight, in.IsActive, in.SortOrder))
+			in.MonthlySMS, in.PriorityAccess, in.PhoneInShowcase, in.RankWeight, in.IsActive, in.SortOrder, in.MaxBusinesses,
+			in.MaxServicesPerBusiness))
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrNotFound
 		}

@@ -25,6 +25,7 @@ const ledgerKinds = {
 const refundStatus = {'PENDING': 'İşleniyor', 'SUCCEEDED': 'Karta iletildi', 'FAILED': 'Gecikti (platform elle yapacak)', 'MANUAL': 'Havaleyle ödendi'};
 
 String _kurus(Object? v) => formatTry(toNum(v) / 100);
+String _limit(Object? v, String what) => v == null ? 'sınırsız $what' : 'en çok $v $what';
 
 String _idempotencyKey() {
   final r = Random.secure();
@@ -192,7 +193,8 @@ class _WalletScreenState extends State<WalletScreen> with WidgetsBindingObserver
                     child: ListTile(
                       title: Text('${p['name']} · ${toNum(p['monthly_fee_kurus']) > 0 ? '${_kurus(p['monthly_fee_kurus'])} / ay' : 'Ücretsiz'}'),
                       subtitle: Text('%${p['fee_discount_pct']} talep indirimi · ayda ${p['included_requests']} talep, ${p['monthly_sms']} SMS'
-                          '${p['priority_access'] == true ? ' · yeni talepleri önce görür' : ''}${p['phone_in_showcase'] == true ? ' · telefon vitrinde' : ''}'),
+                          '${p['priority_access'] == true ? ' · yeni talepleri önce görür' : ''}${p['phone_in_showcase'] == true ? ' · telefon vitrinde' : ''}'
+                          ' · ${_limit(p['max_businesses'], 'işletme')}, işletme başına ${_limit(p['max_services_per_business'], 'hizmet kalemi')}'),
                       trailing: p['id'] == pkg['id']
                           ? const Text('Mevcut')
                           : frozen

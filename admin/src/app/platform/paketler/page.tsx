@@ -7,9 +7,12 @@ import { ActionFeedback, Badge, Button, Card, Field, FormModal, Grid, Input, Not
 import { kurus } from "@/lib/format";
 import type { MpPackage } from "@/lib/types";
 
-type Form = Omit<MpPackage, "id" | "is_default"> & { id?: string; is_default?: boolean; fee: string };
+type Form = Omit<MpPackage, "id" | "is_default"> & { id?: string; is_default?: boolean; fee: string; maxBiz: string; maxSvc: string };
 
-/** Tedarikçi paketleri (FAZ M4.4, K5): aidat, talep indirimi, dahil talep, SMS hakkı, öncelik penceresi, vitrinde telefon. */
+const LIMIT = (n: number | null) => (n == null ? "" : String(n));
+const parseLimit = (v: string) => (v.trim() === "" ? null : Number(v));
+
+/** Tedarikçi paketleri (FAZ M4.4, K5; M14): aidat, talep indirimi, dahil talep, SMS hakkı, öncelik penceresi, vitrinde telefon, işletme ve hizmet kalemi sınırı. */
 export default function PlatformPackagesPage() {
     const list = useApi(["mp-packages"], api.market.platform.packages);
     const act = useAction();
@@ -19,9 +22,14 @@ export default function PlatformPackagesPage() {
     return (
         <Page title="Paketler" description="Tedarikçi abonelik paketleri"
             actions={<Button onClick={() => setF({ name: "", monthly_fee_kurus: 0, fee_discount_pct: 0, included_requests: 0, monthly_sms: 0, priority_access: false,
-                phone_in_showcase: false, rank_weight: 0, is_active: true, sort_order: 0, fee: "" })}>Paket ekle</Button>}>
+                phone_in_showcase: false, rank_weight: 0, is_active: true, sort_order: 0, max_businesses: null, max_services_per_business: null,
+                fee: "", maxBiz: "", maxSvc: "" })}>Paket ekle</Button>}>
             <ActionFeedback action={act} />
-            <Notice tone="blue">Fiyat değişikliği mevcut abonelere bir sonraki yenilemede uygulanır. Varsayılan (ücretsiz) paketin aidatı, önceliği ve vitrinde telefonu olamaz.</Notice>
+            <Notice tone="blue">
+                Aidat, dahil talep ve SMS hakkı değişikliği mevcut abonelere bir sonraki yenilemede uygulanır; indirim, öncelik, vitrinde telefon, sıralama
+                ve sınırlar hemen uygulanır. Sınırı aşan işletme ya da hizmet kalemi silinmez: en eski yayındaki işletmeler ve sıradaki ilk etkin kalemler
+                vitrinde kalır, diğerleri görünmez. Sınır alanı boşsa sınırsızdır. Varsayılan (ücretsiz) paketin aidatı, önceliği ve vitrinde telefonu olamaz.
+            </Notice>
             <Card padded={false}>
                 <QueryView q={list} empty="Paket yok">
                     {(d) => (
@@ -32,9 +40,10 @@ export default function PlatformPackagesPage() {
                             { header: "Dahil talep / SMS", cell: (p) => `${p.included_requests} / ${p.monthly_sms}` },
                             { header: "Öncelik", cell: (p) => (p.priority_access ? "Var" : "—") },
                             { header: "Vitrinde telefon", cell: (p) => (p.phone_in_showcase ? "Var" : "—") },
+                            { header: "İşletme / hizmet sınırı", cell: (p) => `${p.max_businesses ?? "∞"} / ${p.max_services_per_business ?? "∞"}` },
                             { header: "Ağırlık", cell: (p) => p.rank_weight },
                             { header: "", cell: (p) => (p.is_active ? <Badge tone="green">Etkin</Badge> : <Badge>Pasif</Badge>) },
-                            { header: "", cell: (p) => <Button size="sm" variant="ghost" onClick={() => setF({ ...p, fee: String(p.monthly_fee_kurus / 100) })}>Düzenle</Button> },
+                            { header: "", cell: (p) => <Button size="sm" variant="ghost" onClick={() => setF({ ...p, fee: String(p.monthly_fee_kurus / 100), maxBiz: LIMIT(p.max_businesses), maxSvc: LIMIT(p.max_services_per_business) })}>Düzenle</Button> },
                         ]} />
                     )}
                 </QueryView>
@@ -42,9 +51,10 @@ export default function PlatformPackagesPage() {
             {f && (
                 <FormModal open title={f.id ? "Paketi düzenle" : "Paket ekle"} onClose={() => setF(null)} pending={act.pending} error={act.error}
                     onSubmit={async () => {
-                        const { id, fee, is_default: _d, ...rest } = f;
+                        const { id, fee, maxBiz, maxSvc, is_default: _d, ...rest } = f;
                         void _d;
-                        const r = await act.run(() => api.market.platform.savePackage(id ?? null, { ...rest, monthly_fee_kurus: Math.round(Number(fee.replace(",", ".")) * 100) || 0 }),
+                        const r = await act.run(() => api.market.platform.savePackage(id ?? null, { ...rest, monthly_fee_kurus: Math.round(Number(fee.replace(",", ".")) * 100) || 0,
+                            max_businesses: parseLimit(maxBiz), max_services_per_business: parseLimit(maxSvc) }),
                             { invalidate: ["mp-packages", "market-meta"], success: "Paket kaydedildi" });
                         if (r) setF(null);
                     }}>
@@ -56,6 +66,8 @@ export default function PlatformPackagesPage() {
                         <Field label="Ayda dahil talep"><Input type="number" min={0} value={f.included_requests} onChange={num("included_requests")} /></Field>
                         <Field label="Aylık SMS hakkı"><Input type="number" min={0} value={f.monthly_sms} onChange={num("monthly_sms")} /></Field>
                         <Field label="Sıra"><Input type="number" value={f.sort_order} onChange={num("sort_order")} /></Field>
+                        <Field label="En çok işletme" hint="Boş = sınırsız"><Input type="number" min={1} max={1000} value={f.maxBiz} onChange={(e) => setF({ ...f, maxBiz: e.target.value })} /></Field>
+                        <Field label="İşletme başına en çok hizmet kalemi" hint="Boş = sınırsız"><Input type="number" min={1} max={1000} value={f.maxSvc} onChange={(e) => setF({ ...f, maxSvc: e.target.value })} /></Field>
                     </Grid>
                     <div className="flex flex-wrap gap-4 text-sm">
                         <label className="flex items-center gap-2"><input type="checkbox" checked={f.priority_access} disabled={f.is_default} onChange={flag("priority_access")} /> Öncelik penceresi</label>

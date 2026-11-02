@@ -249,18 +249,20 @@ type Business struct {
 	CompletedJobs int        `json:"completed_jobs"`
 	CategoryIDs   []string   `json:"category_ids"`
 	CreatedAt     time.Time  `json:"created_at"`
+	// OverLimit: yayında ama paketin işletme sınırı dışında kaldığı için vitrinde ve eşleşmede görünmüyor (084).
+	OverLimit bool `json:"over_limit"`
 }
 
 const businessCols = `b.id, b.account_id, b.name, b.description, b.phone, b.address, b.city, b.district, b.latitude::float8,
 	b.longitude::float8, b.service_area, b.radius_km, b.status, b.review_note, b.reviewed_at, b.rating_count, b.rating_sum,
 	b.completed_jobs, COALESCE((SELECT array_agg(bc.category_id::text ORDER BY bc.category_id) FROM mp_business_categories bc
-	WHERE bc.business_id = b.id), '{}'), b.created_at`
+	WHERE bc.business_id = b.id), '{}'), b.created_at, COALESCE(NOT mp_business_within_limit(b.id), false)`
 
 func scanBusiness(r pgx.Row) (*Business, error) {
 	b := &Business{}
 	err := r.Scan(&b.ID, &b.AccountID, &b.Name, &b.Description, &b.Phone, &b.Address, &b.City, &b.District, &b.Latitude,
 		&b.Longitude, &b.ServiceArea, &b.RadiusKm, &b.Status, &b.ReviewNote, &b.ReviewedAt, &b.RatingCount, &b.RatingSum,
-		&b.CompletedJobs, &b.CategoryIDs, &b.CreatedAt)
+		&b.CompletedJobs, &b.CategoryIDs, &b.CreatedAt, &b.OverLimit)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -357,6 +359,23 @@ func (s *Store) CreateBusiness(ctx context.Context, accountID string, in Busines
 		return nil, err
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
+	// Paket sınırı (084): hesap satırı kilitlenir, sayım ayrı sorguda (kilit beklendiyse güncel anlık görüntüyle) yapılır.
+	var pkg string
+	var max *int
+	if err := tx.QueryRow(ctx, `SELECT p.name, p.max_businesses FROM mp_supplier_accounts a JOIN mp_packages p ON p.id = a.package_id
+		WHERE a.id = $1 FOR UPDATE OF a`, accountID).Scan(&pkg, &max); err != nil {
+		return nil, err
+	}
+	if max != nil {
+		var n int
+		if err := tx.QueryRow(ctx, `SELECT count(*) FROM mp_businesses WHERE account_id = $1 AND status <> 'CLOSED'`, accountID).Scan(&n); err != nil {
+			return nil, err
+		}
+		if n >= *max {
+			return nil, userErr(http.StatusConflict, "PACKAGE_LIMIT", fmt.Sprintf("%s paketinde en çok %d işletme açılabilir (kapatılmamış: %d); "+
+				"yeni işletme için paketinizi yükseltin ya da bir işletmeyi kapatın", pkg, *max, n))
+		}
+	}
 	var id string
 	if err := tx.QueryRow(ctx, `INSERT INTO mp_businesses (account_id, name, description, phone, address, city, district,
 		latitude, longitude, service_area, radius_km) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
@@ -481,15 +500,18 @@ type Service struct {
 	// PhotoStatus, fotoğraf denetiminin durumudur (PENDING/REVIEW/APPROVED/REJECTED; M13.4); yalnız sahibine döner.
 	PhotoStatus *string `json:"photo_status"`
 	PhotoReason *string `json:"photo_reason"`
+	// OverLimit: etkin ama paketin hizmet kalemi sınırı dışında kaldığı için vitrinde görünmüyor (084).
+	OverLimit bool `json:"over_limit"`
 }
 
 const serviceCols = `id, business_id, name, description, price_min_kurus, price_max_kurus, unit, photo_key, is_active, sort_order,
-	(SELECT pm.status FROM photo_moderation pm WHERE pm.storage_key = photo_key), (SELECT pm.reason FROM photo_moderation pm WHERE pm.storage_key = photo_key)`
+	(SELECT pm.status FROM photo_moderation pm WHERE pm.storage_key = photo_key), (SELECT pm.reason FROM photo_moderation pm WHERE pm.storage_key = photo_key),
+	COALESCE(NOT mp_service_within_limit(id), false)`
 
 func scanService(r pgx.Row) (*Service, error) {
 	x := &Service{}
 	err := r.Scan(&x.ID, &x.BusinessID, &x.Name, &x.Description, &x.PriceMinKurus, &x.PriceMaxKurus, &x.Unit, &x.PhotoKey,
-		&x.IsActive, &x.SortOrder, &x.PhotoStatus, &x.PhotoReason)
+		&x.IsActive, &x.SortOrder, &x.PhotoStatus, &x.PhotoReason, &x.OverLimit)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -557,10 +579,40 @@ func (s *Store) CreateService(ctx context.Context, accountID, businessID string,
 	if _, err := s.Business(ctx, accountID, businessID); err != nil {
 		return nil, err
 	}
-	return scanService(s.supplier(accountID).QueryRow(ctx, `INSERT INTO mp_business_services (business_id, account_id, name,
+	tx, err := s.supplier(accountID).Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+	// Paket sınırı (084): işletme satırı kilitlenir, sayım ayrı sorguda yapılır (pasif kalemler de sayılır).
+	var pkg string
+	var max *int
+	if err := tx.QueryRow(ctx, `SELECT p.name, p.max_services_per_business FROM mp_businesses b
+		JOIN mp_supplier_accounts a ON a.id = b.account_id JOIN mp_packages p ON p.id = a.package_id
+		WHERE b.id = $1 AND b.account_id = $2 FOR UPDATE OF b`, businessID, accountID).Scan(&pkg, &max); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	if max != nil {
+		var n int
+		if err := tx.QueryRow(ctx, `SELECT count(*) FROM mp_business_services WHERE business_id = $1`, businessID).Scan(&n); err != nil {
+			return nil, err
+		}
+		if n >= *max {
+			return nil, userErr(http.StatusConflict, "PACKAGE_LIMIT", fmt.Sprintf("%s paketinde işletme başına en çok %d hizmet kalemi olabilir; "+
+				"yeni kalem için paketinizi yükseltin ya da bir kalemi silin", pkg, *max))
+		}
+	}
+	x, err := scanService(tx.QueryRow(ctx, `INSERT INTO mp_business_services (business_id, account_id, name,
 		description, price_min_kurus, price_max_kurus, unit, is_active, sort_order) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
 		RETURNING `+serviceCols, businessID, accountID, in.Name, in.Description, in.PriceMinKurus, in.PriceMaxKurus, in.Unit,
 		*in.IsActive, in.SortOrder))
+	if err != nil {
+		return nil, err
+	}
+	return x, tx.Commit(ctx)
 }
 
 // UpdateService, hizmet kalemini günceller.

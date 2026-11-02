@@ -1451,15 +1451,15 @@ Kaynak: `admin/src/app/**/page.tsx` ve içe aktardığı `admin/src/components/*
 - **Dosya:** `admin/src/app/platform/paketler/page.tsx`
 - **Panel erişimi:** PlatformAdmin — Platform yönetimi (Usta & Hizmet)
 - **Ekranda:**
-  - Veri (satır 14): 
-  - Bilgi notu (satır 24): Fiyat değişikliği mevcut abonelere bir sonraki yenilemede uygulanır. Varsayılan (ücretsiz)
-  - Tablo (satır 28): Paket \| Aylık \| Talep indirimi \| Dahil talep / SMS \| Öncelik \| Vitrinde telefon \| Ağırlık
+  - Veri (satır 17): 
+  - Bilgi notu (satır 28): Aidat, dahil talep ve SMS hakkı değişikliği mevcut abonelere bir sonraki yenilemede uygula
+  - Tablo (satır 36): Paket \| Aylık \| Talep indirimi \| Dahil talep / SMS \| Öncelik \| Vitrinde telefon \| İşletme / hizmet sınırı \| Ağırlık
 
 | # | Öğe | Uç · servis · kayıt | Yetki | Değişen tablolar | Bildirim (konu → alıcı) | Etkisinin görüldüğü yerler |
 |---|---|---|---|---|---|---|
-| 1 | Düğme **Paket ekle (pencere/form açar)** (satır 21) | — | | | | |
-| 2 | Düğme **Düzenle (pencere/form açar)** (satır 37) | — | | | | |
-| 3 | Form **(başlık dinamik) — alanlar: Ad*, Aylık ücret (TL), Talep indirimi (%), Sıralama ağırlığı, Ayda dahil talep, Aylık SMS hakkı, Sıra — başarı: Paket kaydedildi** (satır 43) | — | | | | |
+| 1 | Düğme **Paket ekle (pencere/form açar)** (satır 24) | — | | | | |
+| 2 | Düğme **Düzenle (pencere/form açar)** (satır 46) | — | | | | |
+| 3 | Form **(başlık dinamik) — alanlar: Ad*, Aylık ücret (TL), Talep indirimi (%), Sıralama ağırlığı, Ayda dahil talep, Aylık SMS hakkı, Sıra, En çok işletme, İşletme başına en çok hizmet kalemi — başarı: Paket kaydedildi** (satır 52) | — | | | | |
 
 ### /platform/yapay-zeka — `/platform/yapay-zeka`
 - **Dosya:** `admin/src/app/platform/yapay-zeka/page.tsx`
@@ -1524,10 +1524,10 @@ Kaynak: `admin/src/app/**/page.tsx` ve içe aktardığı `admin/src/components/*
 
 | # | Öğe | Uç · servis · kayıt | Yetki | Değişen tablolar | Bildirim (konu → alıcı) | Etkisinin görüldüğü yerler |
 |---|---|---|---|---|---|---|
-| 1 | Düğme **Hesabı oluştur (başarı: Tedarikçi hesabınız oluşturuldu)** (satır 55) | `POST /market/supplier/account` · marketplace · `services/marketplace/main.go:103` | Supplier | mp_supplier_accounts(+) | yok | Panel tedarikci/(panel), Panel tedarikci/(panel)/bakiye, Panel tedarikci/(panel)/isletmeler, Panel tedarikci/(panel)/talepler, Panel tedarikci/(panel)/talepler/[id] |
-| 2 | Düğme **Kaydet (başarı: Kaydedildi)** (satır 85) | `PUT /market/supplier/account` · marketplace · `services/marketplace/main.go:104` | Supplier | mp_supplier_accounts(±) | yok | Panel tedarikci/(panel), Panel tedarikci/(panel)/bakiye, Panel tedarikci/(panel)/isletmeler, Panel tedarikci/(panel)/talepler, Panel tedarikci/(panel)/talepler/[id] |
-| 3 | Düğme **Kaydet ve incelemeye gönder (başarı: Hesabınız incelemeye gönderildi)** (satır 86) | `PUT /market/supplier/account` · marketplace · `services/marketplace/main.go:104` | Supplier | mp_supplier_accounts(±) | yok | Panel tedarikci/(panel), Panel tedarikci/(panel)/bakiye, Panel tedarikci/(panel)/isletmeler, Panel tedarikci/(panel)/talepler, Panel tedarikci/(panel)/talepler/[id] |
-|  | ↳ | `POST /market/supplier/account/submit` · marketplace · `services/marketplace/main.go:105` | Supplier | mp_supplier_accounts(±) | yok | Panel tedarikci/(panel), Panel tedarikci/(panel)/bakiye, Panel tedarikci/(panel)/isletmeler, Panel tedarikci/(panel)/talepler, Panel tedarikci/(panel)/talepler/[id] |
+| 1 | Düğme **Hesabı oluştur (başarı: Tedarikçi hesabınız oluşturuldu)** (satır 55) | `POST /market/supplier/account` · marketplace · `services/marketplace/main.go:103` | Supplier | mp_supplier_accounts(+) | yok | Panel tedarikci/(panel), Panel tedarikci/(panel)/bakiye, Panel tedarikci/(panel)/isletmeler, Panel tedarikci/(panel)/isletmeler/[id], Panel tedarikci/(panel)/talepler, Panel tedarikci/(panel)/talepler/[id] |
+| 2 | Düğme **Kaydet (başarı: Kaydedildi)** (satır 85) | `PUT /market/supplier/account` · marketplace · `services/marketplace/main.go:104` | Supplier | mp_supplier_accounts(±) | yok | Panel tedarikci/(panel), Panel tedarikci/(panel)/bakiye, Panel tedarikci/(panel)/isletmeler, Panel tedarikci/(panel)/isletmeler/[id], Panel tedarikci/(panel)/talepler, Panel tedarikci/(panel)/talepler/[id] |
+| 3 | Düğme **Kaydet ve incelemeye gönder (başarı: Hesabınız incelemeye gönderildi)** (satır 86) | `PUT /market/supplier/account` · marketplace · `services/marketplace/main.go:104` | Supplier | mp_supplier_accounts(±) | yok | Panel tedarikci/(panel), Panel tedarikci/(panel)/bakiye, Panel tedarikci/(panel)/isletmeler, Panel tedarikci/(panel)/isletmeler/[id], Panel tedarikci/(panel)/talepler, Panel tedarikci/(panel)/talepler/[id] |
+|  | ↳ | `POST /market/supplier/account/submit` · marketplace · `services/marketplace/main.go:105` | Supplier | mp_supplier_accounts(±) | yok | Panel tedarikci/(panel), Panel tedarikci/(panel)/bakiye, Panel tedarikci/(panel)/isletmeler, Panel tedarikci/(panel)/isletmeler/[id], Panel tedarikci/(panel)/talepler, Panel tedarikci/(panel)/talepler/[id] |
 | 4 | Düğme **Yükle (başarı: Belge yüklendi)** (satır 112) | `POST /market/supplier/documents` · marketplace · `services/marketplace/main.go:107` | Supplier | mp_account_documents(+) · dosya deposu | yok | Panel tedarikci/(panel) |
 | 5 | Düğme **İndir (indirir)** (satır 134) | `GET /market/supplier/documents/:id/file` · marketplace · `services/marketplace/main.go:108` | Supplier | mp_document_access_logs(+) · dosya deposu | yok | — |
 | 6 | Düğme **Sil (başarı: Belge silindi)** (satır 136) | `DELETE /market/supplier/documents/:id` · marketplace · `services/marketplace/main.go:109` | Supplier | mp_account_documents(−) · dosya deposu | yok | Panel tedarikci/(panel) |
@@ -1546,19 +1546,19 @@ Kaynak: `admin/src/app/**/page.tsx` ve içe aktardığı `admin/src/components/*
   - Kart (satır 75): Bakiye yükle
   - Bilgi notu (satır 84): Kartla ödeme bu kurulumda yapılandırılmamış.
   - Kart (satır 86): Paket
-  - Kart (satır 113): Karta iadeler
-  - Tablo (satır 114): Tarih \| Tutar \| Yükleme \| Durum
-  - Kart (satır 122): Hareketler
-  - Tablo (satır 124): Tarih \| Tür \| Açıklama \| Tutar \| Sonraki bakiye
+  - Kart (satır 114): Karta iadeler
+  - Tablo (satır 115): Tarih \| Tutar \| Yükleme \| Durum
+  - Kart (satır 123): Hareketler
+  - Tablo (satır 125): Tarih \| Tür \| Açıklama \| Tutar \| Sonraki bakiye
 
 | # | Öğe | Uç · servis · kayıt | Yetki | Değişen tablolar | Bildirim (konu → alıcı) | Etkisinin görüldüğü yerler |
 |---|---|---|---|---|---|---|
 | 1 | Düğme **Koşulları kabul et** (satır 69) | `POST /market/supplier/terms/balance/accept` · marketplace · `services/marketplace/main.go:139` | Supplier | mp_terms_acceptances(+) | yok | Panel tedarikci/(panel)/bakiye |
 | 2 | Düğme **Kartla öde — yalnız arayüz (pencere/gezinme), sunucu çağrısı yok** (satır 79) | — | | | | |
-| 3 | Düğme **Bu pakete geç — yalnız arayüz (pencere/gezinme), sunucu çağrısı yok** (satır 103) | — | | | | |
-| 4 | Düğme **Değişikliği iptal et — yalnız arayüz (pencere/gezinme), sunucu çağrısı yok** (satır 104) | — | | | | |
-| 5 | Düğme **Önceki (pencere/form açar)** (satır 133) | — | | | | |
-| 6 | Düğme **Sonraki (pencere/form açar)** (satır 135) | — | | | | |
+| 3 | Düğme **Bu pakete geç — yalnız arayüz (pencere/gezinme), sunucu çağrısı yok** (satır 104) | — | | | | |
+| 4 | Düğme **Değişikliği iptal et — yalnız arayüz (pencere/gezinme), sunucu çağrısı yok** (satır 105) | — | | | | |
+| 5 | Düğme **Önceki (pencere/form açar)** (satır 134) | — | | | | |
+| 6 | Düğme **Sonraki (pencere/form açar)** (satır 136) | — | | | | |
 
 ### /tedarikci/(panel)/bildirimler — `/tedarikci/(panel)/bildirimler`
 - **Dosya:** `admin/src/app/tedarikci/(panel)/bildirimler/page.tsx`
@@ -1577,11 +1577,12 @@ Kaynak: `admin/src/app/**/page.tsx` ve içe aktardığı `admin/src/components/*
 - **Ekranda:**
   - Veri (satır 11): `GET /market/supplier/businesses` (marketplace)
   - Veri (satır 12): `GET /market/supplier/me` (marketplace)
-  - Bağlantı (satır 15): Yeni işletme → /tedarikci/isletmeler/yeni
-  - Bilgi notu (satır 16): Önce Hesabım sayfasından tedarikçi hesabınızı oluşturun.
-  - Bilgi notu (satır 18): İşletmeleriniz, hesabınız ve işletme bilgileri SiteEksen tarafından onaylandıktan sonra ha
-  - Tablo (satır 24): İşletme \| Yer \| Hizmet alanı \| Durum \| Puan
-  - Bağlantı (satır 25): {b.name} → `/tedarikci/isletmeler/${b.id
+  - Bağlantı (satır 20): Yeni işletme → /tedarikci/isletmeler/yeni
+  - Bilgi notu (satır 21): Önce Hesabım sayfasından tedarikçi hesabınızı oluşturun.
+  - Bilgi notu (satır 23): İşletmeleriniz, hesabınız ve işletme bilgileri SiteEksen tarafından onaylandıktan sonra ha
+  - Bilgi notu (satır 26): {me.data.package.name} paketinde en çok {max} işletme (kapatılmamış: {count}). Paket düşün
+  - Tablo (satır 35): İşletme \| Yer \| Hizmet alanı \| Durum \| Puan
+  - Bağlantı (satır 36): {b.name} → `/tedarikci/isletmeler/${b.id
 - **Eylem:** yok (salt bilgi / yönlendirme)
 
 ### /tedarikci/(panel)/isletmeler/[id] — `/tedarikci/(panel)/isletmeler/[id]`
@@ -1592,25 +1593,26 @@ Kaynak: `admin/src/app/**/page.tsx` ve içe aktardığı `admin/src/components/*
   - Veri (satır 37): `GET /market/meta` (marketplace)
   - Bilgi notu (satır 56): İnceleme notu: {existing.review_note}
   - Bilgi notu (satır 57): İşletme taslakta; havuzda görünmesi için incelemeye gönderin.
-  - Kart (satır 58): Bilgiler
-  - Veri (satır 132): `GET /market/supplier/businesses/:id/services` (marketplace)
-  - Kart (satır 141): Hizmet ve ürünler
-  - Dosya seçme (satır 144)
-  - Tablo (satır 154): Hizmet \| Fiyat \| Durum
+  - Bilgi notu (satır 59): Paket sınırı: Paketinizin işletme sınırı aşıldığı için bu işletme vitrinde ve yeni taleplerde görünmüyor
+  - Kart (satır 64): Bilgiler
+  - Veri (satır 138): `GET /market/supplier/businesses/:id/services` (marketplace)
+  - Veri (satır 139): `GET /market/supplier/me` (marketplace)
+  - Dosya seçme (satır 154)
+  - Tablo (satır 164): Hizmet \| Fiyat \| Durum
   - **Bileşen `admin/src/components/market/service-photo.tsx`** (aşağıdaki satır numaraları bu dosyaya aittir)
   - **Bileşen `admin/src/components/market/field-group.tsx`** (aşağıdaki satır numaraları bu dosyaya aittir)
 
 | # | Öğe | Uç · servis · kayıt | Yetki | Değişen tablolar | Bildirim (konu → alıcı) | Etkisinin görüldüğü yerler |
 |---|---|---|---|---|---|---|
-| 1 | Düğme **Kaydet — yalnız arayüz (pencere/gezinme), sunucu çağrısı yok** (satır 107) | — | | | | |
-| 2 | Düğme **İncelemeye gönder (başarı: İşletme incelemeye gönderildi)** (satır 109) | `POST /market/supplier/businesses/:id/submit` · marketplace · `services/marketplace/main.go:114` | Supplier | mp_businesses(±) | yok | Panel tedarikci/(panel)/isletmeler, Panel tedarikci/(panel)/isletmeler/[id], Panel tedarikci/(panel)/puanlar, Panel tedarikci/(panel)/talepler, Panel tedarikci/(panel)/talepler/[id], Sakin market_requests, Yön.mobil site_markets |
-| 3 | Düğme **İşletmeyi kapat (başarı: İşletme kapatıldı; onay sorar)** (satır 113) | `POST /market/supplier/businesses/:id/close` · marketplace · `services/marketplace/main.go:115` | Supplier | mp_businesses(±) | yok | Panel tedarikci/(panel)/isletmeler, Panel tedarikci/(panel)/isletmeler/[id], Panel tedarikci/(panel)/puanlar, Panel tedarikci/(panel)/talepler, Panel tedarikci/(panel)/talepler/[id], Sakin market_requests, Yön.mobil site_markets |
-| 4 | Düğme **Hizmet ekle — yalnız arayüz (pencere/gezinme), sunucu çağrısı yok** (satır 142) | — | | | | |
-| 5 | Seçim **—** (satır 144) | `POST /market/supplier/services/:id/photo` · marketplace · `services/marketplace/main.go:120` | Supplier | photo_moderation(+), mp_business_services(±), photo_moderation(±) · dosya deposu | yok | Panel tedarikci/(panel)/isletmeler/[id], Sakin market_requests, Yön.mobil site_markets |
-| 6 | Düğme **Düzenle — yalnız arayüz (pencere/gezinme), sunucu çağrısı yok** (satır 168) | — | | | | |
-| 7 | Düğme **Fotoğraf (pencere/form açar)** (satır 169) | — | | | | |
-| 8 | Düğme **Sil (başarı: Hizmet silindi)** (satır 170) | `DELETE /market/supplier/services/:id` · marketplace · `services/marketplace/main.go:119` | Supplier | mp_business_services(−) · dosya deposu | yok | Panel tedarikci/(panel)/isletmeler/[id] |
-| 9 | Form **(başlık dinamik) — alanlar: Hizmet / ürün adı*, Açıklama, En düşük (TL), En yüksek (TL), Birim — başarı: Hizmet kaydedildi** (satır 177) | `PUT /market/supplier/services/:id` · marketplace · `services/marketplace/main.go:118` | Supplier | mp_business_services(+), mp_business_services(±) | yok | Panel tedarikci/(panel)/isletmeler/[id] |
+| 1 | Düğme **Kaydet — yalnız arayüz (pencere/gezinme), sunucu çağrısı yok** (satır 113) | — | | | | |
+| 2 | Düğme **İncelemeye gönder (başarı: İşletme incelemeye gönderildi)** (satır 115) | `POST /market/supplier/businesses/:id/submit` · marketplace · `services/marketplace/main.go:114` | Supplier | mp_businesses(±) | yok | Panel tedarikci/(panel)/isletmeler, Panel tedarikci/(panel)/isletmeler/[id], Panel tedarikci/(panel)/puanlar, Panel tedarikci/(panel)/talepler, Panel tedarikci/(panel)/talepler/[id], Sakin market_requests, Yön.mobil site_markets |
+| 3 | Düğme **İşletmeyi kapat (başarı: İşletme kapatıldı; onay sorar)** (satır 119) | `POST /market/supplier/businesses/:id/close` · marketplace · `services/marketplace/main.go:115` | Supplier | mp_businesses(±) | yok | Panel tedarikci/(panel)/isletmeler, Panel tedarikci/(panel)/isletmeler/[id], Panel tedarikci/(panel)/puanlar, Panel tedarikci/(panel)/talepler, Panel tedarikci/(panel)/talepler/[id], Sakin market_requests, Yön.mobil site_markets |
+| 4 | Düğme **Hizmet ekle — yalnız arayüz (pencere/gezinme), sunucu çağrısı yok** (satır 152) | — | | | | |
+| 5 | Seçim **—** (satır 154) | `POST /market/supplier/services/:id/photo` · marketplace · `services/marketplace/main.go:120` | Supplier | photo_moderation(+), mp_business_services(±), photo_moderation(±) · dosya deposu | yok | Panel tedarikci/(panel)/isletmeler/[id], Sakin market_requests, Yön.mobil site_markets |
+| 6 | Düğme **Düzenle — yalnız arayüz (pencere/gezinme), sunucu çağrısı yok** (satır 183) | — | | | | |
+| 7 | Düğme **Fotoğraf (pencere/form açar)** (satır 184) | — | | | | |
+| 8 | Düğme **Sil (başarı: Hizmet silindi)** (satır 185) | `DELETE /market/supplier/services/:id` · marketplace · `services/marketplace/main.go:119` | Supplier | mp_business_services(−) · dosya deposu | yok | Panel tedarikci/(panel)/isletmeler/[id] |
+| 9 | Form **(başlık dinamik) — alanlar: Hizmet / ürün adı*, Açıklama, En düşük (TL), En yüksek (TL), Birim — başarı: Hizmet kaydedildi** (satır 192) | `PUT /market/supplier/services/:id` · marketplace · `services/marketplace/main.go:118` | Supplier | mp_business_services(+), mp_business_services(±) | yok | Panel tedarikci/(panel)/isletmeler/[id] |
 |  | ↳ | `POST /market/supplier/businesses/:id/services` · marketplace · `services/marketplace/main.go:117` | Supplier | mp_business_services(+), mp_business_services(±) | yok | Panel tedarikci/(panel)/isletmeler/[id] |
 
 ### /tedarikci/(panel)/puanlar — `/tedarikci/(panel)/puanlar`
@@ -1639,7 +1641,7 @@ Kaynak: `admin/src/app/**/page.tsx` ve içe aktardığı `admin/src/components/*
 | # | Öğe | Uç · servis · kayıt | Yetki | Değişen tablolar | Bildirim (konu → alıcı) | Etkisinin görüldüğü yerler |
 |---|---|---|---|---|---|---|
 | 1 | Düğme **Kabul et (yalnız yazma yetkisi; pencere/form açar)** (satır 68) | — | | | | |
-| 2 | Form **Talebi kabul et — alanlar:  — başarı: ** (satır 83) | `POST /market/supplier/requests/:id/accept` · marketplace · `services/marketplace/main.go:125` | Supplier | mp_wallet_ledger(+), mp_request_dispatch(±), mp_requests(±), mp_supplier_accounts(±) · tetikleyici: mp_wallet_ledger_no_change, mp_requests_active_property, mp_requests_closed_lock | yok | Panel tedarikci/(panel), Panel tedarikci/(panel)/bakiye, Panel tedarikci/(panel)/isletmeler, Panel tedarikci/(panel)/talepler, Panel tedarikci/(panel)/talepler/[id], Panel/settings, Sakin market_requests, Yön.mobil site_markets, Yön.mobil site_settings |
+| 2 | Form **Talebi kabul et — alanlar:  — başarı: ** (satır 83) | `POST /market/supplier/requests/:id/accept` · marketplace · `services/marketplace/main.go:125` | Supplier | mp_wallet_ledger(+), mp_request_dispatch(±), mp_requests(±), mp_supplier_accounts(±) · tetikleyici: mp_wallet_ledger_no_change, mp_requests_active_property, mp_requests_closed_lock | yok | Panel tedarikci/(panel), Panel tedarikci/(panel)/bakiye, Panel tedarikci/(panel)/isletmeler, Panel tedarikci/(panel)/isletmeler/[id], Panel tedarikci/(panel)/talepler, Panel tedarikci/(panel)/talepler/[id], Panel/settings, Sakin market_requests, Yön.mobil site_markets, Yön.mobil site_settings |
 
 ### /tedarikci/(panel)/talepler/[id] — `/tedarikci/(panel)/talepler/[id]`
 - **Dosya:** `admin/src/app/tedarikci/(panel)/talepler/[id]/page.tsx`
@@ -1666,7 +1668,7 @@ Kaynak: `admin/src/app/**/page.tsx` ve içe aktardığı `admin/src/components/*
 
 | # | Öğe | Uç · servis · kayıt | Yetki | Değişen tablolar | Bildirim (konu → alıcı) | Etkisinin görüldüğü yerler |
 |---|---|---|---|---|---|---|
-| 1 | Düğme **Kabul et** (satır 61) | `POST /market/supplier/requests/:id/accept` · marketplace · `services/marketplace/main.go:125` | Supplier | mp_wallet_ledger(+), mp_request_dispatch(±), mp_requests(±), mp_supplier_accounts(±) · tetikleyici: mp_wallet_ledger_no_change, mp_requests_active_property, mp_requests_closed_lock | yok | Panel tedarikci/(panel), Panel tedarikci/(panel)/bakiye, Panel tedarikci/(panel)/isletmeler, Panel tedarikci/(panel)/talepler, Panel tedarikci/(panel)/talepler/[id], Panel/settings, Sakin market_requests, Yön.mobil site_markets, Yön.mobil site_settings |
+| 1 | Düğme **Kabul et** (satır 61) | `POST /market/supplier/requests/:id/accept` · marketplace · `services/marketplace/main.go:125` | Supplier | mp_wallet_ledger(+), mp_request_dispatch(±), mp_requests(±), mp_supplier_accounts(±) · tetikleyici: mp_wallet_ledger_no_change, mp_requests_active_property, mp_requests_closed_lock | yok | Panel tedarikci/(panel), Panel tedarikci/(panel)/bakiye, Panel tedarikci/(panel)/isletmeler, Panel tedarikci/(panel)/isletmeler/[id], Panel tedarikci/(panel)/talepler, Panel tedarikci/(panel)/talepler/[id], Panel/settings, Sakin market_requests, Yön.mobil site_markets, Yön.mobil site_settings |
 | 2 | Düğme **Geri çek (başarı: Teklif geri çekildi)** (deal-panel satır 46) | `POST /market/supplier/offers/:id/withdraw` · marketplace · `services/marketplace/main.go:129` | Supplier | mp_offers(±) · tetikleyici: mp_offers_accepted_lock | yok | Panel tedarikci/(panel)/talepler, Panel tedarikci/(panel)/talepler/[id], Sakin market_requests, Yön.mobil site_markets |
 | 3 | Düğme **Teklifi güncelle — yalnız arayüz (pencere/gezinme), sunucu çağrısı yok** (deal-panel satır 62) | — | | | | |
 | 4 | Düğme **İş tamamlandı (başarı: Alıcıya iş tamamlandı bildirildi)** (deal-panel satır 83) | `POST /market/supplier/jobs/:id/done` · marketplace · `services/marketplace/main.go:133` | Supplier | mp_jobs(±) · tetikleyici: mp_jobs_completed_refresh | `{topic}` → işlemin muhatabı (tek kişi) ya da doğrudan telefon/e-posta | Panel tedarikci/(panel)/talepler, Panel tedarikci/(panel)/talepler/[id], Panel/settings, Sakin market_requests, Yön.mobil site_markets, Yön.mobil site_settings |

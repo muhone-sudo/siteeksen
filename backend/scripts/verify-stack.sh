@@ -193,6 +193,11 @@ if go test ./services/nps/service/... -count=1 >/tmp/verify-nps.log 2>&1; then
 else
   bad "go test ./services/nps/service/..."; tail -15 /tmp/verify-nps.log
 fi
+if go test ./services/settings/... -count=1 >/tmp/verify-settings.log 2>&1; then
+  ok "go test ./services/settings/... (etkinlik süzgeci günü iş saat diliminde başlar; GS.2)"
+else
+  bad "go test ./services/settings/..."; tail -15 /tmp/verify-settings.log
+fi
 if go test ./services/energy_analytics/service/... ./services/smart_collection/service/... \
    -count=1 >/tmp/verify-analytics.log 2>&1; then
   ok "go test enerji + tahsilat riski (medyan sapması, açıklanabilir skor)"
@@ -5276,9 +5281,13 @@ if [ "$CUP" = "1" ]; then
   RACE=$(curl -s -X POST "$CURL2/requests" -H "Authorization: Bearer $TEN" -H 'Content-Type: application/json' \
     -d '{"title":"Yaris sinamasi","description":"es zamanli gecis"}' | grep -o '"id":"[^"]*"' | head -1 | cut -d'"' -f4)
   if [ -n "$RACE" ]; then
-    $PSQL -c "BEGIN; SELECT 1 FROM requests WHERE id='$RACE' FOR UPDATE; SELECT pg_sleep(3); COMMIT;" >/dev/null 2>&1 &
+    $PSQL -c "BEGIN; SELECT 1 FROM requests WHERE id='$RACE' FOR UPDATE; SELECT pg_sleep(4) /* verify-race-lock */; COMMIT;" >/dev/null 2>&1 &
     LOCKP=$!
-    sleep 1
+    # psql Docker kabında açılır (yükte saniyeler sürebilir): istekler kilit gerçekten tutulduktan sonra gönderilir.
+    for _ in $(seq 1 40); do
+      [ "$($PSQL -t -A -c "SELECT count(*) FROM pg_stat_activity WHERE query LIKE '%verify-race-lock%' AND state = 'active' AND pid <> pg_backend_pid();")" = "1" ] && break
+      sleep 0.25
+    done
     for i in 1 2; do
       curl -s -o /dev/null -w '%{http_code}\n' -X PATCH "$CURL2/requests/$RACE/status" \
         -H "Authorization: Bearer $MGR" -H 'Content-Type: application/json' -d '{"status":"IN_PROGRESS"}' \

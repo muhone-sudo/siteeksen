@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import { useAction, useApi } from "@/lib/use-api";
 import { ActionFeedback, Badge, Button, Card, Field, Input, Notice, Page, QueryView, Stats, StatusBadge, Table } from "@/components/ui/kit";
-import { CARD_REFUND_STATUS } from "@/components/market/labels";
+import { CARD_REFUND_STATUS, limitText } from "@/components/market/labels";
 import { date, dateTime, kurus } from "@/lib/format";
 import type { MpPackage } from "@/lib/types";
 
@@ -99,6 +99,7 @@ function Wallet() {
                                                         <li>Ayda {p.included_requests} talep dahil, {p.monthly_sms} SMS</li>
                                                         <li>{p.priority_access ? "Yeni talepleri önce görür" : "Öncelik penceresi yok"}</li>
                                                         <li>{p.phone_in_showcase ? "Telefon vitrinde görünür" : "Telefon vitrinde gizli"}</li>
+                                                        <li>{limitText(p.max_businesses, "işletme")}, işletme başına {limitText(p.max_services_per_business, "hizmet kalemi")}</li>
                                                     </ul>
                                                     {!current && !frozen && <Button className="mt-3" size="sm" disabled={act.pending} onClick={() => void choose(p)}>Bu pakete geç</Button>}
                                                     {current && d.next_package_id && !frozen && <Button className="mt-3" size="sm" variant="secondary" disabled={act.pending} onClick={() => void choose(p)}>Değişikliği iptal et</Button>}

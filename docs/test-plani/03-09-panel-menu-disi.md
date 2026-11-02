@@ -640,8 +640,8 @@ Panel: http://localhost:3101. Her sayfa için önce **sayfa açılışı** (…-
 - **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/platform/paketler
 - **Adım:** http://localhost:3101/platform/paketler adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: 
-- **Adım:** Bilgi notu (satır 24): Fiyat değişikliği mevcut abonelere bir sonraki yenilemede uygulanır. Varsayılan (ücretsiz)
-- **Adım:** Tablo sütunları görünür ve dolu/boş durumu doğru: Paket \| Aylık \| Talep indirimi \| Dahil talep / SMS \| Öncelik \| Vitrinde telefon \| Ağırlık
+- **Adım:** Bilgi notu (satır 28): Aidat, dahil talep ve SMS hakkı değişikliği mevcut abonelere bir sonraki yenilemede uygula
+- **Adım:** Tablo sütunları görünür ve dolu/boş durumu doğru: Paket \| Aylık \| Talep indirimi \| Dahil talep / SMS \| Öncelik \| Vitrinde telefon \| İşletme / hizmet sınırı \| Ağırlık
 - **Adım:** Sayfayı yenile (F5): aynı içerik gelir, oturum düşmez
 - **Adım:** Erişimi olmayan hesapla (YÖNETİCİ, KURUL, DENETÇİ, GÖREVLİ, KİRACI) aynı adresi aç → `/dashboard/forbidden` sayfasına yönlenmeli, kenar çubuğunda bu menü görünmemeli
 - **Beklenen:** her veri bölümü yüklenir (boşsa anlamlı boş durum mesajı; "undefined", "NaN", "null", ham JSON ya da İngilizce hata metni YOK); sayılar ve tarihler Türkçe biçimde (1.234,56 ₺ · gg.aa.yyyy); uydurma/örnek veri yok; dar ekranda (400 px) yatay kaydırma olmadan okunur.
@@ -661,7 +661,7 @@ Panel: http://localhost:3101. Her sayfa için önce **sayfa açılışı** (…-
 
 #### P-PLATFORM-PAKETLER-03 · Form: (başlık dinamik)
 - **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/platform/paketler
-- **Adım:** Formu aç; alanlar: Ad*, Aylık ücret (TL), Talep indirimi (%), Sıralama ağırlığı, Ayda dahil talep, Aylık SMS hakkı, Sıra (* zorunlu)
+- **Adım:** Formu aç; alanlar: Ad*, Aylık ücret (TL), Talep indirimi (%), Sıralama ağırlığı, Ayda dahil talep, Aylık SMS hakkı, Sıra, En çok işletme, İşletme başına en çok hizmet kalemi (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
 - **Adım:** Başarı mesajı tam olarak şu anlamda olmalı: "Paket kaydedildi"
@@ -802,7 +802,7 @@ Panel: http://localhost:3101. Her sayfa için önce **sayfa açılışı** (…-
     - `mp_supplier_accounts` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM mp_supplier_accounts ORDER BY xmin::text::bigint DESC LIMIT 5;`
   - **İşlem kaydı:** `SELECT created_at, action, entity_type, status_code, user_id FROM audit_logs WHERE screen = '/api/v1/market/supplier/account' ORDER BY created_at DESC LIMIT 5;` → `CREATE`, 2xx (yetkisiz denemede `DENIED`, 403)
   - **Bildirim:** üretmez — `notifications` tablosuna bu işlemle yeni satır EKLENMEMELİ.
-  - **Etkisi görülmeli:** Panel `/tedarikci/(panel)/bakiye`, Panel `/tedarikci/(panel)/isletmeler`, Panel `/tedarikci/(panel)/talepler/[id]`, Panel `/tedarikci/(panel)/talepler`, Panel `/tedarikci/(panel)`
+  - **Etkisi görülmeli:** Panel `/tedarikci/(panel)/bakiye`, Panel `/tedarikci/(panel)/isletmeler/[id]`, Panel `/tedarikci/(panel)/isletmeler`, Panel `/tedarikci/(panel)/talepler/[id]`, Panel `/tedarikci/(panel)/talepler`, Panel `/tedarikci/(panel)`
 - **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-01`
 
 #### P-TEDARIKCI-PANEL-02 · Düğme: Kaydet
@@ -814,7 +814,7 @@ Panel: http://localhost:3101. Her sayfa için önce **sayfa açılışı** (…-
     - `mp_supplier_accounts` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM mp_supplier_accounts ORDER BY xmin::text::bigint DESC LIMIT 5;`
   - **İşlem kaydı:** `SELECT created_at, action, entity_type, status_code, user_id FROM audit_logs WHERE screen = '/api/v1/market/supplier/account' ORDER BY created_at DESC LIMIT 5;` → `UPDATE`, 2xx (yetkisiz denemede `DENIED`, 403)
   - **Bildirim:** üretmez — `notifications` tablosuna bu işlemle yeni satır EKLENMEMELİ.
-  - **Etkisi görülmeli:** Panel `/tedarikci/(panel)/bakiye`, Panel `/tedarikci/(panel)/isletmeler`, Panel `/tedarikci/(panel)/talepler/[id]`, Panel `/tedarikci/(panel)/talepler`, Panel `/tedarikci/(panel)`
+  - **Etkisi görülmeli:** Panel `/tedarikci/(panel)/bakiye`, Panel `/tedarikci/(panel)/isletmeler/[id]`, Panel `/tedarikci/(panel)/isletmeler`, Panel `/tedarikci/(panel)/talepler/[id]`, Panel `/tedarikci/(panel)/talepler`, Panel `/tedarikci/(panel)`
 - **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-02`
 
 #### P-TEDARIKCI-PANEL-03 · Düğme: Kaydet ve incelemeye gönder
@@ -826,14 +826,14 @@ Panel: http://localhost:3101. Her sayfa için önce **sayfa açılışı** (…-
     - `mp_supplier_accounts` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM mp_supplier_accounts ORDER BY xmin::text::bigint DESC LIMIT 5;`
   - **İşlem kaydı:** `SELECT created_at, action, entity_type, status_code, user_id FROM audit_logs WHERE screen = '/api/v1/market/supplier/account' ORDER BY created_at DESC LIMIT 5;` → `UPDATE`, 2xx (yetkisiz denemede `DENIED`, 403)
   - **Bildirim:** üretmez — `notifications` tablosuna bu işlemle yeni satır EKLENMEMELİ.
-  - **Etkisi görülmeli:** Panel `/tedarikci/(panel)/bakiye`, Panel `/tedarikci/(panel)/isletmeler`, Panel `/tedarikci/(panel)/talepler/[id]`, Panel `/tedarikci/(panel)/talepler`, Panel `/tedarikci/(panel)`
+  - **Etkisi görülmeli:** Panel `/tedarikci/(panel)/bakiye`, Panel `/tedarikci/(panel)/isletmeler/[id]`, Panel `/tedarikci/(panel)/isletmeler`, Panel `/tedarikci/(panel)/talepler/[id]`, Panel `/tedarikci/(panel)/talepler`, Panel `/tedarikci/(panel)`
 - **Beklenen (yazma):** `POST /market/supplier/account/submit` (marketplace, `services/marketplace/main.go:105`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: Supplier
   - **Veritabanı (Adminer → SQL komutu):**
     - `mp_supplier_accounts` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM mp_supplier_accounts ORDER BY xmin::text::bigint DESC LIMIT 5;`
   - **İşlem kaydı:** `SELECT created_at, action, entity_type, status_code, user_id FROM audit_logs WHERE screen = '/api/v1/market/supplier/account/submit' ORDER BY created_at DESC LIMIT 5;` → `CREATE`, 2xx (yetkisiz denemede `DENIED`, 403)
   - **Bildirim:** üretmez — `notifications` tablosuna bu işlemle yeni satır EKLENMEMELİ.
-  - **Etkisi görülmeli:** Panel `/tedarikci/(panel)/bakiye`, Panel `/tedarikci/(panel)/isletmeler`, Panel `/tedarikci/(panel)/talepler/[id]`, Panel `/tedarikci/(panel)/talepler`, Panel `/tedarikci/(panel)`
+  - **Etkisi görülmeli:** Panel `/tedarikci/(panel)/bakiye`, Panel `/tedarikci/(panel)/isletmeler/[id]`, Panel `/tedarikci/(panel)/isletmeler`, Panel `/tedarikci/(panel)/talepler/[id]`, Panel `/tedarikci/(panel)/talepler`, Panel `/tedarikci/(panel)`
 - **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-03`
 
 #### P-TEDARIKCI-PANEL-04 · Düğme: Yükle
@@ -888,9 +888,9 @@ Panel: http://localhost:3101. Her sayfa için önce **sayfa açılışı** (…-
 - **Adım:** Kart (satır 75): Bakiye yükle
 - **Adım:** Bilgi notu (satır 84): Kartla ödeme bu kurulumda yapılandırılmamış.
 - **Adım:** Kart (satır 86): Paket
-- **Adım:** Kart (satır 113): Karta iadeler
+- **Adım:** Kart (satır 114): Karta iadeler
 - **Adım:** Tablo sütunları görünür ve dolu/boş durumu doğru: Tarih \| Tutar \| Yükleme \| Durum
-- **Adım:** Kart (satır 122): Hareketler
+- **Adım:** Kart (satır 123): Hareketler
 - **Adım:** Tablo sütunları görünür ve dolu/boş durumu doğru: Tarih \| Tür \| Açıklama \| Tutar \| Sonraki bakiye
 - **Adım:** Sayfayı yenile (F5): aynı içerik gelir, oturum düşmez
 - **Adım:** Erişimi olmayan hesapla (YÖNETİCİ, KURUL, DENETÇİ, GÖREVLİ, KİRACI) aynı adresi aç → `/dashboard/forbidden` sayfasına yönlenmeli, kenar çubuğunda bu menü görünmemeli
@@ -989,11 +989,12 @@ Panel: http://localhost:3101. Her sayfa için önce **sayfa açılışı** (…-
 - **Adım:** http://localhost:3101/tedarikci/(panel)/isletmeler adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: `GET /market/supplier/businesses` (marketplace)
 - **Adım:** Veri yüklenir: `GET /market/supplier/me` (marketplace)
-- **Adım:** Bağlantı (satır 15): Yeni işletme → /tedarikci/isletmeler/yeni
-- **Adım:** Bilgi notu (satır 16): Önce Hesabım sayfasından tedarikçi hesabınızı oluşturun.
-- **Adım:** Bilgi notu (satır 18): İşletmeleriniz, hesabınız ve işletme bilgileri SiteEksen tarafından onaylandıktan sonra ha
+- **Adım:** Bağlantı (satır 20): Yeni işletme → /tedarikci/isletmeler/yeni
+- **Adım:** Bilgi notu (satır 21): Önce Hesabım sayfasından tedarikçi hesabınızı oluşturun.
+- **Adım:** Bilgi notu (satır 23): İşletmeleriniz, hesabınız ve işletme bilgileri SiteEksen tarafından onaylandıktan sonra ha
+- **Adım:** Bilgi notu (satır 26): {me.data.package.name} paketinde en çok {max} işletme (kapatılmamış: {count}). Paket düşün
 - **Adım:** Tablo sütunları görünür ve dolu/boş durumu doğru: İşletme \| Yer \| Hizmet alanı \| Durum \| Puan
-- **Adım:** Bağlantı (satır 25): {b.name} → `/tedarikci/isletmeler/${b.id
+- **Adım:** Bağlantı (satır 36): {b.name} → `/tedarikci/isletmeler/${b.id
 - **Adım:** Sayfayı yenile (F5): aynı içerik gelir, oturum düşmez
 - **Adım:** Erişimi olmayan hesapla (YÖNETİCİ, KURUL, DENETÇİ, GÖREVLİ, KİRACI) aynı adresi aç → `/dashboard/forbidden` sayfasına yönlenmeli, kenar çubuğunda bu menü görünmemeli
 - **Beklenen:** her veri bölümü yüklenir (boşsa anlamlı boş durum mesajı; "undefined", "NaN", "null", ham JSON ya da İngilizce hata metni YOK); sayılar ve tarihler Türkçe biçimde (1.234,56 ₺ · gg.aa.yyyy); uydurma/örnek veri yok; dar ekranda (400 px) yatay kaydırma olmadan okunur.
@@ -1012,10 +1013,11 @@ Panel: http://localhost:3101. Her sayfa için önce **sayfa açılışı** (…-
 - **Adım:** Veri yüklenir: `GET /market/meta` (marketplace)
 - **Adım:** Bilgi notu (satır 56): İnceleme notu: {existing.review_note}
 - **Adım:** Bilgi notu (satır 57): İşletme taslakta; havuzda görünmesi için incelemeye gönderin.
-- **Adım:** Kart (satır 58): Bilgiler
+- **Adım:** Bilgi notu (satır 59): Paket sınırı: Paketinizin işletme sınırı aşıldığı için bu işletme vitrinde ve yeni taleplerde görünmüyor
+- **Adım:** Kart (satır 64): Bilgiler
 - **Adım:** Veri yüklenir: `GET /market/supplier/businesses/:id/services` (marketplace)
-- **Adım:** Kart (satır 141): Hizmet ve ürünler
-- **Adım:** Dosya seçme (satır 144)
+- **Adım:** Veri yüklenir: `GET /market/supplier/me` (marketplace)
+- **Adım:** Dosya seçme (satır 154)
 - **Adım:** Tablo sütunları görünür ve dolu/boş durumu doğru: Hizmet \| Fiyat \| Durum
 - **Adım:** Sayfayı yenile (F5): aynı içerik gelir, oturum düşmez
 - **Adım:** Erişimi olmayan hesapla (YÖNETİCİ, KURUL, DENETÇİ, GÖREVLİ, KİRACI) aynı adresi aç → `/dashboard/forbidden` sayfasına yönlenmeli, kenar çubuğunda bu menü görünmemeli
@@ -1192,7 +1194,7 @@ Panel: http://localhost:3101. Her sayfa için önce **sayfa açılışı** (…-
     - `mp_supplier_accounts` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM mp_supplier_accounts ORDER BY xmin::text::bigint DESC LIMIT 5;`
   - **İşlem kaydı:** `SELECT created_at, action, entity_type, status_code, user_id FROM audit_logs WHERE screen = '/api/v1/market/supplier/requests/:id/accept' ORDER BY created_at DESC LIMIT 5;` → `CREATE`, 2xx (yetkisiz denemede `DENIED`, 403)
   - **Bildirim:** üretmez — `notifications` tablosuna bu işlemle yeni satır EKLENMEMELİ.
-  - **Etkisi görülmeli:** Panel `/dashboard/settings`, Panel `/tedarikci/(panel)/bakiye`, Panel `/tedarikci/(panel)/isletmeler`, Panel `/tedarikci/(panel)/talepler/[id]`, Panel `/tedarikci/(panel)/talepler`, Panel `/tedarikci/(panel)`, Sakin `market_request_screens`, Yön.mobil `site_market_screens`, Yön.mobil `site_settings_screen`
+  - **Etkisi görülmeli:** Panel `/dashboard/settings`, Panel `/tedarikci/(panel)/bakiye`, Panel `/tedarikci/(panel)/isletmeler/[id]`, Panel `/tedarikci/(panel)/isletmeler`, Panel `/tedarikci/(panel)/talepler/[id]`, Panel `/tedarikci/(panel)/talepler`, Panel `/tedarikci/(panel)`, Sakin `market_request_screens`, Yön.mobil `site_market_screens`, Yön.mobil `site_settings_screen`
 - **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-TALEPLER-02`
 
 ---
@@ -1238,7 +1240,7 @@ Panel: http://localhost:3101. Her sayfa için önce **sayfa açılışı** (…-
     - `mp_supplier_accounts` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM mp_supplier_accounts ORDER BY xmin::text::bigint DESC LIMIT 5;`
   - **İşlem kaydı:** `SELECT created_at, action, entity_type, status_code, user_id FROM audit_logs WHERE screen = '/api/v1/market/supplier/requests/:id/accept' ORDER BY created_at DESC LIMIT 5;` → `CREATE`, 2xx (yetkisiz denemede `DENIED`, 403)
   - **Bildirim:** üretmez — `notifications` tablosuna bu işlemle yeni satır EKLENMEMELİ.
-  - **Etkisi görülmeli:** Panel `/dashboard/settings`, Panel `/tedarikci/(panel)/bakiye`, Panel `/tedarikci/(panel)/isletmeler`, Panel `/tedarikci/(panel)/talepler/[id]`, Panel `/tedarikci/(panel)/talepler`, Panel `/tedarikci/(panel)`, Sakin `market_request_screens`, Yön.mobil `site_market_screens`, Yön.mobil `site_settings_screen`
+  - **Etkisi görülmeli:** Panel `/dashboard/settings`, Panel `/tedarikci/(panel)/bakiye`, Panel `/tedarikci/(panel)/isletmeler/[id]`, Panel `/tedarikci/(panel)/isletmeler`, Panel `/tedarikci/(panel)/talepler/[id]`, Panel `/tedarikci/(panel)/talepler`, Panel `/tedarikci/(panel)`, Sakin `market_request_screens`, Yön.mobil `site_market_screens`, Yön.mobil `site_settings_screen`
 - **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-TALEPLER-ID-01`
 
 #### P-TEDARIKCI-PANEL-TALEPLER-ID-02 · Düğme: Geri çek

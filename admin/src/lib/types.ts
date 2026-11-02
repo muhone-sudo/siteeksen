@@ -565,6 +565,7 @@ export interface MpCategory { id: Id; parent_id?: Id | null; name: string; reque
 export interface MpPackage {
     id: Id; name: string; monthly_fee_kurus: number; fee_discount_pct: number; included_requests: number; monthly_sms: number;
     priority_access: boolean; phone_in_showcase: boolean; rank_weight: number; is_default: boolean; is_active: boolean; sort_order: number;
+    max_businesses: number | null; max_services_per_business: number | null;
 }
 export interface MpMeta { settings: MpSetting[]; categories: MpCategory[]; packages: MpPackage[] }
 export type MpAccountStatus = "DRAFT" | "REVIEW" | "APPROVED" | "SUSPENDED" | "CLOSED";
@@ -584,10 +585,10 @@ export interface MpBusinessInput {
 }
 export interface MpBusiness extends MpBusinessInput {
     id: Id; account_id: Id; status: "DRAFT" | "REVIEW" | "PUBLISHED" | "REJECTED" | "CLOSED"; review_note?: string | null; reviewed_at?: string | null;
-    rating_count: number; rating_sum: number; completed_jobs: number; created_at: string;
+    rating_count: number; rating_sum: number; completed_jobs: number; created_at: string; over_limit: boolean;
 }
 export interface MpServiceInput { name: string; description: string; price_min_kurus: number | null; price_max_kurus: number | null; unit: string; is_active: boolean; sort_order: number }
-export interface MpService extends MpServiceInput { id: Id; business_id: Id; has_photo: boolean; photo_status?: string | null; photo_reason?: string | null }
+export interface MpService extends MpServiceInput { id: Id; business_id: Id; has_photo: boolean; photo_status?: string | null; photo_reason?: string | null; over_limit: boolean }
 export interface PhotoReview {
     id: Id; source: "SERVICE_PHOTO" | "REQUEST_PHOTO"; service_id?: Id | null; request_id?: Id | null; account_id?: Id | null; property_id?: Id | null;
     status: "PENDING" | "REVIEW" | "APPROVED" | "REJECTED" | "REPLACED"; ocr_text?: string | null; ocr_findings: string[]; ai_provider?: string | null;

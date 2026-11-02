@@ -130,13 +130,20 @@ func acceptedDispatch(ctx context.Context, tx pgx.Tx, accountID, requestID strin
 }
 
 // SaveOffer, kabul edilmiş talebe teklif verir; etkin teklif varsa onu günceller.
+// today, iş saat dilimindeki bugünün tarihidir; DATE sütunundan okunan ve "2006-01-02" ile çözülen tarihlerle aynı biçimde
+// (UTC gece yarısı). now.Truncate(24h) UTC gününü verirdi: İstanbul'da 00:00–03:00 arası dünün teklifi geçerli sayılırdı.
+func today(now time.Time) time.Time {
+	y, m, d := now.In(time.Local).Date()
+	return time.Date(y, m, d, 0, 0, 0, 0, time.UTC)
+}
+
 func (s *Store) SaveOffer(ctx context.Context, accountID, requestID string, in OfferInput) (*Offer, *Party, bool, error) {
 	desc := strings.TrimSpace(in.Description)
 	if in.AmountKurus <= 0 || desc == "" || utf8.RuneCountInString(desc) > 2000 {
 		return nil, nil, false, userErr(http.StatusUnprocessableEntity, "OFFER", "Tutar (kuruş, sıfırdan büyük) ve açıklama (en çok 2000 karakter) zorunludur")
 	}
 	until, err := time.Parse("2006-01-02", in.ValidUntil)
-	if err != nil || until.Before(s.now().Truncate(24*time.Hour)) {
+	if err != nil || until.Before(today(s.now())) {
 		return nil, nil, false, userErr(http.StatusUnprocessableEntity, "VALID_UNTIL", "Geçerlilik tarihi (YYYY-AA-GG) bugün ya da sonrası olmalı")
 	}
 	tx, err := s.supplier(accountID).Begin(ctx)
@@ -359,7 +366,7 @@ func (s *Store) SelectOffer(ctx context.Context, b Buyer, requestID, offerID str
 	if oStatus != "ACTIVE" {
 		return nil, userErr(http.StatusConflict, "OFFER_STATE", "Bu teklif artık geçerli değil")
 	}
-	if until.Before(s.now().Truncate(24 * time.Hour)) {
+	if until.Before(today(s.now())) {
 		return nil, userErr(http.StatusConflict, "OFFER_EXPIRED", "Teklifin geçerlilik süresi dolmuş; tedarikçiden güncellemesini isteyin")
 	}
 	var jobID string

@@ -429,7 +429,7 @@ _(henüz yok)_
 - **Not:** Anthropic çağrısı ham HTTP ile yapılır; resmî Go SDK'sının (v2) Go 1.25 istemesi, bütün servislerin derleme imajını
   (golang:1.24) yükseltmeyi gerektirirdi.
 
-### S-25. Altyapı bileşenleri ve eski compose yığını (2026-11-02, karar bekliyor)
+### S-25. Altyapı bileşenleri ve eski compose yığını (2026-11-02, KARAR VERİLECEK — karar çıkana kadar mevcut düzen bozulmaz, kullanıcı 2026-11-02)
 Makinede projenin eski `docker compose` kurulumu duruyor (Docker Desktop'ta "sitesen" grubu, 35 kap; altyapı kapları 2026-02-01,
 servis imajları 2026-07-05'te derlenmiş). Kullanıcı kararı: şimdilik dokunulmaz; test ortamı portları değiştirildi (M13.7c).
 Durum (kod ve `go.mod` taramasıyla):
