@@ -81,6 +81,8 @@ Koda başlanmadı. Sıra: M1 → M12; M0 kullanıcıda (kodu bekletmez, yayını
 - [ ] M0.2 E-fatura/e-arşiv entegratörü; bakiye yükleme faturasının yüklemede mi kullanımda mı kesileceği (mali müşavir) — **Kanıt:** karar `questions.md`'de
 - [ ] M0.3 iyzico: bakiye yükleme tahsilatının mevcut üye işyeri sözleşmesine uygunluğu — **Kanıt:** iyzico'nun yazılı yanıtı
 - [ ] M0.4 Tedarikçi üyelik sözleşmesi, sakin KVKK aydınlatma + açık rıza metni, tedarikçi KVKK metni — **Kanıt:** metinler `docs/hukuk/` altında
+  — 2026-11-02: tedarikçi aydınlatma metni taslağı yazıldı (`docs/hukuk/tedarikci-kvkk-aydinlatma.md`); avukata: saklama süreleri,
+  kimlik belgesi gerekliliği, yurt dışı aktarım (sağlayıcı seçilince), elektronik bildirimin KMK m.29/m.37 tebliği sayılıp sayılmayacağı
   — Not (M14, 2026-11-02): sözleşmede "paket hakları ve sınırları (işletme/hizmet kalemi sayısı) platformca değiştirilebilir; sınırı aşan kayıt silinmez, vitrinde görünmez" maddesi olmalı
 - [ ] M0.5 Paket fiyatları, kategori listesi (sakin ve site kategorileri ayrı) ve kategori talep ücretleri — **Kanıt:** tablo `docs/usta-hizmet/fiyatlar.md`
 - [ ] M0.6 Yayın için harita karo sağlayıcısı — **Kanıt:** seçilen sağlayıcı ve anahtar ortam değişkeni adı `questions.md`'de
@@ -553,7 +555,14 @@ alınması; süre dolunca dosya imha edilir, satır anonim kalır, imha kaydı t
 tanımlanana kadar imha yapılmaz ve platforma "saklama süresi tanımlı değil" bildirimi gider** (sitelerdeki mevcut davranış). Hukuki not:
 amacı biten verinin tutulması saklama-imha politikasında ve tedarikçi aydınlatma metninde yazılı süreye dayanmalı; tedarikçi KVKK metni
 henüz yok (M0.4) → avukat listesine: "yanlış yüklenip silinen kimlik belgesi üyelik süresince tutulabilir mi, süre ne olmalı".
-Ayrıca bugün tedarikçiye özel KVKK izni ve izni geri alma yolu yok (yalnız genel `kvkk_consent_at`) → izin geri alma ucu bu işe eklenir.
+**Düzeltme (2026-11-02, aydınlatma metni yazılırken):** tedarikçi verisinin hukuki sebebi çoğunlukla açık rıza değil (sözleşmenin ifası,
+hukuki yükümlülük, hakların korunması) → "izin süresince" yerine **üyelik süresi + aydınlatma metnindeki saklama süresi**; süre üyelik
+kapanınca başlar. İzin geri alma yerine tedarikçi için KVKK başvurusu (m.11, silme talebi dahil) yolu eklenir (M15.9).
+Metin: `docs/hukuk/tedarikci-kvkk-aydinlatma.md` (TASLAK). Otomasyondaki süreler metindeki tabloyla birebir olmalı (verify, bakiye koşulları gibi).
+- [ ] M15.8 Saklama otomasyonu metindeki bütün satırları kapsar: bugün işlem kayıtları (`audit_logs`, IP) yalnız `CLIENT` kaynağında
+  süreli, sunucu kayıtları süresiz → metindeki süre otomasyona eklenir — **Kanıt:** verify: her metin satırının bir kuralı var
+- [ ] M15.9 Tedarikçi panel/uygulamasında aydınlatma metni (sürümlü, kayıt ve güncellemede gösterilir, kabul zamanı tutulur) ve
+  "Kişisel verilerim" başvuru yolu (platforma düşer, 30 gün takibi otomatik hatırlatma) — **Kanıt:** verify: metin sürümü uygulamadakiyle birebir; tarayıcı
 
 ### M16 — Bildirim üretmeyen akışlara bildirim (06 E7, kullanıcı kararı 2026-10-29) — PLAN, ONAY BEKLİYOR
 **Bugün:** Altı akışta sakin/yönetim sonucu ancak ekrana bakınca öğreniyor. Bildirim `pkg/notify` üzerinden, alıcı kümeleri yalnız
@@ -608,7 +617,10 @@ Ayrıca bugün tedarikçiye özel KVKK izni ve izni geri alma yolu yok (yalnız 
 - [ ] **M16 kapısı**
 
 **Sorular (kullanıcı):** (3) Sakinin havale bildirimi (onay bekleyen) yönetime de bildirilsin mi? E7'de yok; rezervasyonla aynı mantık.
-(4) Onaylanmış ödemenin geri alınması bildirimi (madde 4) kalsın mı? — 2026-11-02 kullanıcı ikisinin ne olduğunu sordu; açıklandı, cevap bekleniyor.
+(4) Onaylanmış ödemenin geri alınması bildirimi (madde 4) kalsın mı?
+**Cevaplar (kullanıcı 2026-11-02):** (3) evet, sakinin havale/EFT ödeme bildirimi yönetime (`Approvers`) gider: konu `payment.pending`.
+(4) evet, ters kayıt sakine gerekçeyle bildirilir. Kullanıcının sorusu: "para geldiyse yanlışlık ne olur?" → yanıtta örnekler (yanlış
+daireye onay, aynı havalenin iki bildirimle iki kez onayı, tutar hatası, bankanın geri çevirdiği/iade edilen havale).
 
 ### Yurt dışı hazırlığı (kullanıcı kararı 2026-11-01: sonra)
 - [ ] **YD.1 Site başına saat dilimi** — bugün tek `APP_TIMEZONE` (Europe/Istanbul). Tasarım: `properties.timezone` (varsayılan Europe/Istanbul);
