@@ -26,7 +26,7 @@ Senaryoları iki pencereyle yürütmek kolaylaştırır: bir pencerede panel/yö
 
 ## E-KART-01 · Kartla ödeme (sahte iyzico)
 1. **a (KİRACI, sakin `/finance/payment`):** açık bir borcu kartla öde. Yeni sekmede **Sahte iyzico ödeme sayfası** açılır (tutar doğru).
-2. **b:** **Reddedildi: limit yetersiz** seç. Tarayıcı `http://localhost:3001/odeme-sonuc` sayfasına gelir: "Ödeme tamamlanamadı", kartın çekilmediği söylenir. Borç açık; Q-ODEME'de `FAILED`, hata nedeni yazılı.
+2. **b:** **Reddedildi: limit yetersiz** seç. Tarayıcı `http://localhost:3101/odeme-sonuc` sayfasına gelir: "Ödeme tamamlanamadı", kartın çekilmediği söylenir. Borç açık; Q-ODEME'de `FAILED`, hata nedeni yazılı.
 3. **c:** Yeniden kartla öde → **Ödeme başarılı**. Sonuç sayfası "Ödemeniz alındı"; uygulamada borç kapanmış; Q-ODEME `COMPLETED`, `gateway = iyzico`, `gateway_payment_id` dolu; http://localhost:18000/iyzico'da her çağrının imzası "geçerli".
 4. **d:** Yeniden kartla öde → **Yarıda bırak**. Ödeme `PENDING`; uzlaştırma bekçisi sonradan sorgular (B-BEKCI-KART). Aynı borç için ikinci ödeme başlatılabiliyor mu, çift tahsilat riski var mı gözle.
 - **Sonuç:** `E-KART-01`
@@ -39,7 +39,7 @@ Senaryoları iki pencereyle yürütmek kolaylaştırır: bir pencerede panel/yö
 ## E-BORCYOK-01 · Borcu yoktur belgesi
 1. MALİK_B1 tüm borcunu ödedikten sonra sakin aidat ekranında **Borcu yoktur belgesi** → PDF iner/açılır.
 2. Borcu olan KİRACI aynı işlemi dener → belge verilmez, nedeni yazılır.
-3. Belgedeki kodla `http://localhost:3001/dogrula/<kod>` (oturumsuz) → geçerli; kişisel veri yok.
+3. Belgedeki kodla `http://localhost:3101/dogrula/<kod>` (oturumsuz) → geçerli; kişisel veri yok.
 4. YÖNETİCİ panel `/dashboard/units` → B-1 → **Borcu yoktur** ile de üretebilir.
 - **Sonuç:** `E-BORCYOK-01`
 

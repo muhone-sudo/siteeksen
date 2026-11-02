@@ -2,7 +2,7 @@
 
 > Elle yazılır. Her senaryo tek test ID'sidir; adımlar `.a`, `.b` … diye ayrı da kaydedilebilir (ör. `U-TALEP-01.c`).
 > Hesaplar (PLATFORM, TEDARİKÇİ1, TEDARİKÇİ2) ve sorgular (Q-TALEP, Q-GONDERIM, Q-DEFTER, Q-BILDIRIM): [00-baslangic.md](00-baslangic.md).
-> Tedarikçi tarafı panelde (`http://localhost:3001/tedarikci`) ya da tedarikçi uygulamasında (`http://localhost:3004`) yürütülebilir;
+> Tedarikçi tarafı panelde (`http://localhost:3101/tedarikci`) ya da tedarikçi uygulamasında (`http://localhost:3104`) yürütülebilir;
 > ikisi aynı uçları kullanır. Senaryo içinde hangisinin kullanıldığını sonuç notuna yazın.
 >
 > Gelir kuralı: tedarikçi talebi **kabul ettiği anda** ücret bakiyesinden (ya da paketinin dahil talep hakkından) düşer; alıcının adı ve
@@ -86,7 +86,7 @@ vitrinde telefon). Güneş Sitesi'nin konumu yoksa YÖNETİCİ önce panel **Aya
 - **Sonuç:** `U-KOSUL-01`
 
 ## U-ODEME-01 · Tedarikçi uygulamasında uygulama içi ödeme
-1. **a (Android APK ya da `http://localhost:3004`):** Bakiye → 100 TL → **Kartla öde**. Android'de ödeme sayfası uygulamanın içinde açılır (tarayıcıya çıkılmaz); web derlemesinde aynı sekmede.
+1. **a (Android APK ya da `http://localhost:3104`):** Bakiye → 100 TL → **Kartla öde**. Android'de ödeme sayfası uygulamanın içinde açılır (tarayıcıya çıkılmaz); web derlemesinde aynı sekmede.
 2. **b:** sahte iyzico'da **Ödeme başarılı** → sayfa kendiliğinden kapanır (web: uygulamanın Bakiye sayfasına döner), "Ödeme alındı; bakiye güncellendi" mesajı, bakiye +100 TL.
 3. **c:** yeni ödeme başlatıp sayfayı **X** ile kapat → "Ödemeden çıkılsın mı?" → **Çık**: bakiye değişmez; yükleme birkaç dakika içinde uzlaştırmayla sonuçlanır.
 - **Sonuç:** `U-ODEME-01`
@@ -110,3 +110,9 @@ vitrinde telefon). Güneş Sitesi'nin konumu yoksa YÖNETİCİ önce panel **Aya
 4. **d (`/platform/yapay-zeka`):** sağlayıcı ayarı (anahtarsız açma engellenir); anahtar kaydedilince "Tanımlı" yazar, anahtarın kendisi görünmez. Gerçek sağlayıcı yoksa bu adımı ATLANDI işaretle.
 5. **e (KİRACI, sakin uygulaması):** talebe telefonlu fotoğraf ekle → talep ekranında "Fotoğraf 1: tedarikçilere gösterilmedi — …".
 - **Sonuç:** `U-FOTO-01`
+
+## U-KILIT-01 · Teklif seçildikten sonra içerik kilidi (2026-11-02)
+1. **a (TEDARİKÇİ1, U-TALEP-01.f'de teklifi seçilen talep):** talebin "Teklifiniz" kartında teklif "Seçildi"; **Teklifi güncelle**, **Geri çek** ve teklif formu YOK.
+2. **b (KİRACI, Taleplerim → aynı talep):** talep "Teklif seçildi"; **Bu teklifi seç** ve **Talebi kapat** YOK; seçilen teklifin tutarı ve açıklaması tedarikçinin gördüğüyle aynı.
+3. **c:** `SELECT o.status, o.amount_kurus, o.description, o.edit_count, r.status, r.description FROM mp_offers o JOIN mp_requests r ON r.id = o.request_id WHERE o.status = 'ACCEPTED' ORDER BY o.updated_at DESC LIMIT 5;` — değerler seçim anındaki gibi. (Doğrudan veritabanı değişikliğinin reddi otomatik doğrulamada sınanıyor.)
+- **Sonuç:** `U-KILIT-01`

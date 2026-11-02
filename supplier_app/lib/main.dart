@@ -59,6 +59,13 @@ class _SupplierAppState extends State<SupplierApp> {
         ],
       ),
     ],
+    // Oturum koruması (sakin uygulamasıyla aynı): sunucu oturumu reddedince (yenileme 401) istemci jetonları siler;
+    // bir sonraki gezinmede kullanıcı girişe döner.
+    redirect: (context, state) async {
+      final loc = state.matchedLocation;
+      if (loc == '/giris' || loc == '/kayit') return null;
+      return await apiClient.hasSession() ? null : '/giris';
+    },
   );
 
   @override

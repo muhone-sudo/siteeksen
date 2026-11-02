@@ -12,6 +12,25 @@ Projedeki tüm önemli değişiklikler bu dosyada takip edilir.
 
 ## [Unreleased]
 
+### 2026-11-02 — Teklif seçildikten sonra içerik kilidi; test ortamı portları; Docker düzeni; gün sınırı ve oturum düzeltmeleri (DOĞRULANMIŞ)
+
+- **İçerik kilidi (083, kullanıcı kararı):** teklif seçildikten sonra seçilen teklif ve talebin içeriği iki taraf için de değişmez. API'de zaten
+  kapalıydı; veritabanında tetikleyicilerle (`mp_offers_accepted_lock`, `mp_requests_closed_lock`, `SE002` → 409 `CONTENT_LOCKED`) de uygulanır.
+- **Test ortamı portları (kullanıcı kararı: eski compose yığınına dokunulmaz):** panel/uygulamalar 3101–3104, gateway 28888, servisler
+  28081–28112 (`dev-up.sh` `DEV_PORT_OFFSET`); web derlemeleri API adresi değişince kendiliğinden yeniden derlenir; test planı, araçlar sayfası güncel.
+  `test-ortami.sh` artık snap'teki eski Flutter yerine `~/flutter`'ı kullanır.
+- **Docker:** doğrulama/geliştirme/test kapları `docker rm -fv` ile kaldırılır (veri birimi sızıntısı kapandı; biriken 100 birim ve 22 GB derleme
+  önbelleği kullanıcı onayıyla silindi); kendi kaplarımız `com.docker.compose.project=sitesen` etiketiyle açılır.
+- **Gün sınırı hatası:** devriye dönem raporu tarih süzgecini UTC gece yarısıyla okuyordu; 00:00–03:00 arası turlar "bugün"de görünmüyordu
+  (`ParseInLocation(time.Local)`). Aynı kalıbın diğer yerleri `todo.md` GS.2'de.
+- **Tedarikçi uygulaması:** oturum sunucuda düşünce bir sonraki gezinmede giriş ekranı açılır (sakin uygulamasındaki koruma); önceden ekranlarda
+  "geçersiz Authorization formatı" kalıyordu.
+- **Test ajanı:** ekran görüntüsü yalnız GEÇTİ olmayan testte, test başına en çok bir (pencere, JPEG); ekran metinle okunur.
+- **Kanıt:** verify-stack 1559/1559 (2026-11-02, `verify-kilit-yesil`); kilit kontrolü 083 olmadan kırmızı (`verify-kilit-kirmizi`, 1555/1558;
+  aynı koşuda gün sınırı hatası da yakalandı); verify-mobile 14/14; test ortamı compose yığını açıkken "TEST ORTAMI HAZIR", panel girişi
+  28888'e gitti (Playwright); Android emülatörü: uygulama içi ödemede "Reddedildi: limit yetersiz" → sayfa kapandı, "Ödeme tamamlanmadı: Kart
+  limiti yetersiz", bakiye 200 TL değişmedi, yükleme FAILED; oturum iptalinden sonra giriş ekranı (`~/.siteeksen-test/kanit/M13/`40–43).
+
 ### 2026-11-01 — Usta & Hizmet M13: hız sınırı, karta iade ve bakiye koşulları, uygulama içi ödeme, fotoğraf denetimi (DOĞRULANMIŞ / kısmen)
 
 - **Hız sınırı (081):** mesaj kişi başına dakikada 20 / 24 saatte 300; teklif hesap başına saatte 20 yeni, teklif başına 5 düzenleme;

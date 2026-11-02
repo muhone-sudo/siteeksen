@@ -14,7 +14,7 @@ ROUTES = {r["key"]: r for r in H["routes"]}
 CONS = H["consumers"]
 GEN = "> Bu dosya koddan üretilir (`bash docs/ozellik-haritasi/arac/uret.sh`); elle düzenlemeyin. Kurallar, hesaplar ve sorgular: [00-baslangic.md](00-baslangic.md)."
 
-PANEL, SAKIN, YON = "http://localhost:3001", "http://localhost:3002/#", "http://localhost:3003/#"
+PANEL, SAKIN, YON = "http://localhost:3101", "http://localhost:3102/#", "http://localhost:3103/#"
 ACC = {
     "YÖNETİCİ": ("5551234567", {"MANAGER", "BOARD_MEMBER", "OWNER"}),
     "KURUL": ("5550000001", {"BOARD_MEMBER", "OWNER"}),
@@ -453,7 +453,7 @@ def write_roles():
           "## 2.4 Site izolasyonu (iki site)", "",
           "Güneş Sitesi ve Deniz Apartmanı (Test B) ayrı sitelerdir. Veri hiçbir yoldan karşı siteye geçmemeli.", "",
           "#### R-IZOLASYON-01 · Diğer sitenin sakini Güneş Sitesi verisini göremez",
-          "- **Hesap:** SİTE_B · **Nerede:** Sakin uygulaması (http://localhost:3002)",
+          "- **Hesap:** SİTE_B · **Nerede:** Sakin uygulaması (http://localhost:3102)",
           "- **Adım:** Giriş yap; duyurular, ilanlar, anketler, belgeler, borçlar, bildirimler ekranlarını gez",
           "- **Beklenen:** yalnız Deniz Apartmanı verisi; Güneş Sitesi'nin duyuru/ilan/anket/belgesi hiçbir ekranda yok; site seçicide yalnız Deniz Apartmanı",
           "- **Sonuç:** `R-IZOLASYON-01`", "",
@@ -476,7 +476,7 @@ def write_roles():
           "- **Sonuç:** `R-IZOLASYON-04`", ""]
     o += ["## 2.5 Yönetici uygulamasında rol", "",
           "#### R-YONMOBIL-ROL · Yönetici uygulaması rol süzmesi",
-          "- **Hesap:** sırayla YÖNETİCİ, KURUL, DENETÇİ, GÖREVLİ, KİRACI · **Nerede:** http://localhost:3003",
+          "- **Hesap:** sırayla YÖNETİCİ, KURUL, DENETÇİ, GÖREVLİ, KİRACI · **Nerede:** http://localhost:3103",
           "- **Adım:** Her hesapla giriş yap, ana menüdeki grupları ve öğeleri listele",
           "- **Beklenen:** YÖNETİCİ her şeyi görür; DENETÇİ yazma düğmelerini görmez; GÖREVLİ yalnız operasyon öğelerini görür; KİRACI girişte yönetim yetkisi olmadığı uyarısını alır",
           "- **Sonuç:** `R-YONMOBIL-ROL`", ""]
@@ -627,7 +627,7 @@ def write_unused():
                        "Bunlar tarayıcıdan denenemez; burada yalnız beklenen durumları listelenir. Ekranlarda bunlara bağlı düğme GÖRÜNMEMELİ.")
     used = set(CONS)
     o += ["| Uç | Servis | Not |", "|---|---|---|"]
-    notes = {"GET /public/clearance/:code": "borcu yoktur belgesindeki karekod → `http://localhost:3001/dogrula/<kod>` (01 bölümünde test edilir)",
+    notes = {"GET /public/clearance/:code": "borcu yoktur belgesindeki karekod → `http://localhost:3101/dogrula/<kod>` (01 bölümünde test edilir)",
              "POST /auth/refresh": "jeton yenileme; oturum 15 dk sonra da sürüyorsa çalışıyor demektir (01 bölümü)",
              "POST /public/payments/iyzico/callback": "sahte iyzico sayfası çağırır (kart ödemesi senaryosu)",
              "POST /public/devices/heartbeat": "cihaz simülatörü (http://localhost:18000/cihaz)",

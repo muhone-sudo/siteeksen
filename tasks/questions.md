@@ -421,7 +421,30 @@ _(henüz yok)_
   API anahtarı ya da kullanıcı adı/parola). Özellik açılıp kapanır; kapalıyken bütün fotoğraflar elle onaya düşer.
 - **Açık (kullanıcı + avukat):** yurt dışındaki bir SaaS sağlayıcıya fotoğraf gönderilmesi kişisel verinin yurt dışına aktarımıdır
   (KVKK m.9; fotoğrafta yüz, plaka, belge olabilir). Sağlayıcıyla standart sözleşme imzalanıp Kurul'a bildirilmeli ve tedarikçi/sakin
-  aydınlatma metinlerine eklenmeli. Yerel model (ör. Ollama) seçilirse aktarım olmaz. Hangisinin kullanılacağı ve sağlayıcı adı
-  buraya yazılacak.
+  aydınlatma metinlerine eklenmeli. Yerel model (ör. Ollama) seçilirse aktarım olmaz.
+- **Karar (kullanıcı, 2026-11-02):** sağlayıcı şimdi seçilmez; bağlantı standart API ile yapılır. Standart: OpenAI uyumlu
+  `POST {adres}/chat/completions` (görsel `image_url` data URL'si; Ollama, vLLM, LM Studio, OpenRouter, Azure OpenAI, Gemini ve
+  Mistral'ın OpenAI uyumlu uçları dahil) ya da Anthropic Messages API; yanıt `{unsafe, categories, reason}` JSON'u
+  (`services/moderation/ai.go`). Sağlayıcı seçilince yukarıdaki KVKK adımı yapılır; kod değişikliği gerekmez.
 - **Not:** Anthropic çağrısı ham HTTP ile yapılır; resmî Go SDK'sının (v2) Go 1.25 istemesi, bütün servislerin derleme imajını
   (golang:1.24) yükseltmeyi gerektirirdi.
+
+### S-25. Altyapı bileşenleri ve eski compose yığını (2026-11-02, karar bekliyor)
+Makinede projenin eski `docker compose` kurulumu duruyor (Docker Desktop'ta "sitesen" grubu, 35 kap; altyapı kapları 2026-02-01,
+servis imajları 2026-07-05'te derlenmiş). Kullanıcı kararı: şimdilik dokunulmaz; test ortamı portları değiştirildi (M13.7c).
+Durum (kod ve `go.mod` taramasıyla):
+- **PostgreSQL** — tek veri deposu, gerekli. Mikroservis yapısı değişmedi: 27 servis + zamanlayıcı ayrı süreç/port/imaj, tek giriş gateway; hepsi aynı
+  veritabanını ayrı rollerle (`siteeksen_app`, `siteeksen_identity`) ve RLS ile kullanır. Servis başına ayrı veritabanı yok, ilk kurulumda da yoktu
+  (eski yığında da tek `siteeksen-postgres`). Geliştirme (`dev-up.sh`), doğrulama ve test ortamı aynı servisleri güncel kaynaktan `go run` ile,
+  geçici bir Postgres kabıyla çalıştırır (30 imaj derlemek yerine saniyeler).
+- **Redis, MongoDB, Kafka (+Zookeeper)** — ilk commit'teki compose'da ve belgelerde vardı, koda hiç bağlanmadı (sürücüleri `go.mod`'da yok;
+  `audit-raporu.md`: "notification Kafka tüketiyor", "iot MongoDB bağlı" iddiaları yanlıştı). FAZ 2.6'da (2026-09-26, `ada898a`) compose'dan
+  kaldırıldı; eski kaplar silinmediği için duruyor. Karşılıkları bugün Postgres'te: bildirimler `notifications` giden kutusu (iş kaydıyla aynı
+  işlemde yazılır), hız sınırları tablo + danışma kilidi, jeton iptali birincil anahtar sorgusu (önbellek bilerek yok), sensör okumaları tablo.
+- **Ne zaman gerekir:** Redis — gateway yatayda çoğaltılıp her istekteki iptal sorgusu yük olursa (iptal listesi + pub/sub ile anında
+  geçersizleme) ya da paylaşılan hız sınırı için. Kafka/NATS — çok sayıda bağımsız tüketicili yüksek hacimli olay akışı (ör. binlerce sensör/sn);
+  o zaman bile giden kutusu tablosu kalır, yanına aktarıcı eklenir. MongoDB — önerilmez: RLS ile site izolasyonu Postgres'e dayanır; zaman
+  serisi büyürse Postgres bölümleme/TimescaleDB.
+- **Kong** — isteğe bağlı kenar katmanı (`--profile kong`; IP hız sınırı, gövde sınırı); yayında Kong ya da bulut yük dengeleyici seçilir.
+- **Açık karar (kullanıcı):** eski compose yığını silinsin mi, güncel `docker-compose.yml` ile (`gen-deploy.py` çıktısı: Postgres + servisler +
+  isteğe bağlı Kong) yeniden mi kurulsun, yoksa olduğu gibi mi kalsın.

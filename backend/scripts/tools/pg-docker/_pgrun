@@ -17,8 +17,8 @@ for ((i=1;i<=$#;i++)); do
 done
 # Her çağrıda yeni kap açmak yavaş (test jetonunun 15 dk ömrünü aşıyor); tek istemci kabı açık tutulur.
 if [ "$(docker inspect -f '{{.State.Running}}' pgclient 2>/dev/null)" != "true" ]; then
-  docker rm -f pgclient >/dev/null 2>&1
-  docker run -d --name pgclient --add-host=host.docker.internal:host-gateway postgres:16-alpine sleep infinity >/dev/null
+  docker rm -fv pgclient >/dev/null 2>&1
+  docker run -d --name pgclient --label com.docker.compose.project=sitesen --label com.docker.compose.service=pgclient --add-host=host.docker.internal:host-gateway postgres:16-alpine sleep infinity >/dev/null
 fi
 run=(docker exec -i -e PGPASSWORD -e PGHOST -e PGPORT -e PGUSER -e PGDATABASE -e PGTZ pgclient "$tool" "${args[@]}")
 if [ -n "$infile" ] && [ -n "$outfile" ]; then "${run[@]}" <"$infile" >"$outfile"

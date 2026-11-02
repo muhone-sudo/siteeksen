@@ -18,6 +18,8 @@
 #
 # Panel:  http://localhost:3001   (ayrıca `cd admin && npm run dev` gerekir)
 # Gateway: http://localhost:8888
+# DEV_PORT_OFFSET=N: servis ve gateway portlarına N eklenir (test ortamı 20000 kullanır: gateway 28888),
+# böylece aynı makinedeki başka bir yığınla (ör. docker compose) çakışmaz.
 # Demo giriş: 5551234567 / Demo123!
 #
 set -uo pipefail
@@ -30,6 +32,8 @@ CNAME=${DEV_DB_CONTAINER:-siteeksen-dev-db}
 DBPORT=${DEV_DB_PORT:-55432}
 PW=${DEV_DB_PASSWORD:-devpw}
 export JWT_SECRET=${JWT_SECRET:-dev-secret-key-at-least-32-characters-long}
+OFF=${DEV_PORT_OFFSET:-0}
+GW=$((8888 + OFF))
 
 PIDS=()
 
@@ -47,10 +51,9 @@ stop_all() {
   pkill -f 'exe/energy_analytics|exe/smart_collection|exe/scheduler|exe/marketplace|exe/moderation' 2>/dev/null
   # Go 1.24+ `go run` ikilisini önbellekte `<özet>-d/<ad>` olarak tutar ("exe/" yok);
   # yukarıdaki kalıplar onu yakalamaz. Portu tutan süreç her durumda sonlandırılır.
-  fuser -k 8081/tcp 8082/tcp 8083/tcp 8084/tcp 8085/tcp 8086/tcp 8087/tcp 8089/tcp 8090/tcp 8091/tcp \
-    8092/tcp 8093/tcp 8094/tcp 8096/tcp 8097/tcp 8098/tcp 8099/tcp 8100/tcp 8101/tcp 8102/tcp 8103/tcp \
-    8104/tcp 8105/tcp 8107/tcp 8110/tcp 8111/tcp 8112/tcp 8888/tcp >/dev/null 2>&1
-  docker rm -f "$CNAME" >/dev/null 2>&1
+  for p in 8081 8082 8083 8084 8085 8086 8087 8089 8090 8091 8092 8093 8094 8096 8097 8098 8099 8100 8101 8102 8103 \
+           8104 8105 8107 8110 8111 8112 8888; do fuser -k $((p + OFF))/tcp >/dev/null 2>&1; done
+  docker rm -fv "$CNAME" >/dev/null 2>&1
   echo "Durduruldu."
 }
 
@@ -64,8 +67,8 @@ trap stop_all EXIT INT TERM
 cd "$BACKEND_DIR" || exit 1
 
 echo "=== PostgreSQL ==="
-docker rm -f "$CNAME" >/dev/null 2>&1
-docker run --rm -d --name "$CNAME" \
+docker rm -fv "$CNAME" >/dev/null 2>&1
+docker run --rm -d --name "$CNAME" --label com.docker.compose.project=sitesen --label com.docker.compose.service=dev-db \
   -e POSTGRES_PASSWORD="$PW" -e POSTGRES_USER=siteeksen -e POSTGRES_DB=siteeksen \
   -p ${DBPORT}:5432 postgres:16 -c max_connections=300 >/dev/null
 for _ in $(seq 1 60); do
@@ -104,15 +107,15 @@ mkdir -p "$STORAGE_LOCAL_DIR"
 export NOTIFY_LOG_SENDER=${NOTIFY_LOG_SENDER:-true}
 
 start() { # ad, port, yol
-  echo "  $1 → :$2"
-  PORT=$2 go run "$3" >/tmp/dev-$1.log 2>&1 &
+  echo "  $1 → :$(($2 + OFF))"
+  PORT=$(($2 + OFF)) go run "$3" >/tmp/dev-$1.log 2>&1 &
   PIDS+=($!)
 }
 
 echo "=== Servisler ==="
 # Kimlik servisi kendi rolüyle: dizini bütünüyle görür, site verisine erişemez.
-echo "  identity → :8081 (rol: siteeksen_identity)"
-DB_USER=siteeksen_identity DB_PASSWORD="$IDPW" PORT=8081 \
+echo "  identity → :$((8081 + OFF)) (rol: siteeksen_identity)"
+DB_USER=siteeksen_identity DB_PASSWORD="$IDPW" PORT=$((8081 + OFF)) \
   go run ./services/identity >/tmp/dev-identity.log 2>&1 &
 PIDS+=($!)
 start finance      8082 ./services/finance
@@ -147,41 +150,41 @@ SCHEDULER_INTERVAL=${SCHEDULER_INTERVAL:-5m} start scheduler 8110 ./cmd/schedule
 
 # Gateway yalnızca gerçek servislere yönlendirir; diğerleri ayakta değilse
 # 502 döner (uydurma veri DÖNMEZ).
-IDENTITY_SERVICE_URL=http://127.0.0.1:8081 \
-FINANCE_SERVICE_URL=http://127.0.0.1:8082 \
-COMMUNITY_SERVICE_URL=http://127.0.0.1:8083 \
-IOT_SERVICE_URL=http://127.0.0.1:8084 \
-NOTIFICATION_SERVICE_URL=http://127.0.0.1:8085 \
-EXPENSE_SERVICE_URL=http://127.0.0.1:8086 \
-ASSET_SERVICE_URL=http://127.0.0.1:8087 \
-BULLETIN_SERVICE_URL=http://127.0.0.1:8089 \
-CONTRACT_SERVICE_URL=http://127.0.0.1:8090 \
-DOCUMENT_SERVICE_URL=http://127.0.0.1:8091 \
-ENERGY_SERVICE_URL=http://127.0.0.1:8092 \
-ESG_SERVICE_URL=http://127.0.0.1:8093 \
-INVENTORY_SERVICE_URL=http://127.0.0.1:8094 \
-NPS_SERVICE_URL=http://127.0.0.1:8096 \
-PACKAGE_SERVICE_URL=http://127.0.0.1:8097 \
-PARKING_SERVICE_URL=http://127.0.0.1:8098 \
-PATROL_SERVICE_URL=http://127.0.0.1:8099 \
-PERSONNEL_SERVICE_URL=http://127.0.0.1:8100 \
-RESERVATION_SERVICE_URL=http://127.0.0.1:8101 \
-SETTINGS_SERVICE_URL=http://127.0.0.1:8102 \
-SMART_COLLECTION_SERVICE_URL=http://127.0.0.1:8103 \
-SURVEY_SERVICE_URL=http://127.0.0.1:8104 \
-VISITOR_SERVICE_URL=http://127.0.0.1:8105 \
-GOVERNANCE_SERVICE_URL=http://127.0.0.1:8107 \
-MARKETPLACE_SERVICE_URL=http://127.0.0.1:8111 \
-MODERATION_SERVICE_URL=http://127.0.0.1:8112 \
+IDENTITY_SERVICE_URL=http://127.0.0.1:$((8081 + OFF)) \
+FINANCE_SERVICE_URL=http://127.0.0.1:$((8082 + OFF)) \
+COMMUNITY_SERVICE_URL=http://127.0.0.1:$((8083 + OFF)) \
+IOT_SERVICE_URL=http://127.0.0.1:$((8084 + OFF)) \
+NOTIFICATION_SERVICE_URL=http://127.0.0.1:$((8085 + OFF)) \
+EXPENSE_SERVICE_URL=http://127.0.0.1:$((8086 + OFF)) \
+ASSET_SERVICE_URL=http://127.0.0.1:$((8087 + OFF)) \
+BULLETIN_SERVICE_URL=http://127.0.0.1:$((8089 + OFF)) \
+CONTRACT_SERVICE_URL=http://127.0.0.1:$((8090 + OFF)) \
+DOCUMENT_SERVICE_URL=http://127.0.0.1:$((8091 + OFF)) \
+ENERGY_SERVICE_URL=http://127.0.0.1:$((8092 + OFF)) \
+ESG_SERVICE_URL=http://127.0.0.1:$((8093 + OFF)) \
+INVENTORY_SERVICE_URL=http://127.0.0.1:$((8094 + OFF)) \
+NPS_SERVICE_URL=http://127.0.0.1:$((8096 + OFF)) \
+PACKAGE_SERVICE_URL=http://127.0.0.1:$((8097 + OFF)) \
+PARKING_SERVICE_URL=http://127.0.0.1:$((8098 + OFF)) \
+PATROL_SERVICE_URL=http://127.0.0.1:$((8099 + OFF)) \
+PERSONNEL_SERVICE_URL=http://127.0.0.1:$((8100 + OFF)) \
+RESERVATION_SERVICE_URL=http://127.0.0.1:$((8101 + OFF)) \
+SETTINGS_SERVICE_URL=http://127.0.0.1:$((8102 + OFF)) \
+SMART_COLLECTION_SERVICE_URL=http://127.0.0.1:$((8103 + OFF)) \
+SURVEY_SERVICE_URL=http://127.0.0.1:$((8104 + OFF)) \
+VISITOR_SERVICE_URL=http://127.0.0.1:$((8105 + OFF)) \
+GOVERNANCE_SERVICE_URL=http://127.0.0.1:$((8107 + OFF)) \
+MARKETPLACE_SERVICE_URL=http://127.0.0.1:$((8111 + OFF)) \
+MODERATION_SERVICE_URL=http://127.0.0.1:$((8112 + OFF)) \
 CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://localhost:3001} \
-PORT=8888 go run ./cmd/gateway >/tmp/dev-gateway.log 2>&1 &
+PORT=$GW go run ./cmd/gateway >/tmp/dev-gateway.log 2>&1 &
 PIDS+=($!)
-echo "  gateway → :8888"
+echo "  gateway → :$GW"
 
 echo ""
 echo "Servislerin açılması bekleniyor..."
 for _ in $(seq 1 90); do
-  curl -fsS http://127.0.0.1:8888/health >/dev/null 2>&1 && break
+  curl -fsS http://127.0.0.1:$GW/health >/dev/null 2>&1 && break
   sleep 1
 done
 
@@ -190,7 +193,7 @@ echo "======================================================================"
 echo "  HAZIR"
 echo ""
 echo "  Yönetim paneli : http://localhost:3001    (ayrı terminalde: cd admin && npm run dev)"
-echo "  API gateway    : http://localhost:8888"
+echo "  API gateway    : http://localhost:$GW"
 echo "  Veritabanı     : localhost:${DBPORT} (siteeksen / ${PW})"
 echo ""
 echo "  Demo giriş     : 5551234567  /  Demo123!   (yönetici)"

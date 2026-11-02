@@ -7,4 +7,4 @@ if ! docker image inspect "$IMG" >/dev/null 2>&1; then
   printf 'FROM alpine:3.20\nRUN apk --no-cache add tesseract-ocr tesseract-ocr-data-tur tesseract-ocr-data-eng\n' \
     | docker build -q -t "$IMG" - >/dev/null
 fi
-exec docker run --rm -i "$IMG" tesseract "$@"
+exec docker run --rm -i --label com.docker.compose.project=sitesen --label com.docker.compose.service=ocr "$IMG" tesseract "$@"

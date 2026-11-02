@@ -14,7 +14,7 @@ bash backend/scripts/test-ortami.sh          # "TEST ORTAMI HAZIR" yazınca baş
 bash backend/scripts/test-ortami.sh --stop   # başka terminalden durdurma
 ```
 
-Betik şunları açar: PostgreSQL + 24 servis + gateway + zamanlayıcı (1 dk), panel (:3001), sakin (:3002) ve yönetici (:3003)
+Betik şunları açar: PostgreSQL + 24 servis + gateway + zamanlayıcı (1 dk), panel (:3101), sakin (:3102) ve yönetici (:3103)
 uygulamalarının web derlemesi, Adminer (:18080, salt okunur), Mailpit (:18025), test araçları (:18000: SMS kutusu, sahte iyzico
 ödeme sayfası, cihaz simülatörü, günlükler, **sonuç kaydı**). Test hesaplarını gerçek kayıt akışıyla oluşturur (9 hesap, 2 site).
 Hiçbir şey dışarı gitmez: SMS, e-posta ve kart ödemesi yerel sahte sağlayıcılara gider.

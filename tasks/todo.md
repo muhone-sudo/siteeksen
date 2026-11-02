@@ -333,10 +333,10 @@ ayrıca kabul ettirilir (TBK m.21); (4) fotoğraflar platform onayından geçer:
 platformda elle onay/ret ekranı.
 
 **M13.1 Uygulama içi ödeme (`supplier_app`)**
-- [ ] M13.1a Android: ödeme sayfası uygulama içi WebView'de (`webview_flutter`, yeni bağımlılık); dönüş adresine gidiş yakalanır, WebView kapanır,
+- [x] M13.1a Android: ödeme sayfası uygulama içi WebView'de (`webview_flutter`, yeni bağımlılık); dönüş adresine gidiş yakalanır, WebView kapanır,
   bakiye sunucudan yeniden okunur (sonuç istemciye güvenilmez, `Retrieve` sunucuda kalır); kullanıcı yarıda kapatırsa yükleme PENDING kalır,
   uzlaştırma işi sonuçlandırır — **Kanıt:** APK + emülatörde/cihazda sahte iyzico ile başarılı, reddedilen, yarıda kapatılan yol (ekran görüntüsü)
-  → **Sonuç:** `[D4]` Android emülatörü (Pixel 8 API 34, debug APK, `adb reverse` ile geçici yığın): ödeme sayfası uygulamanın içinde açıldı (`~/.siteeksen-test/kanit/M13/`30), "Ödeme başarılı" → sayfa kapandı, "Ödeme alındı; bakiye güncellendi", bakiye 970 → 1.120 TL (33); X → "Ödemeden çıkılsın mı?" → Çık: bakiye değişmedi, hata yok (34–35). Bu sınamada M9'dan kalan hata bulundu: `setState(() => _future = …)` Future döndürdüğü için debug derlemede yenileme hiç çalışmıyordu (3 uygulamada 29 yer düzeltildi). Debug manifestine yalnız hata ayıklama için `usesCleartextTraffic` (sahte iyzico http). **Kalan:** reddedilen ödeme yolu emülatörde sınanmadı (web D4 ve verify-stack'te sınandı).
+  → **Sonuç:** `[D4]` Android emülatörü (Pixel 8 API 34, debug APK, `adb reverse` ile geçici yığın): ödeme sayfası uygulamanın içinde açıldı (`~/.siteeksen-test/kanit/M13/`30), "Ödeme başarılı" → sayfa kapandı, "Ödeme alındı; bakiye güncellendi", bakiye 970 → 1.120 TL (33); X → "Ödemeden çıkılsın mı?" → Çık: bakiye değişmedi, hata yok (34–35). Bu sınamada M9'dan kalan hata bulundu: `setState(() => _future = …)` Future döndürdüğü için debug derlemede yenileme hiç çalışmıyordu (3 uygulamada 29 yer düzeltildi). Debug manifestine yalnız hata ayıklama için `usesCleartextTraffic` (sahte iyzico http). Reddedilen yol (2026-11-02, test ortamı + `adb reverse`): "Reddedildi: limit yetersiz" → sayfa kapandı, "Ödeme tamamlanmadı: Kart limiti yetersiz", bakiye 200 TL değişmedi, yükleme FAILED (40–42).
 - [x] M13.1b Web derlemesi (WebView yok): aynı sekmede açılır, dönüş adresi uygulamanın bakiye rotasına yönlenir — **Kanıt:** tarayıcı D4
   → **Sonuç:** `[D4]` web derlemesi (:3013): ödeme aynı sekmede → dönüş `http://localhost:3013/#/bakiye?…status=SUCCEEDED` (panele değil), bakiye +100 TL, sonuç mesajı (`~/.siteeksen-test/kanit/M13/`20–22); verify-stack 1557/1557 (2026-11-01, `verify-m13c`): dönüş hedefi `APP` → uygulama adresine 303, istemcinin verdiği adres yok sayılır.
 - [x] M13.1c `verify-mobile` (analyze/test) yeşil — **Kanıt:** çıktı
@@ -387,6 +387,39 @@ kapanır, sağlayıcı platformdan seçilir (yerel ya da SaaS; API anahtarı ya 
   → **Sonuç:** `[D4]` panel (`~/.siteeksen-test/kanit/M13/`3–10): tedarikçi kaleminde Reddedildi + gerekçe / İncelemede; platform `/platform/fotograflar` görsel + OCR metni + Onayla + reddedilenlerde OCR bulgusu; `/platform/yapay-zeka` anahtarsız açma reddi, anahtar "Tanımlı" (geri gösterilmez), bağlantı sınaması, açıkken temiz fotoğraf otomatik Yayında; uygulamada hizmet fotoğrafı durumu (23), sakin uygulamasında talep fotoğrafı "tedarikçilere gösterilmedi" (24).
 - [ ] **M13 kapısı** (verify-stack + verify-mobile + panel tsc/lint/build + para tutarlılığı + changelog + roadmap; `guvenlik-durumu.md` 4 bulgu kapanış kanıtı)
   → **Kapı (2026-11-01):** verify-stack 1557/1557; verify-mobile 14/14; panel tsc/lint/build temiz (kopyada); para tutarlılığı fark 0; changelog + roadmap + `guvenlik-durumu.md` güncel; yeni kontroller bozuk kodla kırmızı gösterildi (19 kırmızı + sıra kontrolü). **Kalan:** M13.1a reddedilen ödeme yolu Android'de; test ortamı yeniden açılınca (`test-ortami.sh`) yeni test planı bölümleri (U-KOSUL/ODEME/IADE-02/SINIR/FOTO) test ajanınca yürütülecek.
+
+**M13.5 Teklif seçildikten sonra içerik kilidi (kullanıcı kararı 2026-11-02)** — seçimden sonra iki taraf da içeriği değiştiremez.
+API'de zaten kapalıydı (talep CLOSED → teklif/fotoğraf 409, yalnız etkin teklif geri çekilir); kural veritabanına da işlenir.
+- [x] M13.5a Migration 083: seçilen teklifin (tutar, açıklama, geçerlilik, durum…) ve teklifi seçilmiş talebin (açıklama, fotoğraflar,
+  kategori, konum…) içerik sütunları tetikleyiciyle kilitli (`SE002` → 409 `CONTENT_LOCKED`); içerik dışı alanlar (zaman damgası) yazılabilir
+  — **Kanıt:** verify-stack §74: sahibin teklif değişikliği/geri çekmesi ve alıcının fotoğraf eklemesi 409; doğrudan SQL değişikliği reddedilir; önce kırmızı
+  → **Sonuç:** `[D2]` verify-stack 1559/1559 (2026-11-02, `verify-kilit-yesil`); 083 olmadan kırmızı (`verify-kilit-kirmizi`: SQL değişiklikleri geçti).
+- [ ] M13.5b Test planı `U-KILIT-01` — **Kanıt:** `10-usta-hizmet.md`, test ajanı sonucu
+
+**M13.6 Test ajanı hazırlığı (2026-11-02)**
+- [x] M13.6a `AJAN-GOREVI.md`: ekran görüntüsü yalnız GEÇTİ olmayan testte, test başına en çok 1 (pencere, JPEG, `~/.siteeksen-test/goruntu/`);
+  ekran sayfa metniyle okunur, kanıt gözlemdeki metin + DB + `audit_logs` — **Kanıt:** dosya farkı
+- [x] M13.6b S-24: sağlayıcı şimdi seçilmez, bağlantı standart API ile (OpenAI uyumlu sohbet API'si ya da Anthropic Messages) — **Kanıt:** `questions.md`
+
+**M13.7 Docker düzeni ve test portları (kullanıcı kararı 2026-11-02: eski compose yığınına dokunulmaz, test portları değişir)**
+- [x] M13.7a Biriken isimsiz birimler (100, 2026-10-25…11-01) ve derleme önbelleği (22 GB) silindi (kullanıcı onayı) — **Kanıt:** `docker system df`: birim 113 → 13, önbellek 0
+- [x] M13.7b Sızıntı kapatıldı: `verify-stack.sh`, `dev-up.sh`, `test-ortami.sh`, `_pgrun` kapları `docker rm -fv` ile kaldırır; kendi kaplarımız
+  `com.docker.compose.project=sitesen` etiketiyle açılır (Docker Desktop'ta sitesen grubunda) — **Kanıt:** verify-stack sonrası yeni isimsiz birim yok
+  → **Sonuç:** `[D2]` yeşil verify sonrası isimsiz birim 0 (kalan tek birim düzeltmeden önceki kırmızı koşudandı, silindi); `pgclient` sitesen etiketli.
+- [x] M13.7c Test ortamı portları: panel/uygulamalar 3101–3104, gateway 28888, servisler 28081–28112 (`DEV_PORT_OFFSET=20000`); web derlemeleri
+  API adresi değişince kendiliğinden yeniden derlenir; test planı ve araçlar sayfası yeni adreslerle — **Kanıt:** compose yığını açıkken "TEST ORTAMI HAZIR"
+  → **Sonuç:** `[D4]` 2026-11-02: compose yığını (3001/8888) açıkken test ortamı açıldı; Playwright ile panel :3101 girişi → istekler :28888; üç web derlemesi 28888'e bağlı.
+- [ ] M13.7d Altyapı değerlendirmesi (Redis, MongoDB, Kafka/Zookeeper, Kong, eski compose yığını) — kullanıcı kararı bekliyor (`questions.md` S-25)
+
+**Gün sınırı hatası (2026-11-02, verify gece 01:30'da yakalandı)** — `time.Parse("2006-01-02")` UTC gece yarısı verir; `timestamptz` ile
+karşılaştırılan tarih süzgeçleri 00:00–03:00 arasında (İstanbul) o günü kaçırır. Doğrusu `time.ParseInLocation(…, time.Local)` (servisler
+`database.ApplyTimeZone` ile `time.Local`'ı iş saat dilimine sabitler).
+- [x] GS.1 Devriye dönem raporu (`services/patrol/gps.go`) düzeltildi — **Kanıt:** verify-stack §66 "dönem raporu" gece yarısından sonra yeşil
+  → **Sonuç:** `[D2]` 01:30'daki koşuda kırmızı (`verify-kilit-kirmizi`), düzeltmeden sonra yeşil (`verify-kilit-yesil`, 1559/1559).
+- [x] GS.3 Tedarikçi uygulamasında oturum koruması (sunucu oturumu düşürünce girişe dönüş; sakin uygulamasıyla aynı) — **Kanıt:** Android: toplu
+  oturum iptalinden sonra "Oturumunuzun süresi dolmuş" ve sonraki sekmede giriş ekranı (43); verify-mobile 14/14
+- [ ] GS.2 Aynı kalıbın taranması: iot `parseRange`, energy_analytics, esg, settings etkinlik süzgeci, document, iot sayaç, marketplace teklif geçerliliği
+  (`Truncate(24*time.Hour)` UTC'de keser) — her biri sütun türüne göre (DATE ise sorun yok) incelenip gerekiyorsa düzeltilir; verify'a gece yarısı kontrolü
 
 ### Yurt dışı hazırlığı (kullanıcı kararı 2026-11-01: sonra)
 - [ ] **YD.1 Site başına saat dilimi** — bugün tek `APP_TIMEZONE` (Europe/Istanbul). Tasarım: `properties.timezone` (varsayılan Europe/Istanbul);

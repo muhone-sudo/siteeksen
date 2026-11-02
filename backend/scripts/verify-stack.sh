@@ -151,7 +151,7 @@ cleanup() {
   kill_tree "${H_PER:-}"; kill_tree "${H_PRK:-}"; kill_tree "${H_VIS:-}"
   kill_tree "${H_INV:-}"; kill_tree "${H_GOV:-}"
   rm -rf /tmp/verify-docs
-  docker rm -f "$CNAME" >/dev/null 2>&1
+  docker rm -fv "$CNAME" >/dev/null 2>&1
 }
 trap cleanup EXIT
 
@@ -258,12 +258,12 @@ if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; 
 fi
 
 step "1) Temiz PostgreSQL 16"
-docker rm -f "$CNAME" >/dev/null 2>&1
+docker rm -fv "$CNAME" >/dev/null 2>&1
 # Kaldırılan önceki konteynerin portu birkaç saniye geç serbest kalabilir ("failed to bind"): kısa aralıkla yeniden denenir.
 for _ in 1 2 3 4 5 6 7 8 9 10; do
-  DBRUN=$(docker run --rm -d --name "$CNAME" -e POSTGRES_PASSWORD="$PW" -e POSTGRES_DB=siteeksen \
+  DBRUN=$(docker run --rm -d --name "$CNAME" --label com.docker.compose.project=sitesen --label com.docker.compose.service=verify-db -e POSTGRES_PASSWORD="$PW" -e POSTGRES_DB=siteeksen \
     -e POSTGRES_USER=siteeksen -p ${DBPORT}:5432 postgres:16 -c max_connections=300 2>&1) && break
-  docker rm -f "$CNAME" >/dev/null 2>&1; sleep 2
+  docker rm -fv "$CNAME" >/dev/null 2>&1; sleep 2
 done
 # TCP'den sorulur: imaj ilk kurulumda geçici bir sunucuyu yalnız unix soketinde açıp kapatır; soketten sorulursa o
 # geçici sunucu "hazır" görünür ve yeniden başlatma boşluğundaki ikinci kontrol yanlışlıkla başarısız olur.

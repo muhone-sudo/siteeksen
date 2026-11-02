@@ -102,7 +102,7 @@ Her satır bir test ID'sidir; satırdaki beş hesabın hepsi beklendiği gibiyse
 Güneş Sitesi ve Deniz Apartmanı (Test B) ayrı sitelerdir. Veri hiçbir yoldan karşı siteye geçmemeli.
 
 #### R-IZOLASYON-01 · Diğer sitenin sakini Güneş Sitesi verisini göremez
-- **Hesap:** SİTE_B · **Nerede:** Sakin uygulaması (http://localhost:3002)
+- **Hesap:** SİTE_B · **Nerede:** Sakin uygulaması (http://localhost:3102)
 - **Adım:** Giriş yap; duyurular, ilanlar, anketler, belgeler, borçlar, bildirimler ekranlarını gez
 - **Beklenen:** yalnız Deniz Apartmanı verisi; Güneş Sitesi'nin duyuru/ilan/anket/belgesi hiçbir ekranda yok; site seçicide yalnız Deniz Apartmanı
 - **Sonuç:** `R-IZOLASYON-01`
@@ -130,7 +130,7 @@ Güneş Sitesi ve Deniz Apartmanı (Test B) ayrı sitelerdir. Veri hiçbir yolda
 ## 2.5 Yönetici uygulamasında rol
 
 #### R-YONMOBIL-ROL · Yönetici uygulaması rol süzmesi
-- **Hesap:** sırayla YÖNETİCİ, KURUL, DENETÇİ, GÖREVLİ, KİRACI · **Nerede:** http://localhost:3003
+- **Hesap:** sırayla YÖNETİCİ, KURUL, DENETÇİ, GÖREVLİ, KİRACI · **Nerede:** http://localhost:3103
 - **Adım:** Her hesapla giriş yap, ana menüdeki grupları ve öğeleri listele
 - **Beklenen:** YÖNETİCİ her şeyi görür; DENETÇİ yazma düğmelerini görmez; GÖREVLİ yalnız operasyon öğelerini görür; KİRACI girişte yönetim yetkisi olmadığı uyarısını alır
 - **Sonuç:** `R-YONMOBIL-ROL`

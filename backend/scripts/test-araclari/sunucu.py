@@ -81,7 +81,7 @@ class H(BaseHTTPRequestHandler):
         q = urllib.parse.parse_qs(u.query)
         p = u.path
         if p == "/":
-            return self.send(200, page("SiteEksen test araçları", INDEX))
+            return self.send(200, page("SiteEksen test araçları", INDEX.replace("GATEWAY_URL", GATEWAY)))
         if p == "/sms":
             return self.send(200, page("SMS kutusu (sahte Netgsm)", sms_table()))
         if p == "/sms.json":
@@ -315,9 +315,10 @@ def device_form(show):
 INDEX = """
 <table>
 <tr><th>Ne</th><th>Adres</th><th>Not</th></tr>
-<tr><td>Yönetim paneli</td><td><a href="http://localhost:3001">http://localhost:3001</a></td><td>Next.js</td></tr>
-<tr><td>Sakin uygulaması (web derlemesi)</td><td><a href="http://localhost:3002">http://localhost:3002</a></td><td>Flutter web; telefon genişliğinde kullanın</td></tr>
-<tr><td>Yönetici uygulaması (web derlemesi)</td><td><a href="http://localhost:3003">http://localhost:3003</a></td><td>Flutter web</td></tr>
+<tr><td>Yönetim paneli</td><td><a href="http://localhost:3101">http://localhost:3101</a></td><td>Next.js</td></tr>
+<tr><td>Sakin uygulaması (web derlemesi)</td><td><a href="http://localhost:3102">http://localhost:3102</a></td><td>Flutter web; telefon genişliğinde kullanın</td></tr>
+<tr><td>Yönetici uygulaması (web derlemesi)</td><td><a href="http://localhost:3103">http://localhost:3103</a></td><td>Flutter web</td></tr>
+<tr><td>Tedarikçi uygulaması (web derlemesi)</td><td><a href="http://localhost:3104">http://localhost:3104</a></td><td>SiteEksen Tedarikçi; telefon genişliğinde kullanın</td></tr>
 <tr><td>Veritabanı (Adminer, salt okunur)</td><td><a href="http://localhost:18080">http://localhost:18080</a></td><td>PostgreSQL · sunucu <code>db</code> · kullanıcı <code>test_okuyucu</code> · şifre <code>test_okuyucu</code> · veritabanı <code>siteeksen</code></td></tr>
 <tr><td>E-posta kutusu (Mailpit)</td><td><a href="http://localhost:18025">http://localhost:18025</a></td><td>Servislerin gönderdiği bütün e-postalar</td></tr>
 <tr><td>SMS kutusu</td><td><a href="/sms">/sms</a></td><td>Sahte Netgsm</td></tr>
@@ -325,7 +326,7 @@ INDEX = """
 <tr><td>Cihaz simülatörü</td><td><a href="/cihaz">/cihaz</a></td><td>Sensör okuması, geçiş cihazı sinyali</td></tr>
 <tr><td>Servis günlükleri</td><td><a href="/gunluk">/gunluk</a></td><td>Hata ayıklama için</td></tr>
 <tr><td><b>Test sonuçları</b></td><td><a href="/sonuc">/sonuc</a></td><td>Her test adımının sonucu buraya kaydedilir</td></tr>
-<tr><td>API gateway</td><td><a href="http://localhost:8888/health">http://localhost:8888/health</a></td><td></td></tr>
+<tr><td>API gateway</td><td><a href="GATEWAY_URL/health">GATEWAY_URL/health</a></td><td></td></tr>
 </table>"""
 
 ThreadingHTTPServer(("127.0.0.1", PORT), H).serve_forever()

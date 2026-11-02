@@ -59,6 +59,9 @@ bash backend/scripts/test-ortami.sh          # her şey + test hesapları + saht
 bash backend/scripts/test-ortami.sh --stop
 ```
 
-Panel :3001, sakin uygulaması (web) :3002, yönetici uygulaması (web) :3003, araçlar :18000 (SMS kutusu, sahte ödeme
+Test ortamı geliştirme portlarından ayrıdır (2026-11-02): panel :3101, sakin uygulaması (web) :3102, yönetici uygulaması (web) :3103,
+tedarikçi uygulaması (web) :3104, gateway :28888 (servisler 28081–28112, `DEV_PORT_OFFSET=20000`), araçlar :18000 (SMS kutusu, sahte ödeme
 sayfası, cihaz simülatörü, günlükler, test sonuçları), Adminer :18080 (`test_okuyucu`, salt okunur), Mailpit :18025.
+Makinede eski `docker compose` yığını (sitesen grubu; 3001, 8888, 8081–8106 portları) açıkken de çalışır. Geliştirme ortamı
+(`dev-up.sh`, 3001/8888) ile test ortamı aynı veritabanı kabını (`siteeksen-dev-db`, 55432) kullandığı için ikisi aynı anda açılmaz.
 Hesaplar (9 kişi, 2 site, hepsi `Demo123!`) ve test planı: `docs/test-plani/README.md`.

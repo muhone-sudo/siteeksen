@@ -139,7 +139,9 @@ Mükerrer gönderim `DedupeKey` ile engellenir (ör. `dues.overdue:<daire>:<ay>`
 | monthly_assessments | monthly_assessments_guard | BEFORE UPDATE | engeller: Tahakkukun sınıfı (kullanım/malik) değiştirilemez; düzeltme alacak dekontu ve yeni tahakkukla yapılır | 070_debt_responsibility.sql |
 | monthly_assessments | trg_monthly_assessments_tenant_link | BEFORE INSERT | satırı düzenler (NEW) | 070_debt_responsibility.sql |
 | mp_jobs | mp_jobs_completed_refresh | AFTER UPDATE OF status | UPDATE mp_businesses | 077_marketplace.sql |
+| mp_offers | mp_offers_accepted_lock | BEFORE UPDATE | engeller: Seçilen teklif değiştirilemez | 083_market_content_lock.sql |
 | mp_requests | mp_requests_active_property | BEFORE INSERT | engeller: site pasif: % tablosuna yeni kayıt yazılamaz | 058_property_lifecycle.sql |
+| mp_requests | mp_requests_closed_lock | BEFORE UPDATE | engeller: Teklifi seçilmiş talep değiştirilemez | 083_market_content_lock.sql |
 | mp_reviews | mp_reviews_guard | BEFORE UPDATE OR DELETE | engeller: Yorum silinemez; gerekçeyle gizlenebilir | 077_marketplace.sql |
 | mp_reviews | mp_reviews_rating_refresh | AFTER INSERT OR UPDATE OF hidden_at | UPDATE mp_businesses | 077_marketplace.sql |
 | mp_wallet_ledger | mp_wallet_ledger_no_change | BEFORE UPDATE OR DELETE | engeller: Bakiye defteri değiştirilemez ve silinemez; düzeltme yeni bir hareketle yapılır | 077_marketplace.sql |

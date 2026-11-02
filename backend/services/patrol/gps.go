@@ -604,8 +604,9 @@ FROM patrol_track_points WHERE patrol_log_id = $1 ORDER BY recorded_at LIMIT 500
 func patrolReports(c *gin.Context, pool *pgxpool.Pool) {
 	ctx, pid := c.Request.Context(), c.GetString("property_id")
 	from, to := time.Now().AddDate(0, 0, -30), time.Now().Add(time.Minute)
+	// Gün sınırı iş saat dilimindedir (time.Local = APP_TIMEZONE); UTC gece yarısı 00:00–03:00 arasındaki turları dışarıda bırakıyordu.
 	if v := c.Query("from"); v != "" {
-		t, err := time.Parse("2006-01-02", v)
+		t, err := time.ParseInLocation("2006-01-02", v, time.Local)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Tarih YYYY-AA-GG olmalı"})
 			return
@@ -613,7 +614,7 @@ func patrolReports(c *gin.Context, pool *pgxpool.Pool) {
 		from = t
 	}
 	if v := c.Query("to"); v != "" {
-		t, err := time.Parse("2006-01-02", v)
+		t, err := time.ParseInLocation("2006-01-02", v, time.Local)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "Tarih YYYY-AA-GG olmalı"})
 			return

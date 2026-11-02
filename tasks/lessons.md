@@ -788,3 +788,17 @@ Ders 63'ten sonra paneli ayrı kopyada derledim ama `node_modules`'u sembolik ba
 test paneli birkaç dakika yeni sayfa derleyemedi. `npm ci` ile geri yüklendi, test paneli temiz başlatıldı.
 **Kural:** Ayrı kopyada derlerken bağımlılıklar gerçek kopya olarak (rsync) alınır; çalışan ortamın klasörlerine giden
 sembolik bağlantı kullanılmaz.
+
+### Ders 65 — Yeni altyapı kurmadan önce makinede var olanı envantere al
+
+Docker'da projenin eski `docker compose` yığını (35 kap: postgres, redis, mongo, kafka, kong, servisler; 4–9 aylık imajlar) duruyordu;
+ben bunu hiç sormadan geliştirme/doğrulama/test için ayrı Postgres kapları açtım, kapatırken veri birimlerini silmediğim için ~100 birim
+(7 GB) biriktirdim. Kullanıcı Docker Desktop'ta görüp "var olan dururken başka çözüm mü üretildi" diye sordu. **Kural:** Bir ortama kap,
+port ya da servis eklemeden önce `docker ps -a`, `docker volume ls`, dinlenen portlar ile var olanı çıkar, kullanıcıya bildir; geçici kapları
+`docker rm -fv` ile kaldır; kendi kaplarını tanınır bir etiketle (`com.docker.compose.project=sitesen`) aç.
+
+### Ders 66 — `dart format`'ı tek dosyaya da çalıştırma
+
+Ders'te "bütün dizine çalıştırma" diye yazmıştım; 2026-11-02'de tek dosyaya (`supplier_app/lib/main.dart`) çalıştırdım, 7 satırlık
+değişiklik 82 satırlık biçim farkına dönüştü (proje dosyaları formatlayıcının satır genişliğiyle yazılmamış). **Kural:** Bu depoda
+`dart format` hiç çalıştırılmaz; elle yazılan satırlar çevredeki stile uydurulur, doğrulamayı `flutter analyze` yapar.

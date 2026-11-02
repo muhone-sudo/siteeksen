@@ -2,15 +2,15 @@
 
 > Bu dosya koddan üretilir (`bash docs/ozellik-haritasi/arac/uret.sh`); elle düzenlemeyin. Kurallar, hesaplar ve sorgular: [00-baslangic.md](00-baslangic.md).
 
-Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-00), sonra sayfadaki her düğme/form/seçim sırayla denenir. Formlarda önce zorunlu alanları boş bırakıp gönder (doğrulama hatası beklenir, kayıt OLUŞMAMALI), sonra gerçekçi değerlerle doldur. Girilen değerleri gözleme yaz; sonraki adımlar ve senaryolar bu kayıtları kullanır.
+Panel: http://localhost:3101. Her sayfa için önce **sayfa açılışı** (…-00), sonra sayfadaki her düğme/form/seçim sırayla denenir. Formlarda önce zorunlu alanları boş bırakıp gönder (doğrulama hatası beklenir, kayıt OLUŞMAMALI), sonra gerçekçi değerlerle doldur. Girilen değerleri gözleme yaz; sonraki adımlar ve senaryolar bu kayıtları kullanır.
 
 ### Sözleşmeler — `/dashboard/contracts`
 - Dosya: `admin/src/app/(dashboard)/dashboard/contracts/page.tsx`
 - Panel erişimi: MANAGER/BOARD_MEMBER/AUDITOR — Sözleşmeler
 
 #### P-CONTRACTS-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/dashboard/contracts
-- **Adım:** http://localhost:3001/dashboard/contracts adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3101/dashboard/contracts
+- **Adım:** http://localhost:3101/dashboard/contracts adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: `GET /contracts` (contract)
 - **Adım:** Veri yüklenir: `GET /contracts-summary` (contract)
 - **Adım:** Kart (satır 55): Sözleşmeler
@@ -21,7 +21,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-CONTRACTS-00`
 
 #### P-CONTRACTS-01 · Düğme: Süresi dolanları işle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/contracts
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/contracts
 - **Adım:** "Süresi dolanları işle" düğme öğesine bas
 - **Beklenen (yazma):** `POST /contracts/expire-due` (contract, `services/contract/main.go:172`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -34,14 +34,14 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-CONTRACTS-01`
 
 #### P-CONTRACTS-02 · Düğme: Sözleşme ekle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/contracts
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/contracts
 - **Adım:** "Sözleşme ekle" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Yetki (olumsuz):** DENETÇİ ile bu düğme GÖRÜNMEMELİ (yazma yalnız MANAGER/BOARD_MEMBER).
 - **Sonuç:** http://localhost:18000/sonuc → `P-CONTRACTS-02`
 
 #### P-CONTRACTS-03 · Düğme: Yenile
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/contracts
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/contracts
 - **Adım:** "Yenile" düğme öğesine bas
 - **Beklenen (yazma):** `POST /contracts/:id/renew` (contract, `services/contract/main.go:138`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -54,13 +54,13 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-CONTRACTS-03`
 
 #### P-CONTRACTS-04 · Düğme: Feshet
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/contracts
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/contracts
 - **Adım:** "Feshet" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-CONTRACTS-04`
 
 #### P-CONTRACTS-05 · Form: Sözleşme ekle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/contracts
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/contracts
 - **Adım:** Formu aç; alanlar: Tür*, Başlık*, Karşı taraf*, Başlangıç*, Bitiş, İhbar süresi (gün), Otomatik yenileme, Yenileme süresi (ay), Ödeme, Aylık tutar (TL), Yıllık tutar (TL), Telefon, Not (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -76,7 +76,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-CONTRACTS-05`
 
 #### P-CONTRACTS-06 · Form: Sözleşmeyi feshet
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/contracts
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/contracts
 - **Adım:** Formu aç; alanlar: Gerekçe* (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -98,8 +98,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: MANAGER/BOARD_MEMBER/AUDITOR — Belge arşivi
 
 #### P-DOCUMENTS-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/dashboard/documents
-- **Adım:** http://localhost:3001/dashboard/documents adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3101/dashboard/documents
+- **Adım:** http://localhost:3101/dashboard/documents adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: `GET /documents` (document)
 - **Adım:** Veri yüklenir: `GET /documents-summary` (document)
 - **Adım:** Veri yüklenir: `GET /documents/:id/access-log` (document)
@@ -114,33 +114,33 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-DOCUMENTS-00`
 
 #### P-DOCUMENTS-01 · Düğme: Belge yükle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/documents
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/documents
 - **Adım:** "Belge yükle" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Yetki (olumsuz):** DENETÇİ ile bu düğme GÖRÜNMEMELİ (yazma yalnız MANAGER/BOARD_MEMBER).
 - **Sonuç:** http://localhost:18000/sonuc → `P-DOCUMENTS-01`
 
 #### P-DOCUMENTS-02 · Düğme: ?
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/documents
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/documents
 - **Adım:** "?" düğme öğesine bas
 - **Beklenen (okuma):** `GET /documents/:id/download` (document) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Beklenen (dosya):** dosya iner/açılır; boş ya da bozuk değildir (PDF ise sayfalar okunur).
 - **Sonuç:** http://localhost:18000/sonuc → `P-DOCUMENTS-02`
 
 #### P-DOCUMENTS-03 · Düğme: Erişim
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/documents
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/documents
 - **Adım:** "Erişim" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-DOCUMENTS-03`
 
 #### P-DOCUMENTS-04 · Düğme: Arşivle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/documents
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/documents
 - **Adım:** "Arşivle" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-DOCUMENTS-04`
 
 #### P-DOCUMENTS-05 · Form: Belge yükle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/documents
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/documents
 - **Adım:** Formu aç; alanlar: Dosya*, Kategori*, Görünürlük, Başlık, Saklama bitişi, Açıklama [dosya] (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -157,7 +157,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-DOCUMENTS-05`
 
 #### P-DOCUMENTS-06 · Form: Belgeyi arşivle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/documents
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/documents
 - **Adım:** Formu aç; alanlar: Gerekçe* (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -180,8 +180,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: MANAGER/BOARD_MEMBER/AUDITOR — Yönetişim kayıtları (işletme projesi, genel kurul, defterler)
 
 #### P-GOVERNANCE-ASSEMBLIES-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/dashboard/governance/assemblies
-- **Adım:** http://localhost:3001/dashboard/governance/assemblies adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3101/dashboard/governance/assemblies
+- **Adım:** http://localhost:3101/dashboard/governance/assemblies adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: `GET /governance/assemblies` (governance)
 - **Adım:** Tablo sütunları görünür ve dolu/boş durumu doğru: Tarih \| Tür \| Yer \| Çağrı \| Durum \| Nisap
 - **Adım:** Veri yüklenir: `GET /governance/assemblies/:id` (governance)
@@ -202,20 +202,20 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-ASSEMBLIES-00`
 
 #### P-GOVERNANCE-ASSEMBLIES-01 · Düğme: Toplantı planla
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/assemblies
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/assemblies
 - **Adım:** "Toplantı planla" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Yetki (olumsuz):** DENETÇİ ile bu düğme GÖRÜNMEMELİ (yazma yalnız MANAGER/BOARD_MEMBER).
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-ASSEMBLIES-01`
 
 #### P-GOVERNANCE-ASSEMBLIES-02 · Düğme: Aç
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/assemblies
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/assemblies
 - **Adım:** "Aç" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-ASSEMBLIES-02`
 
 #### P-GOVERNANCE-ASSEMBLIES-03 · Form: Toplantı planla
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/assemblies
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/assemblies
 - **Adım:** Formu aç; alanlar: Tür, Toplantı, Tarih ve saat*, Yer (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -232,19 +232,19 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-ASSEMBLIES-03`
 
 #### P-GOVERNANCE-ASSEMBLIES-04 · Düğme: Maddeyi çıkar
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/assemblies
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/assemblies
 - **Adım:** "Maddeyi çıkar" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-ASSEMBLIES-04`
 
 #### P-GOVERNANCE-ASSEMBLIES-05 · Düğme: + Madde
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/assemblies
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/assemblies
 - **Adım:** "+ Madde" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-ASSEMBLIES-05`
 
 #### P-GOVERNANCE-ASSEMBLIES-06 · Düğme: Çağrıyı kaydet
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/assemblies
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/assemblies
 - **Adım:** "Çağrıyı kaydet" düğme öğesine bas
 - **Beklenen (yazma):** `POST /governance/assemblies/:id/notify` (governance, `services/governance/main.go:96`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -257,7 +257,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-ASSEMBLIES-06`
 
 #### P-GOVERNANCE-ASSEMBLIES-07 · Düğme: Toplantıyı yap
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/assemblies
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/assemblies
 - **Adım:** "Toplantıyı yap" düğme öğesine bas
 - **Beklenen (yazma):** `POST /governance/assemblies/:id/hold` (governance, `services/governance/main.go:98`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -270,13 +270,13 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-ASSEMBLIES-07`
 
 #### P-GOVERNANCE-ASSEMBLIES-08 · Düğme: Oy gir
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/assemblies
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/assemblies
 - **Adım:** "Oy gir" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-ASSEMBLIES-08`
 
 #### P-GOVERNANCE-ASSEMBLIES-09 · Düğme: Kararı hesapla
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/assemblies
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/assemblies
 - **Adım:** "Kararı hesapla" düğme öğesine bas
 - **Beklenen (yazma):** `POST /governance/agenda-items/:itemId/close` (governance, `services/governance/main.go:100`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -292,7 +292,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-ASSEMBLIES-09`
 
 #### P-GOVERNANCE-ASSEMBLIES-10 · Düğme: Ekle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/assemblies
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/assemblies
 - **Adım:** "Ekle" düğme öğesine bas
 - **Beklenen (yazma):** `POST /governance/assemblies/:id/attendees` (governance, `services/governance/main.go:97`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -305,7 +305,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-ASSEMBLIES-10`
 
 #### P-GOVERNANCE-ASSEMBLIES-11 · Form: (başlık dinamik)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/assemblies
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/assemblies
 - **Adım:** Formu aç; alanlar: Daire (hazirundan)*, Oy (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -328,8 +328,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: MANAGER/BOARD_MEMBER/AUDITOR — Yönetişim kayıtları (işletme projesi, genel kurul, defterler)
 
 #### P-GOVERNANCE-BOOKS-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/dashboard/governance/books
-- **Adım:** http://localhost:3001/dashboard/governance/books adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3101/dashboard/governance/books
+- **Adım:** http://localhost:3101/dashboard/governance/books adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: `GET /governance/books/:id/entries` (governance)
 - **Adım:** Kart (satır 51): ${book.kind === "DECISION" ? "Karar defteri" : "İşletme defteri"} ${book.period_year}
 - **Adım:** Bilgi notu (satır 68): {integrity.message}
@@ -341,37 +341,37 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-BOOKS-00`
 
 #### P-GOVERNANCE-BOOKS-01 · Düğme: Aç
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/books
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/books
 - **Adım:** "Aç" düğme öğesine bas
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-BOOKS-01`
 
 #### P-GOVERNANCE-BOOKS-02 · Düğme: Bütünlüğü doğrula
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/books
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/books
 - **Adım:** "Bütünlüğü doğrula" düğme öğesine bas
 - **Beklenen (okuma):** `GET /governance/books/:id/verify` (governance) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-BOOKS-02`
 
 #### P-GOVERNANCE-BOOKS-03 · Düğme: PDF
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/books
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/books
 - **Adım:** "PDF" düğme öğesine bas
 - **Beklenen (okuma):** `GET /governance/books/:id/export` (governance) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-BOOKS-03`
 
 #### P-GOVERNANCE-BOOKS-04 · Düğme: Kayıt ekle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/books
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/books
 - **Adım:** "Kayıt ekle" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-BOOKS-04`
 
 #### P-GOVERNANCE-BOOKS-05 · Düğme: Notere kapat
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/books
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/books
 - **Adım:** "Notere kapat" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-BOOKS-05`
 
 #### P-GOVERNANCE-BOOKS-06 · Form: Deftere kayıt ekle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/books
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/books
 - **Adım:** Formu aç; alanlar: Başlık*, Metin*, Tarih (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -387,7 +387,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-BOOKS-06`
 
 #### P-GOVERNANCE-BOOKS-07 · Form: Defteri notere kapat
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/books
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/books
 - **Adım:** Formu aç; alanlar: Noter kapanış no, Kapanış tarihi (* zorunlu)
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
 - **Beklenen (yazma):** `POST /governance/books/:id/close` (governance, `services/governance/main.go:104`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
@@ -407,8 +407,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: MANAGER/BOARD_MEMBER/AUDITOR — Yönetişim kayıtları (işletme projesi, genel kurul, defterler)
 
 #### P-GOVERNANCE-BUDGETS-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/dashboard/governance/budgets
-- **Adım:** http://localhost:3001/dashboard/governance/budgets adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3101/dashboard/governance/budgets
+- **Adım:** http://localhost:3101/dashboard/governance/budgets adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: `GET /governance/budgets` (governance)
 - **Adım:** Tablo sütunları görünür ve dolu/boş durumu doğru: Yıl \| Toplam \| Durum \| Bildirim \| Genel kurul son gün \| Kesinleşme
 - **Adım:** Bilgi notu (satır 88): Kapıcı, kaloriferci, bahçıvan ve bekçi giderleri eşit; sigorta ve ortak yer bakım/onarım g
@@ -427,20 +427,20 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-BUDGETS-00`
 
 #### P-GOVERNANCE-BUDGETS-01 · Düğme: Proje hazırla
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/budgets
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/budgets
 - **Adım:** "Proje hazırla" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Yetki (olumsuz):** DENETÇİ ile bu düğme GÖRÜNMEMELİ (yazma yalnız MANAGER/BOARD_MEMBER).
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-BUDGETS-01`
 
 #### P-GOVERNANCE-BUDGETS-02 · Düğme: Aç
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/budgets
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/budgets
 - **Adım:** "Aç" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-BUDGETS-02`
 
 #### P-GOVERNANCE-BUDGETS-03 · Form: İşletme projesi hazırla
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/budgets
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/budgets
 - **Adım:** Formu aç; alanlar: Dönem yılı*, Not (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -457,31 +457,31 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-BUDGETS-03`
 
 #### P-GOVERNANCE-BUDGETS-04 · Düğme: Kalemi çıkar
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/budgets
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/budgets
 - **Adım:** "Kalemi çıkar" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-BUDGETS-04`
 
 #### P-GOVERNANCE-BUDGETS-05 · Düğme: + Kalem
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/budgets
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/budgets
 - **Adım:** "+ Kalem" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-BUDGETS-05`
 
 #### P-GOVERNANCE-BUDGETS-06 · Düğme: PDF
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/budgets
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/budgets
 - **Adım:** "PDF" düğme öğesine bas
 - **Beklenen (okuma):** `GET /governance/budgets/:id/export` (governance) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-BUDGETS-06`
 
 #### P-GOVERNANCE-BUDGETS-07 · Düğme: Excel
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/budgets
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/budgets
 - **Adım:** "Excel" düğme öğesine bas
 - **Beklenen (okuma):** `GET /governance/budgets/:id/export` (governance) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-BUDGETS-07`
 
 #### P-GOVERNANCE-BUDGETS-08 · Düğme: Geçici proje olarak bildir
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/budgets
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/budgets
 - **Adım:** "Geçici proje olarak bildir" düğme öğesine bas
 - **Beklenen (yazma):** `POST /governance/budgets/:id/notify` (governance, `services/governance/main.go:90`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -494,7 +494,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-BUDGETS-08`
 
 #### P-GOVERNANCE-BUDGETS-09 · Düğme: Genel kurul kararıyla kesinleştir
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/budgets
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/budgets
 - **Adım:** "Genel kurul kararıyla kesinleştir" düğme öğesine bas
 - **Beklenen (yazma):** `POST /governance/budgets/:id/finalize` (governance, `services/governance/main.go:91`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -507,7 +507,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-BUDGETS-09`
 
 #### P-GOVERNANCE-BUDGETS-10 · Düğme: Projeden aylık aidat tahakkuk et
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/budgets
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/budgets
 - **Adım:** "Projeden aylık aidat tahakkuk et" düğme öğesine bas
 - **Beklenen (yazma):** `POST /governance/budgets/:id/assessments` (governance, `services/governance/main.go:92`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -524,21 +524,21 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-BUDGETS-10`
 
 #### P-GOVERNANCE-BUDGETS-11 · Düğme: Kabul
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/budgets
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/budgets
 - **Adım:** "Kabul" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Yetki (olumsuz):** DENETÇİ ile bu düğme GÖRÜNMEMELİ (yazma yalnız MANAGER/BOARD_MEMBER).
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-BUDGETS-11`
 
 #### P-GOVERNANCE-BUDGETS-12 · Düğme: Ret
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/budgets
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/budgets
 - **Adım:** "Ret" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Yetki (olumsuz):** DENETÇİ ile bu düğme GÖRÜNMEMELİ (yazma yalnız MANAGER/BOARD_MEMBER).
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-BUDGETS-12`
 
 #### P-GOVERNANCE-BUDGETS-13 · Form: (başlık dinamik)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/budgets
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/budgets
 - **Adım:** Formu aç; alanlar: Karar açıklaması (* zorunlu)
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
 - **Adım:** Başarı mesajı tam olarak şu anlamda olmalı: "İtiraz sonuçlandırıldı"
@@ -559,8 +559,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: MANAGER/BOARD_MEMBER/AUDITOR — Yönetişim kayıtları (işletme projesi, genel kurul, defterler)
 
 #### P-GOVERNANCE-COMMON-AREA-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/dashboard/governance/common-area
-- **Adım:** http://localhost:3001/dashboard/governance/common-area adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3101/dashboard/governance/common-area
+- **Adım:** http://localhost:3101/dashboard/governance/common-area adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: `GET /governance/common-area/leases` (governance)
 - **Adım:** Veri yüklenir: `GET /governance/common-area/report` (governance)
 - **Adım:** Veri yüklenir: `GET /governance/assemblies` (governance)
@@ -576,20 +576,20 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-COMMON-AREA-00`
 
 #### P-GOVERNANCE-COMMON-AREA-01 · Düğme: Kiralama kaydet
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/common-area
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/common-area
 - **Adım:** "Kiralama kaydet" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Yetki (olumsuz):** DENETÇİ ile bu düğme GÖRÜNMEMELİ (yazma yalnız MANAGER/BOARD_MEMBER).
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-COMMON-AREA-01`
 
 #### P-GOVERNANCE-COMMON-AREA-02 · Düğme: Tahsilat gir
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/common-area
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/common-area
 - **Adım:** "Tahsilat gir" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-COMMON-AREA-02`
 
 #### P-GOVERNANCE-COMMON-AREA-03 · Düğme: Sonlandır
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/common-area
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/common-area
 - **Adım:** "Sonlandır" düğme öğesine bas
 - **Beklenen (yazma):** `POST /governance/common-area/leases/:id/end` (governance, `services/governance/main.go:109`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -602,7 +602,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-COMMON-AREA-03`
 
 #### P-GOVERNANCE-COMMON-AREA-04 · Form: Ortak yer kiralaması
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/common-area
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/common-area
 - **Adım:** Formu aç; alanlar: Alan türü, Alan adı*, Kiracı*, Aylık kira (TL)*, Başlangıç*, Kiracı işyeri mi?, Genel kurul, Oybirliğiyle kabul edilen madde* (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -618,7 +618,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-COMMON-AREA-04`
 
 #### P-GOVERNANCE-COMMON-AREA-05 · Form: Kira tahsilatı
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/common-area
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/common-area
 - **Adım:** Formu aç; alanlar: Dönem*, Tahsilat tarihi*, Brüt kira (TL)*, Kiracının kestiği stopaj (TL) (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -640,8 +640,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: MANAGER/BOARD_MEMBER/AUDITOR — Yönetişim kayıtları (işletme projesi, genel kurul, defterler)
 
 #### P-GOVERNANCE-LEGAL-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/dashboard/governance/legal
-- **Adım:** http://localhost:3001/dashboard/governance/legal adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3101/dashboard/governance/legal
+- **Adım:** http://localhost:3101/dashboard/governance/legal adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: `GET /governance/legal-cases` (governance)
 - **Adım:** Veri yüklenir: `GET /units` (identity)
 - **Adım:** Tablo sütunları görünür ve dolu/boş durumu doğru: Tür \| Daire \| Anapara \| Gecikme tazminatı \| Dayanak \| Daire / mahkeme \| Durum \| Açılış
@@ -652,14 +652,14 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-LEGAL-00`
 
 #### P-GOVERNANCE-LEGAL-01 · Düğme: Takip aç
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/legal
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/legal
 - **Adım:** "Takip aç" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Yetki (olumsuz):** DENETÇİ ile bu düğme GÖRÜNMEMELİ (yazma yalnız MANAGER/BOARD_MEMBER).
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-LEGAL-01`
 
 #### P-GOVERNANCE-LEGAL-02 · Form: Hukuki takip aç
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/legal
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/legal
 - **Adım:** Formu aç; alanlar: Daire*, Tür, Dayanak belge, İcra dairesi / mahkeme, Dosya no, Avukat, Not (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -680,8 +680,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: MANAGER/BOARD_MEMBER/AUDITOR/STAFF — Yönetim paneli
 
 #### P-USTA-HIZMET-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ, GÖREVLİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/dashboard/usta-hizmet
-- **Adım:** http://localhost:3001/dashboard/usta-hizmet adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ, GÖREVLİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3101/dashboard/usta-hizmet
+- **Adım:** http://localhost:3101/dashboard/usta-hizmet adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: 
 - **Adım:** Veri yüklenir: `GET /market/meta` (marketplace)
 - **Adım:** Bilgi notu (satır 30): Site adına talebi yönetici açar ve teklif seçer; kurul üyeleri ve denetçi talepleri ve tek
@@ -693,13 +693,13 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-USTA-HIZMET-00`
 
 #### P-USTA-HIZMET-01 · Düğme: Teklif topla
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/usta-hizmet
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/usta-hizmet
 - **Adım:** "Teklif topla" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-USTA-HIZMET-01`
 
 #### P-USTA-HIZMET-02 · Form: Site adına teklif topla
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/usta-hizmet
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/usta-hizmet
 - **Adım:** Formu aç; alanlar: Kategori*, Ne yapılacak?*, Uygun zaman (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz

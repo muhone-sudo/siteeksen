@@ -9,7 +9,7 @@ Başlamadan önce `docs/test-plani/00-baslangic.md` dosyasını baştan sona oku
 
 ## 0. Ortam
 
-1. Önce http://localhost:18000 ve http://localhost:3001 adreslerini aç. İkisi de açılıyorsa ortam çalışıyordur: **hiçbir şeyi yeniden başlatma**, doğrudan 1. bölüme geç.
+1. Önce http://localhost:18000 ve http://localhost:3101 adreslerini aç. İkisi de açılıyorsa ortam çalışıyordur: **hiçbir şeyi yeniden başlatma**, doğrudan 1. bölüme geç.
 2. `test-ortami.sh --stop` komutunu ASLA çalıştırma.
 3. Yalnız ortam kapalıysa (bilgisayar yeniden başladıysa) `bash backend/scripts/test-ortami.sh` komutunu ARKA PLANDA başlat. Bu komut hiç bitmez,
    ortam açık kaldığı sürece çalışır; bitmesini BEKLEME. Birkaç dakikada bir http://localhost:18000 adresine bak; açılınca devam et (ilk açılış 5–10 dk sürebilir).
@@ -35,7 +35,7 @@ Kullanıcıya soru sorma. Karar gerektiren bir engelde testi ENGELLENDİ kaydet,
 
 Önceki test oturumunda 1260 testin ~1130'u yapılmadan "GEÇTİ" yazıldı: sonuçlar bir betikle 7 dakikada toplu gönderildi,
 gözlemler kalıp cümlelerdi ("Arayüz elementi ve modal açılışı doğrulandı… hatasız"), API'ye sahte kimliklerle istek atıldı ve
-400/404 yanıtları bile GEÇTİ sayıldı. Veritabanında o testlerin hiçbir izi yoktu. Bu oturumun bütün sonuçları ekran görüntüleri,
+400/404 yanıtları bile GEÇTİ sayıldı. Veritabanında o testlerin hiçbir izi yoktu. Bu oturumun bütün sonuçları gözlemdeki ekran metni,
 `audit_logs` tablosu ve veritabanı satırlarıyla tek tek karşılaştırılacak; kanıtı olmayan GEÇTİ geçersiz sayılıp KALDI'ya çevrilecek.
 Yapamadığın testi dürüstçe ENGELLENDİ ya da ATLANDI yazman, uydurma bir GEÇTİ'den çok daha değerlidir.
 
@@ -52,14 +52,12 @@ Yapamadığın testi dürüstçe ENGELLENDİ ya da ATLANDI yazman, uydurma bir G
 
 1. Testin "Hesap", "Nerede", "Adım" ve "Beklenen" satırlarını oku.
 2. Gereken hesapla gir (bölüm 6'daki tablo), sayfaya menüden git, adımları ekranda uygula.
-3. **Ekran görüntüleri** (dosya adı test kimliğiyle başlar):
-   - `<ID>-1-once` — işlemden hemen önce (form doluyken ya da düğmeye basmadan önce)
-   - `<ID>-2-sonuc` — işlemden sonra (başarı/hata mesajı, değişen liste, açılan pencere görünür)
-   - `<ID>-3-db` — yazma yapan testlerde Adminer sorgusunun sonuç tablosu
-   - `<ID>-4-bildirim` — bildirim üreten testlerde alıcının zili/bildirim listesi, SMS kutusu ya da Mailpit
-   - `<ID>-5-yetkisiz` — planda yetkisiz deneme varsa, o hesabın gördüğü ekran
-
-   Yalnız görüntüleyen (okuma) testlerde 1 ve 2 yeterli.
+3. **Ekranı okumak için ekran görüntüsü alma.** Sayfadaki metni, düğmeleri ve tabloları tarayıcı aracının sayfa metni /
+   erişilebilirlik ağacı okumasıyla (snapshot, read_page, get_page_text gibi) oku; kanıt, gözleme aynen yazdığın ekran metnidir.
+   Ekran görüntüsü YALNIZ sonuç GEÇTİ değilse (KALDI, KISMEN, ENGELLENDİ) ve test başına EN ÇOK 1 tane alınır:
+   - sorunun göründüğü an, yalnız görünen pencere (tam sayfa değil), JPEG ya da sıkıştırılmış PNG, 1280 px genişliği geçmeyen;
+   - dosya adı `<ID>.jpg`, yeri `~/.siteeksen-test/goruntu/` (başka yere kaydetme).
+   GEÇTİ testlerde, Adminer sonuçlarında, bildirim kutularında ve ara adımlarda ekran görüntüsü ALINMAZ; bunların değerleri gözleme metin olarak yazılır.
 4. Yazma yapan her testte testteki Adminer sorgusunu çalıştır (http://localhost:18080 · sunucu `db` · kullanıcı/şifre `test_okuyucu` ·
    veritabanı `siteeksen` · sol üstte "SQL komutu"). Yeni ya da değişen satırın ilgili sütunlarını gözleme yaz.
 5. Bildirim beklenen testlerde planda yazan HER alıcı hesabıyla kontrol et: uygulamadaki zil/bildirim listesi, SMS kutusu
@@ -73,10 +71,10 @@ Yapamadığın testi dürüstçe ENGELLENDİ ya da ATLANDI yazman, uydurma bir G
      - `EKRAN:` ekranda gördüğün metni tırnak içinde aynen yaz (başarı mesajı, hata metni, liste satırı)
      - `DB:` sorgu çıktısından ilgili değerler (kimlik, durum, tutar, tarih); yazma yoksa "okuma testi"
      - `BİLDİRİM:` kim nerede ne gördü, kim görmedi; bildirim yoksa "beklenmiyor"
-     - `GÖRÜNTÜ:` çektiğin ekran görüntülerinin dosya adları
+     - `GÖRÜNTÜ:` yalnız GEÇTİ olmayan testte aldığın tek görüntünün adı; GEÇTİ'de "yok"
      - `FARK:` beklenenden fark varsa ne olduğu; hata varsa http://localhost:18000/gunluk sayfasındaki ilgili satır
 7. Durum ölçütleri:
-   - **GEÇTİ** = Beklenen'in TAMAMI ekranda görüldü + (yazma varsa) DB doğrulandı + (bildirim varsa) alıcılar doğrulandı + görüntüler alındı
+   - **GEÇTİ** = Beklenen'in TAMAMI ekranda görüldü + (yazma varsa) DB doğrulandı + (bildirim varsa) alıcılar doğrulandı
    - **KISMEN** = bir kısmı doğru, bir kısmı eksik ya da yanlış (hangisi olduğunu FARK'a yaz)
    - **KALDI** = beklenen sonuç alınamadı, hata çıktı ya da yanlış veri yazıldı
    - **ENGELLENDİ** = ön koşul sağlanamadı (önceki adım başarısız, gerekli kayıt yok); nedenini yaz
@@ -97,18 +95,18 @@ Telefon alanına 10 haneli yaz (`5551234567` gibi); başında 0 ya da +90 olsa d
 
 | Kod | Telefon | Kişi | Sıfat | Nereye girer |
 |---|---|---|---|---|
-| YÖNETİCİ | 5551234567 | Ahmet Yılmaz | Güneş Sitesi yöneticisi + kurul üyesi, A-3 maliki | Panel :3001, Yönetici uyg. :3003, Sakin :3002 |
+| YÖNETİCİ | 5551234567 | Ahmet Yılmaz | Güneş Sitesi yöneticisi + kurul üyesi, A-3 maliki | Panel :3101, Yönetici uyg. :3103, Sakin :3102 |
 | KURUL | 5550000001 | Zeynep Arslan | Yönetim kurulu üyesi, B-2 maliki | Panel, Yönetici uyg., Sakin |
 | DENETÇİ | 5550000002 | Hasan Koç | Denetçi (okur, yazamaz) | Panel, Yönetici uyg. |
 | GÖREVLİ | 5550000003 | Murat Öz | Güvenlik/görevli | Panel (operasyon), Yönetici uyg. |
-| KİRACI | 5559876543 | Mehmet Demir | A-4 kiracısı | Sakin uyg. :3002 |
+| KİRACI | 5559876543 | Mehmet Demir | A-4 kiracısı | Sakin uyg. :3102 |
 | MALİK_A4 | 5550000010 | Ayşe Kaya | A-4 maliki (dairesi kirada) | Sakin uyg. |
 | MALİK_B1 | 5550000011 | Fatma Şahin | B-1 maliki, kendisi oturuyor | Sakin uyg. |
 | VEKİL_B1 | 5550000012 | Ali Çelik | B-1 vekili | Sakin uyg. |
 | SİTE_B | 5550000020 | Elif Yurt | Deniz Apartmanı (ikinci site) A-1 maliki | Sakin uyg.; Güneş Sitesi'ni görmemeli |
 
-Adresler: Panel http://localhost:3001 · Sakin uygulaması http://localhost:3002 (pencereyi ~400 px genişliğe daralt) ·
-Yönetici uygulaması http://localhost:3003 · Araçlar http://localhost:18000 · Adminer http://localhost:18080 · Mailpit http://localhost:18025
+Adresler: Panel http://localhost:3101 · Sakin uygulaması http://localhost:3102 (pencereyi ~400 px genişliğe daralt) ·
+Yönetici uygulaması http://localhost:3103 · Araçlar http://localhost:18000 · Adminer http://localhost:18080 · Mailpit http://localhost:18025
 
 Oturum açma ipuçları:
 - Hesap değiştirirken önce menüden "Çıkış yap". Farklı hesapları aynı anda açık tutmak için ayrı gizli pencere ya da ayrı tarayıcı profili kullan.
@@ -118,7 +116,7 @@ Oturum açma ipuçları:
 - Sakin uygulamasında ilk girişte KVKK onay ekranı çıkar; onayla, sonra ana ekran açılır.
 - YÖNETİCİ'nin birden çok sitesi var; panelde kenar çubuğundaki site seçicide "Güneş Sitesi" seçili olmalı.
 - Giriş "kod" isterse ya da testte yeni hesap oluşturduysan: etkinleştirme/sıfırlama kodu http://localhost:18000/sms sayfasında
-  ilgili numaranın en son mesajında (e-posta kodları Mailpit'te). Kodu http://localhost:3001/activate sayfasına ya da sakin
+  ilgili numaranın en son mesajında (e-posta kodları Mailpit'te). Kodu http://localhost:3101/activate sayfasına ya da sakin
   uygulamasındaki "Hesabı Etkinleştir" ekranına telefon + kod + yeni şifreyle gir.
 - 5 hatalı denemede hesap kısa süre kilitlenir. Bekle ya da YÖNETİCİ panelde Sakinler sayfasında ilgili kişide "Kilidi aç" düğmesine bassın.
 - Testte bir hesabın şifresini değiştirdiysen bölümün sonunda yine `Demo123!` yap; sonraki testler bozulmasın.

@@ -98,6 +98,19 @@ O2N=$(m6 POST "/supplier/requests/$REQ5/offers" "$HF2" '{"amount_kurus":100000,"
   && [ "$(m6sql "SELECT status FROM mp_requests WHERE id='$REQ5';")" = "CLOSED" ] && [ "$(m6sql "SELECT count(*) FROM mp_wallet_ledger;")" = "$LB" ] \
   && ok "teklif seçimi: tek iş oluştu, talep kapandı, diğer teklif reddedildi ve bildirildi, yeni teklif 409; komşu seçemez 404; defter değişmedi" \
   || bad "seçim: ${SE: -120} komşu=${SEN##*|} teklifler=$SO bildirim=$NDEC yeniden=${O2N##*|}"
+# İçerik kilidi (083, kullanıcı kararı 2026-11-02): seçimden sonra iki taraf da içeriği değiştiremez
+OSEL=$(jget "$O1B" "d['id']")
+LK1=$(m6 POST "/supplier/requests/$REQ5/offers" "$HF1" '{"amount_kurus":200000,"description":"seçimden sonra zam","valid_until":"2099-12-31"}')
+LK2=$(m6 POST "/supplier/offers/$OSEL/withdraw" "$HF1")
+LK3=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$M6/requests/$REQ5/photos" -H "$R2" -F "file=@/tmp/verify-m3-kimlik.png")
+LK4=$(m6sql "UPDATE mp_offers SET amount_kurus = 1 WHERE id='$OSEL';" 2>&1)
+LK5=$(m6sql "UPDATE mp_requests SET description = 'sonradan değişti' WHERE id='$REQ5';" 2>&1)
+LK6=$(m6sql "UPDATE mp_offers SET updated_at = now() WHERE id='$OSEL' RETURNING 'güncellendi';" 2>&1)
+[ "${LK1##*|}" = "409" ] && [ "${LK2##*|}" = "409" ] && [ "$LK3" = "409" ] \
+  && grep -q 'Seçilen teklif değiştirilemez' <<<"$LK4" && grep -q 'Teklifi seçilmiş talep değiştirilemez' <<<"$LK5" && [ "$LK6" = "güncellendi" ] \
+  && [ "$(m6sql "SELECT o.amount_kurus || '|' || o.description || '|' || o.status || '|' || r.description || '|' || jsonb_array_length(r.photo_keys) FROM mp_offers o JOIN mp_requests r ON r.id=o.request_id WHERE o.id='$OSEL';")" = "140000|Petek sökülüp contası değişir (indirimli)|ACCEPTED|Salon kalorifer peteği sızdırıyor|0" ] \
+  && ok "içerik kilidi: seçilen teklifin sahibi teklifi değiştiremedi ve geri çekemedi (409), alıcı fotoğraf ekleyemedi (409); doğrudan SQL ile teklif tutarı ve talep açıklaması da değişmedi (tetikleyici), içerik dışı alan güncellenebiliyor" \
+  || bad "içerik kilidi: teklif=${LK1##*|} geri=${LK2##*|} foto=$LK3 sql-teklif=${LK4:0:120} sql-talep=${LK5:0:120} içerik-dışı=$LK6"
 QM2=$(m6 POST /requests "$MG" "{\"category_id\":\"$M6CM\",\"buyer_type\":\"MANAGEMENT\",\"description\":\"Çatı oluğu temizliği\"}"); REQ6=$(jget "$QM2" "d['request']['id']"); m7open "$REQ6"
 m6 POST "/supplier/requests/$REQ6/accept" "$HF1" >/dev/null
 m6 POST "/supplier/requests/$REQ6/offers" "$HF1" '{"amount_kurus":300000,"description":"Oluk temizliği","valid_until":"2099-12-31"}' >/dev/null

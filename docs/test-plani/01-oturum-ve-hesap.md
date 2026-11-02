@@ -6,14 +6,14 @@
 ## 1.1 Giriş
 
 #### O-GIRIS-01 · Panele doğru bilgilerle giriş
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/login
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/login
 - **Adım:** Telefona `5551234567`, şifreye `Demo123!` yaz, giriş yap
 - **Beklenen:** `/dashboard` açılır; üst barda kişi adı; kenar çubuğunda site seçici "Güneş Sitesi"; zil simgesi görünür
 - **Veritabanı:** Q-AUDIT → `source = API`, `entity_type = auth`, giriş satırı 200
 - **Sonuç:** `O-GIRIS-01`
 
 #### O-GIRIS-02 · Telefon biçimleri
-- **Hesap:** YÖNETİCİ · **Nerede:** panel giriş, sakin uygulaması giriş (http://localhost:3002)
+- **Hesap:** YÖNETİCİ · **Nerede:** panel giriş, sakin uygulaması giriş (http://localhost:3102)
 - **Adım:** Sırayla `05551234567`, `+905551234567`, `0555 123 45 67` ile giriş dene (her denemeden sonra çıkış yap)
 - **Beklenen:** üçü de aynı hesaba girer
 - **Sonuç:** `O-GIRIS-02`
@@ -45,13 +45,13 @@
 - **Sonuç:** `O-GIRIS-06`
 
 #### O-GIRIS-07 · Sakin panele giremez
-- **Hesap:** KİRACI · **Nerede:** http://localhost:3001/login
+- **Hesap:** KİRACI · **Nerede:** http://localhost:3101/login
 - **Adım:** KİRACI bilgileriyle panele giriş yap
 - **Beklenen:** panel sayfaları açılmaz (`/dashboard/forbidden` ya da girişte yönetim yetkisi olmadığı mesajı); hiçbir yönetim verisi görünmez
 - **Sonuç:** `O-GIRIS-07`
 
 #### O-GIRIS-08 · Yönetici uygulamasına sakin girişi
-- **Hesap:** KİRACI · **Nerede:** http://localhost:3003
+- **Hesap:** KİRACI · **Nerede:** http://localhost:3103
 - **Adım:** Giriş yap
 - **Beklenen:** yönetim yetkisi olmadığı anlaşılır şekilde söylenir; yönetim menüleri görünmez
 - **Sonuç:** `O-GIRIS-08`
@@ -79,7 +79,7 @@
 - **Sonuç:** `O-ETKIN-01`
 
 #### O-ETKIN-02 · Kodu yanlış girme
-- **Hesap:** yeni sakin · **Nerede:** http://localhost:3001/activate (ve sakin uygulamasında "Hesabımı etkinleştir")
+- **Hesap:** yeni sakin · **Nerede:** http://localhost:3101/activate (ve sakin uygulamasında "Hesabımı etkinleştir")
 - **Adım:** Telefon 5550000031, kod `AAAAAAAA`, şifre `Yeni1234`
 - **Beklenen:** kod geçersiz mesajı; 5 hatalı denemede kodun kilitlendiği söylenir (5. denemeyi yapmadan bırak)
 - **Sonuç:** `O-ETKIN-02`
@@ -102,7 +102,7 @@
 ## 1.3 Şifremi unuttum
 
 #### O-SIFRE-01 · Sakinin kendi kod isteği
-- **Hesap:** MALİK_B1 · **Nerede:** sakin uygulaması giriş → şifremi unuttum (ya da http://localhost:3001/activate → kodu SMS ile gönder)
+- **Hesap:** MALİK_B1 · **Nerede:** sakin uygulaması giriş → şifremi unuttum (ya da http://localhost:3101/activate → kodu SMS ile gönder)
 - **Adım:** 5550000011 için kod iste; SMS kutusundan kodu al; yeni şifre `Fatma1234` belirle; yeni şifreyle gir; sonra şifreyi yine `Demo123!` yap (O-SIFRE-03 ile)
 - **Beklenen:** yanıt numaranın kayıtlı olup olmadığını söylemez; SMS (ve e-posta) gelir; kod 15 dk geçerli; şifre değişince **açık bütün oturumlar kapanır** (başka sekmede açık oturum giriş ekranına düşer)
 - **Sonuç:** `O-SIFRE-01`
@@ -195,11 +195,11 @@
 
 #### O-ACIK-01 · Borcu yoktur belgesinin doğrulanması
 - **Hesap:** MALİK_B1 (sakin uygulaması), sonra oturumsuz tarayıcı
-- **Adım:** Aidat ekranında **Borcu yoktur belgesi** al (borç varsa önce 08 senaryosunda ödeme yap ya da belgenin neden verilmediğini not et); PDF'teki doğrulama kodunu/karekod adresini oturumsuz pencerede `http://localhost:3001/dogrula/<kod>` olarak aç
+- **Adım:** Aidat ekranında **Borcu yoktur belgesi** al (borç varsa önce 08 senaryosunda ödeme yap ya da belgenin neden verilmediğini not et); PDF'teki doğrulama kodunu/karekod adresini oturumsuz pencerede `http://localhost:3101/dogrula/<kod>` olarak aç
 - **Beklenen:** sayfa yalnız site adı, bölüm ve tarihi gösterir (kişisel veri yok); uydurma kodla açınca "geçersiz/bulunamadı"
 - **Sonuç:** `O-ACIK-01`
 
 #### O-ACIK-02 · Yetkisiz sayfa
-- **Hesap:** GÖREVLİ · **Nerede:** http://localhost:3001/dashboard/personnel
+- **Hesap:** GÖREVLİ · **Nerede:** http://localhost:3101/dashboard/personnel
 - **Beklenen:** `/dashboard/forbidden`: kişinin rolleri ve sayfanın gerektirdiği roller yazar; "Panele dön" bağlantısı çalışır; sonsuz yönlendirme yok
 - **Sonuç:** `O-ACIK-02`

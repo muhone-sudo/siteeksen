@@ -2,15 +2,15 @@
 
 > Bu dosya koddan üretilir (`bash docs/ozellik-haritasi/arac/uret.sh`); elle düzenlemeyin. Kurallar, hesaplar ve sorgular: [00-baslangic.md](00-baslangic.md).
 
-Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-00), sonra sayfadaki her düğme/form/seçim sırayla denenir. Formlarda önce zorunlu alanları boş bırakıp gönder (doğrulama hatası beklenir, kayıt OLUŞMAMALI), sonra gerçekçi değerlerle doldur. Girilen değerleri gözleme yaz; sonraki adımlar ve senaryolar bu kayıtları kullanır.
+Panel: http://localhost:3101. Her sayfa için önce **sayfa açılışı** (…-00), sonra sayfadaki her düğme/form/seçim sırayla denenir. Formlarda önce zorunlu alanları boş bırakıp gönder (doğrulama hatası beklenir, kayıt OLUŞMAMALI), sonra gerçekçi değerlerle doldur. Girilen değerleri gözleme yaz; sonraki adımlar ve senaryolar bu kayıtları kullanır.
 
 ### Enerji — `/dashboard/energy`
 - Dosya: `admin/src/app/(dashboard)/dashboard/energy/page.tsx`
 - Panel erişimi: MANAGER/BOARD_MEMBER/AUDITOR/STAFF — Enerji analizi
 
 #### P-ENERGY-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ, GÖREVLİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/dashboard/energy
-- **Adım:** http://localhost:3001/dashboard/energy adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ, GÖREVLİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3101/dashboard/energy
+- **Adım:** http://localhost:3101/dashboard/energy adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: `GET /energy/trends` (energy_analytics)
 - **Adım:** Veri yüklenir: `GET /energy/anomalies` (energy_analytics)
 - **Adım:** Kart (satır 28): Dönemsel tüketim
@@ -31,8 +31,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: MANAGER/BOARD_MEMBER/AUDITOR — Karbon ayak izi
 
 #### P-ESG-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/dashboard/esg
-- **Adım:** http://localhost:3001/dashboard/esg adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3101/dashboard/esg
+- **Adım:** http://localhost:3101/dashboard/esg adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: `GET /esg/consumption` (esg)
 - **Adım:** Kart (satır 29): Tüketim
 - **Adım:** Tablo sütunları görünür ve dolu/boş durumu doğru: Tür \| Toplam tüketim \| Sayaç \| Okuma \| Katsayı (kgCO₂e / birim)
@@ -45,7 +45,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-ESG-00`
 
 #### P-ESG-01 · Düğme: Hesapla
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/esg
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/esg
 - **Adım:** "Hesapla" düğme öğesine bas
 - **Beklenen (yazma):** `POST /esg/carbon-footprint` (esg, `services/esg/main.go:97`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: AUDITOR/BOARD_MEMBER/MANAGER
@@ -60,8 +60,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: MANAGER/BOARD_MEMBER/AUDITOR — Memnuniyet sonuçları
 
 #### P-NPS-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/dashboard/nps
-- **Adım:** http://localhost:3001/dashboard/nps adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3101/dashboard/nps
+- **Adım:** http://localhost:3101/dashboard/nps adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: `GET /nps` (nps)
 - **Adım:** Veri yüklenir: `GET /nps/:id` (nps)
 - **Adım:** Veri yüklenir: `GET /nps/:id/comments` (nps)
@@ -76,20 +76,20 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-NPS-00`
 
 #### P-NPS-01 · Düğme: Ölçüm başlat
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/nps
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/nps
 - **Adım:** "Ölçüm başlat" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Yetki (olumsuz):** DENETÇİ ile bu düğme GÖRÜNMEMELİ (yazma yalnız MANAGER/BOARD_MEMBER).
 - **Sonuç:** http://localhost:18000/sonuc → `P-NPS-01`
 
 #### P-NPS-02 · Düğme: Sonuç
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/nps
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/nps
 - **Adım:** "Sonuç" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-NPS-02`
 
 #### P-NPS-03 · Düğme: Kapat
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/nps
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/nps
 - **Adım:** "Kapat" düğme öğesine bas
 - **Beklenen (yazma):** `POST /nps/:id/close` (nps, `services/nps/main.go:192`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -102,7 +102,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-NPS-03`
 
 #### P-NPS-04 · Form: Memnuniyet ölçümü başlat
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/nps
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/nps
 - **Adım:** Formu aç; alanlar: Başlık*, Açıklama, Bitiş (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -125,8 +125,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: MANAGER/BOARD_MEMBER/AUDITOR — Mali raporlar
 
 #### P-REPORTS-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/dashboard/reports
-- **Adım:** http://localhost:3001/dashboard/reports adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3101/dashboard/reports
+- **Adım:** http://localhost:3101/dashboard/reports adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: `GET /governance/assemblies` (governance)
 - **Adım:** Veri yüklenir: `GET /governance/budgets` (governance)
 - **Adım:** Kart (satır 47): Borçlu listesi
@@ -141,13 +141,13 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-REPORTS-00`
 
 #### P-REPORTS-01 · Düğme: PDF
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/reports
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/reports
 - **Adım:** "PDF" düğme öğesine bas
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `P-REPORTS-01`
 
 #### P-REPORTS-02 · Düğme: Excel
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/reports
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/reports
 - **Adım:** "Excel" düğme öğesine bas
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `P-REPORTS-02`

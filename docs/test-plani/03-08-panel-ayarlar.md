@@ -2,15 +2,15 @@
 
 > Bu dosya koddan üretilir (`bash docs/ozellik-haritasi/arac/uret.sh`); elle düzenlemeyin. Kurallar, hesaplar ve sorgular: [00-baslangic.md](00-baslangic.md).
 
-Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-00), sonra sayfadaki her düğme/form/seçim sırayla denenir. Formlarda önce zorunlu alanları boş bırakıp gönder (doğrulama hatası beklenir, kayıt OLUŞMAMALI), sonra gerçekçi değerlerle doldur. Girilen değerleri gözleme yaz; sonraki adımlar ve senaryolar bu kayıtları kullanır.
+Panel: http://localhost:3101. Her sayfa için önce **sayfa açılışı** (…-00), sonra sayfadaki her düğme/form/seçim sırayla denenir. Formlarda önce zorunlu alanları boş bırakıp gönder (doğrulama hatası beklenir, kayıt OLUŞMAMALI), sonra gerçekçi değerlerle doldur. Girilen değerleri gözleme yaz; sonraki adımlar ve senaryolar bu kayıtları kullanır.
 
 ### Ayarlar — `/dashboard/settings`
 - Dosya: `admin/src/app/(dashboard)/dashboard/settings/page.tsx`
 - Panel erişimi: MANAGER/BOARD_MEMBER — Site ayarları
 
 #### P-SETTINGS-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ (sonra KURUL ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/dashboard/settings
-- **Adım:** http://localhost:3001/dashboard/settings adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ (sonra KURUL ile yalnız görüntüleme) · **Nerede:** http://localhost:3101/dashboard/settings
+- **Adım:** http://localhost:3101/dashboard/settings adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: 
 - **Adım:** Veri yüklenir: `GET /settings/definitions` (settings)
 - **Adım:** Veri yüklenir: `GET /settings-history` (settings)
@@ -53,13 +53,13 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-SETTINGS-00`
 
 #### P-SETTINGS-01 · Düğme: Düzenle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/settings
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/settings
 - **Adım:** "Düzenle" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-SETTINGS-01`
 
 #### P-SETTINGS-02 · Düğme: Sıfırla
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/settings
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/settings
 - **Adım:** "Sıfırla" düğme öğesine bas (onay penceresi çıkarsa önce Vazgeç → hiçbir şey değişmemeli; sonra tekrar bas ve onayla)
 - **Beklenen (yazma):** `DELETE /settings/:key` (settings, `services/settings/main.go:126`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER; işleyicide `hasRole` (backend/services/settings/visibility.go:74)
@@ -73,7 +73,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-SETTINGS-02`
 
 #### P-SETTINGS-03 · Form: (başlık dinamik)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/settings
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/settings
 - **Adım:** Formu aç; alanlar: Değer (* zorunlu)
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
 - **Adım:** Başarı mesajı tam olarak şu anlamda olmalı: "Ayar kaydedildi"
@@ -89,7 +89,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-SETTINGS-03`
 
 #### P-SETTINGS-04 · Düğme: Şimdi imha et
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/settings
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/settings
 - **Adım:** "Şimdi imha et" düğme öğesine bas
 - **Adım:** Öğe `retention-card` bileşenindedir (satır 26)
 - **Beklenen (yazma):** `POST /retention-rules/run` (settings, `services/settings/main.go:152`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
@@ -109,14 +109,14 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-SETTINGS-04`
 
 #### P-SETTINGS-05 · Düğme: Düzenle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/settings
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/settings
 - **Adım:** "Düzenle" düğme öğesine bas
 - **Adım:** Öğe `retention-card` bileşenindedir (satır 35)
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-SETTINGS-05`
 
 #### P-SETTINGS-06 · Form: Saklama süresi
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/settings
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/settings
 - **Adım:** Formu aç; alanlar: Saklama süresi (ay)*, Gerekçe (işleme amacı / hukuki dayanak)* (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -139,28 +139,28 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-SETTINGS-06`
 
 #### P-SETTINGS-07 · Düğme: Kamera ekle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/settings
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/settings
 - **Adım:** "Kamera ekle" düğme öğesine bas
 - **Adım:** Öğe `privacy-card` bileşenindedir (satır 34)
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-SETTINGS-07`
 
 #### P-SETTINGS-08 · Düğme: Düzenle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/settings
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/settings
 - **Adım:** "Düzenle" düğme öğesine bas
 - **Adım:** Öğe `privacy-card` bileşenindedir (satır 42)
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-SETTINGS-08`
 
 #### P-SETTINGS-09 · Düğme: Sistem ekle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/settings
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/settings
 - **Adım:** "Sistem ekle" düğme öğesine bas
 - **Adım:** Öğe `privacy-card` bileşenindedir (satır 53)
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-SETTINGS-09`
 
 #### P-SETTINGS-10 · Form: (başlık dinamik)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/settings
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/settings
 - **Adım:** Formu aç; alanlar: Konum*, Alan türü, Saklama (gün)*, Genel kurul kararı, Amaç*, Kayıtlara kimler erişir, Somut gerekçe* (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -183,7 +183,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-SETTINGS-10`
 
 #### P-SETTINGS-11 · Form: Biyometrik sistem
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/settings
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/settings
 - **Adım:** Formu aç; alanlar: Sistem adı*, Yöntem, Amaç*, Alternatif yöntem*, Saklama notu (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -199,14 +199,14 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-SETTINGS-11`
 
 #### P-SETTINGS-12 · Düğme: Siteyi pasife al
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/settings
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/settings
 - **Adım:** "Siteyi pasife al" düğme öğesine bas
 - **Adım:** Öğe `lifecycle-card` bileşenindedir (satır 37)
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-SETTINGS-12`
 
 #### P-SETTINGS-13 · Form: (başlık dinamik)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/settings
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/settings
 - **Adım:** Formu aç; alanlar: Gerekçe* (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -231,28 +231,28 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-SETTINGS-13`
 
 #### P-SETTINGS-14 · Düğme: Değişiklik öner
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/settings
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/settings
 - **Adım:** "Değişiklik öner" düğme öğesine bas
 - **Adım:** Öğe `visibility-card` bileşenindedir (satır 35)
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-SETTINGS-14`
 
 #### P-SETTINGS-15 · Düğme: Onayla
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/settings
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/settings
 - **Adım:** "Onayla" düğme öğesine bas
 - **Adım:** Öğe `visibility-card` bileşenindedir (satır 61)
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-SETTINGS-15`
 
 #### P-SETTINGS-16 · Düğme: Reddet
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/settings
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/settings
 - **Adım:** "Reddet" düğme öğesine bas
 - **Adım:** Öğe `visibility-card` bileşenindedir (satır 62)
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-SETTINGS-16`
 
 #### P-SETTINGS-17 · Düğme: Geri çek
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/settings
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/settings
 - **Adım:** "Geri çek" düğme öğesine bas
 - **Adım:** Öğe `visibility-card` bileşenindedir (satır 66)
 - **Beklenen (okuma):** `GET /settings` (settings) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
@@ -267,7 +267,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-SETTINGS-17`
 
 #### P-SETTINGS-18 · Form: Görünürlük değişikliği öner
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/settings
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/settings
 - **Adım:** Formu aç; alanlar: Gerekçe* (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -283,7 +283,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-SETTINGS-18`
 
 #### P-SETTINGS-19 · Form: (başlık dinamik)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/settings
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/settings
 - **Adım:** Formu aç; alanlar: Not (* zorunlu)
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
 - **Adım:** Öğe `visibility-card` bileşenindedir (satır 108)
@@ -312,7 +312,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-SETTINGS-19`
 
 #### P-SETTINGS-20 · Düğme: Konumu kaydet
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/settings
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/settings
 - **Adım:** "Konumu kaydet" düğme öğesine bas
 - **Adım:** Öğe `location-card` bileşenindedir (satır 54)
 - **Beklenen (yazma):** `PUT /property/location` (identity, `services/identity/main.go:167`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
@@ -325,7 +325,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-SETTINGS-20`
 
 #### P-SETTINGS-21 · Düğme: Konumu sil
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/settings
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/settings
 - **Adım:** "Konumu sil" düğme öğesine bas (onay penceresi çıkarsa önce Vazgeç → hiçbir şey değişmemeli; sonra tekrar bas ve onayla)
 - **Adım:** Öğe `location-card` bileşenindedir (satır 59)
 - **Beklenen (yazma):** `PUT /property/location` (identity, `services/identity/main.go:167`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.

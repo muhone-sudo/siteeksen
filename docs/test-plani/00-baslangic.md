@@ -43,11 +43,11 @@ Betik "TEST ORTAMI HAZIR" yazınca başlanır. Her açılış **taze veritabanı
 | Ne | Adres | Not |
 |---|---|---|
 | Araçlar sayfası | http://localhost:18000 | Bütün bağlantılar burada |
-| Yönetim paneli | http://localhost:3001 | Next.js |
-| Sakin uygulaması (web) | http://localhost:3002 | Flutter web; pencereyi ~400 px genişliğe daraltın |
-| Yönetici uygulaması (web) | http://localhost:3003 | Flutter web |
-| Tedarikçi uygulaması (web) | http://localhost:3004 | SiteEksen Tedarikçi (Usta & Hizmet); ~400 px genişlik |
-| Tedarikçi paneli / Platform paneli | http://localhost:3001/tedarikci · http://localhost:3001/platform | Usta & Hizmet; girişleri ayrı (`/tedarikci/giris`, `/login`) |
+| Yönetim paneli | http://localhost:3101 | Next.js |
+| Sakin uygulaması (web) | http://localhost:3102 | Flutter web; pencereyi ~400 px genişliğe daraltın |
+| Yönetici uygulaması (web) | http://localhost:3103 | Flutter web |
+| Tedarikçi uygulaması (web) | http://localhost:3104 | SiteEksen Tedarikçi (Usta & Hizmet); ~400 px genişlik |
+| Tedarikçi paneli / Platform paneli | http://localhost:3101/tedarikci · http://localhost:3101/platform | Usta & Hizmet; girişleri ayrı (`/tedarikci/giris`, `/login`) |
 | Veritabanı — Adminer | http://localhost:18080 | Sistem **PostgreSQL**, sunucu **db**, kullanıcı **test_okuyucu**, şifre **test_okuyucu**, veritabanı **siteeksen**. Sorgu: sol üstte **SQL komutu** |
 | E-posta — Mailpit | http://localhost:18025 | Servislerin gönderdiği bütün e-postalar |
 | SMS kutusu | http://localhost:18000/sms | Sahte Netgsm; numara 5XXXXXXXXX biçiminde |
@@ -55,8 +55,8 @@ Betik "TEST ORTAMI HAZIR" yazınca başlanır. Her açılış **taze veritabanı
 | Cihaz simülatörü | http://localhost:18000/cihaz | Sensör okuması, geçiş cihazı sinyali |
 | Servis günlükleri | http://localhost:18000/gunluk | Hata ayıklama |
 | **Test sonuçları** | http://localhost:18000/sonuc | Her testin sonucu buraya |
-| Borcu yoktur doğrulama | http://localhost:3001/dogrula/&lt;kod&gt; | Belgedeki karekodun açtığı herkese açık sayfa |
-| Kart ödemesi dönüşü | http://localhost:3001/odeme-sonuc | Ödeme sayfasından sonra tarayıcı buraya gelir |
+| Borcu yoktur doğrulama | http://localhost:3101/dogrula/&lt;kod&gt; | Belgedeki karekodun açtığı herkese açık sayfa |
+| Kart ödemesi dönüşü | http://localhost:3101/odeme-sonuc | Ödeme sayfasından sonra tarayıcı buraya gelir |
 
 ## 0.4 Hesaplar (hepsinin şifresi `Demo123!`)
 

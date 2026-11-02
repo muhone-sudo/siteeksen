@@ -57,6 +57,8 @@ func DBErrorResponse(c *gin.Context, err error) bool {
 			"code":  "PROPERTY_INACTIVE",
 			"note":  "Site yönetimi hizmeti sonlandırdı. Geçmiş kayıtlar görüntülenebilir; site yeniden etkinleştirilirse işlemler açılır.",
 		})
+	case "SE002": // seçilen teklif ve talep içeriği kilitli (083)
+		c.JSON(http.StatusConflict, gin.H{"error": "Teklif seçildi; talep ve seçilen teklifin içeriği artık değiştirilemez", "code": "CONTENT_LOCKED"})
 	default:
 		return false
 	}

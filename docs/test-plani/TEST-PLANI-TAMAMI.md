@@ -47,11 +47,11 @@ Betik "TEST ORTAMI HAZIR" yazınca başlanır. Her açılış **taze veritabanı
 | Ne | Adres | Not |
 |---|---|---|
 | Araçlar sayfası | http://localhost:18000 | Bütün bağlantılar burada |
-| Yönetim paneli | http://localhost:3001 | Next.js |
-| Sakin uygulaması (web) | http://localhost:3002 | Flutter web; pencereyi ~400 px genişliğe daraltın |
-| Yönetici uygulaması (web) | http://localhost:3003 | Flutter web |
-| Tedarikçi uygulaması (web) | http://localhost:3004 | SiteEksen Tedarikçi (Usta & Hizmet); ~400 px genişlik |
-| Tedarikçi paneli / Platform paneli | http://localhost:3001/tedarikci · http://localhost:3001/platform | Usta & Hizmet; girişleri ayrı (`/tedarikci/giris`, `/login`) |
+| Yönetim paneli | http://localhost:3101 | Next.js |
+| Sakin uygulaması (web) | http://localhost:3102 | Flutter web; pencereyi ~400 px genişliğe daraltın |
+| Yönetici uygulaması (web) | http://localhost:3103 | Flutter web |
+| Tedarikçi uygulaması (web) | http://localhost:3104 | SiteEksen Tedarikçi (Usta & Hizmet); ~400 px genişlik |
+| Tedarikçi paneli / Platform paneli | http://localhost:3101/tedarikci · http://localhost:3101/platform | Usta & Hizmet; girişleri ayrı (`/tedarikci/giris`, `/login`) |
 | Veritabanı — Adminer | http://localhost:18080 | Sistem **PostgreSQL**, sunucu **db**, kullanıcı **test_okuyucu**, şifre **test_okuyucu**, veritabanı **siteeksen**. Sorgu: sol üstte **SQL komutu** |
 | E-posta — Mailpit | http://localhost:18025 | Servislerin gönderdiği bütün e-postalar |
 | SMS kutusu | http://localhost:18000/sms | Sahte Netgsm; numara 5XXXXXXXXX biçiminde |
@@ -59,8 +59,8 @@ Betik "TEST ORTAMI HAZIR" yazınca başlanır. Her açılış **taze veritabanı
 | Cihaz simülatörü | http://localhost:18000/cihaz | Sensör okuması, geçiş cihazı sinyali |
 | Servis günlükleri | http://localhost:18000/gunluk | Hata ayıklama |
 | **Test sonuçları** | http://localhost:18000/sonuc | Her testin sonucu buraya |
-| Borcu yoktur doğrulama | http://localhost:3001/dogrula/&lt;kod&gt; | Belgedeki karekodun açtığı herkese açık sayfa |
-| Kart ödemesi dönüşü | http://localhost:3001/odeme-sonuc | Ödeme sayfasından sonra tarayıcı buraya gelir |
+| Borcu yoktur doğrulama | http://localhost:3101/dogrula/&lt;kod&gt; | Belgedeki karekodun açtığı herkese açık sayfa |
+| Kart ödemesi dönüşü | http://localhost:3101/odeme-sonuc | Ödeme sayfasından sonra tarayıcı buraya gelir |
 
 ## 0.4 Hesaplar (hepsinin şifresi `Demo123!`)
 
@@ -137,14 +137,14 @@ Senaryolar (08) birden çok hesabın birlikte çalıştığı akışlardır; say
 ## 1.1 Giriş
 
 #### O-GIRIS-01 · Panele doğru bilgilerle giriş
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/login
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/login
 - **Adım:** Telefona `5551234567`, şifreye `Demo123!` yaz, giriş yap
 - **Beklenen:** `/dashboard` açılır; üst barda kişi adı; kenar çubuğunda site seçici "Güneş Sitesi"; zil simgesi görünür
 - **Veritabanı:** Q-AUDIT → `source = API`, `entity_type = auth`, giriş satırı 200
 - **Sonuç:** `O-GIRIS-01`
 
 #### O-GIRIS-02 · Telefon biçimleri
-- **Hesap:** YÖNETİCİ · **Nerede:** panel giriş, sakin uygulaması giriş (http://localhost:3002)
+- **Hesap:** YÖNETİCİ · **Nerede:** panel giriş, sakin uygulaması giriş (http://localhost:3102)
 - **Adım:** Sırayla `05551234567`, `+905551234567`, `0555 123 45 67` ile giriş dene (her denemeden sonra çıkış yap)
 - **Beklenen:** üçü de aynı hesaba girer
 - **Sonuç:** `O-GIRIS-02`
@@ -176,13 +176,13 @@ Senaryolar (08) birden çok hesabın birlikte çalıştığı akışlardır; say
 - **Sonuç:** `O-GIRIS-06`
 
 #### O-GIRIS-07 · Sakin panele giremez
-- **Hesap:** KİRACI · **Nerede:** http://localhost:3001/login
+- **Hesap:** KİRACI · **Nerede:** http://localhost:3101/login
 - **Adım:** KİRACI bilgileriyle panele giriş yap
 - **Beklenen:** panel sayfaları açılmaz (`/dashboard/forbidden` ya da girişte yönetim yetkisi olmadığı mesajı); hiçbir yönetim verisi görünmez
 - **Sonuç:** `O-GIRIS-07`
 
 #### O-GIRIS-08 · Yönetici uygulamasına sakin girişi
-- **Hesap:** KİRACI · **Nerede:** http://localhost:3003
+- **Hesap:** KİRACI · **Nerede:** http://localhost:3103
 - **Adım:** Giriş yap
 - **Beklenen:** yönetim yetkisi olmadığı anlaşılır şekilde söylenir; yönetim menüleri görünmez
 - **Sonuç:** `O-GIRIS-08`
@@ -210,7 +210,7 @@ Senaryolar (08) birden çok hesabın birlikte çalıştığı akışlardır; say
 - **Sonuç:** `O-ETKIN-01`
 
 #### O-ETKIN-02 · Kodu yanlış girme
-- **Hesap:** yeni sakin · **Nerede:** http://localhost:3001/activate (ve sakin uygulamasında "Hesabımı etkinleştir")
+- **Hesap:** yeni sakin · **Nerede:** http://localhost:3101/activate (ve sakin uygulamasında "Hesabımı etkinleştir")
 - **Adım:** Telefon 5550000031, kod `AAAAAAAA`, şifre `Yeni1234`
 - **Beklenen:** kod geçersiz mesajı; 5 hatalı denemede kodun kilitlendiği söylenir (5. denemeyi yapmadan bırak)
 - **Sonuç:** `O-ETKIN-02`
@@ -233,7 +233,7 @@ Senaryolar (08) birden çok hesabın birlikte çalıştığı akışlardır; say
 ## 1.3 Şifremi unuttum
 
 #### O-SIFRE-01 · Sakinin kendi kod isteği
-- **Hesap:** MALİK_B1 · **Nerede:** sakin uygulaması giriş → şifremi unuttum (ya da http://localhost:3001/activate → kodu SMS ile gönder)
+- **Hesap:** MALİK_B1 · **Nerede:** sakin uygulaması giriş → şifremi unuttum (ya da http://localhost:3101/activate → kodu SMS ile gönder)
 - **Adım:** 5550000011 için kod iste; SMS kutusundan kodu al; yeni şifre `Fatma1234` belirle; yeni şifreyle gir; sonra şifreyi yine `Demo123!` yap (O-SIFRE-03 ile)
 - **Beklenen:** yanıt numaranın kayıtlı olup olmadığını söylemez; SMS (ve e-posta) gelir; kod 15 dk geçerli; şifre değişince **açık bütün oturumlar kapanır** (başka sekmede açık oturum giriş ekranına düşer)
 - **Sonuç:** `O-SIFRE-01`
@@ -326,12 +326,12 @@ Senaryolar (08) birden çok hesabın birlikte çalıştığı akışlardır; say
 
 #### O-ACIK-01 · Borcu yoktur belgesinin doğrulanması
 - **Hesap:** MALİK_B1 (sakin uygulaması), sonra oturumsuz tarayıcı
-- **Adım:** Aidat ekranında **Borcu yoktur belgesi** al (borç varsa önce 08 senaryosunda ödeme yap ya da belgenin neden verilmediğini not et); PDF'teki doğrulama kodunu/karekod adresini oturumsuz pencerede `http://localhost:3001/dogrula/<kod>` olarak aç
+- **Adım:** Aidat ekranında **Borcu yoktur belgesi** al (borç varsa önce 08 senaryosunda ödeme yap ya da belgenin neden verilmediğini not et); PDF'teki doğrulama kodunu/karekod adresini oturumsuz pencerede `http://localhost:3101/dogrula/<kod>` olarak aç
 - **Beklenen:** sayfa yalnız site adı, bölüm ve tarihi gösterir (kişisel veri yok); uydurma kodla açınca "geçersiz/bulunamadı"
 - **Sonuç:** `O-ACIK-01`
 
 #### O-ACIK-02 · Yetkisiz sayfa
-- **Hesap:** GÖREVLİ · **Nerede:** http://localhost:3001/dashboard/personnel
+- **Hesap:** GÖREVLİ · **Nerede:** http://localhost:3101/dashboard/personnel
 - **Beklenen:** `/dashboard/forbidden`: kişinin rolleri ve sayfanın gerektirdiği roller yazar; "Panele dön" bağlantısı çalışır; sonsuz yönlendirme yok
 - **Sonuç:** `O-ACIK-02`
 
@@ -441,7 +441,7 @@ Her satır bir test ID'sidir; satırdaki beş hesabın hepsi beklendiği gibiyse
 Güneş Sitesi ve Deniz Apartmanı (Test B) ayrı sitelerdir. Veri hiçbir yoldan karşı siteye geçmemeli.
 
 #### R-IZOLASYON-01 · Diğer sitenin sakini Güneş Sitesi verisini göremez
-- **Hesap:** SİTE_B · **Nerede:** Sakin uygulaması (http://localhost:3002)
+- **Hesap:** SİTE_B · **Nerede:** Sakin uygulaması (http://localhost:3102)
 - **Adım:** Giriş yap; duyurular, ilanlar, anketler, belgeler, borçlar, bildirimler ekranlarını gez
 - **Beklenen:** yalnız Deniz Apartmanı verisi; Güneş Sitesi'nin duyuru/ilan/anket/belgesi hiçbir ekranda yok; site seçicide yalnız Deniz Apartmanı
 - **Sonuç:** `R-IZOLASYON-01`
@@ -469,7 +469,7 @@ Güneş Sitesi ve Deniz Apartmanı (Test B) ayrı sitelerdir. Veri hiçbir yolda
 ## 2.5 Yönetici uygulamasında rol
 
 #### R-YONMOBIL-ROL · Yönetici uygulaması rol süzmesi
-- **Hesap:** sırayla YÖNETİCİ, KURUL, DENETÇİ, GÖREVLİ, KİRACI · **Nerede:** http://localhost:3003
+- **Hesap:** sırayla YÖNETİCİ, KURUL, DENETÇİ, GÖREVLİ, KİRACI · **Nerede:** http://localhost:3103
 - **Adım:** Her hesapla giriş yap, ana menüdeki grupları ve öğeleri listele
 - **Beklenen:** YÖNETİCİ her şeyi görür; DENETÇİ yazma düğmelerini görmez; GÖREVLİ yalnız operasyon öğelerini görür; KİRACI girişte yönetim yetkisi olmadığı uyarısını alır
 - **Sonuç:** `R-YONMOBIL-ROL`
@@ -480,15 +480,15 @@ Güneş Sitesi ve Deniz Apartmanı (Test B) ayrı sitelerdir. Veri hiçbir yolda
 
 
 
-Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-00), sonra sayfadaki her düğme/form/seçim sırayla denenir. Formlarda önce zorunlu alanları boş bırakıp gönder (doğrulama hatası beklenir, kayıt OLUŞMAMALI), sonra gerçekçi değerlerle doldur. Girilen değerleri gözleme yaz; sonraki adımlar ve senaryolar bu kayıtları kullanır.
+Panel: http://localhost:3101. Her sayfa için önce **sayfa açılışı** (…-00), sonra sayfadaki her düğme/form/seçim sırayla denenir. Formlarda önce zorunlu alanları boş bırakıp gönder (doğrulama hatası beklenir, kayıt OLUŞMAMALI), sonra gerçekçi değerlerle doldur. Girilen değerleri gözleme yaz; sonraki adımlar ve senaryolar bu kayıtları kullanır.
 
 ### Panel — `/dashboard`
 - Dosya: `admin/src/app/(dashboard)/dashboard/page.tsx`
 - Panel erişimi: MANAGER/BOARD_MEMBER/AUDITOR/STAFF — Yönetim paneli
 
 #### P-ANA-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ, GÖREVLİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/dashboard
-- **Adım:** http://localhost:3001/dashboard adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ, GÖREVLİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3101/dashboard
+- **Adım:** http://localhost:3101/dashboard adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: `GET /dashboard/stats` (gateway)
 - **Adım:** Veri yüklenir: `GET /dashboard/recent-payments` (gateway)
 - **Adım:** Veri yüklenir: `GET /dashboard/recent-requests` (gateway)
@@ -512,15 +512,15 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 
 
 
-Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-00), sonra sayfadaki her düğme/form/seçim sırayla denenir. Formlarda önce zorunlu alanları boş bırakıp gönder (doğrulama hatası beklenir, kayıt OLUŞMAMALI), sonra gerçekçi değerlerle doldur. Girilen değerleri gözleme yaz; sonraki adımlar ve senaryolar bu kayıtları kullanır.
+Panel: http://localhost:3101. Her sayfa için önce **sayfa açılışı** (…-00), sonra sayfadaki her düğme/form/seçim sırayla denenir. Formlarda önce zorunlu alanları boş bırakıp gönder (doğrulama hatası beklenir, kayıt OLUŞMAMALI), sonra gerçekçi değerlerle doldur. Girilen değerleri gözleme yaz; sonraki adımlar ve senaryolar bu kayıtları kullanır.
 
 ### Duyurular — `/dashboard/announcements`
 - Dosya: `admin/src/app/(dashboard)/dashboard/announcements/page.tsx`
 - Panel erişimi: MANAGER/BOARD_MEMBER/STAFF — Duyuru yönetimi
 
 #### P-ANNOUNCEMENTS-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ (sonra KURUL, GÖREVLİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/dashboard/announcements
-- **Adım:** http://localhost:3001/dashboard/announcements adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ (sonra KURUL, GÖREVLİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3101/dashboard/announcements
+- **Adım:** http://localhost:3101/dashboard/announcements adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: `GET /announcements` (community)
 - **Adım:** Veri yüklenir: `GET /announcements/:id/read-stats` (community)
 - **Adım:** Tablo sütunları görünür ve dolu/boş durumu doğru: Başlık \| Kategori \| Öncelik \| Yayım \| Okunma
@@ -533,20 +533,20 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-ANNOUNCEMENTS-00`
 
 #### P-ANNOUNCEMENTS-01 · Düğme: Duyuru yayımla
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/announcements
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/announcements
 - **Adım:** "Duyuru yayımla" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Yetki (olumsuz):** GÖREVLİ ile bu düğme GÖRÜNMEMELİ (yazma yalnız MANAGER/BOARD_MEMBER).
 - **Sonuç:** http://localhost:18000/sonuc → `P-ANNOUNCEMENTS-01`
 
 #### P-ANNOUNCEMENTS-02 · Düğme: İstatistik
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/announcements
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/announcements
 - **Adım:** "İstatistik" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-ANNOUNCEMENTS-02`
 
 #### P-ANNOUNCEMENTS-03 · Düğme: Sabitlemeyi kaldır
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/announcements
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/announcements
 - **Adım:** "Sabitlemeyi kaldır" düğme öğesine bas
 - **Beklenen (yazma):** `POST /announcements/:id/pin` (community, `services/community/main.go:173`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -559,7 +559,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-ANNOUNCEMENTS-03`
 
 #### P-ANNOUNCEMENTS-04 · Form: Duyuru yayımla
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/announcements
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/announcements
 - **Adım:** Formu aç; alanlar: Başlık*, İçerik*, Kategori, Öncelik, Yayından kalkış, Sabitle (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -583,8 +583,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: MANAGER/BOARD_MEMBER — İlan panosu onayı
 
 #### P-BULLETINS-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ (sonra KURUL ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/dashboard/bulletins
-- **Adım:** http://localhost:3001/dashboard/bulletins adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ (sonra KURUL ile yalnız görüntüleme) · **Nerede:** http://localhost:3101/dashboard/bulletins
+- **Adım:** http://localhost:3101/dashboard/bulletins adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: `GET /bulletins` (bulletin)
 - **Adım:** Veri yüklenir: `GET /bulletins-summary` (bulletin)
 - **Adım:** Veri yüklenir: `GET /bulletins/:id/comments` (bulletin)
@@ -597,7 +597,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-BULLETINS-00`
 
 #### P-BULLETINS-01 · Düğme: Süresi dolanları işle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/bulletins
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/bulletins
 - **Adım:** "Süresi dolanları işle" düğme öğesine bas
 - **Beklenen (yazma):** `POST /bulletins/expire-due` (bulletin, `services/bulletin/main.go:205`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -609,13 +609,13 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-BULLETINS-01`
 
 #### P-BULLETINS-02 · Düğme: Yorumlar
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/bulletins
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/bulletins
 - **Adım:** "Yorumlar" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-BULLETINS-02`
 
 #### P-BULLETINS-03 · Düğme: Onayla
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/bulletins
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/bulletins
 - **Adım:** "Onayla" düğme öğesine bas
 - **Beklenen (yazma):** `POST /bulletins/:id/approve` (bulletin, `services/bulletin/main.go:170`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -629,13 +629,13 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-BULLETINS-03`
 
 #### P-BULLETINS-04 · Düğme: Reddet
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/bulletins
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/bulletins
 - **Adım:** "Reddet" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-BULLETINS-04`
 
 #### P-BULLETINS-05 · Düğme: Kapat
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/bulletins
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/bulletins
 - **Adım:** "Kapat" düğme öğesine bas
 - **Beklenen (yazma):** `POST /bulletins/:id/close` (bulletin, `services/bulletin/main.go:106`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: BOARD_MEMBER/MANAGER
@@ -647,7 +647,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-BULLETINS-05`
 
 #### P-BULLETINS-06 · Form: İlanı reddet
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/bulletins
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/bulletins
 - **Adım:** Formu aç; alanlar: Gerekçe* (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -664,7 +664,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-BULLETINS-06`
 
 #### P-BULLETINS-07 · Düğme: Gizle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/bulletins
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/bulletins
 - **Adım:** "Gizle" düğme öğesine bas (onay penceresi çıkarsa önce Vazgeç → hiçbir şey değişmemeli; sonra tekrar bas ve onayla)
 - **Beklenen (yazma):** `DELETE /bulletin-comments/:id` (bulletin, `services/bulletin/main.go:154`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: BOARD_MEMBER/MANAGER
@@ -682,8 +682,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: MANAGER/BOARD_MEMBER/AUDITOR — Acil durum planı ve sakin acil bilgi kartları (özel nitelikli veri)
 
 #### P-EMERGENCY-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/dashboard/emergency
-- **Adım:** http://localhost:3001/dashboard/emergency adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3101/dashboard/emergency
+- **Adım:** http://localhost:3101/dashboard/emergency adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: `GET /emergency/info` (community)
 - **Adım:** Veri yüklenir: `GET /emergency/drills` (community)
 - **Adım:** Veri yüklenir: `GET /emergency/checks` (community)
@@ -709,27 +709,27 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-EMERGENCY-00`
 
 #### P-EMERGENCY-01 · Düğme: Çağrı başlat
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/emergency
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/emergency
 - **Adım:** "Çağrı başlat" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Yetki (olumsuz):** DENETÇİ ile bu düğme GÖRÜNMEMELİ (yazma yalnız MANAGER/BOARD_MEMBER).
 - **Sonuç:** http://localhost:18000/sonuc → `P-EMERGENCY-01`
 
 #### P-EMERGENCY-02 · Düğme: Yanıtlar
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/emergency
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/emergency
 - **Adım:** "Yanıtlar" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-EMERGENCY-02`
 
 #### P-EMERGENCY-03 · Düğme: Ekle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/emergency
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/emergency
 - **Adım:** "Ekle" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Yetki (olumsuz):** DENETÇİ ile bu düğme GÖRÜNMEMELİ (yazma yalnız MANAGER/BOARD_MEMBER).
 - **Sonuç:** http://localhost:18000/sonuc → `P-EMERGENCY-03`
 
 #### P-EMERGENCY-04 · Düğme: Sil
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/emergency
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/emergency
 - **Adım:** "Sil" düğme öğesine bas (onay penceresi çıkarsa önce Vazgeç → hiçbir şey değişmemeli; sonra tekrar bas ve onayla)
 - **Beklenen (yazma):** `DELETE /emergency/points/:id` (community, `services/community/emergency.go:91`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -739,14 +739,14 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-EMERGENCY-04`
 
 #### P-EMERGENCY-05 · Düğme: Ekle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/emergency
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/emergency
 - **Adım:** "Ekle" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Yetki (olumsuz):** DENETÇİ ile bu düğme GÖRÜNMEMELİ (yazma yalnız MANAGER/BOARD_MEMBER).
 - **Sonuç:** http://localhost:18000/sonuc → `P-EMERGENCY-05`
 
 #### P-EMERGENCY-06 · Düğme: Sil
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/emergency
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/emergency
 - **Adım:** "Sil" düğme öğesine bas (onay penceresi çıkarsa önce Vazgeç → hiçbir şey değişmemeli; sonra tekrar bas ve onayla)
 - **Beklenen (yazma):** `DELETE /emergency/contacts/:id` (community, `services/community/emergency.go:117`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -756,21 +756,21 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-EMERGENCY-06`
 
 #### P-EMERGENCY-07 · Düğme: Tatbikat kaydet
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/emergency
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/emergency
 - **Adım:** "Tatbikat kaydet" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Yetki (olumsuz):** DENETÇİ ile bu düğme GÖRÜNMEMELİ (yazma yalnız MANAGER/BOARD_MEMBER).
 - **Sonuç:** http://localhost:18000/sonuc → `P-EMERGENCY-07`
 
 #### P-EMERGENCY-08 · Düğme: Kartları görüntüle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/emergency
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/emergency
 - **Adım:** "Kartları görüntüle" düğme öğesine bas
 - **Beklenen (okuma):** `GET /emergency/cards` (community) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Yetki (olumsuz):** DENETÇİ ile bu düğme GÖRÜNMEMELİ (yazma yalnız MANAGER/BOARD_MEMBER).
 - **Sonuç:** http://localhost:18000/sonuc → `P-EMERGENCY-08`
 
 #### P-EMERGENCY-09 · Form: Nokta ekle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/emergency
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/emergency
 - **Adım:** Formu aç; alanlar: Tür, Ad*, Konum*, Not (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -786,7 +786,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-EMERGENCY-09`
 
 #### P-EMERGENCY-10 · Form: Acil iletişim ekle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/emergency
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/emergency
 - **Adım:** Formu aç; alanlar: Kategori, Ad*, Telefon*, Not (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -802,7 +802,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-EMERGENCY-10`
 
 #### P-EMERGENCY-11 · Form: Tatbikat raporu
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/emergency
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/emergency
 - **Adım:** Formu aç; alanlar: Tür, Tarih*, Katılımcı sayısı, Görülen eksiklikler*, Düzeltici ve önleyici faaliyetler (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -818,7 +818,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-EMERGENCY-11`
 
 #### P-EMERGENCY-12 · Form: Durum bildirimi çağrısı
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/emergency
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/emergency
 - **Adım:** Formu aç; alanlar: Tür, Başlık* (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -836,7 +836,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-EMERGENCY-12`
 
 #### P-EMERGENCY-13 · Düğme: Çağrıyı kapat
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/emergency
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/emergency
 - **Adım:** "Çağrıyı kapat" düğme öğesine bas
 - **Beklenen (yazma):** `POST /emergency/checks/:id/close` (community, `services/community/emergency.go:383`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -855,8 +855,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: MANAGER/BOARD_MEMBER/AUDITOR — DASK poliçeleri ve hasar kayıtları
 
 #### P-INSURANCE-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/dashboard/insurance
-- **Adım:** http://localhost:3001/dashboard/insurance adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3101/dashboard/insurance
+- **Adım:** http://localhost:3101/dashboard/insurance adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: `GET /insurance/dask` (contract)
 - **Adım:** Veri yüklenir: `GET /insurance/claims` (contract)
 - **Adım:** Kart (satır 39): Bağımsız bölüm DASK poliçeleri
@@ -870,27 +870,27 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-INSURANCE-00`
 
 #### P-INSURANCE-01 · Düğme: Poliçe gir
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/insurance
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/insurance
 - **Adım:** "Poliçe gir" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Yetki (olumsuz):** DENETÇİ ile bu düğme GÖRÜNMEMELİ (yazma yalnız MANAGER/BOARD_MEMBER).
 - **Sonuç:** http://localhost:18000/sonuc → `P-INSURANCE-01`
 
 #### P-INSURANCE-02 · Düğme: Hasar kaydet
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/insurance
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/insurance
 - **Adım:** "Hasar kaydet" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Yetki (olumsuz):** DENETÇİ ile bu düğme GÖRÜNMEMELİ (yazma yalnız MANAGER/BOARD_MEMBER).
 - **Sonuç:** http://localhost:18000/sonuc → `P-INSURANCE-02`
 
 #### P-INSURANCE-03 · Düğme: İlerlet
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/insurance
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/insurance
 - **Adım:** "İlerlet" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-INSURANCE-03`
 
 #### P-INSURANCE-04 · Form: DASK poliçesi
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/insurance
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/insurance
 - **Adım:** Formu aç; alanlar: Poliçe no*, Sigorta şirketi, Başlangıç*, Bitiş* (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -905,7 +905,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-INSURANCE-04`
 
 #### P-INSURANCE-05 · Form: Hasar kaydı
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/insurance
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/insurance
 - **Adım:** Formu aç; alanlar: Olay tarihi*, Talep edilen (TL), Sigortacı dosya no, Açıklama* (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -921,7 +921,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-INSURANCE-05`
 
 #### P-INSURANCE-06 · Form: Hasar durumunu ilerlet
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/insurance
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/insurance
 - **Adım:** Formu aç; alanlar: Yeni durum, Ödenen tazminat (TL)*, Ödeme tarihi*, Not* (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -943,8 +943,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: MANAGER/BOARD_MEMBER/AUDITOR — KVKK ilgili kişi başvuruları (kişisel veri)
 
 #### P-KVKK-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/dashboard/kvkk
-- **Adım:** http://localhost:3001/dashboard/kvkk adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3101/dashboard/kvkk
+- **Adım:** http://localhost:3101/dashboard/kvkk adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: `GET /kvkk-requests` (community)
 - **Adım:** Tablo sütunları görünür ve dolu/boş durumu doğru: Başvuran \| Tür \| Talep \| Başvuru \| Son gün \| Durum
 - **Adım:** Bilgi notu (satır 75): {answer.r.applicant_name} — {TYPE_LABEL[answer.r.request_ty}: {answer.r.description}
@@ -954,13 +954,13 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-KVKK-00`
 
 #### P-KVKK-01 · Düğme: Yanıtla
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/kvkk
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/kvkk
 - **Adım:** "Yanıtla" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-KVKK-01`
 
 #### P-KVKK-02 · Form: Başvuruyu sonuçlandır
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/kvkk
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/kvkk
 - **Adım:** Formu aç; alanlar: Sonuç, Yanıt* (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -985,8 +985,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: MANAGER/BOARD_MEMBER — Toplu bildirim gönderimi
 
 #### P-NOTIFICATIONS-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ (sonra KURUL ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/dashboard/notifications
-- **Adım:** http://localhost:3001/dashboard/notifications adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ (sonra KURUL ile yalnız görüntüleme) · **Nerede:** http://localhost:3101/dashboard/notifications
+- **Adım:** http://localhost:3101/dashboard/notifications adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: `GET /notifications/outbox` (notification)
 - **Adım:** Veri yüklenir: `GET /notifications/summary` (notification)
 - **Adım:** Veri yüklenir: `GET /notification-preferences` (notification)
@@ -1003,13 +1003,13 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-NOTIFICATIONS-00`
 
 #### P-NOTIFICATIONS-01 · Düğme: Bildirim gönder
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/notifications
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/notifications
 - **Adım:** "Bildirim gönder" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-NOTIFICATIONS-01`
 
 #### P-NOTIFICATIONS-02 · Düğme: Kapat
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/notifications
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/notifications
 - **Adım:** "Kapat" düğme öğesine bas
 - **Beklenen (yazma):** `PUT /notification-preferences` (notification, `services/notification/main.go:124`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: oturum açmış herkes (site kapsamı)
@@ -1021,7 +1021,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-NOTIFICATIONS-02`
 
 #### P-NOTIFICATIONS-03 · Form: Bildirim gönder
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/notifications
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/notifications
 - **Adım:** Formu aç; alanlar: Alıcı*, Kanal, Tür, Konu, İleti* (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -1040,8 +1040,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: MANAGER/BOARD_MEMBER/AUDITOR — Tadilat izinleri ve kat maliki rızaları
 
 #### P-RENOVATIONS-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/dashboard/renovations
-- **Adım:** http://localhost:3001/dashboard/renovations adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3101/dashboard/renovations
+- **Adım:** http://localhost:3101/dashboard/renovations adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: `GET /renovations` (community)
 - **Adım:** Veri yüklenir: `GET /units` (identity)
 - **Adım:** Tablo sütunları görünür ve dolu/boş durumu doğru: Daire \| Kapsam \| Başvuran \| Tarih \| Durum \| Teminat
@@ -1056,20 +1056,20 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-RENOVATIONS-00`
 
 #### P-RENOVATIONS-01 · Düğme: Başvuru gir
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/renovations
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/renovations
 - **Adım:** "Başvuru gir" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Yetki (olumsuz):** DENETÇİ ile bu düğme GÖRÜNMEMELİ (yazma yalnız MANAGER/BOARD_MEMBER).
 - **Sonuç:** http://localhost:18000/sonuc → `P-RENOVATIONS-01`
 
 #### P-RENOVATIONS-02 · Düğme: Aç
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/renovations
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/renovations
 - **Adım:** "Aç" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-RENOVATIONS-02`
 
 #### P-RENOVATIONS-03 · Form: Tadilat başvurusu
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/renovations
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/renovations
 - **Adım:** Formu aç; alanlar: Daire*, Kapsam*, Başlangıç*, Bitiş*, Müteahhit / usta, Müteahhit telefonu, Yapılacak iş* (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -1086,7 +1086,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-RENOVATIONS-03`
 
 #### P-RENOVATIONS-04 · Düğme: Rızayı kaydet
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/renovations
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/renovations
 - **Adım:** "Rızayı kaydet" düğme öğesine bas
 - **Beklenen (yazma):** `POST /renovations/:id/consents` (community, `services/community/renovation.go:161`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -1099,7 +1099,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-RENOVATIONS-04`
 
 #### P-RENOVATIONS-05 · Düğme: Onayla
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/renovations
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/renovations
 - **Adım:** "Onayla" düğme öğesine bas
 - **Beklenen (yazma):** `POST /renovations/:id/approve` (community, `services/community/renovation.go:190`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -1115,25 +1115,25 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-RENOVATIONS-05`
 
 #### P-RENOVATIONS-06 · Düğme: Reddet
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/renovations
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/renovations
 - **Adım:** "Reddet" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-RENOVATIONS-06`
 
 #### P-RENOVATIONS-07 · Düğme: Denetle ve kapat
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/renovations
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/renovations
 - **Adım:** "Denetle ve kapat" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-RENOVATIONS-07`
 
 #### P-RENOVATIONS-08 · Düğme: Çalışmayı durdur
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/renovations
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/renovations
 - **Adım:** "Çalışmayı durdur" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-RENOVATIONS-08`
 
 #### P-RENOVATIONS-09 · Form: (başlık dinamik)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/renovations
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/renovations
 - **Adım:** Formu aç; alanlar: Gerekçe* (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -1162,7 +1162,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-RENOVATIONS-09`
 
 #### P-RENOVATIONS-10 · Form: Denetle ve kapat
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/renovations
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/renovations
 - **Adım:** Formu aç; alanlar: Denetim notu (* zorunlu)
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
 - **Adım:** Başarı mesajı tam olarak şu anlamda olmalı: "İzin kapatıldı"
@@ -1186,8 +1186,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: MANAGER/BOARD_MEMBER/STAFF — Talep yönetimi
 
 #### P-REQUESTS-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ (sonra KURUL, GÖREVLİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/dashboard/requests
-- **Adım:** http://localhost:3001/dashboard/requests adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ (sonra KURUL, GÖREVLİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3101/dashboard/requests
+- **Adım:** http://localhost:3101/dashboard/requests adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: `GET /requests` (community)
 - **Adım:** Tablo sütunları görünür ve dolu/boş durumu doğru: No \| Başlık \| Öncelik \| Durum \| Açılış
 - **Adım:** Sayfayı yenile (F5): aynı içerik gelir, oturum düşmez
@@ -1196,7 +1196,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-REQUESTS-00`
 
 #### P-REQUESTS-01 · Düğme: {NEXT[r.status].label}
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/requests
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/requests
 - **Adım:** "{NEXT[r.status].label}" düğme öğesine bas
 - **Beklenen (yazma):** `PATCH /requests/:id/status` (community, `services/community/main.go:85`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: BOARD_MEMBER/MANAGER/STAFF
@@ -1215,8 +1215,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: MANAGER/BOARD_MEMBER/STAFF — Sakin kimlik bilgileri
 
 #### P-RESIDENTS-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ (sonra KURUL, GÖREVLİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/dashboard/residents
-- **Adım:** http://localhost:3001/dashboard/residents adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ (sonra KURUL, GÖREVLİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3101/dashboard/residents
+- **Adım:** http://localhost:3101/dashboard/residents adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Bilgi notu (satır 79): {act.sms.note}
 - **Adım:** Bilgi notu (satır 80): E-posta gönderildi: {act.email.note}
 - **Adım:** Bilgi notu (satır 81): Bu kod bir daha gösterilmez: {act.note}
@@ -1246,40 +1246,40 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-RESIDENTS-00`
 
 #### P-RESIDENTS-01 · Düğme: Kopyalandı
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/residents
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/residents
 - **Adım:** "Kopyalandı" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-RESIDENTS-01`
 
 #### P-RESIDENTS-02 · Düğme: Kodu ilettim, kapat
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/residents
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/residents
 - **Adım:** "Kodu ilettim, kapat" düğme öğesine bas
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `P-RESIDENTS-02`
 
 #### P-RESIDENTS-03 · Düğme: Toplu ekle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/residents
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/residents
 - **Adım:** "Toplu ekle" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Yetki (olumsuz):** GÖREVLİ ile bu düğme GÖRÜNMEMELİ (yazma yalnız MANAGER/BOARD_MEMBER).
 - **Sonuç:** http://localhost:18000/sonuc → `P-RESIDENTS-03`
 
 #### P-RESIDENTS-04 · Düğme: Davet gönder
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/residents
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/residents
 - **Adım:** "Davet gönder" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Yetki (olumsuz):** GÖREVLİ ile bu düğme GÖRÜNMEMELİ (yazma yalnız MANAGER/BOARD_MEMBER).
 - **Sonuç:** http://localhost:18000/sonuc → `P-RESIDENTS-04`
 
 #### P-RESIDENTS-05 · Düğme: Sakin ekle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/residents
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/residents
 - **Adım:** "Sakin ekle" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Yetki (olumsuz):** GÖREVLİ ile bu düğme GÖRÜNMEMELİ (yazma yalnız MANAGER/BOARD_MEMBER).
 - **Sonuç:** http://localhost:18000/sonuc → `P-RESIDENTS-05`
 
 #### P-RESIDENTS-06 · Düğme: Kod üret
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/residents
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/residents
 - **Adım:** "Kod üret" düğme öğesine bas
 - **Beklenen (yazma):** `POST /residents/:id/activation-code` (identity, `services/identity/main.go:152`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: AUDITOR/BOARD_MEMBER/MANAGER/STAFF
@@ -1294,13 +1294,13 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-RESIDENTS-06`
 
 #### P-RESIDENTS-07 · Düğme: Telefon
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/residents
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/residents
 - **Adım:** "Telefon" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-RESIDENTS-07`
 
 #### P-RESIDENTS-08 · Düğme: Kilidi aç
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/residents
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/residents
 - **Adım:** "Kilidi aç" düğme öğesine bas
 - **Beklenen (yazma):** `POST /residents/:id/unlock` (identity, `services/identity/main.go:156`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -1312,13 +1312,13 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-RESIDENTS-08`
 
 #### P-RESIDENTS-09 · Düğme: Düzenle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/residents
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/residents
 - **Adım:** "Düzenle" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-RESIDENTS-09`
 
 #### P-RESIDENTS-10 · Düğme: İptal et
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/residents
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/residents
 - **Adım:** "İptal et" düğme öğesine bas (onay penceresi çıkarsa önce Vazgeç → hiçbir şey değişmemeli; sonra tekrar bas ve onayla)
 - **Beklenen (yazma):** `POST /residents/invitations/:id/cancel` (identity, `services/identity/main.go:141`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: BOARD_MEMBER/MANAGER
@@ -1330,7 +1330,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-RESIDENTS-10`
 
 #### P-RESIDENTS-11 · Form: Sakin ekle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/residents
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/residents
 - **Adım:** Formu aç; alanlar: Ad*, Soyad*, Telefon*, E-posta, Bağımsız bölüm*, Sıfat* (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -1351,7 +1351,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-RESIDENTS-11`
 
 #### P-RESIDENTS-12 · Form: Daire daveti gönder
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/residents
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/residents
 - **Adım:** Formu aç; alanlar: Ad, Soyad, Telefon*, E-posta, Bağımsız bölüm*, Sıfat* (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -1371,7 +1371,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-RESIDENTS-12`
 
 #### P-RESIDENTS-13 · Form: Telefon değiştir
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/residents
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/residents
 - **Adım:** Formu aç; alanlar: Yeni telefon* (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -1390,7 +1390,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-RESIDENTS-13`
 
 #### P-RESIDENTS-14 · Form: Toplu sakin ekle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/residents
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/residents
 - **Adım:** Formu aç; alanlar:  (* zorunlu)
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
 - **Beklenen (yazma):** `POST /residents/bulk` (identity, `services/identity/main.go:138`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
@@ -1408,13 +1408,13 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-RESIDENTS-14`
 
 #### P-RESIDENTS-15 · Düğme: Kodları ilettim, kapat
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/residents
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/residents
 - **Adım:** "Kodları ilettim, kapat" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-RESIDENTS-15`
 
 #### P-RESIDENTS-16 · Form: (başlık dinamik)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/residents
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/residents
 - **Adım:** Formu aç; alanlar: Sıfat, Durum, Ayrılış (ilişik kesme) tarihi (* zorunlu)
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
 - **Adım:** Başarı mesajı tam olarak şu anlamda olmalı: "Sakin kaydı güncellendi"
@@ -1428,7 +1428,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-RESIDENTS-16`
 
 #### P-RESIDENTS-17 · Düğme: Yönetim yolu başlat
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/residents
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/residents
 - **Adım:** "Yönetim yolu başlat" düğme öğesine bas
 - **Adım:** Öğe `tenancy-ends` bileşenindedir (satır 72)
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
@@ -1436,7 +1436,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-RESIDENTS-17`
 
 #### P-RESIDENTS-18 · Düğme: Tamamla
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/residents
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/residents
 - **Adım:** "Tamamla" düğme öğesine bas
 - **Adım:** Öğe `tenancy-ends` bileşenindedir (satır 108)
 - **Beklenen (yazma):** `POST /residents/tenancy-requests/:id/complete` (identity, `services/identity/main.go:146`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
@@ -1454,14 +1454,14 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-RESIDENTS-18`
 
 #### P-RESIDENTS-19 · Düğme: Yeni belge
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/residents
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/residents
 - **Adım:** "Yeni belge" düğme öğesine bas
 - **Adım:** Öğe `tenancy-ends` bileşenindedir (satır 113)
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-RESIDENTS-19`
 
 #### P-RESIDENTS-20 · Düğme: İptal
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/residents
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/residents
 - **Adım:** "İptal" düğme öğesine bas
 - **Adım:** Öğe `tenancy-ends` bileşenindedir (satır 116)
 - **Beklenen (yazma):** `POST /residents/tenancy-requests/:id/cancel` (identity, `services/identity/main.go:147`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
@@ -1475,14 +1475,14 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-RESIDENTS-20`
 
 #### P-RESIDENTS-21 · Düğme: Geri al
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/residents
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/residents
 - **Adım:** "Geri al" düğme öğesine bas
 - **Adım:** Öğe `tenancy-ends` bileşenindedir (satır 120)
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-RESIDENTS-21`
 
 #### P-RESIDENTS-22 · Form: Kiracılığı geri aç
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/residents
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/residents
 - **Adım:** Formu aç; alanlar: Gerekçe*, Şifreniz* (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -1508,8 +1508,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: MANAGER/BOARD_MEMBER/AUDITOR — Yönetim görevlendirmeleri
 
 #### P-ROLES-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/dashboard/roles
-- **Adım:** http://localhost:3001/dashboard/roles adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3101/dashboard/roles
+- **Adım:** http://localhost:3101/dashboard/roles adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: `GET /property-roles` (identity)
 - **Adım:** Bilgi notu (satır 41): Görev verme ve sonlandırma yalnızca yöneticinin yetkisindedir.
 - **Adım:** Tablo sütunları görünür ve dolu/boş durumu doğru: Kişi \| Telefon \| Görev \| Dönem \| Karar \| Durum \| Atayan
@@ -1521,13 +1521,13 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-ROLES-00`
 
 #### P-ROLES-01 · Düğme: Görev ver
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/roles
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/roles
 - **Adım:** "Görev ver" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-ROLES-01`
 
 #### P-ROLES-02 · Düğme: Sonlandır
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/roles
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/roles
 - **Adım:** "Sonlandır" düğme öğesine bas
 - **Beklenen (yazma):** `POST /property-roles/:id/end` (identity, `services/identity/main.go:176`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: MANAGER
@@ -1539,7 +1539,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-ROLES-02`
 
 #### P-ROLES-03 · Form: Görev ver
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/roles
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/roles
 - **Adım:** Formu aç; alanlar: Telefon*, Görev*, Kurul kararı*, Bitiş tarihi, Ad, Soyad (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -1555,7 +1555,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-ROLES-03`
 
 #### P-ROLES-04 · Düğme: Kodu ilettim, kapat
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/roles
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/roles
 - **Adım:** "Kodu ilettim, kapat" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-ROLES-04`
@@ -1567,8 +1567,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: MANAGER/BOARD_MEMBER — Anket yönetimi
 
 #### P-SURVEYS-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ (sonra KURUL ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/dashboard/surveys
-- **Adım:** http://localhost:3001/dashboard/surveys adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ (sonra KURUL ile yalnız görüntüleme) · **Nerede:** http://localhost:3101/dashboard/surveys
+- **Adım:** http://localhost:3101/dashboard/surveys adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: `GET /surveys` (survey)
 - **Adım:** Veri yüklenir: `GET /surveys/:id/comments` (survey)
 - **Adım:** Veri yüklenir: `GET /surveys/:id` (survey)
@@ -1586,25 +1586,25 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-SURVEYS-00`
 
 #### P-SURVEYS-01 · Düğme: Anket oluştur
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/surveys
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/surveys
 - **Adım:** "Anket oluştur" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-SURVEYS-01`
 
 #### P-SURVEYS-02 · Düğme: Sonuç
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/surveys
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/surveys
 - **Adım:** "Sonuç" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-SURVEYS-02`
 
 #### P-SURVEYS-03 · Düğme: Yorumlar
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/surveys
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/surveys
 - **Adım:** "Yorumlar" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-SURVEYS-03`
 
 #### P-SURVEYS-04 · Düğme: Yayımla
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/surveys
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/surveys
 - **Adım:** "Yayımla" düğme öğesine bas
 - **Beklenen (yazma):** `POST /surveys/:id/publish` (survey, `services/survey/main.go:195`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -1619,7 +1619,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-SURVEYS-04`
 
 #### P-SURVEYS-05 · Düğme: Kapat
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/surveys
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/surveys
 - **Adım:** "Kapat" düğme öğesine bas
 - **Beklenen (yazma):** `POST /surveys/:id/close` (survey, `services/survey/main.go:209`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -1631,13 +1631,13 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-SURVEYS-05`
 
 #### P-SURVEYS-06 · Düğme: İptal
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/surveys
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/surveys
 - **Adım:** "İptal" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-SURVEYS-06`
 
 #### P-SURVEYS-07 · Form: Anket oluştur
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/surveys
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/surveys
 - **Adım:** Formu aç; alanlar: Başlık*, Açıklama, Tür, Bitiş, Anonim, Arsa payı ağırlıklı, Yorum, Sonuç bitmeden görünsün (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -1653,19 +1653,19 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-SURVEYS-07`
 
 #### P-SURVEYS-08 · Düğme: Seçeneği çıkar
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/surveys
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/surveys
 - **Adım:** "Seçeneği çıkar" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-SURVEYS-08`
 
 #### P-SURVEYS-09 · Düğme: + Seçenek
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/surveys
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/surveys
 - **Adım:** "+ Seçenek" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-SURVEYS-09`
 
 #### P-SURVEYS-10 · Form: Anketi iptal et
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/surveys
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/surveys
 - **Adım:** Formu aç; alanlar: Gerekçe* (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -1686,8 +1686,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: MANAGER/BOARD_MEMBER/AUDITOR — Bağımsız bölüm ve arsa payı kayıtları
 
 #### P-UNITS-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/dashboard/units
-- **Adım:** http://localhost:3001/dashboard/units adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3101/dashboard/units
+- **Adım:** http://localhost:3101/dashboard/units adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: `GET /units` (identity)
 - **Adım:** Bilgi notu (satır 109): Maliki kayıtlı olmayan daireler: {d.data.filter((u) => u.owner_missing).map((u) => `$u.block + "-${u.door_number}`).join(",
 - **Adım:** Tablo sütunları görünür ve dolu/boş durumu doğru: Blok \| Kapı \| Kat \| Tür \| Arsa payı \| Net m² \| Brüt m² \| Oturum
@@ -1699,28 +1699,28 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-UNITS-00`
 
 #### P-UNITS-01 · Düğme: Toplu ekle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/units
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/units
 - **Adım:** "Toplu ekle" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Yetki (olumsuz):** DENETÇİ ile bu düğme GÖRÜNMEMELİ (yazma yalnız MANAGER/BOARD_MEMBER).
 - **Sonuç:** http://localhost:18000/sonuc → `P-UNITS-01`
 
 #### P-UNITS-02 · Düğme: Bölüm ekle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/units
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/units
 - **Adım:** "Bölüm ekle" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Yetki (olumsuz):** DENETÇİ ile bu düğme GÖRÜNMEMELİ (yazma yalnız MANAGER/BOARD_MEMBER).
 - **Sonuç:** http://localhost:18000/sonuc → `P-UNITS-02`
 
 #### P-UNITS-03 · Düğme: Düzenle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/units
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/units
 - **Adım:** "Düzenle" düğme öğesine bas
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Yetki (olumsuz):** DENETÇİ ile bu düğme GÖRÜNMEMELİ (yazma yalnız MANAGER/BOARD_MEMBER).
 - **Sonuç:** http://localhost:18000/sonuc → `P-UNITS-03`
 
 #### P-UNITS-04 · Düğme: Borcu yoktur
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/units
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/units
 - **Adım:** "Borcu yoktur" düğme öğesine bas
 - **Beklenen (okuma):** `GET /finance/clearance-certificates/:id/pdf` (finance) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Beklenen (yazma):** `POST /finance/clearance-certificates` (finance, `services/finance/main.go:104`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
@@ -1734,7 +1734,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-UNITS-04`
 
 #### P-UNITS-05 · Form: (başlık dinamik)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/units
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/units
 - **Adım:** Formu aç; alanlar: Blok, Kapı no*, Kat, Arsa payı*, Net kullanım alanı (m²)*, Brüt m², Tür, Ticari mi?, Kiracı yokken (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -1754,7 +1754,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-UNITS-05`
 
 #### P-UNITS-06 · Form: Toplu bölüm ekle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/units
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/units
 - **Adım:** Formu aç; alanlar:  (* zorunlu)
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
 - **Beklenen (yazma):** `POST /units` (identity, `services/identity/main.go:184`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
@@ -1772,8 +1772,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: MANAGER/BOARD_MEMBER/AUDITOR — Kural ihlalleri ve bildiren kimliği
 
 #### P-VIOLATIONS-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/dashboard/violations
-- **Adım:** http://localhost:3001/dashboard/violations adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3101/dashboard/violations
+- **Adım:** http://localhost:3101/dashboard/violations adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: `GET /site-rules` (community)
 - **Adım:** Veri yüklenir: `GET /violations` (community)
 - **Adım:** Veri yüklenir: `GET /units` (identity)
@@ -1792,27 +1792,27 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-VIOLATIONS-00`
 
 #### P-VIOLATIONS-01 · Düğme: İhlal kaydet
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/violations
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/violations
 - **Adım:** "İhlal kaydet" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Yetki (olumsuz):** DENETÇİ ile bu düğme GÖRÜNMEMELİ (yazma yalnız MANAGER/BOARD_MEMBER).
 - **Sonuç:** http://localhost:18000/sonuc → `P-VIOLATIONS-01`
 
 #### P-VIOLATIONS-02 · Düğme: Aç
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/violations
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/violations
 - **Adım:** "Aç" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-VIOLATIONS-02`
 
 #### P-VIOLATIONS-03 · Düğme: Kural ekle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/violations
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/violations
 - **Adım:** "Kural ekle" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Yetki (olumsuz):** DENETÇİ ile bu düğme GÖRÜNMEMELİ (yazma yalnız MANAGER/BOARD_MEMBER).
 - **Sonuç:** http://localhost:18000/sonuc → `P-VIOLATIONS-03`
 
 #### P-VIOLATIONS-04 · Düğme: Pasifleştir
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/violations
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/violations
 - **Adım:** "Pasifleştir" düğme öğesine bas
 - **Beklenen (yazma):** `POST /site-rules/:id/deactivate` (community, `services/community/violation.go:94`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -1825,7 +1825,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-VIOLATIONS-04`
 
 #### P-VIOLATIONS-05 · Form: Kural ekle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/violations
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/violations
 - **Adım:** Formu aç; alanlar: Kural*, Kategori, Yönetim planı dayanağı*, Açıklama (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -1841,7 +1841,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-VIOLATIONS-05`
 
 #### P-VIOLATIONS-06 · Form: İhlal kaydet
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/violations
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/violations
 - **Adım:** Formu aç; alanlar: Kural*, Daire*, Ne oldu?* (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -1860,7 +1860,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-VIOLATIONS-06`
 
 #### P-VIOLATIONS-07 · Düğme: Doğrula
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/violations
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/violations
 - **Adım:** "Doğrula" düğme öğesine bas
 - **Beklenen (yazma):** `POST /violations/:id/verify` (community, `services/community/violation.go:210`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -1874,31 +1874,31 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-VIOLATIONS-07`
 
 #### P-VIOLATIONS-08 · Düğme: Doğrulanmadı
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/violations
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/violations
 - **Adım:** "Doğrulanmadı" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-VIOLATIONS-08`
 
 #### P-VIOLATIONS-09 · Düğme: {STAGE[s]}
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/violations
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/violations
 - **Adım:** "{STAGE[s]}" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-VIOLATIONS-09`
 
 #### P-VIOLATIONS-10 · Düğme: Kapat
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/violations
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/violations
 - **Adım:** "Kapat" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-VIOLATIONS-10`
 
 #### P-VIOLATIONS-11 · Düğme: Doğrulanmadı
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/violations
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/violations
 - **Adım:** "Doğrulanmadı" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-VIOLATIONS-11`
 
 #### P-VIOLATIONS-12 · Form: (başlık dinamik)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/violations
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/violations
 - **Adım:** Formu aç; alanlar: Açıklama* (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -1944,15 +1944,15 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 
 
 
-Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-00), sonra sayfadaki her düğme/form/seçim sırayla denenir. Formlarda önce zorunlu alanları boş bırakıp gönder (doğrulama hatası beklenir, kayıt OLUŞMAMALI), sonra gerçekçi değerlerle doldur. Girilen değerleri gözleme yaz; sonraki adımlar ve senaryolar bu kayıtları kullanır.
+Panel: http://localhost:3101. Her sayfa için önce **sayfa açılışı** (…-00), sonra sayfadaki her düğme/form/seçim sırayla denenir. Formlarda önce zorunlu alanları boş bırakıp gönder (doğrulama hatası beklenir, kayıt OLUŞMAMALI), sonra gerçekçi değerlerle doldur. Girilen değerleri gözleme yaz; sonraki adımlar ve senaryolar bu kayıtları kullanır.
 
 ### Tahsilat ve Borçlar — `/dashboard/accounting`
 - Dosya: `admin/src/app/(dashboard)/dashboard/accounting/page.tsx`
 - Panel erişimi: MANAGER/BOARD_MEMBER/AUDITOR — Mali kayıtlar
 
 #### P-ACCOUNTING-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/dashboard/accounting
-- **Adım:** http://localhost:3001/dashboard/accounting adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3101/dashboard/accounting
+- **Adım:** http://localhost:3101/dashboard/accounting adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: `GET /finance/ledger` (finance)
 - **Adım:** Veri yüklenir: `GET /finance/payments/pending` (finance)
 - **Adım:** Veri yüklenir: `GET /finance/payments` (finance)
@@ -1991,27 +1991,27 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-ACCOUNTING-00`
 
 #### P-ACCOUNTING-01 · Düğme: {p.receipt_count} dosya
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/accounting
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/accounting
 - **Adım:** "{p.receipt_count} dosya" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-ACCOUNTING-01`
 
 #### P-ACCOUNTING-02 · Düğme: Ters kayıt
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/accounting
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/accounting
 - **Adım:** "Ters kayıt" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Yetki (olumsuz):** DENETÇİ ile bu düğme GÖRÜNMEMELİ (yazma yalnız MANAGER/BOARD_MEMBER).
 - **Sonuç:** http://localhost:18000/sonuc → `P-ACCOUNTING-02`
 
 #### P-ACCOUNTING-03 · Düğme: Onayla
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/accounting
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/accounting
 - **Adım:** "Onayla" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Yetki (olumsuz):** DENETÇİ ile bu düğme GÖRÜNMEMELİ (yazma yalnız MANAGER/BOARD_MEMBER).
 - **Sonuç:** http://localhost:18000/sonuc → `P-ACCOUNTING-03`
 
 #### P-ACCOUNTING-04 · Düğme: Reddet
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/accounting
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/accounting
 - **Adım:** "Reddet" düğme öğesine bas
 - **Beklenen (yazma):** `POST /finance/payments/:id/reject` (finance, `services/finance/main.go:140`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -2025,33 +2025,33 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-ACCOUNTING-04`
 
 #### P-ACCOUNTING-05 · Düğme: Tahsilat gir
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/accounting
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/accounting
 - **Adım:** "Tahsilat gir" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Yetki (olumsuz):** DENETÇİ ile bu düğme GÖRÜNMEMELİ (yazma yalnız MANAGER/BOARD_MEMBER).
 - **Sonuç:** http://localhost:18000/sonuc → `P-ACCOUNTING-05`
 
 #### P-ACCOUNTING-06 · Düğme: Daha eskileri göster
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/accounting
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/accounting
 - **Adım:** "Daha eskileri göster" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-ACCOUNTING-06`
 
 #### P-ACCOUNTING-07 · Düğme: Zinciri doğrula
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/accounting
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/accounting
 - **Adım:** "Zinciri doğrula" düğme öğesine bas
 - **Beklenen (okuma):** `GET /finance/ledger/verify` (finance) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Sonuç:** http://localhost:18000/sonuc → `P-ACCOUNTING-07`
 
 #### P-ACCOUNTING-08 · Düğme: İndir
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/accounting
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/accounting
 - **Adım:** "İndir" düğme öğesine bas
 - **Beklenen (okuma):** `GET /finance/payments/:id/receipts/:receiptId/download` (finance) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Beklenen (dosya):** dosya iner/açılır; boş ya da bozuk değildir (PDF ise sayfalar okunur).
 - **Sonuç:** http://localhost:18000/sonuc → `P-ACCOUNTING-08`
 
 #### P-ACCOUNTING-09 · Form: Ödemeyi onayla
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/accounting
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/accounting
 - **Adım:** Formu aç; alanlar: Dekont / işlem numarası (* zorunlu)
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
 - **Adım:** Başarı mesajı tam olarak şu anlamda olmalı: "${tl(confirming.amount)} tahsilat onaylandı"
@@ -2069,7 +2069,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-ACCOUNTING-09`
 
 #### P-ACCOUNTING-10 · Form: Ödemenin ters kaydı
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/accounting
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/accounting
 - **Adım:** Formu aç; alanlar: Gerekçe* (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -2087,7 +2087,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-ACCOUNTING-10`
 
 #### P-ACCOUNTING-11 · Düğme: Dekont kes
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/accounting
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/accounting
 - **Adım:** "Dekont kes" düğme öğesine bas
 - **Adım:** Öğe `credit-notes-card` bileşenindedir (satır 27)
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
@@ -2095,21 +2095,21 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-ACCOUNTING-11`
 
 #### P-ACCOUNTING-12 · Düğme: PDF
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/accounting
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/accounting
 - **Adım:** "PDF" düğme öğesine bas
 - **Adım:** Öğe `credit-notes-card` bileşenindedir (satır 39)
 - **Beklenen (okuma):** `GET /finance/credit-notes/:id/pdf` (finance) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Sonuç:** http://localhost:18000/sonuc → `P-ACCOUNTING-12`
 
 #### P-ACCOUNTING-13 · Düğme: Ters kayıt
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/accounting
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/accounting
 - **Adım:** "Ters kayıt" düğme öğesine bas
 - **Adım:** Öğe `credit-notes-card` bileşenindedir (satır 40)
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-ACCOUNTING-13`
 
 #### P-ACCOUNTING-14 · Form: Alacak dekontu kes
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/accounting
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/accounting
 - **Adım:** Formu aç; alanlar: Daire*, Tahakkuk*, Tutar (TL)*, Gerekçe* (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -2128,7 +2128,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-ACCOUNTING-14`
 
 #### P-ACCOUNTING-15 · Form: (başlık dinamik)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/accounting
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/accounting
 - **Adım:** Formu aç; alanlar: Gerekçe* (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -2148,7 +2148,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-ACCOUNTING-15`
 
 #### P-ACCOUNTING-16 · Düğme: Yükle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/accounting
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/accounting
 - **Adım:** "Yükle" düğme öğesine bas
 - **Adım:** Öğe `bank-statement-card` bileşenindedir (satır 45)
 - **Beklenen (yazma):** `POST /finance/bank-statements` (finance, `services/finance/main.go:150`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
@@ -2163,14 +2163,14 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-ACCOUNTING-16`
 
 #### P-ACCOUNTING-17 · Düğme: Aç
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/accounting
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/accounting
 - **Adım:** "Aç" düğme öğesine bas
 - **Adım:** Öğe `bank-statement-card` bileşenindedir (satır 63)
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-ACCOUNTING-17`
 
 #### P-ACCOUNTING-18 · Düğme: Onayla
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/accounting
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/accounting
 - **Adım:** "Onayla" düğme öğesine bas
 - **Adım:** Öğe `bank-statement-card` bileşenindedir (satır 82)
 - **Beklenen (yazma):** `POST /finance/bank-statements/lines/:id/confirm` (finance, `services/finance/main.go:151`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
@@ -2188,28 +2188,28 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-ACCOUNTING-18`
 
 #### P-ACCOUNTING-19 · Düğme: Ödeme seç
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/accounting
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/accounting
 - **Adım:** "Ödeme seç" düğme öğesine bas
 - **Adım:** Öğe `bank-statement-card` bileşenindedir (satır 83)
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-ACCOUNTING-19`
 
 #### P-ACCOUNTING-20 · Düğme: Daireye işle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/accounting
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/accounting
 - **Adım:** "Daireye işle" düğme öğesine bas
 - **Adım:** Öğe `bank-statement-card` bileşenindedir (satır 84)
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-ACCOUNTING-20`
 
 #### P-ACCOUNTING-21 · Düğme: Yok say
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/accounting
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/accounting
 - **Adım:** "Yok say" düğme öğesine bas
 - **Adım:** Öğe `bank-statement-card` bileşenindedir (satır 85)
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-ACCOUNTING-21`
 
 #### P-ACCOUNTING-22 · Form: Ödeme bildirimiyle eşleştir
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/accounting
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/accounting
 - **Adım:** Formu aç; alanlar: Onay bekleyen ödeme* (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -2230,7 +2230,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-ACCOUNTING-22`
 
 #### P-ACCOUNTING-23 · Form: Hareketi yok say
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/accounting
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/accounting
 - **Adım:** Formu aç; alanlar: Gerekçe* (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -2247,7 +2247,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-ACCOUNTING-23`
 
 #### P-ACCOUNTING-24 · Form: (başlık dinamik)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/accounting
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/accounting
 - **Adım:** Formu aç; alanlar: Daire*, Ödeme yöntemi*, Ödeme günü*, Açıklama / makbuz no (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -2298,8 +2298,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: MANAGER/BOARD_MEMBER/AUDITOR — Tahakkuk kayıtları
 
 #### P-ASSESSMENTS-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/dashboard/assessments
-- **Adım:** http://localhost:3001/dashboard/assessments adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3101/dashboard/assessments
+- **Adım:** http://localhost:3101/dashboard/assessments adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: `GET /finance/assessments/overview` (finance)
 - **Adım:** Veri yüklenir: `GET /finance/expense-categories` (finance)
 - **Adım:** Kart (satır 48): Dönemler
@@ -2319,14 +2319,14 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-ASSESSMENTS-00`
 
 #### P-ASSESSMENTS-01 · Düğme: Tahakkuk oluştur
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/assessments
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/assessments
 - **Adım:** "Tahakkuk oluştur" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Yetki (olumsuz):** DENETÇİ ile bu düğme GÖRÜNMEMELİ (yazma yalnız MANAGER/BOARD_MEMBER).
 - **Sonuç:** http://localhost:18000/sonuc → `P-ASSESSMENTS-01`
 
 #### P-ASSESSMENTS-02 · Düğme: Tazminatı işlet
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/assessments
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/assessments
 - **Adım:** "Tazminatı işlet" düğme öğesine bas
 - **Beklenen (yazma):** `POST /finance/late-fees/accrue` (finance, `services/finance/main.go:143`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -2342,7 +2342,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-ASSESSMENTS-02`
 
 #### P-ASSESSMENTS-03 · Form: Tahakkuk oluştur
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/assessments
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/assessments
 - **Adım:** Formu aç; alanlar: Yıl*, Ay*, Son ödeme* (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -2362,19 +2362,19 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-ASSESSMENTS-03`
 
 #### P-ASSESSMENTS-04 · Düğme: Kalemi çıkar
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/assessments
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/assessments
 - **Adım:** "Kalemi çıkar" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-ASSESSMENTS-04`
 
 #### P-ASSESSMENTS-05 · Düğme: + Kalem
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/assessments
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/assessments
 - **Adım:** "+ Kalem" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-ASSESSMENTS-05`
 
 #### P-ASSESSMENTS-06 · Düğme: Devir gir
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/assessments
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/assessments
 - **Adım:** "Devir gir" düğme öğesine bas
 - **Adım:** Öğe `opening-balances` bileşenindedir (satır 42)
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
@@ -2382,7 +2382,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-ASSESSMENTS-06`
 
 #### P-ASSESSMENTS-07 · Düğme: İptal
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/assessments
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/assessments
 - **Adım:** "İptal" düğme öğesine bas (onay penceresi çıkarsa önce Vazgeç → hiçbir şey değişmemeli; sonra tekrar bas ve onayla)
 - **Adım:** Öğe `opening-balances` bileşenindedir (satır 61)
 - **Beklenen (yazma):** `POST /finance/opening-balances/:id/cancel` (finance, `services/finance/main.go:146`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
@@ -2397,7 +2397,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-ASSESSMENTS-07`
 
 #### P-ASSESSMENTS-08 · Form: Devir bakiyesi gir
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/assessments
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/assessments
 - **Adım:** Formu aç; alanlar: Vade tarihi*, Gider sınıfı* (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -2423,8 +2423,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: MANAGER/BOARD_MEMBER/AUDITOR — Tahsilat riski (kişisel mali veri)
 
 #### P-COLLECTION-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/dashboard/collection
-- **Adım:** http://localhost:3001/dashboard/collection adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3101/dashboard/collection
+- **Adım:** http://localhost:3101/dashboard/collection adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: `GET /collection/risk` (smart_collection)
 - **Adım:** Tablo sütunları görünür ve dolu/boş durumu doğru: Daire \| Puan \| Risk \| Borç \| Ödenmemiş \| En uzun gecikme \| Öneri \| Etkenler
 - **Adım:** Bilgi notu (satır 51): {d.method}
@@ -2435,7 +2435,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-COLLECTION-00`
 
 #### P-COLLECTION-01 · Düğme: Bugünü kaydet
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/collection
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/collection
 - **Adım:** "Bugünü kaydet" düğme öğesine bas
 - **Beklenen (yazma):** `POST /collection/risk/snapshot` (smart_collection, `services/smart_collection/main.go:120`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -2454,8 +2454,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: MANAGER/BOARD_MEMBER/AUDITOR — Gider kayıtları
 
 #### P-EXPENSES-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/dashboard/expenses
-- **Adım:** http://localhost:3001/dashboard/expenses adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3101/dashboard/expenses
+- **Adım:** http://localhost:3101/dashboard/expenses adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: `GET /expenses` (expense)
 - **Adım:** Veri yüklenir: `GET /expenses/summary` (expense)
 - **Adım:** Veri yüklenir: `GET /expense-categories` (expense)
@@ -2471,20 +2471,20 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-EXPENSES-00`
 
 #### P-EXPENSES-01 · Düğme: Gider ekle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/expenses
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/expenses
 - **Adım:** "Gider ekle" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Yetki (olumsuz):** DENETÇİ ile bu düğme GÖRÜNMEMELİ (yazma yalnız MANAGER/BOARD_MEMBER).
 - **Sonuç:** http://localhost:18000/sonuc → `P-EXPENSES-01`
 
 #### P-EXPENSES-02 · Düğme: Dağıtım
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/expenses
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/expenses
 - **Adım:** "Dağıtım" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-EXPENSES-02`
 
 #### P-EXPENSES-03 · Düğme: Onayla
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/expenses
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/expenses
 - **Adım:** "Onayla" düğme öğesine bas
 - **Beklenen (yazma):** `POST /expenses/:id/approve` (expense, `services/expense/main.go:72`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -2498,13 +2498,13 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-EXPENSES-03`
 
 #### P-EXPENSES-04 · Düğme: Reddet
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/expenses
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/expenses
 - **Adım:** "Reddet" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-EXPENSES-04`
 
 #### P-EXPENSES-05 · Form: Gider ekle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/expenses
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/expenses
 - **Adım:** Formu aç; alanlar: Gider kalemi*, Tutar (TL)*, Gider tarihi*, Gider sınıfı*, Dağıtım, Tedarikçi, Fatura, Fatura no, Faturasız gider gerekçesi*, Açıklama* (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -2522,7 +2522,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-EXPENSES-05`
 
 #### P-EXPENSES-06 · Form: Gideri reddet
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/expenses
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/expenses
 - **Adım:** Formu aç; alanlar: Gerekçe* (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -2545,8 +2545,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: MANAGER/BOARD_MEMBER/STAFF — Sayaç okuma
 
 #### P-METERS-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ (sonra KURUL, GÖREVLİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/dashboard/meters
-- **Adım:** http://localhost:3001/dashboard/meters adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ (sonra KURUL, GÖREVLİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3101/dashboard/meters
+- **Adım:** http://localhost:3101/dashboard/meters adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: `GET /meters` (iot)
 - **Adım:** Veri yüklenir: `GET /units` (identity)
 - **Adım:** Veri yüklenir: `GET /meter-readings` (iot)
@@ -2576,28 +2576,28 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-METERS-00`
 
 #### P-METERS-01 · Düğme: Sayaç ekle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/meters
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/meters
 - **Adım:** "Sayaç ekle" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Yetki (olumsuz):** GÖREVLİ ile bu düğme GÖRÜNMEMELİ (yazma yalnız MANAGER/BOARD_MEMBER).
 - **Sonuç:** http://localhost:18000/sonuc → `P-METERS-01`
 
 #### P-METERS-02 · Düğme: Okuma gir
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/meters
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/meters
 - **Adım:** "Okuma gir" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Yetki (olumsuz):** GÖREVLİ ile bu düğme GÖRÜNMEMELİ (yazma yalnız MANAGER/BOARD_MEMBER).
 - **Sonuç:** http://localhost:18000/sonuc → `P-METERS-02`
 
 #### P-METERS-03 · Düğme: Sayaç değiştir
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/meters
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/meters
 - **Adım:** "Sayaç değiştir" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Yetki (olumsuz):** GÖREVLİ ile bu düğme GÖRÜNMEMELİ (yazma yalnız MANAGER/BOARD_MEMBER).
 - **Sonuç:** http://localhost:18000/sonuc → `P-METERS-03`
 
 #### P-METERS-04 · Düğme: Pasife al
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/meters
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/meters
 - **Adım:** "Pasife al" düğme öğesine bas (onay penceresi çıkarsa önce Vazgeç → hiçbir şey değişmemeli; sonra tekrar bas ve onayla)
 - **Beklenen (yazma):** `DELETE /meters/:id` (iot, `services/iot/main.go:212`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -2610,7 +2610,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-METERS-04`
 
 #### P-METERS-05 · Düğme: Hesapla ve yayımla
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/meters
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/meters
 - **Adım:** "Hesapla ve yayımla" düğme öğesine bas
 - **Beklenen (yazma):** `POST /consumption/allocate` (iot, `services/iot/main.go:239`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -2624,21 +2624,21 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-METERS-05`
 
 #### P-METERS-06 · Düğme: PDF
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/meters
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/meters
 - **Adım:** "PDF" düğme öğesine bas
 - **Beklenen (okuma):** `GET /consumption/statements/:id/pdf` (iot) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Yetki (olumsuz):** Kullanım kuralı (`resident_can_use`): kiracılı dairede (A-4) işlemi KİRACI yapar; MALİK_A4 ile denenince reddedilmeli.
 - **Sonuç:** http://localhost:18000/sonuc → `P-METERS-06`
 
 #### P-METERS-07 · Düğme: Yanıtla
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/meters
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/meters
 - **Adım:** "Yanıtla" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Yetki (olumsuz):** GÖREVLİ ile bu düğme GÖRÜNMEMELİ (yazma yalnız MANAGER/BOARD_MEMBER).
 - **Sonuç:** http://localhost:18000/sonuc → `P-METERS-07`
 
 #### P-METERS-08 · Form: (başlık dinamik)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/meters
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/meters
 - **Adım:** Formu aç; alanlar: Karar*, Açıklama* (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -2656,7 +2656,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-METERS-08`
 
 #### P-METERS-09 · Form: Sayaç ekle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/meters
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/meters
 - **Adım:** Formu aç; alanlar: Daire*, Tür*, Seri no*, Marka (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -2672,7 +2672,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-METERS-09`
 
 #### P-METERS-10 · Form: (başlık dinamik)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/meters
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/meters
 - **Adım:** Formu aç; alanlar: Endeks*, Okuma tarihi, Okuma türü (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -2686,7 +2686,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-METERS-10`
 
 #### P-METERS-11 · Form: (başlık dinamik)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/meters
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/meters
 - **Adım:** Formu aç; alanlar: Eski sayacın söküm endeksi*, Değişim tarihi*, Yeni sayacın seri no*, Yeni sayacın montaj endeksi*, Gerekçe* (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -2711,15 +2711,15 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 
 
 
-Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-00), sonra sayfadaki her düğme/form/seçim sırayla denenir. Formlarda önce zorunlu alanları boş bırakıp gönder (doğrulama hatası beklenir, kayıt OLUŞMAMALI), sonra gerçekçi değerlerle doldur. Girilen değerleri gözleme yaz; sonraki adımlar ve senaryolar bu kayıtları kullanır.
+Panel: http://localhost:3101. Her sayfa için önce **sayfa açılışı** (…-00), sonra sayfadaki her düğme/form/seçim sırayla denenir. Formlarda önce zorunlu alanları boş bırakıp gönder (doğrulama hatası beklenir, kayıt OLUŞMAMALI), sonra gerçekçi değerlerle doldur. Girilen değerleri gözleme yaz; sonraki adımlar ve senaryolar bu kayıtları kullanır.
 
 ### Sözleşmeler — `/dashboard/contracts`
 - Dosya: `admin/src/app/(dashboard)/dashboard/contracts/page.tsx`
 - Panel erişimi: MANAGER/BOARD_MEMBER/AUDITOR — Sözleşmeler
 
 #### P-CONTRACTS-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/dashboard/contracts
-- **Adım:** http://localhost:3001/dashboard/contracts adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3101/dashboard/contracts
+- **Adım:** http://localhost:3101/dashboard/contracts adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: `GET /contracts` (contract)
 - **Adım:** Veri yüklenir: `GET /contracts-summary` (contract)
 - **Adım:** Kart (satır 55): Sözleşmeler
@@ -2730,7 +2730,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-CONTRACTS-00`
 
 #### P-CONTRACTS-01 · Düğme: Süresi dolanları işle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/contracts
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/contracts
 - **Adım:** "Süresi dolanları işle" düğme öğesine bas
 - **Beklenen (yazma):** `POST /contracts/expire-due` (contract, `services/contract/main.go:172`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -2743,14 +2743,14 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-CONTRACTS-01`
 
 #### P-CONTRACTS-02 · Düğme: Sözleşme ekle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/contracts
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/contracts
 - **Adım:** "Sözleşme ekle" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Yetki (olumsuz):** DENETÇİ ile bu düğme GÖRÜNMEMELİ (yazma yalnız MANAGER/BOARD_MEMBER).
 - **Sonuç:** http://localhost:18000/sonuc → `P-CONTRACTS-02`
 
 #### P-CONTRACTS-03 · Düğme: Yenile
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/contracts
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/contracts
 - **Adım:** "Yenile" düğme öğesine bas
 - **Beklenen (yazma):** `POST /contracts/:id/renew` (contract, `services/contract/main.go:138`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -2763,13 +2763,13 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-CONTRACTS-03`
 
 #### P-CONTRACTS-04 · Düğme: Feshet
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/contracts
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/contracts
 - **Adım:** "Feshet" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-CONTRACTS-04`
 
 #### P-CONTRACTS-05 · Form: Sözleşme ekle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/contracts
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/contracts
 - **Adım:** Formu aç; alanlar: Tür*, Başlık*, Karşı taraf*, Başlangıç*, Bitiş, İhbar süresi (gün), Otomatik yenileme, Yenileme süresi (ay), Ödeme, Aylık tutar (TL), Yıllık tutar (TL), Telefon, Not (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -2785,7 +2785,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-CONTRACTS-05`
 
 #### P-CONTRACTS-06 · Form: Sözleşmeyi feshet
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/contracts
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/contracts
 - **Adım:** Formu aç; alanlar: Gerekçe* (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -2807,8 +2807,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: MANAGER/BOARD_MEMBER/AUDITOR — Belge arşivi
 
 #### P-DOCUMENTS-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/dashboard/documents
-- **Adım:** http://localhost:3001/dashboard/documents adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3101/dashboard/documents
+- **Adım:** http://localhost:3101/dashboard/documents adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: `GET /documents` (document)
 - **Adım:** Veri yüklenir: `GET /documents-summary` (document)
 - **Adım:** Veri yüklenir: `GET /documents/:id/access-log` (document)
@@ -2823,33 +2823,33 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-DOCUMENTS-00`
 
 #### P-DOCUMENTS-01 · Düğme: Belge yükle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/documents
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/documents
 - **Adım:** "Belge yükle" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Yetki (olumsuz):** DENETÇİ ile bu düğme GÖRÜNMEMELİ (yazma yalnız MANAGER/BOARD_MEMBER).
 - **Sonuç:** http://localhost:18000/sonuc → `P-DOCUMENTS-01`
 
 #### P-DOCUMENTS-02 · Düğme: ?
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/documents
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/documents
 - **Adım:** "?" düğme öğesine bas
 - **Beklenen (okuma):** `GET /documents/:id/download` (document) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Beklenen (dosya):** dosya iner/açılır; boş ya da bozuk değildir (PDF ise sayfalar okunur).
 - **Sonuç:** http://localhost:18000/sonuc → `P-DOCUMENTS-02`
 
 #### P-DOCUMENTS-03 · Düğme: Erişim
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/documents
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/documents
 - **Adım:** "Erişim" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-DOCUMENTS-03`
 
 #### P-DOCUMENTS-04 · Düğme: Arşivle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/documents
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/documents
 - **Adım:** "Arşivle" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-DOCUMENTS-04`
 
 #### P-DOCUMENTS-05 · Form: Belge yükle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/documents
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/documents
 - **Adım:** Formu aç; alanlar: Dosya*, Kategori*, Görünürlük, Başlık, Saklama bitişi, Açıklama [dosya] (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -2866,7 +2866,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-DOCUMENTS-05`
 
 #### P-DOCUMENTS-06 · Form: Belgeyi arşivle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/documents
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/documents
 - **Adım:** Formu aç; alanlar: Gerekçe* (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -2889,8 +2889,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: MANAGER/BOARD_MEMBER/AUDITOR — Yönetişim kayıtları (işletme projesi, genel kurul, defterler)
 
 #### P-GOVERNANCE-ASSEMBLIES-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/dashboard/governance/assemblies
-- **Adım:** http://localhost:3001/dashboard/governance/assemblies adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3101/dashboard/governance/assemblies
+- **Adım:** http://localhost:3101/dashboard/governance/assemblies adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: `GET /governance/assemblies` (governance)
 - **Adım:** Tablo sütunları görünür ve dolu/boş durumu doğru: Tarih \| Tür \| Yer \| Çağrı \| Durum \| Nisap
 - **Adım:** Veri yüklenir: `GET /governance/assemblies/:id` (governance)
@@ -2911,20 +2911,20 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-ASSEMBLIES-00`
 
 #### P-GOVERNANCE-ASSEMBLIES-01 · Düğme: Toplantı planla
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/assemblies
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/assemblies
 - **Adım:** "Toplantı planla" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Yetki (olumsuz):** DENETÇİ ile bu düğme GÖRÜNMEMELİ (yazma yalnız MANAGER/BOARD_MEMBER).
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-ASSEMBLIES-01`
 
 #### P-GOVERNANCE-ASSEMBLIES-02 · Düğme: Aç
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/assemblies
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/assemblies
 - **Adım:** "Aç" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-ASSEMBLIES-02`
 
 #### P-GOVERNANCE-ASSEMBLIES-03 · Form: Toplantı planla
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/assemblies
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/assemblies
 - **Adım:** Formu aç; alanlar: Tür, Toplantı, Tarih ve saat*, Yer (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -2941,19 +2941,19 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-ASSEMBLIES-03`
 
 #### P-GOVERNANCE-ASSEMBLIES-04 · Düğme: Maddeyi çıkar
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/assemblies
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/assemblies
 - **Adım:** "Maddeyi çıkar" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-ASSEMBLIES-04`
 
 #### P-GOVERNANCE-ASSEMBLIES-05 · Düğme: + Madde
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/assemblies
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/assemblies
 - **Adım:** "+ Madde" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-ASSEMBLIES-05`
 
 #### P-GOVERNANCE-ASSEMBLIES-06 · Düğme: Çağrıyı kaydet
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/assemblies
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/assemblies
 - **Adım:** "Çağrıyı kaydet" düğme öğesine bas
 - **Beklenen (yazma):** `POST /governance/assemblies/:id/notify` (governance, `services/governance/main.go:96`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -2966,7 +2966,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-ASSEMBLIES-06`
 
 #### P-GOVERNANCE-ASSEMBLIES-07 · Düğme: Toplantıyı yap
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/assemblies
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/assemblies
 - **Adım:** "Toplantıyı yap" düğme öğesine bas
 - **Beklenen (yazma):** `POST /governance/assemblies/:id/hold` (governance, `services/governance/main.go:98`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -2979,13 +2979,13 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-ASSEMBLIES-07`
 
 #### P-GOVERNANCE-ASSEMBLIES-08 · Düğme: Oy gir
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/assemblies
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/assemblies
 - **Adım:** "Oy gir" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-ASSEMBLIES-08`
 
 #### P-GOVERNANCE-ASSEMBLIES-09 · Düğme: Kararı hesapla
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/assemblies
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/assemblies
 - **Adım:** "Kararı hesapla" düğme öğesine bas
 - **Beklenen (yazma):** `POST /governance/agenda-items/:itemId/close` (governance, `services/governance/main.go:100`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -3001,7 +3001,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-ASSEMBLIES-09`
 
 #### P-GOVERNANCE-ASSEMBLIES-10 · Düğme: Ekle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/assemblies
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/assemblies
 - **Adım:** "Ekle" düğme öğesine bas
 - **Beklenen (yazma):** `POST /governance/assemblies/:id/attendees` (governance, `services/governance/main.go:97`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -3014,7 +3014,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-ASSEMBLIES-10`
 
 #### P-GOVERNANCE-ASSEMBLIES-11 · Form: (başlık dinamik)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/assemblies
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/assemblies
 - **Adım:** Formu aç; alanlar: Daire (hazirundan)*, Oy (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -3037,8 +3037,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: MANAGER/BOARD_MEMBER/AUDITOR — Yönetişim kayıtları (işletme projesi, genel kurul, defterler)
 
 #### P-GOVERNANCE-BOOKS-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/dashboard/governance/books
-- **Adım:** http://localhost:3001/dashboard/governance/books adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3101/dashboard/governance/books
+- **Adım:** http://localhost:3101/dashboard/governance/books adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: `GET /governance/books/:id/entries` (governance)
 - **Adım:** Kart (satır 51): ${book.kind === "DECISION" ? "Karar defteri" : "İşletme defteri"} ${book.period_year}
 - **Adım:** Bilgi notu (satır 68): {integrity.message}
@@ -3050,37 +3050,37 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-BOOKS-00`
 
 #### P-GOVERNANCE-BOOKS-01 · Düğme: Aç
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/books
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/books
 - **Adım:** "Aç" düğme öğesine bas
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-BOOKS-01`
 
 #### P-GOVERNANCE-BOOKS-02 · Düğme: Bütünlüğü doğrula
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/books
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/books
 - **Adım:** "Bütünlüğü doğrula" düğme öğesine bas
 - **Beklenen (okuma):** `GET /governance/books/:id/verify` (governance) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-BOOKS-02`
 
 #### P-GOVERNANCE-BOOKS-03 · Düğme: PDF
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/books
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/books
 - **Adım:** "PDF" düğme öğesine bas
 - **Beklenen (okuma):** `GET /governance/books/:id/export` (governance) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-BOOKS-03`
 
 #### P-GOVERNANCE-BOOKS-04 · Düğme: Kayıt ekle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/books
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/books
 - **Adım:** "Kayıt ekle" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-BOOKS-04`
 
 #### P-GOVERNANCE-BOOKS-05 · Düğme: Notere kapat
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/books
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/books
 - **Adım:** "Notere kapat" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-BOOKS-05`
 
 #### P-GOVERNANCE-BOOKS-06 · Form: Deftere kayıt ekle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/books
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/books
 - **Adım:** Formu aç; alanlar: Başlık*, Metin*, Tarih (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -3096,7 +3096,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-BOOKS-06`
 
 #### P-GOVERNANCE-BOOKS-07 · Form: Defteri notere kapat
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/books
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/books
 - **Adım:** Formu aç; alanlar: Noter kapanış no, Kapanış tarihi (* zorunlu)
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
 - **Beklenen (yazma):** `POST /governance/books/:id/close` (governance, `services/governance/main.go:104`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
@@ -3116,8 +3116,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: MANAGER/BOARD_MEMBER/AUDITOR — Yönetişim kayıtları (işletme projesi, genel kurul, defterler)
 
 #### P-GOVERNANCE-BUDGETS-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/dashboard/governance/budgets
-- **Adım:** http://localhost:3001/dashboard/governance/budgets adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3101/dashboard/governance/budgets
+- **Adım:** http://localhost:3101/dashboard/governance/budgets adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: `GET /governance/budgets` (governance)
 - **Adım:** Tablo sütunları görünür ve dolu/boş durumu doğru: Yıl \| Toplam \| Durum \| Bildirim \| Genel kurul son gün \| Kesinleşme
 - **Adım:** Bilgi notu (satır 88): Kapıcı, kaloriferci, bahçıvan ve bekçi giderleri eşit; sigorta ve ortak yer bakım/onarım g
@@ -3136,20 +3136,20 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-BUDGETS-00`
 
 #### P-GOVERNANCE-BUDGETS-01 · Düğme: Proje hazırla
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/budgets
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/budgets
 - **Adım:** "Proje hazırla" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Yetki (olumsuz):** DENETÇİ ile bu düğme GÖRÜNMEMELİ (yazma yalnız MANAGER/BOARD_MEMBER).
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-BUDGETS-01`
 
 #### P-GOVERNANCE-BUDGETS-02 · Düğme: Aç
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/budgets
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/budgets
 - **Adım:** "Aç" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-BUDGETS-02`
 
 #### P-GOVERNANCE-BUDGETS-03 · Form: İşletme projesi hazırla
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/budgets
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/budgets
 - **Adım:** Formu aç; alanlar: Dönem yılı*, Not (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -3166,31 +3166,31 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-BUDGETS-03`
 
 #### P-GOVERNANCE-BUDGETS-04 · Düğme: Kalemi çıkar
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/budgets
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/budgets
 - **Adım:** "Kalemi çıkar" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-BUDGETS-04`
 
 #### P-GOVERNANCE-BUDGETS-05 · Düğme: + Kalem
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/budgets
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/budgets
 - **Adım:** "+ Kalem" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-BUDGETS-05`
 
 #### P-GOVERNANCE-BUDGETS-06 · Düğme: PDF
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/budgets
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/budgets
 - **Adım:** "PDF" düğme öğesine bas
 - **Beklenen (okuma):** `GET /governance/budgets/:id/export` (governance) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-BUDGETS-06`
 
 #### P-GOVERNANCE-BUDGETS-07 · Düğme: Excel
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/budgets
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/budgets
 - **Adım:** "Excel" düğme öğesine bas
 - **Beklenen (okuma):** `GET /governance/budgets/:id/export` (governance) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-BUDGETS-07`
 
 #### P-GOVERNANCE-BUDGETS-08 · Düğme: Geçici proje olarak bildir
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/budgets
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/budgets
 - **Adım:** "Geçici proje olarak bildir" düğme öğesine bas
 - **Beklenen (yazma):** `POST /governance/budgets/:id/notify` (governance, `services/governance/main.go:90`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -3203,7 +3203,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-BUDGETS-08`
 
 #### P-GOVERNANCE-BUDGETS-09 · Düğme: Genel kurul kararıyla kesinleştir
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/budgets
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/budgets
 - **Adım:** "Genel kurul kararıyla kesinleştir" düğme öğesine bas
 - **Beklenen (yazma):** `POST /governance/budgets/:id/finalize` (governance, `services/governance/main.go:91`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -3216,7 +3216,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-BUDGETS-09`
 
 #### P-GOVERNANCE-BUDGETS-10 · Düğme: Projeden aylık aidat tahakkuk et
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/budgets
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/budgets
 - **Adım:** "Projeden aylık aidat tahakkuk et" düğme öğesine bas
 - **Beklenen (yazma):** `POST /governance/budgets/:id/assessments` (governance, `services/governance/main.go:92`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -3233,21 +3233,21 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-BUDGETS-10`
 
 #### P-GOVERNANCE-BUDGETS-11 · Düğme: Kabul
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/budgets
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/budgets
 - **Adım:** "Kabul" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Yetki (olumsuz):** DENETÇİ ile bu düğme GÖRÜNMEMELİ (yazma yalnız MANAGER/BOARD_MEMBER).
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-BUDGETS-11`
 
 #### P-GOVERNANCE-BUDGETS-12 · Düğme: Ret
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/budgets
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/budgets
 - **Adım:** "Ret" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Yetki (olumsuz):** DENETÇİ ile bu düğme GÖRÜNMEMELİ (yazma yalnız MANAGER/BOARD_MEMBER).
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-BUDGETS-12`
 
 #### P-GOVERNANCE-BUDGETS-13 · Form: (başlık dinamik)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/budgets
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/budgets
 - **Adım:** Formu aç; alanlar: Karar açıklaması (* zorunlu)
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
 - **Adım:** Başarı mesajı tam olarak şu anlamda olmalı: "İtiraz sonuçlandırıldı"
@@ -3268,8 +3268,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: MANAGER/BOARD_MEMBER/AUDITOR — Yönetişim kayıtları (işletme projesi, genel kurul, defterler)
 
 #### P-GOVERNANCE-COMMON-AREA-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/dashboard/governance/common-area
-- **Adım:** http://localhost:3001/dashboard/governance/common-area adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3101/dashboard/governance/common-area
+- **Adım:** http://localhost:3101/dashboard/governance/common-area adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: `GET /governance/common-area/leases` (governance)
 - **Adım:** Veri yüklenir: `GET /governance/common-area/report` (governance)
 - **Adım:** Veri yüklenir: `GET /governance/assemblies` (governance)
@@ -3285,20 +3285,20 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-COMMON-AREA-00`
 
 #### P-GOVERNANCE-COMMON-AREA-01 · Düğme: Kiralama kaydet
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/common-area
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/common-area
 - **Adım:** "Kiralama kaydet" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Yetki (olumsuz):** DENETÇİ ile bu düğme GÖRÜNMEMELİ (yazma yalnız MANAGER/BOARD_MEMBER).
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-COMMON-AREA-01`
 
 #### P-GOVERNANCE-COMMON-AREA-02 · Düğme: Tahsilat gir
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/common-area
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/common-area
 - **Adım:** "Tahsilat gir" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-COMMON-AREA-02`
 
 #### P-GOVERNANCE-COMMON-AREA-03 · Düğme: Sonlandır
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/common-area
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/common-area
 - **Adım:** "Sonlandır" düğme öğesine bas
 - **Beklenen (yazma):** `POST /governance/common-area/leases/:id/end` (governance, `services/governance/main.go:109`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -3311,7 +3311,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-COMMON-AREA-03`
 
 #### P-GOVERNANCE-COMMON-AREA-04 · Form: Ortak yer kiralaması
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/common-area
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/common-area
 - **Adım:** Formu aç; alanlar: Alan türü, Alan adı*, Kiracı*, Aylık kira (TL)*, Başlangıç*, Kiracı işyeri mi?, Genel kurul, Oybirliğiyle kabul edilen madde* (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -3327,7 +3327,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-COMMON-AREA-04`
 
 #### P-GOVERNANCE-COMMON-AREA-05 · Form: Kira tahsilatı
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/common-area
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/common-area
 - **Adım:** Formu aç; alanlar: Dönem*, Tahsilat tarihi*, Brüt kira (TL)*, Kiracının kestiği stopaj (TL) (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -3349,8 +3349,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: MANAGER/BOARD_MEMBER/AUDITOR — Yönetişim kayıtları (işletme projesi, genel kurul, defterler)
 
 #### P-GOVERNANCE-LEGAL-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/dashboard/governance/legal
-- **Adım:** http://localhost:3001/dashboard/governance/legal adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3101/dashboard/governance/legal
+- **Adım:** http://localhost:3101/dashboard/governance/legal adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: `GET /governance/legal-cases` (governance)
 - **Adım:** Veri yüklenir: `GET /units` (identity)
 - **Adım:** Tablo sütunları görünür ve dolu/boş durumu doğru: Tür \| Daire \| Anapara \| Gecikme tazminatı \| Dayanak \| Daire / mahkeme \| Durum \| Açılış
@@ -3361,14 +3361,14 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-LEGAL-00`
 
 #### P-GOVERNANCE-LEGAL-01 · Düğme: Takip aç
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/legal
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/legal
 - **Adım:** "Takip aç" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Yetki (olumsuz):** DENETÇİ ile bu düğme GÖRÜNMEMELİ (yazma yalnız MANAGER/BOARD_MEMBER).
 - **Sonuç:** http://localhost:18000/sonuc → `P-GOVERNANCE-LEGAL-01`
 
 #### P-GOVERNANCE-LEGAL-02 · Form: Hukuki takip aç
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/governance/legal
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/governance/legal
 - **Adım:** Formu aç; alanlar: Daire*, Tür, Dayanak belge, İcra dairesi / mahkeme, Dosya no, Avukat, Not (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -3389,8 +3389,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: MANAGER/BOARD_MEMBER/AUDITOR/STAFF — Yönetim paneli
 
 #### P-USTA-HIZMET-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ, GÖREVLİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/dashboard/usta-hizmet
-- **Adım:** http://localhost:3001/dashboard/usta-hizmet adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ, GÖREVLİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3101/dashboard/usta-hizmet
+- **Adım:** http://localhost:3101/dashboard/usta-hizmet adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: 
 - **Adım:** Veri yüklenir: `GET /market/meta` (marketplace)
 - **Adım:** Bilgi notu (satır 30): Site adına talebi yönetici açar ve teklif seçer; kurul üyeleri ve denetçi talepleri ve tek
@@ -3402,13 +3402,13 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-USTA-HIZMET-00`
 
 #### P-USTA-HIZMET-01 · Düğme: Teklif topla
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/usta-hizmet
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/usta-hizmet
 - **Adım:** "Teklif topla" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-USTA-HIZMET-01`
 
 #### P-USTA-HIZMET-02 · Form: Site adına teklif topla
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/usta-hizmet
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/usta-hizmet
 - **Adım:** Formu aç; alanlar: Kategori*, Ne yapılacak?*, Uygun zaman (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -3423,15 +3423,15 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 
 
 
-Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-00), sonra sayfadaki her düğme/form/seçim sırayla denenir. Formlarda önce zorunlu alanları boş bırakıp gönder (doğrulama hatası beklenir, kayıt OLUŞMAMALI), sonra gerçekçi değerlerle doldur. Girilen değerleri gözleme yaz; sonraki adımlar ve senaryolar bu kayıtları kullanır.
+Panel: http://localhost:3101. Her sayfa için önce **sayfa açılışı** (…-00), sonra sayfadaki her düğme/form/seçim sırayla denenir. Formlarda önce zorunlu alanları boş bırakıp gönder (doğrulama hatası beklenir, kayıt OLUŞMAMALI), sonra gerçekçi değerlerle doldur. Girilen değerleri gözleme yaz; sonraki adımlar ve senaryolar bu kayıtları kullanır.
 
 ### Demirbaş — `/dashboard/assets`
 - Dosya: `admin/src/app/(dashboard)/dashboard/assets/page.tsx`
 - Panel erişimi: MANAGER/BOARD_MEMBER/AUDITOR/STAFF — Demirbaş ve bakım
 
 #### P-ASSETS-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ, GÖREVLİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/dashboard/assets
-- **Adım:** http://localhost:3001/dashboard/assets adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ, GÖREVLİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3101/dashboard/assets
+- **Adım:** http://localhost:3101/dashboard/assets adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: `GET /assets` (asset)
 - **Adım:** Veri yüklenir: `GET /assets-summary` (asset)
 - **Adım:** Veri yüklenir: `GET /asset-categories` (asset)
@@ -3447,27 +3447,27 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-ASSETS-00`
 
 #### P-ASSETS-01 · Düğme: Kategori
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/assets
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/assets
 - **Adım:** "Kategori" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Yetki (olumsuz):** DENETÇİ, GÖREVLİ ile bu düğme GÖRÜNMEMELİ (yazma yalnız MANAGER/BOARD_MEMBER).
 - **Sonuç:** http://localhost:18000/sonuc → `P-ASSETS-01`
 
 #### P-ASSETS-02 · Düğme: Demirbaş ekle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/assets
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/assets
 - **Adım:** "Demirbaş ekle" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Yetki (olumsuz):** DENETÇİ, GÖREVLİ ile bu düğme GÖRÜNMEMELİ (yazma yalnız MANAGER/BOARD_MEMBER).
 - **Sonuç:** http://localhost:18000/sonuc → `P-ASSETS-02`
 
 #### P-ASSETS-03 · Düğme: Aç
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/assets
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/assets
 - **Adım:** "Aç" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-ASSETS-03`
 
 #### P-ASSETS-04 · Form: Demirbaş ekle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/assets
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/assets
 - **Adım:** Formu aç; alanlar: Ad*, Kategori, Demirbaş kodu, Seri no, Konum, Durum, Alış tarihi, Alış bedeli (TL), Tedarikçi, Garanti bitişi, Amortisman (yıl), Bakım aralığı (gün) (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -3483,25 +3483,25 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-ASSETS-04`
 
 #### P-ASSETS-05 · Düğme: Bakım kaydı
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/assets
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/assets
 - **Adım:** "Bakım kaydı" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-ASSETS-05`
 
 #### P-ASSETS-06 · Düğme: {detail.assigned_to ? `Zimmet: ${detail.assigned_to}` : "Zimmetle"}
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/assets
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/assets
 - **Adım:** "{detail.assigned_to ? `Zimmet: ${detail.assigned_to}` : "Zimmetle"}" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-ASSETS-06`
 
 #### P-ASSETS-07 · Düğme: Hurdaya ayır
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/assets
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/assets
 - **Adım:** "Hurdaya ayır" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-ASSETS-07`
 
 #### P-ASSETS-08 · Form: Bakım kaydı
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/assets
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/assets
 - **Adım:** Formu aç; alanlar: Tür, Tarih, İşçilik (TL), Parça (TL), Yapan, Yeni durum, Açıklama* (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -3517,7 +3517,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-ASSETS-08`
 
 #### P-ASSETS-09 · Form: Hurdaya ayır
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/assets
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/assets
 - **Adım:** Formu aç; alanlar: Gerekçe*, Karar referansı* (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -3533,7 +3533,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-ASSETS-09`
 
 #### P-ASSETS-10 · Form: Demirbaş kategorisi
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/assets
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/assets
 - **Adım:** Formu aç; alanlar: Ad*, Amortisman süresi (yıl), Açıklama (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -3549,7 +3549,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-ASSETS-10`
 
 #### P-ASSETS-11 · Form: (başlık dinamik)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/assets
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/assets
 - **Adım:** Formu aç; alanlar: Zimmetlenen kişi / birim (* zorunlu)
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
 - **Beklenen (yazma):** `POST /assets/:id/assign` (asset, `services/asset/main.go:220`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
@@ -3569,8 +3569,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: MANAGER/BOARD_MEMBER/AUDITOR/STAFF — Stok
 
 #### P-INVENTORY-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ, GÖREVLİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/dashboard/inventory
-- **Adım:** http://localhost:3001/dashboard/inventory adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ, GÖREVLİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3101/dashboard/inventory
+- **Adım:** http://localhost:3101/dashboard/inventory adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: `GET /inventory` (inventory)
 - **Adım:** Veri yüklenir: `GET /inventory-summary` (inventory)
 - **Adım:** Veri yüklenir: `GET /inventory-movements` (inventory)
@@ -3589,42 +3589,42 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-INVENTORY-00`
 
 #### P-INVENTORY-01 · Düğme: Kategori
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/inventory
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/inventory
 - **Adım:** "Kategori" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Yetki (olumsuz):** DENETÇİ, GÖREVLİ ile bu düğme GÖRÜNMEMELİ (yazma yalnız MANAGER/BOARD_MEMBER).
 - **Sonuç:** http://localhost:18000/sonuc → `P-INVENTORY-01`
 
 #### P-INVENTORY-02 · Düğme: Kalem ekle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/inventory
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/inventory
 - **Adım:** "Kalem ekle" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Yetki (olumsuz):** DENETÇİ, GÖREVLİ ile bu düğme GÖRÜNMEMELİ (yazma yalnız MANAGER/BOARD_MEMBER).
 - **Sonuç:** http://localhost:18000/sonuc → `P-INVENTORY-02`
 
 #### P-INVENTORY-03 · Düğme: Hareket
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/inventory
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/inventory
 - **Adım:** "Hareket" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Yetki (olumsuz):** DENETÇİ, GÖREVLİ ile bu düğme GÖRÜNMEMELİ (yazma yalnız MANAGER/BOARD_MEMBER).
 - **Sonuç:** http://localhost:18000/sonuc → `P-INVENTORY-03`
 
 #### P-INVENTORY-04 · Düğme: Geçmiş
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/inventory
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/inventory
 - **Adım:** "Geçmiş" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Yetki (olumsuz):** DENETÇİ, GÖREVLİ ile bu düğme GÖRÜNMEMELİ (yazma yalnız MANAGER/BOARD_MEMBER).
 - **Sonuç:** http://localhost:18000/sonuc → `P-INVENTORY-04`
 
 #### P-INVENTORY-05 · Düğme: Pasife al
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/inventory
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/inventory
 - **Adım:** "Pasife al" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Yetki (olumsuz):** DENETÇİ, GÖREVLİ ile bu düğme GÖRÜNMEMELİ (yazma yalnız MANAGER/BOARD_MEMBER).
 - **Sonuç:** http://localhost:18000/sonuc → `P-INVENTORY-05`
 
 #### P-INVENTORY-06 · Form: Stok kalemi ekle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/inventory
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/inventory
 - **Adım:** Formu aç; alanlar: Ad*, Birim*, Kategori, Stok kodu, Asgari stok, Konum (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -3640,7 +3640,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-INVENTORY-06`
 
 #### P-INVENTORY-07 · Form: (başlık dinamik)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/inventory
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/inventory
 - **Adım:** Formu aç; alanlar: Tür, Birim fiyat (TL), Dayanak (* zorunlu)
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
 - **Beklenen (yazma):** `POST /inventory/:id/movements` (inventory, `services/inventory/main.go:142`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
@@ -3658,7 +3658,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-INVENTORY-07`
 
 #### P-INVENTORY-08 · Form: Stok kategorisi ekle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/inventory
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/inventory
 - **Adım:** Formu aç; alanlar: Ad*, Açıklama (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -3674,7 +3674,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-INVENTORY-08`
 
 #### P-INVENTORY-09 · Form: (başlık dinamik)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/inventory
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/inventory
 - **Adım:** Formu aç; alanlar: Gerekçe* (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -3696,8 +3696,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: MANAGER/BOARD_MEMBER/STAFF — Kargo kabul ve teslim
 
 #### P-PACKAGES-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ (sonra KURUL, GÖREVLİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/dashboard/packages
-- **Adım:** http://localhost:3001/dashboard/packages adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ (sonra KURUL, GÖREVLİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3101/dashboard/packages
+- **Adım:** http://localhost:3101/dashboard/packages adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: `GET /packages` (package)
 - **Adım:** Veri yüklenir: `GET /packages-summary` (package)
 - **Adım:** Veri yüklenir: `GET /units` (identity)
@@ -3710,13 +3710,13 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-PACKAGES-00`
 
 #### P-PACKAGES-01 · Düğme: Kargo kabul
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/packages
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/packages
 - **Adım:** "Kargo kabul" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-PACKAGES-01`
 
 #### P-PACKAGES-02 · Düğme: Hatırlat
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/packages
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/packages
 - **Adım:** "Hatırlat" düğme öğesine bas
 - **Beklenen (yazma):** `POST /packages/:id/notify` (package, `services/package/main.go:162`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER/STAFF
@@ -3728,19 +3728,19 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-PACKAGES-02`
 
 #### P-PACKAGES-03 · Düğme: Teslim et
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/packages
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/packages
 - **Adım:** "Teslim et" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-PACKAGES-03`
 
 #### P-PACKAGES-04 · Düğme: İade
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/packages
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/packages
 - **Adım:** "İade" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-PACKAGES-04`
 
 #### P-PACKAGES-05 · Düğme: İmza
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/packages
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/packages
 - **Adım:** "İmza" düğme öğesine bas
 - **Beklenen (okuma):** `GET /packages/:id/proof/:kind` (package) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Beklenen (dosya):** dosya iner/açılır; boş ya da bozuk değildir (PDF ise sayfalar okunur).
@@ -3748,7 +3748,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-PACKAGES-05`
 
 #### P-PACKAGES-06 · Düğme: Fotoğraf
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/packages
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/packages
 - **Adım:** "Fotoğraf" düğme öğesine bas
 - **Beklenen (okuma):** `GET /packages/:id/proof/:kind` (package) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Beklenen (dosya):** dosya iner/açılır; boş ya da bozuk değildir (PDF ise sayfalar okunur).
@@ -3756,7 +3756,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-PACKAGES-06`
 
 #### P-PACKAGES-07 · Form: Kargo kabul
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/packages
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/packages
 - **Adım:** Formu aç; alanlar: Daire*, Alıcı adı*, Kargo firması, Takip no, Tür, Konulduğu yer (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -3774,7 +3774,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-PACKAGES-07`
 
 #### P-PACKAGES-08 · Form: Teslim et
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/packages
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/packages
 - **Adım:** Formu aç; alanlar: Teslim alan kişi*, İmza, Paket fotoğrafı [dosya] (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -3798,7 +3798,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-PACKAGES-08`
 
 #### P-PACKAGES-09 · Form: Kargo firmasına iade
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/packages
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/packages
 - **Adım:** Formu aç; alanlar: Gerekçe* (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -3819,8 +3819,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: MANAGER/BOARD_MEMBER/STAFF — Otopark yönetimi
 
 #### P-PARKING-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ (sonra KURUL, GÖREVLİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/dashboard/parking
-- **Adım:** http://localhost:3001/dashboard/parking adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ (sonra KURUL, GÖREVLİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3101/dashboard/parking
+- **Adım:** http://localhost:3101/dashboard/parking adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: `GET /parking-logs` (parking)
 - **Adım:** Veri yüklenir: `GET /vehicles` (parking)
 - **Adım:** Veri yüklenir: `GET /parking-zones` (parking)
@@ -3844,25 +3844,25 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-PARKING-00`
 
 #### P-PARKING-01 · Düğme: Araç kaydet
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/parking
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/parking
 - **Adım:** "Araç kaydet" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-PARKING-01`
 
 #### P-PARKING-02 · Düğme: Giriş kaydı
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/parking
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/parking
 - **Adım:** "Giriş kaydı" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-PARKING-02`
 
 #### P-PARKING-03 · Düğme: Sorgula
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/parking
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/parking
 - **Adım:** "Sorgula" düğme öğesine bas
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `P-PARKING-03`
 
 #### P-PARKING-04 · Düğme: Çıkış
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/parking
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/parking
 - **Adım:** "Çıkış" düğme öğesine bas
 - **Beklenen (yazma):** `POST /parking-logs/:id/exit` (parking, `services/parking/main.go:184`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER/STAFF
@@ -3874,7 +3874,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-PARKING-04`
 
 #### P-PARKING-05 · Düğme: Pasife al
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/parking
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/parking
 - **Adım:** "Pasife al" düğme öğesine bas (onay penceresi çıkarsa önce Vazgeç → hiçbir şey değişmemeli; sonra tekrar bas ve onayla)
 - **Beklenen (yazma):** `DELETE /vehicles/:id` (parking, `services/parking/main.go:89`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: `resident_can_use`
@@ -3887,7 +3887,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-PARKING-05`
 
 #### P-PARKING-06 · Form: Araç girişi
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/parking
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/parking
 - **Adım:** Formu aç; alanlar: Plaka*, Bölge, Kapı (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -3901,7 +3901,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-PARKING-06`
 
 #### P-PARKING-07 · Form: Araç kaydet
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/parking
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/parking
 - **Adım:** Formu aç; alanlar: Plaka*, Daire, Sahip türü, Sahip adı, Araç türü, Park yeri, Marka, Model / renk (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -3917,7 +3917,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-PARKING-07`
 
 #### P-PARKING-08 · Düğme: Cihaz ekle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/parking
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/parking
 - **Adım:** "Cihaz ekle" düğme öğesine bas
 - **Adım:** Öğe `devices-card` bileşenindedir (satır 39)
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
@@ -3925,7 +3925,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-PARKING-08`
 
 #### P-PARKING-09 · Düğme: Pasife al
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/parking
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/parking
 - **Adım:** "Pasife al" düğme öğesine bas (onay penceresi çıkarsa önce Vazgeç → hiçbir şey değişmemeli; sonra tekrar bas ve onayla)
 - **Adım:** Öğe `devices-card` bileşenindedir (satır 49)
 - **Beklenen (yazma):** `DELETE /access-devices/:id` (parking, `services/parking/devices.go:101`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
@@ -3940,7 +3940,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-PARKING-09`
 
 #### P-PARKING-10 · Form: Geçiş cihazı ekle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/parking
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/parking
 - **Adım:** Formu aç; alanlar: Ad*, Tür, Konum, Sinyal aralığı (sn) (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -3963,8 +3963,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: MANAGER/BOARD_MEMBER/AUDITOR/STAFF — Devriye
 
 #### P-PATROL-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ, GÖREVLİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/dashboard/patrol
-- **Adım:** http://localhost:3001/dashboard/patrol adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ, GÖREVLİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3101/dashboard/patrol
+- **Adım:** http://localhost:3101/dashboard/patrol adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: `GET /patrols-summary` (patrol)
 - **Adım:** Veri yüklenir: `GET /patrols` (patrol)
 - **Adım:** Veri yüklenir: `GET /patrol-routes` (patrol)
@@ -3982,38 +3982,38 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-PATROL-00`
 
 #### P-PATROL-01 · Düğme: Tüm QR&apos;ları yazdır
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/patrol
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/patrol
 - **Adım:** "Tüm QR&apos;ları yazdır" düğme öğesine bas
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `P-PATROL-01`
 
 #### P-PATROL-02 · Düğme: Kontrol noktası
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/patrol
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/patrol
 - **Adım:** "Kontrol noktası" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-PATROL-02`
 
 #### P-PATROL-03 · Düğme: Tur tanımla
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/patrol
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/patrol
 - **Adım:** "Tur tanımla" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-PATROL-03`
 
 #### P-PATROL-04 · Düğme: Konum / yarıçap
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/patrol
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/patrol
 - **Adım:** "Konum / yarıçap" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Yetki (olumsuz):** DENETÇİ, GÖREVLİ ile bu düğme GÖRÜNMEMELİ (yazma yalnız MANAGER/BOARD_MEMBER).
 - **Sonuç:** http://localhost:18000/sonuc → `P-PATROL-04`
 
 #### P-PATROL-05 · Düğme: QR yazdır
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/patrol
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/patrol
 - **Adım:** "QR yazdır" düğme öğesine bas
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `P-PATROL-05`
 
 #### P-PATROL-06 · Düğme: QR yenile
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/patrol
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/patrol
 - **Adım:** "QR yenile" düğme öğesine bas
 - **Beklenen (yazma):** `POST /patrol-checkpoints/:id/rotate-qr` (patrol, `services/patrol/gps.go:101`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -4026,7 +4026,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-PATROL-06`
 
 #### P-PATROL-07 · Form: (başlık dinamik)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/patrol
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/patrol
 - **Adım:** Formu aç; alanlar: Enlem, Boylam, Yarıçap (m)*, Konum denetimi, Muafiyet gerekçesi* (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -4042,7 +4042,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-PATROL-07`
 
 #### P-PATROL-08 · Form: Kontrol noktası
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/patrol
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/patrol
 - **Adım:** Formu aç; alanlar:  (* zorunlu)
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
 - **Adım:** Başarı mesajı tam olarak şu anlamda olmalı: "Kontrol noktası eklendi"
@@ -4057,7 +4057,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-PATROL-08`
 
 #### P-PATROL-09 · Form: Tur tanımla
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/patrol
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/patrol
 - **Adım:** Formu aç; alanlar: Ad*, Beklenen süre (dk), Tolerans (dk), Noktalar (sırasıyla) (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -4079,8 +4079,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: MANAGER/BOARD_MEMBER — Personel özlük ve maaş bilgileri
 
 #### P-PERSONNEL-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ (sonra KURUL ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/dashboard/personnel
-- **Adım:** http://localhost:3001/dashboard/personnel adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ (sonra KURUL ile yalnız görüntüleme) · **Nerede:** http://localhost:3101/dashboard/personnel
+- **Adım:** http://localhost:3101/dashboard/personnel adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: `GET /employees` (personnel)
 - **Adım:** Veri yüklenir: `GET /employees/summary` (personnel)
 - **Adım:** Veri yüklenir: `GET /leaves` (personnel)
@@ -4110,31 +4110,31 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-PERSONNEL-00`
 
 #### P-PERSONNEL-01 · Düğme: İzin gir
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/personnel
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/personnel
 - **Adım:** "İzin gir" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-PERSONNEL-01`
 
 #### P-PERSONNEL-02 · Düğme: Personel ekle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/personnel
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/personnel
 - **Adım:** "Personel ekle" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-PERSONNEL-02`
 
 #### P-PERSONNEL-03 · Düğme: ?
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/personnel
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/personnel
 - **Adım:** "?" düğme öğesine bas
 - **Beklenen (okuma):** `GET /employees/:id` (personnel) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Sonuç:** http://localhost:18000/sonuc → `P-PERSONNEL-03`
 
 #### P-PERSONNEL-04 · Düğme: İlişik kes
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/personnel
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/personnel
 - **Adım:** "İlişik kes" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-PERSONNEL-04`
 
 #### P-PERSONNEL-05 · Düğme: Onayla
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/personnel
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/personnel
 - **Adım:** "Onayla" düğme öğesine bas
 - **Beklenen (yazma):** `POST /leaves/:id/approve` (personnel, `services/personnel/main.go:84`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -4147,13 +4147,13 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-PERSONNEL-05`
 
 #### P-PERSONNEL-06 · Düğme: Reddet
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/personnel
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/personnel
 - **Adım:** "Reddet" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-PERSONNEL-06`
 
 #### P-PERSONNEL-07 · Form: Personel ekle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/personnel
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/personnel
 - **Adım:** Formu aç; alanlar: Ad*, Soyad*, Görev*, Bölüm, İşe giriş*, Sözleşme, TCKN, Telefon, E-posta, Brüt maaş (TL), Net maaş (TL), Yıllık izin (gün), Banka, IBAN, SGK no (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -4168,7 +4168,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-PERSONNEL-07`
 
 #### P-PERSONNEL-08 · Form: (başlık dinamik)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/personnel
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/personnel
 - **Adım:** Formu aç; alanlar: Gerekçe*, Ayrılış tarihi (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -4183,7 +4183,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-PERSONNEL-08`
 
 #### P-PERSONNEL-09 · Form: İzin gir
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/personnel
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/personnel
 - **Adım:** Formu aç; alanlar: Personel*, Tür, Başlangıç*, Bitiş* (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -4198,7 +4198,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-PERSONNEL-09`
 
 #### P-PERSONNEL-10 · Form: İzni reddet
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/personnel
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/personnel
 - **Adım:** Formu aç; alanlar: Gerekçe* (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -4214,14 +4214,14 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-PERSONNEL-10`
 
 #### P-PERSONNEL-11 · Düğme: Bildirge verildi
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/personnel
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/personnel
 - **Adım:** "Bildirge verildi" düğme öğesine bas
 - **Adım:** Öğe `compliance-card` bileşenindedir (satır 33)
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-PERSONNEL-11`
 
 #### P-PERSONNEL-12 · Form: SGK bildirgesi verildi
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/personnel
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/personnel
 - **Adım:** Formu aç; alanlar: Bildirgenin verildiği tarih* (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -4237,28 +4237,28 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-PERSONNEL-12`
 
 #### P-PERSONNEL-13 · Düğme: Bordro gir
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/personnel
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/personnel
 - **Adım:** "Bordro gir" düğme öğesine bas
 - **Adım:** Öğe `payroll-card` bileşenindedir (satır 34)
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-PERSONNEL-13`
 
 #### P-PERSONNEL-14 · Düğme: Ödendi
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/personnel
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/personnel
 - **Adım:** "Ödendi" düğme öğesine bas
 - **Adım:** Öğe `payroll-card` bileşenindedir (satır 54)
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-PERSONNEL-14`
 
 #### P-PERSONNEL-15 · Düğme: İptal
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/personnel
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/personnel
 - **Adım:** "İptal" düğme öğesine bas
 - **Adım:** Öğe `payroll-card` bileşenindedir (satır 55)
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-PERSONNEL-15`
 
 #### P-PERSONNEL-16 · Form: Bordro gir
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/personnel
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/personnel
 - **Adım:** Formu aç; alanlar: Personel*, Net ödenen (TL)*, İşveren maliyeti (TL)*, Ödeme tarihi, Bordronun kaynağı*, Ödeme referansı, Not (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -4274,7 +4274,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-PERSONNEL-16`
 
 #### P-PERSONNEL-17 · Form: Ödeme
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/personnel
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/personnel
 - **Adım:** Formu aç; alanlar: Ödeme tarihi*, Referans (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -4291,7 +4291,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-PERSONNEL-17`
 
 #### P-PERSONNEL-18 · Form: Bordro kaydını iptal et
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/personnel
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/personnel
 - **Adım:** Formu aç; alanlar: Gerekçe* (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -4314,8 +4314,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: MANAGER/BOARD_MEMBER/STAFF — Rezervasyon yönetimi
 
 #### P-RESERVATIONS-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ (sonra KURUL, GÖREVLİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/dashboard/reservations
-- **Adım:** http://localhost:3001/dashboard/reservations adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ (sonra KURUL, GÖREVLİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3101/dashboard/reservations
+- **Adım:** http://localhost:3101/dashboard/reservations adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: `GET /reservations` (reservation)
 - **Adım:** Veri yüklenir: `GET /facilities` (reservation)
 - **Adım:** Her sekmeye tıkla, içerik hatasız yüklenir: Rezervasyonlar, Tesisler
@@ -4331,7 +4331,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-RESERVATIONS-00`
 
 #### P-RESERVATIONS-01 · Düğme: Onayla
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/reservations
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/reservations
 - **Adım:** "Onayla" düğme öğesine bas
 - **Beklenen (yazma):** `POST /reservations/:id/approve` (reservation, `services/reservation/main.go:283`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -4346,33 +4346,33 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-RESERVATIONS-01`
 
 #### P-RESERVATIONS-02 · Düğme: Reddet
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/reservations
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/reservations
 - **Adım:** "Reddet" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-RESERVATIONS-02`
 
 #### P-RESERVATIONS-03 · Düğme: İptal
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/reservations
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/reservations
 - **Adım:** "İptal" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-RESERVATIONS-03`
 
 #### P-RESERVATIONS-04 · Düğme: + Yeni tesis
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/reservations
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/reservations
 - **Adım:** "+ Yeni tesis" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Yetki (olumsuz):** GÖREVLİ ile bu düğme GÖRÜNMEMELİ (yazma yalnız MANAGER/BOARD_MEMBER).
 - **Sonuç:** http://localhost:18000/sonuc → `P-RESERVATIONS-04`
 
 #### P-RESERVATIONS-05 · Düğme: Düzenle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/reservations
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/reservations
 - **Adım:** "Düzenle" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Yetki (olumsuz):** GÖREVLİ ile bu düğme GÖRÜNMEMELİ (yazma yalnız MANAGER/BOARD_MEMBER).
 - **Sonuç:** http://localhost:18000/sonuc → `P-RESERVATIONS-05`
 
 #### P-RESERVATIONS-06 · Form: Rezervasyonu reddet
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/reservations
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/reservations
 - **Adım:** Formu aç; alanlar: Gerekçe* (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -4390,7 +4390,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-RESERVATIONS-06`
 
 #### P-RESERVATIONS-07 · Form: Rezervasyonu iptal et
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/reservations
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/reservations
 - **Adım:** Formu aç; alanlar: Gerekçe (* zorunlu)
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
 - **Adım:** Başarı mesajı tam olarak şu anlamda olmalı: "Rezervasyon iptal edildi"
@@ -4404,7 +4404,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-RESERVATIONS-07`
 
 #### P-RESERVATIONS-08 · Form: (başlık dinamik)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/reservations
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/reservations
 - **Adım:** Formu aç; alanlar: Ad*, Kategori, Açılış*, Kapanış*, Bakım notu (sakinlere gösterilir)*, Açıklama, Kullanım kuralları (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -4436,8 +4436,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: MANAGER/BOARD_MEMBER/AUDITOR/STAFF — Sensörler ve alarmlar
 
 #### P-SENSORS-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ, GÖREVLİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/dashboard/sensors
-- **Adım:** http://localhost:3001/dashboard/sensors adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ, GÖREVLİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3101/dashboard/sensors
+- **Adım:** http://localhost:3101/dashboard/sensors adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: `GET /sensors` (iot)
 - **Adım:** Veri yüklenir: `GET /iot/alerts` (iot)
 - **Adım:** Veri yüklenir: `GET /sensors/:id/data` (iot)
@@ -4457,14 +4457,14 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-SENSORS-00`
 
 #### P-SENSORS-01 · Düğme: Sensör ekle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/sensors
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/sensors
 - **Adım:** "Sensör ekle" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Yetki (olumsuz):** DENETÇİ, GÖREVLİ ile bu düğme GÖRÜNMEMELİ (yazma yalnız MANAGER/BOARD_MEMBER).
 - **Sonuç:** http://localhost:18000/sonuc → `P-SENSORS-01`
 
 #### P-SENSORS-02 · Düğme: Onayla
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/sensors
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/sensors
 - **Adım:** "Onayla" düğme öğesine bas
 - **Beklenen (yazma):** `POST /iot/alerts/:id/acknowledge` (iot, `services/iot/sensors.go:263`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER/STAFF
@@ -4477,26 +4477,26 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-SENSORS-02`
 
 #### P-SENSORS-03 · Düğme: Kapat
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/sensors
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/sensors
 - **Adım:** "Kapat" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-SENSORS-03`
 
 #### P-SENSORS-04 · Düğme: Geçmiş
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/sensors
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/sensors
 - **Adım:** "Geçmiş" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-SENSORS-04`
 
 #### P-SENSORS-05 · Düğme: Düzenle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/sensors
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/sensors
 - **Adım:** "Düzenle" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Yetki (olumsuz):** DENETÇİ, GÖREVLİ ile bu düğme GÖRÜNMEMELİ (yazma yalnız MANAGER/BOARD_MEMBER).
 - **Sonuç:** http://localhost:18000/sonuc → `P-SENSORS-05`
 
 #### P-SENSORS-06 · Düğme: Anahtarı yenile
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/sensors
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/sensors
 - **Adım:** "Anahtarı yenile" düğme öğesine bas
 - **Beklenen (yazma):** `POST /sensors/:id/rotate-key` (iot, `services/iot/sensors.go:360`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -4509,7 +4509,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-SENSORS-06`
 
 #### P-SENSORS-07 · Form: (başlık dinamik)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/sensors
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/sensors
 - **Adım:** Formu aç; alanlar: Ad*, Tür*, Konum, Birim, Alt eşik, Üst eşik, Sinyal kesilme süresi (dk)*, Durum (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -4532,7 +4532,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-SENSORS-07`
 
 #### P-SENSORS-08 · Form: Alarmı kapat
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/sensors
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/sensors
 - **Adım:** Formu aç; alanlar: Ne yapıldı?* (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -4554,8 +4554,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: MANAGER/BOARD_MEMBER/STAFF — Ziyaretçi kayıtları
 
 #### P-VISITORS-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ (sonra KURUL, GÖREVLİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/dashboard/visitors
-- **Adım:** http://localhost:3001/dashboard/visitors adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ (sonra KURUL, GÖREVLİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3101/dashboard/visitors
+- **Adım:** http://localhost:3101/dashboard/visitors adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: `GET /visitors` (visitor)
 - **Adım:** Veri yüklenir: `GET /visitors/summary` (visitor)
 - **Adım:** Veri yüklenir: `GET /units` (identity)
@@ -4570,19 +4570,19 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-VISITORS-00`
 
 #### P-VISITORS-01 · Düğme: Ziyaretçi kaydı
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/visitors
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/visitors
 - **Adım:** "Ziyaretçi kaydı" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-VISITORS-01`
 
 #### P-VISITORS-02 · Düğme: Doğrula ve giriş yap
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/visitors
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/visitors
 - **Adım:** "Doğrula ve giriş yap" düğme öğesine bas
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `P-VISITORS-02`
 
 #### P-VISITORS-03 · Düğme: Giriş
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/visitors
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/visitors
 - **Adım:** "Giriş" düğme öğesine bas
 - **Beklenen (yazma):** `POST /visitors/:id/check-in` (visitor, `services/visitor/main.go:175`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER/STAFF
@@ -4597,7 +4597,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-VISITORS-03`
 
 #### P-VISITORS-04 · Düğme: İptal
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/visitors
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/visitors
 - **Adım:** "İptal" düğme öğesine bas (onay penceresi çıkarsa önce Vazgeç → hiçbir şey değişmemeli; sonra tekrar bas ve onayla)
 - **Beklenen (yazma):** `POST /visitors/:id/cancel` (visitor, `services/visitor/main.go:200`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: işleyicide `hasAnyRole` (backend/services/visitor/main.go:239); `resident_can_use`
@@ -4610,7 +4610,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-VISITORS-04`
 
 #### P-VISITORS-05 · Düğme: Kodu yenile
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/visitors
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/visitors
 - **Adım:** "Kodu yenile" düğme öğesine bas
 - **Beklenen (yazma):** `POST /visitors/:id/pass` (visitor, `services/visitor/main.go:198`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: işleyicide `hasAnyRole` (backend/services/visitor/main.go:239)
@@ -4622,7 +4622,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-VISITORS-05`
 
 #### P-VISITORS-06 · Düğme: Çıkış
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/visitors
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/visitors
 - **Adım:** "Çıkış" düğme öğesine bas
 - **Beklenen (yazma):** `POST /visitors/:id/check-out` (visitor, `services/visitor/main.go:187`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER/STAFF
@@ -4634,7 +4634,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-VISITORS-06`
 
 #### P-VISITORS-07 · Form: Ziyaretçi kaydı
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/visitors
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/visitors
 - **Adım:** Formu aç; alanlar: Ad soyad*, Telefon, Ziyaret edilen daire, Firma, Araç plakası, Beklenen zaman, Amaç (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -4658,15 +4658,15 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 
 
 
-Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-00), sonra sayfadaki her düğme/form/seçim sırayla denenir. Formlarda önce zorunlu alanları boş bırakıp gönder (doğrulama hatası beklenir, kayıt OLUŞMAMALI), sonra gerçekçi değerlerle doldur. Girilen değerleri gözleme yaz; sonraki adımlar ve senaryolar bu kayıtları kullanır.
+Panel: http://localhost:3101. Her sayfa için önce **sayfa açılışı** (…-00), sonra sayfadaki her düğme/form/seçim sırayla denenir. Formlarda önce zorunlu alanları boş bırakıp gönder (doğrulama hatası beklenir, kayıt OLUŞMAMALI), sonra gerçekçi değerlerle doldur. Girilen değerleri gözleme yaz; sonraki adımlar ve senaryolar bu kayıtları kullanır.
 
 ### Enerji — `/dashboard/energy`
 - Dosya: `admin/src/app/(dashboard)/dashboard/energy/page.tsx`
 - Panel erişimi: MANAGER/BOARD_MEMBER/AUDITOR/STAFF — Enerji analizi
 
 #### P-ENERGY-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ, GÖREVLİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/dashboard/energy
-- **Adım:** http://localhost:3001/dashboard/energy adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ, GÖREVLİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3101/dashboard/energy
+- **Adım:** http://localhost:3101/dashboard/energy adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: `GET /energy/trends` (energy_analytics)
 - **Adım:** Veri yüklenir: `GET /energy/anomalies` (energy_analytics)
 - **Adım:** Kart (satır 28): Dönemsel tüketim
@@ -4687,8 +4687,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: MANAGER/BOARD_MEMBER/AUDITOR — Karbon ayak izi
 
 #### P-ESG-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/dashboard/esg
-- **Adım:** http://localhost:3001/dashboard/esg adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3101/dashboard/esg
+- **Adım:** http://localhost:3101/dashboard/esg adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: `GET /esg/consumption` (esg)
 - **Adım:** Kart (satır 29): Tüketim
 - **Adım:** Tablo sütunları görünür ve dolu/boş durumu doğru: Tür \| Toplam tüketim \| Sayaç \| Okuma \| Katsayı (kgCO₂e / birim)
@@ -4701,7 +4701,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-ESG-00`
 
 #### P-ESG-01 · Düğme: Hesapla
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/esg
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/esg
 - **Adım:** "Hesapla" düğme öğesine bas
 - **Beklenen (yazma):** `POST /esg/carbon-footprint` (esg, `services/esg/main.go:97`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: AUDITOR/BOARD_MEMBER/MANAGER
@@ -4716,8 +4716,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: MANAGER/BOARD_MEMBER/AUDITOR — Memnuniyet sonuçları
 
 #### P-NPS-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/dashboard/nps
-- **Adım:** http://localhost:3001/dashboard/nps adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3101/dashboard/nps
+- **Adım:** http://localhost:3101/dashboard/nps adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: `GET /nps` (nps)
 - **Adım:** Veri yüklenir: `GET /nps/:id` (nps)
 - **Adım:** Veri yüklenir: `GET /nps/:id/comments` (nps)
@@ -4732,20 +4732,20 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-NPS-00`
 
 #### P-NPS-01 · Düğme: Ölçüm başlat
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/nps
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/nps
 - **Adım:** "Ölçüm başlat" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Yetki (olumsuz):** DENETÇİ ile bu düğme GÖRÜNMEMELİ (yazma yalnız MANAGER/BOARD_MEMBER).
 - **Sonuç:** http://localhost:18000/sonuc → `P-NPS-01`
 
 #### P-NPS-02 · Düğme: Sonuç
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/nps
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/nps
 - **Adım:** "Sonuç" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-NPS-02`
 
 #### P-NPS-03 · Düğme: Kapat
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/nps
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/nps
 - **Adım:** "Kapat" düğme öğesine bas
 - **Beklenen (yazma):** `POST /nps/:id/close` (nps, `services/nps/main.go:192`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -4758,7 +4758,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-NPS-03`
 
 #### P-NPS-04 · Form: Memnuniyet ölçümü başlat
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/nps
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/nps
 - **Adım:** Formu aç; alanlar: Başlık*, Açıklama, Bitiş (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -4781,8 +4781,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: MANAGER/BOARD_MEMBER/AUDITOR — Mali raporlar
 
 #### P-REPORTS-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/dashboard/reports
-- **Adım:** http://localhost:3001/dashboard/reports adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3101/dashboard/reports
+- **Adım:** http://localhost:3101/dashboard/reports adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: `GET /governance/assemblies` (governance)
 - **Adım:** Veri yüklenir: `GET /governance/budgets` (governance)
 - **Adım:** Kart (satır 47): Borçlu listesi
@@ -4797,13 +4797,13 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-REPORTS-00`
 
 #### P-REPORTS-01 · Düğme: PDF
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/reports
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/reports
 - **Adım:** "PDF" düğme öğesine bas
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `P-REPORTS-01`
 
 #### P-REPORTS-02 · Düğme: Excel
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/reports
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/reports
 - **Adım:** "Excel" düğme öğesine bas
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `P-REPORTS-02`
@@ -4816,15 +4816,15 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 
 
 
-Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-00), sonra sayfadaki her düğme/form/seçim sırayla denenir. Formlarda önce zorunlu alanları boş bırakıp gönder (doğrulama hatası beklenir, kayıt OLUŞMAMALI), sonra gerçekçi değerlerle doldur. Girilen değerleri gözleme yaz; sonraki adımlar ve senaryolar bu kayıtları kullanır.
+Panel: http://localhost:3101. Her sayfa için önce **sayfa açılışı** (…-00), sonra sayfadaki her düğme/form/seçim sırayla denenir. Formlarda önce zorunlu alanları boş bırakıp gönder (doğrulama hatası beklenir, kayıt OLUŞMAMALI), sonra gerçekçi değerlerle doldur. Girilen değerleri gözleme yaz; sonraki adımlar ve senaryolar bu kayıtları kullanır.
 
 ### İşlem Kayıtları — `/dashboard/audit`
 - Dosya: `admin/src/app/(dashboard)/dashboard/audit/page.tsx`
 - Panel erişimi: MANAGER/AUDITOR — İşlem kayıtları (kişisel veri içerir; KMK m.41 denetçi)
 
 #### P-AUDIT-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ (sonra DENETÇİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/dashboard/audit
-- **Adım:** http://localhost:3001/dashboard/audit adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ (sonra DENETÇİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3101/dashboard/audit
+- **Adım:** http://localhost:3101/dashboard/audit adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: `GET /audit-logs` (settings)
 - **Adım:** Veri yüklenir: `GET /audit-logs/stats` (settings)
 - **Adım:** Bilgi notu (satır 33): Kayıt düzeyi: list.data.level . Düzey Ayarlar &apos;dan (yalnız site yöneticisi) değiştiri
@@ -4839,37 +4839,37 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-AUDIT-00`
 
 #### P-AUDIT-01 · Düğme: CSV indir
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/audit
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/audit
 - **Adım:** "CSV indir" düğme öğesine bas
 - **Beklenen (okuma):** `GET /audit-logs/export` (settings) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Sonuç:** http://localhost:18000/sonuc → `P-AUDIT-01`
 
 #### P-AUDIT-02 · Düğme: Uygula
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/audit
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/audit
 - **Adım:** "Uygula" düğme öğesine bas
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `P-AUDIT-02`
 
 #### P-AUDIT-03 · Düğme: Temizle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/audit
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/audit
 - **Adım:** "Temizle" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-AUDIT-03`
 
 #### P-AUDIT-04 · Düğme: Ayrıntı
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/audit
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/audit
 - **Adım:** "Ayrıntı" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-AUDIT-04`
 
 #### P-AUDIT-05 · Düğme: Önceki
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/audit
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/audit
 - **Adım:** "Önceki" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-AUDIT-05`
 
 #### P-AUDIT-06 · Düğme: Sonraki
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/audit
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/audit
 - **Adım:** "Sonraki" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-AUDIT-06`
@@ -4881,8 +4881,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: MANAGER/BOARD_MEMBER/AUDITOR/STAFF — Yönetim paneli
 
 #### P-INBOX-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ, GÖREVLİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/dashboard/inbox
-- **Adım:** http://localhost:3001/dashboard/inbox adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ, GÖREVLİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3101/dashboard/inbox
+- **Adım:** http://localhost:3101/dashboard/inbox adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: `GET /notifications` (notification)
 - **Adım:** Her sekmeye tıkla, içerik hatasız yüklenir: Okunmamış, Tümü
 - **Adım:** Tablo sütunları görünür ve dolu/boş durumu doğru: Zaman \| Konu \| İçerik \| Durum
@@ -4892,7 +4892,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-INBOX-00`
 
 #### P-INBOX-01 · Düğme: Tümünü okundu say
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/inbox
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/inbox
 - **Adım:** "Tümünü okundu say" düğme öğesine bas
 - **Beklenen (yazma):** `POST /notifications/read-all` (notification, `services/notification/main.go:97`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: oturum açmış herkes (site kapsamı)
@@ -4904,7 +4904,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-INBOX-01`
 
 #### P-INBOX-02 · Düğme: Okundu say
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/inbox
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/inbox
 - **Adım:** "Okundu say" düğme öğesine bas
 - **Beklenen (yazma):** `POST /notifications/:id/read` (notification, `services/notification/main.go:84`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: oturum açmış herkes (site kapsamı)
@@ -4922,8 +4922,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: MANAGER/BOARD_MEMBER — Dış sağlayıcıların bağlantı durumu
 
 #### P-INTEGRATIONS-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ (sonra KURUL ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/dashboard/integrations
-- **Adım:** http://localhost:3001/dashboard/integrations adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ (sonra KURUL ile yalnız görüntüleme) · **Nerede:** http://localhost:3101/dashboard/integrations
+- **Adım:** http://localhost:3101/dashboard/integrations adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: `GET /integrations/status` (karşılığı yok)
 - **Adım:** Bilgi notu (satır 17): Sağlayıcı anahtarları sunucu ortam değişkenleriyle verilir (iyzico: IYZICO_* , SMS: NETGSM
 - **Adım:** Bilgi notu (satır 29): Bazı servislerden durum alınamadı: {d.unavailable.map((u) => `${u.source}: ${u.reason}`).join(" · ")}
@@ -4945,15 +4945,15 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 
 
 
-Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-00), sonra sayfadaki her düğme/form/seçim sırayla denenir. Formlarda önce zorunlu alanları boş bırakıp gönder (doğrulama hatası beklenir, kayıt OLUŞMAMALI), sonra gerçekçi değerlerle doldur. Girilen değerleri gözleme yaz; sonraki adımlar ve senaryolar bu kayıtları kullanır.
+Panel: http://localhost:3101. Her sayfa için önce **sayfa açılışı** (…-00), sonra sayfadaki her düğme/form/seçim sırayla denenir. Formlarda önce zorunlu alanları boş bırakıp gönder (doğrulama hatası beklenir, kayıt OLUŞMAMALI), sonra gerçekçi değerlerle doldur. Girilen değerleri gözleme yaz; sonraki adımlar ve senaryolar bu kayıtları kullanır.
 
 ### Ayarlar — `/dashboard/settings`
 - Dosya: `admin/src/app/(dashboard)/dashboard/settings/page.tsx`
 - Panel erişimi: MANAGER/BOARD_MEMBER — Site ayarları
 
 #### P-SETTINGS-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ (sonra KURUL ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/dashboard/settings
-- **Adım:** http://localhost:3001/dashboard/settings adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ (sonra KURUL ile yalnız görüntüleme) · **Nerede:** http://localhost:3101/dashboard/settings
+- **Adım:** http://localhost:3101/dashboard/settings adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: 
 - **Adım:** Veri yüklenir: `GET /settings/definitions` (settings)
 - **Adım:** Veri yüklenir: `GET /settings-history` (settings)
@@ -4996,13 +4996,13 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-SETTINGS-00`
 
 #### P-SETTINGS-01 · Düğme: Düzenle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/settings
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/settings
 - **Adım:** "Düzenle" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-SETTINGS-01`
 
 #### P-SETTINGS-02 · Düğme: Sıfırla
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/settings
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/settings
 - **Adım:** "Sıfırla" düğme öğesine bas (onay penceresi çıkarsa önce Vazgeç → hiçbir şey değişmemeli; sonra tekrar bas ve onayla)
 - **Beklenen (yazma):** `DELETE /settings/:key` (settings, `services/settings/main.go:126`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER; işleyicide `hasRole` (backend/services/settings/visibility.go:74)
@@ -5016,7 +5016,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-SETTINGS-02`
 
 #### P-SETTINGS-03 · Form: (başlık dinamik)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/settings
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/settings
 - **Adım:** Formu aç; alanlar: Değer (* zorunlu)
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
 - **Adım:** Başarı mesajı tam olarak şu anlamda olmalı: "Ayar kaydedildi"
@@ -5032,7 +5032,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-SETTINGS-03`
 
 #### P-SETTINGS-04 · Düğme: Şimdi imha et
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/settings
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/settings
 - **Adım:** "Şimdi imha et" düğme öğesine bas
 - **Adım:** Öğe `retention-card` bileşenindedir (satır 26)
 - **Beklenen (yazma):** `POST /retention-rules/run` (settings, `services/settings/main.go:152`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
@@ -5052,14 +5052,14 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-SETTINGS-04`
 
 #### P-SETTINGS-05 · Düğme: Düzenle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/settings
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/settings
 - **Adım:** "Düzenle" düğme öğesine bas
 - **Adım:** Öğe `retention-card` bileşenindedir (satır 35)
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-SETTINGS-05`
 
 #### P-SETTINGS-06 · Form: Saklama süresi
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/settings
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/settings
 - **Adım:** Formu aç; alanlar: Saklama süresi (ay)*, Gerekçe (işleme amacı / hukuki dayanak)* (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -5082,28 +5082,28 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-SETTINGS-06`
 
 #### P-SETTINGS-07 · Düğme: Kamera ekle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/settings
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/settings
 - **Adım:** "Kamera ekle" düğme öğesine bas
 - **Adım:** Öğe `privacy-card` bileşenindedir (satır 34)
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-SETTINGS-07`
 
 #### P-SETTINGS-08 · Düğme: Düzenle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/settings
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/settings
 - **Adım:** "Düzenle" düğme öğesine bas
 - **Adım:** Öğe `privacy-card` bileşenindedir (satır 42)
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-SETTINGS-08`
 
 #### P-SETTINGS-09 · Düğme: Sistem ekle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/settings
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/settings
 - **Adım:** "Sistem ekle" düğme öğesine bas
 - **Adım:** Öğe `privacy-card` bileşenindedir (satır 53)
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-SETTINGS-09`
 
 #### P-SETTINGS-10 · Form: (başlık dinamik)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/settings
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/settings
 - **Adım:** Formu aç; alanlar: Konum*, Alan türü, Saklama (gün)*, Genel kurul kararı, Amaç*, Kayıtlara kimler erişir, Somut gerekçe* (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -5126,7 +5126,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-SETTINGS-10`
 
 #### P-SETTINGS-11 · Form: Biyometrik sistem
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/settings
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/settings
 - **Adım:** Formu aç; alanlar: Sistem adı*, Yöntem, Amaç*, Alternatif yöntem*, Saklama notu (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -5142,14 +5142,14 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-SETTINGS-11`
 
 #### P-SETTINGS-12 · Düğme: Siteyi pasife al
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/settings
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/settings
 - **Adım:** "Siteyi pasife al" düğme öğesine bas
 - **Adım:** Öğe `lifecycle-card` bileşenindedir (satır 37)
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-SETTINGS-12`
 
 #### P-SETTINGS-13 · Form: (başlık dinamik)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/settings
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/settings
 - **Adım:** Formu aç; alanlar: Gerekçe* (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -5174,28 +5174,28 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-SETTINGS-13`
 
 #### P-SETTINGS-14 · Düğme: Değişiklik öner
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/settings
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/settings
 - **Adım:** "Değişiklik öner" düğme öğesine bas
 - **Adım:** Öğe `visibility-card` bileşenindedir (satır 35)
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-SETTINGS-14`
 
 #### P-SETTINGS-15 · Düğme: Onayla
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/settings
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/settings
 - **Adım:** "Onayla" düğme öğesine bas
 - **Adım:** Öğe `visibility-card` bileşenindedir (satır 61)
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-SETTINGS-15`
 
 #### P-SETTINGS-16 · Düğme: Reddet
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/settings
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/settings
 - **Adım:** "Reddet" düğme öğesine bas
 - **Adım:** Öğe `visibility-card` bileşenindedir (satır 62)
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-SETTINGS-16`
 
 #### P-SETTINGS-17 · Düğme: Geri çek
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/settings
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/settings
 - **Adım:** "Geri çek" düğme öğesine bas
 - **Adım:** Öğe `visibility-card` bileşenindedir (satır 66)
 - **Beklenen (okuma):** `GET /settings` (settings) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
@@ -5210,7 +5210,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-SETTINGS-17`
 
 #### P-SETTINGS-18 · Form: Görünürlük değişikliği öner
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/settings
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/settings
 - **Adım:** Formu aç; alanlar: Gerekçe* (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -5226,7 +5226,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-SETTINGS-18`
 
 #### P-SETTINGS-19 · Form: (başlık dinamik)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/settings
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/settings
 - **Adım:** Formu aç; alanlar: Not (* zorunlu)
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
 - **Adım:** Öğe `visibility-card` bileşenindedir (satır 108)
@@ -5255,7 +5255,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-SETTINGS-19`
 
 #### P-SETTINGS-20 · Düğme: Konumu kaydet
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/settings
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/settings
 - **Adım:** "Konumu kaydet" düğme öğesine bas
 - **Adım:** Öğe `location-card` bileşenindedir (satır 54)
 - **Beklenen (yazma):** `PUT /property/location` (identity, `services/identity/main.go:167`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
@@ -5268,7 +5268,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-SETTINGS-20`
 
 #### P-SETTINGS-21 · Düğme: Konumu sil
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/settings
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/settings
 - **Adım:** "Konumu sil" düğme öğesine bas (onay penceresi çıkarsa önce Vazgeç → hiçbir şey değişmemeli; sonra tekrar bas ve onayla)
 - **Adım:** Öğe `location-card` bileşenindedir (satır 59)
 - **Beklenen (yazma):** `PUT /property/location` (identity, `services/identity/main.go:167`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
@@ -5288,15 +5288,15 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 
 
 
-Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-00), sonra sayfadaki her düğme/form/seçim sırayla denenir. Formlarda önce zorunlu alanları boş bırakıp gönder (doğrulama hatası beklenir, kayıt OLUŞMAMALI), sonra gerçekçi değerlerle doldur. Girilen değerleri gözleme yaz; sonraki adımlar ve senaryolar bu kayıtları kullanır.
+Panel: http://localhost:3101. Her sayfa için önce **sayfa açılışı** (…-00), sonra sayfadaki her düğme/form/seçim sırayla denenir. Formlarda önce zorunlu alanları boş bırakıp gönder (doğrulama hatası beklenir, kayıt OLUŞMAMALI), sonra gerçekçi değerlerle doldur. Girilen değerleri gözleme yaz; sonraki adımlar ve senaryolar bu kayıtları kullanır.
 
 ### / — `/`
 - Dosya: `admin/src/app/page.tsx`
 - Panel erişimi: herkese açık
 
 #### P--00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ, GÖREVLİ, KİRACI ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/
-- **Adım:** http://localhost:3001/ adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ, GÖREVLİ, KİRACI ile yalnız görüntüleme) · **Nerede:** http://localhost:3101/
+- **Adım:** http://localhost:3101/ adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Sayfayı yenile (F5): aynı içerik gelir, oturum düşmez
 - **Beklenen:** her veri bölümü yüklenir (boşsa anlamlı boş durum mesajı; "undefined", "NaN", "null", ham JSON ya da İngilizce hata metni YOK); sayılar ve tarihler Türkçe biçimde (1.234,56 ₺ · gg.aa.yyyy); uydurma/örnek veri yok; dar ekranda (400 px) yatay kaydırma olmadan okunur.
 - **Sonuç:** http://localhost:18000/sonuc → `P--00`
@@ -5308,8 +5308,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: herkese açık
 
 #### P-ACTIVATE-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ, GÖREVLİ, KİRACI ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/activate
-- **Adım:** http://localhost:3001/activate adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ, GÖREVLİ, KİRACI ile yalnız görüntüleme) · **Nerede:** http://localhost:3101/activate
+- **Adım:** http://localhost:3101/activate adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Bağlantı (satır 61): Giriş yap → /login
 - **Adım:** Bağlantı (satır 115): Girişe dön → /login
 - **Adım:** Sayfayı yenile (F5): aynı içerik gelir, oturum düşmez
@@ -5323,8 +5323,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: MANAGER/BOARD_MEMBER/AUDITOR/STAFF — Yönetim paneli
 
 #### P-ACCOUNT-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ, GÖREVLİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/dashboard/account
-- **Adım:** http://localhost:3001/dashboard/account adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ, GÖREVLİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3101/dashboard/account
+- **Adım:** http://localhost:3101/dashboard/account adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Kart (satır 23): Şifre değiştir
 - **Adım:** Bilgi notu (satır 36): {act.error}
 - **Adım:** Bilgi notu (satır 37): {act.message} Giriş ekranına yönlendiriliyorsunuz…
@@ -5342,31 +5342,31 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-ACCOUNT-00`
 
 #### P-ACCOUNT-01 · Düğme: Değiştiriliyor…
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/account
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/account
 - **Adım:** "Değiştiriliyor…" düğme öğesine bas
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `P-ACCOUNT-01`
 
 #### P-ACCOUNT-02 · Düğme: Yeni numaraya kod gönder
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/account
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/account
 - **Adım:** "Yeni numaraya kod gönder" düğme öğesine bas
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `P-ACCOUNT-02`
 
 #### P-ACCOUNT-03 · Düğme: Onayla
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/account
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/account
 - **Adım:** "Onayla" düğme öğesine bas
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `P-ACCOUNT-03`
 
 #### P-ACCOUNT-04 · Düğme: Yeni adrese kod gönder
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/account
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/account
 - **Adım:** "Yeni adrese kod gönder" düğme öğesine bas
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `P-ACCOUNT-04`
 
 #### P-ACCOUNT-05 · Düğme: Onayla
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/account
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/account
 - **Adım:** "Onayla" düğme öğesine bas
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `P-ACCOUNT-05`
@@ -5378,8 +5378,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: MANAGER/BOARD_MEMBER/AUDITOR/STAFF — Yönetim paneli
 
 #### P-FORBIDDEN-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ, GÖREVLİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/dashboard/forbidden
-- **Adım:** http://localhost:3001/dashboard/forbidden adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ, GÖREVLİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3101/dashboard/forbidden
+- **Adım:** http://localhost:3101/dashboard/forbidden adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Bağlantı (satır 79): Panele dön → homeFor(myRoles)
 - **Adım:** Sayfayı yenile (F5): aynı içerik gelir, oturum düşmez
 - **Adım:** Erişimi olmayan hesapla (KİRACI) aynı adresi aç → `/dashboard/forbidden` sayfasına yönlenmeli, kenar çubuğunda bu menü görünmemeli
@@ -5393,8 +5393,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: MANAGER/BOARD_MEMBER/AUDITOR — Yönetişim kayıtları (işletme projesi, genel kurul, defterler)
 
 #### P-GOVERNANCE-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/dashboard/governance
-- **Adım:** http://localhost:3001/dashboard/governance adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3101/dashboard/governance
+- **Adım:** http://localhost:3101/dashboard/governance adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Sayfayı yenile (F5): aynı içerik gelir, oturum düşmez
 - **Adım:** Erişimi olmayan hesapla (GÖREVLİ, KİRACI) aynı adresi aç → `/dashboard/forbidden` sayfasına yönlenmeli, kenar çubuğunda bu menü görünmemeli
 - **Beklenen:** her veri bölümü yüklenir (boşsa anlamlı boş durum mesajı; "undefined", "NaN", "null", ham JSON ya da İngilizce hata metni YOK); sayılar ve tarihler Türkçe biçimde (1.234,56 ₺ · gg.aa.yyyy); uydurma/örnek veri yok; dar ekranda (400 px) yatay kaydırma olmadan okunur.
@@ -5407,8 +5407,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: MANAGER/BOARD_MEMBER/AUDITOR/STAFF — Devriye
 
 #### P-PATROL-REPORTS-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ, GÖREVLİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/dashboard/patrol/reports
-- **Adım:** http://localhost:3001/dashboard/patrol/reports adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ, GÖREVLİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3101/dashboard/patrol/reports
+- **Adım:** http://localhost:3101/dashboard/patrol/reports adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: `GET /patrol-reports` (patrol)
 - **Adım:** Veri yüklenir: `GET /patrols/:id/report` (patrol)
 - **Adım:** Bağlantı (satır 29): Devriye → /dashboard/patrol
@@ -5425,13 +5425,13 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-PATROL-REPORTS-00`
 
 #### P-PATROL-REPORTS-01 · Düğme: Uygula
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/patrol/reports
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/patrol/reports
 - **Adım:** "Uygula" düğme öğesine bas
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `P-PATROL-REPORTS-01`
 
 #### P-PATROL-REPORTS-02 · Düğme: Ayrıntı
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/patrol/reports
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/patrol/reports
 - **Adım:** "Ayrıntı" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-PATROL-REPORTS-02`
@@ -5443,8 +5443,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: MANAGER/BOARD_MEMBER/AUDITOR/STAFF — Yönetim paneli
 
 #### P-USTA-HIZMET-ID-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ, GÖREVLİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/dashboard/usta-hizmet/… (listeden bir kayda tıklanarak açılır)
-- **Adım:** http://localhost:3001/dashboard/usta-hizmet/… (listeden bir kayda tıklanarak açılır) adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ, GÖREVLİ ile yalnız görüntüleme) · **Nerede:** http://localhost:3101/dashboard/usta-hizmet/… (listeden bir kayda tıklanarak açılır)
+- **Adım:** http://localhost:3101/dashboard/usta-hizmet/… (listeden bir kayda tıklanarak açılır) adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: 
 - **Adım:** Veri yüklenir: 
 - **Adım:** Veri yüklenir: 
@@ -5463,19 +5463,19 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-USTA-HIZMET-ID-00`
 
 #### P-USTA-HIZMET-ID-01 · Düğme: Seç
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/usta-hizmet/… (listeden bir kayda tıklanarak açılır)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/usta-hizmet/… (listeden bir kayda tıklanarak açılır)
 - **Adım:** "Seç" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-USTA-HIZMET-ID-01`
 
 #### P-USTA-HIZMET-ID-02 · Düğme: Teklif seçmeden kapat
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/usta-hizmet/… (listeden bir kayda tıklanarak açılır)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/usta-hizmet/… (listeden bir kayda tıklanarak açılır)
 - **Adım:** "Teklif seçmeden kapat" düğme öğesine bas
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `P-USTA-HIZMET-ID-02`
 
 #### P-USTA-HIZMET-ID-03 · Form: Teklifi seç
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/usta-hizmet/… (listeden bir kayda tıklanarak açılır)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/usta-hizmet/… (listeden bir kayda tıklanarak açılır)
 - **Adım:** Formu aç; alanlar:  (* zorunlu)
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
 - **Adım:** Başarı mesajı tam olarak şu anlamda olmalı: "Teklif seçildi; işletmeye bildirildi"
@@ -5483,37 +5483,37 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-USTA-HIZMET-ID-03`
 
 #### P-USTA-HIZMET-ID-04 · Düğme: Onay bekleyen gider oluştur
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/usta-hizmet/… (listeden bir kayda tıklanarak açılır)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/usta-hizmet/… (listeden bir kayda tıklanarak açılır)
 - **Adım:** "Onay bekleyen gider oluştur" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-USTA-HIZMET-ID-04`
 
 #### P-USTA-HIZMET-ID-05 · Düğme: Sözleşme formunu doldur
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/usta-hizmet/… (listeden bir kayda tıklanarak açılır)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/usta-hizmet/… (listeden bir kayda tıklanarak açılır)
 - **Adım:** "Sözleşme formunu doldur" düğme öğesine bas
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `P-USTA-HIZMET-ID-05`
 
 #### P-USTA-HIZMET-ID-06 · Düğme: İş tamamlandı, onayla
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/usta-hizmet/… (listeden bir kayda tıklanarak açılır)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/usta-hizmet/… (listeden bir kayda tıklanarak açılır)
 - **Adım:** "İş tamamlandı, onayla" düğme öğesine bas
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `P-USTA-HIZMET-ID-06`
 
 #### P-USTA-HIZMET-ID-07 · Düğme: İtiraz et
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/usta-hizmet/… (listeden bir kayda tıklanarak açılır)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/usta-hizmet/… (listeden bir kayda tıklanarak açılır)
 - **Adım:** "İtiraz et" düğme öğesine bas
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `P-USTA-HIZMET-ID-07`
 
 #### P-USTA-HIZMET-ID-08 · Düğme: Puanı gönder
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/usta-hizmet/… (listeden bir kayda tıklanarak açılır)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/usta-hizmet/… (listeden bir kayda tıklanarak açılır)
 - **Adım:** "Puanı gönder" düğme öğesine bas
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `P-USTA-HIZMET-ID-08`
 
 #### P-USTA-HIZMET-ID-09 · Form: Onay bekleyen gider
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/dashboard/usta-hizmet/… (listeden bir kayda tıklanarak açılır)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/dashboard/usta-hizmet/… (listeden bir kayda tıklanarak açılır)
 - **Adım:** Formu aç; alanlar: Gider kalemi*, Gider tarihi* (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -5536,8 +5536,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: herkese açık
 
 #### P-DOGRULA-CODE-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ, GÖREVLİ, KİRACI ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/dogrula/… (listeden bir kayda tıklanarak açılır)
-- **Adım:** http://localhost:3001/dogrula/… (listeden bir kayda tıklanarak açılır) adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ, GÖREVLİ, KİRACI ile yalnız görüntüleme) · **Nerede:** http://localhost:3101/dogrula/… (listeden bir kayda tıklanarak açılır)
+- **Adım:** http://localhost:3101/dogrula/… (listeden bir kayda tıklanarak açılır) adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Sayfayı yenile (F5): aynı içerik gelir, oturum düşmez
 - **Beklenen:** her veri bölümü yüklenir (boşsa anlamlı boş durum mesajı; "undefined", "NaN", "null", ham JSON ya da İngilizce hata metni YOK); sayılar ve tarihler Türkçe biçimde (1.234,56 ₺ · gg.aa.yyyy); uydurma/örnek veri yok; dar ekranda (400 px) yatay kaydırma olmadan okunur.
 - **Sonuç:** http://localhost:18000/sonuc → `P-DOGRULA-CODE-00`
@@ -5549,8 +5549,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: herkese açık
 
 #### P-LOGIN-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ, GÖREVLİ, KİRACI ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/login
-- **Adım:** http://localhost:3001/login adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ, GÖREVLİ, KİRACI ile yalnız görüntüleme) · **Nerede:** http://localhost:3101/login
+- **Adım:** http://localhost:3101/login adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Bağlantı (satır 15): Etkinleştirme kodum var → /activate
 - **Adım:** Bağlantı (satır 21): Usta &amp; Hizmet&apos;e kaydolun → /tedarikci/kayit
 - **Adım:** Bağlantı (satır 122): Şifremi unuttum / hesabımı etkinleştir → /activate
@@ -5565,8 +5565,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: herkese açık
 
 #### P-ODEME-SONUC-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ, GÖREVLİ, KİRACI ile yalnız görüntüleme) · **Nerede:** http://localhost:3001/odeme-sonuc
-- **Adım:** http://localhost:3001/odeme-sonuc adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ (sonra KURUL, DENETÇİ, GÖREVLİ, KİRACI ile yalnız görüntüleme) · **Nerede:** http://localhost:3101/odeme-sonuc
+- **Adım:** http://localhost:3101/odeme-sonuc adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Sayfayı yenile (F5): aynı içerik gelir, oturum düşmez
 - **Beklenen:** her veri bölümü yüklenir (boşsa anlamlı boş durum mesajı; "undefined", "NaN", "null", ham JSON ya da İngilizce hata metni YOK); sayılar ve tarihler Türkçe biçimde (1.234,56 ₺ · gg.aa.yyyy); uydurma/örnek veri yok; dar ekranda (400 px) yatay kaydırma olmadan okunur.
 - **Sonuç:** http://localhost:18000/sonuc → `P-ODEME-SONUC-00`
@@ -5578,8 +5578,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: PlatformAdmin — Platform yönetimi (Usta & Hizmet)
 
 #### P-PLATFORM-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform
-- **Adım:** http://localhost:3001/platform adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/platform
+- **Adım:** http://localhost:3101/platform adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: 
 - **Adım:** Veri yüklenir: 
 - **Adım:** Kart (satır 19): Kuyruklar
@@ -5597,8 +5597,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: PlatformAdmin — Platform yönetimi (Usta & Hizmet)
 
 #### P-PLATFORM-AYARLAR-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/ayarlar
-- **Adım:** http://localhost:3001/platform/ayarlar adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/platform/ayarlar
+- **Adım:** http://localhost:3101/platform/ayarlar adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: `GET /market/meta` (marketplace)
 - **Adım:** Tablo sütunları görünür ve dolu/boş durumu doğru: Ayar \| Değer
 - **Adım:** Sayfayı yenile (F5): aynı içerik gelir, oturum düşmez
@@ -5607,13 +5607,13 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-PLATFORM-AYARLAR-00`
 
 #### P-PLATFORM-AYARLAR-01 · Düğme: Düzenle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/ayarlar
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/platform/ayarlar
 - **Adım:** "Düzenle" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-PLATFORM-AYARLAR-01`
 
 #### P-PLATFORM-AYARLAR-02 · Form: (başlık dinamik)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/ayarlar
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/platform/ayarlar
 - **Adım:** Formu aç; alanlar: Değer (tam sayı) (* zorunlu)
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
 - **Adım:** Başarı mesajı tam olarak şu anlamda olmalı: "Ayar kaydedildi"
@@ -5627,8 +5627,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: PlatformAdmin — Platform yönetimi (Usta & Hizmet)
 
 #### P-PLATFORM-FOTOGRAFLAR-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/fotograflar
-- **Adım:** http://localhost:3001/platform/fotograflar adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/platform/fotograflar
+- **Adım:** http://localhost:3101/platform/fotograflar adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: 
 - **Adım:** Bilgi notu (satır 45): OCR iletişim bilgisi buldu: {x.ocr_findings.join(", ")}
 - **Adım:** Sayfayı yenile (F5): aynı içerik gelir, oturum düşmez
@@ -5637,25 +5637,25 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-PLATFORM-FOTOGRAFLAR-00`
 
 #### P-PLATFORM-FOTOGRAFLAR-01 · Düğme: Onayla
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/fotograflar
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/platform/fotograflar
 - **Adım:** "Onayla" düğme öğesine bas
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `P-PLATFORM-FOTOGRAFLAR-01`
 
 #### P-PLATFORM-FOTOGRAFLAR-02 · Düğme: Kaldır
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/fotograflar
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/platform/fotograflar
 - **Adım:** "Kaldır" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-PLATFORM-FOTOGRAFLAR-02`
 
 #### P-PLATFORM-FOTOGRAFLAR-03 · Düğme: Yeniden denetle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/fotograflar
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/platform/fotograflar
 - **Adım:** "Yeniden denetle" düğme öğesine bas
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `P-PLATFORM-FOTOGRAFLAR-03`
 
 #### P-PLATFORM-FOTOGRAFLAR-04 · Form: (başlık dinamik)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/fotograflar
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/platform/fotograflar
 - **Adım:** Formu aç; alanlar: Gerekçe (yükleyene gösterilir)* (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -5670,8 +5670,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: PlatformAdmin — Platform yönetimi (Usta & Hizmet)
 
 #### P-PLATFORM-GELIR-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/gelir
-- **Adım:** http://localhost:3001/platform/gelir adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/platform/gelir
+- **Adım:** http://localhost:3101/platform/gelir adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: 
 - **Adım:** Kart (satır 31): Bakiye hareketleri (gelir değil)
 - **Adım:** Bilgi notu (satır 39): Net gelir = aidat + talep ücreti − iade. Defterdeki dönem toplamı: {kurus(r.ledger_total_k
@@ -5687,8 +5687,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: PlatformAdmin — Platform yönetimi (Usta & Hizmet)
 
 #### P-PLATFORM-HESAPLAR-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/hesaplar
-- **Adım:** http://localhost:3001/platform/hesaplar adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/platform/hesaplar
+- **Adım:** http://localhost:3101/platform/hesaplar adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: 
 - **Adım:** Her sekmeye tıkla, içerik hatasız yüklenir: 
 - **Adım:** Tablo sütunları görünür ve dolu/boş durumu doğru: Unvan \| Sahibi \| Vergi no \| Belge / işletme \| Durum \| Son değişiklik
@@ -5705,8 +5705,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: PlatformAdmin — Platform yönetimi (Usta & Hizmet)
 
 #### P-PLATFORM-HESAPLAR-ID-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/hesaplar/… (listeden bir kayda tıklanarak açılır)
-- **Adım:** http://localhost:3001/platform/hesaplar/… (listeden bir kayda tıklanarak açılır) adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/platform/hesaplar/… (listeden bir kayda tıklanarak açılır)
+- **Adım:** http://localhost:3101/platform/hesaplar/… (listeden bir kayda tıklanarak açılır) adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: 
 - **Adım:** Kart (satır 30): Hesap
 - **Adım:** Bilgi notu (satır 38): Son gerekçe: {a.status_reason}
@@ -5721,43 +5721,43 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-PLATFORM-HESAPLAR-ID-00`
 
 #### P-PLATFORM-HESAPLAR-ID-01 · Düğme: Onayla
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/hesaplar/… (listeden bir kayda tıklanarak açılır)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/platform/hesaplar/… (listeden bir kayda tıklanarak açılır)
 - **Adım:** "Onayla" düğme öğesine bas
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `P-PLATFORM-HESAPLAR-ID-01`
 
 #### P-PLATFORM-HESAPLAR-ID-02 · Düğme: Reddet
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/hesaplar/… (listeden bir kayda tıklanarak açılır)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/platform/hesaplar/… (listeden bir kayda tıklanarak açılır)
 - **Adım:** "Reddet" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-PLATFORM-HESAPLAR-ID-02`
 
 #### P-PLATFORM-HESAPLAR-ID-03 · Düğme: Askıya al
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/hesaplar/… (listeden bir kayda tıklanarak açılır)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/platform/hesaplar/… (listeden bir kayda tıklanarak açılır)
 - **Adım:** "Askıya al" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-PLATFORM-HESAPLAR-ID-03`
 
 #### P-PLATFORM-HESAPLAR-ID-04 · Düğme: Yeniden etkinleştir
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/hesaplar/… (listeden bir kayda tıklanarak açılır)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/platform/hesaplar/… (listeden bir kayda tıklanarak açılır)
 - **Adım:** "Yeniden etkinleştir" düğme öğesine bas
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `P-PLATFORM-HESAPLAR-ID-04`
 
 #### P-PLATFORM-HESAPLAR-ID-05 · Düğme: Üyeliği kapat
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/hesaplar/… (listeden bir kayda tıklanarak açılır)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/platform/hesaplar/… (listeden bir kayda tıklanarak açılır)
 - **Adım:** "Üyeliği kapat" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-PLATFORM-HESAPLAR-ID-05`
 
 #### P-PLATFORM-HESAPLAR-ID-06 · Düğme: Aç
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/hesaplar/… (listeden bir kayda tıklanarak açılır)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/platform/hesaplar/… (listeden bir kayda tıklanarak açılır)
 - **Adım:** "Aç" düğme öğesine bas
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `P-PLATFORM-HESAPLAR-ID-06`
 
 #### P-PLATFORM-HESAPLAR-ID-07 · Form: (başlık dinamik)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/hesaplar/… (listeden bir kayda tıklanarak açılır)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/platform/hesaplar/… (listeden bir kayda tıklanarak açılır)
 - **Adım:** Formu aç; alanlar: Gerekçe (tedarikçiye gösterilir)* (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -5771,8 +5771,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: PlatformAdmin — Platform yönetimi (Usta & Hizmet)
 
 #### P-PLATFORM-IADELER-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/iadeler
-- **Adım:** http://localhost:3001/platform/iadeler adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/platform/iadeler
+- **Adım:** http://localhost:3101/platform/iadeler adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: 
 - **Adım:** Bilgi notu (satır 23): Sonucu bilinmeyen iadeler (sağlayıcıya ulaşılamadı) çift iade olmasın diye kendiliğinden y
 - **Adım:** Tablo sütunları görünür ve dolu/boş durumu doğru: Tarih \| Tedarikçi \| Tutar \| Neden \| Durum
@@ -5782,19 +5782,19 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-PLATFORM-IADELER-00`
 
 #### P-PLATFORM-IADELER-01 · Düğme: Yeniden dene
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/iadeler
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/platform/iadeler
 - **Adım:** "Yeniden dene" düğme öğesine bas
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `P-PLATFORM-IADELER-01`
 
 #### P-PLATFORM-IADELER-02 · Düğme: Havaleyle ödendi
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/iadeler
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/platform/iadeler
 - **Adım:** "Havaleyle ödendi" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-PLATFORM-IADELER-02`
 
 #### P-PLATFORM-IADELER-03 · Form: Havaleyle ödendi
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/iadeler
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/platform/iadeler
 - **Adım:** Formu aç; alanlar: Havale dekont no*, Havale tarihi* (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -5809,8 +5809,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: PlatformAdmin — Platform yönetimi (Usta & Hizmet)
 
 #### P-PLATFORM-ISLETMELER-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/isletmeler
-- **Adım:** http://localhost:3001/platform/isletmeler adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/platform/isletmeler
+- **Adım:** http://localhost:3101/platform/isletmeler adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: 
 - **Adım:** Veri yüklenir: `GET /market/meta` (marketplace)
 - **Adım:** Her sekmeye tıkla, içerik hatasız yüklenir: 
@@ -5822,19 +5822,19 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-PLATFORM-ISLETMELER-00`
 
 #### P-PLATFORM-ISLETMELER-01 · Düğme: Yayına al
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/isletmeler
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/platform/isletmeler
 - **Adım:** "Yayına al" düğme öğesine bas
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `P-PLATFORM-ISLETMELER-01`
 
 #### P-PLATFORM-ISLETMELER-02 · Düğme: Reddet
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/isletmeler
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/platform/isletmeler
 - **Adım:** "Reddet" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-PLATFORM-ISLETMELER-02`
 
 #### P-PLATFORM-ISLETMELER-03 · Form: Yayın onayını reddet
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/isletmeler
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/platform/isletmeler
 - **Adım:** Formu aç; alanlar: Gerekçe (tedarikçiye gösterilir)* (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -5849,8 +5849,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: PlatformAdmin — Platform yönetimi (Usta & Hizmet)
 
 #### P-PLATFORM-ITIRAZLAR-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/itirazlar
-- **Adım:** http://localhost:3001/platform/itirazlar adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/platform/itirazlar
+- **Adım:** http://localhost:3101/platform/itirazlar adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: 
 - **Adım:** Tablo sütunları görünür ve dolu/boş durumu doğru: Tarih \| Tedarikçi \| Talep \| Neden \| İade \| Durum
 - **Adım:** Sayfayı yenile (F5): aynı içerik gelir, oturum düşmez
@@ -5859,19 +5859,19 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-PLATFORM-ITIRAZLAR-00`
 
 #### P-PLATFORM-ITIRAZLAR-01 · Düğme: Onayla ve iade et
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/itirazlar
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/platform/itirazlar
 - **Adım:** "Onayla ve iade et" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-PLATFORM-ITIRAZLAR-01`
 
 #### P-PLATFORM-ITIRAZLAR-02 · Düğme: Reddet
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/itirazlar
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/platform/itirazlar
 - **Adım:** "Reddet" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-PLATFORM-ITIRAZLAR-02`
 
 #### P-PLATFORM-ITIRAZLAR-03 · Form: (başlık dinamik)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/itirazlar
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/platform/itirazlar
 - **Adım:** Formu aç; alanlar: Gerekçe (tedarikçiye gösterilir)* (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -5885,8 +5885,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: PlatformAdmin — Platform yönetimi (Usta & Hizmet)
 
 #### P-PLATFORM-KATEGORILER-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/kategoriler
-- **Adım:** http://localhost:3001/platform/kategoriler adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/platform/kategoriler
+- **Adım:** http://localhost:3101/platform/kategoriler adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: 
 - **Adım:** Bilgi notu (satır 22): Site alımları kendi kategorilerindedir (ör. &quot;Site temizliği&quot; yalnız site yönetim
 - **Adım:** Tablo sütunları görünür ve dolu/boş durumu doğru: Kategori \| Üst \| Talep ücreti \| Kim açar \| Durum
@@ -5896,19 +5896,19 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-PLATFORM-KATEGORILER-00`
 
 #### P-PLATFORM-KATEGORILER-01 · Düğme: Kategori ekle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/kategoriler
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/platform/kategoriler
 - **Adım:** "Kategori ekle" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-PLATFORM-KATEGORILER-01`
 
 #### P-PLATFORM-KATEGORILER-02 · Düğme: Düzenle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/kategoriler
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/platform/kategoriler
 - **Adım:** "Düzenle" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-PLATFORM-KATEGORILER-02`
 
 #### P-PLATFORM-KATEGORILER-03 · Form: (başlık dinamik)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/kategoriler
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/platform/kategoriler
 - **Adım:** Formu aç; alanlar: Ad*, Talep ücreti (TL)*, Kim talep açabilir*, Üst kategori, Sıra (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -5923,8 +5923,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: PlatformAdmin — Platform yönetimi (Usta & Hizmet)
 
 #### P-PLATFORM-PAKETLER-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/paketler
-- **Adım:** http://localhost:3001/platform/paketler adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/platform/paketler
+- **Adım:** http://localhost:3101/platform/paketler adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: 
 - **Adım:** Bilgi notu (satır 24): Fiyat değişikliği mevcut abonelere bir sonraki yenilemede uygulanır. Varsayılan (ücretsiz)
 - **Adım:** Tablo sütunları görünür ve dolu/boş durumu doğru: Paket \| Aylık \| Talep indirimi \| Dahil talep / SMS \| Öncelik \| Vitrinde telefon \| Ağırlık
@@ -5934,19 +5934,19 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-PLATFORM-PAKETLER-00`
 
 #### P-PLATFORM-PAKETLER-01 · Düğme: Paket ekle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/paketler
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/platform/paketler
 - **Adım:** "Paket ekle" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-PLATFORM-PAKETLER-01`
 
 #### P-PLATFORM-PAKETLER-02 · Düğme: Düzenle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/paketler
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/platform/paketler
 - **Adım:** "Düzenle" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-PLATFORM-PAKETLER-02`
 
 #### P-PLATFORM-PAKETLER-03 · Form: (başlık dinamik)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/paketler
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/platform/paketler
 - **Adım:** Formu aç; alanlar: Ad*, Aylık ücret (TL), Talep indirimi (%), Sıralama ağırlığı, Ayda dahil talep, Aylık SMS hakkı, Sıra (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -5961,8 +5961,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: PlatformAdmin — Platform yönetimi (Usta & Hizmet)
 
 #### P-PLATFORM-YAPAY-ZEKA-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/yapay-zeka
-- **Adım:** http://localhost:3001/platform/yapay-zeka adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/platform/yapay-zeka
+- **Adım:** http://localhost:3101/platform/yapay-zeka adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: 
 - **Adım:** Bilgi notu (satır 37): Kişisel veri (KVKK): Fotoğraflar yurt dışındaki bir sağlayıcıya gönderilirse bu, kişisel verinin yurt dışına ak
 - **Adım:** Bilgi notu (satır 40): Şifreleme anahtarı (PII_ENCRYPTION_KEY) tanımlı değil: API anahtarı ve parola kaydedilemez
@@ -5974,19 +5974,19 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-PLATFORM-YAPAY-ZEKA-00`
 
 #### P-PLATFORM-YAPAY-ZEKA-01 · Düğme: Kaydet
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/yapay-zeka
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/platform/yapay-zeka
 - **Adım:** "Kaydet" düğme öğesine bas
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `P-PLATFORM-YAPAY-ZEKA-01`
 
 #### P-PLATFORM-YAPAY-ZEKA-02 · Düğme: Bağlantıyı sına
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/yapay-zeka
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/platform/yapay-zeka
 - **Adım:** "Bağlantıyı sına" düğme öğesine bas
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `P-PLATFORM-YAPAY-ZEKA-02`
 
 #### P-PLATFORM-YAPAY-ZEKA-03 · Düğme: Anahtarı sil
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/yapay-zeka
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/platform/yapay-zeka
 - **Adım:** "Anahtarı sil" düğme öğesine bas
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `P-PLATFORM-YAPAY-ZEKA-03`
@@ -5998,8 +5998,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: PlatformAdmin — Platform yönetimi (Usta & Hizmet)
 
 #### P-PLATFORM-YORUMLAR-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/yorumlar
-- **Adım:** http://localhost:3001/platform/yorumlar adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/platform/yorumlar
+- **Adım:** http://localhost:3101/platform/yorumlar adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: 
 - **Adım:** Tablo sütunları görünür ve dolu/boş durumu doğru: Tarih \| İşletme \| Puan \| Yorum \| Durum
 - **Adım:** Sayfayı yenile (F5): aynı içerik gelir, oturum düşmez
@@ -6008,13 +6008,13 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-PLATFORM-YORUMLAR-00`
 
 #### P-PLATFORM-YORUMLAR-01 · Düğme: Gizle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/yorumlar
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/platform/yorumlar
 - **Adım:** "Gizle" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-PLATFORM-YORUMLAR-01`
 
 #### P-PLATFORM-YORUMLAR-02 · Form: Yorumu gizle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/platform/yorumlar
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/platform/yorumlar
 - **Adım:** Formu aç; alanlar: Gerekçe* (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -6029,8 +6029,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: Supplier — Tedarikçi paneli (Usta & Hizmet)
 
 #### P-TEDARIKCI-AUTH-GIRIS-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(auth)/giris
-- **Adım:** http://localhost:3001/tedarikci/(auth)/giris adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/tedarikci/(auth)/giris
+- **Adım:** http://localhost:3101/tedarikci/(auth)/giris adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Bağlantı (satır 14): Tedarikçi olarak kaydolun → /tedarikci/kayit
 - **Adım:** Bağlantı (satır 122): Şifremi unuttum / hesabımı etkinleştir → /activate
 - **Adım:** Sayfayı yenile (F5): aynı içerik gelir, oturum düşmez
@@ -6045,8 +6045,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: Supplier — Tedarikçi paneli (Usta & Hizmet)
 
 #### P-TEDARIKCI-AUTH-KAYIT-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(auth)/kayit
-- **Adım:** http://localhost:3001/tedarikci/(auth)/kayit adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/tedarikci/(auth)/kayit
+- **Adım:** http://localhost:3101/tedarikci/(auth)/kayit adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Bağlantı (satır 191): Giriş yapın → /tedarikci/giris
 - **Adım:** Sayfayı yenile (F5): aynı içerik gelir, oturum düşmez
 - **Adım:** Erişimi olmayan hesapla (YÖNETİCİ, KURUL, DENETÇİ, GÖREVLİ, KİRACI) aynı adresi aç → `/dashboard/forbidden` sayfasına yönlenmeli, kenar çubuğunda bu menü görünmemeli
@@ -6060,8 +6060,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: Supplier — Tedarikçi paneli (Usta & Hizmet)
 
 #### P-TEDARIKCI-PANEL-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)
-- **Adım:** http://localhost:3001/tedarikci/(panel) adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/tedarikci/(panel)
+- **Adım:** http://localhost:3101/tedarikci/(panel) adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: `GET /market/supplier/me` (marketplace)
 - **Adım:** Kart (satır 43): Tedarikçi hesabınızı oluşturun
 - **Adım:** Bilgi notu (satır 46): Havuzda görünmek için hesap bilgilerinizi girip vergi levhası (ya da oda kaydı) ve kimlik 
@@ -6080,7 +6080,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-00`
 
 #### P-TEDARIKCI-PANEL-01 · Düğme: Hesabı oluştur
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/tedarikci/(panel)
 - **Adım:** "Hesabı oluştur" düğme öğesine bas
 - **Beklenen (yazma):** `POST /market/supplier/account` (marketplace, `services/marketplace/main.go:103`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: Supplier
@@ -6092,7 +6092,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-01`
 
 #### P-TEDARIKCI-PANEL-02 · Düğme: Kaydet
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/tedarikci/(panel)
 - **Adım:** "Kaydet" düğme öğesine bas
 - **Beklenen (yazma):** `PUT /market/supplier/account` (marketplace, `services/marketplace/main.go:104`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: Supplier
@@ -6104,7 +6104,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-02`
 
 #### P-TEDARIKCI-PANEL-03 · Düğme: Kaydet ve incelemeye gönder
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/tedarikci/(panel)
 - **Adım:** "Kaydet ve incelemeye gönder" düğme öğesine bas
 - **Beklenen (yazma):** `PUT /market/supplier/account` (marketplace, `services/marketplace/main.go:104`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: Supplier
@@ -6123,7 +6123,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-03`
 
 #### P-TEDARIKCI-PANEL-04 · Düğme: Yükle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/tedarikci/(panel)
 - **Adım:** "Yükle" düğme öğesine bas
 - **Beklenen (yazma):** `POST /market/supplier/documents` (marketplace, `services/marketplace/main.go:107`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: Supplier
@@ -6136,14 +6136,14 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-04`
 
 #### P-TEDARIKCI-PANEL-05 · Düğme: İndir
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/tedarikci/(panel)
 - **Adım:** "İndir" düğme öğesine bas
 - **Beklenen (okuma):** `GET /market/supplier/documents/:id/file` (marketplace) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Beklenen (dosya):** dosya iner/açılır; boş ya da bozuk değildir (PDF ise sayfalar okunur).
 - **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-05`
 
 #### P-TEDARIKCI-PANEL-06 · Düğme: Sil
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/tedarikci/(panel)
 - **Adım:** "Sil" düğme öğesine bas (onay penceresi çıkarsa önce Vazgeç → hiçbir şey değişmemeli; sonra tekrar bas ve onayla)
 - **Beklenen (yazma):** `DELETE /market/supplier/documents/:id` (marketplace, `services/marketplace/main.go:109`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: Supplier
@@ -6162,8 +6162,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: Supplier — Tedarikçi paneli (Usta & Hizmet)
 
 #### P-TEDARIKCI-PANEL-BAKIYE-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)/bakiye
-- **Adım:** http://localhost:3001/tedarikci/(panel)/bakiye adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/tedarikci/(panel)/bakiye
+- **Adım:** http://localhost:3101/tedarikci/(panel)/bakiye adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: `GET /market/supplier/wallet` (marketplace)
 - **Adım:** Veri yüklenir: `GET /market/meta` (marketplace)
 - **Adım:** Veri yüklenir: `GET /market/supplier/me` (marketplace)
@@ -6184,7 +6184,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-BAKIYE-00`
 
 #### P-TEDARIKCI-PANEL-BAKIYE-01 · Düğme: Koşulları kabul et
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)/bakiye
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/tedarikci/(panel)/bakiye
 - **Adım:** "Koşulları kabul et" düğme öğesine bas
 - **Beklenen (yazma):** `POST /market/supplier/terms/balance/accept` (marketplace, `services/marketplace/main.go:139`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: Supplier
@@ -6196,31 +6196,31 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-BAKIYE-01`
 
 #### P-TEDARIKCI-PANEL-BAKIYE-02 · Düğme: Kartla öde
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)/bakiye
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/tedarikci/(panel)/bakiye
 - **Adım:** "Kartla öde" düğme öğesine bas
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-BAKIYE-02`
 
 #### P-TEDARIKCI-PANEL-BAKIYE-03 · Düğme: Bu pakete geç
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)/bakiye
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/tedarikci/(panel)/bakiye
 - **Adım:** "Bu pakete geç" düğme öğesine bas
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-BAKIYE-03`
 
 #### P-TEDARIKCI-PANEL-BAKIYE-04 · Düğme: Değişikliği iptal et
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)/bakiye
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/tedarikci/(panel)/bakiye
 - **Adım:** "Değişikliği iptal et" düğme öğesine bas
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-BAKIYE-04`
 
 #### P-TEDARIKCI-PANEL-BAKIYE-05 · Düğme: Önceki
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)/bakiye
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/tedarikci/(panel)/bakiye
 - **Adım:** "Önceki" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-BAKIYE-05`
 
 #### P-TEDARIKCI-PANEL-BAKIYE-06 · Düğme: Sonraki
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)/bakiye
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/tedarikci/(panel)/bakiye
 - **Adım:** "Sonraki" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-BAKIYE-06`
@@ -6232,8 +6232,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: Supplier — Tedarikçi paneli (Usta & Hizmet)
 
 #### P-TEDARIKCI-PANEL-BILDIRIMLER-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)/bildirimler
-- **Adım:** http://localhost:3001/tedarikci/(panel)/bildirimler adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/tedarikci/(panel)/bildirimler
+- **Adım:** http://localhost:3101/tedarikci/(panel)/bildirimler adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: `GET /market/supplier/notifications` (marketplace)
 - **Adım:** Sayfayı yenile (F5): aynı içerik gelir, oturum düşmez
 - **Adım:** Erişimi olmayan hesapla (YÖNETİCİ, KURUL, DENETÇİ, GÖREVLİ, KİRACI) aynı adresi aç → `/dashboard/forbidden` sayfasına yönlenmeli, kenar çubuğunda bu menü görünmemeli
@@ -6241,7 +6241,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-BILDIRIMLER-00`
 
 #### P-TEDARIKCI-PANEL-BILDIRIMLER-01 · Düğme: Tümünü okundu say
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)/bildirimler
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/tedarikci/(panel)/bildirimler
 - **Adım:** "Tümünü okundu say" düğme öğesine bas
 - **Beklenen (yazma):** `POST /market/supplier/notifications/read` (marketplace, `services/marketplace/main.go:122`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: Supplier
@@ -6253,7 +6253,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-BILDIRIMLER-01`
 
 #### P-TEDARIKCI-PANEL-BILDIRIMLER-02 · Düğme: Okundu
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)/bildirimler
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/tedarikci/(panel)/bildirimler
 - **Adım:** "Okundu" düğme öğesine bas
 - **Beklenen (yazma):** `POST /market/supplier/notifications/read` (marketplace, `services/marketplace/main.go:122`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: Supplier
@@ -6271,8 +6271,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: Supplier — Tedarikçi paneli (Usta & Hizmet)
 
 #### P-TEDARIKCI-PANEL-ISLETMELER-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)/isletmeler
-- **Adım:** http://localhost:3001/tedarikci/(panel)/isletmeler adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/tedarikci/(panel)/isletmeler
+- **Adım:** http://localhost:3101/tedarikci/(panel)/isletmeler adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: `GET /market/supplier/businesses` (marketplace)
 - **Adım:** Veri yüklenir: `GET /market/supplier/me` (marketplace)
 - **Adım:** Bağlantı (satır 15): Yeni işletme → /tedarikci/isletmeler/yeni
@@ -6292,8 +6292,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: Supplier — Tedarikçi paneli (Usta & Hizmet)
 
 #### P-TEDARIKCI-PANEL-ISLETMELER-I-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)/isletmeler/… (listeden bir kayda tıklanarak açılır)
-- **Adım:** http://localhost:3001/tedarikci/(panel)/isletmeler/… (listeden bir kayda tıklanarak açılır) adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/tedarikci/(panel)/isletmeler/… (listeden bir kayda tıklanarak açılır)
+- **Adım:** http://localhost:3101/tedarikci/(panel)/isletmeler/… (listeden bir kayda tıklanarak açılır) adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: `GET /market/supplier/businesses/:id` (marketplace)
 - **Adım:** Veri yüklenir: `GET /market/meta` (marketplace)
 - **Adım:** Bilgi notu (satır 56): İnceleme notu: {existing.review_note}
@@ -6309,13 +6309,13 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-ISLETMELER-I-00`
 
 #### P-TEDARIKCI-PANEL-ISLETMELER-I-01 · Düğme: Kaydet
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)/isletmeler/… (listeden bir kayda tıklanarak açılır)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/tedarikci/(panel)/isletmeler/… (listeden bir kayda tıklanarak açılır)
 - **Adım:** "Kaydet" düğme öğesine bas
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-ISLETMELER-I-01`
 
 #### P-TEDARIKCI-PANEL-ISLETMELER-I-02 · Düğme: İncelemeye gönder
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)/isletmeler/… (listeden bir kayda tıklanarak açılır)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/tedarikci/(panel)/isletmeler/… (listeden bir kayda tıklanarak açılır)
 - **Adım:** "İncelemeye gönder" düğme öğesine bas
 - **Beklenen (yazma):** `POST /market/supplier/businesses/:id/submit` (marketplace, `services/marketplace/main.go:114`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: Supplier
@@ -6327,7 +6327,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-ISLETMELER-I-02`
 
 #### P-TEDARIKCI-PANEL-ISLETMELER-I-03 · Düğme: İşletmeyi kapat
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)/isletmeler/… (listeden bir kayda tıklanarak açılır)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/tedarikci/(panel)/isletmeler/… (listeden bir kayda tıklanarak açılır)
 - **Adım:** "İşletmeyi kapat" düğme öğesine bas
 - **Beklenen (yazma):** `POST /market/supplier/businesses/:id/close` (marketplace, `services/marketplace/main.go:115`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: Supplier
@@ -6339,13 +6339,13 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-ISLETMELER-I-03`
 
 #### P-TEDARIKCI-PANEL-ISLETMELER-I-04 · Düğme: Hizmet ekle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)/isletmeler/… (listeden bir kayda tıklanarak açılır)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/tedarikci/(panel)/isletmeler/… (listeden bir kayda tıklanarak açılır)
 - **Adım:** "Hizmet ekle" düğme öğesine bas
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-ISLETMELER-I-04`
 
 #### P-TEDARIKCI-PANEL-ISLETMELER-I-05 · Seçim: (başlık dinamik)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)/isletmeler/… (listeden bir kayda tıklanarak açılır)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/tedarikci/(panel)/isletmeler/… (listeden bir kayda tıklanarak açılır)
 - **Adım:** Seçimi değiştir (her seçeneği en az bir kez dene); liste/içerik seçime göre değişmeli
 - **Beklenen (yazma):** `POST /market/supplier/services/:id/photo` (marketplace, `services/marketplace/main.go:120`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: Supplier
@@ -6360,19 +6360,19 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-ISLETMELER-I-05`
 
 #### P-TEDARIKCI-PANEL-ISLETMELER-I-06 · Düğme: Düzenle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)/isletmeler/… (listeden bir kayda tıklanarak açılır)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/tedarikci/(panel)/isletmeler/… (listeden bir kayda tıklanarak açılır)
 - **Adım:** "Düzenle" düğme öğesine bas
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-ISLETMELER-I-06`
 
 #### P-TEDARIKCI-PANEL-ISLETMELER-I-07 · Düğme: Fotoğraf
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)/isletmeler/… (listeden bir kayda tıklanarak açılır)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/tedarikci/(panel)/isletmeler/… (listeden bir kayda tıklanarak açılır)
 - **Adım:** "Fotoğraf" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-ISLETMELER-I-07`
 
 #### P-TEDARIKCI-PANEL-ISLETMELER-I-08 · Düğme: Sil
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)/isletmeler/… (listeden bir kayda tıklanarak açılır)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/tedarikci/(panel)/isletmeler/… (listeden bir kayda tıklanarak açılır)
 - **Adım:** "Sil" düğme öğesine bas (onay penceresi çıkarsa önce Vazgeç → hiçbir şey değişmemeli; sonra tekrar bas ve onayla)
 - **Beklenen (yazma):** `DELETE /market/supplier/services/:id` (marketplace, `services/marketplace/main.go:119`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: Supplier
@@ -6385,7 +6385,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-ISLETMELER-I-08`
 
 #### P-TEDARIKCI-PANEL-ISLETMELER-I-09 · Form: (başlık dinamik)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)/isletmeler/… (listeden bir kayda tıklanarak açılır)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/tedarikci/(panel)/isletmeler/… (listeden bir kayda tıklanarak açılır)
 - **Adım:** Formu aç; alanlar: Hizmet / ürün adı*, Açıklama, En düşük (TL), En yüksek (TL), Birim (* zorunlu)
 - **Adım:** Zorunlu alanları boş bırakıp gönder → alan hatası/uyarı görünmeli, istek gitmemeli ya da 400/422 anlaşılır mesajla dönmeli; kayıt OLUŞMAMALI
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
@@ -6415,8 +6415,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: Supplier — Tedarikçi paneli (Usta & Hizmet)
 
 #### P-TEDARIKCI-PANEL-PUANLAR-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)/puanlar
-- **Adım:** http://localhost:3001/tedarikci/(panel)/puanlar adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/tedarikci/(panel)/puanlar
+- **Adım:** http://localhost:3101/tedarikci/(panel)/puanlar adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: `GET /market/supplier/reviews` (marketplace)
 - **Adım:** Kart (satır 26): ${r.business_name ?? ""} — ${"★".repeat(r.rating)}${"☆".repeat(5 - r.rating)}
 - **Adım:** Bilgi notu (satır 31): Platform bu yorumu gizledi: {r.hidden_reason}
@@ -6426,7 +6426,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-PUANLAR-00`
 
 #### P-TEDARIKCI-PANEL-PUANLAR-01 · Düğme: Yanıtla
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)/puanlar
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/tedarikci/(panel)/puanlar
 - **Adım:** "Yanıtla" düğme öğesine bas
 - **Beklenen (yazma):** `POST /market/supplier/reviews/:id/reply` (marketplace, `services/marketplace/main.go:135`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: Supplier
@@ -6445,8 +6445,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: Supplier — Tedarikçi paneli (Usta & Hizmet)
 
 #### P-TEDARIKCI-PANEL-TALEPLER-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)/talepler
-- **Adım:** http://localhost:3001/tedarikci/(panel)/talepler adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/tedarikci/(panel)/talepler
+- **Adım:** http://localhost:3101/tedarikci/(panel)/talepler adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: `GET /market/supplier/requests` (marketplace)
 - **Adım:** Bilgi notu (satır 32): Hesabınız onaylanmadan talep kabul edemezsiniz.
 - **Adım:** Kart (satır 35): Henüz talep yok
@@ -6459,18 +6459,18 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-TALEPLER-00`
 
 #### P-TEDARIKCI-PANEL-TALEPLER-01 · Düğme: Kabul et
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)/talepler
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/tedarikci/(panel)/talepler
 - **Adım:** "Kabul et" düğme öğesine bas
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-TALEPLER-01`
 
 #### P-TEDARIKCI-PANEL-TALEPLER-02 · Form: Talebi kabul et
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)/talepler
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/tedarikci/(panel)/talepler
 - **Adım:** Formu aç; alanlar:  (* zorunlu)
 - **Adım:** Gerçekçi değerlerle doldur ve gönder; kullanılan değerleri gözleme yaz
 - **Beklenen (yazma):** `POST /market/supplier/requests/:id/accept` (marketplace, `services/marketplace/main.go:125`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: Supplier
-  - Veritabanı tetikleyicileri çalışır: `mp_requests_active_property`, `mp_wallet_ledger_no_change` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
+  - Veritabanı tetikleyicileri çalışır: `mp_requests_active_property`, `mp_requests_closed_lock`, `mp_wallet_ledger_no_change` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
   - **Veritabanı (Adminer → SQL komutu):**
     - `mp_wallet_ledger` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM mp_wallet_ledger ORDER BY xmin::text::bigint DESC LIMIT 5;`
     - `mp_request_dispatch` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM mp_request_dispatch ORDER BY xmin::text::bigint DESC LIMIT 5;`
@@ -6488,8 +6488,8 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - Panel erişimi: Supplier — Tedarikçi paneli (Usta & Hizmet)
 
 #### P-TEDARIKCI-PANEL-TALEPLER-ID-00 · Sayfa açılışı ve ekran kontrolleri
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)/talepler/… (listeden bir kayda tıklanarak açılır)
-- **Adım:** http://localhost:3001/tedarikci/(panel)/talepler/… (listeden bir kayda tıklanarak açılır) adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/tedarikci/(panel)/talepler/… (listeden bir kayda tıklanarak açılır)
+- **Adım:** http://localhost:3101/tedarikci/(panel)/talepler/… (listeden bir kayda tıklanarak açılır) adresini aç (ya da kenar çubuğundan seç); sayfa 5 sn içinde yüklenmeli, tarayıcı konsolunda kırmızı hata olmamalı
 - **Adım:** Veri yüklenir: `GET /market/supplier/requests/:id` (marketplace)
 - **Adım:** Bağlantı (satır 23): ← Talepler → /tedarikci/talepler
 - **Adım:** Kart (satır 25): Talep
@@ -6512,11 +6512,11 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-TALEPLER-ID-00`
 
 #### P-TEDARIKCI-PANEL-TALEPLER-ID-01 · Düğme: Kabul et
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)/talepler/… (listeden bir kayda tıklanarak açılır)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/tedarikci/(panel)/talepler/… (listeden bir kayda tıklanarak açılır)
 - **Adım:** "Kabul et" düğme öğesine bas
 - **Beklenen (yazma):** `POST /market/supplier/requests/:id/accept` (marketplace, `services/marketplace/main.go:125`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: Supplier
-  - Veritabanı tetikleyicileri çalışır: `mp_requests_active_property`, `mp_wallet_ledger_no_change` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
+  - Veritabanı tetikleyicileri çalışır: `mp_requests_active_property`, `mp_requests_closed_lock`, `mp_wallet_ledger_no_change` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
   - **Veritabanı (Adminer → SQL komutu):**
     - `mp_wallet_ledger` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM mp_wallet_ledger ORDER BY xmin::text::bigint DESC LIMIT 5;`
     - `mp_request_dispatch` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM mp_request_dispatch ORDER BY xmin::text::bigint DESC LIMIT 5;`
@@ -6528,11 +6528,12 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-TALEPLER-ID-01`
 
 #### P-TEDARIKCI-PANEL-TALEPLER-ID-02 · Düğme: Geri çek
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)/talepler/… (listeden bir kayda tıklanarak açılır)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/tedarikci/(panel)/talepler/… (listeden bir kayda tıklanarak açılır)
 - **Adım:** "Geri çek" düğme öğesine bas
 - **Adım:** Öğe `deal-panel` bileşenindedir (satır 46)
 - **Beklenen (yazma):** `POST /market/supplier/offers/:id/withdraw` (marketplace, `services/marketplace/main.go:129`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: Supplier
+  - Veritabanı tetikleyicileri çalışır: `mp_offers_accepted_lock` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
   - **Veritabanı (Adminer → SQL komutu):**
     - `mp_offers` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM mp_offers ORDER BY xmin::text::bigint DESC LIMIT 5;`
   - **İşlem kaydı:** `SELECT created_at, action, entity_type, status_code, user_id FROM audit_logs WHERE screen = '/api/v1/market/supplier/offers/:id/withdraw' ORDER BY created_at DESC LIMIT 5;` → `CREATE`, 2xx (yetkisiz denemede `DENIED`, 403)
@@ -6541,14 +6542,14 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-TALEPLER-ID-02`
 
 #### P-TEDARIKCI-PANEL-TALEPLER-ID-03 · Düğme: Teklifi güncelle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)/talepler/… (listeden bir kayda tıklanarak açılır)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/tedarikci/(panel)/talepler/… (listeden bir kayda tıklanarak açılır)
 - **Adım:** "Teklifi güncelle" düğme öğesine bas
 - **Adım:** Öğe `deal-panel` bileşenindedir (satır 62)
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-TALEPLER-ID-03`
 
 #### P-TEDARIKCI-PANEL-TALEPLER-ID-04 · Düğme: İş tamamlandı
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)/talepler/… (listeden bir kayda tıklanarak açılır)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/tedarikci/(panel)/talepler/… (listeden bir kayda tıklanarak açılır)
 - **Adım:** "İş tamamlandı" düğme öğesine bas
 - **Adım:** Öğe `deal-panel` bileşenindedir (satır 83)
 - **Beklenen (yazma):** `POST /market/supplier/jobs/:id/done` (marketplace, `services/marketplace/main.go:133`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
@@ -6564,7 +6565,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-TALEPLER-ID-04`
 
 #### P-TEDARIKCI-PANEL-TALEPLER-ID-05 · Düğme: Gönder
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)/talepler/… (listeden bir kayda tıklanarak açılır)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/tedarikci/(panel)/talepler/… (listeden bir kayda tıklanarak açılır)
 - **Adım:** "Gönder" düğme öğesine bas
 - **Adım:** Öğe `deal-panel` bileşenindedir (satır 119)
 - **Beklenen (yazma):** `POST /market/supplier/requests/:id/messages` (marketplace, `services/marketplace/main.go:131`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
@@ -6579,7 +6580,7 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 - **Sonuç:** http://localhost:18000/sonuc → `P-TEDARIKCI-PANEL-TALEPLER-ID-05`
 
 #### P-TEDARIKCI-PANEL-TALEPLER-ID-06 · Düğme: Platforma bildir
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3001/tedarikci/(panel)/talepler/… (listeden bir kayda tıklanarak açılır)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3101/tedarikci/(panel)/talepler/… (listeden bir kayda tıklanarak açılır)
 - **Adım:** "Platforma bildir" düğme öğesine bas
 - **Adım:** Öğe `deal-panel` bileşenindedir (satır 158)
 - **Beklenen (yazma):** `POST /market/supplier/requests/:id/dispute` (marketplace, `services/marketplace/main.go:132`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
@@ -6599,44 +6600,44 @@ Panel: http://localhost:3001. Her sayfa için önce **sayfa açılışı** (…-
 
 
 
-Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon genişliğine — ~400 px — daraltın ya da cihaz araç çubuğunu kullanın). Adres çubuğuna `http://localhost:3002/#/<rota>` yazarak ekrana doğrudan gidilebilir; oturum yoksa giriş ekranına yönlenir. Web derlemesinde kamera (QR) ve konum (GPS) tarayıcı izniyle çalışır; izin penceresinde "İzin ver" seçin. Biyometrik giriş web'de yoktur (düğmesi görünmemeli).
+Uygulama: http://localhost:3102 (web derlemesi; tarayıcı penceresini telefon genişliğine — ~400 px — daraltın ya da cihaz araç çubuğunu kullanın). Adres çubuğuna `http://localhost:3102/#/<rota>` yazarak ekrana doğrudan gidilebilir; oturum yoksa giriş ekranına yönlenir. Web derlemesinde kamera (QR) ve konum (GPS) tarayıcı izniyle çalışır; izin penceresinde "İzin ver" seçin. Biyometrik giriş web'de yoktur (düğmesi görünmemeli).
 
 ### apple_widgets
 - Dosya: `mobile/lib/core/widgets/apple_widgets.dart`
 
 #### S-APPLE-WIDGETS-00 · Ekran açılışı ve görünüm
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/core/widgets/apple_widgets.dart`)
-- **Adım:** Ekranı aç: http://localhost:3002 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/core/widgets/apple_widgets.dart`) — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/core/widgets/apple_widgets.dart`)
+- **Adım:** Ekranı aç: http://localhost:3102 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/core/widgets/apple_widgets.dart`) — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Aşağı çekerek yenile (varsa) ya da ekrana yeniden gir: aynı veri gelir
 - **Beklenen:** her veri bölümü yüklenir (boşsa anlamlı boş durum mesajı; "undefined", "NaN", "null", ham JSON ya da İngilizce hata metni YOK); sayılar ve tarihler Türkçe biçimde (1.234,56 ₺ · gg.aa.yyyy); uydurma/örnek veri yok; dar ekranda (400 px) yatay kaydırma olmadan okunur.
 - **Sonuç:** http://localhost:18000/sonuc → `S-APPLE-WIDGETS-00`
 
 #### S-APPLE-WIDGETS-01 · Düğme: simge düğmesi (satır 35)
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/core/widgets/apple_widgets.dart`)
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/core/widgets/apple_widgets.dart`)
 - **Adım:** "simge düğmesi (satır 35)" öğesine dokun (kaynak satırı 35); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-APPLE-WIDGETS-01`
 
 #### S-APPLE-WIDGETS-02 · Düğme: simge düğmesi (satır 165)
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/core/widgets/apple_widgets.dart`)
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/core/widgets/apple_widgets.dart`)
 - **Adım:** "simge düğmesi (satır 165)" öğesine dokun (kaynak satırı 165); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-APPLE-WIDGETS-02`
 
 #### S-APPLE-WIDGETS-03 · Düğme: simge düğmesi (satır 215)
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/core/widgets/apple_widgets.dart`)
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/core/widgets/apple_widgets.dart`)
 - **Adım:** "simge düğmesi (satır 215)" öğesine dokun (kaynak satırı 215); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-APPLE-WIDGETS-03`
 
 #### S-APPLE-WIDGETS-04 · Düğme: simge düğmesi (satır 239)
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/core/widgets/apple_widgets.dart`)
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/core/widgets/apple_widgets.dart`)
 - **Adım:** "simge düğmesi (satır 239)" öğesine dokun (kaynak satırı 239); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-APPLE-WIDGETS-04`
 
 #### S-APPLE-WIDGETS-05 · Düğme: simge düğmesi (satır 292)
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/core/widgets/apple_widgets.dart`)
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/core/widgets/apple_widgets.dart`)
 - **Adım:** "simge düğmesi (satır 292)" öğesine dokun (kaynak satırı 292); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-APPLE-WIDGETS-05`
@@ -6647,14 +6648,14 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `mobile/lib/core/widgets/data_state.dart`
 
 #### S-DATA-STATE-00 · Ekran açılışı ve görünüm
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/core/widgets/data_state.dart`)
-- **Adım:** Ekranı aç: http://localhost:3002 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/core/widgets/data_state.dart`) — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/core/widgets/data_state.dart`)
+- **Adım:** Ekranı aç: http://localhost:3102 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/core/widgets/data_state.dart`) — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Aşağı çekerek yenile (varsa) ya da ekrana yeniden gir: aynı veri gelir
 - **Beklenen:** her veri bölümü yüklenir (boşsa anlamlı boş durum mesajı; "undefined", "NaN", "null", ham JSON ya da İngilizce hata metni YOK); sayılar ve tarihler Türkçe biçimde (1.234,56 ₺ · gg.aa.yyyy); uydurma/örnek veri yok; dar ekranda (400 px) yatay kaydırma olmadan okunur.
 - **Sonuç:** http://localhost:18000/sonuc → `S-DATA-STATE-00`
 
 #### S-DATA-STATE-01 · Düğme: Yeniden dene
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/core/widgets/data_state.dart`)
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/core/widgets/data_state.dart`)
 - **Adım:** "Yeniden dene" öğesine dokun (kaynak satırı 69); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-DATA-STATE-01`
@@ -6665,8 +6666,8 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `mobile/lib/core/widgets/future_list.dart`
 
 #### S-FUTURE-LIST-00 · Ekran açılışı ve görünüm
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/core/widgets/future_list.dart`)
-- **Adım:** Ekranı aç: http://localhost:3002 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/core/widgets/future_list.dart`) — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/core/widgets/future_list.dart`)
+- **Adım:** Ekranı aç: http://localhost:3102 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/core/widgets/future_list.dart`) — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Pencere (satır 90): Vazgeç
 - **Adım:** Pencere (satır 107): Vazgeç
 - **Adım:** Aşağı çekerek yenile (varsa) ya da ekrana yeniden gir: aynı veri gelir
@@ -6674,25 +6675,25 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-FUTURE-LIST-00`
 
 #### S-FUTURE-LIST-01 · Düğme: Vazgeç
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/core/widgets/future_list.dart`)
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/core/widgets/future_list.dart`)
 - **Adım:** "Vazgeç" öğesine dokun (kaynak satırı 94); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-FUTURE-LIST-01`
 
 #### S-FUTURE-LIST-02 · Düğme: simge düğmesi (satır 95)
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/core/widgets/future_list.dart`)
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/core/widgets/future_list.dart`)
 - **Adım:** "simge düğmesi (satır 95)" öğesine dokun (kaynak satırı 95); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-FUTURE-LIST-02`
 
 #### S-FUTURE-LIST-03 · Düğme: Vazgeç
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/core/widgets/future_list.dart`)
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/core/widgets/future_list.dart`)
 - **Adım:** "Vazgeç" öğesine dokun (kaynak satırı 121); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-FUTURE-LIST-03`
 
 #### S-FUTURE-LIST-04 · Düğme: Tamam
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/core/widgets/future_list.dart`)
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/core/widgets/future_list.dart`)
 - **Adım:** "Tamam" öğesine dokun (kaynak satırı 122); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-FUTURE-LIST-04`
@@ -6703,8 +6704,8 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `mobile/lib/features/announcements/presentation/screens/announcements_screen.dart`
 
 #### S-ANNOUNCEMENTS-00 · Ekran açılışı ve görünüm
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/announcements
-- **Adım:** Ekranı aç: http://localhost:3002/#/announcements — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/announcements
+- **Adım:** Ekranı aç: http://localhost:3102/#/announcements — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /announcements` (community)
 - **Adım:** Başlık (satır 80): Duyurular
 - **Adım:** Aşağı çekerek yenile (varsa) ya da ekrana yeniden gir: aynı veri gelir
@@ -6712,7 +6713,7 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-ANNOUNCEMENTS-00`
 
 #### S-ANNOUNCEMENTS-01 · Düğme: ${a[
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/announcements
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/announcements
 - **Adım:** "${a[" öğesine dokun (kaynak satırı 99); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /announcements/:id/read` (community, `services/community/main.go:124`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: oturum açmış herkes (site kapsamı)
@@ -6729,8 +6730,8 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `mobile/lib/features/auth/presentation/screens/activate_screen.dart`
 
 #### S-ACTIVATE-00 · Ekran açılışı ve görünüm
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/activate
-- **Adım:** Ekranı aç: http://localhost:3002/#/activate — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/activate
+- **Adım:** Ekranı aç: http://localhost:3102/#/activate — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Mesaj (satır 118): Şifreniz belirlendi. Şimdi giriş yapabilirsiniz.
 - **Adım:** Başlık (satır 131): Şifre Belirle
 - **Adım:** Alan (satır 160): Telefon Numarası
@@ -6743,7 +6744,7 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-ACTIVATE-00`
 
 #### S-ACTIVATE-01 · Düğme: Yeniden gönder
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/activate
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/activate
 - **Adım:** "Yeniden gönder" öğesine dokun (kaynak satırı 165)
 - **Beklenen (yazma):** `POST /auth/password-reset/request` (identity, `services/identity/main.go:83`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: oturum açmış herkes (site kapsamı)
@@ -6757,7 +6758,7 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-ACTIVATE-01`
 
 #### S-ACTIVATE-02 · Düğme: Şifremi Belirle
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/activate
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/activate
 - **Adım:** "Şifremi Belirle" öğesine dokun (kaynak satırı 196)
 - **Beklenen (yazma):** `POST /auth/activate` (identity, `services/identity/main.go:81`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: OWNER/TENANT
@@ -6778,8 +6779,8 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `mobile/lib/features/auth/presentation/screens/kvkk_consent_screen.dart`
 
 #### S-KVKK-CONSENT-00 · Ekran açılışı ve görünüm
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/kvkk-consent
-- **Adım:** Ekranı aç: http://localhost:3002/#/kvkk-consent — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/kvkk-consent
+- **Adım:** Ekranı aç: http://localhost:3102/#/kvkk-consent — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Mesaj (satır 27): Onay kaydedilemedi, lütfen tekrar deneyin
 - **Adım:** Başlık (satır 40): Kişisel Verilerin Korunması
 - **Adım:** Aşağı çekerek yenile (varsa) ya da ekrana yeniden gir: aynı veri gelir
@@ -6787,7 +6788,7 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-KVKK-CONSENT-00`
 
 #### S-KVKK-CONSENT-01 · Düğme: Onaylıyorum ve Devam Ediyorum
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/kvkk-consent
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/kvkk-consent
 - **Adım:** "Onaylıyorum ve Devam Ediyorum" öğesine dokun (kaynak satırı 84)
 - **Beklenen (yazma):** `POST /users/me/kvkk-consent` (identity, `services/identity/main.go:103`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: oturum açmış herkes (site kapsamı)
@@ -6803,8 +6804,8 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `mobile/lib/features/auth/presentation/screens/login_screen.dart`
 
 #### S-LOGIN-00 · Ekran açılışı ve görünüm
-- **Hesap:** her hesap · **Nerede:** http://localhost:3002/#/login
-- **Adım:** Ekranı aç: http://localhost:3002/#/login — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** her hesap · **Nerede:** http://localhost:3102/#/login
+- **Adım:** Ekranı aç: http://localhost:3102/#/login — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Alan (satır 107): Telefon Numarası
 - **Adım:** Alan (satır 109): 0555 123 45 67 · yurt dışı: +49 …
 - **Adım:** Alan (satır 128): Şifre
@@ -6817,19 +6818,19 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-LOGIN-00`
 
 #### S-LOGIN-01 · Düğme: simge düğmesi (satır 130)
-- **Hesap:** her hesap · **Nerede:** http://localhost:3002/#/login
+- **Hesap:** her hesap · **Nerede:** http://localhost:3102/#/login
 - **Adım:** "simge düğmesi (satır 130)" öğesine dokun (kaynak satırı 130); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-LOGIN-01`
 
 #### S-LOGIN-02 · Düğme: Şifremi Unuttum
-- **Hesap:** her hesap · **Nerede:** http://localhost:3002/#/login
+- **Hesap:** her hesap · **Nerede:** http://localhost:3102/#/login
 - **Adım:** "Şifremi Unuttum" öğesine dokun (kaynak satırı 155); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-LOGIN-02`
 
 #### S-LOGIN-03 · Düğme: Giriş Yap
-- **Hesap:** her hesap · **Nerede:** http://localhost:3002/#/login
+- **Hesap:** her hesap · **Nerede:** http://localhost:3102/#/login
 - **Adım:** "Giriş Yap" öğesine dokun (kaynak satırı 163); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /auth/login` (identity, `services/identity/main.go:78`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: oturum açmış herkes (site kapsamı)
@@ -6840,25 +6841,25 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-LOGIN-03`
 
 #### S-LOGIN-04 · Düğme: Biyometrik Giriş
-- **Hesap:** her hesap · **Nerede:** http://localhost:3002/#/login
+- **Hesap:** her hesap · **Nerede:** http://localhost:3102/#/login
 - **Adım:** "Biyometrik Giriş" öğesine dokun (kaynak satırı 180); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-LOGIN-04`
 
 #### S-LOGIN-05 · Düğme: Hesabı Etkinleştir
-- **Hesap:** her hesap · **Nerede:** http://localhost:3002/#/login
+- **Hesap:** her hesap · **Nerede:** http://localhost:3102/#/login
 - **Adım:** "Hesabı Etkinleştir" öğesine dokun (kaynak satırı 200); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-LOGIN-05`
 
 #### S-LOGIN-06 · Düğme: Hayır
-- **Hesap:** her hesap · **Nerede:** http://localhost:3002/#/login
+- **Hesap:** her hesap · **Nerede:** http://localhost:3102/#/login
 - **Adım:** "Hayır" öğesine dokun (kaynak satırı 261); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-LOGIN-06`
 
 #### S-LOGIN-07 · Düğme: Etkinleştir
-- **Hesap:** her hesap · **Nerede:** http://localhost:3002/#/login
+- **Hesap:** her hesap · **Nerede:** http://localhost:3102/#/login
 - **Adım:** "Etkinleştir" öğesine dokun (kaynak satırı 265); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-LOGIN-07`
@@ -6869,8 +6870,8 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `mobile/lib/features/bulletin/presentation/screens/bulletin_board_mobile_screen.dart`
 
 #### S-BULLETIN-BOARD-00 · Ekran açılışı ve görünüm
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/bulletin
-- **Adım:** Ekranı aç: http://localhost:3002/#/bulletin — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/bulletin
+- **Adım:** Ekranı aç: http://localhost:3102/#/bulletin — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /bulletins/:id/comments` (bulletin); `GET /bulletins` (bulletin)
 - **Adım:** Başlık (satır 70): İlan Panosu
 - **Adım:** Alan (satır 202): Kategori
@@ -6883,7 +6884,7 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-BULLETIN-BOARD-00`
 
 #### S-BULLETIN-BOARD-01 · Düğme: İlan Ver
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/bulletin
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/bulletin
 - **Adım:** "İlan Ver" öğesine dokun (kaynak satırı 71); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /bulletins` (bulletin, `services/bulletin/main.go:85`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: oturum açmış herkes (site kapsamı)
@@ -6898,7 +6899,7 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-BULLETIN-BOARD-01`
 
 #### S-BULLETIN-BOARD-02 · Düğme: ${b[
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/bulletin
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/bulletin
 - **Adım:** "${b[" öğesine dokun (kaynak satırı 128); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /bulletins/:id/close` (bulletin, `services/bulletin/main.go:106`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: BOARD_MEMBER/MANAGER
@@ -6910,7 +6911,7 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-BULLETIN-BOARD-02`
 
 #### S-BULLETIN-BOARD-03 · Düğme: Kapat
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/bulletin
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/bulletin
 - **Adım:** "Kapat" öğesine dokun (kaynak satırı 150)
 - **Beklenen (yazma):** `POST /bulletins/:id/close` (bulletin, `services/bulletin/main.go:106`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: BOARD_MEMBER/MANAGER
@@ -6922,19 +6923,19 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-BULLETIN-BOARD-03`
 
 #### S-BULLETIN-BOARD-04 · Seçim: Kategori
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/bulletin
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/bulletin
 - **Adım:** "Kategori" seçimini değiştir; her seçenekte içerik buna göre değişmeli
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-BULLETIN-BOARD-04`
 
 #### S-BULLETIN-BOARD-05 · Düğme: Gönder
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/bulletin
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/bulletin
 - **Adım:** "Gönder" öğesine dokun (kaynak satırı 230); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-BULLETIN-BOARD-05`
 
 #### S-BULLETIN-BOARD-06 · Düğme: simge düğmesi (satır 344)
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/bulletin
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/bulletin
 - **Adım:** "simge düğmesi (satır 344)" öğesine dokun (kaynak satırı 344)
 - **Beklenen (yazma):** `POST /bulletins/:id/comments` (bulletin, `services/bulletin/main.go:136`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: oturum açmış herkes (site kapsamı)
@@ -6951,8 +6952,8 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `mobile/lib/features/common_income/presentation/screens/common_income_screen.dart`
 
 #### S-COMMON-INCOME-00 · Ekran açılışı ve görünüm
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/common-income
-- **Adım:** Ekranı aç: http://localhost:3002/#/common-income — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/common-income
+- **Adım:** Ekranı aç: http://localhost:3102/#/common-income — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /governance/common-area/my-share` (governance)
 - **Adım:** Başlık (satır 34): Ortak alan geliri payım
 - **Adım:** Aşağı çekerek yenile (varsa) ya da ekrana yeniden gir: aynı veri gelir
@@ -6960,13 +6961,13 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-COMMON-INCOME-00`
 
 #### S-COMMON-INCOME-01 · Düğme: simge düğmesi (satır 44)
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/common-income
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/common-income
 - **Adım:** "simge düğmesi (satır 44)" öğesine dokun (kaynak satırı 44); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-COMMON-INCOME-01`
 
 #### S-COMMON-INCOME-02 · Düğme: simge düğmesi (satır 46)
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/common-income
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/common-income
 - **Adım:** "simge düğmesi (satır 46)" öğesine dokun (kaynak satırı 46); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-COMMON-INCOME-02`
@@ -6977,8 +6978,8 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `mobile/lib/features/dask/presentation/screens/dask_screen.dart`
 
 #### S-DASK-00 · Ekran açılışı ve görünüm
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/dask
-- **Adım:** Ekranı aç: http://localhost:3002/#/dask — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/dask
+- **Adım:** Ekranı aç: http://localhost:3102/#/dask — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /insurance/dask` (contract)
 - **Adım:** Pencere (satır 45): ${r[
 - **Adım:** Alan (satır 48): Poliçe no
@@ -6990,25 +6991,25 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-DASK-00`
 
 #### S-DASK-01 · Düğme: ${formatDate(apiDate(start))} – ${formatDate(apiDate(end))}
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/dask
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/dask
 - **Adım:** "${formatDate(apiDate(start))} – ${formatDate(apiDate(end))}" öğesine dokun (kaynak satırı 50); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-DASK-01`
 
 #### S-DASK-02 · Düğme: Vazgeç
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/dask
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/dask
 - **Adım:** "Vazgeç" öğesine dokun (kaynak satırı 71); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-DASK-02`
 
 #### S-DASK-03 · Düğme: Kaydet
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/dask
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/dask
 - **Adım:** "Kaydet" öğesine dokun (kaynak satırı 72); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-DASK-03`
 
 #### S-DASK-04 · Düğme: Poliçe gir
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/dask
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/dask
 - **Adım:** "Poliçe gir" öğesine dokun (kaynak satırı 113); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /insurance/dask` (contract, `services/contract/main.go:71`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: BOARD_MEMBER/MANAGER
@@ -7025,8 +7026,8 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `mobile/lib/features/documents/presentation/screens/documents_screen.dart`
 
 #### S-DOCUMENTS-00 · Ekran açılışı ve görünüm
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/documents
-- **Adım:** Ekranı aç: http://localhost:3002/#/documents — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/documents
+- **Adım:** Ekranı aç: http://localhost:3102/#/documents — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /documents` (document); `GET /documents/:id/download` (document)
 - **Adım:** Başlık (satır 96): Belgeler
 - **Adım:** Aşağı çekerek yenile (varsa) ya da ekrana yeniden gir: aynı veri gelir
@@ -7034,7 +7035,7 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-DOCUMENTS-00`
 
 #### S-DOCUMENTS-01 · Düğme: ${d[
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/documents
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/documents
 - **Adım:** "${d[" öğesine dokun (kaynak satırı 113)
 - **Beklenen (okuma):** `GET /documents/:id/download` (document) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Beklenen (dosya):** dosya iner/açılır; boş ya da bozuk değildir (PDF ise sayfalar okunur).
@@ -7046,8 +7047,8 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `mobile/lib/features/emergency/presentation/screens/emergency_screen.dart`
 
 #### S-EMERGENCY-00 · Ekran açılışı ve görünüm
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/emergency
-- **Adım:** Ekranı aç: http://localhost:3002/#/emergency — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/emergency
+- **Adım:** Ekranı aç: http://localhost:3102/#/emergency — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /emergency/info` (community); `GET /emergency/checks` (community); `GET /emergency/cards/me` (community); `GET /users/me/properties` (identity)
 - **Adım:** Mesaj (satır 99): ${res[
 - **Adım:** Başlık (satır 110): Acil durum
@@ -7064,7 +7065,7 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-EMERGENCY-00`
 
 #### S-EMERGENCY-01 · Düğme: Güvendeyim
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/emergency
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/emergency
 - **Adım:** "Güvendeyim" öğesine dokun (kaynak satırı 140)
 - **Beklenen (yazma):** `POST /emergency/checks/:id/respond` (community, `services/community/emergency.go:326`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: `resident_can_use`
@@ -7080,7 +7081,7 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-EMERGENCY-01`
 
 #### S-EMERGENCY-02 · Düğme: Yardım gerekiyor
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/emergency
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/emergency
 - **Adım:** "Yardım gerekiyor" öğesine dokun (kaynak satırı 143)
 - **Beklenen (yazma):** `POST /emergency/checks/:id/respond` (community, `services/community/emergency.go:326`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: `resident_can_use`
@@ -7096,13 +7097,13 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-EMERGENCY-02`
 
 #### S-EMERGENCY-03 · Düğme: Acil bilgi kartım
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/emergency
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/emergency
 - **Adım:** "Acil bilgi kartım" öğesine dokun (kaynak satırı 174); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-EMERGENCY-03`
 
 #### S-EMERGENCY-04 · Düğme: Açık rızamla kaydet
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/emergency
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/emergency
 - **Adım:** "Açık rızamla kaydet" öğesine dokun (kaynak satırı 290)
 - **Beklenen (yazma):** `PUT /emergency/cards/me` (community, `services/community/emergency.go:202`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: `resident_can_use`
@@ -7115,7 +7116,7 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-EMERGENCY-04`
 
 #### S-EMERGENCY-05 · Düğme: Kartımı ve rızamı sil
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/emergency
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/emergency
 - **Adım:** "Kartımı ve rızamı sil" öğesine dokun (kaynak satırı 294)
 - **Beklenen (yazma):** `DELETE /emergency/cards/me` (community, `services/community/emergency.go:242`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: oturum açmış herkes (site kapsamı)
@@ -7132,8 +7133,8 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `mobile/lib/features/energy/presentation/screens/energy_consumption_mobile_screen.dart`
 
 #### S-ENERGY-CONSUMPTION-00 · Ekran açılışı ve görünüm
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/energy
-- **Adım:** Ekranı aç: http://localhost:3002/#/energy — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/energy
+- **Adım:** Ekranı aç: http://localhost:3102/#/energy — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /consumption/statements` (iot); `GET /consumption/objections` (iot); `GET /consumption/statements/:id/pdf` (iot); `GET /finance/consumption/summary` (finance)
 - **Adım:** Pencere (satır 395): Pusulaya itiraz
 - **Adım:** Alan (satır 402): Gerekçe
@@ -7143,20 +7144,20 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-ENERGY-CONSUMPTION-00`
 
 #### S-ENERGY-CONSUMPTION-01 · Düğme: simge düğmesi (satır 231)
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/energy
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/energy
 - **Adım:** "simge düğmesi (satır 231)" öğesine dokun (kaynak satırı 231); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-ENERGY-CONSUMPTION-01`
 
 #### S-ENERGY-CONSUMPTION-02 · Düğme: PDF
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/energy
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/energy
 - **Adım:** "PDF" öğesine dokun (kaynak satırı 340)
 - **Beklenen (okuma):** `GET /consumption/statements/:id/pdf` (iot) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Yetki (olumsuz):** Kullanım kuralı (`resident_can_use`): kiracılı dairede (A-4) işlemi KİRACI yapar; MALİK_A4 ile denenince reddedilmeli.
 - **Sonuç:** http://localhost:18000/sonuc → `S-ENERGY-CONSUMPTION-02`
 
 #### S-ENERGY-CONSUMPTION-03 · Düğme: İtiraz et
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/energy
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/energy
 - **Adım:** "İtiraz et" öğesine dokun (kaynak satırı 367); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /consumption/statements/:id/objections` (iot, `services/iot/main.go:471`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: `resident_can_use`
@@ -7173,13 +7174,13 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-ENERGY-CONSUMPTION-03`
 
 #### S-ENERGY-CONSUMPTION-04 · Düğme: Vazgeç
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/energy
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/energy
 - **Adım:** "Vazgeç" öğesine dokun (kaynak satırı 406); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-ENERGY-CONSUMPTION-04`
 
 #### S-ENERGY-CONSUMPTION-05 · Düğme: Gönder
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/energy
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/energy
 - **Adım:** "Gönder" öğesine dokun (kaynak satırı 407); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-ENERGY-CONSUMPTION-05`
@@ -7190,8 +7191,8 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `mobile/lib/features/finance/presentation/screens/dues_payment_screen.dart`
 
 #### S-DUES-PAYMENT-00 · Ekran açılışı ve görünüm
-- **Hesap:** KİRACI (kullanım borcu) ve MALİK_B1 (kendi dairesi) · **Nerede:** http://localhost:3002/#/finance/payment
-- **Adım:** Ekranı aç: http://localhost:3002/#/finance/payment — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** KİRACI (kullanım borcu) ve MALİK_B1 (kendi dairesi) · **Nerede:** http://localhost:3102/#/finance/payment
+- **Adım:** Ekranı aç: http://localhost:3102/#/finance/payment — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /users/me/properties` (identity); `GET /finance/clearance-certificates/:id/pdf` (finance); `GET /finance/credit-notes` (finance); `GET /finance/credit-notes/:id/pdf` (finance); `GET /finance/ledger/verify` (finance); `GET /finance/debt-status` (finance); `GET /finance/assessments` (finance); `GET /finance/payments/:id/status` (finance)
 - **Adım:** Dosya seçme (satır 18)
 - **Adım:** Dosya seçme (satır 18)
@@ -7211,7 +7212,7 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-DUES-PAYMENT-00`
 
 #### S-DUES-PAYMENT-01 · Düğme: Borcu yoktur belgesi
-- **Hesap:** KİRACI (kullanım borcu) ve MALİK_B1 (kendi dairesi) · **Nerede:** http://localhost:3002/#/finance/payment
+- **Hesap:** KİRACI (kullanım borcu) ve MALİK_B1 (kendi dairesi) · **Nerede:** http://localhost:3102/#/finance/payment
 - **Adım:** "Borcu yoktur belgesi" öğesine dokun (kaynak satırı 100); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /finance/clearance-certificates` (finance, `services/finance/main.go:104`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: işleyicide `isFinanceManager` (backend/services/finance/clearance.go:41)
@@ -7223,19 +7224,19 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-DUES-PAYMENT-01`
 
 #### S-DUES-PAYMENT-02 · Düğme: Alacak dekontlarım
-- **Hesap:** KİRACI (kullanım borcu) ve MALİK_B1 (kendi dairesi) · **Nerede:** http://localhost:3002/#/finance/payment
+- **Hesap:** KİRACI (kullanım borcu) ve MALİK_B1 (kendi dairesi) · **Nerede:** http://localhost:3102/#/finance/payment
 - **Adım:** "Alacak dekontlarım" öğesine dokun (kaynak satırı 106); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (okuma):** `GET /finance/credit-notes` (finance), `GET /finance/credit-notes/:id/pdf` (finance) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Sonuç:** http://localhost:18000/sonuc → `S-DUES-PAYMENT-02`
 
 #### S-DUES-PAYMENT-03 · Düğme: Tahsilat kayıtlarını doğrula
-- **Hesap:** KİRACI (kullanım borcu) ve MALİK_B1 (kendi dairesi) · **Nerede:** http://localhost:3002/#/finance/payment
+- **Hesap:** KİRACI (kullanım borcu) ve MALİK_B1 (kendi dairesi) · **Nerede:** http://localhost:3102/#/finance/payment
 - **Adım:** "Tahsilat kayıtlarını doğrula" öğesine dokun (kaynak satırı 112); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (okuma):** `GET /finance/ledger/verify` (finance) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Sonuç:** http://localhost:18000/sonuc → `S-DUES-PAYMENT-03`
 
 #### S-DUES-PAYMENT-04 · Düğme: Ödenecek tahakkuk yok / ${formatTry(_currentBalance)} Öde
-- **Hesap:** KİRACI (kullanım borcu) ve MALİK_B1 (kendi dairesi) · **Nerede:** http://localhost:3002/#/finance/payment
+- **Hesap:** KİRACI (kullanım borcu) ve MALİK_B1 (kendi dairesi) · **Nerede:** http://localhost:3102/#/finance/payment
 - **Adım:** "Ödenecek tahakkuk yok / ${formatTry(_currentBalance)} Öde" öğesine dokun (kaynak satırı 330); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Adım:** Dış bağlantı yeni sekmede açılır (kart ödemesinde sahte iyzico sayfası: http://localhost:18000/iyzico/pay/…)
 - **Beklenen (yazma):** `POST /finance/payments/:id/receipts` (finance, `services/finance/main.go:97`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
@@ -7262,67 +7263,67 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-DUES-PAYMENT-04`
 
 #### S-DUES-PAYMENT-05 · Düğme: Tamam
-- **Hesap:** KİRACI (kullanım borcu) ve MALİK_B1 (kendi dairesi) · **Nerede:** http://localhost:3002/#/finance/payment
+- **Hesap:** KİRACI (kullanım borcu) ve MALİK_B1 (kendi dairesi) · **Nerede:** http://localhost:3102/#/finance/payment
 - **Adım:** "Tamam" öğesine dokun (kaynak satırı 370); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-DUES-PAYMENT-05`
 
 #### S-DUES-PAYMENT-06 · Düğme: PDF
-- **Hesap:** KİRACI (kullanım borcu) ve MALİK_B1 (kendi dairesi) · **Nerede:** http://localhost:3002/#/finance/payment
+- **Hesap:** KİRACI (kullanım borcu) ve MALİK_B1 (kendi dairesi) · **Nerede:** http://localhost:3102/#/finance/payment
 - **Adım:** "PDF" öğesine dokun (kaynak satırı 406)
 - **Beklenen (okuma):** `GET /finance/credit-notes/:id/pdf` (finance) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Sonuç:** http://localhost:18000/sonuc → `S-DUES-PAYMENT-06`
 
 #### S-DUES-PAYMENT-07 · Düğme: Kapat
-- **Hesap:** KİRACI (kullanım borcu) ve MALİK_B1 (kendi dairesi) · **Nerede:** http://localhost:3002/#/finance/payment
+- **Hesap:** KİRACI (kullanım borcu) ve MALİK_B1 (kendi dairesi) · **Nerede:** http://localhost:3102/#/finance/payment
 - **Adım:** "Kapat" öğesine dokun (kaynak satırı 415); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-DUES-PAYMENT-07`
 
 #### S-DUES-PAYMENT-08 · Düğme: Tamam
-- **Hesap:** KİRACI (kullanım borcu) ve MALİK_B1 (kendi dairesi) · **Nerede:** http://localhost:3002/#/finance/payment
+- **Hesap:** KİRACI (kullanım borcu) ve MALİK_B1 (kendi dairesi) · **Nerede:** http://localhost:3102/#/finance/payment
 - **Adım:** "Tamam" öğesine dokun (kaynak satırı 449); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-DUES-PAYMENT-08`
 
 #### S-DUES-PAYMENT-09 · Düğme: Havaleyi yaptığınız gün
-- **Hesap:** KİRACI (kullanım borcu) ve MALİK_B1 (kendi dairesi) · **Nerede:** http://localhost:3002/#/finance/payment
+- **Hesap:** KİRACI (kullanım borcu) ve MALİK_B1 (kendi dairesi) · **Nerede:** http://localhost:3102/#/finance/payment
 - **Adım:** "Havaleyi yaptığınız gün" öğesine dokun (kaynak satırı 472); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-DUES-PAYMENT-09`
 
 #### S-DUES-PAYMENT-10 · Düğme: İptal
-- **Hesap:** KİRACI (kullanım borcu) ve MALİK_B1 (kendi dairesi) · **Nerede:** http://localhost:3002/#/finance/payment
+- **Hesap:** KİRACI (kullanım borcu) ve MALİK_B1 (kendi dairesi) · **Nerede:** http://localhost:3102/#/finance/payment
 - **Adım:** "İptal" öğesine dokun (kaynak satırı 498); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-DUES-PAYMENT-10`
 
 #### S-DUES-PAYMENT-11 · Düğme: Devam
-- **Hesap:** KİRACI (kullanım borcu) ve MALİK_B1 (kendi dairesi) · **Nerede:** http://localhost:3002/#/finance/payment
+- **Hesap:** KİRACI (kullanım borcu) ve MALİK_B1 (kendi dairesi) · **Nerede:** http://localhost:3102/#/finance/payment
 - **Adım:** "Devam" öğesine dokun (kaynak satırı 501); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-DUES-PAYMENT-11`
 
 #### S-DUES-PAYMENT-12 · Düğme: Tamam
-- **Hesap:** KİRACI (kullanım borcu) ve MALİK_B1 (kendi dairesi) · **Nerede:** http://localhost:3002/#/finance/payment
+- **Hesap:** KİRACI (kullanım borcu) ve MALİK_B1 (kendi dairesi) · **Nerede:** http://localhost:3102/#/finance/payment
 - **Adım:** "Tamam" öğesine dokun (kaynak satırı 536); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-DUES-PAYMENT-12`
 
 #### S-DUES-PAYMENT-13 · Düğme: Arka planda bekle
-- **Hesap:** KİRACI (kullanım borcu) ve MALİK_B1 (kendi dairesi) · **Nerede:** http://localhost:3002/#/finance/payment
+- **Hesap:** KİRACI (kullanım borcu) ve MALİK_B1 (kendi dairesi) · **Nerede:** http://localhost:3102/#/finance/payment
 - **Adım:** "Arka planda bekle" öğesine dokun (kaynak satırı 574)
 - **Beklenen (okuma):** `GET /finance/debt-status` (finance), `GET /finance/assessments` (finance) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Sonuç:** http://localhost:18000/sonuc → `S-DUES-PAYMENT-13`
 
 #### S-DUES-PAYMENT-14 · Düğme: Tamam
-- **Hesap:** KİRACI (kullanım borcu) ve MALİK_B1 (kendi dairesi) · **Nerede:** http://localhost:3002/#/finance/payment
+- **Hesap:** KİRACI (kullanım borcu) ve MALİK_B1 (kendi dairesi) · **Nerede:** http://localhost:3102/#/finance/payment
 - **Adım:** "Tamam" öğesine dokun (kaynak satırı 613)
 - **Beklenen (okuma):** `GET /finance/debt-status` (finance), `GET /finance/assessments` (finance) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Sonuç:** http://localhost:18000/sonuc → `S-DUES-PAYMENT-14`
 
 #### S-DUES-PAYMENT-15 · Düğme: Dekont ekle
-- **Hesap:** KİRACI (kullanım borcu) ve MALİK_B1 (kendi dairesi) · **Nerede:** http://localhost:3002/#/finance/payment
+- **Hesap:** KİRACI (kullanım borcu) ve MALİK_B1 (kendi dairesi) · **Nerede:** http://localhost:3102/#/finance/payment
 - **Adım:** "Dekont ekle" öğesine dokun (kaynak satırı 689)
 - **Beklenen (yazma):** `POST /finance/payments/:id/receipts` (finance, `services/finance/main.go:97`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: oturum açmış herkes (site kapsamı)
@@ -7335,7 +7336,7 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-DUES-PAYMENT-15`
 
 #### S-DUES-PAYMENT-16 · Düğme: Tamam
-- **Hesap:** KİRACI (kullanım borcu) ve MALİK_B1 (kendi dairesi) · **Nerede:** http://localhost:3002/#/finance/payment
+- **Hesap:** KİRACI (kullanım borcu) ve MALİK_B1 (kendi dairesi) · **Nerede:** http://localhost:3102/#/finance/payment
 - **Adım:** "Tamam" öğesine dokun (kaynak satırı 697)
 - **Beklenen (okuma):** `GET /finance/debt-status` (finance), `GET /finance/assessments` (finance) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Sonuç:** http://localhost:18000/sonuc → `S-DUES-PAYMENT-16`
@@ -7346,8 +7347,8 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `mobile/lib/features/finance/presentation/screens/finance_screen.dart`
 
 #### S-FINANCE-00 · Ekran açılışı ve görünüm
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/finance
-- **Adım:** Ekranı aç: http://localhost:3002/#/finance — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/finance
+- **Adım:** Ekranı aç: http://localhost:3102/#/finance — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /finance/debt-status` (finance); `GET /finance/assessments` (finance)
 - **Adım:** Başlık (satır 76): Finansal Durumum
 - **Adım:** Aşağı çekerek yenile (varsa) ya da ekrana yeniden gir: aynı veri gelir
@@ -7355,7 +7356,7 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-FINANCE-00`
 
 #### S-FINANCE-01 · Düğme: Öde
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/finance
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/finance
 - **Adım:** "Öde" öğesine dokun (kaynak satırı 161)
 - **Beklenen (okuma):** `GET /finance/debt-status` (finance), `GET /finance/assessments` (finance) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Sonuç:** http://localhost:18000/sonuc → `S-FINANCE-01`
@@ -7366,8 +7367,8 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `mobile/lib/features/finance/presentation/screens/payment_history_screen.dart`
 
 #### S-PAYMENT-HISTORY-00 · Ekran açılışı ve görünüm
-- **Hesap:** KİRACI · **Nerede:** http://localhost:3002/#/payment-history
-- **Adım:** Ekranı aç: http://localhost:3002/#/payment-history — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** KİRACI · **Nerede:** http://localhost:3102/#/payment-history
+- **Adım:** Ekranı aç: http://localhost:3102/#/payment-history — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /finance/my-payments` (finance)
 - **Adım:** Başlık (satır 39): Ödeme Geçmişi
 - **Adım:** Aşağı çekerek yenile (varsa) ya da ekrana yeniden gir: aynı veri gelir
@@ -7380,8 +7381,8 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `mobile/lib/features/governance/presentation/screens/my_budgets_screen.dart`
 
 #### S-MY-BUDGETS-00 · Ekran açılışı ve görünüm
-- **Hesap:** MALİK_B1 (işletme projesi malik içindir) · **Nerede:** http://localhost:3002/#/my-budgets
-- **Adım:** Ekranı aç: http://localhost:3002/#/my-budgets — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** MALİK_B1 (işletme projesi malik içindir) · **Nerede:** http://localhost:3102/#/my-budgets
+- **Adım:** Ekranı aç: http://localhost:3102/#/my-budgets — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /governance/my-budgets` (governance); `GET /governance/my-budgets/:id` (governance)
 - **Adım:** Başlık (satır 37): İşletme Projesi
 - **Adım:** Başlık (satır 95): İşletme projesi
@@ -7390,19 +7391,19 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-MY-BUDGETS-00`
 
 #### S-MY-BUDGETS-01 · Düğme: ${b[
-- **Hesap:** MALİK_B1 (işletme projesi malik içindir) · **Nerede:** http://localhost:3002/#/my-budgets
+- **Hesap:** MALİK_B1 (işletme projesi malik içindir) · **Nerede:** http://localhost:3102/#/my-budgets
 - **Adım:** "${b[" öğesine dokun (kaynak satırı 47); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-MY-BUDGETS-01`
 
 #### S-MY-BUDGETS-02 · Düğme: ${u[
-- **Hesap:** MALİK_B1 (işletme projesi malik içindir) · **Nerede:** http://localhost:3002/#/my-budgets
+- **Hesap:** MALİK_B1 (işletme projesi malik içindir) · **Nerede:** http://localhost:3102/#/my-budgets
 - **Adım:** "${u[" öğesine dokun (kaynak satırı 81); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-MY-BUDGETS-02`
 
 #### S-MY-BUDGETS-03 · Düğme: Görüş / itiraz bildir
-- **Hesap:** MALİK_B1 (işletme projesi malik içindir) · **Nerede:** http://localhost:3002/#/my-budgets
+- **Hesap:** MALİK_B1 (işletme projesi malik içindir) · **Nerede:** http://localhost:3102/#/my-budgets
 - **Adım:** "Görüş / itiraz bildir" öğesine dokun (kaynak satırı 142); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /governance/budgets/:id/objections` (governance, `services/governance/main.go:114`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: oturum açmış herkes (site kapsamı)
@@ -7419,8 +7420,8 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `mobile/lib/features/home/presentation/screens/main_screen.dart`
 
 #### S-MAIN-00 · Ekran açılışı ve görünüm
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/home/presentation/screens/main_screen.dart`)
-- **Adım:** Ekranı aç: http://localhost:3002 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/home/presentation/screens/main_screen.dart`) — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/home/presentation/screens/main_screen.dart`)
+- **Adım:** Ekranı aç: http://localhost:3102 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/home/presentation/screens/main_screen.dart`) — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /notifications/unread-count` (notification)
 - **Adım:** Pencere (satır 66): Uygulamadan çık
 - **Adım:** Aşağı çekerek yenile (varsa) ya da ekrana yeniden gir: aynı veri gelir
@@ -7428,13 +7429,13 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-MAIN-00`
 
 #### S-MAIN-01 · Düğme: Vazgeç
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/home/presentation/screens/main_screen.dart`)
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/home/presentation/screens/main_screen.dart`)
 - **Adım:** "Vazgeç" öğesine dokun (kaynak satırı 70); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-MAIN-01`
 
 #### S-MAIN-02 · Düğme: Çık
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/home/presentation/screens/main_screen.dart`)
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/home/presentation/screens/main_screen.dart`)
 - **Adım:** "Çık" öğesine dokun (kaynak satırı 74); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-MAIN-02`
@@ -7445,75 +7446,75 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `mobile/lib/features/home/presentation/screens/resident_home_screen.dart`
 
 #### S-RESIDENT-HOME-00 · Ekran açılışı ve görünüm
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/
-- **Adım:** Ekranı aç: http://localhost:3002/#/ — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/
+- **Adım:** Ekranı aç: http://localhost:3102/#/ — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /users/me` (identity); `GET /finance/debt-status` (finance); `GET /announcements` (community)
 - **Adım:** Aşağı çekerek yenile (varsa) ya da ekrana yeniden gir: aynı veri gelir
 - **Beklenen:** her veri bölümü yüklenir (boşsa anlamlı boş durum mesajı; "undefined", "NaN", "null", ham JSON ya da İngilizce hata metni YOK); sayılar ve tarihler Türkçe biçimde (1.234,56 ₺ · gg.aa.yyyy); uydurma/örnek veri yok; dar ekranda (400 px) yatay kaydırma olmadan okunur.
 - **Sonuç:** http://localhost:18000/sonuc → `S-RESIDENT-HOME-00`
 
 #### S-RESIDENT-HOME-01 · Düğme: Duyurular
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/
 - **Adım:** "Duyurular" öğesine dokun (kaynak satırı 179); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-RESIDENT-HOME-01`
 
 #### S-RESIDENT-HOME-02 · Düğme: Aidat Öde
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/
 - **Adım:** "Aidat Öde" öğesine dokun (kaynak satırı 236); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-RESIDENT-HOME-02`
 
 #### S-RESIDENT-HOME-03 · Düğme: Ziyaretçi
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/
 - **Adım:** "Ziyaretçi" öğesine dokun (kaynak satırı 256); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-RESIDENT-HOME-03`
 
 #### S-RESIDENT-HOME-04 · Düğme: Rezervasyon
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/
 - **Adım:** "Rezervasyon" öğesine dokun (kaynak satırı 262); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-RESIDENT-HOME-04`
 
 #### S-RESIDENT-HOME-05 · Düğme: Talep
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/
 - **Adım:** "Talep" öğesine dokun (kaynak satırı 268); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-RESIDENT-HOME-05`
 
 #### S-RESIDENT-HOME-06 · Düğme: Anket
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/
 - **Adım:** "Anket" öğesine dokun (kaynak satırı 274); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-RESIDENT-HOME-06`
 
 #### S-RESIDENT-HOME-07 · Düğme: Taleplerim
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/
 - **Adım:** "Taleplerim" öğesine dokun (kaynak satırı 298); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-RESIDENT-HOME-07`
 
 #### S-RESIDENT-HOME-08 · Düğme: Kargolarım
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/
 - **Adım:** "Kargolarım" öğesine dokun (kaynak satırı 305); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-RESIDENT-HOME-08`
 
 #### S-RESIDENT-HOME-09 · Düğme: Tüketim
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/
 - **Adım:** "Tüketim" öğesine dokun (kaynak satırı 312); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-RESIDENT-HOME-09`
 
 #### S-RESIDENT-HOME-10 · Düğme: Belgeler
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/
 - **Adım:** "Belgeler" öğesine dokun (kaynak satırı 319); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-RESIDENT-HOME-10`
 
 #### S-RESIDENT-HOME-11 · Düğme: simge düğmesi (satır 361)
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/
 - **Adım:** "simge düğmesi (satır 361)" öğesine dokun (kaynak satırı 361); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-RESIDENT-HOME-11`
@@ -7524,8 +7525,8 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `mobile/lib/features/invitations/presentation/widgets/invitations_banner.dart`
 
 #### S-INVITATIONS-BANNER-00 · Ekran açılışı ve görünüm
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/invitations/presentation/widgets/invitations_banner.dart`)
-- **Adım:** Ekranı aç: http://localhost:3002 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/invitations/presentation/widgets/invitations_banner.dart`) — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/invitations/presentation/widgets/invitations_banner.dart`)
+- **Adım:** Ekranı aç: http://localhost:3102 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/invitations/presentation/widgets/invitations_banner.dart`) — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /users/me/invitations` (identity)
 - **Adım:** Mesaj (satır 62): ${res[
 - **Adım:** Aşağı çekerek yenile (varsa) ya da ekrana yeniden gir: aynı veri gelir
@@ -7533,13 +7534,13 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-INVITATIONS-BANNER-00`
 
 #### S-INVITATIONS-BANNER-01 · Düğme: Yeniden dene
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/invitations/presentation/widgets/invitations_banner.dart`)
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/invitations/presentation/widgets/invitations_banner.dart`)
 - **Adım:** "Yeniden dene" öğesine dokun (kaynak satırı 82)
 - **Beklenen (okuma):** `GET /users/me/invitations` (identity) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Sonuç:** http://localhost:18000/sonuc → `S-INVITATIONS-BANNER-01`
 
 #### S-INVITATIONS-BANNER-02 · Düğme: Reddet
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/invitations/presentation/widgets/invitations_banner.dart`)
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/invitations/presentation/widgets/invitations_banner.dart`)
 - **Adım:** "Reddet" öğesine dokun (kaynak satırı 109)
 - **Beklenen (yazma):** `POST /users/me/invitations/:id/accept` (identity, `services/identity/main.go:128`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: OWNER/TENANT
@@ -7562,7 +7563,7 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-INVITATIONS-BANNER-02`
 
 #### S-INVITATIONS-BANNER-03 · Düğme: Kabul et
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/invitations/presentation/widgets/invitations_banner.dart`)
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/invitations/presentation/widgets/invitations_banner.dart`)
 - **Adım:** "Kabul et" öğesine dokun (kaynak satırı 114)
 - **Beklenen (yazma):** `POST /users/me/invitations/:id/accept` (identity, `services/identity/main.go:128`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: OWNER/TENANT
@@ -7590,8 +7591,8 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `mobile/lib/features/kvkk/presentation/screens/kvkk_requests_screen.dart`
 
 #### S-KVKK-REQUESTS-00 · Ekran açılışı ve görünüm
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/kvkk
-- **Adım:** Ekranı aç: http://localhost:3002/#/kvkk — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/kvkk
+- **Adım:** Ekranı aç: http://localhost:3102/#/kvkk — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /kvkk-requests` (community); `GET /privacy/cameras` (settings)
 - **Adım:** Pencere (satır 61): Yeni KVKK başvurusu
 - **Adım:** Alan (satır 78): Talebiniz
@@ -7604,25 +7605,25 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-KVKK-REQUESTS-00`
 
 #### S-KVKK-REQUESTS-01 · Seçim: simge düğmesi (satır 65)
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/kvkk
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/kvkk
 - **Adım:** "simge düğmesi (satır 65)" seçimini değiştir; her seçenekte içerik buna göre değişmeli
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-KVKK-REQUESTS-01`
 
 #### S-KVKK-REQUESTS-02 · Düğme: Vazgeç
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/kvkk
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/kvkk
 - **Adım:** "Vazgeç" öğesine dokun (kaynak satırı 83); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-KVKK-REQUESTS-02`
 
 #### S-KVKK-REQUESTS-03 · Düğme: Gönder
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/kvkk
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/kvkk
 - **Adım:** "Gönder" öğesine dokun (kaynak satırı 84); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-KVKK-REQUESTS-03`
 
 #### S-KVKK-REQUESTS-04 · Düğme: Başvuru yap
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/kvkk
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/kvkk
 - **Adım:** "Başvuru yap" öğesine dokun (kaynak satırı 104); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /kvkk-requests` (community, `services/community/kvkk.go:52`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: oturum açmış herkes (site kapsamı)
@@ -7637,7 +7638,7 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-KVKK-REQUESTS-04`
 
 #### S-KVKK-REQUESTS-05 · Düğme: Ortak alan kameraları
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/kvkk
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/kvkk
 - **Adım:** "Ortak alan kameraları" öğesine dokun (kaynak satırı 127); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-KVKK-REQUESTS-05`
@@ -7648,8 +7649,8 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `mobile/lib/features/meters/presentation/screens/my_meters_screen.dart`
 
 #### S-MY-METERS-00 · Ekran açılışı ve görünüm
-- **Hesap:** KİRACI · **Nerede:** http://localhost:3002/#/my-meters
-- **Adım:** Ekranı aç: http://localhost:3002/#/my-meters — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** KİRACI · **Nerede:** http://localhost:3102/#/my-meters
+- **Adım:** Ekranı aç: http://localhost:3102/#/my-meters — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /meter-readings` (iot)
 - **Adım:** Başlık (satır 18): Sayaçlarım
 - **Adım:** Başlık (satır 44): ${meter[
@@ -7658,7 +7659,7 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-MY-METERS-00`
 
 #### S-MY-METERS-01 · Düğme: ${_types[
-- **Hesap:** KİRACI · **Nerede:** http://localhost:3002/#/my-meters
+- **Hesap:** KİRACI · **Nerede:** http://localhost:3102/#/my-meters
 - **Adım:** "${_types[" öğesine dokun (kaynak satırı 23); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-MY-METERS-01`
@@ -7669,8 +7670,8 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `mobile/lib/features/more/presentation/screens/more_screen.dart`
 
 #### S-MORE-00 · Ekran açılışı ve görünüm
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/more
-- **Adım:** Ekranı aç: http://localhost:3002/#/more — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/more
+- **Adım:** Ekranı aç: http://localhost:3102/#/more — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /users/me` (identity)
 - **Adım:** Başlık (satır 73): Daha Fazla
 - **Adım:** Pencere (satır 283): Çıkış Yap
@@ -7679,145 +7680,145 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-MORE-00`
 
 #### S-MORE-01 · Düğme: Bildirimlerim
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/more
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/more
 - **Adım:** "Bildirimlerim" öğesine dokun (kaynak satırı 78); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-MORE-01`
 
 #### S-MORE-02 · Düğme: Duyurular
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/more
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/more
 - **Adım:** "Duyurular" öğesine dokun (kaynak satırı 83); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-MORE-02`
 
 #### S-MORE-03 · Düğme: Ödeme Geçmişi
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/more
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/more
 - **Adım:** "Ödeme Geçmişi" öğesine dokun (kaynak satırı 88); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-MORE-03`
 
 #### S-MORE-04 · Düğme: Ziyaretçilerim
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/more
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/more
 - **Adım:** "Ziyaretçilerim" öğesine dokun (kaynak satırı 93); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-MORE-04`
 
 #### S-MORE-05 · Düğme: Araçlarım
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/more
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/more
 - **Adım:** "Araçlarım" öğesine dokun (kaynak satırı 98); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-MORE-05`
 
 #### S-MORE-06 · Düğme: Sayaçlarım
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/more
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/more
 - **Adım:** "Sayaçlarım" öğesine dokun (kaynak satırı 103); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-MORE-06`
 
 #### S-MORE-07 · Düğme: Memnuniyet Anketi
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/more
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/more
 - **Adım:** "Memnuniyet Anketi" öğesine dokun (kaynak satırı 108); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-MORE-07`
 
 #### S-MORE-08 · Düğme: İşletme Projesi
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/more
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/more
 - **Adım:** "İşletme Projesi" öğesine dokun (kaynak satırı 113); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-MORE-08`
 
 #### S-MORE-09 · Düğme: Anketler
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/more
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/more
 - **Adım:** "Anketler" öğesine dokun (kaynak satırı 118); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-MORE-09`
 
 #### S-MORE-10 · Düğme: İlan Panosu
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/more
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/more
 - **Adım:** "İlan Panosu" öğesine dokun (kaynak satırı 123); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-MORE-10`
 
 #### S-MORE-11 · Düğme: Kargo Takibi
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/more
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/more
 - **Adım:** "Kargo Takibi" öğesine dokun (kaynak satırı 128); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-MORE-11`
 
 #### S-MORE-12 · Düğme: Rezervasyonlarım
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/more
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/more
 - **Adım:** "Rezervasyonlarım" öğesine dokun (kaynak satırı 133); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-MORE-12`
 
 #### S-MORE-13 · Düğme: Ziyaretçi Ön Kaydı
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/more
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/more
 - **Adım:** "Ziyaretçi Ön Kaydı" öğesine dokun (kaynak satırı 138); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-MORE-13`
 
 #### S-MORE-14 · Düğme: Tüketim
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/more
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/more
 - **Adım:** "Tüketim" öğesine dokun (kaynak satırı 143); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-MORE-14`
 
 #### S-MORE-15 · Düğme: Belgeler
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/more
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/more
 - **Adım:** "Belgeler" öğesine dokun (kaynak satırı 148); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-MORE-15`
 
 #### S-MORE-16 · Düğme: DASK poliçem
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/more
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/more
 - **Adım:** "DASK poliçem" öğesine dokun (kaynak satırı 153); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-MORE-16`
 
 #### S-MORE-17 · Düğme: Ortak alan geliri payım
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/more
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/more
 - **Adım:** "Ortak alan geliri payım" öğesine dokun (kaynak satırı 158); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-MORE-17`
 
 #### S-MORE-18 · Düğme: Acil durum
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/more
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/more
 - **Adım:** "Acil durum" öğesine dokun (kaynak satırı 163); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-MORE-18`
 
 #### S-MORE-19 · Düğme: Kural ihlali bildir
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/more
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/more
 - **Adım:** "Kural ihlali bildir" öğesine dokun (kaynak satırı 168); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-MORE-19`
 
 #### S-MORE-20 · Düğme: Tadilat izni
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/more
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/more
 - **Adım:** "Tadilat izni" öğesine dokun (kaynak satırı 173); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-MORE-20`
 
 #### S-MORE-21 · Düğme: KVKK başvurusu
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/more
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/more
 - **Adım:** "KVKK başvurusu" öğesine dokun (kaynak satırı 178); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-MORE-21`
 
 #### S-MORE-22 · Düğme: Profil ve Ayarlar
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/more
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/more
 - **Adım:** "Profil ve Ayarlar" öğesine dokun (kaynak satırı 184); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-MORE-22`
 
 #### S-MORE-23 · Düğme: Hakkında
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/more
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/more
 - **Adım:** "Hakkında" öğesine dokun (kaynak satırı 189); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-MORE-23`
 
 #### S-MORE-24 · Düğme: Çıkış Yap
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/more
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/more
 - **Adım:** "Çıkış Yap" öğesine dokun (kaynak satırı 195); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /auth/logout` (identity, `services/identity/main.go:91`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: oturum açmış herkes (site kapsamı)
@@ -7828,25 +7829,25 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-MORE-24`
 
 #### S-MORE-25 · Düğme: Profili düzenle
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/more
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/more
 - **Adım:** "Profili düzenle" öğesine dokun (kaynak satırı 259); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-MORE-25`
 
 #### S-MORE-26 · Düğme: İptal
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/more
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/more
 - **Adım:** "İptal" öğesine dokun (kaynak satırı 287); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-MORE-26`
 
 #### S-MORE-27 · Düğme: Çıkış Yap
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/more
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/more
 - **Adım:** "Çıkış Yap" öğesine dokun (kaynak satırı 290); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-MORE-27`
 
 #### S-MORE-28 · Düğme: simge düğmesi (satır 321)
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/more
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/more
 - **Adım:** "simge düğmesi (satır 321)" öğesine dokun (kaynak satırı 321); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-MORE-28`
@@ -7857,8 +7858,8 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `mobile/lib/features/notifications/presentation/screens/notifications_screen.dart`
 
 #### S-NOTIFICATIONS-00 · Ekran açılışı ve görünüm
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/notifications
-- **Adım:** Ekranı aç: http://localhost:3002/#/notifications — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/notifications
+- **Adım:** Ekranı aç: http://localhost:3102/#/notifications — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /notifications` (notification)
 - **Adım:** Başlık (satır 67): Bildirimlerim
 - **Adım:** Aşağı çekerek yenile (varsa) ya da ekrana yeniden gir: aynı veri gelir
@@ -7866,7 +7867,7 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-NOTIFICATIONS-00`
 
 #### S-NOTIFICATIONS-01 · Düğme: Tümünü okundu say
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/notifications
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/notifications
 - **Adım:** "Tümünü okundu say" öğesine dokun (kaynak satırı 68)
 - **Beklenen (yazma):** `POST /notifications/read-all` (notification, `services/notification/main.go:97`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: oturum açmış herkes (site kapsamı)
@@ -7878,7 +7879,7 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-NOTIFICATIONS-01`
 
 #### S-NOTIFICATIONS-02 · Düğme: ${n[
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/notifications
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/notifications
 - **Adım:** "${n[" öğesine dokun (kaynak satırı 88)
 - **Beklenen (yazma):** `POST /notifications/:id/read` (notification, `services/notification/main.go:84`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: oturum açmış herkes (site kapsamı)
@@ -7895,8 +7896,8 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `mobile/lib/features/nps/presentation/screens/nps_screen.dart`
 
 #### S-NPS-00 · Ekran açılışı ve görünüm
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/nps
-- **Adım:** Ekranı aç: http://localhost:3002/#/nps — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/nps
+- **Adım:** Ekranı aç: http://localhost:3102/#/nps — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Başlık (satır 33): Memnuniyet Anketi
 - **Adım:** Alan (satır 83): Yorum (isteğe bağlı)
 - **Adım:** Aşağı çekerek yenile (varsa) ya da ekrana yeniden gir: aynı veri gelir
@@ -7904,13 +7905,13 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-NPS-00`
 
 #### S-NPS-01 · Düğme: Yanıtla
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/nps
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/nps
 - **Adım:** "Yanıtla" öğesine dokun (kaynak satırı 50); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-NPS-01`
 
 #### S-NPS-02 · Düğme: Gönder
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/nps
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/nps
 - **Adım:** "Gönder" öğesine dokun (kaynak satırı 88); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-NPS-02`
@@ -7921,8 +7922,8 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `mobile/lib/features/packages/presentation/screens/package_tracking_mobile_screen.dart`
 
 #### S-PACKAGE-TRACKING-00 · Ekran açılışı ve görünüm
-- **Hesap:** KİRACI · **Nerede:** http://localhost:3002/#/packages
-- **Adım:** Ekranı aç: http://localhost:3002/#/packages — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** KİRACI · **Nerede:** http://localhost:3102/#/packages
+- **Adım:** Ekranı aç: http://localhost:3102/#/packages — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /packages` (package); `GET /packages/:id/proof/:kind` (package)
 - **Adım:** Başlık (satır 52): Kargolarım
 - **Adım:** Pencere (satır 128): Kapat
@@ -7931,7 +7932,7 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-PACKAGE-TRACKING-00`
 
 #### S-PACKAGE-TRACKING-01 · Düğme: Menü: İmzayı gör
-- **Hesap:** KİRACI · **Nerede:** http://localhost:3002/#/packages
+- **Hesap:** KİRACI · **Nerede:** http://localhost:3102/#/packages
 - **Adım:** "Menü: İmzayı gör" öğesine dokun (kaynak satırı 114)
 - **Beklenen (okuma):** `GET /packages/:id/proof/:kind` (package) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Beklenen (dosya):** dosya iner/açılır; boş ya da bozuk değildir (PDF ise sayfalar okunur).
@@ -7939,7 +7940,7 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-PACKAGE-TRACKING-01`
 
 #### S-PACKAGE-TRACKING-02 · Düğme: Menü: Fotoğrafı gör
-- **Hesap:** KİRACI · **Nerede:** http://localhost:3002/#/packages
+- **Hesap:** KİRACI · **Nerede:** http://localhost:3102/#/packages
 - **Adım:** "Menü: Fotoğrafı gör" öğesine dokun (kaynak satırı 115)
 - **Beklenen (okuma):** `GET /packages/:id/proof/:kind` (package) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Beklenen (dosya):** dosya iner/açılır; boş ya da bozuk değildir (PDF ise sayfalar okunur).
@@ -7947,7 +7948,7 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-PACKAGE-TRACKING-02`
 
 #### S-PACKAGE-TRACKING-03 · Düğme: Kapat
-- **Hesap:** KİRACI · **Nerede:** http://localhost:3002/#/packages
+- **Hesap:** KİRACI · **Nerede:** http://localhost:3102/#/packages
 - **Adım:** "Kapat" öğesine dokun (kaynak satırı 131); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-PACKAGE-TRACKING-03`
@@ -7958,8 +7959,8 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `mobile/lib/features/profile/presentation/screens/owner_visibility_screen.dart`
 
 #### S-OWNER-VISIBILITY-00 · Ekran açılışı ve görünüm
-- **Hesap:** MALİK_A4 · **Nerede:** http://localhost:3002 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/profile/presentation/screens/owner_visibility_screen.dart`)
-- **Adım:** Ekranı aç: http://localhost:3002 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/profile/presentation/screens/owner_visibility_screen.dart`) — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** MALİK_A4 · **Nerede:** http://localhost:3102 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/profile/presentation/screens/owner_visibility_screen.dart`)
+- **Adım:** Ekranı aç: http://localhost:3102 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/profile/presentation/screens/owner_visibility_screen.dart`) — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /settings/owner-visibility` (settings)
 - **Adım:** Başlık (satır 68): Malikin görebildikleri
 - **Adım:** Aşağı çekerek yenile (varsa) ya da ekrana yeniden gir: aynı veri gelir
@@ -7972,8 +7973,8 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `mobile/lib/features/profile/presentation/screens/profile_settings_screen.dart`
 
 #### S-PROFILE-SETTINGS-00 · Ekran açılışı ve görünüm
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/profile
-- **Adım:** Ekranı aç: http://localhost:3002/#/profile — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/profile
+- **Adım:** Ekranı aç: http://localhost:3102/#/profile — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /users/me` (identity); `GET /users/me/properties` (identity); `GET /notification-preferences` (notification)
 - **Adım:** Başlık (satır 103): Profil
 - **Adım:** Mesaj (satır 336): Tercih kaydedilemedi: ${toUserMessage(e)}
@@ -7984,13 +7985,13 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-PROFILE-SETTINGS-00`
 
 #### S-PROFILE-SETTINGS-01 · Düğme: ${units[i][
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/profile
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/profile
 - **Adım:** "${units[i][" öğesine dokun (kaynak satırı 190); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-PROFILE-SETTINGS-01`
 
 #### S-PROFILE-SETTINGS-02 · Düğme: E-posta
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/profile
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/profile
 - **Adım:** "E-posta" öğesine dokun (kaynak satırı 211); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /users/me/email` (identity, `services/identity/main.go:110`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: oturum açmış herkes (site kapsamı)
@@ -8013,7 +8014,7 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-PROFILE-SETTINGS-02`
 
 #### S-PROFILE-SETTINGS-03 · Düğme: Telefon
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/profile
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/profile
 - **Adım:** "Telefon" öğesine dokun (kaynak satırı 220); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /users/me/phone/request` (identity, `services/identity/main.go:108`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: oturum açmış herkes (site kapsamı)
@@ -8037,7 +8038,7 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-PROFILE-SETTINGS-03`
 
 #### S-PROFILE-SETTINGS-04 · Düğme: Şifre Değiştir
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/profile
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/profile
 - **Adım:** "Şifre Değiştir" öğesine dokun (kaynak satırı 263); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /users/me/password` (identity, `services/identity/main.go:106`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: oturum açmış herkes (site kapsamı)
@@ -8049,7 +8050,7 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-PROFILE-SETTINGS-04`
 
 #### S-PROFILE-SETTINGS-05 · Düğme: Tüm Cihazlardan Çıkış
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/profile
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/profile
 - **Adım:** "Tüm Cihazlardan Çıkış" öğesine dokun (kaynak satırı 270); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /auth/logout` (identity, `services/identity/main.go:91`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: oturum açmış herkes (site kapsamı)
@@ -8066,13 +8067,13 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-PROFILE-SETTINGS-05`
 
 #### S-PROFILE-SETTINGS-06 · Düğme: KVKK Aydınlatma Metni
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/profile
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/profile
 - **Adım:** "KVKK Aydınlatma Metni" öğesine dokun (kaynak satırı 288); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-PROFILE-SETTINGS-06`
 
 #### S-PROFILE-SETTINGS-07 · Düğme: Çıkış Yap
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/profile
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/profile
 - **Adım:** "Çıkış Yap" öğesine dokun (kaynak satırı 305); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /auth/logout` (identity, `services/identity/main.go:91`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: oturum açmış herkes (site kapsamı)
@@ -8083,25 +8084,25 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-PROFILE-SETTINGS-07`
 
 #### S-PROFILE-SETTINGS-08 · Düğme: Vazgeç
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/profile
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/profile
 - **Adım:** "Vazgeç" öğesine dokun (kaynak satırı 384); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-PROFILE-SETTINGS-08`
 
 #### S-PROFILE-SETTINGS-09 · Düğme: Hepsini kapat
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/profile
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/profile
 - **Adım:** "Hepsini kapat" öğesine dokun (kaynak satırı 385); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-PROFILE-SETTINGS-09`
 
 #### S-PROFILE-SETTINGS-10 · Düğme: İptal
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/profile
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/profile
 - **Adım:** "İptal" öğesine dokun (kaynak satırı 408); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-PROFILE-SETTINGS-10`
 
 #### S-PROFILE-SETTINGS-11 · Düğme: Çıkış Yap
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/profile
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/profile
 - **Adım:** "Çıkış Yap" öğesine dokun (kaynak satırı 411); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-PROFILE-SETTINGS-11`
@@ -8112,8 +8113,8 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `mobile/lib/features/profile/presentation/screens/tenancy_requests_screen.dart`
 
 #### S-TENANCY-REQUESTS-00 · Ekran açılışı ve görünüm
-- **Hesap:** KİRACI (kiracılık bitişi talebini yanıtlar) ve MALİK_A4 (talebi açar) · **Nerede:** http://localhost:3002 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/profile/presentation/screens/tenancy_requests_screen.dart`)
-- **Adım:** Ekranı aç: http://localhost:3002 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/profile/presentation/screens/tenancy_requests_screen.dart`) — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** KİRACI (kiracılık bitişi talebini yanıtlar) ve MALİK_A4 (talebi açar) · **Nerede:** http://localhost:3102 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/profile/presentation/screens/tenancy_requests_screen.dart`)
+- **Adım:** Ekranı aç: http://localhost:3102 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/profile/presentation/screens/tenancy_requests_screen.dart`) — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /users/me/tenancy-requests` (identity); `GET /users/me/tenancy-requests/:id/documents/:docId` (identity)
 - **Adım:** Mesaj (satır 84): ${res[
 - **Adım:** Pencere (satır 95): Vazgeç
@@ -8124,31 +8125,31 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-TENANCY-REQUESTS-00`
 
 #### S-TENANCY-REQUESTS-01 · Düğme: Vazgeç
-- **Hesap:** KİRACI (kiracılık bitişi talebini yanıtlar) ve MALİK_A4 (talebi açar) · **Nerede:** http://localhost:3002 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/profile/presentation/screens/tenancy_requests_screen.dart`)
+- **Hesap:** KİRACI (kiracılık bitişi talebini yanıtlar) ve MALİK_A4 (talebi açar) · **Nerede:** http://localhost:3102 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/profile/presentation/screens/tenancy_requests_screen.dart`)
 - **Adım:** "Vazgeç" öğesine dokun (kaynak satırı 99); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-TENANCY-REQUESTS-01`
 
 #### S-TENANCY-REQUESTS-02 · Düğme: Gönder
-- **Hesap:** KİRACI (kiracılık bitişi talebini yanıtlar) ve MALİK_A4 (talebi açar) · **Nerede:** http://localhost:3002 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/profile/presentation/screens/tenancy_requests_screen.dart`)
+- **Hesap:** KİRACI (kiracılık bitişi talebini yanıtlar) ve MALİK_A4 (talebi açar) · **Nerede:** http://localhost:3102 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/profile/presentation/screens/tenancy_requests_screen.dart`)
 - **Adım:** "Gönder" öğesine dokun (kaynak satırı 100); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-TENANCY-REQUESTS-02`
 
 #### S-TENANCY-REQUESTS-03 · Düğme: Vazgeç
-- **Hesap:** KİRACI (kiracılık bitişi talebini yanıtlar) ve MALİK_A4 (talebi açar) · **Nerede:** http://localhost:3002 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/profile/presentation/screens/tenancy_requests_screen.dart`)
+- **Hesap:** KİRACI (kiracılık bitişi talebini yanıtlar) ve MALİK_A4 (talebi açar) · **Nerede:** http://localhost:3102 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/profile/presentation/screens/tenancy_requests_screen.dart`)
 - **Adım:** "Vazgeç" öğesine dokun (kaynak satırı 121); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-TENANCY-REQUESTS-03`
 
 #### S-TENANCY-REQUESTS-04 · Düğme: Onayla
-- **Hesap:** KİRACI (kiracılık bitişi talebini yanıtlar) ve MALİK_A4 (talebi açar) · **Nerede:** http://localhost:3002 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/profile/presentation/screens/tenancy_requests_screen.dart`)
+- **Hesap:** KİRACI (kiracılık bitişi talebini yanıtlar) ve MALİK_A4 (talebi açar) · **Nerede:** http://localhost:3102 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/profile/presentation/screens/tenancy_requests_screen.dart`)
 - **Adım:** "Onayla" öğesine dokun (kaynak satırı 122); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-TENANCY-REQUESTS-04`
 
 #### S-TENANCY-REQUESTS-05 · Düğme: Reddet
-- **Hesap:** KİRACI (kiracılık bitişi talebini yanıtlar) ve MALİK_A4 (talebi açar) · **Nerede:** http://localhost:3002 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/profile/presentation/screens/tenancy_requests_screen.dart`)
+- **Hesap:** KİRACI (kiracılık bitişi talebini yanıtlar) ve MALİK_A4 (talebi açar) · **Nerede:** http://localhost:3102 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/profile/presentation/screens/tenancy_requests_screen.dart`)
 - **Adım:** "Reddet" öğesine dokun (kaynak satırı 147); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /users/me/tenancy-requests/:id/approve` (identity, `services/identity/main.go:121`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: OWNER/PROXY
@@ -8177,7 +8178,7 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-TENANCY-REQUESTS-05`
 
 #### S-TENANCY-REQUESTS-06 · Düğme: Onayla
-- **Hesap:** KİRACI (kiracılık bitişi talebini yanıtlar) ve MALİK_A4 (talebi açar) · **Nerede:** http://localhost:3002 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/profile/presentation/screens/tenancy_requests_screen.dart`)
+- **Hesap:** KİRACI (kiracılık bitişi talebini yanıtlar) ve MALİK_A4 (talebi açar) · **Nerede:** http://localhost:3102 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/profile/presentation/screens/tenancy_requests_screen.dart`)
 - **Adım:** "Onayla" öğesine dokun (kaynak satırı 156)
 - **Beklenen (yazma):** `POST /users/me/tenancy-requests/:id/approve` (identity, `services/identity/main.go:121`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: OWNER/PROXY
@@ -8206,7 +8207,7 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-TENANCY-REQUESTS-06`
 
 #### S-TENANCY-REQUESTS-07 · Düğme: İtiraz et
-- **Hesap:** KİRACI (kiracılık bitişi talebini yanıtlar) ve MALİK_A4 (talebi açar) · **Nerede:** http://localhost:3002 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/profile/presentation/screens/tenancy_requests_screen.dart`)
+- **Hesap:** KİRACI (kiracılık bitişi talebini yanıtlar) ve MALİK_A4 (talebi açar) · **Nerede:** http://localhost:3102 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/profile/presentation/screens/tenancy_requests_screen.dart`)
 - **Adım:** "İtiraz et" öğesine dokun (kaynak satırı 166); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /users/me/tenancy-requests/:id/object` (identity, `services/identity/main.go:123`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: oturum açmış herkes (site kapsamı)
@@ -8219,7 +8220,7 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-TENANCY-REQUESTS-07`
 
 #### S-TENANCY-REQUESTS-08 · Düğme: Geri çek
-- **Hesap:** KİRACI (kiracılık bitişi talebini yanıtlar) ve MALİK_A4 (talebi açar) · **Nerede:** http://localhost:3002 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/profile/presentation/screens/tenancy_requests_screen.dart`)
+- **Hesap:** KİRACI (kiracılık bitişi talebini yanıtlar) ve MALİK_A4 (talebi açar) · **Nerede:** http://localhost:3102 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/profile/presentation/screens/tenancy_requests_screen.dart`)
 - **Adım:** "Geri çek" öğesine dokun (kaynak satırı 175)
 - **Beklenen (yazma):** `POST /users/me/tenancy-requests/:id/cancel` (identity, `services/identity/main.go:124`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: oturum açmış herkes (site kapsamı)
@@ -8232,7 +8233,7 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-TENANCY-REQUESTS-08`
 
 #### S-TENANCY-REQUESTS-09 · Düğme: ${_docKind[
-- **Hesap:** KİRACI (kiracılık bitişi talebini yanıtlar) ve MALİK_A4 (talebi açar) · **Nerede:** http://localhost:3002 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/profile/presentation/screens/tenancy_requests_screen.dart`)
+- **Hesap:** KİRACI (kiracılık bitişi talebini yanıtlar) ve MALİK_A4 (talebi açar) · **Nerede:** http://localhost:3102 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/profile/presentation/screens/tenancy_requests_screen.dart`)
 - **Adım:** "${_docKind[" öğesine dokun (kaynak satırı 197)
 - **Beklenen (okuma):** `GET /users/me/tenancy-requests/:id/documents/:docId` (identity) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Beklenen (dosya):** dosya iner/açılır; boş ya da bozuk değildir (PDF ise sayfalar okunur).
@@ -8244,8 +8245,8 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `mobile/lib/features/profile/presentation/screens/unit_residents_screen.dart`
 
 #### S-UNIT-RESIDENTS-00 · Ekran açılışı ve görünüm
-- **Hesap:** MALİK_A4 · **Nerede:** http://localhost:3002 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/profile/presentation/screens/unit_residents_screen.dart`)
-- **Adım:** Ekranı aç: http://localhost:3002 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/profile/presentation/screens/unit_residents_screen.dart`) — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** MALİK_A4 · **Nerede:** http://localhost:3102 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/profile/presentation/screens/unit_residents_screen.dart`)
+- **Adım:** Ekranı aç: http://localhost:3102 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/profile/presentation/screens/unit_residents_screen.dart`) — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /users/me/units/:id/residents` (identity); `GET /finance/tenant-debt-summary` (finance); `GET /requests/units/:unitId` (community)
 - **Adım:** Pencere (satır 101): Kaydı bitir
 - **Adım:** Mesaj (satır 115): ${res[
@@ -8266,79 +8267,79 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-UNIT-RESIDENTS-00`
 
 #### S-UNIT-RESIDENTS-01 · Düğme: Vazgeç
-- **Hesap:** MALİK_A4 · **Nerede:** http://localhost:3002 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/profile/presentation/screens/unit_residents_screen.dart`)
+- **Hesap:** MALİK_A4 · **Nerede:** http://localhost:3102 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/profile/presentation/screens/unit_residents_screen.dart`)
 - **Adım:** "Vazgeç" öğesine dokun (kaynak satırı 106); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-UNIT-RESIDENTS-01`
 
 #### S-UNIT-RESIDENTS-02 · Düğme: Bitir
-- **Hesap:** MALİK_A4 · **Nerede:** http://localhost:3002 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/profile/presentation/screens/unit_residents_screen.dart`)
+- **Hesap:** MALİK_A4 · **Nerede:** http://localhost:3102 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/profile/presentation/screens/unit_residents_screen.dart`)
 - **Adım:** "Bitir" öğesine dokun (kaynak satırı 107); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-UNIT-RESIDENTS-02`
 
 #### S-UNIT-RESIDENTS-03 · Düğme: Vazgeç
-- **Hesap:** MALİK_A4 · **Nerede:** http://localhost:3002 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/profile/presentation/screens/unit_residents_screen.dart`)
+- **Hesap:** MALİK_A4 · **Nerede:** http://localhost:3102 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/profile/presentation/screens/unit_residents_screen.dart`)
 - **Adım:** "Vazgeç" öğesine dokun (kaynak satırı 137); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-UNIT-RESIDENTS-03`
 
 #### S-UNIT-RESIDENTS-04 · Düğme: İste / Bildir
-- **Hesap:** MALİK_A4 · **Nerede:** http://localhost:3002 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/profile/presentation/screens/unit_residents_screen.dart`)
+- **Hesap:** MALİK_A4 · **Nerede:** http://localhost:3102 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/profile/presentation/screens/unit_residents_screen.dart`)
 - **Adım:** "İste / Bildir" öğesine dokun (kaynak satırı 138); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-UNIT-RESIDENTS-04`
 
 #### S-UNIT-RESIDENTS-05 · Düğme: Kapat
-- **Hesap:** MALİK_A4 · **Nerede:** http://localhost:3002 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/profile/presentation/screens/unit_residents_screen.dart`)
+- **Hesap:** MALİK_A4 · **Nerede:** http://localhost:3102 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/profile/presentation/screens/unit_residents_screen.dart`)
 - **Adım:** "Kapat" öğesine dokun (kaynak satırı 182); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-UNIT-RESIDENTS-05`
 
 #### S-UNIT-RESIDENTS-06 · Seçim: Kiracı
-- **Hesap:** MALİK_A4 · **Nerede:** http://localhost:3002 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/profile/presentation/screens/unit_residents_screen.dart`)
+- **Hesap:** MALİK_A4 · **Nerede:** http://localhost:3102 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/profile/presentation/screens/unit_residents_screen.dart`)
 - **Adım:** "Kiracı" seçimini değiştir; her seçenekte içerik buna göre değişmeli
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-UNIT-RESIDENTS-06`
 
 #### S-UNIT-RESIDENTS-07 · Düğme: Vazgeç
-- **Hesap:** MALİK_A4 · **Nerede:** http://localhost:3002 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/profile/presentation/screens/unit_residents_screen.dart`)
+- **Hesap:** MALİK_A4 · **Nerede:** http://localhost:3102 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/profile/presentation/screens/unit_residents_screen.dart`)
 - **Adım:** "Vazgeç" öğesine dokun (kaynak satırı 239); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-UNIT-RESIDENTS-07`
 
 #### S-UNIT-RESIDENTS-08 · Düğme: Gönder
-- **Hesap:** MALİK_A4 · **Nerede:** http://localhost:3002 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/profile/presentation/screens/unit_residents_screen.dart`)
+- **Hesap:** MALİK_A4 · **Nerede:** http://localhost:3102 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/profile/presentation/screens/unit_residents_screen.dart`)
 - **Adım:** "Gönder" öğesine dokun (kaynak satırı 240); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-UNIT-RESIDENTS-08`
 
 #### S-UNIT-RESIDENTS-09 · Düğme: Tamam
-- **Hesap:** MALİK_A4 · **Nerede:** http://localhost:3002 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/profile/presentation/screens/unit_residents_screen.dart`)
+- **Hesap:** MALİK_A4 · **Nerede:** http://localhost:3102 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/profile/presentation/screens/unit_residents_screen.dart`)
 - **Adım:** "Tamam" öğesine dokun (kaynak satırı 282); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-UNIT-RESIDENTS-09`
 
 #### S-UNIT-RESIDENTS-10 · Düğme: Malikin görebildikleri
-- **Hesap:** MALİK_A4 · **Nerede:** http://localhost:3002 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/profile/presentation/screens/unit_residents_screen.dart`)
+- **Hesap:** MALİK_A4 · **Nerede:** http://localhost:3102 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/profile/presentation/screens/unit_residents_screen.dart`)
 - **Adım:** "Malikin görebildikleri" öğesine dokun (kaynak satırı 292); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-UNIT-RESIDENTS-10`
 
 #### S-UNIT-RESIDENTS-11 · Düğme: Daire talepleri
-- **Hesap:** MALİK_A4 · **Nerede:** http://localhost:3002 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/profile/presentation/screens/unit_residents_screen.dart`)
+- **Hesap:** MALİK_A4 · **Nerede:** http://localhost:3102 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/profile/presentation/screens/unit_residents_screen.dart`)
 - **Adım:** "Daire talepleri" öğesine dokun (kaynak satırı 298); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (okuma):** `GET /requests/units/:unitId` (community) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Sonuç:** http://localhost:18000/sonuc → `S-UNIT-RESIDENTS-11`
 
 #### S-UNIT-RESIDENTS-12 · Düğme: Kiracılık işlemleri
-- **Hesap:** MALİK_A4 · **Nerede:** http://localhost:3002 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/profile/presentation/screens/unit_residents_screen.dart`)
+- **Hesap:** MALİK_A4 · **Nerede:** http://localhost:3102 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/profile/presentation/screens/unit_residents_screen.dart`)
 - **Adım:** "Kiracılık işlemleri" öğesine dokun (kaynak satırı 299); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-UNIT-RESIDENTS-12`
 
 #### S-UNIT-RESIDENTS-13 · Düğme: Menü: OWNER / Kiracılığın bitmesini iste / Çıkışımı bildir
-- **Hesap:** MALİK_A4 · **Nerede:** http://localhost:3002 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/profile/presentation/screens/unit_residents_screen.dart`)
+- **Hesap:** MALİK_A4 · **Nerede:** http://localhost:3102 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/profile/presentation/screens/unit_residents_screen.dart`)
 - **Adım:** "Menü: OWNER / Kiracılığın bitmesini iste / Çıkışımı bildir" öğesine dokun (kaynak satırı 309)
 - **Beklenen (yazma):** `POST /users/me/units/:id/tenancy-end` (identity, `services/identity/main.go:118`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: OWNER
@@ -8366,7 +8367,7 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-UNIT-RESIDENTS-13`
 
 #### S-UNIT-RESIDENTS-14 · Düğme: Davet gönder
-- **Hesap:** MALİK_A4 · **Nerede:** http://localhost:3002 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/profile/presentation/screens/unit_residents_screen.dart`)
+- **Hesap:** MALİK_A4 · **Nerede:** http://localhost:3102 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/profile/presentation/screens/unit_residents_screen.dart`)
 - **Adım:** "Davet gönder" öğesine dokun (kaynak satırı 313); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /users/me/units/:id/invitations` (identity, `services/identity/main.go:115`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: OWNER/PROXY/TENANT
@@ -8384,7 +8385,7 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-UNIT-RESIDENTS-14`
 
 #### S-UNIT-RESIDENTS-15 · Düğme: Bitir
-- **Hesap:** MALİK_A4 · **Nerede:** http://localhost:3002 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/profile/presentation/screens/unit_residents_screen.dart`)
+- **Hesap:** MALİK_A4 · **Nerede:** http://localhost:3102 (başka bir ekrandan açılan bileşen/pencere; `mobile/lib/features/profile/presentation/screens/unit_residents_screen.dart`)
 - **Adım:** "Bitir" öğesine dokun (kaynak satırı 351); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /users/me/units/:id/residents/:residentId/end` (identity, `services/identity/main.go:116`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: PROXY/TENANT
@@ -8401,8 +8402,8 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `mobile/lib/features/renovation/presentation/screens/renovations_screen.dart`
 
 #### S-RENOVATIONS-00 · Ekran açılışı ve görünüm
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/renovations
-- **Adım:** Ekranı aç: http://localhost:3002/#/renovations — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/renovations
+- **Adım:** Ekranı aç: http://localhost:3102/#/renovations — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /renovations` (community); `GET /users/me/properties` (identity)
 - **Adım:** Pencere (satır 71): Başvuruyu geri çek
 - **Adım:** Mesaj (satır 83): Başvuru geri çekildi
@@ -8420,49 +8421,49 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-RENOVATIONS-00`
 
 #### S-RENOVATIONS-01 · Düğme: Vazgeç
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/renovations
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/renovations
 - **Adım:** "Vazgeç" öğesine dokun (kaynak satırı 75); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-RENOVATIONS-01`
 
 #### S-RENOVATIONS-02 · Düğme: Geri çek
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/renovations
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/renovations
 - **Adım:** "Geri çek" öğesine dokun (kaynak satırı 76); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-RENOVATIONS-02`
 
 #### S-RENOVATIONS-03 · Seçim: ${u[
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/renovations
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/renovations
 - **Adım:** "${u[" seçimini değiştir; her seçenekte içerik buna göre değişmeli
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-RENOVATIONS-03`
 
 #### S-RENOVATIONS-04 · Seçim: Kapsam
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/renovations
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/renovations
 - **Adım:** "Kapsam" seçimini değiştir; her seçenekte içerik buna göre değişmeli
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-RENOVATIONS-04`
 
 #### S-RENOVATIONS-05 · Düğme: Tarih: ${formatDate(apiDate(start))} – ${formatDate(apiDate(end))}
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/renovations
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/renovations
 - **Adım:** "Tarih: ${formatDate(apiDate(start))} – ${formatDate(apiDate(end))}" öğesine dokun (kaynak satırı 153); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-RENOVATIONS-05`
 
 #### S-RENOVATIONS-06 · Düğme: Vazgeç
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/renovations
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/renovations
 - **Adım:** "Vazgeç" öğesine dokun (kaynak satırı 175); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-RENOVATIONS-06`
 
 #### S-RENOVATIONS-07 · Düğme: Gönder
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/renovations
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/renovations
 - **Adım:** "Gönder" öğesine dokun (kaynak satırı 176); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-RENOVATIONS-07`
 
 #### S-RENOVATIONS-08 · Düğme: Başvuru yap
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/renovations
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/renovations
 - **Adım:** "Başvuru yap" öğesine dokun (kaynak satırı 203); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /renovations` (community, `services/community/renovation.go:88`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: işleyicide `isManagement` (backend/services/community/main.go:257)
@@ -8477,7 +8478,7 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-RENOVATIONS-08`
 
 #### S-RENOVATIONS-09 · Düğme: Geri çek
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/renovations
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/renovations
 - **Adım:** "Geri çek" öğesine dokun (kaynak satırı 228); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /renovations/:id/cancel` (community, `services/community/renovation.go:149`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: oturum açmış herkes (site kapsamı)
@@ -8494,8 +8495,8 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `mobile/lib/features/requests/presentation/screens/create_request_screen.dart`
 
 #### S-CREATE-REQUEST-00 · Ekran açılışı ve görünüm
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/requests/create
-- **Adım:** Ekranı aç: http://localhost:3002/#/requests/create — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/requests/create
+- **Adım:** Ekranı aç: http://localhost:3102/#/requests/create — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Başlık (satır 82): Yeni Talep
 - **Adım:** Pencere (satır 354): Talep Oluşturuldu
 - **Adım:** Pencere (satır 402): Tamam
@@ -8504,7 +8505,7 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-CREATE-REQUEST-00`
 
 #### S-CREATE-REQUEST-01 · Düğme: Gönder
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/requests/create
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/requests/create
 - **Adım:** "Gönder" öğesine dokun (kaynak satırı 96); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /requests` (community, `services/community/main.go:82`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: `resident_can_use`
@@ -8517,25 +8518,25 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-CREATE-REQUEST-01`
 
 #### S-CREATE-REQUEST-02 · Düğme: simge düğmesi (satır 125)
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/requests/create
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/requests/create
 - **Adım:** "simge düğmesi (satır 125)" öğesine dokun (kaynak satırı 125); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-CREATE-REQUEST-02`
 
 #### S-CREATE-REQUEST-03 · Düğme: simge düğmesi (satır 244)
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/requests/create
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/requests/create
 - **Adım:** "simge düğmesi (satır 244)" öğesine dokun (kaynak satırı 244); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-CREATE-REQUEST-03`
 
 #### S-CREATE-REQUEST-04 · Düğme: Tamam
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/requests/create
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/requests/create
 - **Adım:** "Tamam" öğesine dokun (kaynak satırı 385); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-CREATE-REQUEST-04`
 
 #### S-CREATE-REQUEST-05 · Düğme: Tamam
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/requests/create
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/requests/create
 - **Adım:** "Tamam" öğesine dokun (kaynak satırı 414); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-CREATE-REQUEST-05`
@@ -8546,8 +8547,8 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `mobile/lib/features/requests/presentation/screens/requests_screen.dart`
 
 #### S-REQUESTS-00 · Ekran açılışı ve görünüm
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/requests
-- **Adım:** Ekranı aç: http://localhost:3002/#/requests — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/requests
+- **Adım:** Ekranı aç: http://localhost:3102/#/requests — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /requests` (community)
 - **Adım:** Başlık (satır 68): Taleplerim
 - **Adım:** Her sekmeye tıkla, içerik hatasız yüklenir: Güncel
@@ -8557,13 +8558,13 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-REQUESTS-00`
 
 #### S-REQUESTS-01 · Düğme: Yeni Talep
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/requests
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/requests
 - **Adım:** "Yeni Talep" öğesine dokun (kaynak satırı 72)
 - **Beklenen (okuma):** `GET /requests` (community) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Sonuç:** http://localhost:18000/sonuc → `S-REQUESTS-01`
 
 #### S-REQUESTS-02 · Düğme: Devam ediyor
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/requests
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/requests
 - **Adım:** "Devam ediyor" öğesine dokun (kaynak satırı 132)
 - **Beklenen (yazma):** `POST /requests/:id/confirm-resolution` (community, `services/community/main.go:86`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: oturum açmış herkes (site kapsamı)
@@ -8575,7 +8576,7 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-REQUESTS-02`
 
 #### S-REQUESTS-03 · Düğme: Sorunum çözüldü
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/requests
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/requests
 - **Adım:** "Sorunum çözüldü" öğesine dokun (kaynak satırı 136)
 - **Beklenen (yazma):** `POST /requests/:id/confirm-resolution` (community, `services/community/main.go:86`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: oturum açmış herkes (site kapsamı)
@@ -8592,8 +8593,8 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `mobile/lib/features/reservations/presentation/screens/create_reservation_screen.dart`
 
 #### S-CREATE-RESERVATION-00 · Ekran açılışı ve görünüm
-- **Hesap:** KİRACI · **Nerede:** http://localhost:3002/#/reservation
-- **Adım:** Ekranı aç: http://localhost:3002/#/reservation — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** KİRACI · **Nerede:** http://localhost:3102/#/reservation
+- **Adım:** Ekranı aç: http://localhost:3102/#/reservation — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /facilities` (reservation); `GET /facilities/:id/slots` (reservation)
 - **Adım:** Başlık (satır 115): Rezervasyon Yap
 - **Adım:** Pencere (satır 246): Tamam
@@ -8603,7 +8604,7 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-CREATE-RESERVATION-00`
 
 #### S-CREATE-RESERVATION-01 · Düğme: Rezervasyon Yap
-- **Hesap:** KİRACI · **Nerede:** http://localhost:3002/#/reservation
+- **Hesap:** KİRACI · **Nerede:** http://localhost:3102/#/reservation
 - **Adım:** "Rezervasyon Yap" öğesine dokun (kaynak satırı 216); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /reservations` (reservation, `services/reservation/main.go:147`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: `resident_can_use`
@@ -8616,7 +8617,7 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-CREATE-RESERVATION-01`
 
 #### S-CREATE-RESERVATION-02 · Düğme: Tamam
-- **Hesap:** KİRACI · **Nerede:** http://localhost:3002/#/reservation
+- **Hesap:** KİRACI · **Nerede:** http://localhost:3102/#/reservation
 - **Adım:** "Tamam" öğesine dokun (kaynak satırı 254); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-CREATE-RESERVATION-02`
@@ -8627,8 +8628,8 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `mobile/lib/features/reservations/presentation/screens/my_reservations_screen.dart`
 
 #### S-MY-RESERVATIONS-00 · Ekran açılışı ve görünüm
-- **Hesap:** KİRACI · **Nerede:** http://localhost:3002/#/my-reservations
-- **Adım:** Ekranı aç: http://localhost:3002/#/my-reservations — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** KİRACI · **Nerede:** http://localhost:3102/#/my-reservations
+- **Adım:** Ekranı aç: http://localhost:3102/#/my-reservations — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /reservations` (reservation)
 - **Adım:** Pencere (satır 44): Rezervasyonu iptal et
 - **Adım:** Alan (satır 46): Gerekçe (isteğe bağlı)
@@ -8639,25 +8640,25 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-MY-RESERVATIONS-00`
 
 #### S-MY-RESERVATIONS-01 · Düğme: Vazgeç
-- **Hesap:** KİRACI · **Nerede:** http://localhost:3002/#/my-reservations
+- **Hesap:** KİRACI · **Nerede:** http://localhost:3102/#/my-reservations
 - **Adım:** "Vazgeç" öğesine dokun (kaynak satırı 48); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-MY-RESERVATIONS-01`
 
 #### S-MY-RESERVATIONS-02 · Düğme: İptal et
-- **Hesap:** KİRACI · **Nerede:** http://localhost:3002/#/my-reservations
+- **Hesap:** KİRACI · **Nerede:** http://localhost:3102/#/my-reservations
 - **Adım:** "İptal et" öğesine dokun (kaynak satırı 49); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-MY-RESERVATIONS-02`
 
 #### S-MY-RESERVATIONS-03 · Düğme: Yeni
-- **Hesap:** KİRACI · **Nerede:** http://localhost:3002/#/my-reservations
+- **Hesap:** KİRACI · **Nerede:** http://localhost:3102/#/my-reservations
 - **Adım:** "Yeni" öğesine dokun (kaynak satırı 71)
 - **Beklenen (okuma):** `GET /reservations` (reservation) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Sonuç:** http://localhost:18000/sonuc → `S-MY-RESERVATIONS-03`
 
 #### S-MY-RESERVATIONS-04 · Düğme: İptal
-- **Hesap:** KİRACI · **Nerede:** http://localhost:3002/#/my-reservations
+- **Hesap:** KİRACI · **Nerede:** http://localhost:3102/#/my-reservations
 - **Adım:** "İptal" öğesine dokun (kaynak satırı 106); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /reservations/:id/cancel` (reservation, `services/reservation/main.go:238`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: işleyicide `canManage` (backend/services/reservation/main.go:441)
@@ -8674,8 +8675,8 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `mobile/lib/features/surveys/presentation/screens/surveys_mobile_screen.dart`
 
 #### S-SURVEYS-00 · Ekran açılışı ve görünüm
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/surveys
-- **Adım:** Ekranı aç: http://localhost:3002/#/surveys — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/surveys
+- **Adım:** Ekranı aç: http://localhost:3102/#/surveys — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /surveys` (survey); `GET /surveys/:id` (survey); `GET /surveys/:id/comments` (survey)
 - **Adım:** Başlık (satır 58): Anketler
 - **Adım:** Mesaj (satır 162): ${res[
@@ -8686,13 +8687,13 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-SURVEYS-00`
 
 #### S-SURVEYS-01 · Düğme: ${s[
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/surveys
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/surveys
 - **Adım:** "${s[" öğesine dokun (kaynak satırı 75)
 - **Beklenen (okuma):** `GET /surveys` (survey) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Sonuç:** http://localhost:18000/sonuc → `S-SURVEYS-01`
 
 #### S-SURVEYS-02 · Düğme: Oy Ver
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/surveys
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/surveys
 - **Adım:** "Oy Ver" öğesine dokun (kaynak satırı 242)
 - **Beklenen (yazma):** `POST /surveys/:id/vote` (survey, `services/survey/main.go:143`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: OWNER
@@ -8704,7 +8705,7 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-SURVEYS-02`
 
 #### S-SURVEYS-03 · Düğme: Yorumları gör
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/surveys
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/surveys
 - **Adım:** "Yorumları gör" öğesine dokun (kaynak satırı 255); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (okuma):** `GET /surveys/:id/comments` (survey) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Sonuç:** http://localhost:18000/sonuc → `S-SURVEYS-03`
@@ -8715,8 +8716,8 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `mobile/lib/features/usta_hizmet/presentation/screens/market_request_screens.dart`
 
 #### S-MARKET-REQUESTS-00 · Ekran açılışı ve görünüm
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/usta/talep, http://localhost:3002/#/usta/talepler/:id, http://localhost:3002/#/usta/talepler/:id/mesaj/:dispatchId
-- **Adım:** Ekranı aç: http://localhost:3002/#/usta/talep, http://localhost:3002/#/usta/talepler/:id, http://localhost:3002/#/usta/talepler/:id/mesaj/:dispatchId — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/usta/talep, http://localhost:3102/#/usta/talepler/:id, http://localhost:3102/#/usta/talepler/:id/mesaj/:dispatchId
+- **Adım:** Ekranı aç: http://localhost:3102/#/usta/talep, http://localhost:3102/#/usta/talepler/:id, http://localhost:3102/#/usta/talepler/:id/mesaj/:dispatchId — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /market/meta` (marketplace); `GET /market/requests/match-count` (marketplace); `GET /market/requests/:id` (marketplace); `GET /market/requests/:id/offers` (marketplace); `GET /market/requests/:id/messages/:dispatchId` (marketplace); `GET /market/requests/:id/job` (marketplace)
 - **Adım:** Dosya seçme (satır 5)
 - **Adım:** Dosya seçme (satır 5)
@@ -8736,23 +8737,23 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-MARKET-REQUESTS-00`
 
 #### S-MARKET-REQUESTS-01 · Seçim: ${c[
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/usta/talep, http://localhost:3002/#/usta/talepler/:id, http://localhost:3002/#/usta/talepler/:id/mesaj/:dispatchId
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/usta/talep, http://localhost:3102/#/usta/talepler/:id, http://localhost:3102/#/usta/talepler/:id/mesaj/:dispatchId
 - **Adım:** "${c[" seçimini değiştir; her seçenekte içerik buna göre değişmeli
 - **Beklenen (okuma):** `GET /market/requests/match-count` (marketplace) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Sonuç:** http://localhost:18000/sonuc → `S-MARKET-REQUESTS-01`
 
 #### S-MARKET-REQUESTS-02 · Düğme: Fotoğraf ekle
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/usta/talep, http://localhost:3002/#/usta/talepler/:id, http://localhost:3002/#/usta/talepler/:id/mesaj/:dispatchId
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/usta/talep, http://localhost:3102/#/usta/talepler/:id, http://localhost:3102/#/usta/talepler/:id/mesaj/:dispatchId
 - **Adım:** "Fotoğraf ekle" öğesine dokun (kaynak satırı 162); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-MARKET-REQUESTS-02`
 
 #### S-MARKET-REQUESTS-03 · Düğme: Gönderiliyor… / Talebi gönder
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/usta/talep, http://localhost:3002/#/usta/talepler/:id, http://localhost:3002/#/usta/talepler/:id/mesaj/:dispatchId
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/usta/talep, http://localhost:3102/#/usta/talepler/:id, http://localhost:3102/#/usta/talepler/:id/mesaj/:dispatchId
 - **Adım:** "Gönderiliyor… / Talebi gönder" öğesine dokun (kaynak satırı 172)
 - **Beklenen (yazma):** `POST /market/requests` (marketplace, `services/marketplace/main.go:85`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: işleyicide `hasRole` (backend/services/settings/visibility.go:74)
-  - Veritabanı tetikleyicileri çalışır: `mp_requests_active_property` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
+  - Veritabanı tetikleyicileri çalışır: `mp_requests_active_property`, `mp_requests_closed_lock` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
   - **Veritabanı (Adminer → SQL komutu):**
     - `mp_request_contacts` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM mp_request_contacts ORDER BY xmin::text::bigint DESC LIMIT 5;`
     - `mp_request_dispatch` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM mp_request_dispatch ORDER BY xmin::text::bigint DESC LIMIT 5;`
@@ -8766,7 +8767,7 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
   - **Etkisi görülmeli:** Panel `/dashboard/settings`, Panel `/tedarikci/(panel)/bakiye`, Panel `/tedarikci/(panel)/isletmeler`, Panel `/tedarikci/(panel)/talepler/[id]`, Panel `/tedarikci/(panel)/talepler`, Panel `/tedarikci/(panel)`, Sakin `market_request_screens`, Yön.mobil `site_market_screens`, Yön.mobil `site_settings_screen`
 - **Beklenen (yazma):** `POST /market/requests/:id/photos` (marketplace, `services/marketplace/main.go:87`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: işleyicide `hasRole` (backend/services/settings/visibility.go:74)
-  - Veritabanı tetikleyicileri çalışır: `mp_requests_active_property` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
+  - Veritabanı tetikleyicileri çalışır: `mp_requests_active_property`, `mp_requests_closed_lock` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
   - Dosya depoya yazılır; ilgili ekranda indirilebilir olmalı
   - **Veritabanı (Adminer → SQL komutu):**
     - `photo_moderation` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM photo_moderation ORDER BY xmin::text::bigint DESC LIMIT 5;`
@@ -8777,11 +8778,11 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-MARKET-REQUESTS-03`
 
 #### S-MARKET-REQUESTS-04 · Düğme: Bu teklifi seç
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/usta/talep, http://localhost:3002/#/usta/talepler/:id, http://localhost:3002/#/usta/talepler/:id/mesaj/:dispatchId
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/usta/talep, http://localhost:3102/#/usta/talepler/:id, http://localhost:3102/#/usta/talepler/:id/mesaj/:dispatchId
 - **Adım:** "Bu teklifi seç" öğesine dokun (kaynak satırı 274); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /market/requests/:id/offers/:offerId/select` (marketplace, `services/marketplace/main.go:91`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: işleyicide `hasRole` (backend/services/settings/visibility.go:74)
-  - Veritabanı tetikleyicileri çalışır: `mp_jobs_completed_refresh`, `mp_requests_active_property` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
+  - Veritabanı tetikleyicileri çalışır: `mp_jobs_completed_refresh`, `mp_offers_accepted_lock`, `mp_requests_active_property`, `mp_requests_closed_lock` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
   - **Veritabanı (Adminer → SQL komutu):**
     - `mp_jobs` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM mp_jobs ORDER BY xmin::text::bigint DESC LIMIT 5;`
     - `mp_offers` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM mp_offers ORDER BY xmin::text::bigint DESC LIMIT 5;`
@@ -8794,17 +8795,17 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-MARKET-REQUESTS-04`
 
 #### S-MARKET-REQUESTS-05 · Düğme: Mesaj
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/usta/talep, http://localhost:3002/#/usta/talepler/:id, http://localhost:3002/#/usta/talepler/:id/mesaj/:dispatchId
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/usta/talep, http://localhost:3102/#/usta/talepler/:id, http://localhost:3102/#/usta/talepler/:id/mesaj/:dispatchId
 - **Adım:** "Mesaj" öğesine dokun (kaynak satırı 282); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-MARKET-REQUESTS-05`
 
 #### S-MARKET-REQUESTS-06 · Düğme: Teklif seçmeden talebi kapat
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/usta/talep, http://localhost:3002/#/usta/talepler/:id, http://localhost:3002/#/usta/talepler/:id/mesaj/:dispatchId
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/usta/talep, http://localhost:3102/#/usta/talepler/:id, http://localhost:3102/#/usta/talepler/:id/mesaj/:dispatchId
 - **Adım:** "Teklif seçmeden talebi kapat" öğesine dokun (kaynak satırı 297); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /market/requests/:id/close` (marketplace, `services/marketplace/main.go:92`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: işleyicide `hasRole` (backend/services/settings/visibility.go:74)
-  - Veritabanı tetikleyicileri çalışır: `mp_requests_active_property` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
+  - Veritabanı tetikleyicileri çalışır: `mp_offers_accepted_lock`, `mp_requests_active_property`, `mp_requests_closed_lock` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
   - **Veritabanı (Adminer → SQL komutu):**
     - `mp_offers` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM mp_offers ORDER BY xmin::text::bigint DESC LIMIT 5;`
     - `mp_requests` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM mp_requests ORDER BY xmin::text::bigint DESC LIMIT 5;`
@@ -8816,7 +8817,7 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-MARKET-REQUESTS-06`
 
 #### S-MARKET-REQUESTS-07 · Düğme: İş tamamlandı, onaylıyorum
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/usta/talep, http://localhost:3002/#/usta/talepler/:id, http://localhost:3002/#/usta/talepler/:id/mesaj/:dispatchId
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/usta/talep, http://localhost:3102/#/usta/talepler/:id, http://localhost:3102/#/usta/talepler/:id/mesaj/:dispatchId
 - **Adım:** "İş tamamlandı, onaylıyorum" öğesine dokun (kaynak satırı 350)
 - **Beklenen (yazma):** `POST /market/requests/:id/job/confirm` (marketplace, `services/marketplace/main.go:96`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: işleyicide `hasRole` (backend/services/settings/visibility.go:74)
@@ -8829,7 +8830,7 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-MARKET-REQUESTS-07`
 
 #### S-MARKET-REQUESTS-08 · Düğme: İtiraz et
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/usta/talep, http://localhost:3002/#/usta/talepler/:id, http://localhost:3002/#/usta/talepler/:id/mesaj/:dispatchId
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/usta/talep, http://localhost:3102/#/usta/talepler/:id, http://localhost:3102/#/usta/talepler/:id/mesaj/:dispatchId
 - **Adım:** "İtiraz et" öğesine dokun (kaynak satırı 352); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /market/requests/:id/job/dispute` (marketplace, `services/marketplace/main.go:97`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: işleyicide `hasRole` (backend/services/settings/visibility.go:74)
@@ -8842,13 +8843,13 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-MARKET-REQUESTS-08`
 
 #### S-MARKET-REQUESTS-09 · Düğme: $i yıldız
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/usta/talep, http://localhost:3002/#/usta/talepler/:id, http://localhost:3002/#/usta/talepler/:id/mesaj/:dispatchId
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/usta/talep, http://localhost:3102/#/usta/talepler/:id, http://localhost:3102/#/usta/talepler/:id/mesaj/:dispatchId
 - **Adım:** "$i yıldız" öğesine dokun (kaynak satırı 366); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-MARKET-REQUESTS-09`
 
 #### S-MARKET-REQUESTS-10 · Düğme: Puanı gönder
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/usta/talep, http://localhost:3002/#/usta/talepler/:id, http://localhost:3002/#/usta/talepler/:id/mesaj/:dispatchId
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/usta/talep, http://localhost:3102/#/usta/talepler/:id, http://localhost:3102/#/usta/talepler/:id/mesaj/:dispatchId
 - **Adım:** "Puanı gönder" öğesine dokun (kaynak satırı 373)
 - **Beklenen (yazma):** `POST /market/requests/:id/review` (marketplace, `services/marketplace/main.go:98`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: işleyicide `hasRole` (backend/services/settings/visibility.go:74)
@@ -8863,7 +8864,7 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-MARKET-REQUESTS-10`
 
 #### S-MARKET-REQUESTS-11 · Düğme: Gönder
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/usta/talep, http://localhost:3002/#/usta/talepler/:id, http://localhost:3002/#/usta/talepler/:id/mesaj/:dispatchId
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/usta/talep, http://localhost:3102/#/usta/talepler/:id, http://localhost:3102/#/usta/talepler/:id/mesaj/:dispatchId
 - **Adım:** "Gönder" öğesine dokun (kaynak satırı 461)
 - **Beklenen (yazma):** `POST /market/requests/:id/messages/:dispatchId` (marketplace, `services/marketplace/main.go:94`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: işleyicide `hasRole` (backend/services/settings/visibility.go:74)
@@ -8882,8 +8883,8 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `mobile/lib/features/usta_hizmet/presentation/screens/usta_screen.dart`
 
 #### S-USTA-00 · Ekran açılışı ve görünüm
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/usta, http://localhost:3002/#/usta/isletme/:id
-- **Adım:** Ekranı aç: http://localhost:3002/#/usta, http://localhost:3002/#/usta/isletme/:id — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/usta, http://localhost:3102/#/usta/isletme/:id
+- **Adım:** Ekranı aç: http://localhost:3102/#/usta, http://localhost:3102/#/usta/isletme/:id — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /market/meta` (marketplace); `GET /market/showcase` (marketplace); `GET /market/showcase/:id` (marketplace)
 - **Adım:** Başlık (satır 59): Usta & Hizmet
 - **Adım:** Her sekmeye tıkla, içerik hatasız yüklenir: Yakınımdakiler
@@ -8894,25 +8895,25 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-USTA-00`
 
 #### S-USTA-01 · Düğme: Talep aç
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/usta, http://localhost:3002/#/usta/isletme/:id
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/usta, http://localhost:3102/#/usta/isletme/:id
 - **Adım:** "Talep aç" öğesine dokun (kaynak satırı 63); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-USTA-01`
 
 #### S-USTA-02 · Düğme: ${r[
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/usta, http://localhost:3002/#/usta/isletme/:id
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/usta, http://localhost:3102/#/usta/isletme/:id
 - **Adım:** "${r[" öğesine dokun (kaynak satırı 129); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-USTA-02`
 
 #### S-USTA-03 · Düğme: ${b[
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/usta, http://localhost:3002/#/usta/isletme/:id
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/usta, http://localhost:3102/#/usta/isletme/:id
 - **Adım:** "${b[" öğesine dokun (kaynak satırı 165); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-USTA-03`
 
 #### S-USTA-04 · Düğme: Bu işletmeye talep gönder
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/usta, http://localhost:3002/#/usta/isletme/:id
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/usta, http://localhost:3102/#/usta/isletme/:id
 - **Adım:** "Bu işletmeye talep gönder" öğesine dokun (kaynak satırı 218); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-USTA-04`
@@ -8923,8 +8924,8 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `mobile/lib/features/vehicles/presentation/screens/vehicles_screen.dart`
 
 #### S-VEHICLES-00 · Ekran açılışı ve görünüm
-- **Hesap:** KİRACI · **Nerede:** http://localhost:3002/#/vehicles
-- **Adım:** Ekranı aç: http://localhost:3002/#/vehicles — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** KİRACI · **Nerede:** http://localhost:3102/#/vehicles
+- **Adım:** Ekranı aç: http://localhost:3102/#/vehicles — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /users/me/properties` (identity)
 - **Adım:** Başlık (satır 53): Araçlarım
 - **Adım:** Alan (satır 106): Plaka *
@@ -8937,13 +8938,13 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-VEHICLES-00`
 
 #### S-VEHICLES-01 · Düğme: ${u[
-- **Hesap:** KİRACI · **Nerede:** http://localhost:3002/#/vehicles
+- **Hesap:** KİRACI · **Nerede:** http://localhost:3102/#/vehicles
 - **Adım:** "${u[" öğesine dokun (kaynak satırı 30); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-VEHICLES-01`
 
 #### S-VEHICLES-02 · Düğme: Araç ekle
-- **Hesap:** KİRACI · **Nerede:** http://localhost:3002/#/vehicles
+- **Hesap:** KİRACI · **Nerede:** http://localhost:3102/#/vehicles
 - **Adım:** "Araç ekle" öğesine dokun (kaynak satırı 54); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /vehicles` (parking, `services/parking/main.go:71`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: `resident_can_use`
@@ -8956,7 +8957,7 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-VEHICLES-02`
 
 #### S-VEHICLES-03 · Düğme: Kaldır
-- **Hesap:** KİRACI · **Nerede:** http://localhost:3002/#/vehicles
+- **Hesap:** KİRACI · **Nerede:** http://localhost:3102/#/vehicles
 - **Adım:** "Kaldır" öğesine dokun (kaynak satırı 66); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `DELETE /vehicles/:id` (parking, `services/parking/main.go:89`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: `resident_can_use`
@@ -8969,7 +8970,7 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-VEHICLES-03`
 
 #### S-VEHICLES-04 · Düğme: Kaydet
-- **Hesap:** KİRACI · **Nerede:** http://localhost:3002/#/vehicles
+- **Hesap:** KİRACI · **Nerede:** http://localhost:3102/#/vehicles
 - **Adım:** "Kaydet" öğesine dokun (kaynak satırı 113); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-VEHICLES-04`
@@ -8980,8 +8981,8 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `mobile/lib/features/violations/presentation/screens/violations_screen.dart`
 
 #### S-VIOLATIONS-00 · Ekran açılışı ve görünüm
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/violations
-- **Adım:** Ekranı aç: http://localhost:3002/#/violations — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/violations
+- **Adım:** Ekranı aç: http://localhost:3102/#/violations — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /violations` (community); `GET /site-rules` (community); `GET /units` (identity)
 - **Adım:** Mesaj (satır 68): Yönetim henüz kural tanımlamamış.
 - **Adım:** Pencere (satır 76): Kural ihlali bildir
@@ -8999,43 +9000,43 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-VIOLATIONS-00`
 
 #### S-VIOLATIONS-01 · Seçim: ${r[
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/violations
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/violations
 - **Adım:** "${r[" seçimini değiştir; her seçenekte içerik buna göre değişmeli
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-VIOLATIONS-01`
 
 #### S-VIOLATIONS-02 · Seçim: ${u[
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/violations
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/violations
 - **Adım:** "${u[" seçimini değiştir; her seçenekte içerik buna göre değişmeli
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-VIOLATIONS-02`
 
 #### S-VIOLATIONS-03 · Düğme: Vazgeç
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/violations
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/violations
 - **Adım:** "Vazgeç" öğesine dokun (kaynak satırı 108); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-VIOLATIONS-03`
 
 #### S-VIOLATIONS-04 · Düğme: Gönder
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/violations
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/violations
 - **Adım:** "Gönder" öğesine dokun (kaynak satırı 109); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-VIOLATIONS-04`
 
 #### S-VIOLATIONS-05 · Düğme: Vazgeç
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/violations
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/violations
 - **Adım:** "Vazgeç" öğesine dokun (kaynak satırı 132); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-VIOLATIONS-05`
 
 #### S-VIOLATIONS-06 · Düğme: Gönder
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/violations
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/violations
 - **Adım:** "Gönder" öğesine dokun (kaynak satırı 133); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-VIOLATIONS-06`
 
 #### S-VIOLATIONS-07 · Düğme: Bildir
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/violations
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/violations
 - **Adım:** "Bildir" öğesine dokun (kaynak satırı 152); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /violations` (community, `services/community/violation.go:131`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: işleyicide `isManagement` (backend/services/community/main.go:257)
@@ -9051,7 +9052,7 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-VIOLATIONS-07`
 
 #### S-VIOLATIONS-08 · Düğme: Savunma
-- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3002/#/violations
+- **Hesap:** MALİK_B1 · **Nerede:** http://localhost:3102/#/violations
 - **Adım:** "Savunma" öğesine dokun (kaynak satırı 176); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /violations/:id/respond` (community, `services/community/violation.go:173`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: oturum açmış herkes (site kapsamı)
@@ -9072,8 +9073,8 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `mobile/lib/features/visitors/presentation/screens/my_visitors_screen.dart`
 
 #### S-MY-VISITORS-00 · Ekran açılışı ve görünüm
-- **Hesap:** KİRACI · **Nerede:** http://localhost:3002/#/my-visitors
-- **Adım:** Ekranı aç: http://localhost:3002/#/my-visitors — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** KİRACI · **Nerede:** http://localhost:3102/#/my-visitors
+- **Adım:** Ekranı aç: http://localhost:3102/#/my-visitors — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Pencere (satır 37): $name için yeni kod
 - **Adım:** Başlık (satır 60): Ziyaretçilerim
 - **Adım:** Aşağı çekerek yenile (varsa) ya da ekrana yeniden gir: aynı veri gelir
@@ -9081,25 +9082,25 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-MY-VISITORS-00`
 
 #### S-MY-VISITORS-01 · Düğme: PIN mesajını kopyala
-- **Hesap:** KİRACI · **Nerede:** http://localhost:3002/#/my-visitors
+- **Hesap:** KİRACI · **Nerede:** http://localhost:3102/#/my-visitors
 - **Adım:** "PIN mesajını kopyala" öğesine dokun (kaynak satırı 47); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-MY-VISITORS-01`
 
 #### S-MY-VISITORS-02 · Düğme: Tamam
-- **Hesap:** KİRACI · **Nerede:** http://localhost:3002/#/my-visitors
+- **Hesap:** KİRACI · **Nerede:** http://localhost:3102/#/my-visitors
 - **Adım:** "Tamam" öğesine dokun (kaynak satırı 51); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-MY-VISITORS-02`
 
 #### S-MY-VISITORS-03 · Düğme: Ön kayıt
-- **Hesap:** KİRACI · **Nerede:** http://localhost:3002/#/my-visitors
+- **Hesap:** KİRACI · **Nerede:** http://localhost:3102/#/my-visitors
 - **Adım:** "Ön kayıt" öğesine dokun (kaynak satırı 61); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-MY-VISITORS-03`
 
 #### S-MY-VISITORS-04 · Düğme: Menü: Kodu yenile
-- **Hesap:** KİRACI · **Nerede:** http://localhost:3002/#/my-visitors
+- **Hesap:** KİRACI · **Nerede:** http://localhost:3102/#/my-visitors
 - **Adım:** "Menü: Kodu yenile" öğesine dokun (kaynak satırı 107)
 - **Beklenen (yazma):** `POST /visitors/:id/pass` (visitor, `services/visitor/main.go:198`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: işleyicide `hasAnyRole` (backend/services/visitor/main.go:239)
@@ -9111,7 +9112,7 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-MY-VISITORS-04`
 
 #### S-MY-VISITORS-05 · Düğme: Menü: İptal et
-- **Hesap:** KİRACI · **Nerede:** http://localhost:3002/#/my-visitors
+- **Hesap:** KİRACI · **Nerede:** http://localhost:3102/#/my-visitors
 - **Adım:** "Menü: İptal et" öğesine dokun (kaynak satırı 108)
 - **Beklenen (yazma):** `POST /visitors/:id/cancel` (visitor, `services/visitor/main.go:200`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: işleyicide `hasAnyRole` (backend/services/visitor/main.go:239); `resident_can_use`
@@ -9129,8 +9130,8 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `mobile/lib/features/visitors/presentation/screens/visitor_preregister_screen.dart`
 
 #### S-VISITOR-PREREGISTER-00 · Ekran açılışı ve görünüm
-- **Hesap:** KİRACI · **Nerede:** http://localhost:3002/#/visitor-preregister
-- **Adım:** Ekranı aç: http://localhost:3002/#/visitor-preregister — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** KİRACI · **Nerede:** http://localhost:3102/#/visitor-preregister
+- **Adım:** Ekranı aç: http://localhost:3102/#/visitor-preregister — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /users/me/properties` (identity)
 - **Adım:** Başlık (satır 73): Ziyaretçi Ön Kayıt
 - **Adım:** Pencere (satır 426): Ön Kayıt Oluşturuldu
@@ -9140,25 +9141,25 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-VISITOR-PREREGISTER-00`
 
 #### S-VISITOR-PREREGISTER-01 · Düğme: simge düğmesi (satır 95)
-- **Hesap:** KİRACI · **Nerede:** http://localhost:3002/#/visitor-preregister
+- **Hesap:** KİRACI · **Nerede:** http://localhost:3102/#/visitor-preregister
 - **Adım:** "simge düğmesi (satır 95)" öğesine dokun (kaynak satırı 95); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-VISITOR-PREREGISTER-01`
 
 #### S-VISITOR-PREREGISTER-02 · Düğme: Tarih
-- **Hesap:** KİRACI · **Nerede:** http://localhost:3002/#/visitor-preregister
+- **Hesap:** KİRACI · **Nerede:** http://localhost:3102/#/visitor-preregister
 - **Adım:** "Tarih" öğesine dokun (kaynak satırı 199); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-VISITOR-PREREGISTER-02`
 
 #### S-VISITOR-PREREGISTER-03 · Düğme: Saat
-- **Hesap:** KİRACI · **Nerede:** http://localhost:3002/#/visitor-preregister
+- **Hesap:** KİRACI · **Nerede:** http://localhost:3102/#/visitor-preregister
 - **Adım:** "Saat" öğesine dokun (kaynak satırı 240); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-VISITOR-PREREGISTER-03`
 
 #### S-VISITOR-PREREGISTER-04 · Düğme: Gönderiliyor… / Ön Kayıt Oluştur
-- **Hesap:** KİRACI · **Nerede:** http://localhost:3002/#/visitor-preregister
+- **Hesap:** KİRACI · **Nerede:** http://localhost:3102/#/visitor-preregister
 - **Adım:** "Gönderiliyor… / Ön Kayıt Oluştur" öğesine dokun (kaynak satırı 313); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /visitors` (visitor, `services/visitor/main.go:100`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: işleyicide `hasAnyRole` (backend/services/visitor/main.go:239); `resident_can_use`
@@ -9172,25 +9173,25 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `S-VISITOR-PREREGISTER-04`
 
 #### S-VISITOR-PREREGISTER-05 · Düğme: ${u[
-- **Hesap:** KİRACI · **Nerede:** http://localhost:3002/#/visitor-preregister
+- **Hesap:** KİRACI · **Nerede:** http://localhost:3102/#/visitor-preregister
 - **Adım:** "${u[" öğesine dokun (kaynak satırı 363); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-VISITOR-PREREGISTER-05`
 
 #### S-VISITOR-PREREGISTER-06 · Düğme: PIN mesajını kopyala
-- **Hesap:** KİRACI · **Nerede:** http://localhost:3002/#/visitor-preregister
+- **Hesap:** KİRACI · **Nerede:** http://localhost:3102/#/visitor-preregister
 - **Adım:** "PIN mesajını kopyala" öğesine dokun (kaynak satırı 465); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-VISITOR-PREREGISTER-06`
 
 #### S-VISITOR-PREREGISTER-07 · Düğme: Tamam
-- **Hesap:** KİRACI · **Nerede:** http://localhost:3002/#/visitor-preregister
+- **Hesap:** KİRACI · **Nerede:** http://localhost:3102/#/visitor-preregister
 - **Adım:** "Tamam" öğesine dokun (kaynak satırı 483); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-VISITOR-PREREGISTER-07`
 
 #### S-VISITOR-PREREGISTER-08 · Düğme: Tamam
-- **Hesap:** KİRACI · **Nerede:** http://localhost:3002/#/visitor-preregister
+- **Hesap:** KİRACI · **Nerede:** http://localhost:3102/#/visitor-preregister
 - **Adım:** "Tamam" öğesine dokun (kaynak satırı 512); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `S-VISITOR-PREREGISTER-08`
@@ -9203,14 +9204,14 @@ Uygulama: http://localhost:3002 (web derlemesi; tarayıcı penceresini telefon g
 
 
 
-Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon genişliğine — ~400 px — daraltın ya da cihaz araç çubuğunu kullanın). Adres çubuğuna `http://localhost:3003/#/<rota>` yazarak ekrana doğrudan gidilebilir; oturum yoksa giriş ekranına yönlenir. Web derlemesinde kamera (QR) ve konum (GPS) tarayıcı izniyle çalışır; izin penceresinde "İzin ver" seçin. Biyometrik giriş web'de yoktur (düğmesi görünmemeli).
+Uygulama: http://localhost:3103 (web derlemesi; tarayıcı penceresini telefon genişliğine — ~400 px — daraltın ya da cihaz araç çubuğunu kullanın). Adres çubuğuna `http://localhost:3103/#/<rota>` yazarak ekrana doğrudan gidilebilir; oturum yoksa giriş ekranına yönlenir. Web derlemesinde kamera (QR) ve konum (GPS) tarayıcı izniyle çalışır; izin penceresinde "İzin ver" seçin. Biyometrik giriş web'de yoktur (düğmesi görünmemeli).
 
 ### api_views
 - Dosya: `admin_app/lib/core/widgets/api_views.dart`
 
 #### Y-API-VIEWS-00 · Ekran açılışı ve görünüm
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/core/widgets/api_views.dart`)
-- **Adım:** Ekranı aç: http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/core/widgets/api_views.dart`) — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/core/widgets/api_views.dart`)
+- **Adım:** Ekranı aç: http://localhost:3103 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/core/widgets/api_views.dart`) — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Pencere (satır 61): Vazgeç
 - **Adım:** Pencere (satır 93): Vazgeç
 - **Adım:** Aşağı çekerek yenile (varsa) ya da ekrana yeniden gir: aynı veri gelir
@@ -9218,25 +9219,25 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-API-VIEWS-00`
 
 #### Y-API-VIEWS-01 · Düğme: Vazgeç
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/core/widgets/api_views.dart`)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/core/widgets/api_views.dart`)
 - **Adım:** "Vazgeç" öğesine dokun (kaynak satırı 75); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-API-VIEWS-01`
 
 #### Y-API-VIEWS-02 · Düğme: Tamam
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/core/widgets/api_views.dart`)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/core/widgets/api_views.dart`)
 - **Adım:** "Tamam" öğesine dokun (kaynak satırı 76); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-API-VIEWS-02`
 
 #### Y-API-VIEWS-03 · Düğme: Vazgeç
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/core/widgets/api_views.dart`)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/core/widgets/api_views.dart`)
 - **Adım:** "Vazgeç" öğesine dokun (kaynak satırı 97); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-API-VIEWS-03`
 
 #### Y-API-VIEWS-04 · Düğme: simge düğmesi (satır 98)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/core/widgets/api_views.dart`)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/core/widgets/api_views.dart`)
 - **Adım:** "simge düğmesi (satır 98)" öğesine dokun (kaynak satırı 98); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-API-VIEWS-04`
@@ -9247,44 +9248,44 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `admin_app/lib/core/widgets/apple_widgets.dart`
 
 #### Y-APPLE-WIDGETS-00 · Ekran açılışı ve görünüm
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/core/widgets/apple_widgets.dart`)
-- **Adım:** Ekranı aç: http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/core/widgets/apple_widgets.dart`) — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/core/widgets/apple_widgets.dart`)
+- **Adım:** Ekranı aç: http://localhost:3103 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/core/widgets/apple_widgets.dart`) — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Aşağı çekerek yenile (varsa) ya da ekrana yeniden gir: aynı veri gelir
 - **Beklenen:** her veri bölümü yüklenir (boşsa anlamlı boş durum mesajı; "undefined", "NaN", "null", ham JSON ya da İngilizce hata metni YOK); sayılar ve tarihler Türkçe biçimde (1.234,56 ₺ · gg.aa.yyyy); uydurma/örnek veri yok; dar ekranda (400 px) yatay kaydırma olmadan okunur.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-APPLE-WIDGETS-00`
 
 #### Y-APPLE-WIDGETS-01 · Düğme: simge düğmesi (satır 79)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/core/widgets/apple_widgets.dart`)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/core/widgets/apple_widgets.dart`)
 - **Adım:** "simge düğmesi (satır 79)" öğesine dokun (kaynak satırı 79); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-APPLE-WIDGETS-01`
 
 #### Y-APPLE-WIDGETS-02 · Düğme: simge düğmesi (satır 147)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/core/widgets/apple_widgets.dart`)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/core/widgets/apple_widgets.dart`)
 - **Adım:** "simge düğmesi (satır 147)" öğesine dokun (kaynak satırı 147); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-APPLE-WIDGETS-02`
 
 #### Y-APPLE-WIDGETS-03 · Düğme: simge düğmesi (satır 259)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/core/widgets/apple_widgets.dart`)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/core/widgets/apple_widgets.dart`)
 - **Adım:** "simge düğmesi (satır 259)" öğesine dokun (kaynak satırı 259); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-APPLE-WIDGETS-03`
 
 #### Y-APPLE-WIDGETS-04 · Düğme: simge düğmesi (satır 359)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/core/widgets/apple_widgets.dart`)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/core/widgets/apple_widgets.dart`)
 - **Adım:** "simge düğmesi (satır 359)" öğesine dokun (kaynak satırı 359); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-APPLE-WIDGETS-04`
 
 #### Y-APPLE-WIDGETS-05 · Düğme: simge düğmesi (satır 407)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/core/widgets/apple_widgets.dart`)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/core/widgets/apple_widgets.dart`)
 - **Adım:** "simge düğmesi (satır 407)" öğesine dokun (kaynak satırı 407); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-APPLE-WIDGETS-05`
 
 #### Y-APPLE-WIDGETS-06 · Düğme: simge düğmesi (satır 579)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/core/widgets/apple_widgets.dart`)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/core/widgets/apple_widgets.dart`)
 - **Adım:** "simge düğmesi (satır 579)" öğesine dokun (kaynak satırı 579); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-APPLE-WIDGETS-06`
@@ -9295,14 +9296,14 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `admin_app/lib/core/widgets/data_state.dart`
 
 #### Y-DATA-STATE-00 · Ekran açılışı ve görünüm
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/core/widgets/data_state.dart`)
-- **Adım:** Ekranı aç: http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/core/widgets/data_state.dart`) — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/core/widgets/data_state.dart`)
+- **Adım:** Ekranı aç: http://localhost:3103 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/core/widgets/data_state.dart`) — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Aşağı çekerek yenile (varsa) ya da ekrana yeniden gir: aynı veri gelir
 - **Beklenen:** her veri bölümü yüklenir (boşsa anlamlı boş durum mesajı; "undefined", "NaN", "null", ham JSON ya da İngilizce hata metni YOK); sayılar ve tarihler Türkçe biçimde (1.234,56 ₺ · gg.aa.yyyy); uydurma/örnek veri yok; dar ekranda (400 px) yatay kaydırma olmadan okunur.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-DATA-STATE-00`
 
 #### Y-DATA-STATE-01 · Düğme: Yeniden dene
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/core/widgets/data_state.dart`)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/core/widgets/data_state.dart`)
 - **Adım:** "Yeniden dene" öğesine dokun (kaynak satırı 69); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-DATA-STATE-01`
@@ -9313,8 +9314,8 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `admin_app/lib/core/widgets/forms.dart`
 
 #### Y-FORMS-00 · Ekran açılışı ve görünüm
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/core/widgets/forms.dart`)
-- **Adım:** Ekranı aç: http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/core/widgets/forms.dart`) — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/core/widgets/forms.dart`)
+- **Adım:** Ekranı aç: http://localhost:3103 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/core/widgets/forms.dart`) — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /units` (identity)
 - **Adım:** Dosya seçme (satır 7)
 - **Adım:** Dosya seçme (satır 7)
@@ -9324,31 +9325,31 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-FORMS-00`
 
 #### Y-FORMS-01 · Seçim: simge düğmesi (satır 181)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/core/widgets/forms.dart`)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/core/widgets/forms.dart`)
 - **Adım:** "simge düğmesi (satır 181)" seçimini değiştir; her seçenekte içerik buna göre değişmeli
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-FORMS-01`
 
 #### Y-FORMS-02 · Düğme: simge düğmesi (satır 205)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/core/widgets/forms.dart`)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/core/widgets/forms.dart`)
 - **Adım:** "simge düğmesi (satır 205)" öğesine dokun (kaynak satırı 205); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-FORMS-02`
 
 #### Y-FORMS-03 · Düğme: simge düğmesi (satır 247)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/core/widgets/forms.dart`)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/core/widgets/forms.dart`)
 - **Adım:** "simge düğmesi (satır 247)" öğesine dokun (kaynak satırı 247); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-FORMS-03`
 
 #### Y-FORMS-04 · Düğme: simge düğmesi (satır 267)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/core/widgets/forms.dart`)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/core/widgets/forms.dart`)
 - **Adım:** "simge düğmesi (satır 267)" öğesine dokun (kaynak satırı 267); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-FORMS-04`
 
 #### Y-FORMS-05 · Düğme: simge düğmesi (satır 338)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/core/widgets/forms.dart`)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/core/widgets/forms.dart`)
 - **Adım:** "simge düğmesi (satır 338)" öğesine dokun (kaynak satırı 338); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-FORMS-05`
@@ -9359,27 +9360,27 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `admin_app/lib/core/widgets/signature_pad.dart`
 
 #### Y-SIGNATURE-PAD-00 · Ekran açılışı ve görünüm
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/core/widgets/signature_pad.dart`)
-- **Adım:** Ekranı aç: http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/core/widgets/signature_pad.dart`) — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/core/widgets/signature_pad.dart`)
+- **Adım:** Ekranı aç: http://localhost:3103 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/core/widgets/signature_pad.dart`) — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Pencere (satır 98): Temizle
 - **Adım:** Aşağı çekerek yenile (varsa) ya da ekrana yeniden gir: aynı veri gelir
 - **Beklenen:** her veri bölümü yüklenir (boşsa anlamlı boş durum mesajı; "undefined", "NaN", "null", ham JSON ya da İngilizce hata metni YOK); sayılar ve tarihler Türkçe biçimde (1.234,56 ₺ · gg.aa.yyyy); uydurma/örnek veri yok; dar ekranda (400 px) yatay kaydırma olmadan okunur.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-SIGNATURE-PAD-00`
 
 #### Y-SIGNATURE-PAD-01 · Düğme: Temizle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/core/widgets/signature_pad.dart`)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/core/widgets/signature_pad.dart`)
 - **Adım:** "Temizle" öğesine dokun (kaynak satırı 102); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-SIGNATURE-PAD-01`
 
 #### Y-SIGNATURE-PAD-02 · Düğme: İmzasız teslim
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/core/widgets/signature_pad.dart`)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/core/widgets/signature_pad.dart`)
 - **Adım:** "İmzasız teslim" öğesine dokun (kaynak satırı 103); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-SIGNATURE-PAD-02`
 
 #### Y-SIGNATURE-PAD-03 · Düğme: Onayla
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/core/widgets/signature_pad.dart`)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/core/widgets/signature_pad.dart`)
 - **Adım:** "Onayla" öğesine dokun (kaynak satırı 104); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-SIGNATURE-PAD-03`
@@ -9390,8 +9391,8 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `admin_app/lib/features/account/presentation/screens/account_screen.dart`
 
 #### Y-ACCOUNT-00 · Ekran açılışı ve görünüm
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/account
-- **Adım:** Ekranı aç: http://localhost:3003/#/account — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/account
+- **Adım:** Ekranı aç: http://localhost:3103/#/account — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /users/me/properties` (identity)
 - **Adım:** Mesaj (satır 39): Site değiştirildi
 - **Adım:** Başlık (satır 50): Hesabım
@@ -9400,7 +9401,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-ACCOUNT-00`
 
 #### Y-ACCOUNT-01 · Düğme: Şifre değiştir
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/account
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/account
 - **Adım:** "Şifre değiştir" öğesine dokun (kaynak satırı 52); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /users/me/password` (identity, `services/identity/main.go:106`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: oturum açmış herkes (site kapsamı)
@@ -9412,7 +9413,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-ACCOUNT-01`
 
 #### Y-ACCOUNT-02 · Düğme: Telefon numarası değiştir
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/account
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/account
 - **Adım:** "Telefon numarası değiştir" öğesine dokun (kaynak satırı 53)
 - **Beklenen (yazma):** `POST /users/me/phone/request` (identity, `services/identity/main.go:108`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: oturum açmış herkes (site kapsamı)
@@ -9436,7 +9437,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-ACCOUNT-02`
 
 #### Y-ACCOUNT-03 · Düğme: E-posta değiştir
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/account
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/account
 - **Adım:** "E-posta değiştir" öğesine dokun (kaynak satırı 59)
 - **Beklenen (yazma):** `POST /users/me/email` (identity, `services/identity/main.go:110`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: oturum açmış herkes (site kapsamı)
@@ -9459,7 +9460,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-ACCOUNT-03`
 
 #### Y-ACCOUNT-04 · Düğme: Çıkış yap
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/account
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/account
 - **Adım:** "Çıkış yap" öğesine dokun (kaynak satırı 65); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /auth/logout` (identity, `services/identity/main.go:91`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: oturum açmış herkes (site kapsamı)
@@ -9470,7 +9471,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-ACCOUNT-04`
 
 #### Y-ACCOUNT-05 · Düğme: Yeni site
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/account
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/account
 - **Adım:** "Yeni site" öğesine dokun (kaynak satırı 69); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /users/me/properties` (identity, `services/identity/main.go:101`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: MANAGER/OWNER
@@ -9487,7 +9488,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-ACCOUNT-05`
 
 #### Y-ACCOUNT-06 · Düğme: ${p[
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/account
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/account
 - **Adım:** "${p[" öğesine dokun (kaynak satırı 99)
 - **Beklenen (yazma):** `POST /users/me/active-property` (identity, `services/identity/main.go:102`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: oturum açmış herkes (site kapsamı)
@@ -9503,8 +9504,8 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `admin_app/lib/features/announcements/presentation/screens/announcements_screen.dart`
 
 #### Y-ANNOUNCEMENTS-00 · Ekran açılışı ve görünüm
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/announcements
-- **Adım:** Ekranı aç: http://localhost:3003/#/announcements — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/announcements
+- **Adım:** Ekranı aç: http://localhost:3103/#/announcements — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /announcements` (community); `GET /announcements/:id/read-stats` (community)
 - **Adım:** Mesaj (satır 88): İşlem yapılamadı: ${toUserMessage(e)}
 - **Adım:** Pencere (satır 103): Okunma durumu
@@ -9514,25 +9515,25 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-ANNOUNCEMENTS-00`
 
 #### Y-ANNOUNCEMENTS-01 · Düğme: Tamam
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/announcements
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/announcements
 - **Adım:** "Tamam" öğesine dokun (kaynak satırı 106); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-ANNOUNCEMENTS-01`
 
 #### Y-ANNOUNCEMENTS-02 · Düğme: simge düğmesi (satır 120)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/announcements
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/announcements
 - **Adım:** "simge düğmesi (satır 120)" öğesine dokun (kaynak satırı 120)
 - **Beklenen (okuma):** `GET /announcements` (community) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Sonuç:** http://localhost:18000/sonuc → `Y-ANNOUNCEMENTS-02`
 
 #### Y-ANNOUNCEMENTS-03 · Düğme: Duyuru Yayınla
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/announcements
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/announcements
 - **Adım:** "Duyuru Yayınla" öğesine dokun (kaynak satırı 127); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-ANNOUNCEMENTS-03`
 
 #### Y-ANNOUNCEMENTS-04 · Düğme: Menü: Sabitlemeyi kaldır / Sabitle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/announcements
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/announcements
 - **Adım:** "Menü: Sabitlemeyi kaldır / Sabitle" öğesine dokun (kaynak satırı 200)
 - **Beklenen (yazma):** `POST /announcements/:id/pin` (community, `services/community/main.go:173`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -9544,7 +9545,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-ANNOUNCEMENTS-04`
 
 #### Y-ANNOUNCEMENTS-05 · Düğme: Menü: Okunma durumu
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/announcements
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/announcements
 - **Adım:** "Menü: Okunma durumu" öğesine dokun (kaynak satırı 206)
 - **Beklenen (okuma):** `GET /announcements/:id/read-stats` (community) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Sonuç:** http://localhost:18000/sonuc → `Y-ANNOUNCEMENTS-05`
@@ -9555,8 +9556,8 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `admin_app/lib/features/announcements/presentation/screens/create_announcement_screen.dart`
 
 #### Y-CREATE-ANNOUNCEMENT-00 · Ekran açılışı ve görünüm
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/announcements/create
-- **Adım:** Ekranı aç: http://localhost:3003/#/announcements/create — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/announcements/create
+- **Adım:** Ekranı aç: http://localhost:3103/#/announcements/create — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Başlık (satır 56): Duyuru Yayınla
 - **Adım:** Alan (satır 87): Başlık *
 - **Adım:** Alan (satır 98): İçerik *
@@ -9567,7 +9568,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-CREATE-ANNOUNCEMENT-00`
 
 #### Y-CREATE-ANNOUNCEMENT-01 · Düğme: Yayınla
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/announcements/create
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/announcements/create
 - **Adım:** "Yayınla" öğesine dokun (kaynak satırı 59)
 - **Beklenen (yazma):** `POST /announcements` (community, `services/community/main.go:138`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -9582,7 +9583,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-CREATE-ANNOUNCEMENT-01`
 
 #### Y-CREATE-ANNOUNCEMENT-02 · Seçim: Genel
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/announcements/create
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/announcements/create
 - **Adım:** "Genel" seçimini değiştir; her seçenekte içerik buna göre değişmeli
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-CREATE-ANNOUNCEMENT-02`
@@ -9593,8 +9594,8 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `admin_app/lib/features/assets/presentation/screens/asset_management_screen.dart`
 
 #### Y-ASSET-MANAGEMENT-00 · Ekran açılışı ve görünüm
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/assets
-- **Adım:** Ekranı aç: http://localhost:3003/#/assets — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/assets
+- **Adım:** Ekranı aç: http://localhost:3103/#/assets — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /asset-categories` (asset); `GET /assets` (asset); `GET /assets-summary` (asset); `GET /assets/:id/maintenance` (asset); `GET /assets/:id` (asset)
 - **Adım:** Başlık (satır 80): Demirbaşlar
 - **Adım:** Başlık (satır 152): ${a[
@@ -9603,7 +9604,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-ASSET-MANAGEMENT-00`
 
 #### Y-ASSET-MANAGEMENT-01 · Düğme: Kategori ekle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/assets
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/assets
 - **Adım:** "Kategori ekle" öğesine dokun (kaynak satırı 84)
 - **Beklenen (yazma):** `POST /asset-categories` (asset, `services/asset/main.go:183`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -9615,7 +9616,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-ASSET-MANAGEMENT-01`
 
 #### Y-ASSET-MANAGEMENT-02 · Düğme: Demirbaş
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/assets
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/assets
 - **Adım:** "Demirbaş" öğesine dokun (kaynak satırı 87)
 - **Beklenen (yazma):** `POST /assets` (asset, `services/asset/main.go:202`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -9627,7 +9628,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-ASSET-MANAGEMENT-02`
 
 #### Y-ASSET-MANAGEMENT-03 · Düğme: ${a[
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/assets
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/assets
 - **Adım:** "${a[" öğesine dokun (kaynak satırı 107); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-ASSET-MANAGEMENT-03`
@@ -9638,8 +9639,8 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `admin_app/lib/features/audit/presentation/screens/audit_screen.dart`
 
 #### Y-AUDIT-00 · Ekran açılışı ve görünüm
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/audit
-- **Adım:** Ekranı aç: http://localhost:3003/#/audit — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/audit
+- **Adım:** Ekranı aç: http://localhost:3103/#/audit — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /audit-logs` (settings); `GET /audit-logs/stats` (settings)
 - **Adım:** Başlık (satır 79): İşlem Kayıtları
 - **Adım:** Başlık (satır 88): Kayıt istatistiği
@@ -9650,31 +9651,31 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-AUDIT-00`
 
 #### Y-AUDIT-01 · Düğme: Ara
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/audit
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/audit
 - **Adım:** "Ara" öğesine dokun (kaynak satırı 82); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-AUDIT-01`
 
 #### Y-AUDIT-02 · Düğme: Kayıt istatistiği
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/audit
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/audit
 - **Adım:** "Kayıt istatistiği" öğesine dokun (kaynak satırı 83)
 - **Beklenen (okuma):** `GET /audit-logs/stats` (settings) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Sonuç:** http://localhost:18000/sonuc → `Y-AUDIT-02`
 
 #### Y-AUDIT-03 · Seçim: Tümü
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/audit
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/audit
 - **Adım:** "Tümü" seçimini değiştir; her seçenekte içerik buna göre değişmeli
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-AUDIT-03`
 
 #### Y-AUDIT-04 · Seçim: Tümü
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/audit
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/audit
 - **Adım:** "Tümü" seçimini değiştir; her seçenekte içerik buna göre değişmeli
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-AUDIT-04`
 
 #### Y-AUDIT-05 · Düğme: ${_actions[r[
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/audit
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/audit
 - **Adım:** "${_actions[r[" öğesine dokun (kaynak satırı 148); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-AUDIT-05`
@@ -9685,8 +9686,8 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `admin_app/lib/features/auth/presentation/screens/activate_screen.dart`
 
 #### Y-ACTIVATE-00 · Ekran açılışı ve görünüm
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/activate
-- **Adım:** Ekranı aç: http://localhost:3003/#/activate — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/activate
+- **Adım:** Ekranı aç: http://localhost:3103/#/activate — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Mesaj (satır 118): Şifreniz belirlendi. Şimdi giriş yapabilirsiniz.
 - **Adım:** Başlık (satır 131): Şifre Belirle
 - **Adım:** Alan (satır 160): Telefon Numarası
@@ -9699,7 +9700,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-ACTIVATE-00`
 
 #### Y-ACTIVATE-01 · Düğme: Yeniden gönder
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/activate
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/activate
 - **Adım:** "Yeniden gönder" öğesine dokun (kaynak satırı 165)
 - **Beklenen (yazma):** `POST /auth/password-reset/request` (identity, `services/identity/main.go:83`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: oturum açmış herkes (site kapsamı)
@@ -9713,7 +9714,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-ACTIVATE-01`
 
 #### Y-ACTIVATE-02 · Düğme: Şifremi Belirle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/activate
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/activate
 - **Adım:** "Şifremi Belirle" öğesine dokun (kaynak satırı 196)
 - **Beklenen (yazma):** `POST /auth/activate` (identity, `services/identity/main.go:81`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: OWNER/TENANT
@@ -9734,8 +9735,8 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `admin_app/lib/features/auth/presentation/screens/kvkk_consent_screen.dart`
 
 #### Y-KVKK-CONSENT-00 · Ekran açılışı ve görünüm
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/kvkk-consent
-- **Adım:** Ekranı aç: http://localhost:3003/#/kvkk-consent — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/kvkk-consent
+- **Adım:** Ekranı aç: http://localhost:3103/#/kvkk-consent — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Mesaj (satır 27): Onay kaydedilemedi, lütfen tekrar deneyin
 - **Adım:** Başlık (satır 40): Kişisel Verilerin Korunması
 - **Adım:** Aşağı çekerek yenile (varsa) ya da ekrana yeniden gir: aynı veri gelir
@@ -9743,7 +9744,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-KVKK-CONSENT-00`
 
 #### Y-KVKK-CONSENT-01 · Düğme: Onaylıyorum ve Devam Ediyorum
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/kvkk-consent
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/kvkk-consent
 - **Adım:** "Onaylıyorum ve Devam Ediyorum" öğesine dokun (kaynak satırı 84)
 - **Beklenen (yazma):** `POST /users/me/kvkk-consent` (identity, `services/identity/main.go:103`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: oturum açmış herkes (site kapsamı)
@@ -9759,8 +9760,8 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `admin_app/lib/features/auth/presentation/screens/login_screen.dart`
 
 #### Y-LOGIN-00 · Ekran açılışı ve görünüm
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/login
-- **Adım:** Ekranı aç: http://localhost:3003/#/login — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/login
+- **Adım:** Ekranı aç: http://localhost:3103/#/login — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Pencere (satır 95): Biyometrik Giriş
 - **Adım:** Alan (satır 225): Telefon Numarası
 - **Adım:** Alan (satır 226): +90 555 123 4567
@@ -9770,25 +9771,25 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-LOGIN-00`
 
 #### Y-LOGIN-01 · Düğme: Hayır
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/login
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/login
 - **Adım:** "Hayır" öğesine dokun (kaynak satırı 101); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-LOGIN-01`
 
 #### Y-LOGIN-02 · Düğme: Etkinleştir
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/login
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/login
 - **Adım:** "Etkinleştir" öğesine dokun (kaynak satırı 105); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-LOGIN-02`
 
 #### Y-LOGIN-03 · Düğme: simge düğmesi (satır 245)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/login
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/login
 - **Adım:** "simge düğmesi (satır 245)" öğesine dokun (kaynak satırı 245); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-LOGIN-03`
 
 #### Y-LOGIN-04 · Düğme: Giriş Yap
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/login
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/login
 - **Adım:** "Giriş Yap" öğesine dokun (kaynak satırı 264); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /auth/login` (identity, `services/identity/main.go:78`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: oturum açmış herkes (site kapsamı)
@@ -9799,13 +9800,13 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-LOGIN-04`
 
 #### Y-LOGIN-05 · Düğme: Biyometrik Giriş
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/login
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/login
 - **Adım:** "Biyometrik Giriş" öğesine dokun (kaynak satırı 278); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-LOGIN-05`
 
 #### Y-LOGIN-06 · Düğme: Şifremi Unuttum / Hesabı Etkinleştir
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/login
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/login
 - **Adım:** "Şifremi Unuttum / Hesabı Etkinleştir" öğesine dokun (kaynak satırı 290); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-LOGIN-06`
@@ -9816,8 +9817,8 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `admin_app/lib/features/bulletin/presentation/screens/bulletin_board_screen.dart`
 
 #### Y-BULLETIN-BOARD-00 · Ekran açılışı ve görünüm
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/bulletin
-- **Adım:** Ekranı aç: http://localhost:3003/#/bulletin — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/bulletin
+- **Adım:** Ekranı aç: http://localhost:3103/#/bulletin — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /bulletins/:id/comments` (bulletin); `GET /bulletins` (bulletin); `GET /bulletins-summary` (bulletin)
 - **Adım:** Başlık (satır 170): İlan Panosu
 - **Adım:** Her sekmeye tıkla, içerik hatasız yüklenir: Onay bekleyen
@@ -9828,7 +9829,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-BULLETIN-BOARD-00`
 
 #### Y-BULLETIN-BOARD-01 · Düğme: Gizle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/bulletin
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/bulletin
 - **Adım:** "Gizle" öğesine dokun (kaynak satırı 104); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `DELETE /bulletin-comments/:id` (bulletin, `services/bulletin/main.go:154`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: BOARD_MEMBER/MANAGER
@@ -9840,7 +9841,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-BULLETIN-BOARD-01`
 
 #### Y-BULLETIN-BOARD-02 · Düğme: ${b[
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/bulletin
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/bulletin
 - **Adım:** "${b[" öğesine dokun (kaynak satırı 149); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `DELETE /bulletin-comments/:id` (bulletin, `services/bulletin/main.go:154`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: BOARD_MEMBER/MANAGER
@@ -9852,7 +9853,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-BULLETIN-BOARD-02`
 
 #### Y-BULLETIN-BOARD-03 · Düğme: Reddet
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/bulletin
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/bulletin
 - **Adım:** "Reddet" öğesine dokun (kaynak satırı 155); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /bulletins/:id/reject` (bulletin, `services/bulletin/main.go:183`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -9866,7 +9867,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-BULLETIN-BOARD-03`
 
 #### Y-BULLETIN-BOARD-04 · Düğme: Onayla
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/bulletin
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/bulletin
 - **Adım:** "Onayla" öğesine dokun (kaynak satırı 156)
 - **Beklenen (yazma):** `POST /bulletins/:id/approve` (bulletin, `services/bulletin/main.go:170`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -9880,7 +9881,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-BULLETIN-BOARD-04`
 
 #### Y-BULLETIN-BOARD-05 · Düğme: Kapat
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/bulletin
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/bulletin
 - **Adım:** "Kapat" öğesine dokun (kaynak satırı 158); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /bulletins/:id/close` (bulletin, `services/bulletin/main.go:106`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: BOARD_MEMBER/MANAGER
@@ -9892,7 +9893,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-BULLETIN-BOARD-05`
 
 #### Y-BULLETIN-BOARD-06 · Düğme: Süresi dolanları kapat
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/bulletin
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/bulletin
 - **Adım:** "Süresi dolanları kapat" öğesine dokun (kaynak satırı 174); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /bulletins/expire-due` (bulletin, `services/bulletin/main.go:205`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -9909,8 +9910,8 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `admin_app/lib/features/collection/presentation/screens/smart_collection_screen.dart`
 
 #### Y-SMART-COLLECTION-00 · Ekran açılışı ve görünüm
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/collection
-- **Adım:** Ekranı aç: http://localhost:3003/#/collection — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/collection
+- **Adım:** Ekranı aç: http://localhost:3103/#/collection — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /collection/risk` (smart_collection)
 - **Adım:** Başlık (satır 68): Tahsilat Riski
 - **Adım:** Aşağı çekerek yenile (varsa) ya da ekrana yeniden gir: aynı veri gelir
@@ -9918,7 +9919,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-SMART-COLLECTION-00`
 
 #### Y-SMART-COLLECTION-01 · Düğme: Skorları kaydet
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/collection
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/collection
 - **Adım:** "Skorları kaydet" öğesine dokun (kaynak satırı 72); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /collection/risk/snapshot` (smart_collection, `services/smart_collection/main.go:120`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -9935,8 +9936,8 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `admin_app/lib/features/contracts/presentation/screens/contract_management_screen.dart`
 
 #### Y-CONTRACT-MANAGEMENT-00 · Ekran açılışı ve görünüm
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/contracts
-- **Adım:** Ekranı aç: http://localhost:3003/#/contracts — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/contracts
+- **Adım:** Ekranı aç: http://localhost:3103/#/contracts — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /contracts` (contract); `GET /contracts-summary` (contract)
 - **Adım:** Başlık (satır 129): Sözleşmeler
 - **Adım:** Her sekmeye tıkla, içerik hatasız yüklenir: Yürürlükte
@@ -9955,7 +9956,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-CONTRACT-MANAGEMENT-00`
 
 #### Y-CONTRACT-MANAGEMENT-01 · Düğme: Feshet
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/contracts
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/contracts
 - **Adım:** "Feshet" öğesine dokun (kaynak satırı 115); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /contracts/:id/terminate` (contract, `services/contract/main.go:151`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -9967,7 +9968,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-CONTRACT-MANAGEMENT-01`
 
 #### Y-CONTRACT-MANAGEMENT-02 · Düğme: Yenile
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/contracts
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/contracts
 - **Adım:** "Yenile" öğesine dokun (kaynak satırı 117); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /contracts/:id/renew` (contract, `services/contract/main.go:138`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -9979,7 +9980,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-CONTRACT-MANAGEMENT-02`
 
 #### Y-CONTRACT-MANAGEMENT-03 · Düğme: Süresi dolanları kapat
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/contracts
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/contracts
 - **Adım:** "Süresi dolanları kapat" öğesine dokun (kaynak satırı 133); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /contracts/expire-due` (contract, `services/contract/main.go:172`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -9991,43 +9992,43 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-CONTRACT-MANAGEMENT-03`
 
 #### Y-CONTRACT-MANAGEMENT-04 · Düğme: Sözleşme
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/contracts
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/contracts
 - **Adım:** "Sözleşme" öğesine dokun (kaynak satırı 151); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-CONTRACT-MANAGEMENT-04`
 
 #### Y-CONTRACT-MANAGEMENT-05 · Seçim: Tür
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/contracts
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/contracts
 - **Adım:** "Tür" seçimini değiştir; her seçenekte içerik buna göre değişmeli
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-CONTRACT-MANAGEMENT-05`
 
 #### Y-CONTRACT-MANAGEMENT-06 · Düğme: Başlangıç
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/contracts
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/contracts
 - **Adım:** "Başlangıç" öğesine dokun (kaynak satırı 300); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-CONTRACT-MANAGEMENT-06`
 
 #### Y-CONTRACT-MANAGEMENT-07 · Düğme: Bitiş
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/contracts
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/contracts
 - **Adım:** "Bitiş" öğesine dokun (kaynak satırı 309); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-CONTRACT-MANAGEMENT-07`
 
 #### Y-CONTRACT-MANAGEMENT-08 · Düğme: simge düğmesi (satır 313)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/contracts
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/contracts
 - **Adım:** "simge düğmesi (satır 313)" öğesine dokun (kaynak satırı 313); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-CONTRACT-MANAGEMENT-08`
 
 #### Y-CONTRACT-MANAGEMENT-09 · Seçim: Aylık
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/contracts
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/contracts
 - **Adım:** "Aylık" seçimini değiştir; her seçenekte içerik buna göre değişmeli
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-CONTRACT-MANAGEMENT-09`
 
 #### Y-CONTRACT-MANAGEMENT-10 · Düğme: Kaydet
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/contracts
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/contracts
 - **Adım:** "Kaydet" öğesine dokun (kaynak satırı 348)
 - **Beklenen (yazma):** `POST /contracts` (contract, `services/contract/main.go:117`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -10044,8 +10045,8 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `admin_app/lib/features/dashboard/presentation/screens/dashboard_screen.dart`
 
 #### Y-DASHBOARD-00 · Ekran açılışı ve görünüm
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/
-- **Adım:** Ekranı aç: http://localhost:3003/#/ — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/
+- **Adım:** Ekranı aç: http://localhost:3103/#/ — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /finance/payments` (finance); `GET /dashboard/stats` (gateway)
 - **Adım:** Başlık (satır 108): Dashboard
 - **Adım:** Aşağı çekerek yenile (varsa) ya da ekrana yeniden gir: aynı veri gelir
@@ -10053,73 +10054,73 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-DASHBOARD-00`
 
 #### Y-DASHBOARD-01 · Düğme: simge düğmesi (satır 111)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/
 - **Adım:** "simge düğmesi (satır 111)" öğesine dokun (kaynak satırı 111)
 - **Beklenen (okuma):** `GET /finance/payments` (finance), `GET /dashboard/stats` (gateway) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Sonuç:** http://localhost:18000/sonuc → `Y-DASHBOARD-01`
 
 #### Y-DASHBOARD-02 · Düğme: Tahakkuk Oluştur
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/
 - **Adım:** "Tahakkuk Oluştur" öğesine dokun (kaynak satırı 146); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-DASHBOARD-02`
 
 #### Y-DASHBOARD-03 · Düğme: Duyuru Yayınla
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/
 - **Adım:** "Duyuru Yayınla" öğesine dokun (kaynak satırı 154); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-DASHBOARD-03`
 
 #### Y-DASHBOARD-04 · Düğme: Sayaç Oku
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/
 - **Adım:** "Sayaç Oku" öğesine dokun (kaynak satırı 166); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-DASHBOARD-04`
 
 #### Y-DASHBOARD-05 · Düğme: Rapor Oluştur
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/
 - **Adım:** "Rapor Oluştur" öğesine dokun (kaynak satırı 174); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-DASHBOARD-05`
 
 #### Y-DASHBOARD-06 · Düğme: Tümünü Gör
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/
 - **Adım:** "Tümünü Gör" öğesine dokun (kaynak satırı 193); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-DASHBOARD-06`
 
 #### Y-DASHBOARD-07 · Düğme: Toplam Sakin
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/
 - **Adım:** "Toplam Sakin" öğesine dokun (kaynak satırı 231); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-DASHBOARD-07`
 
 #### Y-DASHBOARD-08 · Düğme: Dönem Tahsilatı
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/
 - **Adım:** "Dönem Tahsilatı" öğesine dokun (kaynak satırı 238); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-DASHBOARD-08`
 
 #### Y-DASHBOARD-09 · Düğme: Tahsilat Oranı
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/
 - **Adım:** "Tahsilat Oranı" öğesine dokun (kaynak satırı 245); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-DASHBOARD-09`
 
 #### Y-DASHBOARD-10 · Düğme: Açık Talep
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/
 - **Adım:** "Açık Talep" öğesine dokun (kaynak satırı 253); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-DASHBOARD-10`
 
 #### Y-DASHBOARD-11 · Düğme: simge düğmesi (satır 320)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/
 - **Adım:** "simge düğmesi (satır 320)" öğesine dokun (kaynak satırı 320); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-DASHBOARD-11`
 
 #### Y-DASHBOARD-12 · Düğme: simge düğmesi (satır 379)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/
 - **Adım:** "simge düğmesi (satır 379)" öğesine dokun (kaynak satırı 379); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-DASHBOARD-12`
@@ -10130,8 +10131,8 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `admin_app/lib/features/documents/presentation/screens/documents_screen.dart`
 
 #### Y-DOCUMENTS-00 · Ekran açılışı ve görünüm
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/documents
-- **Adım:** Ekranı aç: http://localhost:3003/#/documents — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/documents
+- **Adım:** Ekranı aç: http://localhost:3103/#/documents — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /documents` (document); `GET /documents-summary` (document); `GET /documents/:id/download` (document); `GET /documents/:id/access-log` (document)
 - **Adım:** Başlık (satır 71): Belge arşivi
 - **Adım:** Başlık (satır 110): Erişim — ${x[
@@ -10140,7 +10141,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-DOCUMENTS-00`
 
 #### Y-DOCUMENTS-01 · Düğme: Yükle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/documents
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/documents
 - **Adım:** "Yükle" öğesine dokun (kaynak satırı 80); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /documents` (document, `services/document/main.go:171`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -10159,8 +10160,8 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `admin_app/lib/features/emergency/presentation/screens/emergency_screen.dart`
 
 #### Y-EMERGENCY-00 · Ekran açılışı ve görünüm
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/emergency
-- **Adım:** Ekranı aç: http://localhost:3003/#/emergency — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/emergency
+- **Adım:** Ekranı aç: http://localhost:3103/#/emergency — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /emergency/cards` (community); `GET /emergency/checks` (community); `GET /emergency/info` (community); `GET /emergency/drills` (community); `GET /emergency/checks/:id/responses` (community)
 - **Adım:** Mesaj (satır 66): Çağrı açıldı. ${(r[
 - **Adım:** Başlık (satır 87): Sakin acil bilgi kartları
@@ -10175,25 +10176,25 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-EMERGENCY-00`
 
 #### Y-EMERGENCY-01 · Düğme: simge düğmesi (satır 52)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/emergency
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/emergency
 - **Adım:** "simge düğmesi (satır 52)" öğesine dokun (kaynak satırı 52); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-EMERGENCY-01`
 
 #### Y-EMERGENCY-02 · Düğme: Acil bilgi kartları
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/emergency
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/emergency
 - **Adım:** "Acil bilgi kartları" öğesine dokun (kaynak satırı 112)
 - **Beklenen (okuma):** `GET /emergency/cards` (community) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Sonuç:** http://localhost:18000/sonuc → `Y-EMERGENCY-02`
 
 #### Y-EMERGENCY-03 · Düğme: ${s[
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/emergency
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/emergency
 - **Adım:** "${s[" öğesine dokun (kaynak satırı 127); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-EMERGENCY-03`
 
 #### Y-EMERGENCY-04 · Düğme: simge düğmesi (satır 159)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/emergency
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/emergency
 - **Adım:** "simge düğmesi (satır 159)" öğesine dokun (kaynak satırı 159)
 - **Beklenen (yazma):** `DELETE /emergency/points/:id` (community, `services/community/emergency.go:91`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -10202,21 +10203,21 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-EMERGENCY-04`
 
 #### Y-EMERGENCY-05 · Düğme: Ulusal acil: ${d[
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/emergency
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/emergency
 - **Adım:** "Ulusal acil: ${d[" öğesine dokun (kaynak satırı 189); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Adım:** Dış bağlantı yeni sekmede açılır (kart ödemesinde sahte iyzico sayfası: http://localhost:18000/iyzico/pay/…)
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-EMERGENCY-05`
 
 #### Y-EMERGENCY-06 · Düğme: ${c[
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/emergency
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/emergency
 - **Adım:** "${c[" öğesine dokun (kaynak satırı 195); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Adım:** Dış bağlantı yeni sekmede açılır (kart ödemesinde sahte iyzico sayfası: http://localhost:18000/iyzico/pay/…)
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-EMERGENCY-06`
 
 #### Y-EMERGENCY-07 · Düğme: simge düğmesi (satır 200)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/emergency
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/emergency
 - **Adım:** "simge düğmesi (satır 200)" öğesine dokun (kaynak satırı 200)
 - **Beklenen (yazma):** `DELETE /emergency/contacts/:id` (community, `services/community/emergency.go:117`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -10225,7 +10226,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-EMERGENCY-07`
 
 #### Y-EMERGENCY-08 · Düğme: Çağrıyı kapat
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/emergency
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/emergency
 - **Adım:** "Çağrıyı kapat" öğesine dokun (kaynak satırı 277)
 - **Beklenen (yazma):** `POST /emergency/checks/:id/close` (community, `services/community/emergency.go:383`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -10242,8 +10243,8 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `admin_app/lib/features/energy/presentation/screens/energy_dashboard_screen.dart`
 
 #### Y-ENERGY-DASHBOARD-00 · Ekran açılışı ve görünüm
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/energy
-- **Adım:** Ekranı aç: http://localhost:3003/#/energy — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/energy
+- **Adım:** Ekranı aç: http://localhost:3103/#/energy — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /energy/trends` (energy_analytics); `GET /energy/anomalies` (energy_analytics)
 - **Adım:** Başlık (satır 51): Tüketim Analizi
 - **Adım:** Her sekmeye tıkla, içerik hatasız yüklenir: Eğilim
@@ -10258,8 +10259,8 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `admin_app/lib/features/esg/presentation/screens/esg_screen.dart`
 
 #### Y-ESG-00 · Ekran açılışı ve görünüm
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/esg
-- **Adım:** Ekranı aç: http://localhost:3003/#/esg — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/esg
+- **Adım:** Ekranı aç: http://localhost:3103/#/esg — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /esg/consumption` (esg)
 - **Adım:** Başlık (satır 52): Karbon ayak izi
 - **Adım:** Aşağı çekerek yenile (varsa) ya da ekrana yeniden gir: aynı veri gelir
@@ -10267,19 +10268,19 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-ESG-00`
 
 #### Y-ESG-01 · Düğme: Başlangıç
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/esg
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/esg
 - **Adım:** "Başlangıç" öğesine dokun (kaynak satırı 61); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-ESG-01`
 
 #### Y-ESG-02 · Düğme: Bitiş
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/esg
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/esg
 - **Adım:** "Bitiş" öğesine dokun (kaynak satırı 62); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-ESG-02`
 
 #### Y-ESG-03 · Düğme: Hesapla
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/esg
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/esg
 - **Adım:** "Hesapla" öğesine dokun (kaynak satırı 75); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /esg/carbon-footprint` (esg, `services/esg/main.go:97`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: AUDITOR/BOARD_MEMBER/MANAGER
@@ -10293,8 +10294,8 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `admin_app/lib/features/expenses/presentation/screens/add_expense_screen.dart`
 
 #### Y-ADD-EXPENSE-00 · Ekran açılışı ve görünüm
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/expenses/add
-- **Adım:** Ekranı aç: http://localhost:3003/#/expenses/add — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/expenses/add
+- **Adım:** Ekranı aç: http://localhost:3103/#/expenses/add — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /expense-categories` (expense)
 - **Adım:** Başlık (satır 95): Gider Ekle
 - **Adım:** Alan (satır 154): Kategori *
@@ -10310,7 +10311,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-ADD-EXPENSE-00`
 
 #### Y-ADD-EXPENSE-01 · Düğme: Kaydet
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/expenses/add
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/expenses/add
 - **Adım:** "Kaydet" öğesine dokun (kaynak satırı 98)
 - **Beklenen (yazma):** `POST /expenses` (expense, `services/expense/main.go:71`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -10324,13 +10325,13 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-ADD-EXPENSE-01`
 
 #### Y-ADD-EXPENSE-02 · Seçim: name / category_name /
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/expenses/add
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/expenses/add
 - **Adım:** "name / category_name /" seçimini değiştir; her seçenekte içerik buna göre değişmeli
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-ADD-EXPENSE-02`
 
 #### Y-ADD-EXPENSE-03 · Düğme: Tarih *
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/expenses/add
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/expenses/add
 - **Adım:** "Tarih *" öğesine dokun (kaynak satırı 220); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-ADD-EXPENSE-03`
@@ -10341,8 +10342,8 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `admin_app/lib/features/expenses/presentation/screens/expense_detail_screen.dart`
 
 #### Y-EXPENSE-DETAIL-00 · Ekran açılışı ve görünüm
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/expenses/:id
-- **Adım:** Ekranı aç: http://localhost:3003/#/expenses/:id — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/expenses/:id
+- **Adım:** Ekranı aç: http://localhost:3103/#/expenses/:id — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /expenses/:id` (expense)
 - **Adım:** Başlık (satır 89): Gider Detayı
 - **Adım:** Aşağı çekerek yenile (varsa) ya da ekrana yeniden gir: aynı veri gelir
@@ -10350,7 +10351,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-EXPENSE-DETAIL-00`
 
 #### Y-EXPENSE-DETAIL-01 · Düğme: Reddet
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/expenses/:id
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/expenses/:id
 - **Adım:** "Reddet" öğesine dokun (kaynak satırı 96); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /expenses/:id/reject` (expense, `services/expense/main.go:73`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -10363,7 +10364,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-EXPENSE-DETAIL-01`
 
 #### Y-EXPENSE-DETAIL-02 · Düğme: Onayla
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/expenses/:id
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/expenses/:id
 - **Adım:** "Onayla" öğesine dokun (kaynak satırı 98); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /expenses/:id/approve` (expense, `services/expense/main.go:72`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -10381,8 +10382,8 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `admin_app/lib/features/expenses/presentation/screens/expenses_screen.dart`
 
 #### Y-EXPENSES-00 · Ekran açılışı ve görünüm
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/expenses
-- **Adım:** Ekranı aç: http://localhost:3003/#/expenses — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/expenses
+- **Adım:** Ekranı aç: http://localhost:3103/#/expenses — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /expenses` (expense); `GET /expenses/summary` (expense)
 - **Adım:** Başlık (satır 92): Gider Yönetimi
 - **Adım:** Başlık (satır 100): ${DateTime.now().year} gider özeti
@@ -10391,61 +10392,61 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-EXPENSES-00`
 
 #### Y-EXPENSES-01 · Düğme: ${DateTime.now().year} gider özeti
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/expenses
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/expenses
 - **Adım:** "${DateTime.now().year} gider özeti" öğesine dokun (kaynak satırı 95)
 - **Beklenen (okuma):** `GET /expenses/summary` (expense) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Sonuç:** http://localhost:18000/sonuc → `Y-EXPENSES-01`
 
 #### Y-EXPENSES-02 · Düğme: ${_monthName(_month)} $_year
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/expenses
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/expenses
 - **Adım:** "${_monthName(_month)} $_year" öğesine dokun (kaynak satırı 126); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (okuma):** `GET /expenses` (expense) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Sonuç:** http://localhost:18000/sonuc → `Y-EXPENSES-02`
 
 #### Y-EXPENSES-03 · Düğme: Tümü
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/expenses
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/expenses
 - **Adım:** "Tümü" öğesine dokun (kaynak satırı 158); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-EXPENSES-03`
 
 #### Y-EXPENSES-04 · Düğme: Aidata Yansıyan
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/expenses
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/expenses
 - **Adım:** "Aidata Yansıyan" öğesine dokun (kaynak satırı 162); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-EXPENSES-04`
 
 #### Y-EXPENSES-05 · Düğme: Faturasız
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/expenses
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/expenses
 - **Adım:** "Faturasız" öğesine dokun (kaynak satırı 166); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-EXPENSES-05`
 
 #### Y-EXPENSES-06 · Düğme: Onay Bekleyen
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/expenses
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/expenses
 - **Adım:** "Onay Bekleyen" öğesine dokun (kaynak satırı 170); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-EXPENSES-06`
 
 #### Y-EXPENSES-07 · Düğme: Gider Ekle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/expenses
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/expenses
 - **Adım:** "Gider Ekle" öğesine dokun (kaynak satırı 181)
 - **Beklenen (okuma):** `GET /expenses` (expense) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Sonuç:** http://localhost:18000/sonuc → `Y-EXPENSES-07`
 
 #### Y-EXPENSES-08 · Düğme: simge düğmesi (satır 268)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/expenses
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/expenses
 - **Adım:** "simge düğmesi (satır 268)" öğesine dokun (kaynak satırı 268); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-EXPENSES-08`
 
 #### Y-EXPENSES-09 · Düğme: simge düğmesi (satır 308)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/expenses
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/expenses
 - **Adım:** "simge düğmesi (satır 308)" öğesine dokun (kaynak satırı 308); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-EXPENSES-09`
 
 #### Y-EXPENSES-10 · Düğme: Faturasız
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/expenses
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/expenses
 - **Adım:** "Faturasız" öğesine dokun (kaynak satırı 437); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-EXPENSES-10`
@@ -10456,8 +10457,8 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `admin_app/lib/features/expenses/presentation/screens/resident_expenses_screen.dart`
 
 #### Y-RESIDENT-EXPENSES-00 · Ekran açılışı ve görünüm
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/expenses/presentation/screens/resident_expenses_screen.dart`)
-- **Adım:** Ekranı aç: http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/expenses/presentation/screens/resident_expenses_screen.dart`) — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/expenses/presentation/screens/resident_expenses_screen.dart`)
+- **Adım:** Ekranı aç: http://localhost:3103 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/expenses/presentation/screens/resident_expenses_screen.dart`) — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /expenses` (expense)
 - **Adım:** Başlık (satır 70): Site Giderleri
 - **Adım:** Aşağı çekerek yenile (varsa) ya da ekrana yeniden gir: aynı veri gelir
@@ -10465,31 +10466,31 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-RESIDENT-EXPENSES-00`
 
 #### Y-RESIDENT-EXPENSES-01 · Düğme: Dönem seç
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/expenses/presentation/screens/resident_expenses_screen.dart`)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/expenses/presentation/screens/resident_expenses_screen.dart`)
 - **Adım:** "Dönem seç" öğesine dokun (kaynak satırı 73); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (okuma):** `GET /expenses` (expense) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Sonuç:** http://localhost:18000/sonuc → `Y-RESIDENT-EXPENSES-01`
 
 #### Y-RESIDENT-EXPENSES-02 · Düğme: ${_monthName(_month)} $_year
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/expenses/presentation/screens/resident_expenses_screen.dart`)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/expenses/presentation/screens/resident_expenses_screen.dart`)
 - **Adım:** "${_monthName(_month)} $_year" öğesine dokun (kaynak satırı 189); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (okuma):** `GET /expenses` (expense) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Sonuç:** http://localhost:18000/sonuc → `Y-RESIDENT-EXPENSES-02`
 
 #### Y-RESIDENT-EXPENSES-03 · Düğme: simge düğmesi (satır 230)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/expenses/presentation/screens/resident_expenses_screen.dart`)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/expenses/presentation/screens/resident_expenses_screen.dart`)
 - **Adım:** "simge düğmesi (satır 230)" öğesine dokun (kaynak satırı 230); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-RESIDENT-EXPENSES-03`
 
 #### Y-RESIDENT-EXPENSES-04 · Düğme: Faturayı Görüntüle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/expenses/presentation/screens/resident_expenses_screen.dart`)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/expenses/presentation/screens/resident_expenses_screen.dart`)
 - **Adım:** "Faturayı Görüntüle" öğesine dokun (kaynak satırı 375); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-RESIDENT-EXPENSES-04`
 
 #### Y-RESIDENT-EXPENSES-05 · Düğme: simge düğmesi (satır 413)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/expenses/presentation/screens/resident_expenses_screen.dart`)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/expenses/presentation/screens/resident_expenses_screen.dart`)
 - **Adım:** "simge düğmesi (satır 413)" öğesine dokun (kaynak satırı 413); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-RESIDENT-EXPENSES-05`
@@ -10500,8 +10501,8 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `admin_app/lib/features/finance/presentation/screens/collection_entry_screen.dart`
 
 #### Y-COLLECTION-ENTRY-00 · Ekran açılışı ve görünüm
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/finance/presentation/screens/collection_entry_screen.dart`)
-- **Adım:** Ekranı aç: http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/finance/presentation/screens/collection_entry_screen.dart`) — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/finance/presentation/screens/collection_entry_screen.dart`)
+- **Adım:** Ekranı aç: http://localhost:3103 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/finance/presentation/screens/collection_entry_screen.dart`) — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /finance/units/:id/open-assessments` (finance); `GET /units` (identity)
 - **Adım:** Başlık (satır 103): (dinamik)
 - **Adım:** Alan (satır 117): Daire
@@ -10511,19 +10512,19 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-COLLECTION-ENTRY-00`
 
 #### Y-COLLECTION-ENTRY-01 · Seçim: ${u[
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/finance/presentation/screens/collection_entry_screen.dart`)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/finance/presentation/screens/collection_entry_screen.dart`)
 - **Adım:** "${u[" seçimini değiştir; her seçenekte içerik buna göre değişmeli
 - **Beklenen (okuma):** `GET /finance/units/:id/open-assessments` (finance) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Sonuç:** http://localhost:18000/sonuc → `Y-COLLECTION-ENTRY-01`
 
 #### Y-COLLECTION-ENTRY-02 · Düğme: Ödeme günü
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/finance/presentation/screens/collection_entry_screen.dart`)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/finance/presentation/screens/collection_entry_screen.dart`)
 - **Adım:** "Ödeme günü" öğesine dokun (kaynak satırı 152); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-COLLECTION-ENTRY-02`
 
 #### Y-COLLECTION-ENTRY-03 · Düğme: Kaydediliyor… / Kaydet ve borçtan düş
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/finance/presentation/screens/collection_entry_screen.dart`)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/finance/presentation/screens/collection_entry_screen.dart`)
 - **Adım:** "Kaydediliyor… / Kaydet ve borçtan düş" öğesine dokun (kaynak satırı 166)
 - **Beklenen (yazma):** `POST /finance/bank-statements/lines/:id/collect` (finance, `services/finance/main.go:156`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER; `assessment_visible_to`
@@ -10569,8 +10570,8 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `admin_app/lib/features/finance/presentation/screens/create_assessment_screen.dart`
 
 #### Y-CREATE-ASSESSMENT-00 · Ekran açılışı ve görünüm
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/finance/assessments/create
-- **Adım:** Ekranı aç: http://localhost:3003/#/finance/assessments/create — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/finance/assessments/create
+- **Adım:** Ekranı aç: http://localhost:3103/#/finance/assessments/create — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /finance/expense-categories` (finance); `GET /units` (identity)
 - **Adım:** Başlık (satır 112): Tahakkuk Oluştur
 - **Adım:** Alan (satır 152): Yıl
@@ -10584,31 +10585,31 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-CREATE-ASSESSMENT-00`
 
 #### Y-CREATE-ASSESSMENT-01 · Seçim: $y
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/finance/assessments/create
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/finance/assessments/create
 - **Adım:** "$y" seçimini değiştir; her seçenekte içerik buna göre değişmeli
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-CREATE-ASSESSMENT-01`
 
 #### Y-CREATE-ASSESSMENT-02 · Seçim: Ay
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/finance/assessments/create
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/finance/assessments/create
 - **Adım:** "Ay" seçimini değiştir; her seçenekte içerik buna göre değişmeli
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-CREATE-ASSESSMENT-02`
 
 #### Y-CREATE-ASSESSMENT-03 · Düğme: Son Ödeme Tarihi
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/finance/assessments/create
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/finance/assessments/create
 - **Adım:** "Son Ödeme Tarihi" öğesine dokun (kaynak satırı 174); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-CREATE-ASSESSMENT-03`
 
 #### Y-CREATE-ASSESSMENT-04 · Düğme: Ekle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/finance/assessments/create
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/finance/assessments/create
 - **Adım:** "Ekle" öğesine dokun (kaynak satırı 193); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-CREATE-ASSESSMENT-04`
 
 #### Y-CREATE-ASSESSMENT-05 · Düğme: Tahakkuk Oluştur
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/finance/assessments/create
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/finance/assessments/create
 - **Adım:** "Tahakkuk Oluştur" öğesine dokun (kaynak satırı 272)
 - **Beklenen (yazma):** `POST /finance/assessments` (finance, `services/finance/main.go:135`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -10625,13 +10626,13 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-CREATE-ASSESSMENT-05`
 
 #### Y-CREATE-ASSESSMENT-06 · Seçim: name / category_name /
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/finance/assessments/create
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/finance/assessments/create
 - **Adım:** "name / category_name /" seçimini değiştir; her seçenekte içerik buna göre değişmeli
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-CREATE-ASSESSMENT-06`
 
 #### Y-CREATE-ASSESSMENT-07 · Düğme: simge düğmesi (satır 426)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/finance/assessments/create
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/finance/assessments/create
 - **Adım:** "simge düğmesi (satır 426)" öğesine dokun (kaynak satırı 426); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-CREATE-ASSESSMENT-07`
@@ -10642,8 +10643,8 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `admin_app/lib/features/finance/presentation/screens/finance_screen.dart`
 
 #### Y-FINANCE-00 · Ekran açılışı ve görünüm
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/finance
-- **Adım:** Ekranı aç: http://localhost:3003/#/finance — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/finance
+- **Adım:** Ekranı aç: http://localhost:3103/#/finance — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /finance/assessments/overview` (finance); `GET /finance/debtors` (finance)
 - **Adım:** Başlık (satır 40): Finans
 - **Adım:** Her sekmeye tıkla, içerik hatasız yüklenir: Dönemler
@@ -10654,7 +10655,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-FINANCE-00`
 
 #### Y-FINANCE-01 · Düğme: Gecikme tazminatı işlet
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/finance
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/finance
 - **Adım:** "Gecikme tazminatı işlet" öğesine dokun (kaynak satırı 43)
 - **Beklenen (yazma):** `POST /finance/late-fees/accrue` (finance, `services/finance/main.go:143`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -10669,25 +10670,25 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-FINANCE-01`
 
 #### Y-FINANCE-02 · Düğme: Ödemeler
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/finance
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/finance
 - **Adım:** "Ödemeler" öğesine dokun (kaynak satırı 44); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-FINANCE-02`
 
 #### Y-FINANCE-03 · Düğme: Tahakkuk
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/finance
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/finance
 - **Adım:** "Tahakkuk" öğesine dokun (kaynak satırı 53); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-FINANCE-03`
 
 #### Y-FINANCE-04 · Düğme: simge düğmesi (satır 62)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/finance
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/finance
 - **Adım:** "simge düğmesi (satır 62)" öğesine dokun (kaynak satırı 62); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-FINANCE-04`
 
 #### Y-FINANCE-05 · Düğme: simge düğmesi (satır 64)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/finance
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/finance
 - **Adım:** "simge düğmesi (satır 64)" öğesine dokun (kaynak satırı 64); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-FINANCE-05`
@@ -10698,8 +10699,8 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `admin_app/lib/features/finance/presentation/screens/finance_tools_screen.dart`
 
 #### Y-FINANCE-TOOLS-00 · Ekran açılışı ve görünüm
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/finance/presentation/screens/finance_tools_screen.dart`)
-- **Adım:** Ekranı aç: http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/finance/presentation/screens/finance_tools_screen.dart`) — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/finance/presentation/screens/finance_tools_screen.dart`)
+- **Adım:** Ekranı aç: http://localhost:3103 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/finance/presentation/screens/finance_tools_screen.dart`) — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /finance/ledger/verify` (finance); `GET /finance/ledger` (finance); `GET /finance/units/:id/open-assessments` (finance); `GET /finance/credit-notes` (finance); `GET /finance/credit-notes/:id/pdf` (finance); `GET /finance/bank-statements` (finance); `GET /finance/payments/pending` (finance); `GET /finance/bank-statements/:id` (finance); `GET /units` (identity); `GET /finance/opening-balances` (finance)
 - **Adım:** Başlık (satır 27): Tahsilat defteri
 - **Adım:** Mesaj (satır 96): Borcu kalan tahakkuk yok
@@ -10711,13 +10712,13 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-FINANCE-TOOLS-00`
 
 #### Y-FINANCE-TOOLS-01 · Düğme: Zinciri doğrula
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/finance/presentation/screens/finance_tools_screen.dart`)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/finance/presentation/screens/finance_tools_screen.dart`)
 - **Adım:** "Zinciri doğrula" öğesine dokun (kaynak satırı 28)
 - **Beklenen (okuma):** `GET /finance/ledger/verify` (finance) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Sonuç:** http://localhost:18000/sonuc → `Y-FINANCE-TOOLS-01`
 
 #### Y-FINANCE-TOOLS-02 · Düğme: Dekont kes
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/finance/presentation/screens/finance_tools_screen.dart`)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/finance/presentation/screens/finance_tools_screen.dart`)
 - **Adım:** "Dekont kes" öğesine dokun (kaynak satırı 119); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /finance/credit-notes` (finance, `services/finance/main.go:148`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -10732,7 +10733,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-FINANCE-TOOLS-02`
 
 #### Y-FINANCE-TOOLS-03 · Düğme: Yükle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/finance/presentation/screens/finance_tools_screen.dart`)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/finance/presentation/screens/finance_tools_screen.dart`)
 - **Adım:** "Yükle" öğesine dokun (kaynak satırı 188); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /finance/bank-statements` (finance, `services/finance/main.go:150`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -10745,13 +10746,13 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-FINANCE-TOOLS-03`
 
 #### Y-FINANCE-TOOLS-04 · Düğme: ${x[
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/finance/presentation/screens/finance_tools_screen.dart`)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/finance/presentation/screens/finance_tools_screen.dart`)
 - **Adım:** "${x[" öğesine dokun (kaynak satırı 193); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-FINANCE-TOOLS-04`
 
 #### Y-FINANCE-TOOLS-05 · Düğme: Devir gir
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/finance/presentation/screens/finance_tools_screen.dart`)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/finance/presentation/screens/finance_tools_screen.dart`)
 - **Adım:** "Devir gir" öğesine dokun (kaynak satırı 352); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /finance/credit-notes` (finance, `services/finance/main.go:148`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -10771,8 +10772,8 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `admin_app/lib/features/finance/presentation/screens/payments_screen.dart`
 
 #### Y-PAYMENTS-00 · Ekran açılışı ve görünüm
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/finance/payments
-- **Adım:** Ekranı aç: http://localhost:3003/#/finance/payments — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/finance/payments
+- **Adım:** Ekranı aç: http://localhost:3103/#/finance/payments — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /finance/payments/:id/receipts` (finance); `GET /finance/payments/:id/receipts/:receiptId/download` (finance); `GET /finance/payments/pending` (finance); `GET /finance/payments` (finance)
 - **Adım:** Başlık (satır 94): Dekontlar — ${p[
 - **Adım:** Başlık (satır 150): Ödemeler
@@ -10783,21 +10784,21 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-PAYMENTS-00`
 
 #### Y-PAYMENTS-01 · Düğme: ${r[
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/finance/payments
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/finance/payments
 - **Adım:** "${r[" öğesine dokun (kaynak satırı 98)
 - **Beklenen (okuma):** `GET /finance/payments/:id/receipts/:receiptId/download` (finance) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Beklenen (dosya):** dosya iner/açılır; boş ya da bozuk değildir (PDF ise sayfalar okunur).
 - **Sonuç:** http://localhost:18000/sonuc → `Y-PAYMENTS-01`
 
 #### Y-PAYMENTS-02 · Düğme: ${p[
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/finance/payments
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/finance/payments
 - **Adım:** "${p[" öğesine dokun (kaynak satırı 132)
 - **Beklenen (okuma):** `GET /finance/payments/:id/receipts` (finance), `GET /finance/payments/:id/receipts/:receiptId/download` (finance) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Beklenen (dosya):** dosya iner/açılır; boş ya da bozuk değildir (PDF ise sayfalar okunur).
 - **Sonuç:** http://localhost:18000/sonuc → `Y-PAYMENTS-02`
 
 #### Y-PAYMENTS-03 · Düğme: Ters kayıt
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/finance/payments
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/finance/payments
 - **Adım:** "Ters kayıt" öğesine dokun (kaynak satırı 133)
 - **Beklenen (yazma):** `POST /finance/payments/:id/reverse` (finance, `services/finance/main.go:139`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -10812,7 +10813,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-PAYMENTS-03`
 
 #### Y-PAYMENTS-04 · Düğme: Reddet
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/finance/payments
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/finance/payments
 - **Adım:** "Reddet" öğesine dokun (kaynak satırı 135); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /finance/payments/:id/reject` (finance, `services/finance/main.go:140`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -10825,7 +10826,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-PAYMENTS-04`
 
 #### Y-PAYMENTS-05 · Düğme: Onayla
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/finance/payments
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/finance/payments
 - **Adım:** "Onayla" öğesine dokun (kaynak satırı 137); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /finance/payments/:id/confirm` (finance, `services/finance/main.go:138`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -10840,7 +10841,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-PAYMENTS-05`
 
 #### Y-PAYMENTS-06 · Düğme: Tahsilat gir
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/finance/payments
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/finance/payments
 - **Adım:** "Tahsilat gir" öğesine dokun (kaynak satırı 162); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-PAYMENTS-06`
@@ -10851,8 +10852,8 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `admin_app/lib/features/governance/presentation/screens/governance_screen.dart`
 
 #### Y-GOVERNANCE-00 · Ekran açılışı ve görünüm
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/governance
-- **Adım:** Ekranı aç: http://localhost:3003/#/governance — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/governance
+- **Adım:** Ekranı aç: http://localhost:3103/#/governance — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /governance/assemblies` (governance); `GET /governance/assemblies/:id` (governance); `GET /governance/budgets` (governance); `GET /governance/budgets/:id/export` (governance); `GET /governance/budgets/:id/export` (governance); `GET /governance/budgets/:id` (governance); `GET /governance/budgets/:id/objections` (governance); `GET /units` (identity); `GET /residents` (identity); `GET /governance/assemblies/:id` (governance); `GET /governance/assemblies/:id/attendees` (governance); `GET /governance/assemblies/:id/quorum` (governance); `GET /governance/assemblies/:id/attendance-sheet` (governance); `GET /governance/assemblies/:id/attendance-sheet` (governance); `GET /governance/books/:id/entries` (governance); `GET /governance/books/:id/verify` (governance); `GET /governance/books/:id/export` (governance); `GET /governance/legal-cases` (governance); `GET /governance/common-area/leases` (governance); `GET /governance/common-area/report` (governance)
 - **Adım:** Başlık (satır 88): Yönetişim (KMK)
 - **Adım:** Her sekmeye tıkla, içerik hatasız yüklenir: İşletme projesi
@@ -10878,19 +10879,19 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-GOVERNANCE-00`
 
 #### Y-GOVERNANCE-01 · Düğme: simge düğmesi (satır 111)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/governance
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/governance
 - **Adım:** "simge düğmesi (satır 111)" öğesine dokun (kaynak satırı 111); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-GOVERNANCE-01`
 
 #### Y-GOVERNANCE-02 · Düğme: ${b[
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/governance
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/governance
 - **Adım:** "${b[" öğesine dokun (kaynak satırı 148); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-GOVERNANCE-02`
 
 #### Y-GOVERNANCE-03 · Düğme: Taslak kaydet
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/governance
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/governance
 - **Adım:** "Taslak kaydet" öğesine dokun (kaynak satırı 224)
 - **Beklenen (yazma):** `POST /governance/budgets` (governance, `services/governance/main.go:89`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -10904,37 +10905,37 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-GOVERNANCE-03`
 
 #### Y-GOVERNANCE-04 · Düğme: simge düğmesi (satır 228)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/governance
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/governance
 - **Adım:** "simge düğmesi (satır 228)" öğesine dokun (kaynak satırı 228); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-GOVERNANCE-04`
 
 #### Y-GOVERNANCE-05 · Düğme: simge düğmesi (satır 230)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/governance
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/governance
 - **Adım:** "simge düğmesi (satır 230)" öğesine dokun (kaynak satırı 230); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-GOVERNANCE-05`
 
 #### Y-GOVERNANCE-06 · Düğme: ${_items[i][
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/governance
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/governance
 - **Adım:** "${_items[i][" öğesine dokun (kaynak satırı 236); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-GOVERNANCE-06`
 
 #### Y-GOVERNANCE-07 · Düğme: simge düğmesi (satır 240)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/governance
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/governance
 - **Adım:** "simge düğmesi (satır 240)" öğesine dokun (kaynak satırı 240); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-GOVERNANCE-07`
 
 #### Y-GOVERNANCE-08 · Düğme: Kalem
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/governance
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/governance
 - **Adım:** "Kalem" öğesine dokun (kaynak satırı 242); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-GOVERNANCE-08`
 
 #### Y-GOVERNANCE-09 · Düğme: Geçici proje olarak bildir
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/governance
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/governance
 - **Adım:** "Geçici proje olarak bildir" öğesine dokun (kaynak satırı 342)
 - **Beklenen (yazma):** `POST /governance/budgets/:id/notify` (governance, `services/governance/main.go:90`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -10946,7 +10947,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-GOVERNANCE-09`
 
 #### Y-GOVERNANCE-10 · Düğme: Genel kurul kararıyla kesinleştir
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/governance
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/governance
 - **Adım:** "Genel kurul kararıyla kesinleştir" öğesine dokun (kaynak satırı 343)
 - **Beklenen (yazma):** `POST /governance/budgets/:id/finalize` (governance, `services/governance/main.go:91`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -10958,7 +10959,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-GOVERNANCE-10`
 
 #### Y-GOVERNANCE-11 · Düğme: Aylık aidat tahakkuk et
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/governance
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/governance
 - **Adım:** "Aylık aidat tahakkuk et" öğesine dokun (kaynak satırı 344)
 - **Beklenen (yazma):** `POST /governance/budgets/:id/assessments` (governance, `services/governance/main.go:92`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -10974,13 +10975,13 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-GOVERNANCE-11`
 
 #### Y-GOVERNANCE-12 · Düğme: ${formatDateTime(a[
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/governance
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/governance
 - **Adım:** "${formatDateTime(a[" öğesine dokun (kaynak satırı 427); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-GOVERNANCE-12`
 
 #### Y-GOVERNANCE-13 · Düğme: Kaydet
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/governance
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/governance
 - **Adım:** "Kaydet" öğesine dokun (kaynak satırı 501)
 - **Beklenen (yazma):** `POST /governance/budgets` (governance, `services/governance/main.go:89`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -10994,31 +10995,31 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-GOVERNANCE-13`
 
 #### Y-GOVERNANCE-14 · Düğme: Toplantı bilgisi / ${h[ / ] ==  /  ?  /  :  / } · ${h[ / ]}. toplantı
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/governance
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/governance
 - **Adım:** "Toplantı bilgisi / ${h[ / ] ==  /  ?  /  :  / } · ${h[ / ]}. toplantı" öğesine dokun (kaynak satırı 503); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-GOVERNANCE-14`
 
 #### Y-GOVERNANCE-15 · Düğme: simge düğmesi (satır 515)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/governance
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/governance
 - **Adım:** "simge düğmesi (satır 515)" öğesine dokun (kaynak satırı 515); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-GOVERNANCE-15`
 
 #### Y-GOVERNANCE-16 · Düğme: Madde
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/governance
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/governance
 - **Adım:** "Madde" öğesine dokun (kaynak satırı 517); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-GOVERNANCE-16`
 
 #### Y-GOVERNANCE-17 · Düğme: Tamam
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/governance
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/governance
 - **Adım:** "Tamam" öğesine dokun (kaynak satırı 576); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-GOVERNANCE-17`
 
 #### Y-GOVERNANCE-18 · Düğme: Çağrıyı kaydet
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/governance
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/governance
 - **Adım:** "Çağrıyı kaydet" öğesine dokun (kaynak satırı 619)
 - **Beklenen (yazma):** `POST /governance/assemblies/:id/notify` (governance, `services/governance/main.go:96`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -11030,7 +11031,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-GOVERNANCE-18`
 
 #### Y-GOVERNANCE-19 · Düğme: Hazirune ekle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/governance
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/governance
 - **Adım:** "Hazirune ekle" öğesine dokun (kaynak satırı 629)
 - **Beklenen (yazma):** `POST /governance/assemblies/:id/attendees` (governance, `services/governance/main.go:97`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -11042,7 +11043,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-GOVERNANCE-19`
 
 #### Y-GOVERNANCE-20 · Düğme: Toplantıyı yap
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/governance
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/governance
 - **Adım:** "Toplantıyı yap" öğesine dokun (kaynak satırı 631)
 - **Beklenen (yazma):** `POST /governance/assemblies/:id/hold` (governance, `services/governance/main.go:98`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -11054,43 +11055,43 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-GOVERNANCE-20`
 
 #### Y-GOVERNANCE-21 · Düğme: Cetvel PDF
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/governance
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/governance
 - **Adım:** "Cetvel PDF" öğesine dokun (kaynak satırı 659)
 - **Beklenen (okuma):** `GET /governance/assemblies/:id/attendance-sheet` (governance) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Sonuç:** http://localhost:18000/sonuc → `Y-GOVERNANCE-21`
 
 #### Y-GOVERNANCE-22 · Düğme: Excel
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/governance
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/governance
 - **Adım:** "Excel" öğesine dokun (kaynak satırı 660)
 - **Beklenen (okuma):** `GET /governance/assemblies/:id/attendance-sheet` (governance) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Sonuç:** http://localhost:18000/sonuc → `Y-GOVERNANCE-22`
 
 #### Y-GOVERNANCE-23 · Seçim: Karar defteri
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/governance
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/governance
 - **Adım:** "Karar defteri" seçimini değiştir; her seçenekte içerik buna göre değişmeli
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-GOVERNANCE-23`
 
 #### Y-GOVERNANCE-24 · Düğme: simge düğmesi (satır 717)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/governance
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/governance
 - **Adım:** "simge düğmesi (satır 717)" öğesine dokun (kaynak satırı 717); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-GOVERNANCE-24`
 
 #### Y-GOVERNANCE-25 · Düğme: simge düğmesi (satır 719)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/governance
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/governance
 - **Adım:** "simge düğmesi (satır 719)" öğesine dokun (kaynak satırı 719); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-GOVERNANCE-25`
 
 #### Y-GOVERNANCE-26 · Düğme: simge düğmesi (satır 895)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/governance
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/governance
 - **Adım:** "simge düğmesi (satır 895)" öğesine dokun (kaynak satırı 895); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-GOVERNANCE-26`
 
 #### Y-GOVERNANCE-27 · Düğme: simge düğmesi (satır 897)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/governance
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/governance
 - **Adım:** "simge düğmesi (satır 897)" öğesine dokun (kaynak satırı 897); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-GOVERNANCE-27`
@@ -11101,8 +11102,8 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `admin_app/lib/features/insurance/presentation/screens/insurance_screen.dart`
 
 #### Y-INSURANCE-00 · Ekran açılışı ve görünüm
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/insurance
-- **Adım:** Ekranı aç: http://localhost:3003/#/insurance — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/insurance
+- **Adım:** Ekranı aç: http://localhost:3103/#/insurance — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /insurance/dask` (contract); `GET /insurance/claims` (contract)
 - **Adım:** Başlık (satır 39): Sigorta
 - **Adım:** Her sekmeye tıkla, içerik hatasız yüklenir: DASK
@@ -11112,7 +11113,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-INSURANCE-00`
 
 #### Y-INSURANCE-01 · Düğme: Poliçe gir
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/insurance
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/insurance
 - **Adım:** "Poliçe gir" öğesine dokun (kaynak satırı 62)
 - **Beklenen (yazma):** `POST /insurance/dask` (contract, `services/contract/main.go:71`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: BOARD_MEMBER/MANAGER
@@ -11124,7 +11125,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-INSURANCE-01`
 
 #### Y-INSURANCE-02 · Düğme: Hasar kaydet
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/insurance
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/insurance
 - **Adım:** "Hasar kaydet" öğesine dokun (kaynak satırı 94)
 - **Beklenen (yazma):** `POST /insurance/claims` (contract, `services/contract/main.go:114`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -11136,7 +11137,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-INSURANCE-02`
 
 #### Y-INSURANCE-03 · Düğme: İlerlet
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/insurance
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/insurance
 - **Adım:** "İlerlet" öğesine dokun (kaynak satırı 121)
 - **Beklenen (yazma):** `POST /insurance/claims/:id/status` (contract, `services/contract/main.go:115`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -11153,8 +11154,8 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `admin_app/lib/features/inventory/presentation/screens/inventory_management_screen.dart`
 
 #### Y-INVENTORY-MANAGEMENT-00 · Ekran açılışı ve görünüm
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/inventory
-- **Adım:** Ekranı aç: http://localhost:3003/#/inventory — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/inventory
+- **Adım:** Ekranı aç: http://localhost:3103/#/inventory — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /inventory-categories` (inventory); `GET /inventory-movements` (inventory); `GET /inventory` (inventory); `GET /inventory-summary` (inventory); `GET /inventory/:id/movements` (inventory)
 - **Adım:** Pencere (satır 67): ${item[
 - **Adım:** Alan (satır 74): Hareket
@@ -11166,31 +11167,31 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-INVENTORY-MANAGEMENT-00`
 
 #### Y-INVENTORY-MANAGEMENT-01 · Seçim: Giriş
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/inventory
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/inventory
 - **Adım:** "Giriş" seçimini değiştir; her seçenekte içerik buna göre değişmeli
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-INVENTORY-MANAGEMENT-01`
 
 #### Y-INVENTORY-MANAGEMENT-02 · Düğme: Vazgeç
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/inventory
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/inventory
 - **Adım:** "Vazgeç" öğesine dokun (kaynak satırı 96); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-INVENTORY-MANAGEMENT-02`
 
 #### Y-INVENTORY-MANAGEMENT-03 · Düğme: Kaydet
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/inventory
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/inventory
 - **Adım:** "Kaydet" öğesine dokun (kaynak satırı 97); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-INVENTORY-MANAGEMENT-03`
 
 #### Y-INVENTORY-MANAGEMENT-04 · Düğme: Son hareketler
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/inventory
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/inventory
 - **Adım:** "Son hareketler" öğesine dokun (kaynak satırı 125)
 - **Beklenen (okuma):** `GET /inventory-movements` (inventory) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Sonuç:** http://localhost:18000/sonuc → `Y-INVENTORY-MANAGEMENT-04`
 
 #### Y-INVENTORY-MANAGEMENT-05 · Düğme: Kategori ekle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/inventory
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/inventory
 - **Adım:** "Kategori ekle" öğesine dokun (kaynak satırı 130)
 - **Beklenen (yazma):** `POST /inventory-categories` (inventory, `services/inventory/main.go:179`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -11202,7 +11203,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-INVENTORY-MANAGEMENT-05`
 
 #### Y-INVENTORY-MANAGEMENT-06 · Düğme: Kalem
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/inventory
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/inventory
 - **Adım:** "Kalem" öğesine dokun (kaynak satırı 133)
 - **Beklenen (yazma):** `POST /inventory` (inventory, `services/inventory/main.go:197`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -11219,8 +11220,8 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `admin_app/lib/features/kvkk/presentation/screens/kvkk_requests_screen.dart`
 
 #### Y-KVKK-REQUESTS-00 · Ekran açılışı ve görünüm
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/kvkk
-- **Adım:** Ekranı aç: http://localhost:3003/#/kvkk — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/kvkk
+- **Adım:** Ekranı aç: http://localhost:3103/#/kvkk — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /kvkk-requests` (community)
 - **Adım:** Başlık (satır 37): KVKK başvuruları
 - **Adım:** Aşağı çekerek yenile (varsa) ya da ekrana yeniden gir: aynı veri gelir
@@ -11228,7 +11229,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-KVKK-REQUESTS-00`
 
 #### Y-KVKK-REQUESTS-01 · Düğme: Yanıtla
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/kvkk
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/kvkk
 - **Adım:** "Yanıtla" öğesine dokun (kaynak satırı 54)
 - **Beklenen (yazma):** `POST /kvkk-requests/:id/respond` (community, `services/community/kvkk.go:99`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -11248,8 +11249,8 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `admin_app/lib/features/main/presentation/screens/main_screen.dart`
 
 #### Y-MAIN-00 · Ekran açılışı ve görünüm
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/main/presentation/screens/main_screen.dart`)
-- **Adım:** Ekranı aç: http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/main/presentation/screens/main_screen.dart`) — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/main/presentation/screens/main_screen.dart`)
+- **Adım:** Ekranı aç: http://localhost:3103 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/main/presentation/screens/main_screen.dart`) — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /notifications/unread-count` (notification); `GET /users/me/properties` (identity)
 - **Adım:** Pencere (satır 201): Uygulamadan çık
 - **Adım:** Aşağı çekerek yenile (varsa) ya da ekrana yeniden gir: aynı veri gelir
@@ -11257,25 +11258,25 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-MAIN-00`
 
 #### Y-MAIN-01 · Düğme: Vazgeç
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/main/presentation/screens/main_screen.dart`)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/main/presentation/screens/main_screen.dart`)
 - **Adım:** "Vazgeç" öğesine dokun (kaynak satırı 205); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-MAIN-01`
 
 #### Y-MAIN-02 · Düğme: Çık
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/main/presentation/screens/main_screen.dart`)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/main/presentation/screens/main_screen.dart`)
 - **Adım:** "Çık" öğesine dokun (kaynak satırı 206); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-MAIN-02`
 
 #### Y-MAIN-03 · Düğme: simge düğmesi (satır 267)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/main/presentation/screens/main_screen.dart`)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/main/presentation/screens/main_screen.dart`)
 - **Adım:** "simge düğmesi (satır 267)" öğesine dokun (kaynak satırı 267); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-MAIN-03`
 
 #### Y-MAIN-04 · Düğme: Şifre Değiştir
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/main/presentation/screens/main_screen.dart`)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/main/presentation/screens/main_screen.dart`)
 - **Adım:** "Şifre Değiştir" öğesine dokun (kaynak satırı 282); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /users/me/password` (identity, `services/identity/main.go:106`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: oturum açmış herkes (site kapsamı)
@@ -11287,7 +11288,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-MAIN-04`
 
 #### Y-MAIN-05 · Düğme: Çıkış Yap
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/main/presentation/screens/main_screen.dart`)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/main/presentation/screens/main_screen.dart`)
 - **Adım:** "Çıkış Yap" öğesine dokun (kaynak satırı 290); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /auth/logout` (identity, `services/identity/main.go:91`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: oturum açmış herkes (site kapsamı)
@@ -11298,7 +11299,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-MAIN-05`
 
 #### Y-MAIN-06 · Düğme: Çıkış yap
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/main/presentation/screens/main_screen.dart`)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/main/presentation/screens/main_screen.dart`)
 - **Adım:** "Çıkış yap" öğesine dokun (kaynak satırı 329); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /auth/logout` (identity, `services/identity/main.go:91`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: oturum açmış herkes (site kapsamı)
@@ -11314,8 +11315,8 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `admin_app/lib/features/meters/presentation/screens/meter_reading_screen.dart`
 
 #### Y-METER-READING-00 · Ekran açılışı ve görünüm
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/meters/reading
-- **Adım:** Ekranı aç: http://localhost:3003/#/meters/reading — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/meters/reading
+- **Adım:** Ekranı aç: http://localhost:3103/#/meters/reading — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /meters` (iot)
 - **Adım:** Mesaj (satır 75): $ok / ${entries.length} okuma kaydedildi
 - **Adım:** Başlık (satır 81): Sayaç Okuma
@@ -11325,13 +11326,13 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-METER-READING-00`
 
 #### Y-METER-READING-01 · Düğme: simge düğmesi (satır 84)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/meters/reading
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/meters/reading
 - **Adım:** "simge düğmesi (satır 84)" öğesine dokun (kaynak satırı 84); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-METER-READING-01`
 
 #### Y-METER-READING-02 · Düğme: Kaydediliyor… / Girilen okumaları kaydet
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/meters/reading
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/meters/reading
 - **Adım:** "Kaydediliyor… / Girilen okumaları kaydet" öğesine dokun (kaynak satırı 97)
 - **Beklenen (yazma):** `POST /meter-readings` (iot, `services/iot/main.go:161`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER/STAFF
@@ -11348,8 +11349,8 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `admin_app/lib/features/meters/presentation/screens/meters_screen.dart`
 
 #### Y-METERS-00 · Ekran açılışı ve görünüm
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/meters
-- **Adım:** Ekranı aç: http://localhost:3003/#/meters — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/meters
+- **Adım:** Ekranı aç: http://localhost:3103/#/meters — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /meters` (iot); `GET /meter-readings` (iot); `GET /consumption/statements` (iot); `GET /consumption/statements/:id/pdf` (iot); `GET /consumption/objections` (iot); `GET /consumption/area-check` (iot)
 - **Adım:** Başlık (satır 85): Sayaçlar
 - **Adım:** Her sekmeye tıkla, içerik hatasız yüklenir: Sayaçlar
@@ -11362,7 +11363,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-METERS-00`
 
 #### Y-METERS-01 · Düğme: Sayaç ekle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/meters
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/meters
 - **Adım:** "Sayaç ekle" öğesine dokun (kaynak satırı 87)
 - **Beklenen (yazma):** `POST /meters` (iot, `services/iot/main.go:188`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -11374,20 +11375,20 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-METERS-01`
 
 #### Y-METERS-02 · Düğme: Okuma gir
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/meters
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/meters
 - **Adım:** "Okuma gir" öğesine dokun (kaynak satırı 90); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-METERS-02`
 
 #### Y-METERS-03 · Düğme: PDF
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/meters
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/meters
 - **Adım:** "PDF" öğesine dokun (kaynak satırı 164)
 - **Beklenen (okuma):** `GET /consumption/statements/:id/pdf` (iot) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Yetki (olumsuz):** Kullanım kuralı (`resident_can_use`): kiracılı dairede (A-4) işlemi KİRACI yapar; MALİK_A4 ile denenince reddedilmeli.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-METERS-03`
 
 #### Y-METERS-04 · Düğme: Yanıtla
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/meters
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/meters
 - **Adım:** "Yanıtla" öğesine dokun (kaynak satırı 184)
 - **Beklenen (yazma):** `POST /consumption/objections/:id/respond` (iot, `services/iot/main.go:473`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -11402,7 +11403,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-METERS-04`
 
 #### Y-METERS-05 · Düğme: Hesapla / yayımla
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/meters
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/meters
 - **Adım:** "Hesapla / yayımla" öğesine dokun (kaynak satırı 273); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /consumption/allocate` (iot, `services/iot/main.go:239`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -11420,8 +11421,8 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `admin_app/lib/features/notifications/presentation/screens/inbox_screen.dart`
 
 #### Y-INBOX-00 · Ekran açılışı ve görünüm
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/inbox
-- **Adım:** Ekranı aç: http://localhost:3003/#/inbox — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/inbox
+- **Adım:** Ekranı aç: http://localhost:3103/#/inbox — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /notifications` (notification)
 - **Adım:** Başlık (satır 27): Bildirimlerim
 - **Adım:** Aşağı çekerek yenile (varsa) ya da ekrana yeniden gir: aynı veri gelir
@@ -11429,7 +11430,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-INBOX-00`
 
 #### Y-INBOX-01 · Düğme: Tümünü okundu say
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/inbox
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/inbox
 - **Adım:** "Tümünü okundu say" öğesine dokun (kaynak satırı 30)
 - **Beklenen (yazma):** `POST /notifications/read-all` (notification, `services/notification/main.go:97`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: oturum açmış herkes (site kapsamı)
@@ -11441,7 +11442,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-INBOX-01`
 
 #### Y-INBOX-02 · Düğme: ${n[
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/inbox
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/inbox
 - **Adım:** "${n[" öğesine dokun (kaynak satırı 62); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-INBOX-02`
@@ -11452,8 +11453,8 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `admin_app/lib/features/notifications/presentation/screens/notification_center_screen.dart`
 
 #### Y-NOTIFICATION-CENTER-00 · Ekran açılışı ve görünüm
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/notification-center
-- **Adım:** Ekranı aç: http://localhost:3003/#/notification-center — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/notification-center
+- **Adım:** Ekranı aç: http://localhost:3103/#/notification-center — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /residents` (identity); `GET /notifications/outbox` (notification); `GET /notifications/summary` (notification); `GET /notification-preferences` (notification)
 - **Adım:** Başlık (satır 53): Bildirim merkezi
 - **Adım:** Her sekmeye tıkla, içerik hatasız yüklenir: Giden kutusu
@@ -11463,7 +11464,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-NOTIFICATION-CENTER-00`
 
 #### Y-NOTIFICATION-CENTER-01 · Düğme: Gönder
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/notification-center
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/notification-center
 - **Adım:** "Gönder" öğesine dokun (kaynak satırı 57)
 - **Beklenen (yazma):** `POST /notifications` (notification, `services/notification/main.go:158`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -11479,8 +11480,8 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `admin_app/lib/features/nps/presentation/screens/nps_screen.dart`
 
 #### Y-NPS-00 · Ekran açılışı ve görünüm
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/nps
-- **Adım:** Ekranı aç: http://localhost:3003/#/nps — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/nps
+- **Adım:** Ekranı aç: http://localhost:3103/#/nps — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /nps` (nps); `GET /nps/:id/comments` (nps); `GET /nps/:id` (nps)
 - **Adım:** Başlık (satır 33): Memnuniyet (NPS)
 - **Adım:** Başlık (satır 80): (dinamik)
@@ -11489,7 +11490,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-NPS-00`
 
 #### Y-NPS-01 · Düğme: Ölçüm
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/nps
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/nps
 - **Adım:** "Ölçüm" öğesine dokun (kaynak satırı 35)
 - **Beklenen (yazma):** `POST /nps` (nps, `services/nps/main.go:159`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -11502,7 +11503,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-NPS-01`
 
 #### Y-NPS-02 · Düğme: ${s[
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/nps
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/nps
 - **Adım:** "${s[" öğesine dokun (kaynak satırı 52); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-NPS-02`
@@ -11513,8 +11514,8 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `admin_app/lib/features/packages/presentation/screens/package_tracking_screen.dart`
 
 #### Y-PACKAGE-TRACKING-00 · Ekran açılışı ve görünüm
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/packages
-- **Adım:** Ekranı aç: http://localhost:3003/#/packages — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/packages
+- **Adım:** Ekranı aç: http://localhost:3103/#/packages — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /packages-summary` (package); `GET /packages` (package); `GET /packages/:id/proof/:kind` (package); `GET /packages/:id/proof/:kind` (package); `GET /units` (identity)
 - **Adım:** Başlık (satır 37): Kargo
 - **Adım:** Pencere (satır 157): Kargo kabul
@@ -11529,7 +11530,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-PACKAGE-TRACKING-00`
 
 #### Y-PACKAGE-TRACKING-01 · Düğme: Kargo kabul
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/packages
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/packages
 - **Adım:** "Kargo kabul" öğesine dokun (kaynak satırı 48); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /packages` (package, `services/package/main.go:133`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER/STAFF
@@ -11545,7 +11546,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-PACKAGE-TRACKING-01`
 
 #### Y-PACKAGE-TRACKING-02 · Düğme: Menü: Sakine haber verildi
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/packages
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/packages
 - **Adım:** "Menü: Sakine haber verildi" öğesine dokun (kaynak satırı 124)
 - **Beklenen (yazma):** `POST /packages/:id/deliver` (package, `services/package/main.go:187`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER/STAFF
@@ -11572,7 +11573,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-PACKAGE-TRACKING-02`
 
 #### Y-PACKAGE-TRACKING-03 · Düğme: Menü: Teslim et
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/packages
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/packages
 - **Adım:** "Menü: Teslim et" öğesine dokun (kaynak satırı 125)
 - **Beklenen (yazma):** `POST /packages/:id/deliver` (package, `services/package/main.go:187`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER/STAFF
@@ -11599,7 +11600,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-PACKAGE-TRACKING-03`
 
 #### Y-PACKAGE-TRACKING-04 · Düğme: Menü: İade et
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/packages
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/packages
 - **Adım:** "Menü: İade et" öğesine dokun (kaynak satırı 126)
 - **Beklenen (yazma):** `POST /packages/:id/deliver` (package, `services/package/main.go:187`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER/STAFF
@@ -11626,25 +11627,25 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-PACKAGE-TRACKING-04`
 
 #### Y-PACKAGE-TRACKING-05 · Seçim: ${u[
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/packages
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/packages
 - **Adım:** "${u[" seçimini değiştir; her seçenekte içerik buna göre değişmeli
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-PACKAGE-TRACKING-05`
 
 #### Y-PACKAGE-TRACKING-06 · Seçim: Paket
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/packages
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/packages
 - **Adım:** "Paket" seçimini değiştir; her seçenekte içerik buna göre değişmeli
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-PACKAGE-TRACKING-06`
 
 #### Y-PACKAGE-TRACKING-07 · Düğme: Vazgeç
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/packages
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/packages
 - **Adım:** "Vazgeç" öğesine dokun (kaynak satırı 192); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-PACKAGE-TRACKING-07`
 
 #### Y-PACKAGE-TRACKING-08 · Düğme: Kaydet
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/packages
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/packages
 - **Adım:** "Kaydet" öğesine dokun (kaynak satırı 193); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-PACKAGE-TRACKING-08`
@@ -11655,8 +11656,8 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `admin_app/lib/features/parking/presentation/screens/parking_management_screen.dart`
 
 #### Y-PARKING-MANAGEMENT-00 · Ekran açılışı ve görünüm
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/parking
-- **Adım:** Ekranı aç: http://localhost:3003/#/parking — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/parking
+- **Adım:** Ekranı aç: http://localhost:3103/#/parking — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /parking-logs` (parking); `GET /vehicles` (parking); `GET /parking-zones` (parking); `GET /access-devices` (parking); `GET /vehicles/plate/:plate` (parking); `GET /access-devices/incidents` (parking)
 - **Adım:** Başlık (satır 49): Otopark
 - **Adım:** Her sekmeye tıkla, içerik hatasız yüklenir: İçeride
@@ -11671,13 +11672,13 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-PARKING-MANAGEMENT-00`
 
 #### Y-PARKING-MANAGEMENT-01 · Düğme: Plaka sorgula
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/parking
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/parking
 - **Adım:** "Plaka sorgula" öğesine dokun (kaynak satırı 51); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (okuma):** `GET /vehicles/plate/:plate` (parking) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Sonuç:** http://localhost:18000/sonuc → `Y-PARKING-MANAGEMENT-01`
 
 #### Y-PARKING-MANAGEMENT-02 · Düğme: Giriş
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/parking
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/parking
 - **Adım:** "Giriş" öğesine dokun (kaynak satırı 54); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /parking-logs/entry` (parking, `services/parking/main.go:145`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER/STAFF
@@ -11689,7 +11690,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-PARKING-MANAGEMENT-02`
 
 #### Y-PARKING-MANAGEMENT-03 · Düğme: Çıkış
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/parking
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/parking
 - **Adım:** "Çıkış" öğesine dokun (kaynak satırı 68)
 - **Beklenen (yazma):** `POST /parking-logs/:id/exit` (parking, `services/parking/main.go:184`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER/STAFF
@@ -11701,7 +11702,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-PARKING-MANAGEMENT-03`
 
 #### Y-PARKING-MANAGEMENT-04 · Düğme: Araç kaydet
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/parking
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/parking
 - **Adım:** "Araç kaydet" öğesine dokun (kaynak satırı 84)
 - **Beklenen (yazma):** `POST /vehicles` (parking, `services/parking/main.go:71`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: `resident_can_use`
@@ -11714,7 +11715,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-PARKING-MANAGEMENT-04`
 
 #### Y-PARKING-MANAGEMENT-05 · Düğme: Cihaz ekle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/parking
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/parking
 - **Adım:** "Cihaz ekle" öğesine dokun (kaynak satırı 129); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /access-devices` (parking, `services/parking/devices.go:86`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -11726,25 +11727,25 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-PARKING-MANAGEMENT-05`
 
 #### Y-PARKING-MANAGEMENT-06 · Düğme: Çevrimdışı olayları
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/parking
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/parking
 - **Adım:** "Çevrimdışı olayları" öğesine dokun (kaynak satırı 132); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-PARKING-MANAGEMENT-06`
 
 #### Y-PARKING-MANAGEMENT-07 · Düğme: Tamam
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/parking
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/parking
 - **Adım:** "Tamam" öğesine dokun (kaynak satırı 195); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-PARKING-MANAGEMENT-07`
 
 #### Y-PARKING-MANAGEMENT-08 · Düğme: Kopyala
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/parking
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/parking
 - **Adım:** "Kopyala" öğesine dokun (kaynak satırı 242); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-PARKING-MANAGEMENT-08`
 
 #### Y-PARKING-MANAGEMENT-09 · Düğme: Tamam
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/parking
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/parking
 - **Adım:** "Tamam" öğesine dokun (kaynak satırı 243); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-PARKING-MANAGEMENT-09`
@@ -11755,8 +11756,8 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `admin_app/lib/features/patrol/presentation/screens/checkpoint_setup_screen.dart`
 
 #### Y-CHECKPOINT-SETUP-00 · Ekran açılışı ve görünüm
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/patrol/points
-- **Adım:** Ekranı aç: http://localhost:3003/#/patrol/points — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/patrol/points
+- **Adım:** Ekranı aç: http://localhost:3103/#/patrol/points — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /patrol-checkpoints` (patrol)
 - **Adım:** Mesaj (satır 25): Konum ölçülüyor…
 - **Adım:** Mesaj (satır 30): Sahte konum algılandı; kaydedilmedi.
@@ -11767,19 +11768,19 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-CHECKPOINT-SETUP-00`
 
 #### Y-CHECKPOINT-SETUP-01 · Düğme: Kopyala
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/patrol/points
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/patrol/points
 - **Adım:** "Kopyala" öğesine dokun (kaynak satırı 87); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-CHECKPOINT-SETUP-01`
 
 #### Y-CHECKPOINT-SETUP-02 · Düğme: Tamam
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/patrol/points
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/patrol/points
 - **Adım:** "Tamam" öğesine dokun (kaynak satırı 88); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-CHECKPOINT-SETUP-02`
 
 #### Y-CHECKPOINT-SETUP-03 · Düğme: Tur tanımla
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/patrol/points
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/patrol/points
 - **Adım:** "Tur tanımla" öğesine dokun (kaynak satırı 134)
 - **Beklenen (yazma):** `POST /patrol-routes` (patrol, `services/patrol/main.go:236`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -11791,7 +11792,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-CHECKPOINT-SETUP-03`
 
 #### Y-CHECKPOINT-SETUP-04 · Düğme: Nokta
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/patrol/points
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/patrol/points
 - **Adım:** "Nokta" öğesine dokun (kaynak satırı 136)
 - **Beklenen (yazma):** `POST /patrol-checkpoints` (patrol, `services/patrol/main.go:207`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -11803,7 +11804,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-CHECKPOINT-SETUP-04`
 
 #### Y-CHECKPOINT-SETUP-05 · Düğme: Menü: Konumu buradan al
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/patrol/points
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/patrol/points
 - **Adım:** "Menü: Konumu buradan al" öğesine dokun (kaynak satırı 162)
 - **Beklenen (yazma):** `POST /patrol-checkpoints/:id/location` (patrol, `services/patrol/gps.go:100`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -11815,7 +11816,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-CHECKPOINT-SETUP-05`
 
 #### Y-CHECKPOINT-SETUP-06 · Düğme: Menü: Yarıçap
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/patrol/points
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/patrol/points
 - **Adım:** "Menü: Yarıçap" öğesine dokun (kaynak satırı 163)
 - **Beklenen (yazma):** `PATCH /patrol-checkpoints/:id` (patrol, `services/patrol/gps.go:99`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -11827,7 +11828,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-CHECKPOINT-SETUP-06`
 
 #### Y-CHECKPOINT-SETUP-07 · Düğme: Menü: Konum denetimini aç / Konumdan muaf tut
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/patrol/points
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/patrol/points
 - **Adım:** "Menü: Konum denetimini aç / Konumdan muaf tut" öğesine dokun (kaynak satırı 164)
 - **Beklenen (yazma):** `PATCH /patrol-checkpoints/:id` (patrol, `services/patrol/gps.go:99`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -11839,7 +11840,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-CHECKPOINT-SETUP-07`
 
 #### Y-CHECKPOINT-SETUP-08 · Düğme: Menü: QR yenile
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/patrol/points
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/patrol/points
 - **Adım:** "Menü: QR yenile" öğesine dokun (kaynak satırı 165)
 - **Beklenen (yazma):** `POST /patrol-checkpoints/:id/rotate-qr` (patrol, `services/patrol/gps.go:101`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -11856,8 +11857,8 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `admin_app/lib/features/patrol/presentation/screens/patrol_control_screen.dart`
 
 #### Y-PATROL-CONTROL-00 · Ekran açılışı ve görünüm
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/patrol
-- **Adım:** Ekranı aç: http://localhost:3003/#/patrol — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/patrol
+- **Adım:** Ekranı aç: http://localhost:3103/#/patrol — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /patrols` (patrol); `GET /patrols-summary` (patrol); `GET /patrol-routes` (patrol)
 - **Adım:** Başlık (satır 29): Devriye
 - **Adım:** Her sekmeye tıkla, içerik hatasız yüklenir: Turlar
@@ -11867,19 +11868,19 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-PATROL-CONTROL-00`
 
 #### Y-PATROL-CONTROL-01 · Düğme: Devriye yürüt
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/patrol
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/patrol
 - **Adım:** "Devriye yürüt" öğesine dokun (kaynak satırı 32); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-PATROL-CONTROL-01`
 
 #### Y-PATROL-CONTROL-02 · Düğme: Raporlar
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/patrol
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/patrol
 - **Adım:** "Raporlar" öğesine dokun (kaynak satırı 33); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-PATROL-CONTROL-02`
 
 #### Y-PATROL-CONTROL-03 · Düğme: Nokta kurulumu
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/patrol
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/patrol
 - **Adım:** "Nokta kurulumu" öğesine dokun (kaynak satırı 34); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-PATROL-CONTROL-03`
@@ -11890,8 +11891,8 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `admin_app/lib/features/patrol/presentation/screens/patrol_report_screen.dart`
 
 #### Y-PATROL-REPORT-00 · Ekran açılışı ve görünüm
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/patrol/reports
-- **Adım:** Ekranı aç: http://localhost:3003/#/patrol/reports — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/patrol/reports
+- **Adım:** Ekranı aç: http://localhost:3103/#/patrol/reports — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /patrol-reports` (patrol); `GET /patrols/:id/report` (patrol)
 - **Adım:** Başlık (satır 35): Devriye raporları
 - **Adım:** Başlık (satır 88): Tur raporu
@@ -11900,7 +11901,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-PATROL-REPORT-00`
 
 #### Y-PATROL-REPORT-01 · Düğme: ${p[
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/patrol/reports
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/patrol/reports
 - **Adım:** "${p[" öğesine dokun (kaynak satırı 66); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-PATROL-REPORT-01`
@@ -11911,8 +11912,8 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `admin_app/lib/features/patrol/presentation/screens/patrol_run_screen.dart`
 
 #### Y-PATROL-RUN-00 · Ekran açılışı ve görünüm
-- **Hesap:** GÖREVLİ · **Nerede:** http://localhost:3003/#/patrol/run
-- **Adım:** Ekranı aç: http://localhost:3003/#/patrol/run — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** GÖREVLİ · **Nerede:** http://localhost:3103/#/patrol/run
+- **Adım:** Ekranı aç: http://localhost:3103/#/patrol/run — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /patrol-routes` (patrol); `GET /patrol-checkpoints` (patrol); `GET /patrols` (patrol)
 - **Adım:** Mesaj (satır 134): $e
 - **Adım:** Mesaj (satır 151): $e
@@ -11923,13 +11924,13 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-PATROL-RUN-00`
 
 #### Y-PATROL-RUN-01 · Düğme: ${_points[
-- **Hesap:** GÖREVLİ · **Nerede:** http://localhost:3003/#/patrol/run
+- **Hesap:** GÖREVLİ · **Nerede:** http://localhost:3103/#/patrol/run
 - **Adım:** "${_points[" öğesine dokun (kaynak satırı 191); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-PATROL-RUN-01`
 
 #### Y-PATROL-RUN-02 · Düğme: QR okut
-- **Hesap:** GÖREVLİ · **Nerede:** http://localhost:3003/#/patrol/run
+- **Hesap:** GÖREVLİ · **Nerede:** http://localhost:3103/#/patrol/run
 - **Adım:** "QR okut" öğesine dokun (kaynak satırı 253)
 - **Beklenen (yazma):** `POST /patrols/:id/scan` (patrol, `services/patrol/gps.go:89`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER/STAFF
@@ -11942,7 +11943,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-PATROL-RUN-02`
 
 #### Y-PATROL-RUN-03 · Düğme: Listeden seç
-- **Hesap:** GÖREVLİ · **Nerede:** http://localhost:3003/#/patrol/run
+- **Hesap:** GÖREVLİ · **Nerede:** http://localhost:3103/#/patrol/run
 - **Adım:** "Listeden seç" öğesine dokun (kaynak satırı 260); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /patrols/:id/scan` (patrol, `services/patrol/gps.go:89`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER/STAFF
@@ -11955,7 +11956,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-PATROL-RUN-03`
 
 #### Y-PATROL-RUN-04 · Düğme: Sorun bildir
-- **Hesap:** GÖREVLİ · **Nerede:** http://localhost:3003/#/patrol/run
+- **Hesap:** GÖREVLİ · **Nerede:** http://localhost:3103/#/patrol/run
 - **Adım:** "Sorun bildir" öğesine dokun (kaynak satırı 261); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /patrols/:id/issues` (patrol, `services/patrol/main.go:155`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER/STAFF
@@ -11967,7 +11968,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-PATROL-RUN-04`
 
 #### Y-PATROL-RUN-05 · Düğme: Turu bitir
-- **Hesap:** GÖREVLİ · **Nerede:** http://localhost:3003/#/patrol/run
+- **Hesap:** GÖREVLİ · **Nerede:** http://localhost:3103/#/patrol/run
 - **Adım:** "Turu bitir" öğesine dokun (kaynak satırı 262); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /patrols/:id/complete` (patrol, `services/patrol/main.go:179`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER/STAFF
@@ -11989,7 +11990,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-PATROL-RUN-05`
 
 #### Y-PATROL-RUN-06 · Düğme: Başlat
-- **Hesap:** GÖREVLİ · **Nerede:** http://localhost:3003/#/patrol/run
+- **Hesap:** GÖREVLİ · **Nerede:** http://localhost:3103/#/patrol/run
 - **Adım:** "Başlat" öğesine dokun (kaynak satırı 281)
 - **Beklenen (yazma):** `POST /patrols` (patrol, `services/patrol/main.go:133`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER/STAFF
@@ -12006,8 +12007,8 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `admin_app/lib/features/personnel/presentation/screens/personnel_management_screen.dart`
 
 #### Y-PERSONNEL-MANAGEMENT-00 · Ekran açılışı ve görünüm
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/personnel
-- **Adım:** Ekranı aç: http://localhost:3003/#/personnel — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/personnel
+- **Adım:** Ekranı aç: http://localhost:3103/#/personnel — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /employees` (personnel); `GET /employees/summary` (personnel); `GET /leaves` (personnel); `GET /payroll` (personnel); `GET /payroll/costs` (personnel); `GET /compliance-calendar` (personnel); `GET /employees/:id` (personnel)
 - **Adım:** Başlık (satır 79): Personel
 - **Adım:** Her sekmeye tıkla, içerik hatasız yüklenir: Personel
@@ -12020,7 +12021,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-PERSONNEL-MANAGEMENT-00`
 
 #### Y-PERSONNEL-MANAGEMENT-01 · Düğme: İzin gir
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/personnel
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/personnel
 - **Adım:** "İzin gir" öğesine dokun (kaynak satırı 81)
 - **Beklenen (yazma):** `POST /leaves` (personnel, `services/personnel/main.go:83`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -12032,7 +12033,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-PERSONNEL-MANAGEMENT-01`
 
 #### Y-PERSONNEL-MANAGEMENT-02 · Düğme: Personel
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/personnel
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/personnel
 - **Adım:** "Personel" öğesine dokun (kaynak satırı 90)
 - **Beklenen (yazma):** `POST /employees` (personnel, `services/personnel/main.go:81`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -12044,25 +12045,25 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-PERSONNEL-MANAGEMENT-02`
 
 #### Y-PERSONNEL-MANAGEMENT-03 · Düğme: simge düğmesi (satır 113)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/personnel
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/personnel
 - **Adım:** "simge düğmesi (satır 113)" öğesine dokun (kaynak satırı 113); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-PERSONNEL-MANAGEMENT-03`
 
 #### Y-PERSONNEL-MANAGEMENT-04 · Düğme: simge düğmesi (satır 245)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/personnel
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/personnel
 - **Adım:** "simge düğmesi (satır 245)" öğesine dokun (kaynak satırı 245); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-PERSONNEL-MANAGEMENT-04`
 
 #### Y-PERSONNEL-MANAGEMENT-05 · Düğme: simge düğmesi (satır 247)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/personnel
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/personnel
 - **Adım:** "simge düğmesi (satır 247)" öğesine dokun (kaynak satırı 247); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-PERSONNEL-MANAGEMENT-05`
 
 #### Y-PERSONNEL-MANAGEMENT-06 · Düğme: Bordro gir
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/personnel
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/personnel
 - **Adım:** "Bordro gir" öğesine dokun (kaynak satırı 267)
 - **Beklenen (yazma):** `POST /payroll` (personnel, `services/personnel/main.go:97`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -12075,13 +12076,13 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-PERSONNEL-MANAGEMENT-06`
 
 #### Y-PERSONNEL-MANAGEMENT-07 · Seçim: ${DateTime.now().year - i}
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/personnel
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/personnel
 - **Adım:** "${DateTime.now().year - i}" seçimini değiştir; her seçenekte içerik buna göre değişmeli
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-PERSONNEL-MANAGEMENT-07`
 
 #### Y-PERSONNEL-MANAGEMENT-08 · Düğme: Verildi
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/personnel
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/personnel
 - **Adım:** "Verildi" öğesine dokun (kaynak satırı 374)
 - **Beklenen (yazma):** `POST /employees/:id/sgk` (personnel, `services/personnel/main.go:90`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -12098,8 +12099,8 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `admin_app/lib/features/renovations/presentation/screens/renovations_screen.dart`
 
 #### Y-RENOVATIONS-00 · Ekran açılışı ve görünüm
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/renovations
-- **Adım:** Ekranı aç: http://localhost:3003/#/renovations — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/renovations
+- **Adım:** Ekranı aç: http://localhost:3103/#/renovations — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /renovations` (community); `GET /residents` (identity); `GET /renovations/:id` (community)
 - **Adım:** Mesaj (satır 66): Başvuru kaydedildi. ${r[
 - **Adım:** Başlık (satır 83): Tadilat izinleri
@@ -12109,7 +12110,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-RENOVATIONS-00`
 
 #### Y-RENOVATIONS-01 · Düğme: Başvuru
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/renovations
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/renovations
 - **Adım:** "Başvuru" öğesine dokun (kaynak satırı 84); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /renovations` (community, `services/community/renovation.go:88`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: işleyicide `isManagement` (backend/services/community/main.go:257)
@@ -12124,13 +12125,13 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-RENOVATIONS-01`
 
 #### Y-RENOVATIONS-02 · Düğme: ${p[
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/renovations
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/renovations
 - **Adım:** "${p[" öğesine dokun (kaynak satırı 91); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-RENOVATIONS-02`
 
 #### Y-RENOVATIONS-03 · Düğme: Rıza kaydet
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/renovations
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/renovations
 - **Adım:** "Rıza kaydet" öğesine dokun (kaynak satırı 187)
 - **Beklenen (yazma):** `POST /renovations/:id/consents` (community, `services/community/renovation.go:161`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -12142,7 +12143,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-RENOVATIONS-03`
 
 #### Y-RENOVATIONS-04 · Düğme: Onayla
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/renovations
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/renovations
 - **Adım:** "Onayla" öğesine dokun (kaynak satırı 192)
 - **Beklenen (yazma):** `POST /renovations/:id/approve` (community, `services/community/renovation.go:190`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -12157,7 +12158,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-RENOVATIONS-04`
 
 #### Y-RENOVATIONS-05 · Düğme: Reddet
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/renovations
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/renovations
 - **Adım:** "Reddet" öğesine dokun (kaynak satırı 193)
 - **Beklenen (yazma):** `POST /renovations/:id/reject` (community, `services/community/renovation.go:284`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -12172,7 +12173,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-RENOVATIONS-05`
 
 #### Y-RENOVATIONS-06 · Düğme: Denetle ve kapat
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/renovations
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/renovations
 - **Adım:** "Denetle ve kapat" öğesine dokun (kaynak satırı 202)
 - **Beklenen (yazma):** `POST /renovations/:id/complete` (community, `services/community/renovation.go:320`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -12187,7 +12188,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-RENOVATIONS-06`
 
 #### Y-RENOVATIONS-07 · Düğme: Çalışmayı durdur
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/renovations
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/renovations
 - **Adım:** "Çalışmayı durdur" öğesine dokun (kaynak satırı 214)
 - **Beklenen (yazma):** `POST /renovations/:id/stop` (community, `services/community/renovation.go:302`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -12207,8 +12208,8 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `admin_app/lib/features/reports/presentation/screens/reports_screen.dart`
 
 #### Y-REPORTS-00 · Ekran açılışı ve görünüm
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/reports
-- **Adım:** Ekranı aç: http://localhost:3003/#/reports — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/reports
+- **Adım:** Ekranı aç: http://localhost:3103/#/reports — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /finance/reports/debtors` (finance); `GET /finance/reports/debtors` (finance); `GET /finance/reports/collections` (finance); `GET /finance/reports/collections` (finance)
 - **Adım:** Başlık (satır 29): Raporlar
 - **Adım:** Aşağı çekerek yenile (varsa) ya da ekrana yeniden gir: aynı veri gelir
@@ -12216,25 +12217,25 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-REPORTS-00`
 
 #### Y-REPORTS-01 · Düğme: PDF
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/reports
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/reports
 - **Adım:** "PDF" öğesine dokun (kaynak satırı 37)
 - **Beklenen (okuma):** `GET /finance/reports/debtors` (finance) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Sonuç:** http://localhost:18000/sonuc → `Y-REPORTS-01`
 
 #### Y-REPORTS-02 · Düğme: Excel
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/reports
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/reports
 - **Adım:** "Excel" öğesine dokun (kaynak satırı 38)
 - **Beklenen (okuma):** `GET /finance/reports/debtors` (finance) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Sonuç:** http://localhost:18000/sonuc → `Y-REPORTS-02`
 
 #### Y-REPORTS-03 · Düğme: PDF
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/reports
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/reports
 - **Adım:** "PDF" öğesine dokun (kaynak satırı 43)
 - **Beklenen (okuma):** `GET /finance/reports/collections` (finance) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Sonuç:** http://localhost:18000/sonuc → `Y-REPORTS-03`
 
 #### Y-REPORTS-04 · Düğme: Excel
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/reports
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/reports
 - **Adım:** "Excel" öğesine dokun (kaynak satırı 44)
 - **Beklenen (okuma):** `GET /finance/reports/collections` (finance) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Sonuç:** http://localhost:18000/sonuc → `Y-REPORTS-04`
@@ -12245,8 +12246,8 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `admin_app/lib/features/requests/presentation/screens/request_detail_screen.dart`
 
 #### Y-REQUEST-DETAIL-00 · Ekran açılışı ve görünüm
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/requests/:id
-- **Adım:** Ekranı aç: http://localhost:3003/#/requests/:id — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/requests/:id
+- **Adım:** Ekranı aç: http://localhost:3103/#/requests/:id — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /requests` (community)
 - **Adım:** Başlık (satır 40): Talep Detayı
 - **Adım:** Aşağı çekerek yenile (varsa) ya da ekrana yeniden gir: aynı veri gelir
@@ -12254,7 +12255,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-REQUEST-DETAIL-00`
 
 #### Y-REQUEST-DETAIL-01 · Düğme: IN_PROGRESS / İşleme al / Çözüldü olarak işaretle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/requests/:id
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/requests/:id
 - **Adım:** "IN_PROGRESS / İşleme al / Çözüldü olarak işaretle" öğesine dokun (kaynak satırı 69)
 - **Beklenen (yazma):** `PATCH /requests/:id/status` (community, `services/community/main.go:85`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: BOARD_MEMBER/MANAGER/STAFF
@@ -12271,8 +12272,8 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `admin_app/lib/features/requests/presentation/screens/requests_screen.dart`
 
 #### Y-REQUESTS-00 · Ekran açılışı ve görünüm
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/requests
-- **Adım:** Ekranı aç: http://localhost:3003/#/requests — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/requests
+- **Adım:** Ekranı aç: http://localhost:3103/#/requests — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /requests` (community)
 - **Adım:** Başlık (satır 91): Talepler
 - **Adım:** Aşağı çekerek yenile (varsa) ya da ekrana yeniden gir: aynı veri gelir
@@ -12280,13 +12281,13 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-REQUESTS-00`
 
 #### Y-REQUESTS-01 · Düğme: simge düğmesi (satır 94)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/requests
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/requests
 - **Adım:** "simge düğmesi (satır 94)" öğesine dokun (kaynak satırı 94)
 - **Beklenen (okuma):** `GET /requests` (community) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Sonuç:** http://localhost:18000/sonuc → `Y-REQUESTS-01`
 
 #### Y-REQUESTS-02 · Düğme: ${ticket.isEmpty ? 
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/requests
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/requests
 - **Adım:** "${ticket.isEmpty ? " öğesine dokun (kaynak satırı 159); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-REQUESTS-02`
@@ -12297,8 +12298,8 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `admin_app/lib/features/reservations/presentation/screens/reservation_management_screen.dart`
 
 #### Y-RESERVATION-MANAGEMENT-00 · Ekran açılışı ve görünüm
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/reservations
-- **Adım:** Ekranı aç: http://localhost:3003/#/reservations — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/reservations
+- **Adım:** Ekranı aç: http://localhost:3103/#/reservations — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /reservations` (reservation); `GET /facilities` (reservation)
 - **Adım:** Başlık (satır 181): Rezervasyonlar
 - **Adım:** Her sekmeye tıkla, içerik hatasız yüklenir: Rezervasyonlar
@@ -12308,25 +12309,25 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-RESERVATION-MANAGEMENT-00`
 
 #### Y-RESERVATION-MANAGEMENT-01 · Düğme: Menü: Onayla
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/reservations
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/reservations
 - **Adım:** "Menü: Onayla" öğesine dokun (kaynak satırı 240); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-RESERVATION-MANAGEMENT-01`
 
 #### Y-RESERVATION-MANAGEMENT-02 · Düğme: Menü: Reddet
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/reservations
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/reservations
 - **Adım:** "Menü: Reddet" öğesine dokun (kaynak satırı 243); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-RESERVATION-MANAGEMENT-02`
 
 #### Y-RESERVATION-MANAGEMENT-03 · Düğme: Menü: İptal et
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/reservations
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/reservations
 - **Adım:** "Menü: İptal et" öğesine dokun (kaynak satırı 245); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-RESERVATION-MANAGEMENT-03`
 
 #### Y-RESERVATION-MANAGEMENT-04 · Düğme: Tesis ekle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/reservations
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/reservations
 - **Adım:** "Tesis ekle" öğesine dokun (kaynak satırı 264)
 - **Beklenen (yazma):** `POST /facilities` (reservation, `services/reservation/main.go:280`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -12347,7 +12348,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-RESERVATION-MANAGEMENT-04`
 
 #### Y-RESERVATION-MANAGEMENT-05 · Düğme: simge düğmesi (satır 296)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/reservations
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/reservations
 - **Adım:** "simge düğmesi (satır 296)" öğesine dokun (kaynak satırı 296)
 - **Beklenen (yazma):** `POST /facilities` (reservation, `services/reservation/main.go:280`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -12373,8 +12374,8 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `admin_app/lib/features/residents/presentation/screens/add_resident_screen.dart`
 
 #### Y-ADD-RESIDENT-00 · Ekran açılışı ve görünüm
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/residents/add
-- **Adım:** Ekranı aç: http://localhost:3003/#/residents/add — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/residents/add
+- **Adım:** Ekranı aç: http://localhost:3103/#/residents/add — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /units` (identity)
 - **Adım:** Mesaj (satır 52): Birimler yüklenemedi, lütfen tekrar deneyin
 - **Adım:** Başlık (satır 60): Yeni Sakin Ekle
@@ -12392,19 +12393,19 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-ADD-RESIDENT-00`
 
 #### Y-ADD-RESIDENT-01 · Seçim: ${u[
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/residents/add
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/residents/add
 - **Adım:** "${u[" seçimini değiştir; her seçenekte içerik buna göre değişmeli
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-ADD-RESIDENT-01`
 
 #### Y-ADD-RESIDENT-02 · Seçim: Oturum Tipi
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/residents/add
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/residents/add
 - **Adım:** "Oturum Tipi" seçimini değiştir; her seçenekte içerik buna göre değişmeli
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-ADD-RESIDENT-02`
 
 #### Y-ADD-RESIDENT-03 · Düğme: Kaydet
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/residents/add
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/residents/add
 - **Adım:** "Kaydet" öğesine dokun (kaynak satırı 122); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /residents` (identity, `services/identity/main.go:137`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: BOARD_MEMBER/MANAGER/OWNER/PROXY/TENANT
@@ -12423,7 +12424,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-ADD-RESIDENT-03`
 
 #### Y-ADD-RESIDENT-04 · Düğme: Tamam
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/residents/add
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/residents/add
 - **Adım:** "Tamam" öğesine dokun (kaynak satırı 159); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-ADD-RESIDENT-04`
@@ -12434,8 +12435,8 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `admin_app/lib/features/residents/presentation/screens/resident_detail_screen.dart`
 
 #### Y-RESIDENT-DETAIL-00 · Ekran açılışı ve görünüm
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/residents/:id
-- **Adım:** Ekranı aç: http://localhost:3003/#/residents/:id — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/residents/:id
+- **Adım:** Ekranı aç: http://localhost:3103/#/residents/:id — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /residents/:id` (identity)
 - **Adım:** Mesaj (satır 48): Sakin bilgileri yüklenemedi: ${errorText(e)}
 - **Adım:** Mesaj (satır 63): Kod üretilemedi: ${errorText(e)}
@@ -12446,7 +12447,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-RESIDENT-DETAIL-00`
 
 #### Y-RESIDENT-DETAIL-01 · Düğme: Menü: Etkinleştirme / şifre sıfırlama kodu üret
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/residents/:id
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/residents/:id
 - **Adım:** "Menü: Etkinleştirme / şifre sıfırlama kodu üret" öğesine dokun (kaynak satırı 146)
 - **Beklenen (yazma):** `POST /residents/:id/activation-code` (identity, `services/identity/main.go:152`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: AUDITOR/BOARD_MEMBER/MANAGER/STAFF
@@ -12460,7 +12461,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-RESIDENT-DETAIL-01`
 
 #### Y-RESIDENT-DETAIL-02 · Düğme: Menü: Telefon değiştir
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/residents/:id
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/residents/:id
 - **Adım:** "Menü: Telefon değiştir" öğesine dokun (kaynak satırı 147)
 - **Beklenen (yazma):** `POST /residents/:id/phone` (identity, `services/identity/main.go:155`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -12476,7 +12477,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-RESIDENT-DETAIL-02`
 
 #### Y-RESIDENT-DETAIL-03 · Düğme: Menü: Giriş kilidini aç
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/residents/:id
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/residents/:id
 - **Adım:** "Menü: Giriş kilidini aç" öğesine dokun (kaynak satırı 148)
 - **Beklenen (yazma):** `POST /residents/:id/unlock` (identity, `services/identity/main.go:156`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -12487,7 +12488,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-RESIDENT-DETAIL-03`
 
 #### Y-RESIDENT-DETAIL-04 · Düğme: Menü: Sıfat / ayrılış
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/residents/:id
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/residents/:id
 - **Adım:** "Menü: Sıfat / ayrılış" öğesine dokun (kaynak satırı 149)
 - **Beklenen (yazma):** `PATCH /residents/:id` (identity, `services/identity/main.go:151`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: BOARD_MEMBER/MANAGER/OWNER/PROXY/TENANT
@@ -12499,7 +12500,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-RESIDENT-DETAIL-04`
 
 #### Y-RESIDENT-DETAIL-05 · Düğme: Menü: Pasifleştir / Aktifleştir
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/residents/:id
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/residents/:id
 - **Adım:** "Menü: Pasifleştir / Aktifleştir" öğesine dokun (kaynak satırı 150)
 - **Beklenen (yazma):** `PATCH /residents/:id` (identity, `services/identity/main.go:151`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: BOARD_MEMBER/MANAGER/OWNER/PROXY/TENANT
@@ -12516,8 +12517,8 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `admin_app/lib/features/residents/presentation/screens/resident_tools_screen.dart`
 
 #### Y-RESIDENT-TOOLS-00 · Ekran açılışı ve görünüm
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/residents/presentation/screens/resident_tools_screen.dart`)
-- **Adım:** Ekranı aç: http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/residents/presentation/screens/resident_tools_screen.dart`) — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/residents/presentation/screens/resident_tools_screen.dart`)
+- **Adım:** Ekranı aç: http://localhost:3103 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/residents/presentation/screens/resident_tools_screen.dart`) — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /units` (identity); `GET /residents/invitations` (identity); `GET /residents/tenancy-requests` (identity); `GET /residents/tenancy-requests/:id/documents/:docId` (identity)
 - **Adım:** Mesaj (satır 60): ${r[
 - **Adım:** Başlık (satır 108): ${data.where((d) => d[
@@ -12529,7 +12530,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-RESIDENT-TOOLS-00`
 
 #### Y-RESIDENT-TOOLS-01 · Düğme: Toplu sakin ekle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/residents/presentation/screens/resident_tools_screen.dart`)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/residents/presentation/screens/resident_tools_screen.dart`)
 - **Adım:** "Toplu sakin ekle" öğesine dokun (kaynak satırı 161); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /residents/bulk` (identity, `services/identity/main.go:138`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: BOARD_MEMBER/MANAGER/OWNER/PROXY/TENANT
@@ -12546,7 +12547,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-RESIDENT-TOOLS-01`
 
 #### Y-RESIDENT-TOOLS-02 · Düğme: Davet et
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/residents/presentation/screens/resident_tools_screen.dart`)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/residents/presentation/screens/resident_tools_screen.dart`)
 - **Adım:** "Davet et" öğesine dokun (kaynak satırı 179); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /residents/invitations` (identity, `services/identity/main.go:140`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: BOARD_MEMBER/MANAGER/OWNER/PROXY/TENANT
@@ -12564,7 +12565,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-RESIDENT-TOOLS-02`
 
 #### Y-RESIDENT-TOOLS-03 · Düğme: Yönetim yolu başlat
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/residents/presentation/screens/resident_tools_screen.dart`)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/residents/presentation/screens/resident_tools_screen.dart`)
 - **Adım:** "Yönetim yolu başlat" öğesine dokun (kaynak satırı 217); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /residents/tenancy-requests` (identity, `services/identity/main.go:144`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: BOARD_MEMBER/MANAGER/OWNER/PROXY
@@ -12593,20 +12594,20 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-RESIDENT-TOOLS-03`
 
 #### Y-RESIDENT-TOOLS-04 · Düğme: ${_docKinds.firstWhere((k) => k.$1 == x[
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/residents/presentation/screens/resident_tools_screen.dart`)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/residents/presentation/screens/resident_tools_screen.dart`)
 - **Adım:** "${_docKinds.firstWhere((k) => k.$1 == x[" öğesine dokun (kaynak satırı 234)
 - **Beklenen (okuma):** `GET /residents/tenancy-requests/:id/documents/:docId` (identity) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Beklenen (dosya):** dosya iner/açılır; boş ya da bozuk değildir (PDF ise sayfalar okunur).
 - **Sonuç:** http://localhost:18000/sonuc → `Y-RESIDENT-TOOLS-04`
 
 #### Y-RESIDENT-TOOLS-05 · Düğme: Tamamla
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/residents/presentation/screens/resident_tools_screen.dart`)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/residents/presentation/screens/resident_tools_screen.dart`)
 - **Adım:** "Tamamla" öğesine dokun (kaynak satırı 246); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-RESIDENT-TOOLS-05`
 
 #### Y-RESIDENT-TOOLS-06 · Düğme: Yeni belge
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/residents/presentation/screens/resident_tools_screen.dart`)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/residents/presentation/screens/resident_tools_screen.dart`)
 - **Adım:** "Yeni belge" öğesine dokun (kaynak satırı 254); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /residents/tenancy-requests` (identity, `services/identity/main.go:144`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: BOARD_MEMBER/MANAGER/OWNER/PROXY
@@ -12635,7 +12636,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-RESIDENT-TOOLS-06`
 
 #### Y-RESIDENT-TOOLS-07 · Düğme: İptal
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/residents/presentation/screens/resident_tools_screen.dart`)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/residents/presentation/screens/resident_tools_screen.dart`)
 - **Adım:** "İptal" öğesine dokun (kaynak satırı 256)
 - **Beklenen (yazma):** `POST /residents/tenancy-requests/:id/cancel` (identity, `services/identity/main.go:147`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: BOARD_MEMBER/MANAGER
@@ -12648,7 +12649,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-RESIDENT-TOOLS-07`
 
 #### Y-RESIDENT-TOOLS-08 · Düğme: Geri al
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/residents/presentation/screens/resident_tools_screen.dart`)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/residents/presentation/screens/resident_tools_screen.dart`)
 - **Adım:** "Geri al" öğesine dokun (kaynak satırı 263)
 - **Beklenen (yazma):** `POST /residents/tenancy-requests/:id/reverse` (identity, `services/identity/main.go:148`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: BOARD_MEMBER/MANAGER
@@ -12670,8 +12671,8 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `admin_app/lib/features/residents/presentation/screens/residents_screen.dart`
 
 #### Y-RESIDENTS-00 · Ekran açılışı ve görünüm
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/residents
-- **Adım:** Ekranı aç: http://localhost:3003/#/residents — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/residents
+- **Adım:** Ekranı aç: http://localhost:3103/#/residents — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /residents` (identity)
 - **Adım:** Mesaj (satır 48): Sakinler yüklenemedi, lütfen tekrar deneyin
 - **Adım:** Başlık (satır 58): Sakinler
@@ -12681,43 +12682,43 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-RESIDENTS-00`
 
 #### Y-RESIDENTS-01 · Düğme: Davet, toplu ekleme, kiracılık bitişi
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/residents
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/residents
 - **Adım:** "Davet, toplu ekleme, kiracılık bitişi" öğesine dokun (kaynak satırı 61); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-RESIDENTS-01`
 
 #### Y-RESIDENTS-02 · Düğme: simge düğmesi (satır 66)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/residents
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/residents
 - **Adım:** "simge düğmesi (satır 66)" öğesine dokun (kaynak satırı 66); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (okuma):** `GET /residents` (identity) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Sonuç:** http://localhost:18000/sonuc → `Y-RESIDENTS-02`
 
 #### Y-RESIDENTS-03 · Düğme: simge düğmesi (satır 85)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/residents
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/residents
 - **Adım:** "simge düğmesi (satır 85)" öğesine dokun (kaynak satırı 85)
 - **Beklenen (okuma):** `GET /residents` (identity) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Sonuç:** http://localhost:18000/sonuc → `Y-RESIDENTS-03`
 
 #### Y-RESIDENTS-04 · Düğme: simge düğmesi (satır 127)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/residents
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/residents
 - **Adım:** "simge düğmesi (satır 127)" öğesine dokun (kaynak satırı 127); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-RESIDENTS-04`
 
 #### Y-RESIDENTS-05 · Düğme: Sakin Ekle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/residents
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/residents
 - **Adım:** "Sakin Ekle" öğesine dokun (kaynak satırı 137)
 - **Beklenen (okuma):** `GET /residents` (identity) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Sonuç:** http://localhost:18000/sonuc → `Y-RESIDENTS-05`
 
 #### Y-RESIDENTS-06 · Düğme: Uygula
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/residents
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/residents
 - **Adım:** "Uygula" öğesine dokun (kaynak satırı 174)
 - **Beklenen (okuma):** `GET /residents` (identity) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Sonuç:** http://localhost:18000/sonuc → `Y-RESIDENTS-06`
 
 #### Y-RESIDENTS-07 · Düğme: ${resident[
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/residents
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/residents
 - **Adım:** "${resident[" öğesine dokun (kaynak satırı 231); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-RESIDENTS-07`
@@ -12728,8 +12729,8 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `admin_app/lib/features/residents/presentation/widgets/activation_code_dialog.dart`
 
 #### Y-ACTIVATION-CODE-DIALOG-00 · Ekran açılışı ve görünüm
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/residents/presentation/widgets/activation_code_dialog.dart`)
-- **Adım:** Ekranı aç: http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/residents/presentation/widgets/activation_code_dialog.dart`) — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/residents/presentation/widgets/activation_code_dialog.dart`)
+- **Adım:** Ekranı aç: http://localhost:3103 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/residents/presentation/widgets/activation_code_dialog.dart`) — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Pencere (satır 23): $who için kod:
 - **Adım:** Mesaj (satır 45): Kod kopyalandı
 - **Adım:** Aşağı çekerek yenile (varsa) ya da ekrana yeniden gir: aynı veri gelir
@@ -12737,13 +12738,13 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-ACTIVATION-CODE-DIALOG-00`
 
 #### Y-ACTIVATION-CODE-DIALOG-01 · Düğme: Kod kopyalandı
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/residents/presentation/widgets/activation_code_dialog.dart`)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/residents/presentation/widgets/activation_code_dialog.dart`)
 - **Adım:** "Kod kopyalandı" öğesine dokun (kaynak satırı 39); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-ACTIVATION-CODE-DIALOG-01`
 
 #### Y-ACTIVATION-CODE-DIALOG-02 · Düğme: Kodu ilettim, kapat
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/residents/presentation/widgets/activation_code_dialog.dart`)
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103 (başka bir ekrandan açılan bileşen/pencere; `admin_app/lib/features/residents/presentation/widgets/activation_code_dialog.dart`)
 - **Adım:** "Kodu ilettim, kapat" öğesine dokun (kaynak satırı 61); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-ACTIVATION-CODE-DIALOG-02`
@@ -12754,8 +12755,8 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `admin_app/lib/features/roles/presentation/screens/roles_screen.dart`
 
 #### Y-ROLES-00 · Ekran açılışı ve görünüm
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/roles
-- **Adım:** Ekranı aç: http://localhost:3003/#/roles — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/roles
+- **Adım:** Ekranı aç: http://localhost:3103/#/roles — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /property-roles` (identity)
 - **Adım:** Mesaj (satır 48): Bu görev için kurul kararı bilgisi zorunludur
 - **Adım:** Başlık (satır 67): Görevlendirmeler
@@ -12764,7 +12765,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-ROLES-00`
 
 #### Y-ROLES-01 · Düğme: Görev ver
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/roles
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/roles
 - **Adım:** "Görev ver" öğesine dokun (kaynak satırı 68); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /property-roles` (identity, `services/identity/main.go:175`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: AUDITOR/BOARD_MEMBER/MANAGER/STAFF
@@ -12782,8 +12783,8 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `admin_app/lib/features/sensors/presentation/screens/sensors_screen.dart`
 
 #### Y-SENSORS-00 · Ekran açılışı ve görünüm
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/sensors
-- **Adım:** Ekranı aç: http://localhost:3003/#/sensors — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/sensors
+- **Adım:** Ekranı aç: http://localhost:3103/#/sensors — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /sensors/:id/data` (iot); `GET /iot/alerts` (iot); `GET /sensors` (iot)
 - **Adım:** Pencere (satır 49): Cihaz anahtarı
 - **Adım:** Başlık (satır 131): Sensörler
@@ -12801,19 +12802,19 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-SENSORS-00`
 
 #### Y-SENSORS-01 · Düğme: Kopyala
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/sensors
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/sensors
 - **Adım:** "Kopyala" öğesine dokun (kaynak satırı 59); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-SENSORS-01`
 
 #### Y-SENSORS-02 · Düğme: Tamam
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/sensors
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/sensors
 - **Adım:** "Tamam" öğesine dokun (kaynak satırı 63); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-SENSORS-02`
 
 #### Y-SENSORS-03 · Düğme: Sensör ekle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/sensors
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/sensors
 - **Adım:** "Sensör ekle" öğesine dokun (kaynak satırı 136); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /sensors` (iot, `services/iot/sensors.go:303`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -12832,7 +12833,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-SENSORS-03`
 
 #### Y-SENSORS-04 · Düğme: Menü: Onayla
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/sensors
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/sensors
 - **Adım:** "Menü: Onayla" öğesine dokun (kaynak satırı 166)
 - **Beklenen (yazma):** `POST /iot/alerts/:id/acknowledge` (iot, `services/iot/sensors.go:263`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER/STAFF
@@ -12844,7 +12845,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-SENSORS-04`
 
 #### Y-SENSORS-05 · Düğme: Menü: Kapat
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/sensors
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/sensors
 - **Adım:** "Menü: Kapat" öğesine dokun (kaynak satırı 167)
 - **Beklenen (yazma):** `POST /iot/alerts/:id/close` (iot, `services/iot/sensors.go:277`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER/STAFF
@@ -12856,13 +12857,13 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-SENSORS-05`
 
 #### Y-SENSORS-06 · Düğme: Menü: Geçmiş
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/sensors
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/sensors
 - **Adım:** "Menü: Geçmiş" öğesine dokun (kaynak satırı 199)
 - **Beklenen (okuma):** `GET /sensors/:id/data` (iot) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Sonuç:** http://localhost:18000/sonuc → `Y-SENSORS-06`
 
 #### Y-SENSORS-07 · Düğme: Menü: Düzenle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/sensors
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/sensors
 - **Adım:** "Menü: Düzenle" öğesine dokun (kaynak satırı 200)
 - **Beklenen (yazma):** `POST /sensors` (iot, `services/iot/sensors.go:303`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -12881,7 +12882,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-SENSORS-07`
 
 #### Y-SENSORS-08 · Düğme: Menü: Anahtarı yenile
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/sensors
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/sensors
 - **Adım:** "Menü: Anahtarı yenile" öğesine dokun (kaynak satırı 201)
 - **Beklenen (yazma):** `POST /sensors/:id/rotate-key` (iot, `services/iot/sensors.go:360`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -12893,13 +12894,13 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-SENSORS-08`
 
 #### Y-SENSORS-09 · Seçim: Tür *
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/sensors
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/sensors
 - **Adım:** "Tür *" seçimini değiştir; her seçenekte içerik buna göre değişmeli
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-SENSORS-09`
 
 #### Y-SENSORS-10 · Düğme: Kaydet
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/sensors
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/sensors
 - **Adım:** "Kaydet" öğesine dokun (kaynak satırı 282); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-SENSORS-10`
@@ -12910,8 +12911,8 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `admin_app/lib/features/settings/presentation/screens/api_settings_screen.dart`
 
 #### Y-API-SETTINGS-00 · Ekran açılışı ve görünüm
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/api-settings
-- **Adım:** Ekranı aç: http://localhost:3003/#/api-settings — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/api-settings
+- **Adım:** Ekranı aç: http://localhost:3103/#/api-settings — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /integrations/status` (karşılığı yok)
 - **Adım:** Başlık (satır 19): Entegrasyon Durumu
 - **Adım:** Aşağı çekerek yenile (varsa) ya da ekrana yeniden gir: aynı veri gelir
@@ -12924,8 +12925,8 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `admin_app/lib/features/settings/presentation/screens/site_settings_screen.dart`
 
 #### Y-SITE-SETTINGS-00 · Ekran açılışı ve görünüm
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/site-settings
-- **Adım:** Ekranı aç: http://localhost:3003/#/site-settings — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/site-settings
+- **Adım:** Ekranı aç: http://localhost:3103/#/site-settings — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /settings-history` (settings); `GET /settings` (settings); `GET /settings/definitions` (settings); `GET /retention-rules` (settings); `GET /retention-rules/log` (settings); `GET /privacy/cameras` (settings); `GET /privacy/biometrics` (settings); `GET /property` (identity); `GET /settings/owner-visibility` (settings)
 - **Adım:** Başlık (satır 52): Ayarlar
 - **Adım:** Her sekmeye tıkla, içerik hatasız yüklenir: Ayarlar
@@ -12939,7 +12940,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-SITE-SETTINGS-00`
 
 #### Y-SITE-SETTINGS-01 · Düğme: Şimdi imha et
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/site-settings
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/site-settings
 - **Adım:** "Şimdi imha et" öğesine dokun (kaynak satırı 150)
 - **Beklenen (yazma):** `POST /retention-rules/run` (settings, `services/settings/main.go:152`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -12958,7 +12959,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-SITE-SETTINGS-01`
 
 #### Y-SITE-SETTINGS-02 · Düğme: simge düğmesi (satır 168)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/site-settings
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/site-settings
 - **Adım:** "simge düğmesi (satır 168)" öğesine dokun (kaynak satırı 168)
 - **Beklenen (yazma):** `PUT /retention-rules/:category` (settings, `services/settings/main.go:143`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -12977,7 +12978,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-SITE-SETTINGS-02`
 
 #### Y-SITE-SETTINGS-03 · Düğme: simge düğmesi (satır 236)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/site-settings
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/site-settings
 - **Adım:** "simge düğmesi (satır 236)" öğesine dokun (kaynak satırı 236)
 - **Beklenen (yazma):** `PUT /privacy/cameras/:id` (settings, `services/settings/main.go:150`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -12996,7 +12997,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-SITE-SETTINGS-03`
 
 #### Y-SITE-SETTINGS-04 · Düğme: simge düğmesi (satır 246)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/site-settings
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/site-settings
 - **Adım:** "simge düğmesi (satır 246)" öğesine dokun (kaynak satırı 246)
 - **Beklenen (yazma):** `PUT /privacy/cameras/:id` (settings, `services/settings/main.go:150`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -13015,7 +13016,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-SITE-SETTINGS-04`
 
 #### Y-SITE-SETTINGS-05 · Düğme: simge düğmesi (satır 254)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/site-settings
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/site-settings
 - **Adım:** "simge düğmesi (satır 254)" öğesine dokun (kaynak satırı 254)
 - **Beklenen (yazma):** `POST /privacy/biometrics` (settings, `services/settings/main.go:151`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -13027,7 +13028,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-SITE-SETTINGS-05`
 
 #### Y-SITE-SETTINGS-06 · Düğme: Siteyi pasife al / Siteyi yeniden etkinleştir
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/site-settings
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/site-settings
 - **Adım:** "Siteyi pasife al / Siteyi yeniden etkinleştir" öğesine dokun (kaynak satırı 299)
 - **Beklenen (yazma):** `POST /property/deactivate` (identity, `services/identity/main.go:164`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: MANAGER
@@ -13048,7 +13049,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-SITE-SETTINGS-06`
 
 #### Y-SITE-SETTINGS-07 · Düğme: Değişiklik öner
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/site-settings
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/site-settings
 - **Adım:** "Değişiklik öner" öğesine dokun (kaynak satırı 351)
 - **Beklenen (yazma):** `POST /settings/owner-visibility` (settings, `services/settings/main.go:145`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -13061,7 +13062,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-SITE-SETTINGS-07`
 
 #### Y-SITE-SETTINGS-08 · Düğme: Not
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/site-settings
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/site-settings
 - **Adım:** "Not" öğesine dokun (kaynak satırı 372); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /settings/owner-visibility/:id/approve` (settings, `services/settings/main.go:146`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER; işleyicide `hasRole` (backend/services/settings/visibility.go:74)
@@ -13088,7 +13089,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-SITE-SETTINGS-08`
 
 #### Y-SITE-SETTINGS-09 · Düğme: Geri çek
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/site-settings
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/site-settings
 - **Adım:** "Geri çek" öğesine dokun (kaynak satırı 386)
 - **Beklenen (yazma):** `POST /settings/owner-visibility/:id/cancel` (settings, `services/settings/main.go:148`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -13106,8 +13107,8 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `admin_app/lib/features/surveys/presentation/screens/survey_management_screen.dart`
 
 #### Y-SURVEY-MANAGEMENT-00 · Ekran açılışı ve görünüm
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/surveys
-- **Adım:** Ekranı aç: http://localhost:3003/#/surveys — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/surveys
+- **Adım:** Ekranı aç: http://localhost:3103/#/surveys — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /surveys` (survey); `GET /surveys/:id` (survey); `GET /surveys/:id/comments` (survey)
 - **Adım:** Başlık (satır 73): Anketler
 - **Adım:** Başlık (satır 153): Anket yorumları
@@ -13120,25 +13121,25 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-SURVEY-MANAGEMENT-00`
 
 #### Y-SURVEY-MANAGEMENT-01 · Düğme: Anket
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/surveys
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/surveys
 - **Adım:** "Anket" öğesine dokun (kaynak satırı 75); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-SURVEY-MANAGEMENT-01`
 
 #### Y-SURVEY-MANAGEMENT-02 · Düğme: ${s[
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/surveys
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/surveys
 - **Adım:** "${s[" öğesine dokun (kaynak satırı 96); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** pencere/form hatasız açılır, alan adları ve açıklamaları anlaşılır; Vazgeç/kapat ile hiçbir kayıt oluşmadan kapanır. Formun gönderimi aynı ekrandaki "Form: …" testindedir.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-SURVEY-MANAGEMENT-02`
 
 #### Y-SURVEY-MANAGEMENT-03 · Düğme: Yorumlar
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/surveys
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/surveys
 - **Adım:** "Yorumlar" öğesine dokun (kaynak satırı 148)
 - **Beklenen (okuma):** `GET /surveys/:id/comments` (survey) — veri yüklenir; boşsa "kayıt yok" türü boş durum mesajı; hata varsa anlaşılır Türkçe mesaj (ham JSON/stack değil).
 - **Sonuç:** http://localhost:18000/sonuc → `Y-SURVEY-MANAGEMENT-03`
 
 #### Y-SURVEY-MANAGEMENT-04 · Düğme: İptal et
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/surveys
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/surveys
 - **Adım:** "İptal et" öğesine dokun (kaynak satırı 197); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /surveys/:id/cancel` (survey, `services/survey/main.go:218`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -13167,7 +13168,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-SURVEY-MANAGEMENT-04`
 
 #### Y-SURVEY-MANAGEMENT-05 · Düğme: Oylamayı bitir
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/surveys
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/surveys
 - **Adım:** "Oylamayı bitir" öğesine dokun (kaynak satırı 205); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /surveys/:id/cancel` (survey, `services/survey/main.go:218`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -13196,7 +13197,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-SURVEY-MANAGEMENT-05`
 
 #### Y-SURVEY-MANAGEMENT-06 · Düğme: Yayınla
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/surveys
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/surveys
 - **Adım:** "Yayınla" öğesine dokun (kaynak satırı 212); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /surveys/:id/cancel` (survey, `services/survey/main.go:218`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -13225,37 +13226,37 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-SURVEY-MANAGEMENT-06`
 
 #### Y-SURVEY-MANAGEMENT-07 · Seçim: Tür
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/surveys
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/surveys
 - **Adım:** "Tür" seçimini değiştir; her seçenekte içerik buna göre değişmeli
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-SURVEY-MANAGEMENT-07`
 
 #### Y-SURVEY-MANAGEMENT-08 · Düğme: simge düğmesi (satır 308)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/surveys
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/surveys
 - **Adım:** "simge düğmesi (satır 308)" öğesine dokun (kaynak satırı 308); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-SURVEY-MANAGEMENT-08`
 
 #### Y-SURVEY-MANAGEMENT-09 · Düğme: Seçenek ekle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/surveys
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/surveys
 - **Adım:** "Seçenek ekle" öğesine dokun (kaynak satırı 315); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-SURVEY-MANAGEMENT-09`
 
 #### Y-SURVEY-MANAGEMENT-10 · Düğme: Bitiş tarihi
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/surveys
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/surveys
 - **Adım:** "Bitiş tarihi" öğesine dokun (kaynak satırı 335); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-SURVEY-MANAGEMENT-10`
 
 #### Y-SURVEY-MANAGEMENT-11 · Düğme: simge düğmesi (satır 339)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/surveys
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/surveys
 - **Adım:** "simge düğmesi (satır 339)" öğesine dokun (kaynak satırı 339); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-SURVEY-MANAGEMENT-11`
 
 #### Y-SURVEY-MANAGEMENT-12 · Düğme: Taslak olarak kaydet
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/surveys
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/surveys
 - **Adım:** "Taslak olarak kaydet" öğesine dokun (kaynak satırı 347)
 - **Beklenen (yazma):** `POST /surveys` (survey, `services/survey/main.go:168`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -13273,8 +13274,8 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `admin_app/lib/features/units/presentation/screens/units_screen.dart`
 
 #### Y-UNITS-00 · Ekran açılışı ve görünüm
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/units
-- **Adım:** Ekranı aç: http://localhost:3003/#/units — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/units
+- **Adım:** Ekranı aç: http://localhost:3103/#/units — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /finance/clearance-certificates/:id/pdf` (finance); `GET /units` (identity)
 - **Adım:** Mesaj (satır 131): Borcu yoktur belgesi üretildi (geçerlilik ${formatDate(r[
 - **Adım:** Başlık (satır 141): Bağımsız bölümler
@@ -13283,7 +13284,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-UNITS-00`
 
 #### Y-UNITS-01 · Düğme: Toplu ekle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/units
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/units
 - **Adım:** "Toplu ekle" öğesine dokun (kaynak satırı 142); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /units` (identity, `services/identity/main.go:184`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: BOARD_MEMBER/MANAGER
@@ -13294,7 +13295,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-UNITS-01`
 
 #### Y-UNITS-02 · Düğme: Bölüm
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/units
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/units
 - **Adım:** "Bölüm" öğesine dokun (kaynak satırı 144)
 - **Beklenen (yazma):** `POST /units` (identity, `services/identity/main.go:184`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: serviste rol karşılaştırması: BOARD_MEMBER/MANAGER
@@ -13316,8 +13317,8 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `admin_app/lib/features/usta_hizmet/presentation/screens/site_market_screens.dart`
 
 #### Y-SITE-MARKETS-00 · Ekran açılışı ve görünüm
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/usta-hizmet, http://localhost:3003/#/usta-hizmet/:id
-- **Adım:** Ekranı aç: http://localhost:3003/#/usta-hizmet, http://localhost:3003/#/usta-hizmet/:id — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/usta-hizmet, http://localhost:3103/#/usta-hizmet/:id
+- **Adım:** Ekranı aç: http://localhost:3103/#/usta-hizmet, http://localhost:3103/#/usta-hizmet/:id — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /market/meta` (marketplace); `GET /market/requests` (marketplace); `GET /market/requests/:id/job` (marketplace); `GET /market/requests/:id` (marketplace); `GET /market/requests/:id/offers` (marketplace); `GET /expense-categories` (expense)
 - **Adım:** Başlık (satır 56): Usta & Hizmet
 - **Adım:** Başlık (satır 138): Site talebi
@@ -13326,11 +13327,11 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-SITE-MARKETS-00`
 
 #### Y-SITE-MARKETS-01 · Düğme: Teklif topla
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/usta-hizmet, http://localhost:3003/#/usta-hizmet/:id
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/usta-hizmet, http://localhost:3103/#/usta-hizmet/:id
 - **Adım:** "Teklif topla" öğesine dokun (kaynak satırı 57)
 - **Beklenen (yazma):** `POST /market/requests` (marketplace, `services/marketplace/main.go:85`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: işleyicide `hasRole` (backend/services/settings/visibility.go:74)
-  - Veritabanı tetikleyicileri çalışır: `mp_requests_active_property` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
+  - Veritabanı tetikleyicileri çalışır: `mp_requests_active_property`, `mp_requests_closed_lock` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
   - **Veritabanı (Adminer → SQL komutu):**
     - `mp_request_contacts` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM mp_request_contacts ORDER BY xmin::text::bigint DESC LIMIT 5;`
     - `mp_request_dispatch` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM mp_request_dispatch ORDER BY xmin::text::bigint DESC LIMIT 5;`
@@ -13345,17 +13346,17 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-SITE-MARKETS-01`
 
 #### Y-SITE-MARKETS-02 · Düğme: ${r[
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/usta-hizmet, http://localhost:3003/#/usta-hizmet/:id
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/usta-hizmet, http://localhost:3103/#/usta-hizmet/:id
 - **Adım:** "${r[" öğesine dokun (kaynak satırı 65); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-SITE-MARKETS-02`
 
 #### Y-SITE-MARKETS-03 · Düğme: Seç
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/usta-hizmet, http://localhost:3003/#/usta-hizmet/:id
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/usta-hizmet, http://localhost:3103/#/usta-hizmet/:id
 - **Adım:** "Seç" öğesine dokun (kaynak satırı 176)
 - **Beklenen (yazma):** `POST /market/requests/:id/offers/:offerId/select` (marketplace, `services/marketplace/main.go:91`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: işleyicide `hasRole` (backend/services/settings/visibility.go:74)
-  - Veritabanı tetikleyicileri çalışır: `mp_jobs_completed_refresh`, `mp_requests_active_property` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
+  - Veritabanı tetikleyicileri çalışır: `mp_jobs_completed_refresh`, `mp_offers_accepted_lock`, `mp_requests_active_property`, `mp_requests_closed_lock` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
   - **Veritabanı (Adminer → SQL komutu):**
     - `mp_jobs` — yeni satır eklenmiş olmalı: `SELECT xmin, * FROM mp_jobs ORDER BY xmin::text::bigint DESC LIMIT 5;`
     - `mp_offers` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM mp_offers ORDER BY xmin::text::bigint DESC LIMIT 5;`
@@ -13368,11 +13369,11 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-SITE-MARKETS-03`
 
 #### Y-SITE-MARKETS-04 · Düğme: Teklif seçmeden kapat
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/usta-hizmet, http://localhost:3003/#/usta-hizmet/:id
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/usta-hizmet, http://localhost:3103/#/usta-hizmet/:id
 - **Adım:** "Teklif seçmeden kapat" öğesine dokun (kaynak satırı 189)
 - **Beklenen (yazma):** `POST /market/requests/:id/close` (marketplace, `services/marketplace/main.go:92`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: işleyicide `hasRole` (backend/services/settings/visibility.go:74)
-  - Veritabanı tetikleyicileri çalışır: `mp_requests_active_property` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
+  - Veritabanı tetikleyicileri çalışır: `mp_offers_accepted_lock`, `mp_requests_active_property`, `mp_requests_closed_lock` (kısıtı ihlal eden deneme anlaşılır bir hata mesajıyla reddedilmeli)
   - **Veritabanı (Adminer → SQL komutu):**
     - `mp_offers` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM mp_offers ORDER BY xmin::text::bigint DESC LIMIT 5;`
     - `mp_requests` — ilgili satır güncellenmiş olmalı: `SELECT xmin, * FROM mp_requests ORDER BY xmin::text::bigint DESC LIMIT 5;`
@@ -13384,7 +13385,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-SITE-MARKETS-04`
 
 #### Y-SITE-MARKETS-05 · Düğme: Onay bekleyen gider oluştur
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/usta-hizmet, http://localhost:3003/#/usta-hizmet/:id
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/usta-hizmet, http://localhost:3103/#/usta-hizmet/:id
 - **Adım:** "Onay bekleyen gider oluştur" öğesine dokun (kaynak satırı 209)
 - **Beklenen (yazma):** `POST /expenses` (expense, `services/expense/main.go:71`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -13398,7 +13399,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-SITE-MARKETS-05`
 
 #### Y-SITE-MARKETS-06 · Düğme: İş tamamlandı, onayla
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/usta-hizmet, http://localhost:3003/#/usta-hizmet/:id
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/usta-hizmet, http://localhost:3103/#/usta-hizmet/:id
 - **Adım:** "İş tamamlandı, onayla" öğesine dokun (kaynak satırı 211)
 - **Beklenen (yazma):** `POST /market/requests/:id/job/confirm` (marketplace, `services/marketplace/main.go:96`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: işleyicide `hasRole` (backend/services/settings/visibility.go:74)
@@ -13416,8 +13417,8 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `admin_app/lib/features/violations/presentation/screens/violations_screen.dart`
 
 #### Y-VIOLATIONS-00 · Ekran açılışı ve görünüm
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/violations
-- **Adım:** Ekranı aç: http://localhost:3003/#/violations — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/violations
+- **Adım:** Ekranı aç: http://localhost:3103/#/violations — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /site-rules` (community); `GET /violations` (community); `GET /violations/:id` (community)
 - **Adım:** Başlık (satır 80): Kural ihlalleri
 - **Adım:** Her sekmeye tıkla, içerik hatasız yüklenir: İhlaller
@@ -13428,7 +13429,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-VIOLATIONS-00`
 
 #### Y-VIOLATIONS-01 · Düğme: İhlal
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/violations
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/violations
 - **Adım:** "İhlal" öğesine dokun (kaynak satırı 81); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /violations` (community, `services/community/violation.go:131`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: işleyicide `isManagement` (backend/services/community/main.go:257)
@@ -13444,13 +13445,13 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-VIOLATIONS-01`
 
 #### Y-VIOLATIONS-02 · Düğme: ${v[
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/violations
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/violations
 - **Adım:** "${v[" öğesine dokun (kaynak satırı 95); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-VIOLATIONS-02`
 
 #### Y-VIOLATIONS-03 · Düğme: Kural ekle
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/violations
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/violations
 - **Adım:** "Kural ekle" öğesine dokun (kaynak satırı 114)
 - **Beklenen (yazma):** `POST /site-rules` (community, `services/community/violation.go:66`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -13462,7 +13463,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-VIOLATIONS-03`
 
 #### Y-VIOLATIONS-04 · Düğme: Doğrula
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/violations
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/violations
 - **Adım:** "Doğrula" öğesine dokun (kaynak satırı 201)
 - **Beklenen (yazma):** `POST /violations/:id/verify` (community, `services/community/violation.go:210`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -13475,7 +13476,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-VIOLATIONS-04`
 
 #### Y-VIOLATIONS-05 · Düğme: Doğrulanmadı
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/violations
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/violations
 - **Adım:** "Doğrulanmadı" öğesine dokun (kaynak satırı 207)
 - **Beklenen (yazma):** `POST /violations/:id/escalate` (community, `services/community/violation.go:240`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -13510,7 +13511,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-VIOLATIONS-05`
 
 #### Y-VIOLATIONS-06 · Düğme: simge düğmesi (satır 212)
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/violations
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/violations
 - **Adım:** "simge düğmesi (satır 212)" öğesine dokun (kaynak satırı 212)
 - **Beklenen (yazma):** `POST /violations/:id/escalate` (community, `services/community/violation.go:240`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -13545,7 +13546,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-VIOLATIONS-06`
 
 #### Y-VIOLATIONS-07 · Düğme: Kapat
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/violations
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/violations
 - **Adım:** "Kapat" öğesine dokun (kaynak satırı 218)
 - **Beklenen (yazma):** `POST /violations/:id/escalate` (community, `services/community/violation.go:240`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -13580,7 +13581,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-VIOLATIONS-07`
 
 #### Y-VIOLATIONS-08 · Düğme: Doğrulanmadı
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/violations
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/violations
 - **Adım:** "Doğrulanmadı" öğesine dokun (kaynak satırı 219)
 - **Beklenen (yazma):** `POST /violations/:id/escalate` (community, `services/community/violation.go:240`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER
@@ -13620,8 +13621,8 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - Dosya: `admin_app/lib/features/visitors/presentation/screens/visitor_management_screen.dart`
 
 #### Y-VISITOR-MANAGEMENT-00 · Ekran açılışı ve görünüm
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/visitors
-- **Adım:** Ekranı aç: http://localhost:3003/#/visitors — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/visitors
+- **Adım:** Ekranı aç: http://localhost:3103/#/visitors — yükleme göstergesi sonra içerik ya da boş durum mesajı; kırmızı hata/çökme olmamalı
 - **Adım:** Veri yüklenir: `GET /visitors` (visitor); `GET /visitors/summary` (visitor); `GET /units` (identity)
 - **Adım:** Pencere (satır 61): ${v[
 - **Adım:** Başlık (satır 79): Ziyaretçiler
@@ -13638,13 +13639,13 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-VISITOR-MANAGEMENT-00`
 
 #### Y-VISITOR-MANAGEMENT-01 · Düğme: Tamam
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/visitors
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/visitors
 - **Adım:** "Tamam" öğesine dokun (kaynak satırı 68); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-VISITOR-MANAGEMENT-01`
 
 #### Y-VISITOR-MANAGEMENT-02 · Düğme: Geçiş koduyla giriş
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/visitors
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/visitors
 - **Adım:** "Geçiş koduyla giriş" öğesine dokun (kaynak satırı 80); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /visitors/verify-pass` (visitor, `services/visitor/main.go:174`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER/STAFF
@@ -13659,7 +13660,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-VISITOR-MANAGEMENT-02`
 
 #### Y-VISITOR-MANAGEMENT-03 · Düğme: Kayıt
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/visitors
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/visitors
 - **Adım:** "Kayıt" öğesine dokun (kaynak satırı 87); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen (yazma):** `POST /visitors` (visitor, `services/visitor/main.go:100`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: işleyicide `hasAnyRole` (backend/services/visitor/main.go:239); `resident_can_use`
@@ -13673,7 +13674,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-VISITOR-MANAGEMENT-03`
 
 #### Y-VISITOR-MANAGEMENT-04 · Düğme: Menü: Giriş yaptı
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/visitors
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/visitors
 - **Adım:** "Menü: Giriş yaptı" öğesine dokun (kaynak satırı 144)
 - **Beklenen (yazma):** `POST /visitors/:id/check-in` (visitor, `services/visitor/main.go:175`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER/STAFF
@@ -13710,7 +13711,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-VISITOR-MANAGEMENT-04`
 
 #### Y-VISITOR-MANAGEMENT-05 · Düğme: Menü: Çıkış yaptı
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/visitors
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/visitors
 - **Adım:** "Menü: Çıkış yaptı" öğesine dokun (kaynak satırı 145)
 - **Beklenen (yazma):** `POST /visitors/:id/check-in` (visitor, `services/visitor/main.go:175`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER/STAFF
@@ -13747,7 +13748,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-VISITOR-MANAGEMENT-05`
 
 #### Y-VISITOR-MANAGEMENT-06 · Düğme: Menü: Kodu yenile
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/visitors
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/visitors
 - **Adım:** "Menü: Kodu yenile" öğesine dokun (kaynak satırı 146)
 - **Beklenen (yazma):** `POST /visitors/:id/check-in` (visitor, `services/visitor/main.go:175`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER/STAFF
@@ -13784,7 +13785,7 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-VISITOR-MANAGEMENT-06`
 
 #### Y-VISITOR-MANAGEMENT-07 · Düğme: Menü: İptal et
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/visitors
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/visitors
 - **Adım:** "Menü: İptal et" öğesine dokun (kaynak satırı 147)
 - **Beklenen (yazma):** `POST /visitors/:id/check-in` (visitor, `services/visitor/main.go:175`) başarılı olur; başarı mesajı görünür; liste/ekran yenilenince değişiklik görünür.
   - Sunucu yetkisi: BOARD_MEMBER/MANAGER/STAFF
@@ -13821,31 +13822,31 @@ Uygulama: http://localhost:3003 (web derlemesi; tarayıcı penceresini telefon g
 - **Sonuç:** http://localhost:18000/sonuc → `Y-VISITOR-MANAGEMENT-07`
 
 #### Y-VISITOR-MANAGEMENT-08 · Düğme: Vazgeç
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/visitors
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/visitors
 - **Adım:** "Vazgeç" öğesine dokun (kaynak satırı 174); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-VISITOR-MANAGEMENT-08`
 
 #### Y-VISITOR-MANAGEMENT-09 · Düğme: Doğrula
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/visitors
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/visitors
 - **Adım:** "Doğrula" öğesine dokun (kaynak satırı 175); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-VISITOR-MANAGEMENT-09`
 
 #### Y-VISITOR-MANAGEMENT-10 · Seçim: ${u[
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/visitors
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/visitors
 - **Adım:** "${u[" seçimini değiştir; her seçenekte içerik buna göre değişmeli
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-VISITOR-MANAGEMENT-10`
 
 #### Y-VISITOR-MANAGEMENT-11 · Düğme: Vazgeç
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/visitors
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/visitors
 - **Adım:** "Vazgeç" öğesine dokun (kaynak satırı 229); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-VISITOR-MANAGEMENT-11`
 
 #### Y-VISITOR-MANAGEMENT-12 · Düğme: Kaydet
-- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3003/#/visitors
+- **Hesap:** YÖNETİCİ · **Nerede:** http://localhost:3103/#/visitors
 - **Adım:** "Kaydet" öğesine dokun (kaynak satırı 230); açılan pencere/formu gerçekçi değerlerle doldurup onayla
 - **Beklenen:** sunucuya istek gitmez; pencere/ekran/sekme hatasız açılır, içeriği doğru başlık ve alanlarla görünür, kapatma/geri dönme çalışır.
 - **Sonuç:** http://localhost:18000/sonuc → `Y-VISITOR-MANAGEMENT-12`
@@ -14725,7 +14726,9 @@ Adminer (http://localhost:18080, `test_okuyucu`) salt okunurdur: buradan veri DE
 | T-MONTHLY-ASSESSMENTS-GUARD | `monthly_assessments` | `monthly_assessments_guard` | BEFORE UPDATE | engeller: Tahakkukun sınıfı (kullanım/malik) değiştirilemez; düzeltme alacak dekontu ve yeni tahakkukla yapılır | ilgili kaydı arayüzden değiştirmeyi/silmeyi dene → reddedilmeli |
 | T-TRG-MONTHLY-ASSESSMENTS-TENA | `monthly_assessments` | `trg_monthly_assessments_tenant_link` | BEFORE INSERT | satırı düzenler | ilgili işlemi yap → `satır düzenlemesi` sonucu Adminer'de görünmeli |
 | T-MP-JOBS-COMPLETED-REFRESH | `mp_jobs` | `mp_jobs_completed_refresh` | AFTER UPDATE OF status | UPDATE mp_businesses | ilgili işlemi yap → `UPDATE mp_businesses` sonucu Adminer'de görünmeli |
+| T-MP-OFFERS-ACCEPTED-LOCK | `mp_offers` | `mp_offers_accepted_lock` | BEFORE UPDATE | engeller: Seçilen teklif değiştirilemez | ilgili kaydı arayüzden değiştirmeyi/silmeyi dene → reddedilmeli |
 | T-MP-REQUESTS-ACTIVE-PROPERTY | `mp_requests` | `mp_requests_active_property` | BEFORE INSERT | engeller: site pasif: % tablosuna yeni kayıt yazılamaz | ilgili kaydı arayüzden değiştirmeyi/silmeyi dene → reddedilmeli |
+| T-MP-REQUESTS-CLOSED-LOCK | `mp_requests` | `mp_requests_closed_lock` | BEFORE UPDATE | engeller: Teklifi seçilmiş talep değiştirilemez | ilgili kaydı arayüzden değiştirmeyi/silmeyi dene → reddedilmeli |
 | T-MP-REVIEWS-GUARD | `mp_reviews` | `mp_reviews_guard` | BEFORE UPDATE OR DELETE | engeller: Yorum silinemez; gerekçeyle gizlenebilir | ilgili kaydı arayüzden değiştirmeyi/silmeyi dene → reddedilmeli |
 | T-MP-REVIEWS-RATING-REFRESH | `mp_reviews` | `mp_reviews_rating_refresh` | AFTER INSERT OR UPDATE OF hidden_at | UPDATE mp_businesses | ilgili işlemi yap → `UPDATE mp_businesses` sonucu Adminer'de görünmeli |
 | T-MP-WALLET-LEDGER-NO-CHANGE | `mp_wallet_ledger` | `mp_wallet_ledger_no_change` | BEFORE UPDATE OR DELETE | engeller: Bakiye defteri değiştirilemez ve silinemez; düzeltme yeni bir hareketle yapılır | ilgili kaydı arayüzden değiştirmeyi/silmeyi dene → reddedilmeli |
@@ -14820,7 +14823,7 @@ Senaryoları iki pencereyle yürütmek kolaylaştırır: bir pencerede panel/yö
 
 ## E-KART-01 · Kartla ödeme (sahte iyzico)
 1. **a (KİRACI, sakin `/finance/payment`):** açık bir borcu kartla öde. Yeni sekmede **Sahte iyzico ödeme sayfası** açılır (tutar doğru).
-2. **b:** **Reddedildi: limit yetersiz** seç. Tarayıcı `http://localhost:3001/odeme-sonuc` sayfasına gelir: "Ödeme tamamlanamadı", kartın çekilmediği söylenir. Borç açık; Q-ODEME'de `FAILED`, hata nedeni yazılı.
+2. **b:** **Reddedildi: limit yetersiz** seç. Tarayıcı `http://localhost:3101/odeme-sonuc` sayfasına gelir: "Ödeme tamamlanamadı", kartın çekilmediği söylenir. Borç açık; Q-ODEME'de `FAILED`, hata nedeni yazılı.
 3. **c:** Yeniden kartla öde → **Ödeme başarılı**. Sonuç sayfası "Ödemeniz alındı"; uygulamada borç kapanmış; Q-ODEME `COMPLETED`, `gateway = iyzico`, `gateway_payment_id` dolu; http://localhost:18000/iyzico'da her çağrının imzası "geçerli".
 4. **d:** Yeniden kartla öde → **Yarıda bırak**. Ödeme `PENDING`; uzlaştırma bekçisi sonradan sorgular (B-BEKCI-KART). Aynı borç için ikinci ödeme başlatılabiliyor mu, çift tahsilat riski var mı gözle.
 - **Sonuç:** `E-KART-01`
@@ -14833,7 +14836,7 @@ Senaryoları iki pencereyle yürütmek kolaylaştırır: bir pencerede panel/yö
 ## E-BORCYOK-01 · Borcu yoktur belgesi
 1. MALİK_B1 tüm borcunu ödedikten sonra sakin aidat ekranında **Borcu yoktur belgesi** → PDF iner/açılır.
 2. Borcu olan KİRACI aynı işlemi dener → belge verilmez, nedeni yazılır.
-3. Belgedeki kodla `http://localhost:3001/dogrula/<kod>` (oturumsuz) → geçerli; kişisel veri yok.
+3. Belgedeki kodla `http://localhost:3101/dogrula/<kod>` (oturumsuz) → geçerli; kişisel veri yok.
 4. YÖNETİCİ panel `/dashboard/units` → B-1 → **Borcu yoktur** ile de üretebilir.
 - **Sonuç:** `E-BORCYOK-01`
 
@@ -15071,7 +15074,7 @@ Bunlar tarayıcıdan denenemez; burada yalnız beklenen durumları listelenir. E
 | `GET /moderation/photos` | moderation | arayüzde karşılığı yok |
 | `GET /moderation/photos/:id/image` | moderation | arayüzde karşılığı yok |
 | `GET /packages/:id` | package | arayüzde karşılığı yok |
-| `GET /public/clearance/:code` | finance | borcu yoktur belgesindeki karekod → `http://localhost:3001/dogrula/<kod>` (01 bölümünde test edilir) |
+| `GET /public/clearance/:code` | finance | borcu yoktur belgesindeki karekod → `http://localhost:3101/dogrula/<kod>` (01 bölümünde test edilir) |
 | `GET /sensors/:id` | iot | arayüzde karşılığı yok |
 | `POST /auth/refresh` | identity | jeton yenileme; oturum 15 dk sonra da sürüyorsa çalışıyor demektir (01 bölümü) |
 | `POST /auth/supplier-signup/verify` | identity | arayüzde karşılığı yok |
@@ -15112,7 +15115,7 @@ Bunlar tarayıcıdan denenemez; burada yalnız beklenen durumları listelenir. E
 
 > Elle yazılır. Her senaryo tek test ID'sidir; adımlar `.a`, `.b` … diye ayrı da kaydedilebilir (ör. `U-TALEP-01.c`).
 > Hesaplar (PLATFORM, TEDARİKÇİ1, TEDARİKÇİ2) ve sorgular (Q-TALEP, Q-GONDERIM, Q-DEFTER, Q-BILDIRIM): [00-baslangic.md](00-baslangic.md).
-> Tedarikçi tarafı panelde (`http://localhost:3001/tedarikci`) ya da tedarikçi uygulamasında (`http://localhost:3004`) yürütülebilir;
+> Tedarikçi tarafı panelde (`http://localhost:3101/tedarikci`) ya da tedarikçi uygulamasında (`http://localhost:3104`) yürütülebilir;
 > ikisi aynı uçları kullanır. Senaryo içinde hangisinin kullanıldığını sonuç notuna yazın.
 >
 > Gelir kuralı: tedarikçi talebi **kabul ettiği anda** ücret bakiyesinden (ya da paketinin dahil talep hakkından) düşer; alıcının adı ve
@@ -15196,7 +15199,7 @@ vitrinde telefon). Güneş Sitesi'nin konumu yoksa YÖNETİCİ önce panel **Aya
 - **Sonuç:** `U-KOSUL-01`
 
 ## U-ODEME-01 · Tedarikçi uygulamasında uygulama içi ödeme
-1. **a (Android APK ya da `http://localhost:3004`):** Bakiye → 100 TL → **Kartla öde**. Android'de ödeme sayfası uygulamanın içinde açılır (tarayıcıya çıkılmaz); web derlemesinde aynı sekmede.
+1. **a (Android APK ya da `http://localhost:3104`):** Bakiye → 100 TL → **Kartla öde**. Android'de ödeme sayfası uygulamanın içinde açılır (tarayıcıya çıkılmaz); web derlemesinde aynı sekmede.
 2. **b:** sahte iyzico'da **Ödeme başarılı** → sayfa kendiliğinden kapanır (web: uygulamanın Bakiye sayfasına döner), "Ödeme alındı; bakiye güncellendi" mesajı, bakiye +100 TL.
 3. **c:** yeni ödeme başlatıp sayfayı **X** ile kapat → "Ödemeden çıkılsın mı?" → **Çık**: bakiye değişmez; yükleme birkaç dakika içinde uzlaştırmayla sonuçlanır.
 - **Sonuç:** `U-ODEME-01`
@@ -15220,3 +15223,9 @@ vitrinde telefon). Güneş Sitesi'nin konumu yoksa YÖNETİCİ önce panel **Aya
 4. **d (`/platform/yapay-zeka`):** sağlayıcı ayarı (anahtarsız açma engellenir); anahtar kaydedilince "Tanımlı" yazar, anahtarın kendisi görünmez. Gerçek sağlayıcı yoksa bu adımı ATLANDI işaretle.
 5. **e (KİRACI, sakin uygulaması):** talebe telefonlu fotoğraf ekle → talep ekranında "Fotoğraf 1: tedarikçilere gösterilmedi — …".
 - **Sonuç:** `U-FOTO-01`
+
+## U-KILIT-01 · Teklif seçildikten sonra içerik kilidi (2026-11-02)
+1. **a (TEDARİKÇİ1, U-TALEP-01.f'de teklifi seçilen talep):** talebin "Teklifiniz" kartında teklif "Seçildi"; **Teklifi güncelle**, **Geri çek** ve teklif formu YOK.
+2. **b (KİRACI, Taleplerim → aynı talep):** talep "Teklif seçildi"; **Bu teklifi seç** ve **Talebi kapat** YOK; seçilen teklifin tutarı ve açıklaması tedarikçinin gördüğüyle aynı.
+3. **c:** `SELECT o.status, o.amount_kurus, o.description, o.edit_count, r.status, r.description FROM mp_offers o JOIN mp_requests r ON r.id = o.request_id WHERE o.status = 'ACCEPTED' ORDER BY o.updated_at DESC LIMIT 5;` — değerler seçim anındaki gibi. (Doğrudan veritabanı değişikliğinin reddi otomatik doğrulamada sınanıyor.)
+- **Sonuç:** `U-KILIT-01`

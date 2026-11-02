@@ -32,7 +32,7 @@ Bunlar tarayıcıdan denenemez; burada yalnız beklenen durumları listelenir. E
 | `GET /moderation/photos` | moderation | arayüzde karşılığı yok |
 | `GET /moderation/photos/:id/image` | moderation | arayüzde karşılığı yok |
 | `GET /packages/:id` | package | arayüzde karşılığı yok |
-| `GET /public/clearance/:code` | finance | borcu yoktur belgesindeki karekod → `http://localhost:3001/dogrula/<kod>` (01 bölümünde test edilir) |
+| `GET /public/clearance/:code` | finance | borcu yoktur belgesindeki karekod → `http://localhost:3101/dogrula/<kod>` (01 bölümünde test edilir) |
 | `GET /sensors/:id` | iot | arayüzde karşılığı yok |
 | `POST /auth/refresh` | identity | jeton yenileme; oturum 15 dk sonra da sürüyorsa çalışıyor demektir (01 bölümü) |
 | `POST /auth/supplier-signup/verify` | identity | arayüzde karşılığı yok |
